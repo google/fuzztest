@@ -1,0 +1,37 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Force the use of Clang for all builds.
+build --action_env=CC=clang
+build --action_env=CXX=clang++
+
+# Use the C++17 standard.
+build --cxxopt=-std=c++17
+
+# The FuzzTest configuration with ASAN and coverage instrumentation.
+build:fuzztest --linkopt=-fsanitize=address
+build:fuzztest --dynamic_mode=off
+build:fuzztest --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+# We rely on the following flag instead of the compiler provided
+# `__has_feature(address_sanitizer)` to know that we have an ASAN build even in
+# the uninstrumented runtime.
+build:fuzztest --copt=-DADDRESS_SANITIZER
+
+# In fuzz tests, we want to catch assertion violations even in optimized builds.
+build:fuzztest --copt=-UNDEBUG
+
+# We apply coverage tracking and ASAN instrumentation to everything but the
+# FuzzTest framework itself (including GoogleTest and GoogleMock).
+build:fuzztest --per_file_copt=+//,-//fuzztest:,-googletest/.*,-googlemock/.*@-fsanitize=address,-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp

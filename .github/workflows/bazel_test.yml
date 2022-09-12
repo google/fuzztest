@@ -1,0 +1,68 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Bazel Test
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Triggered every day at 3:00 AM UTC.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+env:
+  # Run daily CI checks against a very recent Bazel commit, but use the version
+  # pinned in .bazelversion for regular PR checks.
+  # This is a hacky workaround for GitHub Action's lack of inline conditionals.
+  # It is important that the value in the true case is not the empty string,
+  # see:
+  # https://github.com/actions/runner/issues/409#issuecomment-1013325196
+  USE_BAZEL_VERSION: ${{ github.event.schedule != '' && 'last_green' || '' }}
+
+jobs:
+  unit_tests:
+    name: All tests (default config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        mode: ["fastbuild", "opt", "dbg"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -yq \
+            clang-14
+      - name: Run unit tests
+        run: |
+          bazel test -c ${{ matrix.mode }} --build_tests_only //...
+  e2e_tests:
+    name: End-to-end tests (fuzztest config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        mode: ["fastbuild", "opt", "dbg"]
+    steps:
+      -name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -yq \
+            clang-14
+      - name: Run end-to-end tests
+        run: |
+          bazel test -c ${{ matrix.mode }} --config=fuzztest \
+            --build_tests_only //e2e_tests:all
