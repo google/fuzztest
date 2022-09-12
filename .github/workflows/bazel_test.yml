@@ -56,7 +56,7 @@ jobs:
       matrix:
         mode: ["fastbuild", "opt", "dbg"]
     steps:
-      -name: Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install dependencies
         run: |
