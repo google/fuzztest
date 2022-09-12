@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            clang-14
+            clang
       - name: Run unit tests
         run: |
           bazel test -c ${{ matrix.mode }} --build_tests_only //...
@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            clang-14
+            clang
       - name: Run end-to-end tests
         run: |
           bazel test -c ${{ matrix.mode }} --config=fuzztest \
