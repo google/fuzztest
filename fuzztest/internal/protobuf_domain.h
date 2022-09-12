@@ -188,6 +188,11 @@ auto IncludeAll() {
   return [](const T* field) { return true; };
 }
 
+template <typename T>
+std::function<Domain<T>(Domain<T>)> Identity() {
+  return [](Domain<T> domain) -> Domain<T> { return domain; };
+}
+
 template <typename Message>
 class ProtoPolicy {
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
@@ -227,6 +232,26 @@ class ProtoPolicy {
         CopyRecursivePolicyValues(domains_for_Enum_);
     children_policy.domains_for_Protobuf_ =
         CopyRecursivePolicyValues(domains_for_Protobuf_);
+    children_policy.transformers_for_Bool_ =
+        CopyRecursivePolicyValues(transformers_for_Bool_);
+    children_policy.transformers_for_Int32_ =
+        CopyRecursivePolicyValues(transformers_for_Int32_);
+    children_policy.transformers_for_UInt32_ =
+        CopyRecursivePolicyValues(transformers_for_UInt32_);
+    children_policy.transformers_for_Int64_ =
+        CopyRecursivePolicyValues(transformers_for_Int64_);
+    children_policy.transformers_for_UInt64_ =
+        CopyRecursivePolicyValues(transformers_for_UInt64_);
+    children_policy.transformers_for_Float_ =
+        CopyRecursivePolicyValues(transformers_for_Float_);
+    children_policy.transformers_for_Double_ =
+        CopyRecursivePolicyValues(transformers_for_Double_);
+    children_policy.transformers_for_String_ =
+        CopyRecursivePolicyValues(transformers_for_String_);
+    children_policy.transformers_for_Enum_ =
+        CopyRecursivePolicyValues(transformers_for_Enum_);
+    children_policy.transformers_for_Protobuf_ =
+        CopyRecursivePolicyValues(transformers_for_Protobuf_);
     return children_policy;
   }
 
@@ -337,6 +362,8 @@ class ProtoPolicy {
 #define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                           \
  private:                                                                      \
   std::vector<FilterToValue<Domain<cpp>>> domains_for_##Camel##_;              \
+  std::vector<FilterToValue<std::function<Domain<cpp>(Domain<cpp>)>>>          \
+      transformers_for_##Camel##_;                                             \
                                                                                \
  public:                                                                       \
   void SetDefaultDomainFor##Camel##s(                                          \
@@ -353,9 +380,24 @@ class ProtoPolicy {
                                       .value = std::move(domain),              \
                                       .is_recursive = true});                  \
   }                                                                            \
+  void SetDomainTransformerFor##Camel##s(                                      \
+      Filter filter,                                                           \
+      std::function<Domain<MakeDependentType<cpp, Message>>(                   \
+          Domain<MakeDependentType<cpp, Message>>)>                            \
+          transformer,                                                         \
+      bool is_recursive = true) {                                              \
+    transformers_for_##Camel##_.push_back({.filter = std::move(filter),        \
+                                           .value = std::move(transformer),    \
+                                           .is_recursive = true});             \
+  }                                                                            \
   std::optional<Domain<MakeDependentType<cpp, Message>>>                       \
       GetDefaultDomainFor##Camel##s(const FieldDescriptor* field) const {      \
     return GetPolicyValue(domains_for_##Camel##_, field);                      \
+  }                                                                            \
+  std::optional<std::function<Domain<MakeDependentType<cpp, Message>>(         \
+      Domain<MakeDependentType<cpp, Message>>)>>                               \
+      GetDomainTransformerFor##Camel##s(const FieldDescriptor* field) const {  \
+    return GetPolicyValue(transformers_for_##Camel##_, field);                 \
   }
 
   FUZZTEST_INTERNAL_POLICY_MEMBERS(Bool, bool)
@@ -840,21 +882,25 @@ class ProtobufDomainUntypedImpl
           }
         }
 
-#define FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Camel, TAG) \
-  if constexpr (std::is_same_v<T, TAG>) {                       \
-    self.GetPolicy().SetDefaultDomainFor##Camel##s(             \
-        field_filter, domain.Inner(), /*is_recursive=*/false);  \
+#define FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Camel, cpp, TAG) \
+  if constexpr (std::is_same_v<T, TAG>) {                            \
+    self.GetPolicy().SetDefaultDomainFor##Camel##s(                  \
+        field_filter, domain.Inner(), /*is_recursive=*/false);       \
+    self.GetPolicy().SetDomainTransformerFor##Camel##s(              \
+        field_filter, Identity<cpp>(), /*is_recursive=*/false);      \
   }
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Bool, bool)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int32, int32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt32, uint32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int64, int64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt64, uint64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Float, float)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Double, double)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(String, std::string)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Enum, ProtoEnumTag)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Protobuf, ProtoMessageTag)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Bool, bool, bool)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int32, int32_t, int32_t)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt32, uint32_t, uint32_t)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int64, int64_t, int64_t)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt64, uint64_t, uint64_t)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Float, float, float)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Double, double, double)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(String, std::string,
+                                                    std::string)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Enum, int, ProtoEnumTag)
+        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(
+            Protobuf, std::unique_ptr<Message>, ProtoMessageTag)
       }
     }
 
@@ -988,16 +1034,23 @@ class ProtobufDomainUntypedImpl
   template <typename T>
   auto GetBaseDomainForFieldType(const FieldDescriptor* field,
                                  bool use_policy) const {
+    auto default_domain = GetBaseDefaultDomainForFieldType<T>(field);
     if (!use_policy) {
-      return GetBaseDefaultDomainForFieldType<T>(field);
+      return default_domain;
     }
-#define FUZZTEST_INTERNAL_RETURN_BASE_DOMAIN_IF_PROVIDED(Camel, type) \
-  if constexpr (std::is_same_v<T, type>) {                            \
-    auto default_domain_in_policy =                                   \
-        policy_.GetDefaultDomainFor##Camel##s(field);                 \
-    if (default_domain_in_policy.has_value()) {                       \
-      return *default_domain_in_policy;                               \
-    }                                                                 \
+#define FUZZTEST_INTERNAL_RETURN_BASE_DOMAIN_IF_PROVIDED(Camel, type)       \
+  if constexpr (std::is_same_v<T, type>) {                                  \
+    auto default_domain_in_policy =                                         \
+        policy_.GetDefaultDomainFor##Camel##s(field);                       \
+    if (default_domain_in_policy.has_value()) {                             \
+      default_domain = std::move(*default_domain_in_policy);                \
+    }                                                                       \
+    auto transformer_in_policy =                                            \
+        policy_.GetDomainTransformerFor##Camel##s(field);                   \
+    if (transformer_in_policy.has_value()) {                                \
+      default_domain = (*transformer_in_policy)(std::move(default_domain)); \
+    }                                                                       \
+    return default_domain;                                                  \
   }
 
     FUZZTEST_INTERNAL_RETURN_BASE_DOMAIN_IF_PROVIDED(Bool, bool)
@@ -1155,6 +1208,8 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return inner_;
   }
 
+  ProtobufDomainImpl&& Self() && { return std::move(*this); }
+
   ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
@@ -1243,6 +1298,21 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
       Domain<Camel##type> domain)&& {                                          \
     inner_.GetPolicy().SetDefaultDomainFor##Camel##s(std::move(filter),        \
                                                      std::move(domain));       \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& With##Camel##FieldsTransformed(                         \
+      std::function<Domain<Camel##type>(Domain<Camel##type>)>&&                \
+          transformer)&& {                                                     \
+    inner_.GetPolicy().SetDomainTransformerFor##Camel##s(                      \
+        IncludeAll<FieldDescriptor>(), std::move(transformer));                \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& With##Camel##FieldsTransformed(                         \
+      std::function<bool(const FieldDescriptor*)>&& filter,                    \
+      std::function<Domain<Camel##type>(Domain<Camel##type>)>&&                \
+          transformer)&& {                                                     \
+    inner_.GetPolicy().SetDomainTransformerFor##Camel##s(                      \
+        std::move(filter), std::move(transformer));                            \
     return std::move(*this);                                                   \
   }
 

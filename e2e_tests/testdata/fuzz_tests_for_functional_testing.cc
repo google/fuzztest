@@ -368,6 +368,28 @@ void FailsIfRepeatedFieldsDontHaveTheMaximumSize(const TestProtobuf& proto) {
 FUZZ_TEST(MySuite, FailsIfRepeatedFieldsDontHaveTheMaximumSize)
     .WithDomains(Arbitrary<TestProtobuf>().WithRepeatedFieldsMaxSize(10));
 
+fuzztest::Domain<int> IgnoreZero(fuzztest::Domain<int> d) {
+  return fuzztest::Filter([](int x) { return x != 0; }, std::move(d));
+}
+
+void FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue(
+    const TestProtobuf& proto) {
+  if (proto.has_e() && proto.e() != TestProtobuf::Label1) {
+    std::abort();
+  }
+  for (auto e : proto.rep_e()) {
+    if (e == 0) {
+      std::abort();
+    }
+  }
+}
+FUZZ_TEST(MySuite,
+          FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue)
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithEnumFieldsTransformed(IgnoreZero)
+                     .WithEnumField("e",
+                                    fuzztest::Just<int>(TestProtobuf::Label1)));
+
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
   if (e == TestProtobuf::Enum::TestProtobuf_Enum_Label4) {
     std::abort();
