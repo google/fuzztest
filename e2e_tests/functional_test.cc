@@ -49,7 +49,6 @@ using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ContainsRegex;
 using ::testing::Eq;
-using ::testing::ExplainMatchResult;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -393,6 +392,16 @@ TEST(UnitTestModeTest, ArbitraryWorksWithEmptyInheritance) {
       RunWith(GetGTestFilterFlag("MySuite.ArbitraryWorksWithEmptyInheritance"));
   EXPECT_THAT(status.Signal(), Eq(SIGABRT));
   EXPECT_THAT(std_err, HasSubstr("argument 0:"));
+}
+
+TEST(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.FlatMapCorrectlyPrintsValues"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  // This is the argument to the output domain.
+  EXPECT_THAT(std_err, HasSubstr("argument 0: {\"AAA\", \"BBB\"}"));
+  // This is the argument to the input domain.
+  EXPECT_THAT(std_err, Not(HasSubstr("argument 0: 3")));
 }
 
 TEST(UnitTestModeTest, ProtoFieldsCanBeAlwaysSet) {
@@ -914,6 +923,27 @@ TEST_F(FuzzingModeTest, MappedDomainShowsMappedValue) {
               // NumberOfAnimalsToString may be mangled.
               R"re(.*NumberOfAnimalsToString.*\(TimesTwo\(6\), "monkey"\))re")));
   EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
+TEST_F(FuzzingModeTest, FlatMappedDomainShowsMappedValue) {
+  auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.FlatMapping");
+  EXPECT_THAT(std_err, AllOf(HasSubstr("argument 0: {\"abc\", 2}"),
+                             HasReproducerTest(
+                                 "MySuite", "FlatMapping",
+                                 // Account for the possibility that the symbol
+                                 // StringAndValidIndex may be mangled.
+                                 R"re(.*StringAndValidIndex.*\("abc"\))re")));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
+TEST_F(FuzzingModeTest, FlatMapPassesWhenCorrect) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.FlatMapPassesWhenCorrect", /*env=*/{},
+              /*timeout=*/absl::Seconds(1));
+  EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
+  EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
+  EXPECT_THAT(std_err, HasSubstr("Total runs:"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
 TEST_F(FuzzingModeTest, FilterDomainShowsOnlyFilteredValues) {
