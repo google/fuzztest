@@ -348,10 +348,9 @@ class FuzzTestFuzzerImpl<
       }
 
       if (execution_coverage_ == nullptr) {
-        absl::FPrintF(GetStderr(),
-                      "\n\n[!] To fuzz, please build with "
-                      "-fsanitize-coverage -fsanitize=address"
-                      ".\n\n\n");
+        absl::FPrintF(
+            GetStderr(),
+            "\n\n[!] To fuzz, please build with --config=fuzztest.\n\n\n");
         return 1;
       }
 
