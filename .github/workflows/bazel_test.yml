@@ -16,6 +16,8 @@ name: Bazel Test
 
 on:
   push:
+    branches:
+    - main
   pull_request:
   schedule:
     # Triggered every day at 3:00 AM UTC.
