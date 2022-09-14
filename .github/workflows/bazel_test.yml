@@ -47,7 +47,7 @@ jobs:
             clang
       - name: Run unit tests
         run: |
-          bazel test -c ${{ matrix.mode }} --build_tests_only //...
+          bazel test --test_output=errors -c ${{ matrix.mode }} --build_tests_only //...
   e2e_tests:
     name: End-to-end tests (fuzztest config)
     runs-on: ubuntu-latest
@@ -64,5 +64,5 @@ jobs:
             clang
       - name: Run end-to-end tests
         run: |
-          bazel test -c ${{ matrix.mode }} --config=fuzztest \
+          bazel test --test_output=errors -c ${{ matrix.mode }} --config=fuzztest \
             --build_tests_only //e2e_tests:all
