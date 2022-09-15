@@ -84,6 +84,7 @@ TYPED_TEST(NumericTest, Positive) {
   TestShrink(
       domain, values, [](auto v) { return v <= 1; }, TowardsZero<T>);
 }
+
 TYPED_TEST(NumericTest, NonNegative) {
   using T = TypeParam;
   Domain<T> domain = NonNegative<T>();
@@ -152,6 +153,15 @@ TYPED_TEST(NumericTest, NonZero) {
   Domain<T> domain = NonZero<T>();
   const auto values = GenerateValues(domain);
   for (auto v : values) ASSERT_THAT(v.user_value, Ne(0));
+}
+
+TEST(Finite, CreatesFiniteFloatingPointValuesAndShrinksTowardsZero) {
+  Domain<double> domain = Finite<double>();
+  const auto values = GenerateValues(domain);
+  for (auto v : values) ASSERT_TRUE(std::isfinite(v.user_value));
+  TestShrink(
+      domain, values, [](auto v) { return std::abs(v) <= 1; },
+      TowardsZero<double>);
 }
 
 TEST(IllegalInputs, Numeric) {

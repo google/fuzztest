@@ -86,6 +86,8 @@ more "restricted" numerical domains:
 -   `NonNegative<T>()` represents zero and numbers greater than zero.
 -   `Negative<T>()` represents numbers less than zero.
 -   `NonPositive<T>` represents zero and numbers less than zero.
+-   `Finite<T>` represent floating points numbers that are neither infinity nor
+    NaN.
 
 For instance, if your test function has a precondition that the input has to be
 positive, you can write your FUZZ_TEST like this:

@@ -482,6 +482,22 @@ auto OneOf(Inner... domains) {
   return internal::OneOfImpl<Inner...>(std::move(domains)...);
 }
 
+// Filter(predicate, inner) combinator creates a domain that filters out values
+// with `predicate` from an `inner` domain.
+//
+// IMPORTANT: Use this only to filter out a small subset of the original domain,
+// otherwise fuzzing won't be effective.
+//
+// Example usage:
+//
+//   Filter([](int x) { return x != kSentinel; }, Arbitrary<int>())
+//
+template <int&... ExplicitArgumentBarrier, typename Inner, typename Pred>
+auto Filter(Pred predicate, Inner inner) {
+  return internal::FilterImpl<Pred, Inner>(std::move(predicate),
+                                           std::move(inner));
+}
+
 // InRange(min, max) represents any value between [min, max], closed interval.
 // Supports integral and floating point types.
 //
@@ -492,6 +508,19 @@ auto OneOf(Inner... domains) {
 template <typename T>
 auto InRange(T min, T max) {
   return internal::InRangeImpl<T>(min, max);
+}
+
+// Finite() represents any floating point number, that is not infinite or NaN.
+//
+// Example usage:
+//
+//   Finite<double>()  // Any finite double.
+//
+template <typename T>
+auto Finite() {
+  static_assert(std::is_floating_point_v<T>,
+                "Finite<T>() can only be used with floating point types!");
+  return Filter([](T f) { return std::isfinite(f); }, Arbitrary<T>());
 }
 
 // Positive() represents any number greater than zero.
@@ -880,22 +909,6 @@ template <int&... ExplicitArgumentBarrier, typename FlatMapper,
 auto FlatMap(FlatMapper flat_mapper, Inner... inner) {
   return internal::FlatMapImpl<FlatMapper, Inner...>(std::move(flat_mapper),
                                                      std::move(inner)...);
-}
-
-// Filter(predicate, inner) combinator creates a domain that filters out values
-// with `predicate` from an `inner` domain.
-//
-// IMPORTANT: Use this only to filter out a small subset of the original domain,
-// otherwise fuzzing won't be effective.
-//
-// Example usage:
-//
-//   Filter([](int x) { return x != kSentinel; }, Arbitrary<int>())
-//
-template <int&... ExplicitArgumentBarrier, typename Inner, typename Pred>
-auto Filter(Pred predicate, Inner inner) {
-  return internal::FilterImpl<Pred, Inner>(std::move(predicate),
-                                           std::move(inner));
 }
 
 // VectorOf(inner) combinator creates a `std::vector` domain with elements of
