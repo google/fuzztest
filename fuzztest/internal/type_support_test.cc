@@ -14,6 +14,7 @@
 
 #include "./fuzztest/internal/type_support.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -330,6 +331,26 @@ TEST(MapTest, Printer) {
   // Test fallback on user value when map involves a lambda.
   EXPECT_THAT(TestPrintValue(std::tuple<int>(21), HexString()),
               Each("\"0x15\""));
+}
+
+auto ValueInRange(int a, int b) {
+  int min = std::min(a, b);
+  int max = std::max(a, b);
+  return InRange(min, max);
+}
+
+TEST(FlatMapTest, PrinterWithNamedFunction) {
+  auto domain = FlatMap(ValueInRange, Arbitrary<int>(), Arbitrary<int>());
+  decltype(domain)::corpus_type corpus_value = {2, 3, 1};
+  EXPECT_THAT(TestPrintValue(corpus_value, domain),
+              ElementsAre("2", "ValueInRange(3, 1)"));
+}
+
+TEST(FlatMapTest, PrinterWithLambda) {
+  auto domain =
+      FlatMap([](int a) { return ValueInRange(a, a + 100); }, Arbitrary<int>());
+  decltype(domain)::corpus_type corpus_value = {42, 0};
+  EXPECT_THAT(TestPrintValue(corpus_value, domain), Each("42"));
 }
 
 TEST(ConstructorOfTest, Printer) {
