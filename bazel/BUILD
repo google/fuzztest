@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Force the use of Clang for all builds.
-build --action_env=CC=clang
-build --action_env=CXX=clang++
+package(default_visibility = ["//visibility:private"])
 
-# Use the C++17 standard.
-build --cxxopt=-std=c++17
+licenses(["notice"])
 
-# To create this file, please run:
-#
-#  bazel run //bazel:setup_configs > fuzztest.bazelrc
-#
-try-import %workspace%/fuzztest.bazelrc
+sh_binary(
+    name = "setup_configs",
+    srcs = ["setup_configs.sh"],
+    # To determine if the script runs from the fuzztest repo or from a client repo.
+    args = [repository_name()],
+)

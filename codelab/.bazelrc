@@ -19,19 +19,8 @@ build --action_env=CXX=clang++
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
 
-# The FuzzTest configuration with ASAN and coverage instrumentation.
-build:fuzztest --linkopt=-fsanitize=address
-build:fuzztest --dynamic_mode=off
-build:fuzztest --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-
-# We rely on the following flag instead of the compiler provided
-# `__has_feature(address_sanitizer)` to know that we have an ASAN build even in
-# the uninstrumented runtime.
-build:fuzztest --copt=-DADDRESS_SANITIZER
-
-# In fuzz tests, we want to catch assertion violations even in optimized builds.
-build:fuzztest --copt=-UNDEBUG
-
-# We apply coverage tracking and ASAN instrumentation to everything but the
-# FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --per_file_copt=+//,-fuzztest/.*,-googletest/.*,-googlemock/.*@-fsanitize=address,-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
+# To create this file, please run:
+#
+#  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
+#
+try-import %workspace%/fuzztest.bazelrc

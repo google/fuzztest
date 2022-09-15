@@ -64,6 +64,9 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
+      - name: Setup --config=fuzztest for bazel
+        run: |
+          bazel run bazel:setup_configs > fuzztest.bazelrc
       - name: Run end-to-end tests
         run: |
           bazel test --test_output=errors -c ${{ matrix.mode }} --config=fuzztest \
