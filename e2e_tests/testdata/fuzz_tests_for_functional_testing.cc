@@ -30,8 +30,11 @@
 
 namespace {
 using fuzztest::Arbitrary;
+using fuzztest::FlatMap;
 using fuzztest::InRange;
 using fuzztest::Just;
+using fuzztest::PairOf;
+using fuzztest::StringOf;
 using fuzztest::StructOf;
 using fuzztest::VectorOf;
 using fuzztest::internal::ProtoExtender;
@@ -442,5 +445,35 @@ FUZZ_TEST(MySuite, WorksWithEmptyInheritance)
 
 void ArbitraryWorksWithEmptyInheritance(const Child&) { std::abort(); }
 FUZZ_TEST(MySuite, ArbitraryWorksWithEmptyInheritance);
+
+auto AnyStringPairOfSameSize(int max_size) {
+  return FlatMap(
+      [](int size) {
+        return PairOf(Arbitrary<std::string>().WithSize(size),
+                      Arbitrary<std::string>().WithSize(size));
+      },
+      InRange(0, max_size));
+}
+void FlatMapPassesWhenCorrect(const std::pair<std::string, std::string>& pair) {
+  if (pair.first.size() != pair.second.size()) {
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuite, FlatMapPassesWhenCorrect)
+    .WithDomains(AnyStringPairOfSameSize(10));
+
+void FlatMapCorrectlyPrintsValues(
+    const std::pair<std::string, std::string>& pair) {
+  if (pair.first != pair.second) {
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuite, FlatMapCorrectlyPrintsValues)
+    .WithDomains(FlatMap(
+        [](int size) {
+          return PairOf(StringOf(Just('A')).WithSize(size),
+                        StringOf(Just('B')).WithSize(size));
+        },
+        Just(3)));
 
 }  // namespace

@@ -95,6 +95,7 @@ cc_test(
     srcs = ["map_filter_combinator_test.cc"],
     deps = [
         ":domain_testing",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:type_support",

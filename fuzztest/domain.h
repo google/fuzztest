@@ -890,6 +890,27 @@ auto Map(Mapper mapper, Inner... inner) {
                                              std::move(inner)...);
 }
 
+// `FlatMap(flat_mapper, inner...)` combinator creates a domain that uses the
+// `flat_mapper` function to map the values created by the `inner...` domains.
+// Unlike `Map`, however, `FlatMap` maps these into a new _domain_, instead of
+// into a value. This domain can then be used as an argument to a fuzz test, or
+// to another domain. This can be useful for generating values that depend on
+// each other. Example usage:
+//
+//   // Generate domain of two equal-sized strings
+//   FlatMap(
+//     [](int size) {
+//       return PairOf(Arbitrary<std::string>().WithSize(size),
+//                     Arbitrary<std::string>().WithSize(size)); },
+//     InRange(0, 10));
+//
+template <int&... ExplicitArgumentBarrier, typename FlatMapper,
+          typename... Inner>
+auto FlatMap(FlatMapper flat_mapper, Inner... inner) {
+  return internal::FlatMapImpl<FlatMapper, Inner...>(std::move(flat_mapper),
+                                                     std::move(inner)...);
+}
+
 // VectorOf(inner) combinator creates a `std::vector` domain with elements of
 // the `inner` domain.
 //
