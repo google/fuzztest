@@ -164,6 +164,17 @@ TEST(Finite, CreatesFiniteFloatingPointValuesAndShrinksTowardsZero) {
       TowardsZero<double>);
 }
 
+TEST(InRange, FailsWithInfiniteRange) {
+  EXPECT_DEATH_IF_SUPPORTED(InRange(std::numeric_limits<double>::lowest(),
+                                    std::numeric_limits<double>::max()),
+                            "Failed precondition.*Finite");
+}
+
+TEST(InRange, FailsWithInvalidRange) {
+  EXPECT_DEATH_IF_SUPPORTED(InRange(10, 1),
+                            "Failed precondition.*min must be smaller");
+}
+
 TEST(IllegalInputs, Numeric) {
   absl::BitGen bitgen;
   const std::vector<int> values{-10, -1, 0, 1};

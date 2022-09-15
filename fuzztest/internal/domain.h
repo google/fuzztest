@@ -1376,6 +1376,14 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
   explicit InRangeImpl(T min, T max) : min_(min), max_(max) {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(min < max,
                                          "min must be smaller than max!");
+    if constexpr (!T_is_integer) {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          !(min == std::numeric_limits<T>::lowest() &&
+            max == std::numeric_limits<T>::max()),
+          "Consider using the Finite<T>() domain instead.");
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(std::isfinite(max - min),
+                                           "Range is too large!");
+    }
     if constexpr (T_is_integer) {
       // Find the longest common prefix
       // (from the most significant bit to the least significant bit) of
