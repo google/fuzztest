@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests of domains Map, FlatMap, and Filter.
+// Tests of domains Map and Filter.
 
 #include <bitset>
 #include <cctype>
@@ -29,7 +29,6 @@
 
 #include "googlemock/include/gmock/gmock.h"
 #include "googletest/include/gtest/gtest.h"
-#include "absl/algorithm/container.h"
 #include "absl/random/random.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
@@ -38,9 +37,6 @@
 namespace fuzztest {
 namespace {
 
-using ::testing::Each;
-using ::testing::Eq;
-using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
 TEST(Map, WorksWithSameCorpusType) {
@@ -80,104 +76,6 @@ TEST(Map, AcceptsMultipleInnerDomains) {
   }
   EXPECT_THAT(values,
               UnorderedElementsAre("AA", "AAA", "AAAA", "BB", "BBB", "BBBB"));
-}
-
-TEST(FlatMap, WorksWithSameCorpusType) {
-  auto domain = FlatMap([](int a) { return Just(~a); }, Arbitrary<int>());
-  absl::BitGen bitgen;
-  Value value(domain, bitgen);
-  EXPECT_EQ(value.user_value, ~std::get<1>(value.corpus_value));
-}
-
-TEST(FlatMap, WorksWithDifferentCorpusType) {
-  auto colors = Just(Color::Blue);
-  auto domain = FlatMap(
-      [](Color a) {
-        std::string s = a == Color::Blue ? "Blue" : "None";
-        return Just(s);
-      },
-      colors);
-  absl::BitGen bitgen;
-  Value value(domain, bitgen);
-  // `0` is the index in the ElementOf
-  EXPECT_EQ(typename decltype(colors)::corpus_type{0},
-            std::get<1>(value.corpus_value));
-  EXPECT_EQ("Blue", value.user_value);
-}
-
-TEST(FlatMap, AcceptsMultipleInnerDomains) {
-  auto domain =
-      FlatMap([](int len, char c) { return StringOf(Just(c)).WithSize(len); },
-              InRange(2, 4), ElementOf({'A', 'B'}));
-  absl::BitGen bitgen;
-  Set<std::string> values;
-  while (values.size() < 6) {
-    values.insert(Value(domain, bitgen).user_value);
-  }
-  EXPECT_THAT(values,
-              UnorderedElementsAre("AA", "AAA", "AAAA", "BB", "BBB", "BBBB"));
-}
-
-TEST(FlatMap, SerializationRoundTrip) {
-  auto domain = FlatMap([](int len) { return AsciiString().WithSize(len); },
-                        InRange(0, 10));
-  absl::BitGen bitgen;
-  Value value(domain, bitgen);
-  auto serialized = domain.SerializeCorpus(value.corpus_value);
-  EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
-}
-
-TEST(FlatMap, MutationAcceptsChangingDomains) {
-  auto domain = FlatMap([](int len) { return AsciiString().WithSize(len); },
-                        InRange(0, 10));
-  absl::BitGen bitgen;
-  Value value(domain, bitgen);
-  auto mutated = value.corpus_value;
-  while (std::get<1>(value.corpus_value) == std::get<1>(mutated)) {
-    // We demand that our output domain has size `len` above. This will check
-    // fail in ContainerOfImpl if we try to generate a string of the wrong
-    // length.
-    domain.Mutate(mutated, bitgen, false);
-  }
-  EXPECT_EQ(domain.GetValue(mutated).size(), std::get<1>(mutated));
-}
-
-TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
-  auto domain = FlatMap([](int len) { return AsciiString().WithMaxSize(len); },
-                        InRange(0, 10));
-  absl::BitGen bitgen;
-  std::optional<Value<decltype(domain)>> value;
-  // Generate something shrinkable
-  while (!value.has_value() || value->user_value.empty()) {
-    value = Value(domain, bitgen);
-  }
-  auto mutated = value->corpus_value;
-  while (!domain.GetValue(mutated).empty()) {
-    domain.Mutate(mutated, bitgen, true);
-  }
-  EXPECT_THAT(domain.GetValue(mutated), IsEmpty());
-}
-
-TEST(FlatMap, MutationDoesNotAlterInputDomains) {
-  auto domain =
-      FlatMap([](int len) { return VectorOf(Arbitrary<int>()).WithSize(len); },
-              InRange(5, 10));
-  absl::BitGen bitgen;
-  std::optional<Value<decltype(domain)>> value;
-  // Generate something shrinkable
-  auto all_zeros = [](const std::vector<int>& v) {
-    return absl::c_all_of(v, [](int x) { return x == 0; });
-  };
-  while (!value.has_value() || all_zeros(value->user_value)) {
-    value = Value(domain, bitgen);
-  }
-  auto mutated = value->corpus_value;
-  const size_t original_size = value->user_value.size();
-  while (!all_zeros(domain.GetValue(mutated))) {
-    domain.Mutate(mutated, bitgen, true);
-    EXPECT_THAT(domain.GetValue(mutated).size(), Eq(original_size));
-  }
-  EXPECT_THAT(domain.GetValue(mutated), Each(Eq(0)));
 }
 
 TEST(Filter, CanFilterInitCalls) {

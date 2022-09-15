@@ -370,26 +370,6 @@ struct ContainerPrinter {
   }
 };
 
-template <typename F>
-constexpr bool HasFunctionName() {
-  return std::is_function_v<std::remove_pointer_t<F>>;
-}
-
-template <typename F>
-std::string GetFunctionName(const F& f, absl::string_view default_name) {
-  if constexpr (HasFunctionName<F>()) {
-    char buffer[1024];
-    if (absl::Symbolize(reinterpret_cast<const void*>(f), buffer,
-                        sizeof(buffer))) {
-      absl::string_view v = buffer;
-      absl::ConsumeSuffix(&v, "()");
-      SkipAnonymous(v);
-      return std::string(v);
-    }
-  }
-  return std::string(default_name);
-}
-
 template <typename Mapper, typename... Inner>
 struct MappedPrinter {
   const Mapper& mapper;
@@ -411,7 +391,7 @@ struct MappedPrinter {
         break;
       }
       case PrintMode::kSourceCode:
-        if constexpr (!HasFunctionName<Mapper>() &&
+        if constexpr (!HasFunctionName() &&
                       HasKnownPrinter<decltype(value)>()) {
           if (map_fn_name.empty()) {
             // Fall back on printing the user value if the mapping function is
@@ -426,9 +406,7 @@ struct MappedPrinter {
         // This should give a better chance of valid code, given that the result
         // of the mapping function can easily be a user defined type we can't
         // generate otherwise.
-        absl::string_view default_name =
-            map_fn_name.empty() ? "<MAPPING_FUNCTION>" : map_fn_name;
-        absl::Format(out, "%s(", GetFunctionName(mapper, default_name));
+        absl::Format(out, "%s(", GetFunctionName());
         const auto print_one = [&](auto I) {
           if (I != 0) absl::Format(out, ", ");
           PrintValue(std::get<I>(inner), std::get<I>(corpus_value), out, mode);
@@ -437,52 +415,26 @@ struct MappedPrinter {
         absl::Format(out, ")");
     }
   }
-};
 
-template <typename FlatMapper, typename... Inner>
-struct FlatMappedPrinter {
-  const FlatMapper& mapper;
-  const std::tuple<Inner...>& inner;
+ private:
+  static constexpr bool HasFunctionName() {
+    return std::is_function_v<std::remove_pointer_t<Mapper>>;
+  }
 
-  template <typename CorpusT>
-  void PrintCorpusValue(const CorpusT& corpus_value, RawSink out,
-                        PrintMode mode) const {
-    auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper(
-          // the first field of `corpus_value` is the output value, so skip it
-          std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
-    });
-    auto value = output_domain.GetValue(std::get<0>(corpus_value));
-
-    switch (mode) {
-      case PrintMode::kHumanReadable: {
-        // In human readable mode we try and print the user value.
-        AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                mode);
-        break;
+  std::string GetFunctionName() const {
+    if constexpr (HasFunctionName()) {
+      char buffer[1024];
+      if (absl::Symbolize(reinterpret_cast<const void*>(mapper), buffer,
+                          sizeof(buffer))) {
+        absl::string_view v = buffer;
+        absl::ConsumeSuffix(&v, "()");
+        SkipAnonymous(v);
+        return std::string(v);
       }
-      case PrintMode::kSourceCode:
-        if constexpr (!HasFunctionName<FlatMapper>() &&
-                      HasKnownPrinter<decltype(value)>()) {
-          AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                  mode);
-          break;
-        }
-
-        // In source code mode we print the mapping expression.
-        // This should give a better chance of valid code, given that the result
-        // of the mapping function can easily be a user defined type we can't
-        // generate otherwise.
-        absl::Format(out, "%s(",
-                     GetFunctionName(mapper, "<FLAT_MAP_FUNCTION>"));
-        const auto print_one = [&](auto I) {
-          if (I != 0) absl::Format(out, ", ");
-          PrintValue(std::get<I>(inner), std::get<I + 1>(corpus_value), out,
-                     mode);
-        };
-        ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
-        absl::Format(out, ")");
+    } else if (!map_fn_name.empty()) {
+      return std::string(map_fn_name);
     }
+    return "<MAPPING_FUNCTION>";
   }
 };
 

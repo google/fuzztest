@@ -232,24 +232,6 @@ void Mapping(const std::string& s) {
 }
 FUZZ_TEST(MySuite, Mapping).WithDomains(EvenNumberOfAnimals());
 
-auto StringAndValidIndex(const std::string& s) {
-  return fuzztest::PairOf(fuzztest::Just(s),
-                          fuzztest::InRange<size_t>(0, s.size() - 1));
-}
-auto AnyStringAndValidIndex() {
-  auto string_domain =
-      fuzztest::StringOf(fuzztest::InRange('a', 'z')).WithSize(3);
-  return fuzztest::FlatMap(StringAndValidIndex, string_domain);
-}
-void FlatMapping(const std::pair<std::string, size_t> str_and_idx) {
-  absl::string_view str = str_and_idx.first;
-  size_t idx = str_and_idx.second;
-  if (str == "abc" && idx == 2) {
-    std::abort();
-  }
-}
-FUZZ_TEST(MySuite, FlatMapping).WithDomains(AnyStringAndValidIndex());
-
 void Filtering(int multiple_of_2, int square) {
   // Should only fail with (8, 9)
   if (multiple_of_2 + 1 == square) std::abort();
