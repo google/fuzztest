@@ -334,6 +334,13 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
+  auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
+      "MySuite."
+      "FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfProtobufEnumEqualsLabel4"));
