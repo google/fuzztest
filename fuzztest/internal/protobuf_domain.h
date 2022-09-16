@@ -924,6 +924,9 @@ class ProtobufDomainUntypedImpl
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !field->containing_oneof(),
+        "Customizing the domain for oneof fields is not supported yet.");
     VisitProtobufField(
         field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
     are_fields_customized_ = true;
