@@ -1208,6 +1208,8 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return inner_;
   }
 
+  ProtobufDomainImpl&& Self() && { return std::move(*this); }
+
   ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
