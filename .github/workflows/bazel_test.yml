@@ -43,6 +43,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Mount bazel cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-${{ matrix.mode }}
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
@@ -60,6 +65,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Mount bazel cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-fuzztest-${{ matrix.mode }}
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
