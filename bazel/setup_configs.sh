@@ -1,4 +1,8 @@
+#!/bin/bash
+
 # Script for generating fuzztest.bazelrc.
+
+set -euf -o pipefail
 
 echo "### DO NOT EDIT. Generated file.
 #
@@ -9,23 +13,32 @@ echo "### DO NOT EDIT. Generated file.
 # And don't forget to add the following to your project's .bazelrc:
 #
 #  try-import %workspace%/fuzztest.bazelrc
-#
+"
 
+echo "
+### Common options.
+#
+# Do not use directly.
+
+# Link with Address Sanitizer (ASAN).
+build:fuzztest-common --linkopt=-fsanitize=address
+
+# Standard define for \"ifdef-ing\" any fuzz test specific code.
+build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+# In fuzz tests, we want to catch assertion violations even in optimized builds.
+build:fuzztest-common --copt=-UNDEBUG
+"
+
+echo "
 ### FuzzTest build configuration.
 #
 # Use with: --config=fuzztest
 
-# Link with Address Sanitizer (ASAN).
-build:fuzztest --linkopt=-fsanitize=address
+build:fuzztest --config=fuzztest-common
 
 # Link statically.
 build:fuzztest --dynamic_mode=off
-
-# Standard define for \"ifdef-ing\" any fuzz test specific code.
-build:fuzztest --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-
-# In fuzz tests, we want to catch assertion violations even in optimized builds.
-build:fuzztest --copt=-UNDEBUG
 
 # We rely on the following flag instead of the compiler provided
 # __has_feature(address_sanitizer) to know that we have an ASAN build even in
@@ -45,8 +58,44 @@ else
   exit 1
 fi
 
-echo "
-# We apply coverage tracking and ASAN instrumentation to everything but the
+echo "# We apply coverage tracking and ASAN instrumentation to everything but the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
 build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize=address,-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
 "
+
+# Do not use the extra configurations below, unless you know what you're doing.
+
+EXTRA_CONFIGS="${EXTRA_CONFIGS:-none}"
+
+if [[ ${EXTRA_CONFIGS} == *"libfuzzer"* ]]; then
+
+# Find llvm-config.
+LLVM_CONFIG=$(command -v llvm-config    ||
+              command -v llvm-config-15 ||
+              command -v llvm-config-14 ||
+              command -v llvm-config-13 ||
+              command -v llvm-config-12 ||
+              echo "")
+
+if [[ -z "${LLVM_CONFIG}" ]]; then
+  echo "ERROR: Couldn't generate config, because cannot find llvm-config."
+  echo ""
+  echo "Please install clang and llvm, e.g.:"
+  echo ""
+  echo "  sudo apt install clang llvm"
+  exit 1
+fi
+
+echo "
+### libFuzzer compatibility mode.
+#
+# Use with: --config=libfuzzer
+
+build:libfuzzer --config=fuzztest-common
+build:libfuzzer --copt=-DFUZZTEST_COMPATIBILITY_MODE
+build:libfuzzer --copt=-fsanitize=fuzzer-no-link
+build:libfuzzer --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize=address
+build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)
+"
+
+fi # libFuzzer
