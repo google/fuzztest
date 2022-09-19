@@ -20,17 +20,9 @@ on:
     - main
   pull_request:
   schedule:
-    # Triggered every day at 3:00 AM UTC.
-    - cron: '0 3 * * *'
+    # Triggered nightly at 8:00 AM UTC to reset the Bazel cache.
+    - cron: '0 8 * * *'
   workflow_dispatch:
-env:
-  # Run daily CI checks against a very recent Bazel commit, but use the version
-  # pinned in .bazelversion for regular PR checks.
-  # This is a hacky workaround for GitHub Action's lack of inline conditionals.
-  # It is important that the value in the true case is not the empty string,
-  # see:
-  # https://github.com/actions/runner/issues/409#issuecomment-1013325196
-  USE_BAZEL_VERSION: ${{ github.event.schedule != '' && 'last_green' || '' }}
 
 jobs:
   unit_tests:
@@ -43,15 +35,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Mount bazel cache
-        uses: actions/cache@v3
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-cache-${{ matrix.mode }}
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
+      - name: Delete Bazel cache (nightly)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/caches?key=bazel-cache-${{ matrix.mode }}
+      - name: Mount Bazel cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-${{ matrix.mode }}
       - name: Run unit tests
         run: |
           bazel test --test_output=errors -c ${{ matrix.mode }} --build_tests_only //...
@@ -65,11 +66,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Mount bazel cache
-        uses: actions/cache@v3
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-cache-fuzztest-${{ matrix.mode }}
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
@@ -77,6 +73,20 @@ jobs:
       - name: Setup --config=fuzztest for bazel
         run: |
           bazel run bazel:setup_configs > fuzztest.bazelrc
+      - name: Delete Bazel cache (nightly)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/caches?key=bazel-cache-fuzztest-${{ matrix.mode }}
+      - name: Mount Bazel cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-fuzztest-${{ matrix.mode }}
       - name: Run end-to-end tests
         run: |
           bazel test --test_output=errors -c ${{ matrix.mode }} --config=fuzztest \
