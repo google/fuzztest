@@ -19,6 +19,9 @@ build --action_env=CXX=clang++
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
 
+# Show everything when running tests.
+test --test_output=streamed
+
 # To create this file, please run:
 #
 #  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
