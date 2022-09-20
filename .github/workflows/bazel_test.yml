@@ -45,6 +45,7 @@ jobs:
           bazel run //bazel:setup_configs > fuzztest.bazelrc
       - name: Delete Bazel cache (nightly)
         if: github.event_name == 'schedule'
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
