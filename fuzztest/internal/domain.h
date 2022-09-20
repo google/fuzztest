@@ -2656,9 +2656,12 @@ class FilterImpl : public DomainBase<FilterImpl<Pred, Inner>> {
 
   template <typename PRNG>
   void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
-    do {
+    corpus_type original_val = val;
+    while (true) {
       inner_.Mutate(val, prng, only_shrink);
-    } while (!RunFilter(val));
+      if (RunFilter(val)) return;
+      val = original_val;
+    }
   }
 
   value_type GetValue(const corpus_type& v) const { return inner_.GetValue(v); }
