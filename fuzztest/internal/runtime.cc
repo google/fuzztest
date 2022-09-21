@@ -220,6 +220,8 @@ void OnFailure::PrintReportOnDefaultSink() const {
 // TODO(sbenzaquen): We should still install signal handlers in other systems.
 void InstallSignalHandlers(FILE* out) {}
 
+void OnFailure::PrintFinalStatsOnDefaultSink() const {}
+
 void OnFailure::PrintReportOnDefaultSink() const {}
 #endif  // __linux__
 
