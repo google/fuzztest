@@ -77,10 +77,10 @@ a test fixture:
 class EchoServerFuzzTest {
  public:
   // The constructor initializes the fixture.
-  EchoServerTest() { server_.Start("localhost:9999"); }
+  EchoServerFuzzTest() { server_.Start("localhost:9999"); }
 
   // The destructor tears down the fixture.
-  ~EchoServerTest() { server_.Stop(); }
+  ~EchoServerFuzzTest() { server_.Stop(); }
 
   // The fuzz test's property function must be a public member of the fixture.
   void ReturnsTheSameString(const std::string& request) {
