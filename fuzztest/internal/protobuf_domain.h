@@ -255,34 +255,41 @@ class ProtoPolicy {
     return children_policy;
   }
 
-  void SetOptionalPolicy(OptionalPolicy optional_policy) {
-    optional_policies_.push_back(
-        {.filter = IncludeAll<FieldDescriptor>(), .value = optional_policy});
+  void SetOptionalPolicy(OptionalPolicy optional_policy,
+                         bool is_recursive = true) {
+    SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy,
+                      is_recursive);
   }
 
-  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
-    optional_policies_.push_back(
-        {.filter = std::move(filter), .value = optional_policy});
+  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy,
+                         bool is_recursive = true) {
+    optional_policies_.push_back({.filter = std::move(filter),
+                                  .value = optional_policy,
+                                  .is_recursive = is_recursive});
   }
 
-  void SetMinRepeatedFieldsSize(int64_t min_size) {
-    min_repeated_fields_sizes_.push_back(
-        {.filter = IncludeAll<FieldDescriptor>(), .value = min_size});
+  void SetMinRepeatedFieldsSize(int64_t min_size, bool is_recursive = true) {
+    SetMinRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), min_size,
+                             is_recursive);
   }
 
-  void SetMinRepeatedFieldsSize(Filter filter, int64_t min_size) {
-    min_repeated_fields_sizes_.push_back(
-        {.filter = std::move(filter), .value = min_size});
+  void SetMinRepeatedFieldsSize(Filter filter, int64_t min_size,
+                                bool is_recursive = true) {
+    min_repeated_fields_sizes_.push_back({.filter = std::move(filter),
+                                          .value = min_size,
+                                          .is_recursive = is_recursive});
   }
 
-  void SetMaxRepeatedFieldsSize(int64_t max_size) {
-    max_repeated_fields_sizes_.push_back(
-        {.filter = IncludeAll<FieldDescriptor>(), .value = max_size});
+  void SetMaxRepeatedFieldsSize(int64_t max_size, bool is_recursive = true) {
+    SetMaxRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), max_size,
+                             is_recursive);
   }
 
-  void SetMaxRepeatedFieldsSize(Filter filter, int64_t max_size) {
-    max_repeated_fields_sizes_.push_back(
-        {.filter = std::move(filter), .value = max_size});
+  void SetMaxRepeatedFieldsSize(Filter filter, int64_t max_size,
+                                bool is_recursive = true) {
+    max_repeated_fields_sizes_.push_back({.filter = std::move(filter),
+                                          .value = max_size,
+                                          .is_recursive = is_recursive});
   }
 
   OptionalPolicy GetOptionalPolicy(const FieldDescriptor* field) const {
@@ -321,10 +328,10 @@ class ProtoPolicy {
 
   template <typename T>
   std::vector<FilterToValue<T>> CopyRecursivePolicyValues(
-      const std::vector<FilterToValue<T>>& filter_to_values) {
+      const std::vector<FilterToValue<T>>& filter_to_values) const {
     std::vector<FilterToValue<T>> result;
     for (const auto& filter_to_value : filter_to_values) {
-      if (filter_to_value.is_recursive()) {
+      if (filter_to_value.is_recursive) {
         result.push_back(filter_to_value);
       }
     }
@@ -867,10 +874,10 @@ class ProtobufDomainUntypedImpl
               return field->full_name() == full_name;
             };
         if constexpr (is_repeated) {
-          self.GetPolicy().SetMinRepeatedFieldsSize(field_filter,
-                                                    domain.min_size());
-          self.GetPolicy().SetMaxRepeatedFieldsSize(field_filter,
-                                                    domain.max_size());
+          self.GetPolicy().SetMinRepeatedFieldsSize(
+              field_filter, domain.min_size(), /*is_recursive=*/false);
+          self.GetPolicy().SetMaxRepeatedFieldsSize(
+              field_filter, domain.max_size(), /*is_recursive=*/false);
         } else {
           if (field->is_required()) {
             FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -878,7 +885,8 @@ class ProtobufDomainUntypedImpl
                 "required field '", field->full_name(),
                 "' cannot have null values.");
           } else {
-            self.GetPolicy().SetOptionalPolicy(field_filter, domain.policy());
+            self.GetPolicy().SetOptionalPolicy(field_filter, domain.policy(),
+                                               /*is_recursive=*/false);
           }
         }
 
@@ -1095,14 +1103,16 @@ class ProtobufDomainUntypedImpl
 
   bool IsNonTerminatingRecursive() {
     absl::flat_hash_set<decltype(prototype_->GetDescriptor())> parents;
-    return IsProtoRecursive(prototype_->GetDescriptor(), parents, policy_,
+    return IsProtoRecursive(prototype_->GetDescriptor(), parents,
+                            policy_.GetChildrenPolicy(),
                             /*consider_non_terminating_recursions=*/true);
   }
 
   bool IsFieldRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
     absl::flat_hash_set<decltype(field->message_type())> parents;
-    return IsProtoRecursive(field->message_type(), parents, policy_,
+    return IsProtoRecursive(field->message_type(), parents,
+                            policy_.GetChildrenPolicy(),
                             /*consider_non_terminating_recursions=*/false);
   }
 
