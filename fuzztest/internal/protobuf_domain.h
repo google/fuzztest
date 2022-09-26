@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -199,9 +200,7 @@ class ProtoPolicy {
   using Filter = std::function<bool(const FieldDescriptor*)>;
 
  public:
-  ProtoPolicy()
-      : optional_policies_({{.filter = IncludeAll<FieldDescriptor>(),
-                             .value = OptionalPolicy::kWithNull}}) {}
+  ProtoPolicy() {}
 
   ProtoPolicy GetChildrenPolicy() const {
     ProtoPolicy children_policy;
@@ -298,7 +297,7 @@ class ProtoPolicy {
         "GetOptionalPolicy should apply to optional fields only!");
     std::optional<OptionalPolicy> result =
         GetPolicyValue(optional_policies_, field);
-    FUZZTEST_INTERNAL_CHECK(result.has_value(), "optional policy is not set!");
+    if (!result.has_value()) return OptionalPolicy::kWithNull;
     return *result;
   }
 
@@ -342,8 +341,8 @@ class ProtoPolicy {
   std::optional<T> GetPolicyValue(
       const std::vector<FilterToValue<T>>& filter_to_values,
       const FieldDescriptor* field) const {
-    // Return the policy that is not overwritten.
-    for (int i = filter_to_values.size() - 1; i >= 0; --i) {
+    // Return the first policy that applies.
+    for (int i = 0; i < filter_to_values.size(); ++i) {
       if (!filter_to_values[i].filter(field)) continue;
       if constexpr (std::is_same_v<T, Domain<std::unique_ptr<Message>>>) {
         absl::BitGen gen;
@@ -366,9 +365,17 @@ class ProtoPolicy {
   std::vector<FilterToValue<int64_t>> min_repeated_fields_sizes_;
   std::vector<FilterToValue<int64_t>> max_repeated_fields_sizes_;
 
+  // optional_domains_for_<TYPE>_ and repeated_domains_for_<TYPE>_ are used for
+  // cases where the outer domain (`Domain<std::optional<T>>` or
+  // `Domain<std::vector<T>>`) are explicitly defined by user. This is needed
+  // in case the user prefers other implementations like UniqueElementsVectorOf.
 #define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                           \
  private:                                                                      \
   std::vector<FilterToValue<Domain<cpp>>> domains_for_##Camel##_;              \
+  std::vector<FilterToValue<Domain<std::optional<cpp>>>>                       \
+      optional_domains_for_##Camel##_;                                         \
+  std::vector<FilterToValue<Domain<std::vector<cpp>>>>                         \
+      repeated_domains_for_##Camel##_;                                         \
   std::vector<FilterToValue<std::function<Domain<cpp>(Domain<cpp>)>>>          \
       transformers_for_##Camel##_;                                             \
                                                                                \
@@ -387,6 +394,22 @@ class ProtoPolicy {
                                       .value = std::move(domain),              \
                                       .is_recursive = true});                  \
   }                                                                            \
+  void SetOptionalDomainFor##Camel##s(                                         \
+      Filter filter,                                                           \
+      Domain<std::optional<MakeDependentType<cpp, Message>>> domain,           \
+      bool is_recursive = true) {                                              \
+    optional_domains_for_##Camel##_.push_back({.filter = std::move(filter),    \
+                                               .value = std::move(domain),     \
+                                               .is_recursive = true});         \
+  }                                                                            \
+  void SetRepeatedDomainFor##Camel##s(                                         \
+      Filter filter,                                                           \
+      Domain<std::vector<MakeDependentType<cpp, Message>>> domain,             \
+      bool is_recursive = true) {                                              \
+    repeated_domains_for_##Camel##_.push_back({.filter = std::move(filter),    \
+                                               .value = std::move(domain),     \
+                                               .is_recursive = true});         \
+  }                                                                            \
   void SetDomainTransformerFor##Camel##s(                                      \
       Filter filter,                                                           \
       std::function<Domain<MakeDependentType<cpp, Message>>(                   \
@@ -400,6 +423,14 @@ class ProtoPolicy {
   std::optional<Domain<MakeDependentType<cpp, Message>>>                       \
       GetDefaultDomainFor##Camel##s(const FieldDescriptor* field) const {      \
     return GetPolicyValue(domains_for_##Camel##_, field);                      \
+  }                                                                            \
+  std::optional<Domain<std::optional<MakeDependentType<cpp, Message>>>>        \
+      GetOptionalDomainFor##Camel##s(const FieldDescriptor* field) const {     \
+    return GetPolicyValue(optional_domains_for_##Camel##_, field);             \
+  }                                                                            \
+  std::optional<Domain<std::vector<MakeDependentType<cpp, Message>>>>          \
+      GetRepeatedDomainFor##Camel##s(const FieldDescriptor* field) const {     \
+    return GetPolicyValue(repeated_domains_for_##Camel##_, field);             \
   }                                                                            \
   std::optional<std::function<Domain<MakeDependentType<cpp, Message>>(         \
       Domain<MakeDependentType<cpp, Message>>)>>                               \
@@ -846,6 +877,7 @@ class ProtobufDomainUntypedImpl
   struct WithFieldVisitor {
     Inner domain;
     ProtobufDomainUntypedImpl& self;
+    bool ignore_outer_domain;
 
     template <typename T, typename DomainT, bool is_repeated>
     void ApplyDomain(const FieldDescriptor* field) {
@@ -869,45 +901,46 @@ class ProtobufDomainUntypedImpl
               "` but the field needs a message of type `",
               field->message_type()->full_name(), "`.");
         }
-        auto field_filter =
-            [full_name = field->full_name()](const FieldDescriptor* field) {
-              return field->full_name() == full_name;
-            };
-        if constexpr (is_repeated) {
-          self.GetPolicy().SetMinRepeatedFieldsSize(
-              field_filter, domain.min_size(), /*is_recursive=*/false);
-          self.GetPolicy().SetMaxRepeatedFieldsSize(
-              field_filter, domain.max_size(), /*is_recursive=*/false);
-        } else {
+        if constexpr (!is_repeated) {
           if (field->is_required()) {
             FUZZTEST_INTERNAL_CHECK_PRECONDITION(
                 domain.policy() == OptionalPolicy::kWithoutNull,
                 "required field '", field->full_name(),
                 "' cannot have null values.");
-          } else {
-            self.GetPolicy().SetOptionalPolicy(field_filter, domain.policy(),
-                                               /*is_recursive=*/false);
           }
         }
+        auto field_filter =
+            [full_name = field->full_name()](const FieldDescriptor* field) {
+              return field->full_name() == full_name;
+            };
 
-#define FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Camel, cpp, TAG) \
-  if constexpr (std::is_same_v<T, TAG>) {                            \
-    self.GetPolicy().SetDefaultDomainFor##Camel##s(                  \
-        field_filter, domain.Inner(), /*is_recursive=*/false);       \
-    self.GetPolicy().SetDomainTransformerFor##Camel##s(              \
-        field_filter, Identity<cpp>(), /*is_recursive=*/false);      \
+#define FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Camel, cpp, TAG)   \
+  if constexpr (std::is_same_v<T, TAG>) {                         \
+    if (ignore_outer_domain) {                                    \
+      self.GetPolicy().SetDefaultDomainFor##Camel##s(             \
+          field_filter, domain.Inner(), /*is_recursive=*/false);  \
+      self.GetPolicy().SetDomainTransformerFor##Camel##s(         \
+          field_filter, Identity<cpp>(), /*is_recursive=*/false); \
+    } else {                                                      \
+      if constexpr (is_repeated) {                                \
+        self.GetPolicy().SetRepeatedDomainFor##Camel##s(          \
+            field_filter, domain, /*is_recursive=*/false);        \
+      } else {                                                    \
+        self.GetPolicy().SetOptionalDomainFor##Camel##s(          \
+            field_filter, domain, /*is_recursive=*/false);        \
+      }                                                           \
+    }                                                             \
   }
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Bool, bool, bool)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int32, int32_t, int32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt32, uint32_t, uint32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int64, int64_t, int64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt64, uint64_t, uint64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Float, float, float)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Double, double, double)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(String, std::string,
-                                                    std::string)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Enum, int, ProtoEnumTag)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Bool, bool, bool)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Int32, int32_t, int32_t)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(UInt32, uint32_t, uint32_t)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Int64, int64_t, int64_t)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(UInt64, uint64_t, uint64_t)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Float, float, float)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Double, double, double)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(String, std::string, std::string)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(Enum, int, ProtoEnumTag)
+        FUZZTEST_INTERNAL_SET_DOMAIN_FOR_FIELD(
             Protobuf, std::unique_ptr<Message>, ProtoMessageTag)
       }
     }
@@ -926,7 +959,8 @@ class ProtobufDomainUntypedImpl
   };
 
   template <typename Inner>
-  void WithField(std::string_view field_name, Inner&& domain) {
+  void WithField(std::string_view field_name, Inner&& domain,
+                 bool ignore_outer_domain = false) {
     auto* field =
         prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
@@ -936,7 +970,8 @@ class ProtobufDomainUntypedImpl
         !field->containing_oneof(),
         "Customizing the domain for oneof fields is not supported yet.");
     VisitProtobufField(
-        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
+        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this,
+                                         ignore_outer_domain});
     are_fields_customized_ = true;
   }
 
@@ -1079,8 +1114,37 @@ class ProtobufDomainUntypedImpl
   }
 
   template <typename T, bool is_repeated>
+  auto GetExplicitDomainForFieldType(const FieldDescriptor* field) const {
+#define FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Camel, type) \
+  if constexpr (std::is_same_v<T, type>) {                                \
+    if constexpr (is_repeated) {                                          \
+      return policy_.GetRepeatedDomainFor##Camel##s(field);               \
+    } else {                                                              \
+      return policy_.GetOptionalDomainFor##Camel##s(field);               \
+    }                                                                     \
+  }
+
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Bool, bool)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Int32, int32_t)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(UInt32, uint32_t)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Int64, int64_t)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(UInt64, uint64_t)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Float, float)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Double, double)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(String, std::string)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Enum, ProtoEnumTag)
+    FUZZTEST_INTERNAL_RETURN_EXPLICIT_DOMAIN_IF_PROVIDED(Protobuf,
+                                                         ProtoMessageTag)
+  }
+
+  template <typename T, bool is_repeated>
   auto GetDomainForField(const FieldDescriptor* field,
                          bool use_policy = true) const {
+    if (use_policy) {
+      auto explicit_domain =
+          GetExplicitDomainForFieldType<T, is_repeated>(field);
+      if (explicit_domain.has_value()) return *explicit_domain;
+    }
     auto domain = GetBaseDomainForFieldType<T>(field, use_policy);
     if constexpr (is_repeated) {
       return ModifyDomainForRepeatedFieldRule(
@@ -1268,8 +1332,10 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ProtobufDomainImpl&& With##Camel##Field(std::string_view field,              \
                                           Domain<Camel##type> domain)&& {      \
     inner_.WithField(                                                          \
-        field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
-                   std::move(domain)));                                        \
+        field,                                                                 \
+        OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(          \
+            std::move(domain)),                                                \
+        /*ignore_outer_domain=*/true);                                         \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldUnset(std::string_view field)&& {     \
