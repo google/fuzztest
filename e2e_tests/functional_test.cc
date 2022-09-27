@@ -436,18 +436,18 @@ TEST(UnitTestModeTest, DefaultOptionalPolicyAppliesToAllOptionalFields) {
 }
 
 TEST(UnitTestModeTest,
-     DefaultOptionalPolicyAppliesToAllOptionalFieldsWithoutOverwrittenDomain) {
-  auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
-      "MySuite."
-      "FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenDomain"));
+     DefaultOptionalPolicyAppliesToAllOptionalFieldsWithoutExplicitDomain) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite."
+                         "FieldBIsAlwaysSetAndAllOtherOptionalFieldsAreUnset"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
 TEST(UnitTestModeTest,
-     DefaultOptionalPolicyAppliesToAllOptionalFieldsWithoutOverwrittenPolicy) {
+     DefaultOptionalPolicyAppliesToAllFieldsWithoutAnAlreadyDefinedPolicy) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
-      "FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenPolicy"));
+      "BoolFieldsAreAlwaysSetAndAllOtherOptionalFieldsAreUnset"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
@@ -459,10 +459,10 @@ TEST(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
 }
 
 TEST(UnitTestModeTest,
-     AvoidsFailureIfSetByDefaultPolicyIsOverwrittenOnRecursiveStructures) {
+     AvoidsFailureIfByDefaultPolicyNotPropagatedOnRecursiveStructures) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
-      "InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten"));
+      "InitializesRecursiveProtoIfInfiniteRecursivePolicyStopsPropagating"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
@@ -492,8 +492,8 @@ TEST(UnitTestModeTest, ChecksTypeOfProvidedDefaultDomainForProtos) {
 }
 
 TEST(UnitTestModeTest, PoliciesApplyToFieldsInOrder) {
-  auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
-      "MySuite.FailsWhenI32FieldValuesDontRespectAllPolicies"));
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.Int32FieldsRespectCustomizations"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 

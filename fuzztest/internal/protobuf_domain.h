@@ -199,9 +199,7 @@ class ProtoPolicy {
   using Filter = std::function<bool(const FieldDescriptor*)>;
 
  public:
-  ProtoPolicy()
-      : optional_policies_({{.filter = IncludeAll<FieldDescriptor>(),
-                             .value = OptionalPolicy::kWithNull}}) {}
+  ProtoPolicy() {}
 
   ProtoPolicy GetChildrenPolicy() const {
     ProtoPolicy children_policy;
@@ -298,7 +296,7 @@ class ProtoPolicy {
         "GetOptionalPolicy should apply to optional fields only!");
     std::optional<OptionalPolicy> result =
         GetPolicyValue(optional_policies_, field);
-    FUZZTEST_INTERNAL_CHECK(result.has_value(), "optional policy is not set!");
+    if (!result.has_value()) return OptionalPolicy::kWithNull;
     return *result;
   }
 
@@ -342,8 +340,8 @@ class ProtoPolicy {
   std::optional<T> GetPolicyValue(
       const std::vector<FilterToValue<T>>& filter_to_values,
       const FieldDescriptor* field) const {
-    // Return the policy that is not overwritten.
-    for (int i = filter_to_values.size() - 1; i >= 0; --i) {
+    // Return the first policy that applies.
+    for (int i = 0; i < filter_to_values.size(); ++i) {
       if (!filter_to_values[i].filter(field)) continue;
       if constexpr (std::is_same_v<T, Domain<std::unique_ptr<Message>>>) {
         absl::BitGen gen;
