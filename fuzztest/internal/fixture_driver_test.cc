@@ -18,7 +18,7 @@
 #include <tuple>
 #include <type_traits>
 
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"

@@ -30,7 +30,7 @@
 #include "google/protobuf/repeated_field.h"
 #include "google/protobuf/util/field_comparator.h"
 #include "google/protobuf/util/message_differencer.h"
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"

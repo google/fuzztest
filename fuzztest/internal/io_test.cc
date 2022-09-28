@@ -23,7 +23,7 @@
 #include <optional>
 #include <string>
 
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "./fuzztest/fuzztest.h"

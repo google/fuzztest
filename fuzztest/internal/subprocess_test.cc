@@ -17,7 +17,7 @@
 #include <csignal>
 #include <string>
 
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/time/time.h"
 

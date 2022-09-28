@@ -31,7 +31,7 @@
 #include <variant>
 #include <vector>
 
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/substitute.h"
 #include "./fuzztest/domain.h"

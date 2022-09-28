@@ -26,7 +26,7 @@
 #include <variant>
 #include <vector>
 
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

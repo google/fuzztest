@@ -30,7 +30,7 @@
 
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
-#include "googlemock/include/gmock/gmock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
