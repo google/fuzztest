@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"

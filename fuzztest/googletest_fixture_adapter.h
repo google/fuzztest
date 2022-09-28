@@ -17,7 +17,7 @@
 
 #include <type_traits>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "./fuzztest/internal/fixture_driver.h"
 
 namespace fuzztest {

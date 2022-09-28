@@ -18,7 +18,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 
 namespace fuzztest::internal {

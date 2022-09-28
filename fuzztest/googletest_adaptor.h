@@ -17,7 +17,7 @@
 
 #include <utility>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 

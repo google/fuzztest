@@ -18,7 +18,7 @@
 #include <string>
 
 #include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {

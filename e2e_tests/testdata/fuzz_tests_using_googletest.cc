@@ -20,7 +20,7 @@
 #include <cstdio>
 #include <limits>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/googletest_fixture_adapter.h"
 

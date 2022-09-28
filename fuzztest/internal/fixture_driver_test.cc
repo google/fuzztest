@@ -19,7 +19,7 @@
 #include <type_traits>
 
 #include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domain.h"

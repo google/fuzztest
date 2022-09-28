@@ -16,7 +16,7 @@
 #include <string>
 #include <string_view>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "./fuzztest/fuzztest.h"

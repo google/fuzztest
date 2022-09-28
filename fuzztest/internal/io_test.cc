@@ -24,7 +24,7 @@
 #include <string>
 
 #include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "./fuzztest/fuzztest.h"
 

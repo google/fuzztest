@@ -18,7 +18,7 @@
 #include <string>
 #include <tuple>
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domain.h"

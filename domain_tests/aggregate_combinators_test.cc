@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "googlemock/include/gmock/gmock.h"
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "absl/random/random.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"

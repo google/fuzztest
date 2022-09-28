@@ -14,7 +14,7 @@
 
 #include "./escaping.h"
 
-#include "googletest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 
 namespace codelab {
