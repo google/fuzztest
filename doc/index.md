@@ -41,7 +41,7 @@ page.
 ## How do I use it?
 
 To get started, read the
-[Overview](overview.md).
+[Overview](overview.md) and [Quickstart with Bazel](quickstart-bazel.md).
 
 Continue by read the rest of the documentation, including the:
 
