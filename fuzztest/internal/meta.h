@@ -97,7 +97,8 @@ inline constexpr TypeId type_id = &type_id<T>;
 
 // Some simple type traits
 template <typename T>
-inline constexpr bool is_monostate_v = std::is_class_v<T>&& std::is_empty_v<T>&&
+inline constexpr bool is_monostate_v =
+    std::is_class_v<T> && std::is_empty_v<T> &&
     std::is_default_constructible_v<T>;
 
 template <typename T>
@@ -199,9 +200,11 @@ inline constexpr bool is_dynamic_container_v =
     Requires<T>([](auto v) -> decltype(v.insert(v.end(), *v.begin())) {});
 
 template <typename T>
-inline constexpr bool is_associative_container_v = is_dynamic_container_v<T>&&
-Requires<T>([](auto v) -> decltype(v.find(
-                           std::declval<typename decltype(v)::key_type>())) {});
+inline constexpr bool is_associative_container_v =
+    is_dynamic_container_v<T> &&
+    Requires<T>(
+        [](auto v) -> decltype(v.find(
+                       std::declval<typename decltype(v)::key_type>())) {});
 
 template <typename T>
 inline constexpr bool is_ostreamable_v =
@@ -225,7 +228,7 @@ template <typename T>
 auto BindAggregate(T&, std::integral_constant<int, 0>) {
   return std::tie();
 }
-// Implement the overloads from 1 to 32.
+// Implement the overloads from 1 to 64.
 // There is no "variadic" way of doing this.
 #define FUZZTEST_INTERNAL_BIND_AGGREGATE_(n, ...)                \
   template <typename T>                                          \
@@ -305,18 +308,200 @@ FUZZTEST_INTERNAL_BIND_AGGREGATE_(32, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(33, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(34, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(35, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(36, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(37, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(38, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(39, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(40, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(41, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(42, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(43, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(44, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(45, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(46, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(47, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(48, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(49, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(50, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(51, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(52, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(53, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(54, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(55, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(56, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(57, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(58, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(59, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(60, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59, x60);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(61, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59, x60, x61);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(62, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59, x60, x61, x62);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(63, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59, x60, x61, x62, x63);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(64, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19,
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28,
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37,
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46,
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55,
+                                  x56, x57, x58, x59, x60, x61, x62, x63, x64);
 #undef FUZZTEST_INTERNAL_BIND_AGGREGATE_
 
-// For N > 32, use std::get<I>.
+// For N > 64, use std::get<I>.
 // Some aggregate types like std::tuple provide this protocol, but so can user
 // defined types.
 template <typename T, int N>
 auto BindAggregate(T& value, std::integral_constant<int, N>) {
-  static_assert(N > 32);
+  static_assert(N > 64);
   if constexpr (std::is_aggregate_v<T> &&
                 !Requires<T>([](auto v) -> decltype(std::get<0>(v)) {})) {
     static_assert(always_false<T>,
-                  "Aggregate types are only supported up to 32 fields.");
+                  "Aggregate types are only supported up to 64 fields.");
   }
   // For the rest use the tuple API
   return ApplyIndex<N>(
@@ -344,6 +529,70 @@ constexpr std::optional<int> DetectBraceInitCount() {
   };
   if constexpr (!std::is_aggregate_v<T>) {
     return std::nullopt;
+  } else if constexpr (ApplyIndex<64>(can_init)) {
+    return 64;
+  } else if constexpr (ApplyIndex<63>(can_init)) {
+    return 63;
+  } else if constexpr (ApplyIndex<62>(can_init)) {
+    return 62;
+  } else if constexpr (ApplyIndex<61>(can_init)) {
+    return 61;
+  } else if constexpr (ApplyIndex<60>(can_init)) {
+    return 60;
+  } else if constexpr (ApplyIndex<59>(can_init)) {
+    return 59;
+  } else if constexpr (ApplyIndex<58>(can_init)) {
+    return 58;
+  } else if constexpr (ApplyIndex<57>(can_init)) {
+    return 57;
+  } else if constexpr (ApplyIndex<56>(can_init)) {
+    return 56;
+  } else if constexpr (ApplyIndex<55>(can_init)) {
+    return 55;
+  } else if constexpr (ApplyIndex<54>(can_init)) {
+    return 54;
+  } else if constexpr (ApplyIndex<53>(can_init)) {
+    return 53;
+  } else if constexpr (ApplyIndex<52>(can_init)) {
+    return 52;
+  } else if constexpr (ApplyIndex<51>(can_init)) {
+    return 51;
+  } else if constexpr (ApplyIndex<50>(can_init)) {
+    return 50;
+  } else if constexpr (ApplyIndex<49>(can_init)) {
+    return 49;
+  } else if constexpr (ApplyIndex<48>(can_init)) {
+    return 48;
+  } else if constexpr (ApplyIndex<47>(can_init)) {
+    return 47;
+  } else if constexpr (ApplyIndex<46>(can_init)) {
+    return 46;
+  } else if constexpr (ApplyIndex<45>(can_init)) {
+    return 45;
+  } else if constexpr (ApplyIndex<44>(can_init)) {
+    return 44;
+  } else if constexpr (ApplyIndex<43>(can_init)) {
+    return 43;
+  } else if constexpr (ApplyIndex<42>(can_init)) {
+    return 42;
+  } else if constexpr (ApplyIndex<41>(can_init)) {
+    return 41;
+  } else if constexpr (ApplyIndex<40>(can_init)) {
+    return 40;
+  } else if constexpr (ApplyIndex<39>(can_init)) {
+    return 39;
+  } else if constexpr (ApplyIndex<38>(can_init)) {
+    return 38;
+  } else if constexpr (ApplyIndex<37>(can_init)) {
+    return 37;
+  } else if constexpr (ApplyIndex<36>(can_init)) {
+    return 36;
+  } else if constexpr (ApplyIndex<35>(can_init)) {
+    return 35;
+  } else if constexpr (ApplyIndex<34>(can_init)) {
+    return 34;
+  } else if constexpr (ApplyIndex<33>(can_init)) {
+    return 33;
   } else if constexpr (ApplyIndex<32>(can_init)) {
     return 32;
   } else if constexpr (ApplyIndex<31>(can_init)) {
