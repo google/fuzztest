@@ -117,6 +117,7 @@ bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
   // We don't care about potential ABI change since all of this has internal
   // linkage. Silence the warning.
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
 #pragma clang diagnostic ignored "-Wpsabi"
   const auto merge_data = [&](auto aligned) {
     const Vector execution_v = read(execution_data, aligned);
@@ -131,6 +132,7 @@ bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
     any_greater |= max_v ^ corpus_v;
   };
 #pragma clang diagnostic pop
+
   // Merge every sizeof(Vector) chunks.
   // We read the first and last blocks with unaligned reads.
   // The rest we make sure that memory is properly aligned and use the faster
