@@ -318,26 +318,8 @@ For *repeated* fields the domain is of the form `Domain<std::vector<Type>>`.
 You can customize the domain for a subset of fields, for example all fields with
 message type `Date`, or all fields with "amount" in the field's name.
 
-IMPORTANT: Note that customization options can conflict each other. For any
-proto field, when multiple customization calls apply to that field, only the
-first call will have an effect on the field.
-
-Consider the following for example:
-
-```c++
-.WithInt32Fields(Just(0)).WithInt32Filed("zipcode", Just(11111))
-```
-
-Here, all int32 fields will be set to zero for the former customization, because
-the first customization applies to all int32 fields. To set "zipcode" field, its
-customization should appear first:
-
-```c++
-.WithInt32Filed("zipcode", Just(11111)).WithInt32Fields(Just(0))
-```
-
-When called in the opposite order, "zipcode" field will be set to 11111 and all
-other int32 fields will be zero.
+IMPORTANT: Note that customization options can conflict each other. In case of
+conflicts the latter customization always overrides the former.
 
 **Customizing Multiple Fields With Same Type:** You can set the domain for a
 subset of fields with the same type using `With<Type>Fields`. By default this
@@ -380,12 +362,12 @@ bool IsTimestamp(const FieldDescriptor* field){
 }
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto)
     .WithDomains(Arbitrary<Moving>()
-    // Balance field can be negative.
-    .WihtInt32Field("balance", Arbitrary<int>())
-    // All zipcode fields which should have 5 digits.
-    .WithInt32Fields(IsZipcode, InRange(10000, 99999))
-    // All other int fields should be positive.
+    // All int fields should be positive
     .WithInt32Fields(Positive<int>())
+    // except balance field which can be negative
+    .WihtInt32Field("balance", Arbitrary<int>())
+    // and except all zipcode fields which should have 5 digits
+    .WithInt32Fields(IsZipcode, InRange(10000, 99999))
     // All Timestamp fields should have "nanos" field unset.
     .WithProtobufFields(IsTimestamp, Arbitrary<Timestamp>().WithInt32FieldUnset("nanos")));
 ```
@@ -402,11 +384,14 @@ bool IsProtoType(const FieldDescriptor* field){
 }
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-      .WithInt32Field("foo", InRange(0, 10))
-      .WithOptionalFieldsUnset(IsProtoType)
-      // Other optional fields should be set. We don't override the nullness for
-      // "foo" (which can be unset or unset), and all proto fields.
+      // Always set optional fields
       .WithOptionalFieldsAlwaysSet()
+      // except fields that contain nested protos.
+      .WithOptionalFieldsUnset(IsProtoType)
+      // and except "foo" field. We override the nullness by using the
+      // WithInt32Filed (instead of WithInt32FieldAlwaysSet()), which will
+      // enable the fuzzer make this field both set and unset.
+      .WithInt32Field("foo", Arbitrary<int>())
   );
 ```
 
@@ -420,14 +405,13 @@ bool IsCitizenship(const FieldDescriptor* field){
 }
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-    // "additional_info" can be empty or arbitrary large.
-    .WithInt32Field("additional_info", VectorOf(String()))
-    // Citizenship fields which can size at most 2.
-    .WithRepeatedFieldsMaxSize(IsCitizenship, 2)
-    // Other Repeated fields should have size in range 1-10. We don't override
-    // the size for "additional_info", and all citizenship fields.
+    // Repeated fields should have size in range 1-10
     .WithRepeatedFieldsMinSize(1)
     .WithRepeatedFieldsMaxSize(10)
+    // except citizenship fields which can size at most 2.
+    .WithRepeatedFieldsMaxSize(IsCitizenship, 2)
+    // and except "additional_info" field which can be empty or arbitrary large
+    .WithInt32Field("additional_info", VectorOf(String()).WithMinSize(0))
   );
 ```
 

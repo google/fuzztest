@@ -218,34 +218,36 @@ void FailsWhenAnyOptionalFieldsHaveValue(const TestProtobuf& proto) {
 FUZZ_TEST(MySuite, FailsWhenAnyOptionalFieldsHaveValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithOptionalFieldsUnset());
 
-void FieldBIsAlwaysSetAndAllOtherOptionalFieldsAreUnset(
+void FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenDomain(
     const TestProtobuf& proto) {
   if (!proto.has_b() || AnyNonBooleanOptionalFieldIsSet(proto)) {
     std::abort();
   }
 }
-FUZZ_TEST(MySuite, FieldBIsAlwaysSetAndAllOtherOptionalFieldsAreUnset)
+FUZZ_TEST(MySuite,
+          FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenDomain)
     .WithDomains(Arbitrary<TestProtobuf>()
-                     .WithBoolFieldAlwaysSet("b", Arbitrary<bool>())
-                     .WithOptionalFieldsUnset());
+                     .WithOptionalFieldsUnset()
+                     .WithBoolFieldAlwaysSet("b", Arbitrary<bool>()));
 
-void BoolFieldsAreAlwaysSetAndAllOtherOptionalFieldsAreUnset(
+void FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenPolicy(
     const TestProtobuf& proto) {
   if (!proto.has_b() || AnyNonBooleanOptionalFieldIsSet(proto)) {
     std::abort();
   }
 }
-FUZZ_TEST(MySuite, BoolFieldsAreAlwaysSetAndAllOtherOptionalFieldsAreUnset)
+FUZZ_TEST(MySuite,
+          FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenPolicy)
     .WithDomains(
         Arbitrary<TestProtobuf>()
-            .WithOptionalFieldsUnset([](const FieldDescriptor* field) {
-              return field->type() == FieldDescriptor::TYPE_INT32;
-            })
+            .WithOptionalFieldsUnset()
             .WithOptionalFieldsAlwaysSet([](const FieldDescriptor* field) {
               return field->type() == FieldDescriptor::TYPE_BOOL ||
                      field->type() == FieldDescriptor::TYPE_INT32;
             })
-            .WithOptionalFieldsUnset());
+            .WithOptionalFieldsUnset([](const FieldDescriptor* field) {
+              return field->type() == FieldDescriptor::TYPE_INT32;
+            }));
 
 bool IsTestSubProtobuf(const FieldDescriptor* field) {
   return field->message_type()->full_name() ==
@@ -275,7 +277,7 @@ FUZZ_TEST(MySuite, FailsWhenWrongDefaultProtobufDomainIsProvided)
     .WithDomains(Arbitrary<TestProtobuf>().WithProtobufFields(
         IsTestSubProtobuf, Arbitrary<TestProtobufWithRecursion>()));
 
-void Int32FieldsRespectCustomizations(const TestProtobuf& proto) {
+void FailsWhenI32FieldValuesDontRespectAllPolicies(const TestProtobuf& proto) {
   if (!proto.has_i32() || proto.i32() != 1) {
     std::abort();
   }
@@ -302,15 +304,15 @@ bool IsNotRequired(const FieldDescriptor* field) {
 }
 bool IsRepeated(const FieldDescriptor* field) { return field->is_repeated(); }
 
-FUZZ_TEST(MySuite, Int32FieldsRespectCustomizations)
+FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
     .WithDomains(Arbitrary<TestProtobuf>()
-                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1))
-                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
-                     .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
+                     .WithOptionalFieldsAlwaysSet(IsInt32)
+                     .WithRepeatedFieldsMinSize(IsInt32, 1)
                      .WithRepeatedInt32Field(
                          "rep_i32", VectorOf(fuzztest::Just(4)).WithMinSize(1))
-                     .WithOptionalFieldsAlwaysSet(IsInt32)
-                     .WithRepeatedFieldsMinSize(IsInt32, 1));
+                     .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
+                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
+                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1)));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
@@ -318,16 +320,16 @@ FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
                      .WithOptionalFieldsAlwaysSet()
                      .WithStringField("id", Arbitrary<std::string>()));
 
-void InitializesRecursiveProtoIfInfiniteRecursivePolicyStopsPropagating(
+void InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten(
     const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite,
-          InitializesRecursiveProtoIfInfiniteRecursivePolicyStopsPropagating)
+          InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten)
     .WithDomains(Arbitrary<TestProtobufWithRecursion>()
+                     .WithOptionalFieldsAlwaysSet()
                      .WithProtobufField(
                          "child",
                          Arbitrary<TestProtobufWithRecursion::ChildProto>()
-                             .WithStringField("id", Arbitrary<std::string>()))
-                     .WithOptionalFieldsAlwaysSet());
+                             .WithStringField("id", Arbitrary<std::string>())));
 
 bool AreRepeatedFieldsSizesCorrect(absl::FunctionRef<bool(int)> is_size_correct,
                                    const TestProtobuf& proto) {
@@ -384,9 +386,9 @@ void FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue(
 FUZZ_TEST(MySuite,
           FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue)
     .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithEnumFieldsTransformed(IgnoreZero)
                      .WithEnumField("e",
-                                    fuzztest::Just<int>(TestProtobuf::Label1))
-                     .WithEnumFieldsTransformed(IgnoreZero));
+                                    fuzztest::Just<int>(TestProtobuf::Label1)));
 
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
   if (e == TestProtobuf::Enum::TestProtobuf_Enum_Label4) {
