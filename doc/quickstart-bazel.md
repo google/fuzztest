@@ -28,19 +28,20 @@ will configure FuzzTest along with its transitive dependencies as Bazel external
 dependencies:
 
 ```
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 ################################################################################
 # Direct dependencies
 ################################################################################
 
-git_repository(
+# To use the latest version of FuzzTest, update this regularly to the latest
+# commit in the main branch: https://github.com/google/fuzztest/commits/main
+FUZZTEST_COMMIT = "62cf00c7341eb05d128d0a3cbce79ac31dbda032"
+
+http_archive(
     name = "com_google_fuzztest",
-    # To use the latest version of FuzzTest, update this regularly to the latest
-    # commit in the main branch: https://github.com/google/fuzztest/commits/main
-    commit = "62cf00c7341eb05d128d0a3cbce79ac31dbda032",
-    remote = "https://github.com/google/fuzztest.git",
+    strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
+    url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
 )
 
 http_archive(
