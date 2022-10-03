@@ -128,11 +128,11 @@ TYPED_TEST(NumericTest, InRange) {
         return (limit <= next && next < prev) || (prev < next && next <= limit);
       });
 
-  const bool fits_in_64_bits =
-      std::numeric_limits<T>::max() <= std::numeric_limits<uint64_t>::max();
+  static constexpr bool is_at_most_64_bit_integer =
+      std::numeric_limits<T>::is_integer && sizeof(T) <= sizeof(uint64_t);
   const std::string serialized_format =
       std::is_floating_point<T>::value ? "d: $0"
-      : fits_in_64_bits                ? "i: $0"
+      : is_at_most_64_bit_integer      ? "i: $0"
                                        : R"(sub { i: 0 } sub { i: $0 })";
   EXPECT_TRUE(
       domain
