@@ -69,7 +69,8 @@ struct MyStruct {
   friend bool operator==(const MyStruct& lhs, const MyStruct& rhs) {
     return std::tie(lhs.a, lhs.s) == std::tie(rhs.a, rhs.s);
   }
-  friend bool operator!=(const MyStruct& lhs, const MyStruct& rhs) {
+  [[maybe_unused]] friend bool operator!=(const MyStruct& lhs,
+                                          const MyStruct& rhs) {
     return !(lhs == rhs);
   }
   template <typename H>
