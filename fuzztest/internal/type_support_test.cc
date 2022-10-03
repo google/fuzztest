@@ -322,11 +322,11 @@ TEST(MapTest, Printer) {
   auto domain = Map(StringTimes, InRange(2, 5), InRange('a', 'b'));
   std::tuple<int, char> corpus_value(3, 'b');
 
-  EXPECT_THAT(
-      TestPrintValue(corpus_value, domain),
-      ElementsAre("\"bbb\"",
-                  // Takes into account that `StringTimes` may appear mangled.
-                  MatchesRegex(R"re(\w*StringTimes\w*\(3, 'b'\))re")));
+  EXPECT_THAT(TestPrintValue(corpus_value, domain),
+              ElementsAre("\"bbb\"",
+                          // Takes into account that the function name may
+                          // contain ABI annotations after de-mangling.
+                          MatchesRegex(R"re(StringTimes.*\(3, 'b'\))re")));
 
   // Test fallback on user value when map involves a lambda.
   EXPECT_THAT(TestPrintValue(std::tuple<int>(21), HexString()),
