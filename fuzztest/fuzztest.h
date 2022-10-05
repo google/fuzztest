@@ -92,7 +92,7 @@ namespace fuzztest {
 // If the fixture you are using is a GoogleTest fixture (i.e., it extends
 // `::testing::Test`, either directly or indirectly), then you will additionally
 // need to wrap the fixture in an adapter. For more details, see
-// https://github.com/google/fuzztest/doc/fuzztest-fixtures.md.
+// https://github.com/google/fuzztest/blob/main/doc/fixtures.md.
 //
 // Just like the FUZZ_TEST macro, the FUZZ_TEST_F macro allows specifying the
 // domains and seeds using the `.WithDomains()` and `.WithSeeds()` clauses.

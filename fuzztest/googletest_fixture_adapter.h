@@ -62,7 +62,7 @@ class GoogleTestFixtureAdapter<
 //
 // Note: Only use GoogleTest fixtures in fuzz tests if they are also used in
 // unit tests. For more details, see
-// https://github.com/google/fuzztest/doc/fuzztest-fixtures.md.
+// https://github.com/google/fuzztest/blob/main/doc/fixtures.md.
 //
 // Example:
 //
