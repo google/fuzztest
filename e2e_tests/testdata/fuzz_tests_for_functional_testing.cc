@@ -317,9 +317,9 @@ FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
     .WithDomains(Arbitrary<TestProtobuf>()
                      .WithOptionalFieldsAlwaysSet(IsInt32)
                      .WithRepeatedFieldsMinSize(IsInt32, 1)
-                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1))
                      .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
-                     .WithInt32Fields(IsRepeated, fuzztest::Just(2)));
+                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
+                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1)));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)

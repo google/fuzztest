@@ -828,9 +828,15 @@ class ProtobufDomainUntypedImpl
     are_fields_customized_ = true;
   }
 
-  void SetPolicy(ProtoPolicy<Message> policy) { policy_ = policy; }
+  void SetPolicy(ProtoPolicy<Message> policy) {
+    CheckIfPolicyCanBeUpdated();
+    policy_ = policy;
+  }
 
-  ProtoPolicy<Message>& GetPolicy() { return policy_; }
+  ProtoPolicy<Message>& GetPolicy() {
+    CheckIfPolicyCanBeUpdated();
+    return policy_;
+  }
 
   template <typename T>
   auto GetFieldTypeDefaultDomain(absl::string_view field_name) const {
@@ -843,6 +849,13 @@ class ProtobufDomainUntypedImpl
   }
 
  private:
+  void CheckIfPolicyCanBeUpdated() const {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !are_fields_customized_,
+        "All singular modifiers (i.e., .With_Field_()) should come after "
+        "plural modifiers (i.e., .With_Fields_()). Consider reordering .With_ "
+        "modifiers.");
+  }
   // Get the existing domain for `field`, if exists.
   // Otherwise, create the appropriate `Arbitrary<>` domain for the field and
   // return it.
