@@ -430,6 +430,12 @@ TEST(ProtocolBuffer, InvalidInputReportsError) {
           "i32", Arbitrary<std::string>()),
       "Failed precondition.*"
       "does not match field `fuzztest.internal.TestProtobuf.i32`");
+  EXPECT_DEATH_IF_SUPPORTED(
+      Arbitrary<internal::TestProtobuf>()
+          .WithInt32Field("i32", Just(0))
+          .WithInt32Field("i32", Just(0)),
+      "Failed precondition.*"
+      "field `fuzztest.internal.TestProtobuf.i32` has been set multiple times");
 }
 
 TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {

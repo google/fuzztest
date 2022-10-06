@@ -1114,9 +1114,6 @@ class ContainerOfImplBase : public DomainBase<Derived> {
     max_size_ = other.max_size_;
   }
 
-  size_t min_size() const { return min_size_; }
-  size_t max_size() const { return max_size_; }
-
  protected:
   InnerDomainT inner_;
 
@@ -2346,7 +2343,6 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
   }
 
   InnerDomain Inner() const { return inner_; }
-  OptionalPolicy policy() const { return policy_; }
 
  private:
   InnerDomain inner_;
@@ -2777,9 +2773,6 @@ class UniqueElementsContainerImpl
     unique_domain_.WithMaxSize(s);
     return *this;
   }
-
-  size_t min_size() const { return unique_domain_.min_size(); }
-  size_t max_size() const { return unique_domain_.max_size(); }
 
  private:
   UniqueDomain unique_domain_;

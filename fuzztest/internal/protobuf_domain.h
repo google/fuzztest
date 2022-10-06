@@ -203,93 +203,31 @@ class ProtoPolicy {
       : optional_policies_({{.filter = IncludeAll<FieldDescriptor>(),
                              .value = OptionalPolicy::kWithNull}}) {}
 
-  ProtoPolicy GetChildrenPolicy() const {
-    ProtoPolicy children_policy;
-    children_policy.optional_policies_ =
-        CopyRecursivePolicyValues(optional_policies_);
-    children_policy.min_repeated_fields_sizes_ =
-        CopyRecursivePolicyValues(min_repeated_fields_sizes_);
-    children_policy.max_repeated_fields_sizes_ =
-        CopyRecursivePolicyValues(max_repeated_fields_sizes_);
-
-    children_policy.domains_for_Bool_ =
-        CopyRecursivePolicyValues(domains_for_Bool_);
-    children_policy.domains_for_Int32_ =
-        CopyRecursivePolicyValues(domains_for_Int32_);
-    children_policy.domains_for_UInt32_ =
-        CopyRecursivePolicyValues(domains_for_UInt32_);
-    children_policy.domains_for_Int64_ =
-        CopyRecursivePolicyValues(domains_for_Int64_);
-    children_policy.domains_for_UInt64_ =
-        CopyRecursivePolicyValues(domains_for_UInt64_);
-    children_policy.domains_for_Float_ =
-        CopyRecursivePolicyValues(domains_for_Float_);
-    children_policy.domains_for_Double_ =
-        CopyRecursivePolicyValues(domains_for_Double_);
-    children_policy.domains_for_String_ =
-        CopyRecursivePolicyValues(domains_for_String_);
-    children_policy.domains_for_Enum_ =
-        CopyRecursivePolicyValues(domains_for_Enum_);
-    children_policy.domains_for_Protobuf_ =
-        CopyRecursivePolicyValues(domains_for_Protobuf_);
-    children_policy.transformers_for_Bool_ =
-        CopyRecursivePolicyValues(transformers_for_Bool_);
-    children_policy.transformers_for_Int32_ =
-        CopyRecursivePolicyValues(transformers_for_Int32_);
-    children_policy.transformers_for_UInt32_ =
-        CopyRecursivePolicyValues(transformers_for_UInt32_);
-    children_policy.transformers_for_Int64_ =
-        CopyRecursivePolicyValues(transformers_for_Int64_);
-    children_policy.transformers_for_UInt64_ =
-        CopyRecursivePolicyValues(transformers_for_UInt64_);
-    children_policy.transformers_for_Float_ =
-        CopyRecursivePolicyValues(transformers_for_Float_);
-    children_policy.transformers_for_Double_ =
-        CopyRecursivePolicyValues(transformers_for_Double_);
-    children_policy.transformers_for_String_ =
-        CopyRecursivePolicyValues(transformers_for_String_);
-    children_policy.transformers_for_Enum_ =
-        CopyRecursivePolicyValues(transformers_for_Enum_);
-    children_policy.transformers_for_Protobuf_ =
-        CopyRecursivePolicyValues(transformers_for_Protobuf_);
-    return children_policy;
+  void SetOptionalPolicy(OptionalPolicy optional_policy) {
+    SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
   }
 
-  void SetOptionalPolicy(OptionalPolicy optional_policy,
-                         bool is_recursive = true) {
-    SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy,
-                      is_recursive);
+  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+    optional_policies_.push_back(
+        {.filter = std::move(filter), .value = optional_policy});
   }
 
-  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy,
-                         bool is_recursive = true) {
-    optional_policies_.push_back({.filter = std::move(filter),
-                                  .value = optional_policy,
-                                  .is_recursive = is_recursive});
+  void SetMinRepeatedFieldsSize(int64_t min_size) {
+    SetMinRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), min_size);
   }
 
-  void SetMinRepeatedFieldsSize(int64_t min_size, bool is_recursive = true) {
-    SetMinRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), min_size,
-                             is_recursive);
+  void SetMinRepeatedFieldsSize(Filter filter, int64_t min_size) {
+    min_repeated_fields_sizes_.push_back(
+        {.filter = std::move(filter), .value = min_size});
   }
 
-  void SetMinRepeatedFieldsSize(Filter filter, int64_t min_size,
-                                bool is_recursive = true) {
-    min_repeated_fields_sizes_.push_back({.filter = std::move(filter),
-                                          .value = min_size,
-                                          .is_recursive = is_recursive});
+  void SetMaxRepeatedFieldsSize(int64_t max_size) {
+    SetMaxRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), max_size);
   }
 
-  void SetMaxRepeatedFieldsSize(int64_t max_size, bool is_recursive = true) {
-    SetMaxRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), max_size,
-                             is_recursive);
-  }
-
-  void SetMaxRepeatedFieldsSize(Filter filter, int64_t max_size,
-                                bool is_recursive = true) {
-    max_repeated_fields_sizes_.push_back({.filter = std::move(filter),
-                                          .value = max_size,
-                                          .is_recursive = is_recursive});
+  void SetMaxRepeatedFieldsSize(Filter filter, int64_t max_size) {
+    max_repeated_fields_sizes_.push_back(
+        {.filter = std::move(filter), .value = max_size});
   }
 
   OptionalPolicy GetOptionalPolicy(const FieldDescriptor* field) const {
@@ -323,20 +261,7 @@ class ProtoPolicy {
   struct FilterToValue {
     Filter filter;
     T value;
-    bool is_recursive = true;
   };
-
-  template <typename T>
-  std::vector<FilterToValue<T>> CopyRecursivePolicyValues(
-      const std::vector<FilterToValue<T>>& filter_to_values) const {
-    std::vector<FilterToValue<T>> result;
-    for (const auto& filter_to_value : filter_to_values) {
-      if (filter_to_value.is_recursive) {
-        result.push_back(filter_to_value);
-      }
-    }
-    return result;
-  }
 
   template <typename T>
   std::optional<T> GetPolicyValue(
@@ -374,28 +299,21 @@ class ProtoPolicy {
                                                                                \
  public:                                                                       \
   void SetDefaultDomainFor##Camel##s(                                          \
-      Domain<MakeDependentType<cpp, Message>> domain,                          \
-      bool is_recursive = true) {                                              \
+      Domain<MakeDependentType<cpp, Message>> domain) {                        \
     domains_for_##Camel##_.push_back({.filter = IncludeAll<FieldDescriptor>(), \
-                                      .value = std::move(domain),              \
-                                      .is_recursive = true});                  \
+                                      .value = std::move(domain)});            \
   }                                                                            \
   void SetDefaultDomainFor##Camel##s(                                          \
-      Filter filter, Domain<MakeDependentType<cpp, Message>> domain,           \
-      bool is_recursive = true) {                                              \
-    domains_for_##Camel##_.push_back({.filter = std::move(filter),             \
-                                      .value = std::move(domain),              \
-                                      .is_recursive = true});                  \
+      Filter filter, Domain<MakeDependentType<cpp, Message>> domain) {         \
+    domains_for_##Camel##_.push_back(                                          \
+        {.filter = std::move(filter), .value = std::move(domain)});            \
   }                                                                            \
   void SetDomainTransformerFor##Camel##s(                                      \
-      Filter filter,                                                           \
-      std::function<Domain<MakeDependentType<cpp, Message>>(                   \
-          Domain<MakeDependentType<cpp, Message>>)>                            \
-          transformer,                                                         \
-      bool is_recursive = true) {                                              \
-    transformers_for_##Camel##_.push_back({.filter = std::move(filter),        \
-                                           .value = std::move(transformer),    \
-                                           .is_recursive = true});             \
+      Filter filter, std::function<Domain<MakeDependentType<cpp, Message>>(    \
+                         Domain<MakeDependentType<cpp, Message>>)>             \
+                         transformer) {                                        \
+    transformers_for_##Camel##_.push_back(                                     \
+        {.filter = std::move(filter), .value = std::move(transformer)});       \
   }                                                                            \
   std::optional<Domain<MakeDependentType<cpp, Message>>>                       \
       GetDefaultDomainFor##Camel##s(const FieldDescriptor* field) const {      \
@@ -655,6 +573,9 @@ class ProtobufDomainUntypedImpl
       auto& domain = self.GetSubDomain<T, false>(field);
       auto value = domain.GetValue(data);
       if (!value.has_value()) {
+        FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+            !field->is_required(), "required field '",
+            std::string(field->name()), "' cannot have null values.");
         message.GetReflection()->ClearField(&message, field);
         return;
       }
@@ -869,46 +790,13 @@ class ProtobufDomainUntypedImpl
               "` but the field needs a message of type `",
               field->message_type()->full_name(), "`.");
         }
-        auto field_filter =
-            [full_name = field->full_name()](const FieldDescriptor* field) {
-              return field->full_name() == full_name;
-            };
-        if constexpr (is_repeated) {
-          self.GetPolicy().SetMinRepeatedFieldsSize(
-              field_filter, domain.min_size(), /*is_recursive=*/false);
-          self.GetPolicy().SetMaxRepeatedFieldsSize(
-              field_filter, domain.max_size(), /*is_recursive=*/false);
-        } else {
-          if (field->is_required()) {
-            FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-                domain.policy() == OptionalPolicy::kWithoutNull,
-                "required field '", field->full_name(),
-                "' cannot have null values.");
-          } else {
-            self.GetPolicy().SetOptionalPolicy(field_filter, domain.policy(),
-                                               /*is_recursive=*/false);
-          }
-        }
-
-#define FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Camel, cpp, TAG) \
-  if constexpr (std::is_same_v<T, TAG>) {                            \
-    self.GetPolicy().SetDefaultDomainFor##Camel##s(                  \
-        field_filter, domain.Inner(), /*is_recursive=*/false);       \
-    self.GetPolicy().SetDomainTransformerFor##Camel##s(              \
-        field_filter, Identity<cpp>(), /*is_recursive=*/false);      \
-  }
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Bool, bool, bool)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int32, int32_t, int32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt32, uint32_t, uint32_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Int64, int64_t, int64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(UInt64, uint64_t, uint64_t)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Float, float, float)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Double, double, double)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(String, std::string,
-                                                    std::string)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(Enum, int, ProtoEnumTag)
-        FUZZTEST_INTERNAL_SET_BASE_DOMAIN_FOR_FIELD(
-            Protobuf, std::unique_ptr<Message>, ProtoMessageTag)
+        absl::MutexLock l(&self.mutex_);
+        auto res =
+            self.domains_.try_emplace(field->number(), std::in_place,
+                                      DomainT(std::forward<Inner>(domain)));
+        FUZZTEST_INTERNAL_CHECK_PRECONDITION(res.second, "Domain for field `",
+                                             field->full_name(),
+                                             "` has been set multiple times.");
       }
     }
 
@@ -1103,16 +991,14 @@ class ProtobufDomainUntypedImpl
 
   bool IsNonTerminatingRecursive() {
     absl::flat_hash_set<decltype(prototype_->GetDescriptor())> parents;
-    return IsProtoRecursive(prototype_->GetDescriptor(), parents,
-                            policy_.GetChildrenPolicy(),
+    return IsProtoRecursive(prototype_->GetDescriptor(), parents, policy_,
                             /*consider_non_terminating_recursions=*/true);
   }
 
   bool IsFieldRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
     absl::flat_hash_set<decltype(field->message_type())> parents;
-    return IsProtoRecursive(field->message_type(), parents,
-                            policy_.GetChildrenPolicy(),
+    return IsProtoRecursive(field->message_type(), parents, policy_,
                             /*consider_non_terminating_recursions=*/false);
   }
 
@@ -1294,10 +1180,9 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this).With##Camel##FieldAlwaysSet(                       \
         field, inner_.template GetFieldTypeDefaultDomain<TAG>(field));         \
   }                                                                            \
-  template <template <typename, typename> typename DomainImpl, typename Inner> \
   ProtobufDomainImpl&& WithRepeated##Camel##Field(                             \
       std::string_view field,                                                  \
-      DomainImpl<MakeDependentType<std::vector<cpp>, T>, Inner> domain)&& {    \
+      Domain<MakeDependentType<std::vector<cpp>, T>> domain)&& {               \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
   }                                                                            \

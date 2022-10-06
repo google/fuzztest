@@ -341,6 +341,13 @@ TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.FailsWhenRequiredFieldHasNoValue"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
+}
+
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfProtobufEnumEqualsLabel4"));

@@ -41,6 +41,7 @@ using fuzztest::internal::ProtoExtender;
 using fuzztest::internal::TestProtobuf;
 using fuzztest::internal::TestProtobufWithExtension;
 using fuzztest::internal::TestProtobufWithRecursion;
+using fuzztest::internal::TestProtobufWithRequired;
 using fuzztest::internal::TestSubProtobuf;
 using google::protobuf::FieldDescriptor;
 
@@ -158,6 +159,14 @@ void FailsWhenFieldDoubleHasNoValue(const TestProtobuf& proto) {
 FUZZ_TEST(MySuite, FailsWhenFieldDoubleHasNoValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithDoubleFieldAlwaysSet(
         "d", InRange(0., 1000.)));
+
+void FailsWhenRequiredFieldHasNoValue(const TestProtobufWithRequired& proto) {
+  if (!proto.has_req_i32()) std::abort();
+}
+
+FUZZ_TEST(MySuite, FailsWhenRequiredFieldHasNoValue)
+    .WithDomains(Arbitrary<TestProtobufWithRequired>().WithInt32Field(
+        "req_i32", InRange(0, 1000)));
 
 void FailsWhenSubprotoIsNull(const TestProtobuf& proto) {
   if (!proto.has_subproto()) {
@@ -308,11 +317,9 @@ FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
     .WithDomains(Arbitrary<TestProtobuf>()
                      .WithOptionalFieldsAlwaysSet(IsInt32)
                      .WithRepeatedFieldsMinSize(IsInt32, 1)
-                     .WithRepeatedInt32Field(
-                         "rep_i32", VectorOf(fuzztest::Just(4)).WithMinSize(1))
+                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1))
                      .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
-                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
-                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1)));
+                     .WithInt32Fields(IsRepeated, fuzztest::Just(2)));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
