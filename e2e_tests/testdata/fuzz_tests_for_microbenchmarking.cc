@@ -47,7 +47,7 @@ FUZZ_TEST(Control, Iters10000);
 void BufferOverread(std::string_view s) {
   if (s.empty()) return;
   size_t out_of_bounds_index = s.size();
-  googlefuzz_force_write = s[out_of_bounds_index];
+  googlefuzz_force_write = s.data()[out_of_bounds_index];
 }
 
 void BufferOverreadWithStringView(std::string_view s) { BufferOverread(s); }
