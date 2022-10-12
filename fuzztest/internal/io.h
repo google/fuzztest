@@ -28,13 +28,23 @@ bool WriteFile(std::string_view filename, std::string_view contents);
 // path to the file.
 std::string WriteDataToDir(std::string_view data, std::string_view dir);
 
+// Reads `file` and returns its content. If `file` is not a regular file or
+// reading it fails, returns `std::nullopt`.
 std::optional<std::string> ReadFile(std::string_view file);
 
 struct FilePathAndData {
   std::string path;
   std::string data;
 };
+
+// If `file_or_dir` is a directory, returns a list of its top-level files' paths
+// and contents. If `file_or_dir` is a file, returns a singleton list with its
+// path and content. In all other cases, returns an empty list.
 std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir);
+
+// Returns a list of top-level paths in `dir`. If `dir` is not a directory,
+// returns an empty list.
+std::vector<std::string> ListDirectory(std::string_view dir);
 
 }  // namespace fuzztest::internal
 

@@ -31,11 +31,12 @@
 namespace fuzztest::internal {
 namespace {
 
-using testing::Eq;
-using testing::FieldsAre;
-using testing::Optional;
-using testing::SizeIs;
-using testing::UnorderedElementsAre;
+using ::testing::Eq;
+using ::testing::FieldsAre;
+using ::testing::IsEmpty;
+using ::testing::Optional;
+using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 
 std::string TmpFile(const std::string& name) {
   std::string filename = absl::StrCat(testing::TempDir(), "/", name, "XXXXXX");
@@ -153,6 +154,27 @@ TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenNoFilesInDir) {
 TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenMissing) {
   EXPECT_THAT(ReadFilesFromDirectory("/doesnt_exist/"), UnorderedElementsAre());
   EXPECT_THAT(ReadFileOrDirectory("/doesnt_exist/"), SizeIs(0));
+}
+
+TEST(IOTest, ListDirectoryReturnsPathsInDirectory) {
+  const std::string tmp_dir = TmpDir("test_dir");
+  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  TestWrite(tmp_file_1, /*contents=*/"File1");
+  const std::string tmp_file_2 = absl::StrCat(tmp_dir, "/file2");
+  TestWrite(tmp_file_2, /*contents=*/"File2");
+  EXPECT_THAT(ListDirectory(tmp_dir),
+              UnorderedElementsAre(tmp_file_1, tmp_file_2));
+  std::filesystem::remove_all(tmp_dir);
+}
+
+TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryIsEmpty) {
+  const std::string tmp_dir = TmpDir("empty_dir");
+  EXPECT_THAT(ListDirectory(tmp_dir), IsEmpty());
+  std::filesystem::remove_all(tmp_dir);
+}
+
+TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryDoesNotExist) {
+  EXPECT_THAT(ListDirectory("/doesnt_exist/"), IsEmpty());
 }
 
 }  // namespace

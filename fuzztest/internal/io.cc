@@ -81,34 +81,44 @@ std::string WriteDataToDir(std::string_view data, std::string_view outdir) {
   return filename;
 }
 
+std::optional<std::string> ReadFile(std::string_view file) {
+  if (!std::filesystem::is_regular_file(file)) return std::nullopt;
+  std::ifstream stream(file.data());
+  if (!stream.good()) {
+    absl::FPrintF(stderr, "%s:%d: Error reading %s: (%d) %s\n", __FILE__,
+                  __LINE__, file, errno, strerror(errno));
+    return std::nullopt;
+  }
+  std::stringstream buffer;
+  buffer << stream.rdbuf();
+  return buffer.str();
+}
+
 std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir) {
   std::vector<FilePathAndData> out;
-  const auto read_file = [&](const std::string& path) {
-    std::ifstream stream(path);
-    if (!stream.good()) {
-      absl::FPrintF(stderr, "%s:%d: Error reading %s: (%d) %s\n", __FILE__,
-                    __LINE__, path.c_str(), errno, strerror(errno));
-      return;
+  const auto try_append_file = [&](std::string path) {
+    std::optional<std::string> data = ReadFile(path);
+    if (data.has_value()) {
+      out.push_back(FilePathAndData{std::move(path), *std::move(data)});
     }
-    std::stringstream ss;
-    ss << stream.rdbuf();
-    out.push_back({path, ss.str()});
   };
   if (std::filesystem::is_directory(file_or_dir)) {
     for (const auto& entry : std::filesystem::directory_iterator(file_or_dir)) {
-      read_file(entry.path().string());
+      try_append_file(entry.path().string());
     }
   } else {
-    read_file(std::string(file_or_dir));
+    try_append_file(std::string(file_or_dir));
   }
-
   return out;
 }
 
-std::optional<std::string> ReadFile(std::string_view file) {
-  if (!std::filesystem::is_regular_file(file)) return std::nullopt;
-  auto out = ReadFileOrDirectory(file);
-  return out.size() != 1 ? std::nullopt : std::optional(std::move(out[0]).data);
+std::vector<std::string> ListDirectory(std::string_view dir) {
+  std::vector<std::string> out;
+  if (!std::filesystem::is_directory(dir)) return out;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    out.push_back(entry.path().string());
+  }
+  return out;
 }
 
 #endif  // defined(__APPLE__)
