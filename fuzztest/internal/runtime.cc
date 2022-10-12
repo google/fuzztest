@@ -65,7 +65,7 @@ void OnFailure::PrintFinalStats(absl::FormatRawSink out) const {
   absl::Format(out, "Total runs: %d\n", stats_->runs);
   absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
   absl::Format(out, "Total edges: %d\n", stats_->total_edges);
-  absl::Format(out, "Corpus size: %d\n", stats_->corpus_size);
+  absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
 }
 
 void OnFailure::PrintReport(absl::FormatRawSink out) const {

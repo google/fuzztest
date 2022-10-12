@@ -281,6 +281,7 @@ cc_library(
         ":registration",
         ":serialization",
         ":type_support",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:seed_sequences",
         "@com_google_absl//absl/strings",

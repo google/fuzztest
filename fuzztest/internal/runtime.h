@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/function_ref.h"
 #include "absl/random/random.h"
 #include "absl/random/seed_sequences.h"
 #include "absl/strings/numbers.h"
@@ -111,7 +112,8 @@ struct RuntimeStats {
   size_t runs;
   size_t edges_covered;
   size_t total_edges;
-  size_t corpus_size;
+  // Number of executed inputs that increase coverage.
+  size_t useful_inputs;
 };
 
 void InstallSignalHandlers(FILE* report_out);
@@ -356,17 +358,18 @@ class FuzzTestFuzzerImpl<
 
       stats_.total_edges = execution_coverage_->GetCounterMap().size();
 
-      PopulateFromSeeds();
-
       PRNG prng(seed_sequence());
 
-      if (InitializeCorpusAndCheckIfInMinimizationMode(prng)) {
+      if (MinimizeCorpusIfInMinimizationMode(prng)) {
         absl::FPrintF(
             GetStderr(),
             "[*] Selected %d corpus inputs in minimization mode - exiting.\n",
-            corpus_.size());
+            stats_.useful_inputs);
         return 0;
       }
+
+      PopulateFromSeeds();
+      InitializeCorpus(prng);
 
       FUZZTEST_INTERNAL_CHECK(
           !corpus_.empty(),
@@ -410,7 +413,7 @@ class FuzzTestFuzzerImpl<
           if (ShouldStop()) break;
           Input mutation = input_to_mutate;
           MutateValue(mutation, prng);
-          TrySample(mutation);
+          TrySampleAndUpdateInMemoryCorpus(std::move(mutation));
         }
       }
 
@@ -441,8 +444,9 @@ class FuzzTestFuzzerImpl<
   };
 
   void PopulateFromSeeds() {
-    for (auto& seed : fixture_driver_->GetSeeds()) {
-      TrySample({seed}, /*save_corpus=*/false);
+    for (const auto& seed : fixture_driver_->GetSeeds()) {
+      TrySampleAndUpdateInMemoryCorpus(Input{seed},
+                                       /*write_to_file=*/false);
     }
   }
 
@@ -586,24 +590,15 @@ class FuzzTestFuzzerImpl<
         absl::discrete_distribution<>(weights.begin(), weights.end());
   }
 
-  // Runs on `sample` and records it into the corpus if it finds new coverage.
-  // If `save_corpus` is set, tries to save the corpus data to a file when
-  // recording it. Updates the memory dictionary on new coverage, and
-  // occasionally even if there is no new coverage.
-  void TrySample(const Input& sample, bool save_corpus = true) {
-    auto [new_coverage, run_time] = RunOneInput(sample);
-    if (execution_coverage_ != nullptr &&
-        (stats_.runs % 4096 == 0 || new_coverage)) {
-      params_domain_.UpdateMemoryDictionary(sample.args);
-    }
-    if (!new_coverage) return;
-    // New coverage, update corpus and weights.
-    Input sample_with_run_time = sample;
-    sample_with_run_time.run_time = run_time;
-    corpus_.push_back(sample_with_run_time);
-    UpdateCorpusDistribution();
-    if (save_corpus) TryWriteCorpusFile(sample);
-    stats_.corpus_size = corpus_.size();
+  // Runs on `sample` and returns new coverage and run time. If there's new
+  // coverage, outputs updated runtime stats. Additionally, if `write_to_file`
+  // is true, tries to write the sample to a file.
+  RunResult TrySample(const Input& sample, bool write_to_file = true) {
+    RunResult run_result = RunOneInput(sample);
+    if (!run_result.new_coverage) return run_result;
+
+    if (write_to_file) TryWriteCorpusFile(sample);
+    ++stats_.useful_inputs;
     stats_.edges_covered = corpus_coverage_.GetNumberOfCoveredEdges();
     const absl::Duration fuzzing_time = absl::Now() - stats_.start_time;
     const int64_t fuzzing_secs = absl::ToInt64Seconds(fuzzing_time);
@@ -612,33 +607,40 @@ class FuzzTestFuzzerImpl<
     absl::FPrintF(GetStderr(),
                   "[*] Corpus size: %5d | Edges covered: %6d | "
                   "Fuzzing time: %12s | Total runs:  %1.2e | Runs/secs: %5d\n",
-                  stats_.corpus_size, stats_.edges_covered,
+                  stats_.useful_inputs, stats_.edges_covered,
                   absl::FormatDuration(fuzzing_time), stats_.runs,
                   runs_per_sec);
+    return run_result;
   }
 
-  struct ReadCorpusResult {
-    std::vector<Input> inputs;
-    bool to_minimize = false;
-  };
-  ReadCorpusResult TryReadCorpusFromFiles() {
-    ReadCorpusResult result;
-    auto inputdir =
-        absl::NullSafeStringView(getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR"));
-    if (!inputdir.empty()) {
-      result.to_minimize = true;
-    } else {
-      inputdir = absl::NullSafeStringView(getenv("FUZZTEST_TESTSUITE_IN_DIR"));
+  // Runs on `sample` and records it into the in-memory corpus if it finds new
+  // coverage. If `write_to_file` is set, tries to write the corpus data to a
+  // file when recording it. Updates the memory dictionary on new coverage, and
+  // occasionally even if there is no new coverage.
+  void TrySampleAndUpdateInMemoryCorpus(Input sample,
+                                        bool write_to_file = true) {
+    auto [new_coverage, run_time] = TrySample(sample, write_to_file);
+    if (execution_coverage_ != nullptr &&
+        (stats_.runs % 4096 == 0 || new_coverage)) {
+      params_domain_.UpdateMemoryDictionary(sample.args);
     }
-    if (inputdir.empty()) return result;
+    if (!new_coverage) return;
+    // New coverage, update corpus and weights.
+    sample.run_time = run_time;
+    corpus_.push_back(std::move(sample));
+    UpdateCorpusDistribution();
+  }
 
+  void ForEachInputFile(absl::Span<const std::string> files,
+                        absl::FunctionRef<void(Input&&)> consume) {
     int parsed_input_counter = 0;
     int invalid_input_counter = 0;
-    for (const auto& [path, data] :
-         ReadFileOrDirectory(std::string(inputdir))) {
-      if (auto corpus_value = TryParse(data)) {
+    for (const auto& path : files) {
+      std::optional<std::string> data = ReadFile(path);
+      if (!data) continue;
+      if (auto corpus_value = TryParse(*data)) {
         ++parsed_input_counter;
-        result.inputs.push_back(Input{*std::move(corpus_value)});
+        consume(Input{*std::move(corpus_value)});
       } else {
         ++invalid_input_counter;
         absl::FPrintF(GetStderr(), "[!] Invalid input file %s.\n", path);
@@ -648,7 +650,32 @@ class FuzzTestFuzzerImpl<
                   "[*] Parsed %d inputs and ignored %d inputs from the test "
                   "suite input dir.\n",
                   parsed_input_counter, invalid_input_counter);
-    return result;
+  }
+
+  // Returns true if we're in minimization mode.
+  bool MinimizeCorpusIfInMinimizationMode(PRNG& prng) {
+    auto inputdir =
+        absl::NullSafeStringView(getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR"));
+    if (inputdir.empty()) return false;
+    std::vector<std::string> files = ListDirectory(std::string(inputdir));
+    // Shuffle to potentially improve previously minimized corpus.
+    std::shuffle(files.begin(), files.end(), prng);
+    ForEachInputFile(files, [this](Input&& input) {
+      TrySample(input, /*write_to_file=*/true);
+    });
+    return true;
+  }
+
+  std::vector<Input> TryReadCorpusFromFiles() {
+    std::vector<Input> inputs;
+    auto inputdir =
+        absl::NullSafeStringView(getenv("FUZZTEST_TESTSUITE_IN_DIR"));
+    if (inputdir.empty()) return inputs;
+    std::vector<std::string> files = ListDirectory(std::string(inputdir));
+    ForEachInputFile(files, [&inputs](Input&& input) {
+      inputs.push_back(std::move(input));
+    });
+    return inputs;
   }
 
   void TryWriteCorpusFile(const Input& input) {
@@ -660,23 +687,18 @@ class FuzzTestFuzzerImpl<
     }
   }
 
-  // Returns true if we're in minimization mode.
-  bool InitializeCorpusAndCheckIfInMinimizationMode(PRNG& prng) {
-    auto read_corpus_result = TryReadCorpusFromFiles();
+  void InitializeCorpus(PRNG& prng) {
+    std::vector<Input> inputs = TryReadCorpusFromFiles();
     // Since inputs processed earlier have the adventage of increasing coverage
     // and being kept in corpus, shuffle the input order to make it fair.
-    std::shuffle(read_corpus_result.inputs.begin(),
-                 read_corpus_result.inputs.end(), prng);
-    for (const auto& input : read_corpus_result.inputs) {
-      TrySample(input, /*save_corpus=*/read_corpus_result.to_minimize);
-    }
-    if (read_corpus_result.to_minimize) {
-      return true;
+    std::shuffle(inputs.begin(), inputs.end(), prng);
+    for (auto& input : inputs) {
+      TrySampleAndUpdateInMemoryCorpus(std::move(input),
+                                       /*write_to_file=*/false);
     }
     if (corpus_.empty()) {
-      TrySample(Input{params_domain_.Init(prng)});
+      TrySampleAndUpdateInMemoryCorpus(Input{params_domain_.Init(prng)});
     }
-    return false;
   }
 
   RunResult RunOneInput(const Input& input) {
