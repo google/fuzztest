@@ -53,6 +53,10 @@ std::optional<std::string> ReadFile(std::string_view file) {
   FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
 }
 
+std::vector<std::string> ListDirectory(std::string_view dir) {
+  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+}
+
 #else  // defined(__APPLE__)
 
 bool WriteFile(std::string_view filename, std::string_view contents) {
