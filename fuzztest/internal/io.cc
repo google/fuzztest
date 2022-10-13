@@ -30,12 +30,20 @@
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/logging.h"
 
+#if defined(__APPLE__)
+#if (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&       \
+     __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_15) || \
+    (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&      \
+     __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0)
+// std::filesystem requires macOS 10.15+ or iOS 13+.
+// Just stub out these functions.
+#define STUB_FILESYSTEM
+#endif
+#endif
+
 namespace fuzztest::internal {
 
-#if defined(__APPLE__)
-
-// Some versions of XCode don't have support for std::filesystem.
-// Just stub out these functions.
+#if defined(STUB_FILESYSTEM)
 
 bool WriteFile(std::string_view filename, std::string_view contents) {
   FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
@@ -125,6 +133,6 @@ std::vector<std::string> ListDirectory(std::string_view dir) {
   return out;
 }
 
-#endif  // defined(__APPLE__)
+#endif  // defined(STUB_FILESYSTEM)
 
 }  // namespace fuzztest::internal
