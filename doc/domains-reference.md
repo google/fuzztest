@@ -460,7 +460,7 @@ domain of the characters in `std::string`. For instance, to represent strings
 that are composed only of specific characters, you can use
 
 ```c++
-StringOf(OneOf(InRange('a', 'z'), ElementOf('.', '!', '?')))
+StringOf(OneOf(InRange('a', 'z'), ElementOf({'.', '!', '?'})))
 ```
 
 (See [OneOf](#oneof-combinator) combinator and [ElementOf](#elementof-domain)
