@@ -268,7 +268,6 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
 // This function should have no external library dependencies to prevent
 // accidental coverage instrumentation.
 template <int data_size>
-ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
     GOOGLEFUZZTEST_NOSANITIZE  // To skip arg1 - arg2 overflow.
     void
     TraceCmp(uint64_t arg1, uint64_t arg2, uint8_t argsize_bit,
