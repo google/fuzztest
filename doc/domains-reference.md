@@ -284,7 +284,7 @@ failure.
 IMPORTANT: Note that *optional* fields are not always set by the fuzzer.
 
 **Making an optional field always or never set:** If you want to make sure an
-optional field is always set, you can use `With<Type>FieldAlswaysSet()`.
+optional field is always set, you can use `With<Type>FieldAlwaysSet()`.
 Similarly, if you want an optional field to be always left unset, you can use
 `With<Type>FieldUnset()`. For example:
 
@@ -301,7 +301,7 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
 ```
 
 **Setting the domain of non-optional fields:** For *required* fields, use
-`With<Type>FieldAlswaysSet` and for *repeated* fields use
+`With<Type>FieldAlwaysSet` and for *repeated* fields use
 `WithRepeated<Type>Field`:
 
 ```c++
@@ -365,7 +365,7 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto)
     // All int fields should be positive
     .WithInt32Fields(Positive<int>())
     // except balance field which can be negative
-    .WihtInt32Field("balance", Arbitrary<int>())
+    .WithInt32Field("balance", Arbitrary<int>())
     // and except all zipcode fields which should have 5 digits
     .WithInt32Fields(IsZipcode, InRange(10000, 99999))
     // All Timestamp fields should have "nanos" field unset.
