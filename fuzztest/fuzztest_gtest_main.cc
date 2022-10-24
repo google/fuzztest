@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/time/time.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/googletest_adaptor.h"
 #include "./fuzztest/internal/runtime.h"
@@ -33,6 +34,11 @@ ABSL_FLAG(std::string, fuzz, "",
           "also possible to provide part of the name, e.g., `--fuzz=MyProp`, "
           "if it matches a single fuzz test.");
 
+ABSL_FLAG(absl::Duration, fuzz_for, absl::InfiniteDuration(),
+          "Runs all fuzz tests in fuzzing mode for the specified duration. Can "
+          "be combined with --fuzz to select a single fuzz tests, or "
+          "with --gtest_filter to select a subset of fuzz tests.");
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
 
@@ -45,17 +51,26 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  auto fuzz = absl::GetFlag(FLAGS_fuzz);
-  if (fuzz.empty()) {
-    // Run all tests in the unit test mode.
-    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kUnitTest, &argc,
+  const auto fuzz = absl::GetFlag(FLAGS_fuzz);
+  const bool is_fuzz_specified = !fuzz.empty();
+
+  if (is_fuzz_specified) {
+    // Select a specific test to be run in the in fuzzing mode.
+    const auto matching_fuzz_test = fuzztest::GetMatchingFuzzTestOrExit(fuzz);
+    GTEST_FLAG_SET(filter, matching_fuzz_test);
+  }
+
+  const auto duration = absl::GetFlag(FLAGS_fuzz_for);
+  const bool is_duration_specified =
+      absl::ZeroDuration() < duration && duration < absl::InfiniteDuration();
+  if (is_duration_specified) {
+    fuzztest::internal::fuzz_time_limit = duration;
+  }
+  if (is_fuzz_specified || is_duration_specified) {
+    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kFuzz, &argc,
                                            &argv);
   } else {
-    // Select a specific test to be run in the in fuzzing mode.
-    const std::string matching_fuzz_test =
-        fuzztest::GetMatchingFuzzTestOrExit(fuzz);
-    GTEST_FLAG_SET(filter, matching_fuzz_test);
-    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kFuzz, &argc,
+    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kUnitTest, &argc,
                                            &argv);
   }
   return RUN_ALL_TESTS();

@@ -31,6 +31,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
@@ -97,7 +98,7 @@ class TempDir {
 };
 
 RunResults RunBinaryWith(
-    std::string_view binary, std::string_view flag,
+    std::string_view binary, std::string_view flags,
     const absl::flat_hash_map<std::string, std::string>& env = {},
     absl::Duration timeout = absl::InfiniteDuration()) {
   // We need to unset these env vars to prevent the testing infrastructure from
@@ -115,14 +116,18 @@ RunResults RunBinaryWith(
   unsetenv("TEST_TOTAL_SHARDS");
   unsetenv("TEST_SHARD_INDEX");
 
-  return RunCommand({std::string(binary), std::string(flag)}, env, timeout);
+  std::vector<std::string> args = {std::string(binary)};
+  std::vector<std::string> split_flags = absl::StrSplit(flags, ' ');
+  args.insert(args.end(), split_flags.begin(), split_flags.end());
+
+  return RunCommand(args, env, timeout);
 }
 
 RunResults RunWith(
-    std::string_view flag,
+    std::string_view flags,
     const absl::flat_hash_map<std::string, std::string>& env = {},
     absl::Duration timeout = absl::InfiniteDuration()) {
-  return RunBinaryWith(BinaryPath(), flag, env, timeout);
+  return RunBinaryWith(BinaryPath(), flags, env, timeout);
 }
 
 // The following tests are on "unit testing mode" functionality, and can run
@@ -699,6 +704,12 @@ TEST_F(FuzzingModeTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
               // 100 fuzzing runs + 1 seed run.
               HasSubstr("Total runs: 101"))
       << std_err;
+}
+
+TEST_F(FuzzingModeTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
+  auto [status, std_out, std_err] = RunWith(
+      "--fuzz=MySuite.PassesWithPositiveInput --fuzz_for=1s");
+  EXPECT_THAT(std_err, HasSubstr("Fuzzing timeout set to: 1s")) << std_err;
 }
 
 TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSet) {

@@ -39,6 +39,7 @@
 namespace fuzztest::internal {
 
 RunMode run_mode = RunMode::kUnitTest;
+ABSL_CONST_INIT absl::Duration fuzz_time_limit = absl::InfiniteDuration();
 std::atomic<bool> external_failure_was_detected;
 std::atomic<bool> termination_requested;
 OnFailure on_failure;

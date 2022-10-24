@@ -133,6 +133,7 @@ extern std::atomic<bool> external_failure_was_detected;
 extern std::atomic<bool> termination_requested;
 
 extern RunMode run_mode;
+extern absl::Duration fuzz_time_limit;
 
 class OnFailure {
  public:
@@ -391,6 +392,12 @@ class FuzzTestFuzzerImpl<
               "[!] Failed to parse FUZZTEST_MAX_FUZZING_RUNS as "
               "non-negative integer - will not limit fuzzing runs.\n");
         }
+      }
+
+      if (fuzz_time_limit != absl::InfiniteDuration()) {
+        absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
+                      absl::FormatDuration(fuzz_time_limit));
+        time_limit_ = stats_.start_time + fuzz_time_limit;
       }
 
       // Fuzz corpus elements in round robin fashion.
@@ -750,6 +757,8 @@ class FuzzTestFuzzerImpl<
 
   bool ShouldStop() {
     if (runs_limit_.has_value() && stats_.runs >= *runs_limit_) return true;
+    if (time_limit_ != absl::InfiniteFuture() && absl::Now() > time_limit_)
+      return true;
     return termination_requested.load(std::memory_order_relaxed);
   }
 
@@ -774,6 +783,7 @@ class FuzzTestFuzzerImpl<
   std::string_view corpus_out_dir_;
   RuntimeStats stats_{};
   std::optional<size_t> runs_limit_;
+  absl::Time time_limit_ = absl::InfiniteFuture();
 
 #ifdef FUZZTEST_COMPATIBILITY_MODE
   friend class FuzzTestExternalEngineAdaptor<RegBase, Fixture, TargetFunction>;
