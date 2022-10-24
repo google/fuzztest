@@ -760,6 +760,26 @@ auto AnyDurationString() {
 }
 ```
 
+### FlatMap-ing Domains
+
+Sometimes, it is necessary to use the output of one domain as the input for
+another domain. This can be accomplished with the `FlatMap()` function, which
+is like `Map()`, but it takes a function which returns a `Domain`. For
+example:
+
+```c++
+auto AnyVectorOfFixedLengthStrings(int size) {
+  return VectorOf(Arbitrary<std::string>().WithSize(size));
+}
+auto AnyVectorOfEqualSizedStrings() {
+  return FlatMap(AnyVectorOfFixedLengthStrings, /*size=*/ InRange(0, 10));
+}
+```
+
+If `AnyVectorOfFixedLengthStrings()` had been passed to `Map()`, it would have
+generated a `Domain<Domain<std::string>>`. `FlatMap()` "flattens" this to a
+`Domain<std::string>`.
+
 ### Filter-ing Domains
 
 The `Filter` domain takes a domain and a predicate and returns a new domain that
