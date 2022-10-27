@@ -107,7 +107,6 @@ echo "
 ### oss-fuzz compatibility mode.
 #
 # Use with: --config=oss-fuzz
-build:oss-fuzz --config=fuzztest-common
 build:oss-fuzz --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:oss-fuzz --dynamic_mode=off
 build:oss-fuzz --action_env=CC=${CC}
@@ -133,6 +132,9 @@ for flag in $CFLAGS; do
   fi
 done
 
+if [ "$SANITIZER" = "address" ]; then
+  echo "build:oss-fuzz --linkopt=-fsanitize=address"
+fi
 if [ "$SANITIZER" = "undefined" ]; then
   echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.ubsan_standalone_cxx-x86_64.a | head -1)"
 fi
