@@ -144,7 +144,7 @@ TEST(UnitTestModeTest, FuzzTestsAreFoundInTheBinary) {
 TEST(UnitTestModeTest, WrongFuzzTestNameTriggersError) {
   auto [status, std_out, std_err] = RunWith("--fuzz=WrongName");
   EXPECT_THAT(std_err, HasSubstr("No FUZZ_TEST matches the name: WrongName"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST(UnitTestModeTest, MatchingMultipleFuzzTestsTriggersError) {
@@ -154,7 +154,7 @@ TEST(UnitTestModeTest, MatchingMultipleFuzzTestsTriggersError) {
       HasSubstr(
           "Multiple FUZZ_TESTs match the name: Bad\n\nPlease select one. "
           "Matching tests:\n MySuite.BadFilter\n MySuite.BadWithMinSize\n"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST(UnitTestModeTest, PassingTestPassesInUnitTestingMode) {
@@ -168,7 +168,7 @@ TEST(UnitTestModeTest, InvalidSeedsCauseErrorMessageAndExit) {
       RunBinaryWith(BinaryPath("testdata/fuzz_tests_with_invalid_seeds"), "");
   EXPECT_THAT(std_err, HasSubstr("[!] Error using `WithSeeds()` in"));
   EXPECT_THAT(std_err, HasSubstr("Invalid seed value:\n\n{17}\n"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST(UnitTestModeTest, CorpusIsMutatedInUnitTestMode) {
@@ -238,7 +238,7 @@ void GoogleTestExpectationsDontAbortInUnitTestModeImpl(
       << std_out;
   EXPECT_THAT(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestAssert"))
       << std_out;
-  EXPECT_THAT(status.ExitCode(), Eq(1));
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 
   // There is no repro example on stdout, and there is one on stderr.
   EXPECT_THAT(
@@ -542,7 +542,7 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
       std_err,
       AnyOf(HasSubstr("ERROR: AddressSanitizer: container-overflow"),
             HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow")));
-  EXPECT_THAT(status.ExitCode(), Eq(1));  // ASAN exits with 1.
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringInFuzzingMode) {
@@ -550,7 +550,7 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringInFuzzingMode) {
       RunWith("--fuzz=MySuite.BufferOverreadWithString");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));  // ASAN exits with 1.
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -559,7 +559,7 @@ TEST_F(FuzzingModeTest,
       "--fuzz=MySuite.BufferOverreadWithStringAndLvalueStringViewRef");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));  // ASAN exits with 1.
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -568,14 +568,14 @@ TEST_F(FuzzingModeTest,
       "--fuzz=MySuite.BufferOverreadWithStringAndRvalueStringViewRef");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Eq(1));  // ASAN exits with 1.
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
 TEST_F(FuzzingModeTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.DivByZero");
   EXPECT_THAT(std_err, HasSubstr("argument 1: 0"));
 #ifdef ADDRESS_SANITIZER
-  EXPECT_THAT(status.ExitCode(), Eq(1));
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 #else
   EXPECT_THAT(status.Signal(), Eq(SIGFPE));
 #endif
@@ -909,7 +909,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSetTypeErased) {
       RunWith("--fuzz=MySuite.WithDomainClass",
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
-  EXPECT_THAT(status.ExitCode(), Eq(1)) << std_err;
+  EXPECT_THAT(status.ExitCode(), Not(Eq(0))) << std_err;
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
