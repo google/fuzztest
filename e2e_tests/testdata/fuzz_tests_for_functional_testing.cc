@@ -29,21 +29,23 @@
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace {
-using fuzztest::Arbitrary;
-using fuzztest::FlatMap;
-using fuzztest::InRange;
-using fuzztest::Just;
-using fuzztest::PairOf;
-using fuzztest::StringOf;
-using fuzztest::StructOf;
-using fuzztest::VectorOf;
-using fuzztest::internal::ProtoExtender;
-using fuzztest::internal::TestProtobuf;
-using fuzztest::internal::TestProtobufWithExtension;
-using fuzztest::internal::TestProtobufWithRecursion;
-using fuzztest::internal::TestProtobufWithRequired;
-using fuzztest::internal::TestSubProtobuf;
-using google::protobuf::FieldDescriptor;
+
+using ::fuzztest::Arbitrary;
+using ::fuzztest::FlatMap;
+using ::fuzztest::InRange;
+using ::fuzztest::Just;
+using ::fuzztest::PairOf;
+using ::fuzztest::StringOf;
+using ::fuzztest::StructOf;
+using ::fuzztest::TupleOf;
+using ::fuzztest::VectorOf;
+using ::fuzztest::internal::ProtoExtender;
+using ::fuzztest::internal::TestProtobuf;
+using ::fuzztest::internal::TestProtobufWithExtension;
+using ::fuzztest::internal::TestProtobufWithRecursion;
+using ::fuzztest::internal::TestProtobufWithRequired;
+using ::fuzztest::internal::TestSubProtobuf;
+using ::google::protobuf::FieldDescriptor;
 
 void PassesWithPositiveInput(int x) {
   if (x <= 0) std::abort();
@@ -504,5 +506,22 @@ FUZZ_TEST(MySuite, FlatMapCorrectlyPrintsValues)
                         StringOf(Just('B')).WithSize(size));
         },
         Just(3)));
+
+void UnpacksTupleOfOne(const std::string&) { std::abort(); }
+FUZZ_TEST(MySuite, UnpacksTupleOfOne)
+    .WithDomains(TupleOf(Arbitrary<std::string>()));
+
+void UnpacksTupleOfThree(const std::string&, int, int) { std::abort(); }
+FUZZ_TEST(MySuite, UnpacksTupleOfThree)
+    .WithDomains(TupleOf(Arbitrary<std::string>(), Arbitrary<int>(),
+                         Arbitrary<int>()));
+
+void UnpacksTupleContainingTuple(std::tuple<std::string, int>, std::string,
+                                 int) {
+  std::abort();
+}
+FUZZ_TEST(MySuite, UnpacksTupleContainingTuple)
+    .WithDomains(TupleOf(TupleOf(Arbitrary<std::string>(), Arbitrary<int>()),
+                         Arbitrary<std::string>(), Arbitrary<int>()));
 
 }  // namespace

@@ -26,6 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -108,8 +109,21 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
   explicit Registration(BasicTestInfo info, TargetFunction target_function)
       : test_info_(info), target_function_(target_function) {}
 
+  // Registers domains for a property function as a `TupleOf` individual
+  // domains. This is useful when the domains are specified indirectly, e.g.,
+  // when they are returned from a helper function. For example:
+  //
+  // auto StringAndIndex(int size) {
+  //   return TupleOf(String().WithSize(size), InRange(0, size - 1));
+  // }
+  //
+  // void MyProperty(std::string s, int i) { ... }
+  // FUZZ_TEST(MySuite).WithDomains(StringAndIndex(10));
   template <typename... NewDomains>
-  auto WithDomains(NewDomains&&... domains) && {
+  auto WithDomains(
+      AggregateOfImpl<std::tuple<typename NewDomains::value_type...>,
+                      RequireCustomCorpusType::kNo, NewDomains...>
+          domain) && {
     static_assert(!Registration::kHasDomain,
                   "WithDomains can only be called once.");
     static_assert(!Registration::kHasSeeds,
@@ -118,11 +132,22 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
         sizeof...(Args) == sizeof...(NewDomains),
         "Number of domains specified in .WithDomains() does not match "
         "the number of function parameters.");
-    auto domain = TupleOf(std::forward<NewDomains>(domains)...);
     return Registration<Fixture, TargetFunction,
                         RegistrationWithDomainsBase<decltype(domain)>>(
         test_info_, target_function_,
         RegistrationWithDomainsBase<decltype(domain)>{std::move(domain)});
+  }
+
+  // Registers a domain for each parameter of the property function. This is the
+  // recommended approach when domains are explicitly listed as part of the fuzz
+  // test definition. For example:
+  //
+  // void MyProperty(std::string s, int n) { ... }
+  // FUZZ_TEST(MySuite, MyProperty).WithDomains(String(), Positive<int>());
+  template <typename... NewDomains>
+  auto WithDomains(NewDomains&&... domains) && {
+    return std::move(*this).WithDomains(
+        TupleOf(std::forward<NewDomains>(domains)...));
   }
 
   auto WithSeeds(absl::Span<const SeedT> seeds) && {

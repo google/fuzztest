@@ -423,6 +423,24 @@ TEST(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0: 3")));
 }
 
+TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsSingleParameter) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleOfOne"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
+TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsThreeParameters) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleOfThree"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
+TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleContainingTuple) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleContainingTuple"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
 TEST(UnitTestModeTest, ProtoFieldsCanBeAlwaysSet) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenSubprotoIsNull"));
