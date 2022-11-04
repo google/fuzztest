@@ -102,7 +102,7 @@ fi # libFuzzer
 
 
 # OSS-Fuzz
-if [[ -n ${FUZZING_ENGINE} && -n ${SANITIZER} ]]; then
+if [[ -n ${FUZZING_ENGINE:-} && -n ${SANITIZER:-} ]]; then
 echo "
 ### OSS-Fuzz compatibility mode.
 #
