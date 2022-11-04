@@ -101,10 +101,10 @@ build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fu
 fi # libFuzzer
 
 
-# oss-fuzz
+# OSS-Fuzz
 if [[ -n ${FUZZING_ENGINE} && -n ${SANITIZER} ]]; then
 echo "
-### oss-fuzz compatibility mode.
+### OSS-Fuzz compatibility mode.
 #
 # Use with: --config=oss-fuzz
 build:oss-fuzz --copt=-DFUZZTEST_COMPATIBILITY_MODE
@@ -150,4 +150,4 @@ fi
 #if [ "$FUZZING_ENGINE" = "afl" ]; then
 #  echo "build:oss-fuzz --linkopt=${LIB_FUZZING_ENGINE}"
 #fi
-fi # oss-fuzz
+fi # OSS-Fuzz
