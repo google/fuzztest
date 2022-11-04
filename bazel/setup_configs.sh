@@ -118,7 +118,7 @@ for flag in $CFLAGS; do
   # the per_file_copt option splits the comma string with spaces, which causes the
   # build command to be erroneous.
   if [[ $flag == *","* && $flag == *"="* ]]; then
-    # Find the first occurrence of equals
+    # Split from first occurrence of equals.
     flag_split_over_equals=(${flag//=/ })
     lhs=${flag_split_over_equals[0]}
     comma_values=($(echo ${flag_split_over_equals[1]} | tr ',' " "))
