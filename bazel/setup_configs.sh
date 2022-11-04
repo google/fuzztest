@@ -102,7 +102,7 @@ fi # libFuzzer
 
 
 # oss-fuzz
-if [[ ${EXTRA_CONFIGS} == *"oss-fuzz"* ]]; then
+if [[ -n ${FUZZING_ENGINE} && -n ${SANITIZER} ]]; then
 echo "
 ### oss-fuzz compatibility mode.
 #
