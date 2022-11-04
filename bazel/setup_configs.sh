@@ -113,20 +113,21 @@ build:oss-fuzz --action_env=CC=${CC}
 build:oss-fuzz --action_env=CXX=${CXX}
 "
 for flag in $CFLAGS; do
-  # whenever we have something along -fno-sanitize-recover=bool,array,...,.. we
+  # When we have something along -fno-sanitize-recover=bool,array,...,.. we
   # need to split them out and write each assignment without use of commas. Otherwise
   # the per_file_copt option splits the comma string with spaces, which causes the
   # build command to be erroneous.
   if [[ $flag == *","* && $flag == *"="* ]]; then
-    # Find the first occurence of equals
-    sp=(${flag//=/ })
-    comma_values=($(echo ${sp[1]} | tr ',' " "))
-    for vv in "${comma_values[@]}"; do
-      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@${sp[0]}=${vv}"
+    # Find the first occurrence of equals
+    flag_split_over_equals=(${flag//=/ })
+    lhs=${flag_split_over_equals[0]}
+    comma_values=($(echo ${flag_split_over_equals[1]} | tr ',' " "))
+    for val in "${comma_values[@]}"; do
+      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@${lhs}=${val}"
     done
   else
     if [[ $flag != *"no-as-needed"* ]]; then
-      # flags captured here include -fsanitize=fuzzer-no-link, -fsanitize=addresss.
+      # Flags captured here include -fsanitize=fuzzer-no-link, -fsanitize=addresss.
       echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@$flag"
     fi
   fi
