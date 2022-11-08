@@ -99,3 +99,55 @@ build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fu
 "
 
 fi # libFuzzer
+
+
+# OSS-Fuzz
+if [[ -n ${FUZZING_ENGINE:-} && -n ${SANITIZER:-} ]]; then
+echo "
+### OSS-Fuzz compatibility mode.
+#
+# Use with: --config=oss-fuzz
+build:oss-fuzz --copt=-DFUZZTEST_COMPATIBILITY_MODE
+build:oss-fuzz --dynamic_mode=off
+build:oss-fuzz --action_env=CC=${CC}
+build:oss-fuzz --action_env=CXX=${CXX}
+"
+for flag in $CFLAGS; do
+  # When we have something along -fno-sanitize-recover=bool,array,...,.. we
+  # need to split them out and write each assignment without use of commas. Otherwise
+  # the per_file_copt option splits the comma string with spaces, which causes the
+  # build command to be erroneous.
+  if [[ $flag == *","* && $flag == *"="* ]]; then
+    # Split from first occurrence of equals.
+    flag_split_over_equals=(${flag//=/ })
+    lhs=${flag_split_over_equals[0]}
+    comma_values=($(echo ${flag_split_over_equals[1]} | tr ',' " "))
+    for val in "${comma_values[@]}"; do
+      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@${lhs}=${val}"
+    done
+  else
+    if [[ $flag != *"no-as-needed"* ]]; then
+      # Flags captured here include -fsanitize=fuzzer-no-link, -fsanitize=addresss.
+      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@$flag"
+    fi
+  fi
+done
+
+if [ "$SANITIZER" = "address" ]; then
+  echo "build:oss-fuzz --linkopt=-fsanitize=address"
+fi
+if [ "$SANITIZER" = "undefined" ]; then
+  echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.ubsan_standalone_cxx-x86_64.a | head -1)"
+fi
+if [ "$SANITIZER" = "coverage" ]; then
+  echo "build:oss-fuzz --linkopt=-fprofile-instr-generate"
+  echo "build:oss-fuzz --linkopt=-fcoverage-mapping"
+fi
+if [ "$FUZZING_ENGINE" = "libfuzzer" ]; then
+  echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)"
+fi
+# AFL version in oss-fuzz does not support LLVMFuzzerRunDriver. It must be updated first.
+#if [ "$FUZZING_ENGINE" = "afl" ]; then
+#  echo "build:oss-fuzz --linkopt=${LIB_FUZZING_ENGINE}"
+#fi
+fi # OSS-Fuzz
