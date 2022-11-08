@@ -112,7 +112,7 @@ domains:
 -   `LowerChar()` is alias for `InRange('a', 'z')`.
 -   `UpperChar()` is alias for `InRange('A', 'Z')`.
 -   `AlphaChar()` is alias for `OneOf(LowerChar(), UpperChar())`.
--   `AlphaNumericChar()` is alias for `OneOf(AlpaChar(), NumericChar())`.
+-   `AlphaNumericChar()` is alias for `OneOf(AlphaChar(), NumericChar())`.
 -   `PrintableAsciiChar()` represents any printable character
     (`InRange<char>(32, 126)`).
 -   `AsciiChar()` represents any ASCII character (`InRange<char>(0, 127)`).
