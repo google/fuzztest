@@ -137,6 +137,7 @@ if [ "$SANITIZER" = "address" ]; then
   echo "build:oss-fuzz --linkopt=-fsanitize=address"
 fi
 if [ "$SANITIZER" = "undefined" ]; then
+  echo "build:oss-fuzz --linkopt=-fsanitize=undefined"
   echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.ubsan_standalone_cxx-x86_64.a | head -1)"
 fi
 if [ "$SANITIZER" = "coverage" ]; then
