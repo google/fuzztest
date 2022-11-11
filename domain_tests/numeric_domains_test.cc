@@ -40,11 +40,14 @@
 namespace fuzztest {
 namespace {
 
+using ::testing::Each;
+using ::testing::Field;
 using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::Le;
 using ::testing::Lt;
 using ::testing::Ne;
+using ::testing::SizeIs;
 
 template <typename T>
 class NumericTest : public testing::Test {};
@@ -68,65 +71,119 @@ TYPED_TEST_SUITE(SignedNumericTest, SignedNumericTypes);
 TYPED_TEST(NumericTest, Arbitrary) {
   using T = TypeParam;
   Domain<T> domain = Arbitrary<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   VerifyRoundTripThroughConversion(values, domain);
-  TestShrink(
-      domain, values,
-      [](auto v) { return !std::isfinite(static_cast<double>(v)) || v == 0; },
-      TowardsZero<T>);
+  ASSERT_TRUE(TestShrink(
+                  domain, values,
+                  [](auto v) {
+                    return !std::isfinite(static_cast<double>(v)) || v == 0;
+                  },
+                  TowardsZero<T>)
+                  .ok());
 }
 
 TYPED_TEST(NumericTest, Positive) {
   using T = TypeParam;
   Domain<T> domain = Positive<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_THAT(v.user_value, Gt(0));
-  TestShrink(
-      domain, values, [](auto v) { return v <= 1; }, TowardsZero<T>);
+  ASSERT_TRUE(TestShrink(
+                  domain, values, [](auto v) { return v <= 1; }, TowardsZero<T>)
+                  .ok());
 }
 
 TYPED_TEST(NumericTest, NonNegative) {
   using T = TypeParam;
   Domain<T> domain = NonNegative<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_THAT(v.user_value, Ge(0));
-  TestShrink(
-      domain, values, [](auto v) { return v == 0; }, TowardsZero<T>);
+  ASSERT_TRUE(TestShrink(
+                  domain, values, [](auto v) { return v == 0; }, TowardsZero<T>)
+                  .ok());
 }
 
 TYPED_TEST(SignedNumericTest, Negative) {
   using T = TypeParam;
   Domain<T> domain = Negative<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_THAT(v.user_value, Lt(0));
-  TestShrink(
-      domain, values, [](auto v) { return v >= -1; }, TowardsZero<T>);
+  ASSERT_TRUE(
+      TestShrink(
+          domain, values, [](auto v) { return v >= -1; }, TowardsZero<T>)
+          .ok());
 }
 
 TYPED_TEST(SignedNumericTest, NonPositive) {
   using T = TypeParam;
   Domain<T> domain = NonPositive<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_THAT(v.user_value, Le(0));
-  TestShrink(
-      domain, values, [](auto v) { return v == 0; }, TowardsZero<T>);
+  ASSERT_TRUE(TestShrink(
+                  domain, values, [](auto v) { return v == 0; }, TowardsZero<T>)
+                  .ok());
 }
 
-TYPED_TEST(NumericTest, InRange) {
+TYPED_TEST(NumericTest, InRangeVerifiesRoundTripThroughConversion) {
   using T = TypeParam;
-  T min = std::numeric_limits<T>::is_signed ? -100 : 10;
-  T max = 120;
-  T limit = std::numeric_limits<T>::is_signed ? T{0} : min;
+  const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
+  const T max = 120;
   Domain<T> domain = InRange<T>(min, max);
-  const auto values = GenerateValues(domain);
+  const absl::flat_hash_set<Value<Domain<T>>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   VerifyRoundTripThroughConversion(values, domain);
-  for (auto v : values) ASSERT_THAT(v.user_value, IsInClosedRange(min, max));
-  TestShrink(
-      domain, values, [=](auto v) { return v == limit; },
-      [=](auto prev, auto next) {
-        // Next is within prev and limit.
-        return (limit <= next && next < prev) || (prev < next && next <= limit);
-      });
+}
+
+TYPED_TEST(NumericTest, InRangeProducesValuesInClosedRange) {
+  using T = TypeParam;
+  const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
+  const T max = 120;
+  Domain<T> domain = InRange<T>(min, max);
+  const absl::flat_hash_set<Value<Domain<T>>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
+  ASSERT_THAT(values, Each(Field(&Value<Domain<T>>::user_value,
+                                 IsInClosedRange(min, max))));
+}
+
+TYPED_TEST(NumericTest, ShrinkingWorksForInRange) {
+  using T = TypeParam;
+  const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
+  const T max = 120;
+  const T limit = std::numeric_limits<T>::is_signed ? T{0} : min;
+  Domain<T> domain = InRange<T>(min, max);
+  const absl::flat_hash_set<Value<Domain<T>>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
+
+  ASSERT_TRUE(TestShrink(
+                  domain, values, [=](auto v) { return v == limit; },
+                  [=](auto prev, auto next) {
+                    // Next is within prev and limit.
+                    return (limit <= next && next < prev) ||
+                           (prev < next && next <= limit);
+                  })
+                  .ok());
+}
+
+TYPED_TEST(NumericTest, InRangeDeserializesCorrectly) {
+  using T = TypeParam;
+  const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
+  const T max = 120;
+  Domain<T> domain = InRange<T>(min, max);
 
   static constexpr bool is_at_most_64_bit_integer =
       std::numeric_limits<T>::is_integer && sizeof(T) <= sizeof(uint64_t);
@@ -134,12 +191,14 @@ TYPED_TEST(NumericTest, InRange) {
       std::is_floating_point<T>::value ? "d: $0"
       : is_at_most_64_bit_integer      ? "i: $0"
                                        : R"(sub { i: 0 } sub { i: $0 })";
+
   EXPECT_TRUE(
       domain
           .ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
               "FUZZTESTv1 ",
               absl::Substitute(serialized_format, static_cast<int32_t>(max)))))
           .has_value());
+  // Greater than max should not be true
   EXPECT_FALSE(
       domain
           .ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
@@ -151,17 +210,22 @@ TYPED_TEST(NumericTest, InRange) {
 TYPED_TEST(NumericTest, NonZero) {
   using T = TypeParam;
   Domain<T> domain = NonZero<T>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_THAT(v.user_value, Ne(0));
 }
 
 TEST(Finite, CreatesFiniteFloatingPointValuesAndShrinksTowardsZero) {
   Domain<double> domain = Finite<double>();
-  const auto values = GenerateValues(domain);
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/10, /*num_mutations=*/100);
+  ASSERT_THAT(values, SizeIs(Ge(110)));
   for (auto v : values) ASSERT_TRUE(std::isfinite(v.user_value));
-  TestShrink(
-      domain, values, [](auto v) { return std::abs(v) <= 1; },
-      TowardsZero<double>);
+  ASSERT_TRUE(TestShrink(
+                  domain, values, [](auto v) { return std::abs(v) <= 1; },
+                  TowardsZero<double>)
+                  .ok());
 }
 
 TEST(InRange, FailsWithInfiniteRange) {

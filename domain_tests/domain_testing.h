@@ -35,6 +35,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -265,23 +266,32 @@ auto MutateUntilFoundN(Domain domain, size_t n) {
 
 template <typename Domain, typename IsTerminal, typename IsCloser,
           typename T = typename Domain::value_type>
-void TestShrink(Domain domain, const absl::flat_hash_set<Value<Domain>>& values,
-                IsTerminal is_terminal, IsCloser is_closer_to_zero) {
+absl::Status TestShrink(Domain domain,
+                        const absl::flat_hash_set<Value<Domain>>& values,
+                        IsTerminal is_terminal, IsCloser is_closer_to_zero) {
   absl::BitGen bitgen;
 
   for (auto value : values) {
     while (!is_terminal(value.user_value)) {
       auto previous_value = value;
       value.Mutate(domain, bitgen, true);
-      ASSERT_NE(value, previous_value);
+      if (value == previous_value) {
+        return absl::InternalError(
+            absl::StrCat("Mutate failed to produce a new value starting from ",
+                         testing::PrintToString(previous_value.user_value)));
+      }
       if (!is_terminal(value.user_value)) {
-        ASSERT_TRUE(
-            is_closer_to_zero(previous_value.user_value, value.user_value))
-            << testing::PrintToString(previous_value.user_value) << " "
-            << testing::PrintToString(value.user_value);
+        if (!is_closer_to_zero(previous_value.user_value, value.user_value)) {
+          return absl::InternalError(absl::StrCat(
+              "While shrinking, the value of ",
+              testing::PrintToString(value.user_value),
+              " was not closer to zero than the previous value of ",
+              testing::PrintToString(previous_value.user_value)));
+        }
       }
     }
   }
+  return absl::OkStatus();
 }
 
 template <typename Domain, typename Values, typename Pred>
