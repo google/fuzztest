@@ -24,7 +24,6 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
-#include "absl/base/dynamic_annotations.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -35,12 +34,8 @@ namespace {
 // We use this function in instrumentation callbacks instead of library
 // functions (like `absl::bit_width`) in order to avoid having potentially
 // instrumented code in the callback.
-// TODO(b/258637913): revert to implementation below when fixed
-// constexpr uint8_t BitWidth(uint8_t x) { return 8 - __builtin_clz(x); }
-uint8_t BitWidth(uint8_t x) {
-  uint8_t result = __builtin_clz(x);
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&result, sizeof(result));
-  return 8 - result;
+constexpr uint8_t BitWidth(uint8_t x) {
+  return x == 0 ? 0 : (8 - __builtin_clz(x));
 }
 
 }  // namespace
