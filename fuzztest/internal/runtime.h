@@ -135,6 +135,12 @@ extern std::atomic<bool> termination_requested;
 extern RunMode run_mode;
 extern absl::Duration fuzz_time_limit;
 
+// Flag determines whether the signal handlers should run on a separate stack.
+// Some runtimes have incredibly small stack sizes and require a dedicated stack
+// to run signal handlers in or they run the risk of crashing when a signal is
+// received.
+extern bool use_separate_stack_for_signal_handlers;
+
 class OnFailure {
  public:
   void Enable(const RuntimeStats* stats, absl::Time (*clock_fn)()) {

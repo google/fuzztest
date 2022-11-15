@@ -43,6 +43,7 @@ ABSL_CONST_INIT absl::Duration fuzz_time_limit = absl::InfiniteDuration();
 std::atomic<bool> external_failure_was_detected;
 std::atomic<bool> termination_requested;
 OnFailure on_failure;
+bool use_separate_stack_for_signal_handlers;
 void (*crash_handler_hook)();
 
 void OnFailure::DumpReproducer(std::string_view outdir) const {
@@ -176,6 +177,10 @@ static void SetNewSigAction(int signum, void (*handler)(int, siginfo_t*, void*),
   sigemptyset(&new_sigact.sa_mask);
   new_sigact.sa_sigaction = handler;
   new_sigact.sa_flags = SA_SIGINFO;
+
+  // Check whether we need to setup a separate stack for signal handlers. This
+  // is needed for runtimes that make use of smaller stacks.
+  if (use_separate_stack_for_signal_handlers) new_sigact.sa_flags |= SA_ONSTACK;
 
   if (sigaction(signum, &new_sigact, old_sigact) == -1) {
     fprintf(GetStderr(), "Error installing signal handler: %s\n",
