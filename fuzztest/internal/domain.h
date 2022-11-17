@@ -2168,12 +2168,23 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
 
   VariantOfImpl() = default;
   explicit VariantOfImpl(std::in_place_t, Inner... inner)
-      : inner_(std::move(inner)...) {}
+      : inner_(std::move(inner)...), init_case_index_(std::nullopt) {}
 
   template <typename PRNG>
   corpus_type Init(PRNG& prng) {
+    return Init(prng, init_case_index_);
+  }
+
+  template <typename PRNG>
+  corpus_type Init(PRNG& prng, std::optional<int> init_case_index) {
+    auto lower = size_t{};
+    auto upper = sizeof...(Inner);
+    if (init_case_index.has_value()) {
+      lower = *init_case_index;
+      upper = lower + 1;
+    }
     return Switch<sizeof...(Inner)>(
-        absl::Uniform(prng, size_t{}, sizeof...(Inner)), [&](auto I) {
+        absl::Uniform(prng, lower, upper), [&](auto I) {
           return corpus_type(std::in_place_index<I>,
                              std::get<I>(inner_).Init(prng));
         });
@@ -2186,7 +2197,7 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
     // mutating case in order to explore more on a given type before we start
     // from scratch again.
     if (absl::Bernoulli(prng, 0.2)) {
-      val = Init(prng);
+      val = Init(prng, std::nullopt);
     } else {
       Switch<sizeof...(Inner)>(val.index(), [&](auto I) {
         std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink);
@@ -2224,8 +2235,14 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
     return SerializeWithDomainVariant(inner_, v);
   }
 
+  VariantOfImpl&& WithInitCaseIndex(int init_case_index) && {
+    init_case_index_ = init_case_index;
+    return std::move(*this);
+  }
+
  private:
   std::tuple<Inner...> inner_;
+  std::optional<int> init_case_index_;
 };
 
 template <typename... T>
@@ -2652,12 +2669,9 @@ class FilterImpl : public DomainBase<FilterImpl<Pred, Inner>> {
 
   template <typename PRNG>
   void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
-    corpus_type original_val = val;
-    while (true) {
+    do {
       inner_.Mutate(val, prng, only_shrink);
-      if (RunFilter(val)) return;
-      val = original_val;
-    }
+    } while (!RunFilter(val));
   }
 
   value_type GetValue(const corpus_type& v) const { return inner_.GetValue(v); }
