@@ -175,7 +175,11 @@ static void SetNewSigAction(int signum, void (*handler)(int, siginfo_t*, void*),
   struct sigaction new_sigact = {};
   sigemptyset(&new_sigact.sa_mask);
   new_sigact.sa_sigaction = handler;
-  new_sigact.sa_flags = SA_SIGINFO;
+
+  // We make use of the SA_ONSTACK flag so that signal handlers are executed on
+  // a separate stack. This is needed to properly handle cases where stack space
+  // is limited and the delivery of a signal needs to be properly handled.
+  new_sigact.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
   if (sigaction(signum, &new_sigact, old_sigact) == -1) {
     fprintf(GetStderr(), "Error installing signal handler: %s\n",
