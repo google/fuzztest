@@ -112,7 +112,12 @@ build:oss-fuzz --dynamic_mode=off
 build:oss-fuzz --action_env=CC=${CC}
 build:oss-fuzz --action_env=CXX=${CXX}
 "
-for flag in $CFLAGS; do
+
+ossfuz_flag_to_bazel_config_flag()
+{
+  bazel_flag=$1
+  flag=$2
+
   # When we have something along -fno-sanitize-recover=bool,array,...,.. we
   # need to split them out and write each assignment without use of commas. Otherwise
   # the per_file_copt option splits the comma string with spaces, which causes the
@@ -123,30 +128,33 @@ for flag in $CFLAGS; do
     lhs=${flag_split_over_equals[0]}
     comma_values=($(echo ${flag_split_over_equals[1]} | tr ',' " "))
     for val in "${comma_values[@]}"; do
-      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@${lhs}=${val}"
+      echo "build:oss-fuzz $bazel_flag=${lhs}=${val}"
     done
   else
     if [[ $flag != *"no-as-needed"* ]]; then
       # Flags captured here include -fsanitize=fuzzer-no-link, -fsanitize=addresss.
-      echo "build:oss-fuzz --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@$flag"
+      echo "build:oss-fuzz $bazel_flag=$flag"
     fi
   fi
+
+}
+for flag in $CFLAGS; do
+  echo "$(ossfuz_flag_to_bazel_config_flag "--conlyopt" $flag)"
+  echo "$(ossfuz_flag_to_bazel_config_flag "--linkopt" $flag)"
 done
 
-if [ "$SANITIZER" = "address" ]; then
-  echo "build:oss-fuzz --linkopt=-fsanitize=address"
-fi
+for flag in $CXXFLAGS; do
+  echo "$(ossfuz_flag_to_bazel_config_flag "--cxxopt" $flag)"
+  echo "$(ossfuz_flag_to_bazel_config_flag "--linkopt" $flag)"
+done
+
 if [ "$SANITIZER" = "undefined" ]; then
-  echo "build:oss-fuzz --linkopt=-fsanitize=undefined"
   echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.ubsan_standalone_cxx-x86_64.a | head -1)"
-fi
-if [ "$SANITIZER" = "coverage" ]; then
-  echo "build:oss-fuzz --linkopt=-fprofile-instr-generate"
-  echo "build:oss-fuzz --linkopt=-fcoverage-mapping"
 fi
 if [ "$FUZZING_ENGINE" = "libfuzzer" ]; then
   echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)"
 fi
+
 # AFL version in oss-fuzz does not support LLVMFuzzerRunDriver. It must be updated first.
 #if [ "$FUZZING_ENGINE" = "afl" ]; then
 #  echo "build:oss-fuzz --linkopt=${LIB_FUZZING_ENGINE}"
