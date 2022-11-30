@@ -118,7 +118,7 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
   // }
   //
   // void MyProperty(std::string s, int i) { ... }
-  // FUZZ_TEST(MySuite).WithDomains(StringAndIndex(10));
+  // FUZZ_TEST(MySuite, MyProperty).WithDomains(StringAndIndex(10));
   template <typename... NewDomains>
   auto WithDomains(
       AggregateOfImpl<std::tuple<typename NewDomains::value_type...>,
