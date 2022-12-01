@@ -150,6 +150,38 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
         TupleOf(std::forward<NewDomains>(domains)...));
   }
 
+  // fuzztest currently _doesn't_ support this pattern:
+  //
+  // void MyProperty(std::string s, int i) { ... }
+  // FUZZ_TEST(MySuite, MyProperty).WithDomains(
+  //   FlatMap([](...) { return TupleOf(<string domain>, <int domain>); }));
+  //
+  // This overload catches this case and provides a more helpful error than we
+  // otherwise give, which is to complain that the number of args and domains
+  // don't match (e.g. for the example above):
+  //
+  // static assertion failed due to requirement 'sizeof...(Args) ==
+  // sizeof...(NewDomains)'
+  // [...]
+  // Expression evaluates to '2 == 1'
+  template <
+      typename... FlatMapArgs, typename FlatMap = FlatMapImpl<FlatMapArgs...>,
+      // Enable this overload when we receive a single top-level FlatMap that
+      // returns TupleOf, and the property function doesn't have a matching
+      // signature.
+      typename = std::enable_if_t<
+          is_aggregate_of_v<typename FlatMap::output_domain> &&
+          !std::conjunction_v<
+              std::is_convertible<typename FlatMap::value_type, Args>...>>>
+  auto WithDomains(FlatMapImpl<FlatMapArgs...>&& domain) && {
+    static_assert(
+        std::conjunction_v<
+            std::is_convertible<typename FlatMap::value_type, Args>...>,
+        "Property function must accept std::tuple<...> when specifying "
+        ".WithDomains(FlatMap()) returning TupleOf.");
+    return std::move(*this);
+  }
+
   auto WithSeeds(absl::Span<const SeedT> seeds) && {
     if constexpr (!Registration::kHasSeeds) {
       return Registration<Fixture, TargetFunction,
