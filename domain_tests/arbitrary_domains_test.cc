@@ -15,6 +15,8 @@
 // Tests of Arbitrary<T> domains.
 
 #include <array>
+#include <cmath>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +31,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/domain.h"
@@ -41,6 +44,7 @@ namespace {
 
 using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -592,6 +596,76 @@ TEST(SequenceContainerMutation, InsertPartAccepts) {
   to = to_initial;
   EXPECT_TRUE(internal::InsertPart<true>(to, to, 0, 3, 1, 10));
   EXPECT_EQ(to, "aabcbcd");
+}
+
+TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
+  enum class DurationType {
+    kInfinity,
+    kMinusInfinity,
+    kZero,
+    kNegative,
+    kPositive
+  };
+
+  absl::BitGen bitgen;
+  absl::flat_hash_set<DurationType> to_find = {
+      DurationType::kInfinity, DurationType::kMinusInfinity,
+      DurationType::kZero, DurationType::kNegative, DurationType::kPositive};
+  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
+    auto domain = Arbitrary<absl::Duration>();
+    Value val(domain, bitgen);
+    if (val.user_value == absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kInfinity);
+    } else if (val.user_value == -absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kMinusInfinity);
+    } else if (val.user_value == absl::ZeroDuration()) {
+      to_find.erase(DurationType::kZero);
+    } else if (val.user_value < absl::ZeroDuration()) {
+      to_find.erase(DurationType::kNegative);
+    } else if (val.user_value > absl::ZeroDuration()) {
+      to_find.erase(DurationType::kPositive);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+uint64_t AbsoluteValueOf(absl::Duration d) {
+  int64_t hi = absl::time_internal::GetRepHi(d);
+  uint32_t lo = absl::time_internal::GetRepLo(d);
+  if (hi == std::numeric_limits<int64_t>::min()) {
+    return static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1 + lo;
+  }
+  return static_cast<uint64_t>(std::abs(hi)) + lo;
+}
+
+TEST(ArbitraryDurationTest, ShrinksCorrectly) {
+  absl::BitGen bitgen;
+  auto domain = Arbitrary<absl::Duration>();
+  absl::flat_hash_set<Value<decltype(domain)>> values;
+  // Failure to generate 1000 non-special values in 10000 rounds is negligible
+  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
+    Value val(domain, bitgen);
+    values.insert(val);
+  }
+  ASSERT_THAT(values, SizeIs(1000));
+
+  ASSERT_TRUE(TestShrink(
+                  domain, values,
+                  [](auto v) {
+                    return (v == absl::InfiniteDuration() ||
+                            v == -absl::InfiniteDuration() ||
+                            v == absl::ZeroDuration());
+                  },
+                  [](auto prev, auto next) {
+                    // For values other than (-)inf, next is closer to zero,
+                    // so the absolute value of next is less than that of prev
+                    return ((prev == absl::InfiniteDuration() &&
+                             next == absl::InfiniteDuration()) ||
+                            (prev == -absl::InfiniteDuration() &&
+                             next == -absl::InfiniteDuration()) ||
+                            AbsoluteValueOf(next) < AbsoluteValueOf(prev));
+                  })
+                  .ok());
 }
 
 }  // namespace

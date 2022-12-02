@@ -37,6 +37,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/protobuf_domain.h"
@@ -400,6 +401,25 @@ TEST(AutodetectAggregateTest, Printer) {
               Each(R"({1, {"Foo", "Bar"}})"));
   EXPECT_THAT(TestPrintValue(AggregateStructWithStream{}),
               ElementsAre("value={1, {Foo, Bar}}", R"({1, {"Foo", "Bar"}})"));
+}
+
+TEST(DurationTest, Printer) {
+  EXPECT_THAT(TestPrintValue(absl::InfiniteDuration()),
+              ElementsAre("inf", "absl::InfiniteDuration()"));
+  EXPECT_THAT(TestPrintValue(-absl::InfiniteDuration()),
+              ElementsAre("-inf", "-absl::InfiniteDuration()"));
+  EXPECT_THAT(TestPrintValue(absl::ZeroDuration()),
+              ElementsAre("0", "absl::ZeroDuration()"));
+  EXPECT_THAT(TestPrintValue(absl::Seconds(1)),
+              ElementsAre("1s", "absl::Seconds(1)"));
+  EXPECT_THAT(TestPrintValue(absl::Milliseconds(1500)),
+              ElementsAre("1.5s",
+                          "absl::Seconds(1) + "
+                          "absl::Nanoseconds(500000000)"));
+  EXPECT_THAT(TestPrintValue(absl::Nanoseconds(-0.25)),
+              ElementsAre("-0.25ns",
+                          "absl::Seconds(-1) + "
+                          "(absl::Nanoseconds(1) / 4) * 3999999999"));
 }
 
 struct NonAggregateStructWithNoStream {

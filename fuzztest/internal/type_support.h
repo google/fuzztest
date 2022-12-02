@@ -31,6 +31,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/time/time.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
@@ -510,6 +511,39 @@ struct AutodetectAggregatePrinter {
   }
 };
 
+struct DurationPrinter {
+  void PrintUserValue(const absl::Duration duration, RawSink out,
+                      PrintMode mode) {
+    switch (mode) {
+      case PrintMode::kHumanReadable:
+        absl::Format(out, "%s", absl::FormatDuration(duration));
+        break;
+      case PrintMode::kSourceCode:
+        if (duration == absl::InfiniteDuration()) {
+          absl::Format(out, "absl::InfiniteDuration()");
+        } else if (duration == -absl::InfiniteDuration()) {
+          absl::Format(out, "-absl::InfiniteDuration()");
+        } else if (duration == absl::ZeroDuration()) {
+          absl::Format(out, "absl::ZeroDuration()");
+        } else {
+          uint32_t rep_lo = absl::time_internal::GetRepLo(duration);
+          int64_t rep_hi = absl::time_internal::GetRepHi(duration);
+          if (rep_lo == 0) {
+            absl::Format(out, "absl::Seconds(%d)", rep_hi);
+          } else if (rep_lo % 4 == 0) {
+            absl::Format(out, "absl::Seconds(%d) + absl::Nanoseconds(%u)",
+                         rep_hi, rep_lo / 4);
+          } else {
+            absl::Format(out,
+                         "absl::Seconds(%d) + (absl::Nanoseconds(1) / 4) * %u",
+                         rep_hi, rep_lo);
+          }
+        }
+        break;
+    }
+  }
+};
+
 struct UnknownPrinter {
   template <typename T>
   void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
@@ -542,6 +576,8 @@ decltype(auto) AutodetectTypePrinter() {
     return ProtobufPrinter{};
   } else if constexpr (is_bindable_aggregate_v<T>) {
     return AutodetectAggregatePrinter{};
+  } else if constexpr (std::is_same_v<T, absl::Duration>) {
+    return DurationPrinter{};
   } else {
     return UnknownPrinter{};
   }

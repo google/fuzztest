@@ -38,6 +38,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/logging.h"
@@ -1131,6 +1132,23 @@ auto ConstructorOf(Inner... inner) {
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto NonEmpty(Inner inner) {
   return inner.WithMinSize(1);
+}
+
+// Arbitrary<absl::Duration>() represents any absl::Duration, a signed,
+// fixed-length span of time.
+//
+// Example usage:
+//
+//   Arbitrary<absl::Duration>()
+//
+template <>
+inline auto Arbitrary<absl::Duration>() {
+  return OneOf(
+      ElementOf({absl::InfiniteDuration(), -absl::InfiniteDuration()}),
+      Map([](int64_t hi,
+             uint32_t lo) { return absl::time_internal::MakeDuration(hi, lo); },
+          // lo stores quarters of a nanosecond and has a range of [0, 4B - 1]
+          Arbitrary<int64_t>(), InRange(0u, 3'999'999'999u)));
 }
 
 }  // namespace internal_no_adl
