@@ -1151,6 +1151,19 @@ inline auto Arbitrary<absl::Duration>() {
           Arbitrary<int64_t>(), InRange(0u, 3'999'999'999u)));
 }
 
+// Arbitrary<absl::Time>() represents an absolute, specific point in time.
+//
+// Example usage:
+//
+//   Arbitrary<absl::Time>()
+//
+template <>
+inline auto Arbitrary<absl::Time>() {
+  return Map(
+      [](absl::Duration duration) { return absl::UnixEpoch() + duration; },
+      Arbitrary<absl::Duration>());
+}
+
 }  // namespace internal_no_adl
 
 // Inject the names from internal_no_adl into fuzztest, without allowing for

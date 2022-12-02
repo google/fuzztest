@@ -668,5 +668,62 @@ TEST(ArbitraryDurationTest, ShrinksCorrectly) {
                   .ok());
 }
 
+TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
+  enum class TimeType {
+    kInfinitePast,
+    kInfiniteFuture,
+    kUnixEpoch,
+    kFiniteNonEpoch
+  };
+
+  absl::BitGen bitgen;
+  absl::flat_hash_set<TimeType> to_find = {
+      TimeType::kInfinitePast, TimeType::kInfiniteFuture, TimeType::kUnixEpoch,
+      TimeType::kFiniteNonEpoch};
+  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
+    auto domain = Arbitrary<absl::Time>();
+    Value val(domain, bitgen);
+    if (val.user_value == absl::InfinitePast()) {
+      to_find.erase(TimeType::kInfinitePast);
+    } else if (val.user_value == absl::InfiniteFuture()) {
+      to_find.erase(TimeType::kInfiniteFuture);
+    } else if (val.user_value == absl::UnixEpoch()) {
+      to_find.erase(TimeType::kUnixEpoch);
+    } else {
+      to_find.erase(TimeType::kFiniteNonEpoch);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+TEST(ArbitraryTimeTest, ShrinksCorrectly) {
+  absl::BitGen bitgen;
+  auto domain = Arbitrary<absl::Time>();
+  absl::flat_hash_set<Value<decltype(domain)>> values;
+  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
+    Value val(domain, bitgen);
+    values.insert(val);
+  }
+  ASSERT_THAT(values, SizeIs(1000));
+
+  ASSERT_TRUE(TestShrink(
+                  domain, values,
+                  [](auto v) {
+                    return (v == absl::InfinitePast() ||
+                            v == absl::InfiniteFuture() ||
+                            v == absl::UnixEpoch());
+                  },
+                  [](auto prev, auto next) {
+                    // For values other than inf, next is closer to epoch
+                    return ((prev == absl::InfinitePast() &&
+                             next == absl::InfinitePast()) ||
+                            (prev == absl::InfiniteFuture() &&
+                             next == absl::InfiniteFuture()) ||
+                            AbsoluteValueOf(next - absl::UnixEpoch()) <
+                                AbsoluteValueOf(prev - absl::UnixEpoch()));
+                  })
+                  .ok());
+}
+
 }  // namespace
 }  // namespace fuzztest

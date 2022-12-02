@@ -422,6 +422,21 @@ TEST(DurationTest, Printer) {
                           "(absl::Nanoseconds(1) / 4) * 3999999999"));
 }
 
+TEST(TimeTest, Printer) {
+  EXPECT_THAT(TestPrintValue(absl::InfinitePast()),
+              ElementsAre("infinite-past", "absl::InfinitePast()"));
+  EXPECT_THAT(TestPrintValue(absl::InfiniteFuture()),
+              ElementsAre("infinite-future", "absl::InfiniteFuture()"));
+  EXPECT_THAT(TestPrintValue(absl::UnixEpoch()),
+              ElementsAre("1970-01-01T00:00:00+00:00", "absl::UnixEpoch()"));
+  EXPECT_THAT(TestPrintValue(absl::FromUnixSeconds(1577836800)),
+              ElementsAre("2020-01-01T00:00:00+00:00",
+                          "absl::UnixEpoch() + absl::Seconds(1577836800)"));
+  EXPECT_THAT(TestPrintValue(absl::FromUnixSeconds(-1290000)),
+              ElementsAre("1969-12-17T01:40:00+00:00",
+                          "absl::UnixEpoch() + absl::Seconds(-1290000)"));
+}
+
 struct NonAggregateStructWithNoStream {
   NonAggregateStructWithNoStream() : i(1), nested("Foo", "Bar") {}
   int i;

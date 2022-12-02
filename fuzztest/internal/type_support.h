@@ -544,6 +544,28 @@ struct DurationPrinter {
   }
 };
 
+struct TimePrinter {
+  void PrintUserValue(const absl::Time time, RawSink out, PrintMode mode) {
+    switch (mode) {
+      case PrintMode::kHumanReadable:
+        absl::Format(out, "%s", absl::FormatTime(time, absl::UTCTimeZone()));
+        break;
+      case PrintMode::kSourceCode:
+        if (time == absl::InfinitePast()) {
+          absl::Format(out, "absl::InfinitePast()");
+        } else if (time == absl::InfiniteFuture()) {
+          absl::Format(out, "absl::InfiniteFuture()");
+        } else if (time == absl::UnixEpoch()) {
+          absl::Format(out, "absl::UnixEpoch()");
+        } else {
+          absl::Format(out, "absl::UnixEpoch() + ");
+          DurationPrinter{}.PrintUserValue(time - absl::UnixEpoch(), out, mode);
+        }
+        break;
+    }
+  }
+};
+
 struct UnknownPrinter {
   template <typename T>
   void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
@@ -578,6 +600,8 @@ decltype(auto) AutodetectTypePrinter() {
     return AutodetectAggregatePrinter{};
   } else if constexpr (std::is_same_v<T, absl::Duration>) {
     return DurationPrinter{};
+  } else if constexpr (std::is_same_v<T, absl::Time>) {
+    return TimePrinter{};
   } else {
     return UnknownPrinter{};
   }
