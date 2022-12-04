@@ -2109,6 +2109,12 @@ class AggregateOfImpl
   std::tuple<Inner...> inner_;
 };
 
+template <typename T>
+inline constexpr bool is_aggregate_of_v = false;
+
+template <typename T, RequireCustomCorpusType v, typename... Elem>
+inline constexpr bool is_aggregate_of_v<AggregateOfImpl<T, v, Elem...>> = true;
+
 template <typename T, typename... Elem>
 AggregateOfImpl<T, RequireCustomCorpusType::kYes, ArbitraryImpl<Elem>...>
     DetectAggregateOfImpl2(std::tuple<Elem&...>);
@@ -2526,11 +2532,9 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>> {
 
 template <typename FlatMapper, typename... Inner>
 class FlatMapImpl : public DomainBase<FlatMapImpl<FlatMapper, Inner...>> {
- private:
+ public:
   using output_domain = std::decay_t<
       std::invoke_result_t<FlatMapper, const typename Inner::value_type&...>>;
-
- public:
   using corpus_type =
       std::tuple<corpus_type_t<output_domain>, corpus_type_t<Inner>...>;
   using value_type = typename output_domain::value_type;
