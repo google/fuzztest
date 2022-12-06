@@ -563,6 +563,17 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
   EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
 }
 
+TEST_F(FuzzingModeTest,
+       DereferencingEmptyOptionalTriggersLibcppAssertionsWhenEnabled) {
+#if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_ASSERTIONS)
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.DereferenceEmptyOptional");
+  EXPECT_THAT(std_err,
+              HasSubstr("assertion this->has_value() failed: "
+                        "optional operator* called on a disengaged value"));
+#endif
+}
+
 TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.BufferOverreadWithString");
