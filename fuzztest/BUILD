@@ -306,6 +306,29 @@ cc_test(
 )
 
 cc_library(
+    name = "seed_seq",
+    srcs = ["internal/seed_seq.cc"],
+    hdrs = ["internal/seed_seq.h"],
+    deps = [
+        ":logging",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "seed_seq_test",
+    srcs = ["internal/seed_seq_test.cc"],
+    deps = [
+        ":seed_seq",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "serialization",
     srcs = ["internal/serialization.cc"],
     hdrs = ["internal/serialization.h"],
