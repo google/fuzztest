@@ -49,8 +49,8 @@ std::seed_seq GetFromEnvOrMakeSeedSeq(std::ostream& out,
   const std::vector<uint32_t> seed_material =
       GetFromEnvOrMakeSeedMaterial(env_var);
   const std::string encoded_seed_material = EncodeSeedMaterial(seed_material);
-  out << env_var << " = " << encoded_seed_material << '\n';
-  return {seed_material.begin(), seed_material.end()};
+  out << env_var << "=" << encoded_seed_material << '\n';
+  return std::seed_seq(seed_material.begin(), seed_material.end());
 }
 
 std::string EncodeSeedMaterial(absl::Span<const uint32_t> seed_material) {

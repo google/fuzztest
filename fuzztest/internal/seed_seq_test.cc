@@ -39,7 +39,7 @@ TEST(GetFromEnvOrMakeSeedSeqTest, GetsSeedSeqFromEnv) {
 
   // Can't compare seed sequences directly, so we compare seeded RNGs.
   EXPECT_EQ(std::mt19937(seed_seq), std::mt19937(expected_seed_seq));
-  EXPECT_EQ(stream.str(), absl::StrCat("FUZZ_TEST_SEED_GETS_FROM_ENV = ",
+  EXPECT_EQ(stream.str(), absl::StrCat("FUZZ_TEST_SEED_GETS_FROM_ENV=",
                                        encoded_seed_material, "\n"));
 }
 
@@ -52,7 +52,7 @@ TEST(GetFromEnvOrMakeSeedSeqTest, MakesAndOutputsSeedSeq) {
   const std::string output = stream.str();
   absl::string_view output_view = output;
   ASSERT_TRUE(absl::ConsumePrefix(
-      &output_view, "FUZZ_TEST_SEED_MAKES_AND_OUTPUTS_SEED_SEQ = "));
+      &output_view, "FUZZ_TEST_SEED_MAKES_AND_OUTPUTS_SEED_SEQ="));
   ASSERT_TRUE(absl::ConsumeSuffix(&output_view, "\n"));
   std::optional<std::vector<uint32_t>> seed_material =
       DecodeSeedMaterial(output_view);
