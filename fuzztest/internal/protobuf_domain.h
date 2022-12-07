@@ -815,6 +815,13 @@ class ProtobufDomainUntypedImpl
 
   template <typename Inner>
   void WithField(std::string_view field_name, Inner&& domain) {
+    auto* field = GetField(field_name);
+    VisitProtobufField(
+        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
+    are_fields_customized_ = true;
+  }
+
+  const FieldDescriptor* GetField(std::string_view field_name) const {
     auto* field =
         prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
@@ -823,9 +830,7 @@ class ProtobufDomainUntypedImpl
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         !field->containing_oneof(),
         "Customizing the domain for oneof fields is not supported yet.");
-    VisitProtobufField(
-        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
-    are_fields_customized_ = true;
+    return field;
   }
 
   void SetPolicy(ProtoPolicy<Message> policy) {
@@ -840,11 +845,7 @@ class ProtobufDomainUntypedImpl
 
   template <typename T>
   auto GetFieldTypeDefaultDomain(absl::string_view field_name) const {
-    auto* field =
-        prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
-                                         "Invalid field name '",
-                                         std::string(field_name), "'.");
+    auto* field = GetField(field_name);
     return GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
   }
 
