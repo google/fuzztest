@@ -38,9 +38,10 @@ protocol buffers. Specifically, for the following types:
     `absl::flat_hash_set`, `absl::node_hash_set`, `std::unordered_map`,
     `absl::flat_hash_map`, `absl::node_hash_map`, etc.
 -   Ordered associative container types: `std::set<K>`, `std::map<K,T>`,
-    `std::multiset<K>`, `std::multimap<K,T
+    `std::multiset<K>`, `std::multimap<K,T>`, etc.
 -   Protocol buffer types: `MyProtoMessage`, etc.
--   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):  `absl::Duration`, `absl::Time`.
+-   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):
+    `absl::Duration`, `absl::Time`.
 
 Composite or container types, like `std::optional<T>` or `std::vector<T>`, are
 supported as long as the inner types are. For example,
