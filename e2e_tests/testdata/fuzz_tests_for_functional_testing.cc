@@ -34,6 +34,7 @@ using ::fuzztest::Arbitrary;
 using ::fuzztest::FlatMap;
 using ::fuzztest::InRange;
 using ::fuzztest::Just;
+using ::fuzztest::OptionalOf;
 using ::fuzztest::PairOf;
 using ::fuzztest::StringOf;
 using ::fuzztest::StructOf;
@@ -162,13 +163,30 @@ FUZZ_TEST(MySuite, FailsWhenFieldDoubleHasNoValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithDoubleFieldAlwaysSet(
         "d", InRange(0., 1000.)));
 
-void FailsWhenRequiredFieldHasNoValue(const TestProtobufWithRequired& proto) {
+void FailsWhenRequiredInt32FieldHasNoValue(
+    const TestProtobufWithRequired& proto) {
   if (!proto.has_req_i32()) std::abort();
 }
 
-FUZZ_TEST(MySuite, FailsWhenRequiredFieldHasNoValue)
+FUZZ_TEST(MySuite, FailsWhenRequiredInt32FieldHasNoValue)
     .WithDomains(Arbitrary<TestProtobufWithRequired>().WithInt32Field(
         "req_i32", InRange(0, 1000)));
+
+void FailsWhenRequiredEnumFieldHasNoValue(
+    const TestProtobufWithRequired& proto) {
+  if (!proto.has_req_e()) std::abort();
+}
+
+FUZZ_TEST(MySuite, FailsWhenRequiredEnumFieldHasNoValue)
+    .WithDomains(
+        Arbitrary<TestProtobufWithRequired>().WithEnumFieldUnset("req_e"));
+
+void FailsWhenOptionalFieldU32HasNoValue(const TestProtobuf& proto) {
+  if (!proto.has_u32()) std::abort();
+}
+FUZZ_TEST(MySuite, FailsWhenOptionalFieldU32HasNoValue)
+    .WithDomains(Arbitrary<TestProtobuf>().WithOptionalUInt32Field(
+        "u32", OptionalOf(InRange(0u, 1000u))));
 
 void FailsWhenSubprotoIsNull(const TestProtobuf& proto) {
   if (!proto.has_subproto()) {
@@ -297,7 +315,7 @@ void FailsWhenI32FieldValuesDontRespectAllPolicies(const TestProtobuf& proto) {
   }
   if (!proto.has_subproto()) return;
   if (proto.subproto().subproto_rep_i32_size() == 0 ||
-      proto.subproto().subproto_rep_i32(0) != 2) {
+      proto.subproto().subproto_rep_i32(0) != 4) {
     std::abort();
   }
   if (!proto.subproto().has_subproto_i32() ||
@@ -313,15 +331,18 @@ bool IsInt32(const FieldDescriptor* field) {
 bool IsNotRequired(const FieldDescriptor* field) {
   return !field->is_required();
 }
-bool IsRepeated(const FieldDescriptor* field) { return field->is_repeated(); }
+bool IsInSubproto(const FieldDescriptor* field) {
+  return absl::StrContains(field->name(), "subproto");
+}
 
 FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
     .WithDomains(Arbitrary<TestProtobuf>()
                      .WithOptionalFieldsAlwaysSet(IsInt32)
                      .WithRepeatedFieldsMinSize(IsInt32, 1)
                      .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
-                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
-                     .WithInt32FieldAlwaysSet("i32", fuzztest::Just(1)));
+                     .WithRepeatedInt32Fields(fuzztest::Just(2))
+                     .WithRepeatedInt32Fields(IsInSubproto, fuzztest::Just(4))
+                     .WithInt32Field("i32", fuzztest::Just(1)));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
