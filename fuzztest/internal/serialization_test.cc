@@ -41,6 +41,7 @@ using testing::_;
 using testing::ElementsAre;
 using testing::Eq;
 using testing::FieldsAre;
+using testing::HasSubstr;
 using testing::NanSensitiveDoubleEq;
 using testing::Not;
 using testing::Optional;
@@ -381,6 +382,29 @@ TEST(CorpusToIR, FailureConditions) {
                   .ToCorpus<Tuple>());
   EXPECT_FALSE(IRObject(std::vector<IRObject>{IRObject("A"), IRObject("ABC")})
                    .ToCorpus<Tuple>());
+}
+
+// TODO:(niea)
+TEST(SerializerTest, SingleStringValueIsSerializedAsRawString) {
+  std::string s("Just a single string");
+  IRObject obj;
+  obj.value = s;
+  std::string s_serialized = obj.ToString();
+
+  // should have no header
+  EXPECT_THAT(s_serialized, Not(HasSubstr("FUZZTESTv1\n")));
+  EXPECT_EQ(s, s_serialized);
+}
+
+TEST(SerializerTest, SingleProtoValueIsSerializaedAsRawString) {
+  IRObjectTestProto proto;
+  IRObject object = IRObject::FromCorpus(proto);
+  std::string proto_serialized = object.ToString();
+
+  // should have no header
+  EXPECT_THAT(proto_serialized, Not(HasSubstr("FUZZTESTv1\n")));
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_serialized, &proto));
+  std::visit(VerifyVisitor{proto}, object.value);
 }
 
 // TODO(sbenzaquen): Add tests for failing conditions in the IR->Corpus conversion.

@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -174,6 +175,10 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
 }  // namespace
 
 std::string IRObject::ToString() const {
+  // TODO: (niea)
+  if (const auto* s = absl::get_if<std::string>(&value)) {
+    return *s;
+  }
   std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
   absl::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
@@ -181,7 +186,17 @@ std::string IRObject::ToString() const {
 
 std::optional<IRObject> IRObject::FromString(std::string_view str) {
   IRObject object;
-  if (ReadToken(str) != kHeader) return std::nullopt;
+  if (ReadToken(str) != kHeader) {
+    // could be either invalid IRObject, or just single string like or proto
+    // like values we need to parse these 2 special cases back to an object
+    if (!absl::StrContains(str, "sub{") && !absl::StrContains(str, "d:") &&
+        !absl::StrContains(str, "d:") && !absl::StrContains(str, "i:")) {
+      if (!ReadScalar(object.value.emplace<std::string>(), str))
+        return std::nullopt;
+      return object;
+    }
+    return std::nullopt;
+  }
   if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
   return object;
 }
