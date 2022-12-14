@@ -33,8 +33,8 @@
 #include <vector>
 
 #include "absl/functional/function_ref.h"
+#include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
-#include "absl/random/seed_sequences.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -50,6 +50,7 @@
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/polymorphic_value.h"
 #include "./fuzztest/internal/registration.h"
+#include "./fuzztest/internal/seed_seq.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -236,7 +237,6 @@ decltype(auto) ForceVectorForStringView(Src&& src) {
 template <typename RegBase, typename Fixture, typename TargetFunction,
           typename = void>
 class FuzzTestExternalEngineAdaptor;
-
 template <typename RegBase, typename Fixture, typename TargetFunction,
           typename = void>
 class FuzzTestFuzzerImpl;
@@ -296,14 +296,7 @@ class FuzzTestFuzzerImpl<
       PopulateFromSeeds();
 
       const auto time_limit = stats_.start_time + absl::Seconds(1);
-      // TODO(b/242206122): Use seed_sequence() if a env_var is set.
-      // We use a fixed random seed in unit-test mode to minimize
-      // non-determinism on CI systems (continuous integration), which might
-      // categorize the test as "flaky", and in order to avoid confusing users.
-      // While this reduces the effectiveness of unit-test mode, this should be
-      // mitigated by running this tests continuously in fuzzing mode as well.
-      std::seed_seq golden_sequence{3, 8, 9, 9, 8, 3, 7, 8};
-      PRNG prng(golden_sequence);
+      PRNG prng(seed_sequence_);
       Input mutation{params_domain_.Init(prng)};
       constexpr size_t max_iterations = 10000;
       for (int i = 0; i < max_iterations; ++i) {
@@ -359,7 +352,7 @@ class FuzzTestFuzzerImpl<
 
       stats_.total_edges = execution_coverage_->GetCounterMap().size();
 
-      PRNG prng(seed_sequence());
+      PRNG prng(seed_sequence_);
 
       if (MinimizeCorpusIfInMinimizationMode(prng)) {
         absl::FPrintF(
@@ -434,6 +427,9 @@ class FuzzTestFuzzerImpl<
   }
 
  private:
+  // Use the standard PRNG instead of absl::BitGen because Abseil doesn't
+  // guarantee seed stability
+  // (https://abseil.io/docs/cpp/guides/random#seed-stability).
   using PRNG = std::mt19937;
   using ParamsDomain =
       decltype(std::declval<FixtureDriver<RegBase, Fixture, TargetFunction>>()
@@ -468,7 +464,7 @@ class FuzzTestFuzzerImpl<
     }
 
     if (const auto to_minimize = ReadReproducerToMinimize()) {
-      PRNG prng(seed_sequence());
+      PRNG prng(seed_sequence_);
 
       const auto original_serialized =
           params_domain_.SerializeCorpus(*to_minimize).ToString();
@@ -762,18 +758,11 @@ class FuzzTestFuzzerImpl<
     return termination_requested.load(std::memory_order_relaxed);
   }
 
-  absl::SeedSeq& seed_sequence() {
-    if (seed_sequence_.size() == 0) {
-      seed_sequence_ = absl::MakeSeedSeq();
-    }
-    return seed_sequence_;
-  }
-
   const FuzzTest& test_;
   std::unique_ptr<FixtureDriver<RegBase, Fixture, TargetFunction>>
       fixture_driver_;
   ParamsDomain params_domain_ = fixture_driver_->GetDomains();
-  absl::SeedSeq seed_sequence_;
+  std::seed_seq seed_sequence_ = GetFromEnvOrMakeSeedSeq(std::cerr);
   ExecutionCoverage* execution_coverage_;
   CorpusCoverage corpus_coverage_;
   std::deque<Input> corpus_;
