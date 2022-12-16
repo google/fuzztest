@@ -40,6 +40,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -1145,9 +1146,9 @@ template <>
 inline auto Arbitrary<absl::Duration>() {
   return OneOf(
       ElementOf({absl::InfiniteDuration(), -absl::InfiniteDuration()}),
-      Map([](int64_t hi,
-             uint32_t lo) { return absl::time_internal::MakeDuration(hi, lo); },
-          // lo stores quarters of a nanosecond and has a range of [0, 4B - 1]
+      Map([](int64_t secs,
+             uint32_t ticks) { return internal::MakeDuration(secs, ticks); },
+          // ticks is 1/4 of a nanosecond and has a range of [0, 4B - 1]
           Arbitrary<int64_t>(), InRange(0u, 3'999'999'999u)));
 }
 

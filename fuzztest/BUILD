@@ -23,6 +23,15 @@ licenses(["notice"])
 exports_files(["LICENSE"])
 
 cc_library(
+    name = "absl_domain",
+    hdrs = ["internal/absl_domain.h"],
+    deps = [
+        ":logging",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "compatibility_mode",
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
@@ -79,6 +88,7 @@ cc_library(
         "internal/protobuf_domain.h",
     ],
     deps = [
+        ":absl_domain",
         ":coverage",
         ":logging",
         ":meta",
@@ -392,6 +402,7 @@ cc_library(
     srcs = ["internal/type_support.cc"],
     hdrs = ["internal/type_support.h"],
     deps = [
+        ":absl_domain",
         ":meta",
         "@com_google_absl//absl/debugging:symbolize",
         "@com_google_absl//absl/strings",

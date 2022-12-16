@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,6 +35,7 @@
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -598,6 +600,53 @@ TEST(SequenceContainerMutation, InsertPartAccepts) {
   EXPECT_EQ(to, "aabcbcd");
 }
 
+// Note: this test is based on knowledge of internal representation of
+// absl::Duration and will fail if the internal representation changes.
+TEST(ArbitraryDurationTest, ValidatesAssumptionsAboutAbslDurationInternals) {
+  absl::Duration min_positive = absl::Nanoseconds(1) / 4;
+  absl::Duration max = absl::Seconds(std::numeric_limits<int64_t>::max()) +
+                       (absl::Seconds(1) - min_positive);
+
+  EXPECT_NE(absl::ZeroDuration(), min_positive);
+  EXPECT_EQ(absl::ZeroDuration(), (min_positive / 2));
+  EXPECT_NE(absl::InfiniteDuration(), max);
+  EXPECT_EQ(absl::InfiniteDuration(), max + min_positive);
+}
+
+TEST(ArbitraryDurationTest, ValidatesMakeDurationResults) {
+  EXPECT_EQ(internal::MakeDuration(0, 0), absl::ZeroDuration());
+  EXPECT_EQ(internal::MakeDuration(0, 1), absl::Nanoseconds(0.25));
+  EXPECT_EQ(internal::MakeDuration(0, 400'000), absl::Microseconds(100));
+  EXPECT_EQ(internal::MakeDuration(1, 500'000'000), absl::Seconds(1.125));
+  EXPECT_EQ(internal::MakeDuration(-50, 30), absl::Seconds(-49.9999999925));
+  EXPECT_EQ(internal::MakeDuration(-1, 3'999'999'999u),
+            absl::Nanoseconds(-0.25));
+  EXPECT_EQ(internal::MakeDuration(-2, 3'999'999'999u),
+            absl::Seconds(-1.00000000025));
+}
+
+TEST(ArbitraryDurationTest, ValidatesGetSecondsResults) {
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(10, 20)), 10);
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(-50, 30)), -50);
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(
+                std::numeric_limits<int64_t>::min(), 10)),
+            std::numeric_limits<int64_t>::min());
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(
+                std::numeric_limits<int64_t>::max(), 10)),
+            std::numeric_limits<int64_t>::max());
+}
+
+TEST(ArbitraryDurationTest, ValidatesGetTicksResults) {
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(100, 200)), 200);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(-100, 200)), 200);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(
+                std::numeric_limits<int64_t>::min(), 3'999'999'999u)),
+            3'999'999'999u);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(
+                std::numeric_limits<int64_t>::max(), 3'999'999'999u)),
+            3'999'999'999u);
+}
+
 TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
   enum class DurationType {
     kInfinity,
@@ -630,12 +679,12 @@ TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
 }
 
 uint64_t AbsoluteValueOf(absl::Duration d) {
-  int64_t hi = absl::time_internal::GetRepHi(d);
-  uint32_t lo = absl::time_internal::GetRepLo(d);
-  if (hi == std::numeric_limits<int64_t>::min()) {
-    return static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1 + lo;
+  auto [secs, ticks] = internal::GetSecondsAndTicks(d);
+  if (secs == std::numeric_limits<int64_t>::min()) {
+    return static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1 +
+           ticks;
   }
-  return static_cast<uint64_t>(std::abs(hi)) + lo;
+  return static_cast<uint64_t>(std::abs(secs)) + ticks;
 }
 
 TEST(ArbitraryDurationTest, ShrinksCorrectly) {

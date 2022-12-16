@@ -32,6 +32,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
@@ -526,17 +527,17 @@ struct DurationPrinter {
         } else if (duration == absl::ZeroDuration()) {
           absl::Format(out, "absl::ZeroDuration()");
         } else {
-          uint32_t rep_lo = absl::time_internal::GetRepLo(duration);
-          int64_t rep_hi = absl::time_internal::GetRepHi(duration);
-          if (rep_lo == 0) {
-            absl::Format(out, "absl::Seconds(%d)", rep_hi);
-          } else if (rep_lo % 4 == 0) {
-            absl::Format(out, "absl::Seconds(%d) + absl::Nanoseconds(%u)",
-                         rep_hi, rep_lo / 4);
+          uint32_t ticks = GetTicks(duration);
+          int64_t secs = GetSeconds(duration);
+          if (ticks == 0) {
+            absl::Format(out, "absl::Seconds(%d)", secs);
+          } else if (ticks % 4 == 0) {
+            absl::Format(out, "absl::Seconds(%d) + absl::Nanoseconds(%u)", secs,
+                         ticks / 4);
           } else {
             absl::Format(out,
                          "absl::Seconds(%d) + (absl::Nanoseconds(1) / 4) * %u",
-                         rep_hi, rep_lo);
+                         secs, ticks);
           }
         }
         break;
