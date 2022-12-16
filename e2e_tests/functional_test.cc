@@ -333,9 +333,21 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsUnsetNeverHasValue) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, ProtoFieldsThatAreUnsetNeverHaveValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhen64IntegralFieldsHaveValues"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldDoubleHasNoValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
+TEST(UnitTestModeTest, ProtoFieldsThatAreAlwaysSetAlwaysHaveValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhen64IntegralFieldsHaveNoValues"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
@@ -346,11 +358,23 @@ TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, RequiredProtoFieldWillBeSetWhenNullnessIsNotCustomized) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredInt32FieldHasNoValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
-  auto [status, std_out, std_err] =
-      RunWith(GetGTestFilterFlag("MySuite.FailsWhenRequiredFieldHasNoValue"));
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredEnumFieldHasNoValue"));
   EXPECT_THAT(status.Signal(), Eq(SIGABRT));
   EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
+}
+
+TEST(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenOptionalFieldU32HasNoValue"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
 }
 
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
@@ -524,6 +548,12 @@ TEST(UnitTestModeTest, ChecksTypeOfProvidedDefaultDomainForProtos) {
 TEST(UnitTestModeTest, PoliciesApplyToFieldsInOrder) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsWhenI32FieldValuesDontRespectAllPolicies"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
+TEST(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenOneofFieldDoesntHaveOneofValue"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
