@@ -184,8 +184,28 @@ auto GetProtobufField(const Message* prototype, int number) {
 }
 
 template <typename T>
-auto IncludeAll() {
-  return [](const T* field) { return true; };
+using Predicate = std::function<bool(const T*)>;
+
+template <typename T>
+Predicate<T> IncludeAll() {
+  return [](const T*) { return true; };
+}
+
+template <typename T>
+Predicate<T> IsOptional() {
+  return [](const T* field) { return field->is_optional(); };
+}
+
+template <typename T>
+Predicate<T> IsRepeated() {
+  return [](const T* field) { return field->is_repeated(); };
+}
+
+template <typename T>
+Predicate<T> And(Predicate<T> lhs, Predicate<T> rhs) {
+  return [lhs = std::move(lhs), rhs = std::move(rhs)](const T* field) {
+    return lhs(field) && rhs(field);
+  };
 }
 
 template <typename T>
@@ -208,6 +228,13 @@ class ProtoPolicy {
   }
 
   void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+    if (optional_policy == OptionalPolicy::kAlwaysNull) {
+      max_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
+    } else if (optional_policy == OptionalPolicy::kWithoutNull) {
+      min_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 1});
+    }
     optional_policies_.push_back(
         {.filter = std::move(filter), .value = optional_policy});
   }
@@ -351,14 +378,20 @@ class ProtobufDomainUntypedImpl
   static constexpr bool has_custom_corpus_type = true;
 
   explicit ProtobufDomainUntypedImpl(const Message* prototype)
-      : prototype_(prototype), policy_(), are_fields_customized_(false) {}
+      : prototype_(prototype),
+        policy_(),
+        customized_fields_(),
+        always_set_oneofs_(),
+        oneof_fields_policies_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other) {
     prototype_ = other.prototype_;
     absl::MutexLock l(&other.mutex_);
     domains_ = other.domains_;
     policy_ = other.policy_;
-    are_fields_customized_ = other.are_fields_customized_;
+    customized_fields_ = other.customized_fields_;
+    always_set_oneofs_ = other.always_set_oneofs_;
+    oneof_fields_policies_ = other.oneof_fields_policies_;
   }
 
   template <typename T>
@@ -397,25 +430,65 @@ class ProtobufDomainUntypedImpl
     }
   };
 
+  template <typename OneofDescriptor, typename PRNG>
+  int SelectAFieldIndexInOneof(const OneofDescriptor* oneof, PRNG& prng,
+                               bool non_recursive_only) {
+    std::vector<int> fields;
+    for (int i = 0; i < oneof->field_count(); ++i) {
+      OptionalPolicy policy = GetOneofFieldPolicy(oneof->field(i));
+      if (policy == OptionalPolicy::kAlwaysNull) continue;
+      if (non_recursive_only && IsFieldRecursive(oneof->field(i))) continue;
+      fields.push_back(i);
+    }
+    if (fields.empty()) {  // This can happen if all fields are unset.
+      return -1;
+    } else {
+      uint64_t selected = absl::Uniform(absl::IntervalClosedOpen, prng,
+                                        size_t{0}, fields.size());
+      return oneof->field(fields[selected])->index();
+    }
+  }
+
+  void UpdateOneofFieldsPolicy(const ProtobufDescriptor<Message>* descriptor) {
+    for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
+      auto* oneof = descriptor->oneof_decl(i);
+      if (!always_set_oneofs_.contains(oneof->index())) continue;
+      for (int j = 0; j < oneof->field_count(); ++j) {
+        if (GetOneofFieldPolicy(oneof->field(j)) == OptionalPolicy::kWithNull) {
+          SetOneofFieldPolicy(oneof->field(j), OptionalPolicy::kWithoutNull);
+        }
+      }
+    }
+  }
+
   template <typename PRNG>
   corpus_type Init(PRNG& prng) {
     FUZZTEST_INTERNAL_CHECK(
-        are_fields_customized_ || !IsNonTerminatingRecursive(),
+        !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
+    const auto* descriptor = prototype_->GetDescriptor();
+    UpdateOneofFieldsPolicy(descriptor);
     corpus_type val;
+    absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
-    const auto* descriptor = prototype_->GetDescriptor();
     for (int i = 0; i < descriptor->field_count(); ++i) {
       const auto* field = descriptor->field(i);
-      // We avoid initializing non-required recursive fields by default (if they
-      // are not explicitly customized). Otherwise, the initialization may never
-      // terminate. If a proto has only non-required recursive fields, the
-      // initialization will be deterministic, which violates the assumption on
-      // domain Init. However, such cases should be extremely rare and breaking
-      // the assumption would not have severe consequences.
-      if (!field->is_required() && !are_fields_customized_ &&
-          IsFieldRecursive(field)) {
+      if (auto* oneof = field->containing_oneof()) {
+        if (!oneof_to_field.contains(oneof->index())) {
+          oneof_to_field[oneof->index()] = SelectAFieldIndexInOneof(
+              oneof, prng,
+              /*non_recursive_only=*/customized_fields_.empty());
+        }
+        if (oneof_to_field[oneof->index()] != field->index()) continue;
+      } else if (!field->is_required() && customized_fields_.empty() &&
+                 IsFieldRecursive(field)) {
+        // We avoid initializing non-required recursive fields by default (if
+        // they are not explicitly customized). Otherwise, the initialization
+        // may never terminate. If a proto has only non-required recursive
+        // fields, the initialization will be deterministic, which violates the
+        // assumption on domain Init. However, such cases should be extremely
+        // rare and breaking the assumption would not have severe consequences.
         continue;
       }
       VisitProtobufField(field, InitializeVisitor{prng, *this, val});
@@ -498,6 +571,10 @@ class ProtobufDomainUntypedImpl
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
       FieldDescriptor* field = descriptor->field(i);
+      if (field->containing_oneof() &&
+          GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
+        continue;
+      }
       ++total_weight;
 
       if (field->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
@@ -526,6 +603,10 @@ class ProtobufDomainUntypedImpl
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
       FieldDescriptor* field = descriptor->field(i);
+      if (field->containing_oneof() &&
+          GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
+        continue;
+      }
       ++field_counter;
       if (field_counter == selected_field_index) {
         VisitProtobufField(field, MutateVisitor{prng, only_shrink, *this, val});
@@ -815,17 +896,124 @@ class ProtobufDomainUntypedImpl
 
   template <typename Inner>
   void WithField(std::string_view field_name, Inner&& domain) {
+    auto* field = GetField(field_name);
+    VisitProtobufField(
+        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
+    customized_fields_.insert(field->index());
+  }
+
+  const FieldDescriptor* GetField(std::string_view field_name) const {
     auto* field =
         prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
+    return field;
+  }
+
+  void WithOneofField(absl::string_view field_name, OptionalPolicy policy) {
+    const FieldDescriptor* field = GetField(field_name);
+    if (!field->containing_oneof()) return;
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(policy != OptionalPolicy::kWithoutNull,
+                                         "Cannot always set oneof field ",
+                                         field_name,
+                                         " (try using WithOneofAlwaysSet).");
+    if (policy == OptionalPolicy::kAlwaysNull) {
+      SetOneofFieldPolicy(field, policy);
+    }
+  }
+
+  void WithOneofAlwaysSet(absl::string_view oneof_name) {
+    auto* oneof =
+        prototype_->GetDescriptor()->FindOneofByName(std::string(oneof_name));
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(oneof != nullptr,
+                                         "Invalid oneof name '",
+                                         std::string(oneof_name), "'.");
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !field->containing_oneof(),
-        "Customizing the domain for oneof fields is not supported yet.");
-    VisitProtobufField(
-        field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
-    are_fields_customized_ = true;
+        !always_set_oneofs_.contains(oneof->index()), "oneof '",
+        std::string(oneof_name), "' is AlwaysSet before.");
+    always_set_oneofs_.insert(oneof->index());
+  }
+
+  bool IsOneofAlwaysSet(int oneof_index) {
+    return always_set_oneofs_.contains(oneof_index);
+  }
+
+  struct WithFieldNullnessVisitor {
+    ProtobufDomainUntypedImpl& self;
+    OptionalPolicy policy;
+
+    template <typename T>
+    auto VisitSingular(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/false>(
+          field, std::move(inner_domain));
+      if (policy == OptionalPolicy::kAlwaysNull) {
+        domain.SetAlwaysNull();
+      } else if (policy == OptionalPolicy::kWithoutNull) {
+        domain.SetWithoutNull();
+      }
+      self.WithField(field->name(), domain);
+    }
+
+    template <typename T>
+    auto VisitRepeated(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/true>(
+          field, std::move(inner_domain));
+      if (policy == OptionalPolicy::kAlwaysNull) {
+        domain.WithMaxSize(0);
+      } else if (policy == OptionalPolicy::kWithoutNull) {
+        domain.WithMinSize(1);
+      }
+      self.WithField(field->name(), domain);
+    }
+  };
+
+  void WithFieldNullness(absl::string_view field_name, OptionalPolicy policy) {
+    const FieldDescriptor* field = GetField(field_name);
+    WithOneofField(field_name, policy);
+    VisitProtobufField(field, WithFieldNullnessVisitor{*this, policy});
+  }
+
+  struct WithRepeatedFieldSizeVisitor {
+    ProtobufDomainUntypedImpl& self;
+    std::optional<int64_t> min_size;
+    std::optional<int64_t> max_size;
+
+    template <typename T>
+    auto VisitSingular(const FieldDescriptor* field) {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          false,
+          "Customizing repeated field size is not applicable to non-repeated "
+          "field ",
+          field->name(), ".");
+    }
+
+    template <typename T>
+    auto VisitRepeated(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/true>(
+          field, std::move(inner_domain));
+      if (min_size.has_value()) {
+        domain.WithMinSize(*min_size);
+      }
+      if (max_size.has_value()) {
+        domain.WithMaxSize(*max_size);
+      }
+      self.WithField(field->name(), domain);
+    }
+  };
+
+  void WithRepeatedFieldSize(absl::string_view field_name,
+                             std::optional<int64_t> min_size,
+                             std::optional<int64_t> max_size) {
+    const FieldDescriptor* field = GetField(field_name);
+    VisitProtobufField(field,
+                       WithRepeatedFieldSizeVisitor{*this, min_size, max_size});
   }
 
   void SetPolicy(ProtoPolicy<Message> policy) {
@@ -840,18 +1028,49 @@ class ProtobufDomainUntypedImpl
 
   template <typename T>
   auto GetFieldTypeDefaultDomain(absl::string_view field_name) const {
-    auto* field =
-        prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
-                                         "Invalid field name '",
-                                         std::string(field_name), "'.");
+    auto* field = GetField(field_name);
     return GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+  }
+
+  template <bool is_repeated, typename Inner>
+  auto GetOuterDomainForField(const FieldDescriptor* field, Inner domain,
+                              bool use_policy = true) const {
+    if constexpr (is_repeated) {
+      return ModifyDomainForRepeatedFieldRule(
+          std::move(domain),
+          use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
+          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
+    } else if (field->is_required()) {
+      return ModifyDomainForRequiredFieldRule(std::move(domain));
+    } else {
+      return ModifyDomainForOptionalFieldRule(
+          std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
+                                        : OptionalPolicy::kWithNull);
+    }
+  }
+
+  void SetOneofFieldPolicy(const FieldDescriptor* field,
+                           OptionalPolicy policy) {
+    oneof_fields_policies_.insert({field->index(), policy});
+  }
+
+  OptionalPolicy GetOneofFieldPolicy(const FieldDescriptor* field) const {
+    FUZZTEST_INTERNAL_CHECK(
+        field->containing_oneof(),
+        "GetOneofFieldPolicy should apply to oneof fields only! ",
+        field->name());
+    auto result = oneof_fields_policies_.find(field->index());
+    if (result != oneof_fields_policies_.end()) {
+      return result->second;
+    } else {
+      return policy_.GetOptionalPolicy(field);
+    }
   }
 
  private:
   void CheckIfPolicyCanBeUpdated() const {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !are_fields_customized_,
+        customized_fields_.empty(),
         "All singular modifiers (i.e., .With_Field_()) should come after "
         "plural modifiers (i.e., .With_Fields_()). Consider reordering .With_ "
         "modifiers.");
@@ -877,22 +1096,22 @@ class ProtobufDomainUntypedImpl
 
   // Simple wrapper that converts a Domain<T> into a Domain<vector<T>>.
   template <typename T>
-  static Domain<std::vector<T>> ModifyDomainForRepeatedFieldRule(
+  static auto ModifyDomainForRepeatedFieldRule(
       const Domain<T>& d, std::optional<int64_t> min_size,
       std::optional<int64_t> max_size) {
-    auto domain = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
+    auto result = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
     if (min_size.has_value()) {
-      domain.WithMinSize(*min_size);
+      result.WithMinSize(*min_size);
     }
     if (max_size.has_value()) {
-      domain.WithMaxSize(*max_size);
+      result.WithMaxSize(*max_size);
     }
-    return domain;
+    return result;
   }
 
   template <typename T>
-  static Domain<std::optional<T>> ModifyDomainForOptionalFieldRule(
-      const Domain<T>& d, OptionalPolicy optional_policy) {
+  static auto ModifyDomainForOptionalFieldRule(const Domain<T>& d,
+                                               OptionalPolicy optional_policy) {
     auto result = OptionalOfImpl<std::optional<T>, Domain<T>>(d);
     if (optional_policy == OptionalPolicy::kWithoutNull) {
       result.SetWithoutNull();
@@ -903,8 +1122,7 @@ class ProtobufDomainUntypedImpl
   }
 
   template <typename T>
-  static Domain<std::optional<T>> ModifyDomainForRequiredFieldRule(
-      const Domain<T>& d) {
+  static auto ModifyDomainForRequiredFieldRule(const Domain<T>& d) {
     return OptionalOfImpl<std::optional<T>, Domain<T>>(d).SetWithoutNull();
   }
 
@@ -982,18 +1200,15 @@ class ProtobufDomainUntypedImpl
   template <typename T, bool is_repeated>
   auto GetDomainForField(const FieldDescriptor* field,
                          bool use_policy = true) const {
-    auto domain = GetBaseDomainForFieldType<T>(field, use_policy);
+    auto base_domain = GetBaseDomainForFieldType<T>(field, use_policy);
+    using field_cpptype =
+        typename std::decay_t<decltype(base_domain)>::value_type;
     if constexpr (is_repeated) {
-      return ModifyDomainForRepeatedFieldRule(
-          std::move(domain),
-          use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
-          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
-    } else if (field->is_required()) {
-      return ModifyDomainForRequiredFieldRule(std::move(domain));
+      return Domain<std::vector<field_cpptype>>(
+          GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
     } else {
-      return ModifyDomainForOptionalFieldRule(
-          std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
-                                        : OptionalPolicy::kWithNull);
+      return Domain<std::optional<field_cpptype>>(
+          GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
     }
   }
 
@@ -1061,7 +1276,9 @@ class ProtobufDomainUntypedImpl
       ABSL_GUARDED_BY(mutex_);
 
   ProtoPolicy<Message> policy_;
-  bool are_fields_customized_;
+  absl::flat_hash_set<int> customized_fields_;
+  absl::flat_hash_set<int> always_set_oneofs_;
+  absl::flat_hash_map<int, OptionalPolicy> oneof_fields_policies_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.
@@ -1122,7 +1339,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 
   ProtobufDomainImpl&& Self() && { return std::move(*this); }
 
-  ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
+  ProtobufDomainImpl&& WithFieldsAlwaysSet(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
     inner_.GetPolicy().SetOptionalPolicy(std::move(filter),
@@ -1130,11 +1347,47 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
-  ProtobufDomainImpl&& WithOptionalFieldsUnset(
+  ProtobufDomainImpl&& WithFieldsUnset(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
     inner_.GetPolicy().SetOptionalPolicy(std::move(filter),
                                          OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithOptionalFieldsUnset(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsAlwaysSet(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsUnset(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kAlwaysNull);
     return std::move(*this);
   }
 
@@ -1162,18 +1415,61 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
+  ProtobufDomainImpl&& WithFieldUnset(std::string_view field) && {
+    inner_.WithFieldNullness(field, OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithFieldAlwaysSet(std::string_view field) && {
+    inner_.WithFieldNullness(field, OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldSize(
+      absl::string_view field_name, std::optional<int64_t> min_size,
+      std::optional<int64_t> max_size) && {
+    inner_.WithRepeatedFieldSize(field_name, min_size, max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldMinSize(absl::string_view field_name,
+                                                int64_t min_size) && {
+    inner_.WithRepeatedFieldSize(field_name, min_size, std::nullopt);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldMaxSize(absl::string_view field_name,
+                                                int64_t max_size) && {
+    inner_.WithRepeatedFieldSize(field_name, std::nullopt, max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithOneofAlwaysSet(absl::string_view oneof_name) && {
+    inner_.WithOneofAlwaysSet(oneof_name);
+    return std::move(*this);
+  }
+
 #define FUZZTEST_INTERNAL_WITH_FIELD(Camel, cpp, TAG)                          \
   using Camel##type = MakeDependentType<cpp, T>;                               \
   ProtobufDomainImpl&& With##Camel##Field(std::string_view field,              \
                                           Domain<Camel##type> domain)&& {      \
-    inner_.WithField(                                                          \
-        field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
-                   std::move(domain)));                                        \
+    const FieldDescriptor* descriptor = inner_.GetField(field);                \
+    if (descriptor->is_repeated()) {                                           \
+      inner_.WithField(                                                        \
+          field, inner_.template GetOuterDomainForField</*is_repeated=*/true>( \
+                     descriptor, std::move(domain)));                          \
+    } else {                                                                   \
+      inner_.WithField(                                                        \
+          field,                                                               \
+          inner_.template GetOuterDomainForField</*is_repeated=*/false>(       \
+              descriptor, std::move(domain)));                                 \
+    }                                                                          \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldUnset(std::string_view field)&& {     \
     auto default_domain =                                                      \
         inner_.template GetFieldTypeDefaultDomain<TAG>(field);                 \
+    inner_.WithOneofField(field, OptionalPolicy::kAlwaysNull);                 \
     inner_.WithField(                                                          \
         field,                                                                 \
         OptionalOfImpl<std::optional<Camel##type>, decltype(default_domain)>(  \
@@ -1183,6 +1479,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(                            \
       std::string_view field, Domain<Camel##type> domain)&& {                  \
+    inner_.WithOneofField(field, OptionalPolicy::kWithoutNull);                \
     inner_.WithField(                                                          \
         field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
                    std::move(domain))                                          \
@@ -1192,6 +1489,13 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(std::string_view field)&& { \
     return std::move(*this).With##Camel##FieldAlwaysSet(                       \
         field, inner_.template GetFieldTypeDefaultDomain<TAG>(field));         \
+  }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Field(                             \
+      std::string_view field,                                                  \
+      Domain<MakeDependentType<std::optional<cpp>, T>> domain)&& {             \
+    FailIfIsOneof(field);                                                      \
+    inner_.WithField(field, std::move(domain));                                \
+    return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& WithRepeated##Camel##Field(                             \
       std::string_view field,                                                  \
@@ -1209,6 +1513,34 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
       Domain<Camel##type> domain)&& {                                          \
     inner_.GetPolicy().SetDefaultDomainFor##Camel##s(std::move(filter),        \
                                                      std::move(domain));       \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Fields(                            \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        IsOptional<FieldDescriptor>(), std::move(domain));                     \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Fields(                            \
+      std::function<bool(const FieldDescriptor*)>&& filter,                    \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),                 \
+        std::move(domain));                                                    \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithRepeated##Camel##Fields(                            \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        IsRepeated<FieldDescriptor>(), std::move(domain));                     \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithRepeated##Camel##Fields(                            \
+      std::function<bool(const FieldDescriptor*)>&& filter,                    \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),                 \
+        std::move(domain));                                                    \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldsTransformed(                         \
@@ -1256,6 +1588,13 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 #undef FUZZTEST_INTERNAL_WITH_FIELD
 
  private:
+  void FailIfIsOneof(absl::string_view field) {
+    const FieldDescriptor* descriptor = inner_.GetField(field);
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !descriptor->containing_oneof(), "Cannot customize oneof field ", field,
+        " with WithOptional##Camel##Field (try using "
+        "WithOneofAlwaysSet or WithOptional##Camel##Unset).");
+  }
   Inner inner_{&T::default_instance()};
 };
 
