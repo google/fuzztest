@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -72,36 +71,12 @@ struct OutputVisitor {
   }
 };
 
-constexpr std::string_view kHeader = "FUZZTESTv1";
-
-absl::string_view AsAbsl(std::string_view str) {
-  return {str.data(), str.size()};
-}
-
-std::string_view ReadToken(std::string_view& in) {
-  while (!in.empty() && std::isspace(in[0])) in.remove_prefix(1);
-  if (in.empty()) return in;
-  size_t end = 1;
-  const auto is_literal = [](char c) {
-    return std::isalnum(c) != 0 || c == '+' || c == '-' || c == '.';
-  };
-  if (is_literal(in[0])) {
-    while (end < in.size() && is_literal(in[end])) ++end;
-  } else if (in[0] == '"') {
-    while (end < in.size() && in[end] != '"') ++end;
-    if (end < in.size()) ++end;
-  }
-  std::string_view res = in.substr(0, end);
-  in.remove_prefix(end);
-  return res;
-}
-
 bool ReadScalar(uint64_t& out, std::string_view value) {
-  return absl::SimpleAtoi(AsAbsl(value), &out);
+  return absl::SimpleAtoi(IRObject{}.AsAbsl(value), &out);
 }
 
 bool ReadScalar(double& out, std::string_view value) {
-  return absl::SimpleAtod(AsAbsl(value), &out);
+  return absl::SimpleAtod(IRObject{}.AsAbsl(value), &out);
 }
 
 bool ReadScalar(std::string& out, std::string_view value) {
@@ -134,7 +109,31 @@ bool ReadScalar(std::string& out, std::string_view value) {
   return true;
 }
 
-bool ParseImpl(IRObject& obj, std::string_view& str) {
+}  // namespace
+
+void IRObject::Visit(std::string& out) const {
+  absl::visit(OutputVisitor{value.index(), 0, out}, value);
+}
+
+std::string_view IRObject::ReadToken(std::string_view& in) const {
+  while (!in.empty() && std::isspace(in[0])) in.remove_prefix(1);
+  if (in.empty()) return in;
+  size_t end = 1;
+  const auto is_literal = [](char c) {
+    return std::isalnum(c) != 0 || c == '+' || c == '-' || c == '.';
+  };
+  if (is_literal(in[0])) {
+    while (end < in.size() && is_literal(in[end])) ++end;
+  } else if (in[0] == '"') {
+    while (end < in.size() && in[end] != '"') ++end;
+    if (end < in.size()) ++end;
+  }
+  std::string_view res = in.substr(0, end);
+  in.remove_prefix(end);
+  return res;
+}
+
+bool IRObject::ParseImpl(IRObject& obj, std::string_view& str) {
   std::string_view key = ReadToken(str);
   if (key.empty() || key == "}") {
     // The object is empty. Put the token back and return.
@@ -169,21 +168,6 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
       return false;
     }
   }
-}
-
-}  // namespace
-
-std::string IRObject::ToString() const {
-  std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
-  absl::visit(OutputVisitor{value.index(), 0, out}, value);
-  return out;
-}
-
-std::optional<IRObject> IRObject::FromString(std::string_view str) {
-  IRObject object;
-  if (ReadToken(str) != kHeader) return std::nullopt;
-  if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
-  return object;
 }
 
 }  // namespace fuzztest::internal

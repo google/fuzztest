@@ -23,11 +23,15 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/numeric/int128.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
@@ -260,10 +264,45 @@ struct IRObject {
     }
   }
 
+  static constexpr std::string_view kHeader = "FUZZTESTv1";
+
+  absl::string_view AsAbsl(std::string_view str) const {
+    return {str.data(), str.size()};
+  }
+
   // Serialize the object as a string. This is used to persist the object on
   // files for reproducing bugs later.
-  std::string ToString() const;
-  static std::optional<IRObject> FromString(std::string_view str);
+  template <typename ValueType>
+  std::string ToString() const {
+    // Return single string-like or proto values as raw strings.
+    if constexpr (std::is_same_v<ValueType, std::string> ||
+                  is_protocol_buffer_v<ValueType>) {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          absl::holds_alternative<std::string>(value),
+          "String-like value should hold a string!");
+      return absl::get<std::string>(value);
+    }
+    std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
+    // Construct out using IRObject format.
+    IRObject::Visit(out);
+    return out;
+  }
+
+  template <typename ValueType>
+  std::optional<IRObject> FromString(std::string_view str) {
+    IRObject object;
+    if constexpr (std::is_same_v<ValueType, std::string>) {
+      object.value.emplace<std::string>(str);
+      FUZZTEST_INTERNAL_CHECK(
+          absl::holds_alternative<std::string>(object.value),
+          "IRObject value should hold a string after deserializing from a "
+          "single string-like value!");
+      return object;
+    }
+    if (ReadToken(str) != kHeader) return std::nullopt;
+    if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
+    return object;
+  }
 
  private:
   template <typename T>
@@ -272,6 +311,10 @@ struct IRObject {
   template <typename K, typename V>
   static std::pair<std::remove_const_t<K>, std::remove_const_t<V>>
       RemoveConstFromPair(std::pair<K, V>);
+
+  void Visit(std::string& out) const;
+  std::string_view ReadToken(std::string_view& in) const;
+  bool ParseImpl(IRObject& obj, std::string_view& str);
 };
 
 }  // namespace fuzztest::internal
