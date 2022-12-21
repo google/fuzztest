@@ -17,11 +17,14 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -174,6 +177,9 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
 }  // namespace
 
 std::string IRObject::ToString() const {
+  if (const auto* s = absl::get_if<std::string>(&value)) {
+    return *s;
+  }
   std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
   absl::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
@@ -181,7 +187,18 @@ std::string IRObject::ToString() const {
 
 std::optional<IRObject> IRObject::FromString(std::string_view str) {
   IRObject object;
-  if (ReadToken(str) != kHeader) return std::nullopt;
+  std::string_view str_copy = str;
+  std::string header = static_cast<std::string>(ReadToken(str));
+  if (header != kHeader) {
+    // Convert header to lower case to make sure no wrong headers will be parsed
+    std::transform(header.begin(), header.end(), header.begin(), ::tolower);
+    if (absl::StrContains(header, "fuzztestv")) {
+      return std::nullopt;
+    }
+    // Parse single string-like values as raw strings
+    object.value.emplace<std::string>(str_copy);
+    return object;
+  }
   if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
   return object;
 }

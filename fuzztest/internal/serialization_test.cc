@@ -41,6 +41,7 @@ using testing::_;
 using testing::ElementsAre;
 using testing::Eq;
 using testing::FieldsAre;
+using testing::HasSubstr;
 using testing::NanSensitiveDoubleEq;
 using testing::Not;
 using testing::Optional;
@@ -381,6 +382,49 @@ TEST(CorpusToIR, FailureConditions) {
                   .ToCorpus<Tuple>());
   EXPECT_FALSE(IRObject(std::vector<IRObject>{IRObject("A"), IRObject("ABC")})
                    .ToCorpus<Tuple>());
+}
+
+TEST(SerializerTest, SingleStringValueIsSerializedAsRawString) {
+  std::string s("ABC");
+  IRObject obj;
+  obj.value = s;
+  std::string s_serialized = obj.ToString();
+
+  // should have no header
+  EXPECT_THAT(s_serialized, Not(HasSubstr("FUZZTESTv1\n")));
+  EXPECT_EQ(s, s_serialized);
+}
+
+TEST(SerializerTest, SingleProtoValueIsSerializaedAsRawString) {
+  IRObjectTestProto proto;
+  IRObject obj = IRObject::FromCorpus(proto);
+  std::string proto_serialized = obj.ToString();
+
+  // should have no header
+  EXPECT_THAT(proto_serialized, Not(HasSubstr("FUZZTESTv1\n")));
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_serialized, &proto));
+  std::visit(VerifyVisitor{proto}, obj.value);
+}
+
+TEST(SerializerTest, SingleStringSerializationRoundTripVerify) {
+  std::string s("ABC");
+  IRObject obj;
+  obj.value = s;
+  std::string s_serialized = obj.ToString();
+  std::optional<IRObject> obj_from_str = IRObject::FromString(s_serialized);
+
+  EXPECT_THAT(obj_from_str, Optional(ValueIs<std::string>(s)));
+}
+
+TEST(SerializerTest, SingleProtoSerializationRoundTripVerify) {
+  IRObjectTestProto proto;
+  std::string proto_str;
+  ASSERT_TRUE(google::protobuf::TextFormat::PrintToString(proto, &proto_str));
+  IRObject obj = IRObject::FromCorpus(proto);
+  std::string proto_serialized = obj.ToString();
+  std::optional<IRObject> obj_from_str = IRObject::FromString(proto_serialized);
+
+  EXPECT_THAT(obj_from_str, Optional(ValueIs<std::string>(proto_str)));
 }
 
 // TODO(sbenzaquen): Add tests for failing conditions in the IR->Corpus conversion.
