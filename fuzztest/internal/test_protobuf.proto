@@ -19,7 +19,7 @@ package fuzztest.internal;
 enum BareEnum {
   LABEL_DEFAULT = 0;
   LABEL_OTHER = 10;
-};
+}
 
 message TestSubProtobuf {
   optional int32 subproto_i32 = 1;
@@ -80,6 +80,8 @@ message TestProtobufWithRequired {
   required TestProtobuf.Enum req_e = 201;
   required TestSubProtobuf req_sub = 202;
   optional TestProtobufWithRequired sub_req = 203;
+  map<int32, TestProtobufWithRequired> map_sub_req = 204;
+  map<int32, string> map_str = 205;
 }
 
 message IRObjectTestProto {

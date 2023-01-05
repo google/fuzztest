@@ -320,11 +320,12 @@ TEST(ProtocolBuffer, ArbitraryWithRequiredHasAllMutations) {
     kOptionalFull,
     kRequiredSubWithOptionalEmpty,
     kRequiredSubWithOptionalFull,
-    kOptionalSubWithRequired
+    kOptionalSubWithRequired,
+    kMapSubWithRequired
   };
   absl::flat_hash_set<ThingsToFind> to_find;
   int i = 0;
-  while (to_find.size() < 5 && ++i < 1000) {
+  while (to_find.size() < 6 && ++i < 1000) {
     ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
 
     using ValueType = decltype(val.user_value);
@@ -336,6 +337,10 @@ TEST(ProtocolBuffer, ArbitraryWithRequiredHasAllMutations) {
         to_find.insert(v->req_sub().has_subproto_i32()
                            ? kRequiredSubWithOptionalFull
                            : kRequiredSubWithOptionalEmpty);
+      }
+      for (auto& pair : v->map_sub_req()) {
+        to_find.insert(kMapSubWithRequired);
+        ASSERT_TRUE(pair.second.IsInitialized());
       }
       if (v->has_sub_req()) {
         to_find.insert(kOptionalSubWithRequired);
@@ -349,7 +354,8 @@ TEST(ProtocolBuffer, ArbitraryWithRequiredHasAllMutations) {
   EXPECT_THAT(to_find, UnorderedElementsAre(kOptionalEmpty, kOptionalFull,
                                             kRequiredSubWithOptionalEmpty,
                                             kRequiredSubWithOptionalFull,
-                                            kOptionalSubWithRequired));
+                                            kOptionalSubWithRequired,
+                                            kMapSubWithRequired));
 
   // Test shrinking.
   // Required fields should never be removed.

@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -414,7 +415,7 @@ class ProtobufDomainUntypedImpl
       // initialization will be deterministic, which violates the assumption on
       // domain Init. However, such cases should be extremely rare and breaking
       // the assumption would not have severe consequences.
-      if (!field->is_required() && !are_fields_customized_ &&
+      if (!IsRequired(field) && !are_fields_customized_ &&
           IsFieldRecursive(field)) {
         continue;
       }
@@ -479,7 +480,7 @@ class ProtobufDomainUntypedImpl
         auto v = self.GetValue(corpus_copy);
         // We need to roundtrip through serialization to really dedup. The
         // reflection API alone doesn't cut it.
-        v->ParsePartialFromString(v->SerializeAsString());
+        v->ParsePartialFromString(v->SerializePartialAsString());
         if (v->GetReflection()->FieldSize(*v, field) ==
             domain.GetValue(copy).size()) {
           // The number of entries is the same, so accept the change.
@@ -988,7 +989,7 @@ class ProtobufDomainUntypedImpl
           std::move(domain),
           use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
           use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
-    } else if (field->is_required()) {
+    } else if (IsRequired(field)) {
       return ModifyDomainForRequiredFieldRule(std::move(domain));
     } else {
       return ModifyDomainForOptionalFieldRule(
@@ -1028,7 +1029,7 @@ class ProtobufDomainUntypedImpl
       if (!child) continue;
       if (consider_non_terminating_recursions) {
         const bool should_be_set =
-            field->is_required() ||
+            IsRequired(field) ||
             (field->is_optional() &&
              policy.GetOptionalPolicy(field) == OptionalPolicy::kWithoutNull) ||
             (field->is_repeated() &&
@@ -1037,7 +1038,7 @@ class ProtobufDomainUntypedImpl
         if (!should_be_set) continue;
       } else {
         const bool can_be_set =
-            field->is_required() ||
+            IsRequired(field) ||
             (field->is_optional() &&
              policy.GetOptionalPolicy(field) != OptionalPolicy::kAlwaysNull) ||
             (field->is_repeated() &&
@@ -1052,6 +1053,15 @@ class ProtobufDomainUntypedImpl
     }
     parents.erase(descriptor);
     return false;
+  }
+
+  static bool IsRequired(const FieldDescriptor* field) {
+    return field->is_required() || IsMapValueMessage(field);
+  }
+
+  static bool IsMapValueMessage(const FieldDescriptor* field) {
+    return field->message_type() &&
+           field->containing_type()->map_value() == field;
   }
 
   const Message* prototype_;
