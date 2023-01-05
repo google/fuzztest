@@ -464,6 +464,38 @@ TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
                              internal::ProtoExtender::ext));
 }
 
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenOptionalFieldsAreUnset) {
+  using internal::TestProtobuf;
+  Domain<TestProtobuf> test_domain =
+      Arbitrary<TestProtobuf>().WithInt32FieldAlwaysSet("i32", InRange(1, 4));
+
+  Domain<TestProtobuf> generator_domain =
+      Arbitrary<TestProtobuf>().WithInt32FieldUnset("i32");
+
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
+}
+
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenRepeatedFieldsAreUnset) {
+  using internal::TestProtobuf;
+  Domain<TestProtobuf> test_domain =
+      Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
+          "rep_i32", VectorOf(InRange(1, 4)).WithMinSize(1));
+
+  Domain<TestProtobuf> generator_domain =
+      Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
+          "rep_i32", VectorOf(InRange(1, 4)).WithMaxSize(0));
+
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
+}
+
 TEST(ProtocolBufferEnum, Arbitrary) {
   auto domain = Arbitrary<internal::TestProtobuf_Enum>();
   absl::BitGen bitgen;

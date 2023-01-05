@@ -714,6 +714,7 @@ class ProtobufDomainUntypedImpl
     corpus_type out;
     auto subs = obj.Subs();
     if (!subs) return std::nullopt;
+    absl::flat_hash_set<int> present_fields;
     for (const auto& sub : *subs) {
       auto pair_subs = sub.Subs();
       if (!pair_subs || pair_subs->size() != 2) return std::nullopt;
@@ -721,14 +722,29 @@ class ProtobufDomainUntypedImpl
       if (!number) return std::nullopt;
       auto* field = GetProtobufField(prototype_, *number);
       if (!field) return std::nullopt;
-
+      present_fields.insert(field->number());
       std::optional<GenericDomainCorpusType> inner_parsed;
       VisitProtobufField(field,
                          ParseVisitor{*this, (*pair_subs)[1], inner_parsed});
       if (!inner_parsed) return std::nullopt;
       out[*number] = *std::move(inner_parsed);
     }
-
+    for (int field_index = 0;
+         field_index < prototype_->GetDescriptor()->field_count();
+         ++field_index) {
+      const FieldDescriptor* field =
+          prototype_->GetDescriptor()->field(field_index);
+      if (present_fields.contains(field->number())) continue;
+      std::optional<GenericDomainCorpusType> inner_parsed;
+      IRObject unset_value;
+      if (field->is_repeated()) {
+        unset_value = IRObject(std::vector<IRObject>{});
+      } else {
+        unset_value = IRObject(std::vector<IRObject>{IRObject(0)});
+      }
+      VisitProtobufField(field, ParseVisitor{*this, unset_value, inner_parsed});
+      if (!inner_parsed) return std::nullopt;
+    }
     return out;
   }
 

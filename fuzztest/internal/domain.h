@@ -1069,25 +1069,15 @@ class ContainerOfImplBase : public DomainBase<Derived> {
     }
   }
 
-  // Use the generic serializer when no custom corpus type is used, since it is
-  // more efficient. Eg a string value can be serialized as a string instead of
-  // as a sequence of char values.
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    if constexpr (has_custom_corpus_type) {
-      auto subs = obj.Subs();
-      if (!subs) return std::nullopt;
-      corpus_type res;
-      for (const auto& elem : *subs) {
-        if (auto parsed_elem = inner_.ParseCorpus(elem)) {
-          res.insert(res.end(), std::move(*parsed_elem));
-        } else {
-          return std::nullopt;
-        }
+    std::optional<corpus_type> res = ParseCorpusWithoutValidation(obj);
+    if (res.has_value()) {
+      value_type v = GetValue(*res);
+      if (v.size() < min_size_ || v.size() > max_size_) {
+        return std::nullopt;
       }
-      return res;
-    } else {
-      return obj.ToCorpus<corpus_type>();
     }
+    return res;
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
@@ -1137,6 +1127,28 @@ class ContainerOfImplBase : public DomainBase<Derived> {
   size_t max_size_ = 1000;
 
  private:
+  // Use the generic serializer when no custom corpus type is used, since it is
+  // more efficient. Eg a string value can be serialized as a string instead of
+  // as a sequence of char values.
+  std::optional<corpus_type> ParseCorpusWithoutValidation(
+      const IRObject& obj) const {
+    if constexpr (has_custom_corpus_type) {
+      auto subs = obj.Subs();
+      if (!subs) return std::nullopt;
+      corpus_type res;
+      for (const auto& elem : *subs) {
+        if (auto parsed_elem = inner_.ParseCorpus(elem)) {
+          res.insert(res.end(), std::move(*parsed_elem));
+        } else {
+          return std::nullopt;
+        }
+      }
+      return res;
+    } else {
+      return obj.ToCorpus<corpus_type>();
+    }
+  }
+
   Derived& Self() { return static_cast<Derived&>(*this); }
 
   // Temporary memory dictionary. Collected from tracing the program
@@ -2309,7 +2321,16 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return ParseWithDomainOptional(inner_, obj);
+    std::optional<corpus_type> result = ParseWithDomainOptional(inner_, obj);
+    if (!result.has_value()) {
+      return std::nullopt;
+    }
+    bool is_null = std::get_if<std::monostate>(&(*result));
+    if ((is_null && policy_ == OptionalPolicy::kWithoutNull) ||
+        (!is_null && policy_ == OptionalPolicy::kAlwaysNull)) {
+      return std::nullopt;
+    }
+    return result;
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
