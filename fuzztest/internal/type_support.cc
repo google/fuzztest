@@ -37,7 +37,7 @@ void PrintFloatingPointLiteral(T v, RawSink out, absl::string_view suffix) {
   // format specifier is needed to reasonably choose between decimal and
   // exponential notation.
   std::string num_string =
-      absl::StrFormat("%.*g", std::numeric_limits<T>::digits10, v);
+      absl::StrFormat("%.*g", std::numeric_limits<T>::digits10 + 2, v);
   bool needs_decimal = std::isfinite(v) &&
                        !absl::StrContains(num_string, '.') &&
                        !absl::StrContains(num_string, 'e');
