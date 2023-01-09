@@ -458,9 +458,8 @@ struct FlatMappedPrinter {
 
     switch (mode) {
       case PrintMode::kHumanReadable: {
-        // In human readable mode we try and print the user value.
-        AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                mode);
+        // Delegate to the output domain's printer.
+        PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
         break;
       }
       case PrintMode::kSourceCode:
