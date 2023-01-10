@@ -25,6 +25,7 @@
 #include <optional>
 #include <ostream>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -37,6 +38,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domain.h"
@@ -156,6 +158,22 @@ TYPED_TEST(FloatingTest, Printer) {
                   std::is_same_v<float, TypeParam>    ? "std::nanf(\"\")"
                   : std::is_same_v<double, TypeParam> ? "std::nan(\"\")"
                                                       : "std::nanl(\"\")"));
+
+  // Check round tripping.
+  for (auto v : {TypeParam{0.0013660046866830892},
+                 std::numeric_limits<TypeParam>::epsilon()}) {
+    auto printed_v = TestPrintValue(v);
+    std::stringstream human_v_str;
+    std::stringstream source_code_v_str;
+    human_v_str << absl::StripSuffix(printed_v[0], suffix);
+    source_code_v_str << absl::StripSuffix(printed_v[1], suffix);
+    TypeParam human_v = TypeParam{0};
+    TypeParam source_code_v = TypeParam{0};
+    ASSERT_TRUE(human_v_str >> human_v);
+    ASSERT_TRUE(source_code_v_str >> source_code_v);
+    EXPECT_EQ(v, human_v);
+    EXPECT_EQ(v, source_code_v);
+  }
 }
 
 TEST(StringTest, Printer) {
