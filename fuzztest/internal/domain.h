@@ -38,6 +38,8 @@
 #include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/cord_test_helpers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
@@ -2951,6 +2953,62 @@ class ArbitraryImpl<std::basic_string_view<Char>>
 
  private:
   ArbitraryImpl<std::vector<Char>> inner_;
+};
+
+template <>
+class ArbitraryImpl<absl::Cord> : public DomainBase<ArbitraryImpl<absl::Cord>> {
+  using InnerDomain = ArbitraryImpl<std::vector<std::string>>;
+
+ public:
+  using value_type = absl::Cord;
+  static constexpr bool has_custom_corpus_type = true;
+  using corpus_type = corpus_type_t<InnerDomain>;
+
+  template <typename PRNG>
+  corpus_type Init(PRNG& prng) {
+    return inner_.Init(prng);
+  }
+
+  template <typename PRNG>
+  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+    inner_.Mutate(val, prng, only_shrink);
+  }
+
+  auto GetPrinter() const { return inner_.GetPrinter(); }
+
+  value_type GetValue(const corpus_type& v) const {
+    return absl::MakeFragmentedCord(inner_.GetValue(v));
+  }
+
+  std::optional<corpus_type> FromValue(const value_type& v) const {
+    std::vector<std::string> fragments;
+    for (auto chunk : v.Chunks()) {
+      fragments.emplace_back(chunk);
+    }
+    return inner_.FromValue(fragments);
+  }
+
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return inner_.ParseCorpus(obj);
+  }
+
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return inner_.SerializeCorpus(v);
+  }
+
+  uint64_t CountNumberOfFields(corpus_type& val) {
+    return inner_.CountNumberOfFields(val);
+  }
+
+  template <typename PRNG>
+  uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
+                               uint64_t selected_field_index) {
+    return inner_.MutateSelectedField(val, prng, only_shrink,
+                                      selected_field_index);
+  }
+
+ private:
+  InnerDomain inner_;
 };
 
 }  // namespace fuzztest::internal

@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["internal/absl_domain.h"],
     deps = [
         ":logging",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/time",
     ],
 )
@@ -99,6 +100,7 @@ cc_test(
 
 cc_library(
     name = "domain",
+    testonly = 1,
     srcs = ["internal/grammar.cc"],
     hdrs = [
         "domain.h",
@@ -125,6 +127,8 @@ cc_library(
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:cord_test_helpers",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
