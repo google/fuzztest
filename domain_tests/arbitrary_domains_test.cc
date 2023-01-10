@@ -44,9 +44,13 @@
 namespace fuzztest {
 namespace {
 
+using ::testing::_;
+using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::Gt;
 using ::testing::IsEmpty;
+using ::testing::Pair;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -810,6 +814,49 @@ TEST(ArbitraryTimeTest, ShrinksCorrectly) {
                                 AbsoluteValueOf(prev - absl::UnixEpoch()));
                   })
                   .ok());
+}
+
+static std::vector<std::string> CordToChunks(const absl::Cord& c) {
+  std::vector<std::string> out;
+  for (auto chunk : c.Chunks()) {
+    out.emplace_back(chunk);
+  }
+  return out;
+}
+
+TEST(ArbitraryCordTest, ProvidesRandomChunks) {
+  absl::BitGen bitgen;
+  auto domain = Arbitrary<absl::Cord>();
+  using Domain = decltype(domain);
+
+  // We want to test that the shape of the cords are unique, not just the cords.
+
+  absl::flat_hash_set<Value<Domain>> values;
+  // Unique shapes, which can include cords with equivalent values.
+  absl::flat_hash_set<std::vector<std::string>> unique_shapes;
+  // Unique lengths on both dimensions: the number of chunks and the size of the
+  // chunks.
+  absl::flat_hash_set<int> unique_lenghts_0, unique_lenghts_1;
+  Value val(domain, bitgen);
+  for (int i = 0; unique_shapes.size() < 1000 && i < 10000; ++i) {
+    values.insert(val);
+    auto shape = CordToChunks(val.user_value);
+    unique_shapes.insert(shape);
+    unique_lenghts_0.insert(shape.size());
+    for (auto& s : shape) unique_lenghts_1.insert(s.size());
+
+    val.Mutate(domain, bitgen, false);
+  }
+  ASSERT_THAT(unique_shapes, SizeIs(1000));
+  ASSERT_THAT(unique_lenghts_0, SizeIs(Gt(10)));
+  ASSERT_THAT(unique_lenghts_1, SizeIs(Gt(10)));
+
+  // Check that shrinking reaches the empty string.
+  for (auto val : values) {
+    while (!val.user_value.empty()) {
+      val.Mutate(domain, bitgen, true);
+    }
+  }
 }
 
 }  // namespace
