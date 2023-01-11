@@ -60,6 +60,99 @@ size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
   return mutated_data.size();
 }
 
+FuzzTestExternalEngineAdaptor::FuzzTestExternalEngineAdaptor(
+    const FuzzTest& test, std::unique_ptr<Driver> fixture_driver)
+    : test_(test), fixture_driver_staging_(std::move(fixture_driver)) {}
+
+void FuzzTestExternalEngineAdaptor::RunInUnitTestMode() {
+  GetFuzzerImpl().RunInUnitTestMode();
+};
+
+int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
+  FUZZTEST_INTERNAL_CHECK(&LLVMFuzzerRunDriver,
+                          "LibFuzzer Driver API not defined.");
+  FUZZTEST_INTERNAL_CHECK(
+      GetExternalEngineCallback() == nullptr,
+      "External engine callback is already set while running a fuzz test.");
+  SetExternalEngineCallback(this);
+  run_mode = RunMode::kFuzz;
+  auto& impl = GetFuzzerImpl();
+  on_failure.Enable(&impl.stats_, [] { return absl::Now(); });
+
+  FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
+                          "Invalid fixture driver!");
+  impl.fixture_driver_->SetUpFuzzTest();
+
+  static bool driver_started = false;
+  FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
+  driver_started = true;
+  LLVMFuzzerRunDriver(argc, argv, [](const uint8_t* data, size_t size) -> int {
+    GetExternalEngineCallback()->RunOneInputData(
+        std::string_view(reinterpret_cast<const char*>(data), size));
+    return 0;
+  });
+
+  // If we're here, we didn't exit from RunOneInputData(), and hence we didn't
+  // tear down the fixture.
+  FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
+                          "Invalid fixture driver!");
+  impl.fixture_driver_->TearDownFuzzTest();
+
+  return 0;
+}
+
+// External engine callbacks.
+
+void FuzzTestExternalEngineAdaptor::RunOneInputData(std::string_view data) {
+  auto& impl = GetFuzzerImpl();
+  if (impl.ShouldStop()) {
+    FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
+                            "Invalid fixture driver!");
+    impl.fixture_driver_->TearDownFuzzTest();
+    on_failure.PrintFinalStatsOnDefaultSink();
+    // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
+    std::_Exit(0);
+  }
+  on_failure.SetCurrentTest(&impl.test_);
+  if (auto input = impl.TryParse(data)) {
+    impl.RunOneInput({*std::move(input)});
+  }
+}
+
+std::string FuzzTestExternalEngineAdaptor::MutateData(std::string_view data,
+                                                      size_t max_size,
+                                                      unsigned int seed) {
+  auto& impl = GetFuzzerImpl();
+  typename FuzzerImpl::PRNG prng(seed);
+  auto input = impl.TryParse(data);
+  if (!input) input = impl.params_domain_->UntypedInit(prng);
+  constexpr int kNumAttempts = 10;
+  std::string result;
+  for (int i = 0; i < kNumAttempts; ++i) {
+    auto copy = *input;
+    for (int mutations_at_once = absl::Poisson<int>(prng) + 1;
+         mutations_at_once > 0; --mutations_at_once) {
+      impl.params_domain_->UntypedMutate(
+          copy, prng,
+          /*only_shrink=*/max_size < data.size());
+    }
+    result = impl.params_domain_->UntypedSerializeCorpus(copy).ToString();
+    if (result.size() <= max_size) break;
+  }
+  return result;
+}
+
+FuzzTestExternalEngineAdaptor::FuzzerImpl&
+FuzzTestExternalEngineAdaptor::GetFuzzerImpl() {
+  // Postpone the creation to override libFuzzer signal setup.
+  if (!fuzzer_impl_) {
+    fuzzer_impl_ =
+        std::make_unique<FuzzerImpl>(test_, std::move(fixture_driver_staging_));
+    fixture_driver_staging_ = nullptr;
+  }
+  return *fuzzer_impl_;
+}
+
 #endif  // FUZZTEST_COMPATIBILITY_MODE
 
 }  // namespace fuzztest::internal

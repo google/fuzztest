@@ -266,8 +266,9 @@ TEST(DomainTest, Printer) {
   auto color_domain = ElementOf({kBlue});
   auto print = [&](auto v, auto domain) {
     // We have to create the inner corpus_type of Domain here.
-    return TestPrintValue(
-        typename decltype(domain)::corpus_type(std::in_place, v), domain);
+    return TestPrintValue(typename decltype(domain)::corpus_type(
+                              std::in_place_type<decltype(v)>, v),
+                          domain);
   };
   EXPECT_THAT(print('a', Domain<char>(Arbitrary<char>())),
               ElementsAre("'a' (97)", "'a'"));
@@ -308,13 +309,14 @@ TEST(OptionalTest, Printer) {
 TEST(SmartPointerTest, Printer) {
   EXPECT_THAT(TestPrintValue({}, Arbitrary<std::unique_ptr<int>>()),
               Each("nullptr"));
-  EXPECT_THAT(TestPrintValue(Domain<int>::corpus_type(std::in_place, 7),
-                             Arbitrary<std::unique_ptr<int>>()),
-              ElementsAre("(7)", "std::make_unique<int>(7)"));
   EXPECT_THAT(
-      TestPrintValue(
-          Domain<std::string>::corpus_type(std::in_place, std::string("ABC")),
-          Arbitrary<std::shared_ptr<std::string>>()),
+      TestPrintValue(Domain<int>::corpus_type(std::in_place_type<int>, 7),
+                     Arbitrary<std::unique_ptr<int>>()),
+      ElementsAre("(7)", "std::make_unique<int>(7)"));
+  EXPECT_THAT(
+      TestPrintValue(Domain<std::string>::corpus_type(
+                         std::in_place_type<std::string>, "ABC"),
+                     Arbitrary<std::shared_ptr<std::string>>()),
       ElementsAre(
           R"(("ABC"))",
           MatchesRegex(R"re(std::make_shared<std::.*string.*>\("ABC"\))re")));

@@ -647,7 +647,7 @@ void GroupElementByASTType(
     absl::flat_hash_map<ASTTypeId, std::vector<ASTNode*>>& groups);
 
 template <typename TopDomain>
-class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>> {
+class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>, std::string> {
  public:
   using value_type = std::string;
   using corpus_type = ASTNode;

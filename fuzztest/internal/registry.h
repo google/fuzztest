@@ -32,24 +32,6 @@ void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
 
 void ForEachTest(const std::function<void(const FuzzTest&)>&);
 
-template <typename RegBase, typename Fixture, typename TargetFunction>
-FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
-    Registration<Fixture, TargetFunction, RegBase>&& reg) {
-#ifdef FUZZTEST_COMPATIBILITY_MODE
-  using FuzzerImpl =
-      FuzzTestExternalEngineAdaptor<RegBase, Fixture, TargetFunction>;
-#else
-  using FuzzerImpl = FuzzTestFuzzerImpl<RegBase, Fixture, TargetFunction>;
-#endif  // FUZZTEST_COMPATIBILITY_MODE
-
-  return [reg = std::move(reg)](const FuzzTest& test) {
-    return std::make_unique<FuzzerImpl>(
-        test,
-        std::make_unique<FixtureDriverImpl<RegBase, Fixture, TargetFunction>>(
-            reg));
-  };
-}
-
 using SetUpTearDownTestSuiteFunction = void (*)();
 
 void RegisterSetUpTearDownTestSuiteFunctions(
@@ -75,6 +57,26 @@ struct RegistrationToken {
     }
     return *this;
   }
+
+  template <typename RegBase, typename Fixture, typename TargetFunction>
+  FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
+      Registration<Fixture, TargetFunction, RegBase>&& reg) {
+#ifdef FUZZTEST_COMPATIBILITY_MODE
+    using FuzzerImpl = FuzzTestExternalEngineAdaptor;
+#else
+    using FuzzerImpl = FuzzTestFuzzerImpl;
+#endif  // FUZZTEST_COMPATIBILITY_MODE
+
+    return [target_function = reg.target_function_, domain = reg.GetDomains(),
+            seeds = reg.seeds()](
+               const FuzzTest& test) -> std::unique_ptr<FuzzTestFuzzer> {
+      return std::make_unique<FuzzerImpl>(
+          test,
+          std::make_unique<
+              FixtureDriverImpl<decltype(domain), Fixture, TargetFunction>>(
+              target_function, domain, seeds));
+    };
+  }
 };
 
 // For those platforms we don't support yet.
@@ -85,14 +87,21 @@ struct RegisterStub {
   }
 };
 
-#define INTERNAL_FUZZ_TEST_F(suite_name, test_name, uses_fixture, fixture,     \
-                             func)                                             \
-  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken              \
-      fuzztest_reg_##suite_name##test_name =                                   \
-          ::fuzztest::internal::RegistrationToken{} =                          \
-              ::fuzztest::internal::Registration<fixture,                      \
-                                                 decltype(&fixture::func)>(    \
-                  {#suite_name, #test_name, __FILE__, __LINE__, uses_fixture}, \
+#define INTERNAL_FUZZ_TEST(suite_name, func)                         \
+  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken    \
+      fuzztest_reg_##suite_name##func =                              \
+          ::fuzztest::internal::RegistrationToken{} =                \
+              ::fuzztest::internal::Registration<                    \
+                  ::fuzztest::internal::NoFixture, decltype(+func)>( \
+                  {#suite_name, #func, __FILE__, __LINE__, false}, +func)
+
+#define INTERNAL_FUZZ_TEST_F(suite_name, test_name, fixture, func)          \
+  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken           \
+      fuzztest_reg_##suite_name##test_name =                                \
+          ::fuzztest::internal::RegistrationToken{} =                       \
+              ::fuzztest::internal::Registration<fixture,                   \
+                                                 decltype(&fixture::func)>( \
+                  {#suite_name, #test_name, __FILE__, __LINE__, true},      \
                   &fixture::func)
 
 }  // namespace fuzztest::internal

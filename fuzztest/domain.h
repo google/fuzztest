@@ -41,10 +41,10 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/absl_domain.h"
+#include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
-#include "./fuzztest/internal/polymorphic_value.h"
 #include "./fuzztest/internal/protobuf_domain.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
@@ -56,11 +56,6 @@ namespace fuzztest {
 // right `value_type`. This class implements the domain concept too.
 // TODO(sbenzaquen): Document the domain concept when it is stable enough.
 
-namespace internal {
-using DomainLookUpTable =
-    absl::flat_hash_map<std::string, std::unique_ptr<PolymorphicValue<>>>;
-}  // namespace internal
-
 template <typename T>
 class Domain {
  public:
@@ -68,13 +63,16 @@ class Domain {
   using corpus_type = internal::GenericDomainCorpusType;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename Inner, typename = std::enable_if_t<std::is_same_v<
-                                value_type, typename Inner::value_type>>>
-  Domain(const internal::DomainBase<Inner>& inner)
-      : inner_(std::in_place, static_cast<const Inner&>(inner)) {}
+  template <typename Inner>
+  Domain(const internal::DomainBase<Inner, T>& inner)
+      : inner_(new auto(static_cast<const Inner&>(inner))) {}
 
-  Domain(const Domain& other) = default;
-  Domain& operator=(const Domain& other) = default;
+  Domain(const Domain& other) { *this = other; }
+  Domain& operator=(const Domain& other) {
+    inner_.reset(static_cast<internal::TypedDomainInterface<T>*>(
+        other.inner_->Clone().release()));
+    return *this;
+  }
   // No default constructor or move operations to avoid a null state.
 
   // Init() generates a random value of corpus_type.
@@ -92,7 +90,7 @@ class Domain {
   // values).
   template <typename PRNG>
   corpus_type Init(PRNG& prng) {
-    return inner_.Visit(InitVisitor{}, prng);
+    return inner_->UntypedInit(prng);
   }
 
   // Mutate() makes a relatively small modification on `val` of corpus_type.
@@ -103,7 +101,7 @@ class Domain {
   // ENSURES: That the the mutated value is not the same as the original.
   template <typename PRNG>
   void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
-    return inner_.Visit(MutateVisitor{}, val, prng, only_shrink);
+    return inner_->UntypedMutate(val, prng, only_shrink);
   }
 
   // Try to update the dynamic memory dictionary.
@@ -111,33 +109,33 @@ class Domain {
   // dictionary, it will try to match and save dictionary entries from
   // dynamic data collected by SanCov.
   void UpdateMemoryDictionary(const corpus_type& val) {
-    return inner_.Visit(UpdateMemoryDictionaryVisitor{}, val);
+    return inner_->UntypedUpdateMemoryDictionary(val);
   }
 
-  auto GetPrinter() const { return Printer{inner_}; }
+  auto GetPrinter() const { return Printer{*inner_}; }
 
   value_type GetValue(const corpus_type& v) const {
-    return inner_.Visit(GetValueVisitor{}, v);
+    return inner_->TypedGetValue(v);
   }
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
-    return inner_.Visit(FromValueVisitor{}, v);
+    return inner_->TypedFromValue(v);
   }
 
   std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
-    return inner_.Visit(ParseCorpusVisitor{}, obj);
+    return inner_->UntypedParseCorpus(obj);
   }
 
   internal::IRObject SerializeCorpus(const corpus_type& v) const {
-    return inner_.Visit(SerializeCorpusVisitor{}, v);
+    return inner_->UntypedSerializeCorpus(v);
   }
   // TODO(JunyangShao): Get rid of this API so it won't be exposed
   // to outside.
   // Return the field counts of `val` if `val` is
   // a `ProtobufDomainImpl::corpus_type`. Otherwise propagate it
   // to inner domains and returns the sum of inner results.
-  uint64_t CountNumberOfFields(corpus_type& val) {
-    return inner_.Visit(CountNumberOfFieldsVisitor{}, val);
+  uint64_t CountNumberOfFields(const corpus_type& val) {
+    return inner_->UntypedCountNumberOfFields(val);
   }
 
   // Mutate the selected protobuf field using `selected_field_index`.
@@ -145,130 +143,32 @@ class Domain {
   template <typename PRNG>
   uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
                                uint64_t selected_field_index) {
-    return inner_.Visit(MutateSelectedFieldVisitor{}, val, prng, only_shrink,
-                        selected_field_index);
+    return inner_->UntypedMutateSelectedField(val, prng, only_shrink,
+                                              selected_field_index);
   }
+
+  auto Clone() const { return inner_->Clone(); }
 
  private:
   // Have a subinterface just for the type traits to not expose more than
   // necessary through GetPrinter().
   friend class DomainBuilder;
 
-  struct InitVisitor {
-    template <typename Inner>
-    corpus_type operator()(Inner& inner, absl::BitGenRef bitgen) {
-      return corpus_type(std::in_place, inner.Init(bitgen));
-    }
-  };
-
-  struct MutateVisitor {
-    template <typename Inner>
-    void operator()(Inner& inner, corpus_type& val, absl::BitGenRef bitgen,
-                    bool only_shrink) {
-      inner.Mutate(val.template GetAs<internal::corpus_type_t<Inner>>(), bitgen,
-                   only_shrink);
-    }
-  };
-
-  struct UpdateMemoryDictionaryVisitor {
-    template <typename Inner>
-    void operator()(Inner& inner, const corpus_type& val) {
-      inner.UpdateMemoryDictionary(
-          val.template GetAs<internal::corpus_type_t<Inner>>());
-    }
-  };
-
-  struct GetValueVisitor {
-    template <typename Inner>
-    value_type operator()(const Inner& inner, const corpus_type& val) {
-      return inner.GetValue(
-          val.template GetAs<internal::corpus_type_t<Inner>>());
-    }
-  };
-
-  struct FromValueVisitor {
-    template <typename Inner>
-    std::optional<corpus_type> operator()(const Inner& inner,
-                                          const value_type& val) {
-      auto inner_corpus = std::optional(inner.FromValue(val));
-      if (inner_corpus.has_value()) {
-        return std::optional(
-            corpus_type(std::in_place, *std::move(inner_corpus)));
-      } else {
-        return std::nullopt;
-      }
-    }
-  };
-
-  struct PrinterVisitor {
-    template <typename Inner>
-    void operator()(const Inner& inner, const corpus_type& val,
-                    absl::FormatRawSink out, internal::PrintMode mode) {
-      internal::PrintValue(inner,
-                           val.template GetAs<internal::corpus_type_t<Inner>>(),
-                           out, mode);
-    }
-  };
-
-  struct ParseCorpusVisitor {
-    template <typename Inner>
-    std::optional<corpus_type> operator()(const Inner& inner,
-                                          const internal::IRObject& val) {
-      if (auto res = inner.ParseCorpus(val)) {
-        return std::optional(corpus_type(std::in_place, *std::move(res)));
-      } else {
-        return std::nullopt;
-      }
-    }
-  };
-
-  struct SerializeCorpusVisitor {
-    template <typename Inner>
-    internal::IRObject operator()(const Inner& inner, const corpus_type& val) {
-      return inner.SerializeCorpus(
-          val.template GetAs<internal::corpus_type_t<Inner>>());
-    }
-  };
-
-  struct CountNumberOfFieldsVisitor {
-    template <typename Inner>
-    uint64_t operator()(Inner& inner, corpus_type& val) {
-      return inner.CountNumberOfFields(
-          val.template GetAs<internal::corpus_type_t<Inner>>());
-    }
-  };
-
-  struct MutateSelectedFieldVisitor {
-    template <typename Inner>
-    uint64_t operator()(Inner& inner, corpus_type& val, absl::BitGenRef prng,
-                        bool only_shrink, uint64_t selected_field_index) {
-      return inner.MutateSelectedField(
-          val.template GetAs<internal::corpus_type_t<Inner>>(), prng,
-          only_shrink, selected_field_index);
-    }
-  };
-
-  using Payload = internal::PolymorphicValue<
-      InitVisitor, MutateVisitor, UpdateMemoryDictionaryVisitor,
-      GetValueVisitor, FromValueVisitor, PrinterVisitor, ParseCorpusVisitor,
-      SerializeCorpusVisitor, CountNumberOfFieldsVisitor,
-      MutateSelectedFieldVisitor>;
-
   struct Printer {
-    const Payload& payload;
+    const internal::UntypedDomainInterface& inner;
     void PrintCorpusValue(const corpus_type& val, absl::FormatRawSink out,
                           internal::PrintMode mode) const {
-      payload.Visit(PrinterVisitor{}, val, out, mode);
+      inner.UntypedPrintCorpusValue(val, out, mode);
     }
   };
 
-  Payload inner_;
+  std::unique_ptr<internal::TypedDomainInterface<T>> inner_;
 };
 
 class DomainBuilder {
  public:
   DomainBuilder()
-      : domain_lookup_table_(std::make_unique<internal::DomainLookUpTable>()) {}
+      : domain_lookup_table_(std::make_unique<DomainLookUpTable>()) {}
 
   DomainBuilder(const DomainBuilder&) = delete;
   DomainBuilder& operator=(const DomainBuilder&) = delete;
@@ -289,7 +189,7 @@ class DomainBuilder {
     auto* indirect = GetIndirect<T>(name);
     FUZZTEST_INTERNAL_CHECK(!indirect->has_value(),
                             "Cannot set the same domain twice!");
-    *indirect = internal::PolymorphicValue<>(std::in_place, domain);
+    *indirect = internal::MoveOnlyAny(std::in_place_type<Domain<T>>, domain);
   }
 
   // Return the top level domain that is used for generating and mutating
@@ -316,12 +216,19 @@ class DomainBuilder {
   }
 
  private:
+  // We don't need copyability of the inner domains here.
+  // We use shared_ptr to hold the whole table together.
+  // The domains point into each other and into themselves recursively. We must
+  // keep them with pointer stability.
+  using DomainLookUpTable =
+      absl::flat_hash_map<std::string, std::unique_ptr<internal::MoveOnlyAny>>;
+
   // Return the raw pointer of the indirections.
   template <typename T>
   auto GetIndirect(std::string_view name) {
     auto& indirection = (*domain_lookup_table_)[name];
     if (!indirection) {
-      indirection = std::make_unique<internal::PolymorphicValue<>>();
+      indirection = std::make_unique<internal::MoveOnlyAny>();
     }
     FUZZTEST_INTERNAL_CHECK(
         !indirection->has_value() || indirection->Has<Domain<T>>(),
@@ -338,7 +245,7 @@ class DomainBuilder {
     using corpus_type = typename Domain<T>::corpus_type;
     static constexpr bool has_custom_corpus_type = true;
 
-    explicit IndirectDomain(internal::PolymorphicValue<>* indirect)
+    explicit IndirectDomain(internal::MoveOnlyAny* indirect)
         : indirect_inner_(indirect) {}
 
     template <typename PRNG>
@@ -378,7 +285,7 @@ class DomainBuilder {
     Domain<T>& GetInnerDomain() const {
       return indirect_inner_->GetAs<Domain<T>>();
     }
-    internal::PolymorphicValue<>* indirect_inner_;
+    internal::MoveOnlyAny* indirect_inner_;
   };
 
   // Same as Domain<T>, but also holds ownership of the lookup table.
@@ -386,9 +293,8 @@ class DomainBuilder {
   template <typename T>
   class OwningDomain : public internal::DomainBase<OwningDomain<T>> {
    public:
-    OwningDomain(
-        const Domain<T>& inner,
-        std::unique_ptr<internal::DomainLookUpTable> domain_lookup_table)
+    OwningDomain(const Domain<T>& inner,
+                 std::unique_ptr<DomainLookUpTable> domain_lookup_table)
         : inner_(inner), domain_lookup_table_(std::move(domain_lookup_table)) {}
 
     using value_type = typename Domain<T>::value_type;
@@ -431,10 +337,10 @@ class DomainBuilder {
    private:
     Domain<T> inner_;
     // Domains are copy constructible, so we need shared access to this table.
-    std::shared_ptr<const internal::DomainLookUpTable> domain_lookup_table_;
+    std::shared_ptr<const DomainLookUpTable> domain_lookup_table_;
   };
 
-  std::unique_ptr<internal::DomainLookUpTable> domain_lookup_table_;
+  std::unique_ptr<DomainLookUpTable> domain_lookup_table_;
 };
 
 // This namespace is here only as a way to disable ADL (argument-dependent

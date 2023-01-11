@@ -42,7 +42,9 @@ TEST(OnFailureTest, Output) {
   on_failure.Enable(&stats, [] { return absl::FromUnixNanos(1979); });
   run_mode = RunMode::kFuzz;
   auto domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
-  OnFailure::Args<decltype(domain)> debug_args{args, domain};
+  GenericDomainCorpusType generic_args(
+      std::in_place_type<std::tuple<int, std::string>>, args);
+  OnFailure::Args debug_args{generic_args, domain};
   on_failure.SetCurrentTest(&test);
   on_failure.SetCurrentArgs(&debug_args);
   EXPECT_EQ(get_failure(), R"(

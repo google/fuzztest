@@ -34,10 +34,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
-#include "./fuzztest/internal/polymorphic_value.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -342,7 +342,8 @@ class ProtoPolicy {
 // constructor argument.
 template <typename Message>
 class ProtobufDomainUntypedImpl
-    : public DomainBase<ProtobufDomainUntypedImpl<Message>> {
+    : public DomainBase<ProtobufDomainUntypedImpl<Message>,
+                        std::unique_ptr<Message>> {
   using Descriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
 
@@ -492,7 +493,7 @@ class ProtobufDomainUntypedImpl
     }
   };
 
-  uint64_t CountNumberOfFields(corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_type& val) {
     uint64_t total_weight = 0;
     auto* descriptor = prototype_->GetDescriptor();
     if (descriptor->field_count() == 0) return total_weight;
@@ -808,9 +809,9 @@ class ProtobufDomainUntypedImpl
               field->message_type()->full_name(), "`.");
         }
         absl::MutexLock l(&self.mutex_);
-        auto res =
-            self.domains_.try_emplace(field->number(), std::in_place,
-                                      DomainT(std::forward<Inner>(domain)));
+        auto res = self.domains_.try_emplace(field->number(),
+                                             std::in_place_type<DomainT>,
+                                             std::forward<Inner>(domain));
         FUZZTEST_INTERNAL_CHECK_PRECONDITION(res.second, "Domain for field `",
                                              field->full_name(),
                                              "` has been set multiple times.");
@@ -878,17 +879,17 @@ class ProtobufDomainUntypedImpl
   // return it.
   template <typename T, bool is_repeated>
   auto& GetSubDomain(const FieldDescriptor* field) const {
+    using DomainT = decltype(GetDefaultDomainForField<T, is_repeated>(field));
     // Do the operation under a lock to prevent race conditions in `const`
     // methods.
     absl::MutexLock l(&mutex_);
     auto it = domains_.find(field->number());
     if (it == domains_.end()) {
       it = domains_
-               .try_emplace(field->number(), std::in_place,
+               .try_emplace(field->number(), std::in_place_type<DomainT>,
                             GetDomainForField<T, is_repeated>(field))
                .first;
     }
-    using DomainT = decltype(GetDefaultDomainForField<T, is_repeated>(field));
     return it->second.template GetAs<DomainT>();
   }
 
@@ -1083,7 +1084,7 @@ class ProtobufDomainUntypedImpl
   const Message* prototype_;
 
   mutable absl::Mutex mutex_;
-  mutable absl::flat_hash_map<int, PolymorphicValue<>> domains_
+  mutable absl::flat_hash_map<int, CopyableAny> domains_
       ABSL_GUARDED_BY(mutex_);
 
   ProtoPolicy<Message> policy_;
@@ -1108,7 +1109,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return inner_.Init(prng);
   }
 
-  uint64_t CountNumberOfFields(corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_type& val) {
     return inner_.CountNumberOfFields(val);
   }
 

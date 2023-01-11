@@ -44,31 +44,44 @@ struct BasicTestInfo {
 // object. This way we can statically assert that certain functions are called
 // in the right order.
 
-template <typename Fixture, typename TargetFunction, typename = void>
-struct DefaultRegistrationBase;
+struct NoFixture {};
 
 // Initial base class. No custom domain, no seeds.
-template <typename Fixture, typename BaseFixture, typename... Args>
-struct DefaultRegistrationBase<
-    Fixture, void (BaseFixture::*)(Args...),
-    std::enable_if_t<std::is_base_of_v<BaseFixture, Fixture>>> {
+template <typename... Args>
+struct DefaultRegistrationBase {
   static constexpr bool kHasDomain = false;
   static constexpr bool kHasSeeds = false;
+  static constexpr size_t kNumArgs = sizeof...(Args);
 
-  auto GetDomains() const {
-    return TupleOf(Arbitrary<std::decay_t<Args>>()...);
+  static_assert((std::is_same_v<Args, std::decay_t<Args>> && ...));
+
+  Domain<std::tuple<Args...>> GetDomains() const {
+    return TupleOf(Arbitrary<Args>()...);
   }
 
-  using SeedT = std::tuple<std::decay_t<Args>...>;
+  using SeedT = std::tuple<Args...>;
 };
 
+template <typename Fixture, typename BaseFixture, typename... Args>
+DefaultRegistrationBase<std::decay_t<Args>...> DefaultRegistrationBaseImpl(
+    Fixture*, void (BaseFixture::*)(Args...));
+
+template <typename... Args>
+DefaultRegistrationBase<std::decay_t<Args>...> DefaultRegistrationBaseImpl(
+    NoFixture*, void (*)(Args...));
+
+template <typename Fixture, typename TargetFunction>
+using DefaultRegistrationBaseT = decltype(DefaultRegistrationBaseImpl(
+    static_cast<Fixture*>(nullptr), static_cast<TargetFunction>(nullptr)));
+
 // A custom domain was specified.
-template <typename Domain>
+template <typename... Args>
 struct RegistrationWithDomainsBase {
   static constexpr bool kHasDomain = true;
   static constexpr bool kHasSeeds = false;
+  static constexpr size_t kNumArgs = sizeof...(Args);
 
-  Domain domains_;
+  Domain<std::tuple<Args...>> domains_;
 
   const auto& GetDomains() const { return domains_; }
 
@@ -87,22 +100,11 @@ struct RegistrationWithSeedsBase : Base {
       seeds_;
 };
 
-template <typename Fixture, typename TargetFunction,
-          typename Base = DefaultRegistrationBase<Fixture, TargetFunction>,
-          typename = void>
-class Registration;
-
 struct RegistrationToken;
 
-template <typename RegBase, typename Fixture, typename TargetFunction, typename>
-class FixtureDriver;
-
-template <typename Fixture, typename BaseFixture, typename... Args,
-          typename Base>
-class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
-                   std::enable_if_t<std::is_base_of_v<BaseFixture, Fixture>>>
-    : private Base {
-  using TargetFunction = void (BaseFixture::*)(Args...);
+template <typename Fixture, typename TargetFunction,
+          typename Base = DefaultRegistrationBaseT<Fixture, TargetFunction>>
+class Registration : private Base {
   using SeedT = typename Base::SeedT;
 
  public:
@@ -129,13 +131,13 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
     static_assert(!Registration::kHasSeeds,
                   "WithDomains can not be called after WithSeeds.");
     static_assert(
-        sizeof...(Args) == sizeof...(NewDomains),
+        Base::kNumArgs == sizeof...(NewDomains),
         "Number of domains specified in .WithDomains() does not match "
         "the number of function parameters.");
-    return Registration<Fixture, TargetFunction,
-                        RegistrationWithDomainsBase<decltype(domain)>>(
-        test_info_, target_function_,
-        RegistrationWithDomainsBase<decltype(domain)>{std::move(domain)});
+    using NewBase =
+        RegistrationWithDomainsBase<typename NewDomains::value_type...>;
+    return Registration<Fixture, TargetFunction, NewBase>(
+        test_info_, target_function_, NewBase{std::move(domain)});
   }
 
   // Registers a domain for each parameter of the property function. This is the
@@ -183,7 +185,7 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
             if (!first) absl::FPrintF(stderr, ", ");
             first = false;
           };
-          ApplyIndex<sizeof...(Args)>(
+          ApplyIndex<Base::kNumArgs>(
               [&](auto... I) { (print_one_arg(I), ...); });
 
           absl::FPrintF(stderr, "}\n");
@@ -196,12 +198,17 @@ class Registration<Fixture, void (BaseFixture::*)(Args...), Base,
   }
 
  private:
-  template <typename, typename, typename, typename>
+  std::vector<GenericDomainCorpusType> seeds() const {
+    if constexpr (Base::kHasSeeds) {
+      return this->seeds_;
+    } else {
+      return {};
+    }
+  }
+
+  template <typename, typename, typename>
   friend class Registration;
   friend struct RegistrationToken;
-  friend class FixtureDriver<
-      Base, Fixture, TargetFunction,
-      std::enable_if_t<std::is_base_of_v<BaseFixture, Fixture>>>;
 
   explicit Registration(BasicTestInfo info, TargetFunction target_function,
                         Base base)

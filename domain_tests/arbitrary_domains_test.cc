@@ -149,7 +149,7 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
 }
 
 struct StatefulIncrementDomain
-    : public internal::DomainBase<StatefulIncrementDomain> {
+    : public internal::DomainBase<StatefulIncrementDomain, int> {
   using value_type = int;
   // Just to make sure we don't mix value_type with corpus_type
   using corpus_type = std::tuple<int>;

@@ -201,6 +201,21 @@ int CountSubstrs(std::string_view haystack, std::string_view needle) {
   }
 }
 
+RE2 MakeReproducerRegex(absl::string_view suite_name,
+                        absl::string_view test_name, absl::string_view args) {
+  return RE2(
+      absl::Substitute(R"re(TEST\($0, $1.*\) {\n.*$1\(\n.*$2.*\n.*\).*\n})re",
+                       suite_name, test_name, args));
+}
+
+std::string RemoveReproducer(std::string str, absl::string_view suite_name,
+                             absl::string_view test_name,
+                             absl::string_view args) {
+  EXPECT_TRUE(
+      RE2::Replace(&str, MakeReproducerRegex(suite_name, test_name, args), ""));
+  return str;
+}
+
 // Matches strings that contain a reproducer test.
 //
 // For example, `HasReproducerTest("MySuite", "MyTest", "1, \"foo\"")` would
@@ -216,10 +231,8 @@ int CountSubstrs(std::string_view haystack, std::string_view needle) {
 // make sure they are properly escaped!
 MATCHER_P3(HasReproducerTest, suite_name, test_name, args, "") {
   // `ContainsRegex` doesn't support the following regex externally.
-  return RE2::PartialMatch(
-      arg,
-      absl::Substitute(R"re(TEST\($0, $1.*\) {\n.*$1\(\n.*$2.*\n.*\).*\n})re",
-                       suite_name, test_name, args));
+  return RE2::PartialMatch(arg,
+                           MakeReproducerRegex(suite_name, test_name, args));
 }
 
 void GoogleTestExpectationsDontAbortInUnitTestModeImpl(

@@ -74,12 +74,6 @@ TEST(BitFlagCombinationOf, UserDefined) {
           BitFlagCombinationOf({absl::uint128(1), absl::uint128(4)}), 4),
       UnorderedElementsAre(absl::uint128(0), absl::uint128(1), absl::uint128(4),
                            absl::uint128(5)));
-
-  EXPECT_THAT(
-      MutateUntilFoundN(
-          BitFlagCombinationOf({std::bitset<10>(2), std::bitset<10>(16)}), 4),
-      UnorderedElementsAre(std::bitset<10>(0), std::bitset<10>(2),
-                           std::bitset<10>(16), std::bitset<10>(18)));
 }
 
 TEST(BitFlagCombinationOf, InvalidInputReportsErrors) {

@@ -40,10 +40,10 @@
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
-#include "./fuzztest/internal/polymorphic_value.h"
 #include "./fuzztest/internal/regexp.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -63,8 +63,64 @@ constexpr void CheckIsSame() {
   static_assert(std::is_same_v<std::remove_const_t<T>, std::remove_const_t<U>>);
 }
 
-template <typename Derived>
-class DomainBase {
+// Corpus value type used by Domain<T> template, regardless of T.
+using GenericDomainCorpusType = CopyableAny;
+
+// Base class for all domains.
+// It is "untyped" in that it erases all value_type/corpus_type inputs and
+// outputs. This allows code sharing of the runtime.
+// All the `Untyped[Name]` functions implement the same API as the `[Name]`
+// function but marshalls the inputs and output through the generic types.
+class UntypedDomainInterface {
+ public:
+  virtual ~UntypedDomainInterface() {}
+
+  virtual std::unique_ptr<UntypedDomainInterface> Clone() const = 0;
+  virtual GenericDomainCorpusType UntypedInit(absl::BitGenRef) = 0;
+  virtual void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
+                             bool only_shrink) = 0;
+  virtual void UntypedUpdateMemoryDictionary(
+      const GenericDomainCorpusType& val) = 0;
+  virtual std::optional<GenericDomainCorpusType> UntypedParseCorpus(
+      const IRObject& obj) const = 0;
+  virtual IRObject UntypedSerializeCorpus(
+      const GenericDomainCorpusType& v) const = 0;
+  virtual uint64_t UntypedCountNumberOfFields(
+      const GenericDomainCorpusType&) = 0;
+  virtual uint64_t UntypedMutateSelectedField(GenericDomainCorpusType&,
+                                              absl::BitGenRef, bool,
+                                              uint64_t) = 0;
+  virtual MoveOnlyAny UntypedGetValue(
+      const GenericDomainCorpusType& v) const = 0;
+  // UntypedPrintCorpusValue is special in that it has an extra parameter
+  // `tuple_elem`. This is used to instruct the `std::tuple` domain to print one
+  // particular element instead of the whole tuple. This is what the runtime
+  // uses to print out the arguments when a counterexample is found.
+  // In the `std::tuple` case, it also returns the number of elements in the
+  // tuple.
+  virtual int UntypedPrintCorpusValue(
+      const GenericDomainCorpusType& val, absl::FormatRawSink out,
+      internal::PrintMode mode,
+      std::optional<int> tuple_elem = std::nullopt) const = 0;
+};
+
+// A typed subinterface that provides the methods to handle `value_type`
+// inputs/outputs. Some callers require the actual `value_type`.
+template <typename ValueType>
+class TypedDomainInterface : public UntypedDomainInterface {
+ public:
+  virtual ValueType TypedGetValue(const GenericDomainCorpusType& v) const = 0;
+  virtual std::optional<GenericDomainCorpusType> TypedFromValue(
+      const ValueType& v) const = 0;
+
+  MoveOnlyAny UntypedGetValue(const GenericDomainCorpusType& v) const final {
+    return MoveOnlyAny(std::in_place_type<ValueType>, TypedGetValue(v));
+  }
+};
+
+template <typename Derived,
+          typename ValueType = ExtractTemplateParameter<0, Derived>>
+class DomainBase : public TypedDomainInterface<ValueType> {
  public:
   DomainBase() {
     // Check that the interface of `Derived` matches the requirements for a
@@ -74,7 +130,8 @@ class DomainBase {
     // the checks would not work.
 
     // Has value_type.
-    using CheckValueType [[maybe_unused]] = typename Derived::value_type;
+    using CheckValueType = typename Derived::value_type;
+    static_assert(std::is_same_v<ValueType, CheckValueType>);
     if constexpr (Derived::has_custom_corpus_type) {
       // The type of values that are mutated and stored internally in the
       // "corpus" may be different from the type of values produced by the
@@ -85,59 +142,87 @@ class DomainBase {
     } else {
       CheckIsSame<typename Derived::value_type, corpus_type_t<Derived>>();
     }
+  }
 
-    // Has valid Init.
-    CheckIsSame<corpus_type_t<Derived>,
-                decltype(static_cast<corpus_type_t<Derived>>(
-                    static_cast<Derived&>(*this).Init(
-                        std::declval<absl::BitGen&>())))>();
-    // Has valid Mutate.
-    CheckIsSame<void, decltype(static_cast<Derived&>(*this).Mutate(
-                          std::declval<corpus_type_t<Derived>&>(),
-                          std::declval<absl::BitGen&>(), false))>();
+  std::unique_ptr<UntypedDomainInterface> Clone() const final {
+    return std::make_unique<Derived>(derived());
+  }
 
-    // Has valid UpdateMemoryDictionary.
-    CheckIsSame<void,
-                decltype(static_cast<Derived&>(*this).UpdateMemoryDictionary(
-                    std::declval<const corpus_type_t<Derived>&>()))>();
+  GenericDomainCorpusType UntypedInit(absl::BitGenRef ref) final {
+    return GenericDomainCorpusType(std::in_place_type<corpus_type_t<Derived>>,
+                                   derived().Init(ref));
+  }
 
-    // Has valid GetPrinter.
-    using CheckGetPrinter [[maybe_unused]] =
-        decltype(static_cast<const Derived&>(*this).GetPrinter());
+  void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
+                     bool only_shrink) final {
+    derived().Mutate(val.GetAs<corpus_type_t<Derived>>(), prng, only_shrink);
+  }
 
-    // GetValue/FromValue are valid.
-    CheckIsSame<typename Derived::value_type,
-                decltype(std::declval<const Derived&>().GetValue(
-                    std::declval<const corpus_type_t<Derived>&>()))>();
-    CheckIsSame<std::optional<corpus_type_t<Derived>>,
-                decltype(std::declval<const Derived&>().FromValue(
-                    std::declval<const typename Derived::value_type&>()))>();
+  void UntypedUpdateMemoryDictionary(const GenericDomainCorpusType& val) final {
+    derived().UpdateMemoryDictionary(val.GetAs<corpus_type_t<Derived>>());
+  }
 
-    // Has valid CountNumberOfFields/MutateSelectedField.
-    CheckIsSame<uint64_t,
-                decltype(static_cast<Derived&>(*this).CountNumberOfFields(
-                    std::declval<corpus_type_t<Derived>&>()))>();
+  ValueType TypedGetValue(const GenericDomainCorpusType& v) const final {
+    return derived().GetValue(v.GetAs<corpus_type_t<Derived>>());
+  }
 
-    CheckIsSame<uint64_t,
-                decltype(static_cast<Derived&>(*this).MutateSelectedField(
-                    std::declval<corpus_type_t<Derived>&>(),
-                    std::declval<absl::BitGen&>(), false,
-                    std::declval<uint64_t>()))>();
+  std::optional<GenericDomainCorpusType> TypedFromValue(
+      const ValueType& v) const final {
+    if (auto c = derived().FromValue(v)) {
+      return GenericDomainCorpusType(std::in_place_type<corpus_type_t<Derived>>,
+                                     *std::move(c));
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  std::optional<GenericDomainCorpusType> UntypedParseCorpus(
+      const IRObject& obj) const final {
+    if (auto res = derived().ParseCorpus(obj)) {
+      return GenericDomainCorpusType(std::in_place_type<corpus_type_t<Derived>>,
+                                     *std::move(res));
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  IRObject UntypedSerializeCorpus(
+      const GenericDomainCorpusType& v) const final {
+    return derived().SerializeCorpus(
+        v.template GetAs<corpus_type_t<Derived>>());
+  }
+
+  uint64_t UntypedCountNumberOfFields(const GenericDomainCorpusType& v) final {
+    return derived().CountNumberOfFields(v.GetAs<corpus_type_t<Derived>>());
+  }
+
+  uint64_t UntypedMutateSelectedField(GenericDomainCorpusType& v,
+                                      absl::BitGenRef prng, bool only_shrink,
+                                      uint64_t selected_field_index) final {
+    return derived().MutateSelectedField(v.GetAs<corpus_type_t<Derived>>(),
+                                         prng, only_shrink,
+                                         selected_field_index);
+  }
+
+  int UntypedPrintCorpusValue(const GenericDomainCorpusType& val,
+                              absl::FormatRawSink out, internal::PrintMode mode,
+                              std::optional<int> tuple_elem) const override {
+    FUZZTEST_INTERNAL_CHECK(
+        !tuple_elem.has_value(),
+        "No tuple element should be specified for this override.");
+    internal::PrintValue(derived(), val.GetAs<corpus_type_t<Derived>>(), out,
+                         mode);
+    return -1;
   }
 
   // Default GetValue and FromValue functions for !has_custom_corpus_type
   // domains.
-  // Using a template to delay the signature. `Derived::value_type` can't be
-  // read at this time because Derived is not yet defined.
-  template <typename D = Derived>
-  typename D::value_type GetValue(const typename D::value_type& v) const {
-    static_assert(!D::has_custom_corpus_type);
+  ValueType GetValue(const ValueType& v) const {
+    static_assert(!Derived::has_custom_corpus_type);
     return v;
   }
-  template <typename D = Derived>
-  std::optional<typename D::value_type> FromValue(
-      const typename D::value_type& v) const {
-    static_assert(!D::has_custom_corpus_type);
+  std::optional<ValueType> FromValue(const ValueType& v) const {
+    static_assert(!Derived::has_custom_corpus_type);
     return v;
   }
 
@@ -157,7 +242,7 @@ class DomainBase {
   void UpdateMemoryDictionary(const corpus_type_t<D>& val) {}
 
   template <typename D = Derived>
-  uint64_t CountNumberOfFields(corpus_type_t<D>&) {
+  uint64_t CountNumberOfFields(const corpus_type_t<D>&) {
     return 0;
   }
 
@@ -168,10 +253,11 @@ class DomainBase {
   }
 
   static constexpr bool has_custom_corpus_type = false;
-};
 
-// Corpus value type used by Domain<T> template, regardless of T.
-using GenericDomainCorpusType = PolymorphicValue<>;
+ private:
+  Derived& derived() { return static_cast<Derived&>(*this); }
+  const Derived& derived() const { return static_cast<const Derived&>(*this); }
+};
 
 enum class IncludeEnd { kYes, kNo };
 
@@ -1310,7 +1396,7 @@ class SequenceContainerOfImpl
     return val;
   }
 
-  uint64_t CountNumberOfFields(corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_type& val) {
     uint64_t total_weight = 0;
     for (auto& i : val) {
       total_weight += this->inner_.CountNumberOfFields(i);
@@ -1605,7 +1691,10 @@ class ElementOfImpl : public DomainBase<ElementOfImpl<T>> {
 };
 
 template <typename... Inner>
-class OneOfImpl : public DomainBase<OneOfImpl<Inner...>> {
+class OneOfImpl
+    : public DomainBase<OneOfImpl<Inner...>,
+                        typename std::tuple_element_t<
+                            0, typename std::tuple<Inner...>>::value_type> {
  public:
   // All value_types of inner domains must be the same. (Though note that they
   // can have different corpus_types!)
@@ -1760,7 +1849,7 @@ class BitFlagCombinationOfImpl
   std::vector<value_type> flags_;
 };
 
-class InRegexpImpl : public DomainBase<InRegexpImpl> {
+class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
  public:
   using DFAPath = std::vector<RegexpDFA::Edge>;
   using value_type = std::string;
@@ -1964,20 +2053,11 @@ class InRegexpImpl : public DomainBase<InRegexpImpl> {
   RegexpDFA dfa_;
 };
 
-// The runtime uses a domain of tuple<T...> to represent the function parameters
-// for simplicity with Init/Mutate/Serialize/etc, but it wants to handle each
-// function parameter separately when printing. This function gives it access
-// to the inner domains.
-template <int I, typename Domain>
-auto& ExtractInnerDomain(const Domain& domain) {
-  return std::get<I>(domain.inner_);
-}
-
 enum class RequireCustomCorpusType { kNo, kYes };
 
 template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
 class AggregateOfImpl
-    : public DomainBase<AggregateOfImpl<T, require_custom, Inner...>> {
+    : public DomainBase<AggregateOfImpl<T, require_custom, Inner...>, T> {
  public:
   using value_type = T;
   // For user defined types (structs) we require a custom corpus_type
@@ -2038,6 +2118,26 @@ class AggregateOfImpl
          ...);
       });
     }
+  }
+
+  int UntypedPrintCorpusValue(const GenericDomainCorpusType& val,
+                              absl::FormatRawSink out, internal::PrintMode mode,
+                              std::optional<int> tuple_elem) const final {
+    if (tuple_elem.has_value()) {
+      if constexpr (sizeof...(Inner) != 0) {
+        if (*tuple_elem >= 0 && *tuple_elem < sizeof...(Inner)) {
+          Switch<sizeof...(Inner)>(*tuple_elem, [&](auto I) {
+            PrintValue(std::get<I>(inner_),
+                       std::get<I>(val.GetAs<corpus_type_t<AggregateOfImpl>>()),
+                       out, mode);
+          });
+        }
+      }
+    } else {
+      AggregateOfImpl::DomainBase::UntypedPrintCorpusValue(val, out, mode,
+                                                           std::nullopt);
+    }
+    return sizeof...(Inner);
   }
 
   auto GetPrinter() const { return AggregatePrinter<Inner...>{inner_}; }
@@ -2101,9 +2201,6 @@ class AggregateOfImpl
   }
 
  private:
-  template <int I, typename Domain>
-  friend auto& ExtractInnerDomain(const Domain& domain);
-
   template <typename Tuple>
   static constexpr auto GetMutableSubtuple() {
     return ApplyIndex<std::tuple_size_v<Tuple>>([](auto... I) {
@@ -2250,6 +2347,8 @@ template <typename T, typename InnerDomain>
 class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
  public:
   using value_type = T;
+  static_assert(Requires<T>([](auto x) -> decltype(!x, *x) {}),
+                "T must be an optional type.");
   static constexpr bool has_custom_corpus_type = true;
   // `T` might be a custom optional type.
   // We use std::variant unconditionally to make it simpler.
@@ -2346,7 +2445,7 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
     return *this;
   }
 
-  uint64_t CountNumberOfFields(corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_type& val) {
     if (val.index() == 1) {
       return inner_.CountNumberOfFields(std::get<1>(val));
     }
@@ -2487,7 +2586,10 @@ class ArbitraryImpl<std::shared_ptr<T>>
 };
 
 template <typename Mapper, typename... Inner>
-class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>> {
+class MapImpl
+    : public DomainBase<MapImpl<Mapper, Inner...>,
+                        std::decay_t<std::invoke_result_t<
+                            Mapper, const typename Inner::value_type&...>>> {
  public:
   using corpus_type = std::tuple<corpus_type_t<Inner>...>;
   using value_type = std::decay_t<
@@ -2546,7 +2648,11 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>> {
 };
 
 template <typename FlatMapper, typename... Inner>
-class FlatMapImpl : public DomainBase<FlatMapImpl<FlatMapper, Inner...>> {
+class FlatMapImpl
+    : public DomainBase<
+          FlatMapImpl<FlatMapper, Inner...>,
+          typename std::decay_t<std::invoke_result_t<
+              FlatMapper, const typename Inner::value_type&...>>::value_type> {
  private:
   using output_domain = std::decay_t<
       std::invoke_result_t<FlatMapper, const typename Inner::value_type&...>>;
@@ -2653,7 +2759,8 @@ auto NamedMap(absl::string_view name, Mapper mapper, Inner... inner) {
 }
 
 template <typename Pred, typename Inner>
-class FilterImpl : public DomainBase<FilterImpl<Pred, Inner>> {
+class FilterImpl
+    : public DomainBase<FilterImpl<Pred, Inner>, typename Inner::value_type> {
  public:
   using corpus_type = corpus_type_t<Inner>;
   using value_type = typename Inner::value_type;
@@ -2772,7 +2879,8 @@ class UniqueElementsContainerImpl
   }
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
-    return unique_domain_.FromValue(v);
+    return unique_domain_.FromValue(
+        typename UniqueDomain::value_type(v.begin(), v.end()));
   }
 
   auto GetPrinter() const { return unique_domain_.GetPrinter(); }

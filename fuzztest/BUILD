@@ -32,6 +32,25 @@ cc_library(
 )
 
 cc_library(
+    name = "any",
+    hdrs = ["internal/any.h"],
+    deps = [
+        ":logging",
+        ":meta",
+    ],
+)
+
+cc_test(
+    name = "any_test",
+    srcs = ["internal/any_test.cc"],
+    deps = [
+        ":any",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "compatibility_mode",
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
@@ -89,10 +108,10 @@ cc_library(
     ],
     deps = [
         ":absl_domain",
+        ":any",
         ":coverage",
         ":logging",
         ":meta",
-        ":polymorphic_value",
         ":regexp",
         ":serialization",
         ":table_of_recent_compares",
@@ -115,6 +134,7 @@ cc_library(
 
 cc_library(
     name = "fixture_driver",
+    srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
     deps = [
         ":logging",
@@ -223,25 +243,6 @@ cc_library(
 )
 
 cc_library(
-    name = "polymorphic_value",
-    hdrs = ["internal/polymorphic_value.h"],
-    deps = [
-        ":logging",
-        ":meta",
-    ],
-)
-
-cc_test(
-    name = "polymorphic_value_test",
-    srcs = ["internal/polymorphic_value_test.cc"],
-    deps = [
-        ":polymorphic_value",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "regexp",
     srcs = ["internal/regexp.cc"],
     hdrs = ["internal/regexp.h"],
@@ -283,13 +284,13 @@ cc_library(
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
     deps = [
+        ":any",
         ":coverage",
         ":domain",
         ":fixture_driver",
         ":io",
         ":logging",
         ":meta",
-        ":polymorphic_value",
         ":registration",
         ":seed_seq",
         ":serialization",
