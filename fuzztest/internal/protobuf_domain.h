@@ -30,7 +30,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
-#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -399,8 +398,7 @@ class ProtobufDomainUntypedImpl
     }
   };
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     FUZZTEST_INTERNAL_CHECK(
         are_fields_customized_ || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
@@ -519,8 +517,8 @@ class ProtobufDomainUntypedImpl
     return total_weight;
   }
 
-  template <typename PRNG>
-  uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
+  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
     auto* descriptor = prototype_->GetDescriptor();
@@ -554,8 +552,7 @@ class ProtobufDomainUntypedImpl
     return field_counter;
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     auto* descriptor = prototype_->GetDescriptor();
     if (descriptor->field_count() == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
@@ -1104,10 +1101,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   using FieldDescriptor = ProtobufFieldDescriptor<typename T::Message>;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
-    return inner_.Init(prng);
-  }
+  corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
   uint64_t CountNumberOfFields(const corpus_type& val) {
     return inner_.CountNumberOfFields(val);
@@ -1117,8 +1111,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return inner_.MutateNumberOfProtoFields(val);
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     inner_.Mutate(val, prng, only_shrink);
   }
 
@@ -1296,14 +1289,12 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
  public:
   using value_type = T;
 
-  template <typename PRNG>
-  value_type Init(PRNG& prng) {
+  value_type Init(absl::BitGenRef prng) {
     const int index = absl::Uniform(prng, 0, descriptor()->value_count());
     return static_cast<T>(descriptor()->value(index)->number());
   }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink) {
       std::vector<int> numbers;
       for (int i = 0; i < descriptor()->value_count(); ++i) {

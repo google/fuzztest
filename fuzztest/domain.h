@@ -37,6 +37,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/bit_gen_ref.h"
+#include "absl/random/random.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -88,19 +89,15 @@ class Domain {
   // the same value. This is because Mutate() often relies on Init() giving
   // different values (e.g., when growing a std::set<T> and adding new T
   // values).
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
-    return inner_->UntypedInit(prng);
-  }
+  corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
 
   // Mutate() makes a relatively small modification on `val` of corpus_type.
   //
   // When `only_shrink` is enabled, the mutated value is always "simpler" (e.g.,
   // smaller).
   //
-  // ENSURES: That the the mutated value is not the same as the original.
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  // ENSURES: That the mutated value is not the same as the original.
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     return inner_->UntypedMutate(val, prng, only_shrink);
   }
 
@@ -140,8 +137,8 @@ class Domain {
 
   // Mutate the selected protobuf field using `selected_field_index`.
   // Return value is the same as CountNumberOfFields.
-  template <typename PRNG>
-  uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
+  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               bool only_shrink,
                                uint64_t selected_field_index) {
     return inner_->UntypedMutateSelectedField(val, prng, only_shrink,
                                               selected_field_index);
@@ -248,14 +245,12 @@ class DomainBuilder {
     explicit IndirectDomain(internal::MoveOnlyAny* indirect)
         : indirect_inner_(indirect) {}
 
-    template <typename PRNG>
-    corpus_type Init(PRNG& bitgen) {
-      return GetInnerDomain().Init(bitgen);
+    corpus_type Init(absl::BitGenRef prng) {
+      return GetInnerDomain().Init(prng);
     }
 
-    template <typename PRNG>
-    void Mutate(corpus_type& val, PRNG& bitgen, bool only_shrink) {
-      GetInnerDomain().Mutate(val, bitgen, only_shrink);
+    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+      GetInnerDomain().Mutate(val, prng, only_shrink);
     }
 
     void UpdateMemoryDictionary(const corpus_type& val) {
@@ -301,14 +296,10 @@ class DomainBuilder {
     using corpus_type = typename Domain<T>::corpus_type;
     static constexpr bool has_custom_corpus_type = true;
 
-    template <typename PRNG>
-    corpus_type Init(PRNG& bitgen) {
-      return inner_.Init(bitgen);
-    }
+    corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
-    template <typename PRNG>
-    void Mutate(corpus_type& val, PRNG& bitgen, bool only_shrink) {
-      inner_.Mutate(val, bitgen, only_shrink);
+    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+      inner_.Mutate(val, prng, only_shrink);
     }
 
     void UpdateMemoryDictionary(const corpus_type& val) {

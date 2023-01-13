@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
 #include "./fuzztest/internal/logging.h"
@@ -58,8 +59,7 @@ class RegexpDFA {
 
   static RegexpDFA Create(std::string_view regexp);
 
-  template <typename PRNG>
-  std::string GenerateString(PRNG& prng) {
+  std::string GenerateString(absl::BitGenRef prng) {
     std::string result;
     State* state = &states_[0];
     while (true) {
@@ -82,9 +82,8 @@ class RegexpDFA {
 
   // Randomly walk from the state of `from_state_id` to any state of
   // `to_state_ids` or an end state.
-  template <typename PRNG>
   std::vector<Edge> FindPath(
-      PRNG& prng, int from_state_id,
+      absl::BitGenRef prng, int from_state_id,
       const std::vector<std::optional<int>>& to_state_ids) {
     std::vector<Edge> path;
     int cur_state_id = from_state_id;
@@ -114,9 +113,9 @@ class RegexpDFA {
   // `length`. If we have multiple such paths, randomly pick one of them. Since
   // this (nearly) fully exlpores all the paths, there is no big difference in
   // the efficiency. And we prefer DFS to BFS for better readability.
-  template <typename PRNG>
-  std::vector<Edge> FindPathWithinLengthDFS(PRNG& prng, int from_state_id,
-                                            int to_state_id, int length) {
+  std::vector<Edge> FindPathWithinLengthDFS(absl::BitGenRef prng,
+                                            int from_state_id, int to_state_id,
+                                            int length) {
     // Each state maintains an edge and a counter for each possible length. The
     // edge is the last edge in the path from `from_state` to the state and can
     // be used to reconstruct the path. And the counter is the number of paths

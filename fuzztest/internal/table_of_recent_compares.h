@@ -23,11 +23,10 @@
 #include <iterator>
 #include <limits>
 #include <optional>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 
 namespace fuzztest::internal {
@@ -51,13 +50,11 @@ H AbslHashValue(H h, const DictionaryEntry<ContainerT>& m) {
   return H::combine(std::move(h), m.position_hint, m.value);
 }
 
-template <typename PRNG>
-size_t ChooseOffset(size_t size, PRNG& prng) {
+inline size_t ChooseOffset(size_t size, absl::BitGenRef prng) {
   return absl::Uniform(prng, size_t{0}, size);
 }
 
-template <typename PRNG>
-bool RandomBool(PRNG& prng) {
+inline bool RandomBool(absl::BitGenRef prng) {
   return absl::Bernoulli(prng, 0.5);
 }
 
@@ -149,14 +146,13 @@ class TableOfRecentCompares {
     return table_;
   }
 
-  template <typename PRNG>
-  CompareEntry GetRandomEntry(PRNG& prng) const {
+  CompareEntry GetRandomEntry(absl::BitGenRef prng) const {
     return table_[ChooseOffset(kTableSize, prng)];
   }
 
-  template <typename PRNG, typename ValueType>
-  std::optional<ValueType> GetRandomSide(PRNG& prng, size_t idx, ValueType min,
-                                         ValueType max) const {
+  template <typename ValueType>
+  std::optional<ValueType> GetRandomSide(absl::BitGenRef prng, size_t idx,
+                                         ValueType min, ValueType max) const {
     std::optional<ValueType> result = std::nullopt;
     const CompareEntry& entry = table_[idx];
     if (RandomBool(prng)) {
@@ -269,14 +265,14 @@ class TableOfRecentlyComparedBuffers {
     return std::nullopt;
   }
 
-  template <typename PRNG>
-  const ComparedBufferEntry& GetRandomEntry(PRNG& prng) const {
+  const ComparedBufferEntry& GetRandomEntry(absl::BitGenRef prng) const {
     return table_[ChooseOffset(kTableSize, prng)];
   }
 
-  template <typename ContainerT, typename PRNG>
+  template <typename ContainerT>
   static std::optional<DictionaryEntry<ContainerT>> GetRandomSide(
-      PRNG& prng, const uint8_t* buf1, const uint8_t* buf2, size_t buf_size) {
+      absl::BitGenRef prng, const uint8_t* buf1, const uint8_t* buf2,
+      size_t buf_size) {
     using T = typename ContainerT::value_type;
     static constexpr size_t kBufSizeValueMask = sizeof(T) - 1;
     if ((buf_size & kBufSizeValueMask) != 0 || buf_size == 0) {
@@ -365,13 +361,11 @@ class IntegerDictionary {
   }
   void AddEntry(T val) { dictionary_.push_back(val); }
   bool IsEmpty() const { return dictionary_.empty(); }
-  template <typename PRNG>
-  T GetRandomSavedEntry(PRNG& prng) const {
+  T GetRandomSavedEntry(absl::BitGenRef prng) const {
     return dictionary_[ChooseOffset(dictionary_.size(), prng)];
   }
 
-  template <typename PRNG>
-  static std::optional<T> GetRandomTORCEntry(T val, PRNG& prng,
+  static std::optional<T> GetRandomTORCEntry(T val, absl::BitGenRef prng,
                                              const TablesOfRecentCompares& torc,
                                              T min, T max) {
     auto& table = torc.Get<sizeof(T)>();
@@ -413,14 +407,14 @@ class ContainerDictionary {
     dictionary_.push_back(std::move(val));
   }
 
-  template <typename PRNG>
-  const DictionaryEntry<ContainerT>& GetRandomSavedEntry(PRNG& prng) const {
+  const DictionaryEntry<ContainerT>& GetRandomSavedEntry(
+      absl::BitGenRef prng) const {
     return dictionary_[ChooseOffset(dictionary_.size(), prng)];
   }
 
-  template <typename PRNG>
   static std::optional<DictionaryEntry<ContainerT>> GetRandomTORCEntry(
-      const ContainerT& val, PRNG& prng, const TablesOfRecentCompares& torc) {
+      const ContainerT& val, absl::BitGenRef prng,
+      const TablesOfRecentCompares& torc) {
     using T = typename ContainerT::value_type;
     std::optional<DictionaryEntry<ContainerT>> result = std::nullopt;
     // Get from mem_cmp_table or i*_cmp_table with 50/50 probability.

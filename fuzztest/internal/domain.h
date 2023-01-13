@@ -39,6 +39,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
@@ -264,32 +265,33 @@ enum class IncludeEnd { kYes, kNo };
 
 // For cases where the type is a container, choose one of the elements in the
 // container.
-template <typename Container, typename PRNG>
-auto ChoosePosition(Container& val, IncludeEnd include_end, PRNG& prng) {
+template <typename Container>
+auto ChoosePosition(Container& val, IncludeEnd include_end,
+                    absl::BitGenRef prng) {
   size_t i = absl::Uniform<size_t>(
       prng, 0, include_end == IncludeEnd::kYes ? val.size() + 1 : val.size());
   return std::next(val.begin(), i);
 }
 
 // Given a parameter pack of functions `f`, run exactly one of the functions.
-template <typename... F, typename PRNG>
-void RunOne(PRNG& prng, F... f) {
+template <typename... F>
+void RunOne(absl::BitGenRef prng, F... f) {
   ApplyIndex<sizeof...(F)>([&](auto... I) {
     int i = absl::Uniform<int>(prng, 0, sizeof...(F));
     ((i == I ? (void)f() : (void)0), ...);
   });
 }
 
-template <typename T, size_t N, typename PRNG, typename F>
-T ChooseOneOr(const T (&values)[N], PRNG& prng, F f) {
+template <typename T, size_t N, typename F>
+T ChooseOneOr(const T (&values)[N], absl::BitGenRef prng, F f) {
   int i = absl::Uniform<int>(absl::IntervalClosedClosed, prng, 0, N);
   return i == N ? f() : values[i];
 }
 
 // Random bit flip: minimal mutation to a field, it will converge
 // the hamming distance of a value to its target in constant steps.
-template <typename T, typename PRNG>
-void RandomBitFlip(PRNG& prng, T& val, size_t range) {
+template <typename T>
+void RandomBitFlip(absl::BitGenRef prng, T& val, size_t range) {
   using U = MakeUnsignedT<T>;
   U u = static_cast<U>(val);
   u ^= U{1} << absl::Uniform<int>(prng, 0, range);
@@ -384,8 +386,8 @@ bool InsertPart(const ContainerT& from, ContainerT& to,
   return mutated;
 }
 
-template <typename T, typename PRNG>
-T SampleFromUniformRange(PRNG& prng, T min, T max) {
+template <typename T>
+T SampleFromUniformRange(absl::BitGenRef prng, T min, T max) {
   return absl::Uniform(absl::IntervalClosedClosed, prng, min, max);
 }
 
@@ -397,9 +399,8 @@ T SampleFromUniformRange(PRNG& prng, T min, T max) {
 //  be solved by bit flipping or randomwalk.
 //  Dictionary: if applicable, choose randomly from the dictionary. if
 //  dictionary fails to mutate, fall back to uniform.
-template <unsigned char RANGE, typename T, typename IntegerDictionaryT,
-          typename PRNG>
-void RandomWalkOrUniformOrDict(PRNG& prng, T& val, T min, T max,
+template <unsigned char RANGE, typename T, typename IntegerDictionaryT>
+void RandomWalkOrUniformOrDict(absl::BitGenRef prng, T& val, T min, T max,
                                const IntegerDictionaryT& temporary_dict,
                                const IntegerDictionaryT& permanent_dict,
                                std::optional<T>& permanent_dict_candidate) {
@@ -466,9 +467,8 @@ void RandomWalkOrUniformOrDict(PRNG& prng, T& val, T min, T max,
   }
 }
 
-template <typename PRNG>
-size_t GetOrGuessPositionHint(std::optional<size_t> position_hint, size_t max,
-                              PRNG& prng) {
+inline size_t GetOrGuessPositionHint(std::optional<size_t> position_hint,
+                                     size_t max, absl::BitGenRef prng) {
   if (position_hint.has_value()) {
     return *position_hint;
   } else {
@@ -480,9 +480,10 @@ size_t GetOrGuessPositionHint(std::optional<size_t> position_hint, size_t max,
 // If `dict_entry` has a position hint, copy to that offset; otherwise,
 // guess a position hint. Return the copied-to position if mutation succeed,
 // otherwise std::nullopt. Return true iff `val` is successfully mutated.
-template <bool is_self, typename ContainerT, typename PRNG>
+template <bool is_self, typename ContainerT>
 bool CopyFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
-                             PRNG& prng, ContainerT& val, size_t max_size) {
+                             absl::BitGenRef prng, ContainerT& val,
+                             size_t max_size) {
   if (dict_entry.value.size() >= max_size) return false;
   size_t position_hint = GetOrGuessPositionHint(
       dict_entry.position_hint,
@@ -493,10 +494,10 @@ bool CopyFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
 
 // The same as above, but set `permanent_dict_candidate` iff successfully
 // mutated.
-template <bool is_self, typename ContainerT, typename PRNG>
+template <bool is_self, typename ContainerT>
 bool CopyFromDictionaryEntry(
-    const DictionaryEntry<ContainerT>& dict_entry, PRNG& prng, ContainerT& val,
-    size_t max_size,
+    const DictionaryEntry<ContainerT>& dict_entry, absl::BitGenRef prng,
+    ContainerT& val, size_t max_size,
     std::optional<DictionaryEntry<ContainerT>>& permanent_dict_candidate) {
   if (dict_entry.value.size() >= max_size) return false;
   size_t position_hint = GetOrGuessPositionHint(
@@ -515,9 +516,10 @@ bool CopyFromDictionaryEntry(
 // If `dict_entry` has a position hint, copy to that offset; otherwise,
 // guess a position hint. Return the inserted-to position if mutation succeed,
 // otherwise std::nullopt. Return true iff successfully mutated.
-template <bool is_self, typename ContainerT, typename PRNG>
+template <bool is_self, typename ContainerT>
 bool InsertFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
-                               PRNG& prng, ContainerT& val, size_t max_size) {
+                               absl::BitGenRef prng, ContainerT& val,
+                               size_t max_size) {
   if (dict_entry.value.size() >= max_size) return false;
   size_t position_hint =
       GetOrGuessPositionHint(dict_entry.position_hint, val.size(), prng);
@@ -527,10 +529,10 @@ bool InsertFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
 
 // The same as above, but set `permanent_dict_candidate` iff successfully
 // mutated.
-template <bool is_self, typename ContainerT, typename PRNG>
+template <bool is_self, typename ContainerT>
 bool InsertFromDictionaryEntry(
-    const DictionaryEntry<ContainerT>& dict_entry, PRNG& prng, ContainerT& val,
-    size_t max_size,
+    const DictionaryEntry<ContainerT>& dict_entry, absl::BitGenRef prng,
+    ContainerT& val, size_t max_size,
     std::optional<DictionaryEntry<ContainerT>>& permanent_dict_candidate) {
   if (dict_entry.value.size() >= max_size) return false;
   size_t position_hint =
@@ -544,9 +546,10 @@ bool InsertFromDictionaryEntry(
   return mutated;
 }
 
-template <typename ContainerT, typename PRNG>
+template <typename ContainerT>
 bool ApplyDictionaryMutationAndSavePermanentCandidate(
-    ContainerT& val, const DictionaryEntry<ContainerT>& entry, PRNG& prng,
+    ContainerT& val, const DictionaryEntry<ContainerT>& entry,
+    absl::BitGenRef prng,
     std::optional<DictionaryEntry<ContainerT>>& permanent_dict_candidate,
     size_t max_size) {
   bool mutated = false;
@@ -566,9 +569,9 @@ bool ApplyDictionaryMutationAndSavePermanentCandidate(
 }
 
 // Replace or insert the dictionary contents to position hints.
-template <typename ContainerT, typename PRNG>
+template <typename ContainerT>
 bool MemoryDictionaryMutation(
-    ContainerT& val, PRNG& prng,
+    ContainerT& val, absl::BitGenRef prng,
     ContainerDictionary<ContainerT>& temporary_dict,
     ContainerDictionary<ContainerT>& manual_dict,
     ContainerDictionary<ContainerT>& permanent_dict,
@@ -620,8 +623,8 @@ bool MemoryDictionaryMutation(
 
 // Randomly erases a contiguous chunk of at least 1 and at most half the
 // elements in `val`. The final size of `val` will be at least `min_size`.
-template <typename ContainerT, typename PRNG>
-void EraseRandomChunk(ContainerT& val, PRNG& prng, size_t min_size) {
+template <typename ContainerT>
+void EraseRandomChunk(ContainerT& val, absl::BitGenRef prng, size_t min_size) {
   if (val.size() <= min_size) return;
   size_t chunk_size =
       absl::Uniform(absl::IntervalClosedClosed, prng, size_t{1},
@@ -634,8 +637,8 @@ void EraseRandomChunk(ContainerT& val, PRNG& prng, size_t min_size) {
 
 // Randomly inserts `new_element_val` at least 1 and at most 15 times at a
 // random position in `val`. The final size of `val` will be at most `max_size`.
-template <typename ContainerT, typename PRNG, typename T>
-void InsertRandomChunk(ContainerT& val, PRNG& prng, size_t max_size,
+template <typename ContainerT, typename T>
+void InsertRandomChunk(ContainerT& val, absl::BitGenRef prng, size_t max_size,
                        T new_element_val) {
   if (val.size() >= max_size) return;
   size_t grows = absl::Uniform(absl::IntervalClosedClosed, prng, size_t{1},
@@ -761,20 +764,16 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
  public:
   using value_type = T;
 
-  template <typename PRNG>
-  value_type Init(PRNG&) {
-    return value_type{};
-  }
+  value_type Init(absl::BitGenRef) { return value_type{}; }
 
-  template <typename PRNG>
-  void Mutate(value_type&, PRNG&, bool) {}
+  void Mutate(value_type&, absl::BitGenRef, bool) {}
 
   auto GetPrinter() const { return MonostatePrinter{}; }
 };
 
 // REQUIRES: |target| < |val|
-template <typename PRNG, typename T>
-T ShrinkTowards(PRNG& prng, T val, T target) {
+template <typename T>
+T ShrinkTowards(absl::BitGenRef prng, T val, T target) {
   if (val < target) {
     return absl::Uniform(absl::IntervalOpenClosed, prng, val, target);
   } else {
@@ -787,13 +786,11 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
  public:
   using value_type = bool;
 
-  template <typename PRNG>
-  value_type Init(PRNG& prng) {
+  value_type Init(absl::BitGenRef prng) {
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
   }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG&, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef, bool only_shrink) {
     if (only_shrink) {
       val = false;
     } else {
@@ -816,8 +813,7 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
       std::conditional_t<is_memory_dictionary_compatible_v,
                          IntegerDictionary<T>, bool>;
 
-  template <typename PRNG>
-  value_type Init(PRNG& prng) {
+  value_type Init(absl::BitGenRef prng) {
     const auto choose_from_all = [&] {
       return absl::Uniform(absl::IntervalClosedClosed, prng,
                            std::numeric_limits<T>::min(),
@@ -837,8 +833,7 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     }
   }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     if (only_shrink) {
       if (val == 0) return;
@@ -900,8 +895,7 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
  public:
   using value_type = T;
 
-  template <typename PRNG>
-  value_type Init(PRNG& prng) {
+  value_type Init(absl::BitGenRef prng) {
     const T special[] = {
         T{0.0}, T{-0.0}, T{1.0}, T{-1.0}, std::numeric_limits<T>::max(),
         std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
@@ -911,8 +905,7 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
                        [&] { return absl::Uniform(prng, T{0}, T{1}); });
   }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink) {
       if (!std::isfinite(val) || val == 0) return;
       val = ShrinkTowards(prng, val, T{0});
@@ -987,8 +980,7 @@ class ContainerOfImplBase : public DomainBase<Derived> {
   ContainerOfImplBase() = default;
   explicit ContainerOfImplBase(InnerDomainT inner) : inner_(std::move(inner)) {}
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     FUZZTEST_INTERNAL_CHECK(
         val.size() >= this->min_size_ && val.size() <= this->max_size_,
@@ -1194,8 +1186,7 @@ class ContainerOfImplBase : public DomainBase<Derived> {
  protected:
   InnerDomainT inner_;
 
-  template <typename PRNG>
-  int ChooseRandomSize(PRNG& prng) {
+  int ChooseRandomSize(absl::BitGenRef prng) {
     // The container size should not be empty (unless max_size_ = 0) because the
     // initialization should be random if possible.
     // TODO(changochen): Increase the number of generated elements.
@@ -1278,8 +1269,7 @@ class AssociativeContainerOfImpl
   explicit AssociativeContainerOfImpl(InnerDomain inner)
       : Base(std::move(inner)) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     const int size = this->ChooseRandomSize(prng);
 
     corpus_type val;
@@ -1312,15 +1302,14 @@ Please verify that the inner domain can provide enough values.
  private:
   friend Base;
 
-  template <typename PRNG>
-  void GrowOne(corpus_type& val, PRNG& prng) {
+  void GrowOne(corpus_type& val, absl::BitGenRef prng) {
     constexpr size_t kFailuresAllowed = 100;
     Grow(val, prng, 1, kFailuresAllowed);
   }
 
   // Try to grow `val` by `n` elements.
-  template <typename PRNG>
-  void Grow(corpus_type& val, PRNG& prng, size_t n, size_t failures_allowed) {
+  void Grow(corpus_type& val, absl::BitGenRef prng, size_t n,
+            size_t failures_allowed) {
     // Try a few times to insert a new element (correctly assuming the
     // initialization yields a random element if possible). We might get
     // duplicates. But don't try forever because we might be at the limit of the
@@ -1343,8 +1332,7 @@ Please verify that the inner domain can provide enough values.
   }
 
   // Try to mutate the element in `it`.
-  template <typename PRNG>
-  void MutateElement(corpus_type& val, PRNG& prng,
+  void MutateElement(corpus_type& val, absl::BitGenRef prng,
                      typename corpus_type::iterator it, bool only_shrink) {
     size_t failures_allowed = 100;
     // Try a few times to mutate the element.
@@ -1387,8 +1375,7 @@ class SequenceContainerOfImpl
   explicit SequenceContainerOfImpl(InnerDomain inner)
       : Base(std::move(inner)) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     const int size = this->ChooseRandomSize(prng);
     corpus_type val;
     while (val.size() < size) {
@@ -1405,8 +1392,8 @@ class SequenceContainerOfImpl
     return total_weight;
   }
 
-  template <typename PRNG>
-  uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
+  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
     for (auto& i : val) {
@@ -1420,14 +1407,12 @@ class SequenceContainerOfImpl
  private:
   friend Base;
 
-  template <typename PRNG>
-  void GrowOne(corpus_type& val, PRNG& prng) {
+  void GrowOne(corpus_type& val, absl::BitGenRef prng) {
     val.insert(ChoosePosition(val, IncludeEnd::kYes, prng),
                this->inner_.Init(prng));
   }
 
-  template <typename PRNG>
-  void MutateElement(corpus_type&, PRNG& prng,
+  void MutateElement(corpus_type&, absl::BitGenRef prng,
                      typename corpus_type::iterator it, bool only_shrink) {
     this->inner_.Mutate(*it, prng, only_shrink);
   }
@@ -1504,8 +1489,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     }
   }
 
-  template <typename PRNG>
-  value_type Init(PRNG& prng) {
+  value_type Init(absl::BitGenRef prng) {
     // TODO(sbenzaquen): Add more interesting points in the range.
     const T special[] = {min_, max_};
     return ChooseOneOr(special, prng, [&] {
@@ -1513,8 +1497,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     });
   }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     if (val < min_ || val > max_) {
       val = Init(prng);
@@ -1628,13 +1611,11 @@ class ElementOfImpl : public DomainBase<ElementOfImpl<T>> {
         !values.empty(), "ElementOf requires a non empty list.");
   }
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     return corpus_type{absl::Uniform<size_t>(prng, 0, values_.size())};
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     if (values_.size() <= 1) return;
     if (only_shrink) {
       size_t index = static_cast<size_t>(val);
@@ -1711,8 +1692,7 @@ class OneOfImpl
 
   explicit OneOfImpl(Inner... domains) : domains_(std::move(domains)...) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     // TODO(b/191368509): Consider the cardinality of the subdomains to weight
     // them.
     return Switch<sizeof...(Inner)>(
@@ -1722,8 +1702,7 @@ class OneOfImpl
         });
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     // Switch to another domain 1% of the time when not reducing.
     if (num_domains_ > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
@@ -1810,13 +1789,9 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  template <typename PRNG>
-  value_type Init(PRNG&) {
-    return value_type{};
-  }
+  value_type Init(absl::BitGenRef) { return value_type{}; }
 
-  template <typename PRNG>
-  void Mutate(value_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     T to_switch = flags_[ChooseOffset(flags_.size(), prng)];
 
     if (!only_shrink || BitAnd(val, to_switch) != T{}) {
@@ -1861,8 +1836,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
   explicit InRegexpImpl(std::string_view regex_str)
       : dfa_(RegexpDFA::Create(regex_str)) {}
 
-  template <typename PRNG>
-  DFAPath Init(PRNG& prng) {
+  DFAPath Init(absl::BitGenRef prng) {
     std::optional<DFAPath> path =
         dfa_.StringToDFAPath(dfa_.GenerateString(prng));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.has_value(),
@@ -1873,8 +1847,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
   // Strategy: Parse the input string into a path in the DFA. Pick a node in the
   // path and random walk from the node until we reach an end state or go back
   // to the original path.
-  template <typename PRNG>
-  void Mutate(DFAPath& path, PRNG& prng, bool only_shrink) {
+  void Mutate(DFAPath& path, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink) {
       // Fast path to remove loop.
       if (absl::Bernoulli(prng, 0.5)) {
@@ -1967,8 +1940,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
   // Remove a random loop in the DFA path and return the string from the
   // modified path. A loop is a subpath that starts and ends with the same
   // state.
-  template <typename PRNG>
-  bool ShrinkByRemoveLoop(PRNG& prng, DFAPath& path) {
+  bool ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path) {
     std::vector<std::vector<int>> state_appearances(dfa_.state_count());
     for (int i = 0; i < path.size(); ++i) {
       state_appearances[path[i].from_state_id].push_back(i);
@@ -1998,8 +1970,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
   // Randomly pick a subpath and try to replace it with a shorter one. As this
   // might fail we keep trying until success or the maximum number of trials is
   // reached.
-  template <typename PRNG>
-  bool ShrinkByFindShorterSubPath(PRNG& prng, DFAPath& path) {
+  bool ShrinkByFindShorterSubPath(absl::BitGenRef prng, DFAPath& path) {
     if (path.size() <= 1) {
       return false;
     }
@@ -2074,15 +2045,13 @@ class AggregateOfImpl
   explicit AggregateOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     return std::apply(
         [&](auto&... inner) { return corpus_type{inner.Init(prng)...}; },
         inner_);
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     std::integral_constant<int, sizeof...(Inner)> size;
     auto bound = internal::BindAggregate(val, size);
     // Filter the tuple to only the mutable fields.
@@ -2280,8 +2249,7 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
   explicit VariantOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     return Switch<sizeof...(Inner)>(
         absl::Uniform(prng, size_t{}, sizeof...(Inner)), [&](auto I) {
           return corpus_type(std::in_place_index<I>,
@@ -2289,8 +2257,7 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
         });
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     // Flip a coin to choose between generating a value of an alternative type
     // and mutating the value of the current type. Assign more weight to the
     // mutating case in order to explore more on a given type before we start
@@ -2358,8 +2325,7 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
   explicit OptionalOfImpl(InnerDomain inner)
       : inner_(std::move(inner)), policy_(OptionalPolicy::kWithNull) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (policy_ == OptionalPolicy::kAlwaysNull ||
         // 1/2 chance of returning an empty to avoid initialization with large
         // entities for recursive data structures. See
@@ -2371,8 +2337,7 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
     }
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     if (policy_ == OptionalPolicy::kAlwaysNull) {
       val.template emplace<0>();
       return;
@@ -2453,8 +2418,8 @@ class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
     return 0;
   }
 
-  template <typename PRNG>
-  uint64_t MutateSelectedField(corpus_type& val, PRNG& prng, bool only_shrink,
+  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               bool only_shrink,
                                uint64_t selected_field_index) {
     if (val.index() == 1) {
       return inner_.MutateSelectedField(std::get<1>(val), prng, only_shrink,
@@ -2491,16 +2456,14 @@ class SmartPointerOfImpl : public DomainBase<SmartPointerOfImpl<T, Inner>> {
   explicit SmartPointerOfImpl(InnerFn fn) : inner_(fn) {}
   explicit SmartPointerOfImpl(Inner inner) : inner_(std::move(inner)) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG&) {
+  corpus_type Init(absl::BitGenRef) {
     // Init will always have an empty smart pointer to reduce nesting.
     // Otherwise it is very easy to get a stack overflow during Init() when
     // there is recursion in the domains.
     return corpus_type();
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     const bool has_value = val.index() == 1;
     if (!has_value) {
       // Only add a value if we are not shrinking.
@@ -2606,15 +2569,13 @@ class MapImpl
         inner_(std::move(inner)...),
         map_function_name_(map_function_name) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     return std::apply(
         [&](auto&... inner) { return corpus_type(inner.Init(prng)...); },
         inner_);
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
       (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
     });
@@ -2668,8 +2629,7 @@ class FlatMapImpl
   explicit FlatMapImpl(FlatMapper mapper, Inner... inner)
       : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     auto inner_corpus = std::apply(
         [&](auto&... inner) { return std::make_tuple(inner.Init(prng)...); },
         inner_);
@@ -2681,8 +2641,7 @@ class FlatMapImpl
                           inner_corpus);
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     // There is no way to tell whether the current output corpus value is
     // consistent with a new output domain generated by mutated inputs, so
     // mutating the inputs forces re-initialization of the output domain. This
@@ -2771,16 +2730,14 @@ class FilterImpl
   explicit FilterImpl(Pred predicate, Inner inner)
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     while (true) {
       auto v = inner_.Init(prng);
       if (RunFilter(v)) return v;
     }
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     corpus_type original_val = val;
     while (true) {
       inner_.Mutate(val, prng, only_shrink);
@@ -2864,13 +2821,9 @@ class UniqueElementsContainerImpl
   // All of these methods delegate at least partially to the unique_domain_
   // member.
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
-    return unique_domain_.Init(prng);
-  }
+  corpus_type Init(absl::BitGenRef prng) { return unique_domain_.Init(prng); }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     unique_domain_.Mutate(val, prng, only_shrink);
   }
 
@@ -2918,13 +2871,9 @@ class ArbitraryImpl<std::basic_string_view<Char>>
   using corpus_type = std::vector<Char>;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
-    return inner_.Init(prng);
-  }
+  corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     inner_.Mutate(val, prng, only_shrink);
   }
 

@@ -31,12 +31,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/protobuf_domain.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
@@ -156,16 +158,14 @@ struct StatefulIncrementDomain
   using corpus_type = std::tuple<int>;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     // Minimal code to exercise prng.
     corpus_type result = {absl::Uniform<value_type>(prng, i, i + 1)};
     ++i;
     return result;
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     std::get<0>(val) += absl::Uniform<value_type>(prng, 5, 6) +
                         static_cast<value_type>(only_shrink);
   }

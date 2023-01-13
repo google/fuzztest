@@ -15,12 +15,9 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 
-#include <algorithm>
 #include <atomic>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iostream>
@@ -33,12 +30,10 @@
 #include <vector>
 
 #include "absl/functional/function_ref.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
-#include "absl/random/random.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
@@ -183,6 +178,7 @@ decltype(auto) GetDomainOrArbitrary(const Tuple& t) {
 }
 
 class FuzzTestExternalEngineAdaptor;
+
 class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
  public:
   explicit FuzzTestFuzzerImpl(
@@ -223,7 +219,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   std::optional<corpus_type> TryParse(std::string_view data);
 
-  void MutateValue(Input& input, PRNG& prng);
+  void MutateValue(Input& input, absl::BitGenRef prng);
 
   void UpdateCorpusDistribution();
 
@@ -243,13 +239,13 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
                         absl::FunctionRef<void(Input&&)> consume);
 
   // Returns true if we're in minimization mode.
-  bool MinimizeCorpusIfInMinimizationMode(PRNG& prng);
+  bool MinimizeCorpusIfInMinimizationMode(absl::BitGenRef prng);
 
   std::vector<Input> TryReadCorpusFromFiles();
 
   void TryWriteCorpusFile(const Input& input);
 
-  void InitializeCorpus(PRNG& prng);
+  void InitializeCorpus(absl::BitGenRef prng);
 
   RunResult RunOneInput(const Input& input);
 

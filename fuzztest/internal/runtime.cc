@@ -19,18 +19,36 @@
 #include <cerrno>
 #include <csignal>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <iterator>
+#include <memory>
+#include <optional>
+#include <random>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/functional/function_ref.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/discrete_distribution.h"
+#include "absl/random/random.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
+#include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
 #ifdef ADDRESS_SANITIZER
@@ -357,7 +375,7 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
   return res;
 }
 
-void FuzzTestFuzzerImpl::MutateValue(Input& input, PRNG& prng) {
+void FuzzTestFuzzerImpl::MutateValue(Input& input, absl::BitGenRef prng) {
   // Do a random number of mutations on the value at once, skewed
   // towards 1 and decreasing probability as we go up.
   // Doing multiple smaller mutations at once allows reaching states that
@@ -468,7 +486,8 @@ void FuzzTestFuzzerImpl::ForEachInputFile(
                 parsed_input_counter, invalid_input_counter);
 }
 
-bool FuzzTestFuzzerImpl::MinimizeCorpusIfInMinimizationMode(PRNG& prng) {
+bool FuzzTestFuzzerImpl::MinimizeCorpusIfInMinimizationMode(
+    absl::BitGenRef prng) {
   auto inputdir =
       absl::NullSafeStringView(getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR"));
   if (inputdir.empty()) return false;
@@ -502,7 +521,7 @@ void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   }
 }
 
-void FuzzTestFuzzerImpl::InitializeCorpus(PRNG& prng) {
+void FuzzTestFuzzerImpl::InitializeCorpus(absl::BitGenRef prng) {
   std::vector<Input> inputs = TryReadCorpusFromFiles();
   // Since inputs processed earlier have the adventage of increasing coverage
   // and being kept in corpus, shuffle the input order to make it fair.

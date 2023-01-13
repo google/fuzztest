@@ -82,6 +82,7 @@ cc_library(
     hdrs = ["internal/table_of_recent_compares.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
     ],
 )
@@ -249,6 +250,7 @@ cc_library(
     deps = [
         ":logging",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -284,7 +286,6 @@ cc_library(
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
     deps = [
-        ":any",
         ":coverage",
         ":domain",
         ":fixture_driver",
@@ -298,6 +299,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
