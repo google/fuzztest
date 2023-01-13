@@ -1041,36 +1041,6 @@ auto NonEmpty(Inner inner) {
   return inner.WithMinSize(1);
 }
 
-// Arbitrary<absl::Duration>() represents any absl::Duration, a signed,
-// fixed-length span of time.
-//
-// Example usage:
-//
-//   Arbitrary<absl::Duration>()
-//
-template <>
-inline auto Arbitrary<absl::Duration>() {
-  return OneOf(
-      ElementOf({absl::InfiniteDuration(), -absl::InfiniteDuration()}),
-      Map([](int64_t secs,
-             uint32_t ticks) { return internal::MakeDuration(secs, ticks); },
-          // ticks is 1/4 of a nanosecond and has a range of [0, 4B - 1]
-          Arbitrary<int64_t>(), InRange(0u, 3'999'999'999u)));
-}
-
-// Arbitrary<absl::Time>() represents an absolute, specific point in time.
-//
-// Example usage:
-//
-//   Arbitrary<absl::Time>()
-//
-template <>
-inline auto Arbitrary<absl::Time>() {
-  return Map(
-      [](absl::Duration duration) { return absl::UnixEpoch() + duration; },
-      Arbitrary<absl::Duration>());
-}
-
 }  // namespace internal_no_adl
 
 // Inject the names from internal_no_adl into fuzztest, without allowing for

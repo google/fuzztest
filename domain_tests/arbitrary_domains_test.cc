@@ -46,6 +46,7 @@ namespace {
 
 using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
@@ -685,22 +686,24 @@ TEST(ArbitraryDurationTest, ValidatesGetTicksResults) {
             3'999'999'999u);
 }
 
-TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
-  enum class DurationType {
-    kInfinity,
-    kMinusInfinity,
-    kZero,
-    kNegative,
-    kPositive
-  };
+enum class DurationType {
+  kInfinity,
+  kMinusInfinity,
+  kZero,
+  kNegative,
+  kPositive
+};
 
-  absl::BitGen bitgen;
+TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
   absl::flat_hash_set<DurationType> to_find = {
       DurationType::kInfinity, DurationType::kMinusInfinity,
       DurationType::kZero, DurationType::kNegative, DurationType::kPositive};
-  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
-    auto domain = Arbitrary<absl::Duration>();
-    Value val(domain, bitgen);
+  auto domain = Arbitrary<absl::Duration>();
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
     if (val.user_value == absl::InfiniteDuration()) {
       to_find.erase(DurationType::kInfinity);
     } else if (val.user_value == -absl::InfiniteDuration()) {
@@ -726,15 +729,10 @@ uint64_t AbsoluteValueOf(absl::Duration d) {
 }
 
 TEST(ArbitraryDurationTest, ShrinksCorrectly) {
-  absl::BitGen bitgen;
   auto domain = Arbitrary<absl::Duration>();
-  absl::flat_hash_set<Value<decltype(domain)>> values;
-  // Failure to generate 1000 non-special values in 10000 rounds is negligible
-  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
-    Value val(domain, bitgen);
-    values.insert(val);
-  }
-  ASSERT_THAT(values, SizeIs(1000));
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
   ASSERT_TRUE(TestShrink(
                   domain, values,
@@ -755,21 +753,52 @@ TEST(ArbitraryDurationTest, ShrinksCorrectly) {
                   .ok());
 }
 
-TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
-  enum class TimeType {
-    kInfinitePast,
-    kInfiniteFuture,
-    kUnixEpoch,
-    kFiniteNonEpoch
-  };
+// Checks that indirect call to Arbitrary<absl::Duration> works.
+TEST(ArbitraryDurationTest, ArbitraryVectorHasAllTypesOfValues) {
+  absl::flat_hash_set<DurationType> to_find = {
+      DurationType::kInfinity, DurationType::kMinusInfinity,
+      DurationType::kZero, DurationType::kNegative, DurationType::kPositive};
+  auto domain = Arbitrary<std::vector<absl::Duration>>();
+  absl::flat_hash_set<Value<decltype(domain)>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
-  absl::BitGen bitgen;
+  for (const auto& val : values) {
+    if (val.user_value.empty()) continue;
+    absl::Duration d = val.user_value[0];
+    if (d == absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kInfinity);
+    } else if (d == -absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kMinusInfinity);
+    } else if (d == absl::ZeroDuration()) {
+      to_find.erase(DurationType::kZero);
+    } else if (d < absl::ZeroDuration()) {
+      to_find.erase(DurationType::kNegative);
+    } else if (d > absl::ZeroDuration()) {
+      to_find.erase(DurationType::kPositive);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+enum class TimeType {
+  kInfinitePast,
+  kInfiniteFuture,
+  kUnixEpoch,
+  kFiniteNonEpoch
+};
+
+TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
   absl::flat_hash_set<TimeType> to_find = {
       TimeType::kInfinitePast, TimeType::kInfiniteFuture, TimeType::kUnixEpoch,
       TimeType::kFiniteNonEpoch};
-  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
-    auto domain = Arbitrary<absl::Time>();
-    Value val(domain, bitgen);
+  auto domain = Arbitrary<absl::Time>();
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
     if (val.user_value == absl::InfinitePast()) {
       to_find.erase(TimeType::kInfinitePast);
     } else if (val.user_value == absl::InfiniteFuture()) {
@@ -784,14 +813,10 @@ TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
 }
 
 TEST(ArbitraryTimeTest, ShrinksCorrectly) {
-  absl::BitGen bitgen;
   auto domain = Arbitrary<absl::Time>();
-  absl::flat_hash_set<Value<decltype(domain)>> values;
-  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
-    Value val(domain, bitgen);
-    values.insert(val);
-  }
-  ASSERT_THAT(values, SizeIs(1000));
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
   ASSERT_TRUE(TestShrink(
                   domain, values,
@@ -810,6 +835,33 @@ TEST(ArbitraryTimeTest, ShrinksCorrectly) {
                                 AbsoluteValueOf(prev - absl::UnixEpoch()));
                   })
                   .ok());
+}
+
+// Checks that indirect call to Arbitrary<absl::Time> works.
+TEST(ArbitraryTimeTest, ArbitraryVectorHasAllTypesOfValues) {
+  absl::flat_hash_set<TimeType> to_find = {
+      TimeType::kInfinitePast, TimeType::kInfiniteFuture, TimeType::kUnixEpoch,
+      TimeType::kFiniteNonEpoch};
+  auto domain = Arbitrary<std::vector<absl::Time>>();
+  absl::flat_hash_set<Value<decltype(domain)>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
+    if (val.user_value.empty()) continue;
+    absl::Time t = val.user_value[0];
+    if (t == absl::InfinitePast()) {
+      to_find.erase(TimeType::kInfinitePast);
+    } else if (t == absl::InfiniteFuture()) {
+      to_find.erase(TimeType::kInfiniteFuture);
+    } else if (t == absl::UnixEpoch()) {
+      to_find.erase(TimeType::kUnixEpoch);
+    } else {
+      to_find.erase(TimeType::kFiniteNonEpoch);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
 }
 
 }  // namespace

@@ -39,6 +39,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/coverage.h"
@@ -2951,6 +2952,39 @@ class ArbitraryImpl<std::basic_string_view<Char>>
 
  private:
   ArbitraryImpl<std::vector<Char>> inner_;
+};
+
+template <>
+class ArbitraryImpl<absl::Duration>
+    : public OneOfImpl<ElementOfImpl<absl::Duration>,
+                       MapImpl<absl::Duration (*)(int64_t, uint32_t),
+                               ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>> {
+ public:
+  ArbitraryImpl()
+      : OneOfImpl(
+            ElementOfImpl<absl::Duration>(
+                {absl::InfiniteDuration(), -absl::InfiniteDuration()}),
+            MapImpl<absl::Duration (*)(int64_t, uint32_t),
+                    ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>(
+                [](int64_t secs, uint32_t ticks) {
+                  return MakeDuration(secs, ticks);
+                },
+                ArbitraryImpl<int64_t>(),
+                // ticks is 1/4 of a nanosecond and has a range of [0, 4B - 1]
+                InRangeImpl<uint32_t>(0u, 3'999'999'999u))) {}
+};
+
+template <>
+class ArbitraryImpl<absl::Time>
+    : public MapImpl<absl::Time (*)(absl::Duration),
+                     ArbitraryImpl<absl::Duration>> {
+ public:
+  ArbitraryImpl()
+      : MapImpl<absl::Time (*)(absl::Duration), ArbitraryImpl<absl::Duration>>(
+            [](absl::Duration duration) {
+              return absl::UnixEpoch() + duration;
+            },
+            ArbitraryImpl<absl::Duration>()) {}
 };
 
 }  // namespace fuzztest::internal
