@@ -28,6 +28,7 @@
 #include <variant>
 #include <vector>
 
+#include "google/protobuf/descriptor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -46,6 +47,7 @@
 namespace fuzztest {
 namespace {
 
+using ::google::protobuf::FieldDescriptor;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Ge;
@@ -301,77 +303,180 @@ TEST(ProtocolBuffer,
   EXPECT_EQ(val.user_value.ByteSizeLong(), 0);
 }
 
-// TODO(JunyangShao): Consider split this test into:
-// - OptionalFieldIsEventuallySet
-// - OptionalFieldIsEventuallyUnset
-// - OptionalFieldInSubprotoIsEventuallySet
-// - OptionalFieldInSubprotoIsEventuallyUnset
-// - MinimizationEventuallyProducesMinimalProto
-TEST(ProtocolBuffer, ArbitraryWithRequiredHasAllMutations) {
-  auto domain = Arbitrary<internal::TestProtobufWithRequired>();
-
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallySet) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
   ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
 
-  // Verify that some changes happen
-  enum ThingsToFind {
-    kOptionalEmpty,
-    kOptionalFull,
-    kRequiredSubWithOptionalEmpty,
-    kRequiredSubWithOptionalFull,
-    kOptionalSubWithRequired,
-    kMapSubWithRequired
-  };
-  absl::flat_hash_set<ThingsToFind> to_find;
-  int i = 0;
-  while (to_find.size() < 6 && ++i < 1000) {
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
-
-    using ValueType = decltype(val.user_value);
-    const ValueType* v = &val.user_value;
-    int depth = 1000;
-    while (--depth > 0) {
-      to_find.insert(v->has_i32() ? kOptionalFull : kOptionalEmpty);
-      if (v->has_req_sub()) {
-        to_find.insert(v->req_sub().has_subproto_i32()
-                           ? kRequiredSubWithOptionalFull
-                           : kRequiredSubWithOptionalEmpty);
-      }
-      for (auto& pair : v->map_sub_req()) {
-        to_find.insert(kMapSubWithRequired);
-        ASSERT_TRUE(pair.second.IsInitialized());
-      }
-      if (v->has_sub_req()) {
-        to_find.insert(kOptionalSubWithRequired);
-        v = &v->sub_req();
-      } else {
-        break;
-      }
-    }
+  for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, false);
-  }
-  EXPECT_THAT(to_find, UnorderedElementsAre(kOptionalEmpty, kOptionalFull,
-                                            kRequiredSubWithOptionalEmpty,
-                                            kRequiredSubWithOptionalFull,
-                                            kOptionalSubWithRequired,
-                                            kMapSubWithRequired));
-
-  // Test shrinking.
-  // Required fields should never be removed.
-  const auto is_minimal = [&] {
-    auto& v = val.user_value;
-    return !v.has_i32() && v.req_i32() == 0 && v.req_e() == 0 &&
-           !v.req_sub().has_subproto_i32() && !v.has_sub_req();
-  };
-  while (!is_minimal()) {
-    const auto prev = val;
-    val.Mutate(domain, bitgen, true);
     ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_i32()) break;
   }
+
+  EXPECT_TRUE(val.user_value.has_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallyUnset) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
 
   ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  // With the restricted domain, the probability of unsetting the field i32 is
+  // at least 1/800. Hence, within 11000 iterations we'll fail to observe this
+  // event with probability at most 10^(-6).
+  for (int i = 0; i < 11000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (!val.user_value.has_i32()) break;
+  }
+
+  EXPECT_FALSE(val.user_value.has_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldInSubprotoIsEventuallySet) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_req_sub() &&
+        val.user_value.req_sub().has_subproto_i32())
+      break;
+  }
+
+  EXPECT_TRUE(val.user_value.has_req_sub() &&
+              val.user_value.req_sub().has_subproto_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields,
+     OptionalFieldInSubprotoIsEventuallyUnset) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  // With the restricted domain, the probability of unsetting the field
+  // req_sub.subproto_i32 is at least 1/800. Hence, within 11000 iterations
+  // we'll fail to observe this event with probability at most 10^(-6).
+  for (int i = 0; i < 11000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_req_sub() &&
+        !val.user_value.req_sub().has_subproto_i32())
+      break;
+  }
+
+  EXPECT_TRUE(val.user_value.has_req_sub() &&
+              !val.user_value.req_sub().has_subproto_i32());
+}
+
+bool IsTestProtobufWithRequired(const FieldDescriptor* field) {
+  return field->message_type()->full_name() ==
+         "fuzztest.internal.TestProtobufWithRequired";
+}
+
+TEST(ProtocolBufferWithRequiredFields,
+     OptionalFieldWithRequiredFieldsIsEventuallySet) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(0)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_sub_req()) {
+      ASSERT_TRUE(val.user_value.sub_req().IsInitialized())
+          << val.user_value.DebugString();
+      break;
+    }
+  }
+
+  EXPECT_TRUE(val.user_value.has_sub_req());
+}
+
+TEST(ProtocolBufferWithRequiredFields, MapFieldIsEventuallyPopulated) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(1)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  bool found = false;
+  for (int i = 0; i < 1000 && !found; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    for (const auto& pair : val.user_value.map_sub_req()) {
+      found = true;
+      ASSERT_TRUE(pair.second.IsInitialized()) << pair.second.DebugString();
+    }
+  }
+
+  EXPECT_TRUE(found);
+}
+
+TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(1)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, /*only_shrink=*/false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  }
+
+  const auto is_minimal = [](const auto& v) {
+    return !v.has_i32() && v.req_i32() == 0 && v.req_e() == 0 &&
+           !v.req_sub().has_subproto_i32() &&
+           v.req_sub().subproto_rep_i32().empty() && !v.has_sub_req();
+  };
+
+  while (!is_minimal(val.user_value)) {
+    val.Mutate(domain, bitgen, /*only_shrink=*/true);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  }
 }
 
 TEST(ProtocolBuffer, CanUsePerFieldDomains) {
