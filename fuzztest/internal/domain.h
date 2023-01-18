@@ -983,8 +983,9 @@ class ContainerOfImplBase : public DomainBase<Derived> {
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     FUZZTEST_INTERNAL_CHECK(
-        val.size() >= this->min_size_ && val.size() <= this->max_size_,
-        "Value has wrong size!");
+        val.size() >= this->min_size_ && val.size() <= this->max_size_, "size ",
+        val.size(), " is not between [", this->min_size_, "; ", this->max_size_,
+        "]");
 
     const bool can_shrink = val.size() > this->min_size_;
     const bool can_grow = !only_shrink && val.size() < this->max_size_;
