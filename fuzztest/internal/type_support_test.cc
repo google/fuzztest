@@ -374,6 +374,23 @@ TEST(FlatMapTest, PrinterWithLambda) {
   EXPECT_THAT(TestPrintValue(corpus_value, domain), Each("42"));
 }
 
+auto VectorWithSize(int size) {
+  return VectorOf(Arbitrary<int>()).WithSize(size);
+}
+
+TEST(FlatMapTest, PrintVector) {
+  auto domain = FlatMap(VectorWithSize, InRange(2, 4));
+  decltype(domain)::corpus_type corpus_value = {{1, 2, 3}, 3};
+
+  EXPECT_THAT(TestPrintValue(corpus_value, domain),
+              ElementsAre("{1, 2, 3}", "VectorWithSize(3)"));
+
+  auto lambda = [](int size) { return VectorWithSize(size); };
+  auto lambda_domain = FlatMap(lambda, InRange(2, 4));
+  EXPECT_THAT(TestPrintValue(corpus_value, lambda_domain),
+              ElementsAre("{1, 2, 3}", "{1, 2, 3}"));
+}
+
 TEST(ConstructorOfTest, Printer) {
   EXPECT_THAT(
       TestPrintValue({3, 'b'}, ConstructorOf<std::string>(InRange(0, 5),

@@ -454,20 +454,16 @@ struct FlatMappedPrinter {
           // the first field of `corpus_value` is the output value, so skip it
           std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
     });
-    auto value = output_domain.GetValue(std::get<0>(corpus_value));
 
     switch (mode) {
       case PrintMode::kHumanReadable: {
-        // In human readable mode we try and print the user value.
-        AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                mode);
+        // Delegate to the output domain's printer.
+        PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
         break;
       }
       case PrintMode::kSourceCode:
-        if constexpr (!HasFunctionName<FlatMapper>() &&
-                      HasKnownPrinter<decltype(value)>()) {
-          AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                  mode);
+        if constexpr (!HasFunctionName<FlatMapper>()) {
+          PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
           break;
         }
 
