@@ -864,6 +864,23 @@ class ProtobufDomainUntypedImpl
     return GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
   }
 
+  template <bool is_repeated, typename Inner>
+  auto GetOuterDomainForField(const FieldDescriptor* field, Inner domain,
+                              bool use_policy = true) const {
+    if constexpr (is_repeated) {
+      return ModifyDomainForRepeatedFieldRule(
+          std::move(domain),
+          use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
+          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
+    } else if (IsRequired(field)) {
+      return ModifyDomainForRequiredFieldRule(std::move(domain));
+    } else {
+      return ModifyDomainForOptionalFieldRule(
+          std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
+                                        : OptionalPolicy::kWithNull);
+    }
+  }
+
  private:
   void CheckIfPolicyCanBeUpdated() const {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -893,22 +910,22 @@ class ProtobufDomainUntypedImpl
 
   // Simple wrapper that converts a Domain<T> into a Domain<vector<T>>.
   template <typename T>
-  static Domain<std::vector<T>> ModifyDomainForRepeatedFieldRule(
+  static auto ModifyDomainForRepeatedFieldRule(
       const Domain<T>& d, std::optional<int64_t> min_size,
       std::optional<int64_t> max_size) {
-    auto domain = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
+    auto result = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
     if (min_size.has_value()) {
-      domain.WithMinSize(*min_size);
+      result.WithMinSize(*min_size);
     }
     if (max_size.has_value()) {
-      domain.WithMaxSize(*max_size);
+      result.WithMaxSize(*max_size);
     }
-    return domain;
+    return result;
   }
 
   template <typename T>
-  static Domain<std::optional<T>> ModifyDomainForOptionalFieldRule(
-      const Domain<T>& d, OptionalPolicy optional_policy) {
+  static auto ModifyDomainForOptionalFieldRule(const Domain<T>& d,
+                                               OptionalPolicy optional_policy) {
     auto result = OptionalOfImpl<std::optional<T>, Domain<T>>(d);
     if (optional_policy == OptionalPolicy::kWithoutNull) {
       result.SetWithoutNull();
@@ -919,8 +936,7 @@ class ProtobufDomainUntypedImpl
   }
 
   template <typename T>
-  static Domain<std::optional<T>> ModifyDomainForRequiredFieldRule(
-      const Domain<T>& d) {
+  static auto ModifyDomainForRequiredFieldRule(const Domain<T>& d) {
     return OptionalOfImpl<std::optional<T>, Domain<T>>(d).SetWithoutNull();
   }
 
@@ -998,18 +1014,15 @@ class ProtobufDomainUntypedImpl
   template <typename T, bool is_repeated>
   auto GetDomainForField(const FieldDescriptor* field,
                          bool use_policy = true) const {
-    auto domain = GetBaseDomainForFieldType<T>(field, use_policy);
+    auto base_domain = GetBaseDomainForFieldType<T>(field, use_policy);
+    using field_cpptype =
+        typename std::decay_t<decltype(base_domain)>::value_type;
     if constexpr (is_repeated) {
-      return ModifyDomainForRepeatedFieldRule(
-          std::move(domain),
-          use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
-          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
-    } else if (IsRequired(field)) {
-      return ModifyDomainForRequiredFieldRule(std::move(domain));
+      return Domain<std::vector<field_cpptype>>(
+          GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
     } else {
-      return ModifyDomainForOptionalFieldRule(
-          std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
-                                        : OptionalPolicy::kWithNull);
+      return Domain<std::optional<field_cpptype>>(
+          GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
     }
   }
 
