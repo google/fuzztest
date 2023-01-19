@@ -1235,6 +1235,12 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this).With##Camel##FieldAlwaysSet(                       \
         field, inner_.template GetFieldTypeDefaultDomain<TAG>(field));         \
   }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Field(                             \
+      std::string_view field,                                                  \
+      Domain<MakeDependentType<std::optional<cpp>, T>> domain)&& {             \
+    inner_.WithField(field, std::move(domain));                                \
+    return std::move(*this);                                                   \
+  }                                                                            \
   ProtobufDomainImpl&& WithRepeated##Camel##Field(                             \
       std::string_view field,                                                  \
       Domain<MakeDependentType<std::vector<cpp>, T>> domain)&& {               \

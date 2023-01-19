@@ -372,6 +372,12 @@ TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
   EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
 }
 
+TEST(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenOptionalFieldU32HasNoValue"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfProtobufEnumEqualsLabel4"));

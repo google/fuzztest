@@ -34,6 +34,7 @@ using ::fuzztest::Arbitrary;
 using ::fuzztest::FlatMap;
 using ::fuzztest::InRange;
 using ::fuzztest::Just;
+using ::fuzztest::OptionalOf;
 using ::fuzztest::PairOf;
 using ::fuzztest::StringOf;
 using ::fuzztest::StructOf;
@@ -179,6 +180,13 @@ void FailsWhenRequiredEnumFieldHasNoValue(
 FUZZ_TEST(MySuite, FailsWhenRequiredEnumFieldHasNoValue)
     .WithDomains(
         Arbitrary<TestProtobufWithRequired>().WithEnumFieldUnset("req_e"));
+
+void FailsWhenOptionalFieldU32HasNoValue(const TestProtobuf& proto) {
+  if (!proto.has_u32()) std::abort();
+}
+FUZZ_TEST(MySuite, FailsWhenOptionalFieldU32HasNoValue)
+    .WithDomains(Arbitrary<TestProtobuf>().WithOptionalUInt32Field(
+        "u32", OptionalOf(InRange(0u, 1000u))));
 
 void FailsWhenSubprotoIsNull(const TestProtobuf& proto) {
   if (!proto.has_subproto()) {
