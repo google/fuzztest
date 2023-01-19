@@ -315,7 +315,7 @@ void FailsWhenI32FieldValuesDontRespectAllPolicies(const TestProtobuf& proto) {
   }
   if (!proto.has_subproto()) return;
   if (proto.subproto().subproto_rep_i32_size() == 0 ||
-      proto.subproto().subproto_rep_i32(0) != 2) {
+      proto.subproto().subproto_rep_i32(0) != 4) {
     std::abort();
   }
   if (!proto.subproto().has_subproto_i32() ||
@@ -331,14 +331,17 @@ bool IsInt32(const FieldDescriptor* field) {
 bool IsNotRequired(const FieldDescriptor* field) {
   return !field->is_required();
 }
-bool IsRepeated(const FieldDescriptor* field) { return field->is_repeated(); }
+bool IsInSubproto(const FieldDescriptor* field) {
+  return absl::StrContains(field->name(), "subproto");
+}
 
 FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
     .WithDomains(Arbitrary<TestProtobuf>()
                      .WithOptionalFieldsAlwaysSet(IsInt32)
                      .WithRepeatedFieldsMinSize(IsInt32, 1)
                      .WithInt32Fields(IsNotRequired, fuzztest::Just(3))
-                     .WithInt32Fields(IsRepeated, fuzztest::Just(2))
+                     .WithRepeatedInt32Fields(fuzztest::Just(2))
+                     .WithRepeatedInt32Fields(IsInSubproto, fuzztest::Just(4))
                      .WithInt32Field("i32", fuzztest::Just(1)));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}

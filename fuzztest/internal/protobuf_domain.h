@@ -184,8 +184,28 @@ auto GetProtobufField(const Message* prototype, int number) {
 }
 
 template <typename T>
-auto IncludeAll() {
-  return [](const T* field) { return true; };
+using Predicate = std::function<bool(const T*)>;
+
+template <typename T>
+Predicate<T> IncludeAll() {
+  return [](const T*) { return true; };
+}
+
+template <typename T>
+Predicate<T> IsOptional() {
+  return [](const T* field) { return field->is_optional(); };
+}
+
+template <typename T>
+Predicate<T> IsRepeated() {
+  return [](const T* field) { return field->is_repeated(); };
+}
+
+template <typename T>
+Predicate<T> And(Predicate<T> lhs, Predicate<T> rhs) {
+  return [lhs = std::move(lhs), rhs = std::move(rhs)](const T* field) {
+    return lhs(field) && rhs(field);
+  };
 }
 
 template <typename T>
@@ -1257,6 +1277,34 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
       Domain<Camel##type> domain)&& {                                          \
     inner_.GetPolicy().SetDefaultDomainFor##Camel##s(std::move(filter),        \
                                                      std::move(domain));       \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Fields(                            \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        IsOptional<FieldDescriptor>(), std::move(domain));                     \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithOptional##Camel##Fields(                            \
+      std::function<bool(const FieldDescriptor*)>&& filter,                    \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),                 \
+        std::move(domain));                                                    \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithRepeated##Camel##Fields(                            \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        IsRepeated<FieldDescriptor>(), std::move(domain));                     \
+    return std::move(*this);                                                   \
+  }                                                                            \
+  ProtobufDomainImpl&& WithRepeated##Camel##Fields(                            \
+      std::function<bool(const FieldDescriptor*)>&& filter,                    \
+      Domain<Camel##type> domain)&& {                                          \
+    inner_.GetPolicy().SetDefaultDomainFor##Camel##s(                          \
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),                 \
+        std::move(domain));                                                    \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldsTransformed(                         \
