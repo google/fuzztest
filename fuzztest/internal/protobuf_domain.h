@@ -379,7 +379,11 @@ class ProtobufDomainUntypedImpl
   static constexpr bool has_custom_corpus_type = true;
 
   explicit ProtobufDomainUntypedImpl(const Message* prototype)
-      : prototype_(prototype), customized_fields_() {}
+      : prototype_(prototype),
+        policy_(),
+        customized_fields_(),
+        always_set_oneofs_(),
+        oneof_fields_policies_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other) {
     prototype_ = other.prototype_;
@@ -387,6 +391,8 @@ class ProtobufDomainUntypedImpl
     domains_ = other.domains_;
     policy_ = other.policy_;
     customized_fields_ = other.customized_fields_;
+    always_set_oneofs_ = other.always_set_oneofs_;
+    oneof_fields_policies_ = other.oneof_fields_policies_;
   }
 
   template <typename T>
@@ -875,6 +881,10 @@ class ProtobufDomainUntypedImpl
     return field;
   }
 
+  bool IsOneofAlwaysSet(int oneof_index) {
+    return always_set_oneofs_.contains(oneof_index);
+  }
+
   struct WithFieldNullnessVisitor {
     ProtobufDomainUntypedImpl& self;
     OptionalPolicy policy;
@@ -982,6 +992,23 @@ class ProtobufDomainUntypedImpl
           std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
                                         : OptionalPolicy::kWithNull);
     }
+  }
+
+  void SetOneofFieldPolicy(const FieldDescriptor* field,
+                           OptionalPolicy policy) {
+    oneof_fields_policies_.insert({field->index(), policy});
+  }
+
+  OptionalPolicy GetOneofFieldPolicy(const FieldDescriptor* field) const {
+    FUZZTEST_INTERNAL_CHECK(
+        field->containing_oneof(),
+        "GetOneofFieldPolicy should apply to oneof fields only! ",
+        field->name());
+    auto result = oneof_fields_policies_.find(field->index());
+    if (result != oneof_fields_policies_.end()) {
+      return result->second;
+    }
+    return policy_.GetOptionalPolicy(field);
   }
 
  private:
@@ -1203,6 +1230,8 @@ class ProtobufDomainUntypedImpl
 
   ProtoPolicy<Message> policy_;
   absl::flat_hash_set<int> customized_fields_;
+  absl::flat_hash_set<int> always_set_oneofs_;
+  absl::flat_hash_map<int, OptionalPolicy> oneof_fields_policies_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.
