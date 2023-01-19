@@ -163,6 +163,23 @@ FUZZ_TEST(MySuite, FailsWhenFieldDoubleHasNoValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithDoubleFieldAlwaysSet(
         "d", InRange(0., 1000.)));
 
+void FailsWhenFieldI64OrRepeatedI64HaveValues(const TestProtobuf& proto) {
+  if (proto.has_i64()) std::abort();
+  if (proto.rep_i64_size() > 0) std::abort();
+}
+FUZZ_TEST(MySuite, FailsWhenFieldI64OrRepeatedI64HaveValues)
+    .WithDomains(Arbitrary<TestProtobuf>().WithFieldUnset("i64").WithFieldUnset(
+        "rep_i64"));
+
+void FailsWhenFieldI64OrRepeatedI64HaveNoValues(const TestProtobuf& proto) {
+  if (!proto.has_i64()) std::abort();
+  if (proto.rep_i64_size() == 0) std::abort();
+}
+FUZZ_TEST(MySuite, FailsWhenFieldI64OrRepeatedI64HaveNoValues)
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithFieldAlwaysSet("i64")
+                     .WithFieldAlwaysSet("rep_i64"));
+
 void FailsWhenRequiredInt32FieldHasNoValue(
     const TestProtobufWithRequired& proto) {
   if (!proto.has_req_i32()) std::abort();

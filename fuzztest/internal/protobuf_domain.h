@@ -868,6 +868,44 @@ class ProtobufDomainUntypedImpl
     return field;
   }
 
+  struct WithFieldNullnessVisitor {
+    ProtobufDomainUntypedImpl& self;
+    OptionalPolicy policy;
+
+    template <typename T>
+    auto VisitSingular(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/false>(
+          field, std::move(inner_domain));
+      if (policy == OptionalPolicy::kAlwaysNull) {
+        domain.SetAlwaysNull();
+      } else if (policy == OptionalPolicy::kWithoutNull) {
+        domain.SetWithoutNull();
+      }
+      self.WithField(field->name(), domain);
+    }
+
+    template <typename T>
+    auto VisitRepeated(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/true>(
+          field, std::move(inner_domain));
+      if (policy == OptionalPolicy::kAlwaysNull) {
+        domain.WithMaxSize(0);
+      } else if (policy == OptionalPolicy::kWithoutNull) {
+        domain.WithMinSize(1);
+      }
+      self.WithField(field->name(), domain);
+    }
+  };
+
+  void WithFieldNullness(absl::string_view field_name, OptionalPolicy policy) {
+    const FieldDescriptor* field = GetField(field_name);
+    VisitProtobufField(field, WithFieldNullnessVisitor{*this, policy});
+  }
+
   void SetPolicy(ProtoPolicy<Message> policy) {
     CheckIfPolicyCanBeUpdated();
     policy_ = policy;
@@ -1213,6 +1251,16 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ProtobufDomainImpl&& WithRepeatedFieldsMaxSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
     inner_.GetPolicy().SetMaxRepeatedFieldsSize(std::move(filter), max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithFieldUnset(std::string_view field) && {
+    inner_.WithFieldNullness(field, OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithFieldAlwaysSet(std::string_view field) && {
+    inner_.WithFieldNullness(field, OptionalPolicy::kWithoutNull);
     return std::move(*this);
   }
 

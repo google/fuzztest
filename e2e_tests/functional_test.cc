@@ -346,9 +346,21 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsUnsetNeverHasValue) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, ProtoFieldsThatAreUnsetNeverHaveValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenFieldI64OrRepeatedI64HaveValues"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldDoubleHasNoValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
+TEST(UnitTestModeTest, ProtoFieldsThatAreAlwaysSetAlwaysHaveValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenFieldI64OrRepeatedI64HaveNoValues"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
