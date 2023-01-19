@@ -105,9 +105,14 @@ message ProtoExtender {
 
 message TestProtobufWithRecursion {
   message ChildProto {
-    optional TestProtobufWithRecursion parent = 1;
-    optional string id = 2;
+    optional TestProtobufWithRecursion parent1 = 1;
+    optional TestProtobufWithRecursion parent2 = 2;
+    optional TestProtobufWithRecursion parent3 = 3;
+    optional string id = 4;
   }
-  optional ChildProto child = 1;
-  optional string id = 2;
+  optional int32 id = 1;
+  oneof type {
+    ChildProto child = 2;
+    int32 child_id = 3;
+  }
 }

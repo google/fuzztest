@@ -382,11 +382,20 @@ FUZZ_TEST(MySuite, FailsWhenI32FieldValuesDontRespectAllPolicies)
                      .WithRepeatedInt32Fields(IsInSubproto, fuzztest::Just(4))
                      .WithInt32Field("i32", fuzztest::Just(1)));
 
+bool IsChildId(const FieldDescriptor* field) {
+  return field->name() == "child_id";
+}
+
+bool IsParent(const FieldDescriptor* field) {
+  return absl::StrContains(field->name(), "parent");
+}
+
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
     .WithDomains(Arbitrary<TestProtobufWithRecursion>()
                      .WithOptionalFieldsAlwaysSet()
-                     .WithStringField("id", Arbitrary<std::string>()));
+                     .WithFieldsUnset(IsChildId)
+                     .WithFieldUnset("id"));
 
 void InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten(
     const TestProtobufWithRecursion& proto) {}
@@ -394,10 +403,13 @@ FUZZ_TEST(MySuite,
           InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten)
     .WithDomains(Arbitrary<TestProtobufWithRecursion>()
                      .WithOptionalFieldsAlwaysSet()
+                     .WithOptionalFieldsUnset(IsInt32)
+                     .WithOneofAlwaysSet("type")
                      .WithProtobufField(
                          "child",
                          Arbitrary<TestProtobufWithRecursion::ChildProto>()
-                             .WithStringField("id", Arbitrary<std::string>())));
+                             .WithOptionalFieldsUnset(IsInt32)
+                             .WithOptionalFieldsAlwaysSet(IsParent)));
 
 bool AreRepeatedFieldsSizesCorrect(absl::FunctionRef<bool(int)> is_size_correct,
                                    const TestProtobuf& proto) {

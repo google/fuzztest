@@ -61,6 +61,9 @@ using ProtobufDescriptor =
 template <typename Message>
 using ProtobufFieldDescriptor = std::remove_pointer_t<
     decltype(std::declval<Message>().GetDescriptor()->field(0))>;
+template <typename Message>
+using ProtobufOneofDescriptor = std::remove_pointer_t<
+    decltype(std::declval<Message>().GetDescriptor()->oneof_decl(0))>;
 
 template <typename Message, typename V>
 class ProtocolBufferAccess;
@@ -372,6 +375,7 @@ class ProtobufDomainUntypedImpl
                         std::unique_ptr<Message>> {
   using Descriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
+  using OneofDescriptor = ProtobufOneofDescriptor<Message>;
 
  public:
   using corpus_type = absl::flat_hash_map<int, GenericDomainCorpusType>;
@@ -1244,6 +1248,34 @@ class ProtobufDomainUntypedImpl
                             /*consider_non_terminating_recursions=*/false);
   }
 
+  static bool IsOneofRecursive(const OneofDescriptor* oneof,
+                               absl::flat_hash_set<const Descriptor*>& parents,
+                               const ProtoPolicy<Message>& policy,
+                               bool consider_non_terminating_recursions) {
+    bool is_oneof_recursive = false;
+    for (int i = 0; i < oneof->field_count(); ++i) {
+      const auto* field = oneof->field(i);
+      const auto field_policy = policy.GetOptionalPolicy(field);
+      if (field_policy == OptionalPolicy::kAlwaysNull) continue;
+      const auto* child = field->message_type();
+      if (consider_non_terminating_recursions) {
+        is_oneof_recursive =
+            field_policy != OptionalPolicy::kWithNull && child &&
+            IsProtoRecursive(child, parents, policy,
+                             consider_non_terminating_recursions);
+        if (!is_oneof_recursive) {
+          return false;
+        }
+      } else {
+        if (child && IsProtoRecursive(child, parents, policy,
+                                      consider_non_terminating_recursions)) {
+          return true;
+        }
+      }
+    }
+    return is_oneof_recursive;
+  }
+
   template <typename Descriptor>
   static bool IsProtoRecursive(const Descriptor* descriptor,
                                absl::flat_hash_set<const Descriptor*>& parents,
@@ -1251,8 +1283,17 @@ class ProtobufDomainUntypedImpl
                                bool consider_non_terminating_recursions) {
     if (parents.contains(descriptor)) return true;
     parents.insert(descriptor);
+    for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
+      const auto* oneof = descriptor->oneof_decl(i);
+      if (IsOneofRecursive(oneof, parents, policy,
+                           consider_non_terminating_recursions)) {
+        parents.erase(descriptor);
+        return true;
+      }
+    }
     for (int i = 0; i < descriptor->field_count(); ++i) {
       const auto* field = descriptor->field(i);
+      if (field->containing_oneof()) continue;
       const auto* child = field->message_type();
       if (!child) continue;
       if (consider_non_terminating_recursions) {
@@ -1276,6 +1317,7 @@ class ProtobufDomainUntypedImpl
       }
       if (IsProtoRecursive(child, parents, policy,
                            consider_non_terminating_recursions)) {
+        parents.erase(descriptor);
         return true;
       }
     }
