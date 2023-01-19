@@ -1200,9 +1200,17 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   using Camel##type = MakeDependentType<cpp, T>;                               \
   ProtobufDomainImpl&& With##Camel##Field(std::string_view field,              \
                                           Domain<Camel##type> domain)&& {      \
-    inner_.WithField(                                                          \
-        field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
-                   std::move(domain)));                                        \
+    const FieldDescriptor* descriptor = inner_.GetField(field);                \
+    if (descriptor->is_repeated()) {                                           \
+      inner_.WithField(                                                        \
+          field, inner_.template GetOuterDomainForField</*is_repeated=*/true>( \
+                     descriptor, std::move(domain)));                          \
+    } else {                                                                   \
+      inner_.WithField(                                                        \
+          field,                                                               \
+          inner_.template GetOuterDomainForField</*is_repeated=*/false>(       \
+              descriptor, std::move(domain)));                                 \
+    }                                                                          \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldUnset(std::string_view field)&& {     \

@@ -359,9 +359,15 @@ TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, RequiredProtoFieldWillBeSetWhenNullnessIsNotCustomized) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredInt32FieldHasNoValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
-  auto [status, std_out, std_err] =
-      RunWith(GetGTestFilterFlag("MySuite.FailsWhenRequiredFieldHasNoValue"));
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredEnumFieldHasNoValue"));
   EXPECT_THAT(status.Signal(), Eq(SIGABRT));
   EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
 }
