@@ -423,18 +423,24 @@ void FailsIfRepeatedFieldsDontHaveTheMinimumSize(const TestProtobuf& proto) {
                                      proto)) {
     std::abort();
   }
+  if (proto.rep_b_size() < 20) std::abort();
 }
 FUZZ_TEST(MySuite, FailsIfRepeatedFieldsDontHaveTheMinimumSize)
-    .WithDomains(Arbitrary<TestProtobuf>().WithRepeatedFieldsMinSize(10));
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithRepeatedFieldsMinSize(10)
+                     .WithRepeatedFieldMinSize("rep_b", 20));
 
 void FailsIfRepeatedFieldsDontHaveTheMaximumSize(const TestProtobuf& proto) {
   if (!AreRepeatedFieldsSizesCorrect([](int size) { return size <= 10; },
                                      proto)) {
     std::abort();
   }
+  if (proto.rep_b_size() > 5) std::abort();
 }
 FUZZ_TEST(MySuite, FailsIfRepeatedFieldsDontHaveTheMaximumSize)
-    .WithDomains(Arbitrary<TestProtobuf>().WithRepeatedFieldsMaxSize(10));
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithRepeatedFieldsMaxSize(10)
+                     .WithRepeatedFieldMaxSize("rep_b", 5));
 
 fuzztest::Domain<int> IgnoreZero(fuzztest::Domain<int> d) {
   return fuzztest::Filter([](int x) { return x != 0; }, std::move(d));

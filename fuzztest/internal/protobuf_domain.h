@@ -913,6 +913,44 @@ class ProtobufDomainUntypedImpl
     VisitProtobufField(field, WithFieldNullnessVisitor{*this, policy});
   }
 
+  struct WithRepeatedFieldSizeVisitor {
+    ProtobufDomainUntypedImpl& self;
+    std::optional<int64_t> min_size;
+    std::optional<int64_t> max_size;
+
+    template <typename T>
+    auto VisitSingular(const FieldDescriptor* field) {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          false,
+          "Customizing repeated field size is not applicable to non-repeated "
+          "field ",
+          field->name(), ".");
+    }
+
+    template <typename T>
+    auto VisitRepeated(const FieldDescriptor* field) {
+      auto inner_domain =
+          self.GetBaseDomainForFieldType<T>(field, /*use_policy=*/true);
+      auto domain = self.GetOuterDomainForField</*is_repeated=*/true>(
+          field, std::move(inner_domain));
+      if (min_size.has_value()) {
+        domain.WithMinSize(*min_size);
+      }
+      if (max_size.has_value()) {
+        domain.WithMaxSize(*max_size);
+      }
+      self.WithField(field->name(), domain);
+    }
+  };
+
+  void WithRepeatedFieldSize(absl::string_view field_name,
+                             std::optional<int64_t> min_size,
+                             std::optional<int64_t> max_size) {
+    const FieldDescriptor* field = GetField(field_name);
+    VisitProtobufField(field,
+                       WithRepeatedFieldSizeVisitor{*this, min_size, max_size});
+  }
+
   void SetPolicy(ProtoPolicy<Message> policy) {
     CheckIfPolicyCanBeUpdated();
     policy_ = policy;
@@ -1304,6 +1342,25 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 
   ProtobufDomainImpl&& WithFieldAlwaysSet(std::string_view field) && {
     inner_.WithFieldNullness(field, OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldSize(
+      absl::string_view field_name, std::optional<int64_t> min_size,
+      std::optional<int64_t> max_size) && {
+    inner_.WithRepeatedFieldSize(field_name, min_size, max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldMinSize(absl::string_view field_name,
+                                                int64_t min_size) && {
+    inner_.WithRepeatedFieldSize(field_name, min_size, std::nullopt);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldMaxSize(absl::string_view field_name,
+                                                int64_t max_size) && {
+    inner_.WithRepeatedFieldSize(field_name, std::nullopt, max_size);
     return std::move(*this);
   }
 
