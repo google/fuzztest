@@ -379,14 +379,14 @@ class ProtobufDomainUntypedImpl
   static constexpr bool has_custom_corpus_type = true;
 
   explicit ProtobufDomainUntypedImpl(const Message* prototype)
-      : prototype_(prototype), policy_(), are_fields_customized_(false) {}
+      : prototype_(prototype), customized_fields_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other) {
     prototype_ = other.prototype_;
     absl::MutexLock l(&other.mutex_);
     domains_ = other.domains_;
     policy_ = other.policy_;
-    are_fields_customized_ = other.are_fields_customized_;
+    customized_fields_ = other.customized_fields_;
   }
 
   template <typename T>
@@ -427,7 +427,7 @@ class ProtobufDomainUntypedImpl
 
   corpus_type Init(absl::BitGenRef prng) {
     FUZZTEST_INTERNAL_CHECK(
-        are_fields_customized_ || !IsNonTerminatingRecursive(),
+        !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
     corpus_type val;
 
@@ -441,7 +441,7 @@ class ProtobufDomainUntypedImpl
       // initialization will be deterministic, which violates the assumption on
       // domain Init. However, such cases should be extremely rare and breaking
       // the assumption would not have severe consequences.
-      if (!IsRequired(field) && !are_fields_customized_ &&
+      if (!IsRequired(field) && customized_fields_.empty() &&
           IsFieldRecursive(field)) {
         continue;
       }
@@ -860,7 +860,7 @@ class ProtobufDomainUntypedImpl
     auto* field = GetField(field_name);
     VisitProtobufField(
         field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
-    are_fields_customized_ = true;
+    customized_fields_.insert(field->index());
   }
 
   const FieldDescriptor* GetField(std::string_view field_name) const {
@@ -987,7 +987,7 @@ class ProtobufDomainUntypedImpl
  private:
   void CheckIfPolicyCanBeUpdated() const {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !are_fields_customized_,
+        customized_fields_.empty(),
         "All singular modifiers (i.e., .With_Field_()) should come after "
         "plural modifiers (i.e., .With_Fields_()). Consider reordering .With_ "
         "modifiers.");
@@ -1202,7 +1202,7 @@ class ProtobufDomainUntypedImpl
       ABSL_GUARDED_BY(mutex_);
 
   ProtoPolicy<Message> policy_;
-  bool are_fields_customized_;
+  absl::flat_hash_set<int> customized_fields_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.
