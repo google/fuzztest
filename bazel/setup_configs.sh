@@ -28,6 +28,10 @@ build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
 # In fuzz tests, we want to catch assertion violations even in optimized builds.
 build:fuzztest-common --copt=-UNDEBUG
+
+# Enable libc++ assertions.
+# See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
+build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
 "
 
 echo "

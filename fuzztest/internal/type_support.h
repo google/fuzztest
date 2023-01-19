@@ -32,6 +32,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
@@ -453,20 +454,16 @@ struct FlatMappedPrinter {
           // the first field of `corpus_value` is the output value, so skip it
           std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
     });
-    auto value = output_domain.GetValue(std::get<0>(corpus_value));
 
     switch (mode) {
       case PrintMode::kHumanReadable: {
-        // In human readable mode we try and print the user value.
-        AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                mode);
+        // Delegate to the output domain's printer.
+        PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
         break;
       }
       case PrintMode::kSourceCode:
-        if constexpr (!HasFunctionName<FlatMapper>() &&
-                      HasKnownPrinter<decltype(value)>()) {
-          AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
-                                                                  mode);
+        if constexpr (!HasFunctionName<FlatMapper>()) {
+          PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
           break;
         }
 
@@ -526,17 +523,17 @@ struct DurationPrinter {
         } else if (duration == absl::ZeroDuration()) {
           absl::Format(out, "absl::ZeroDuration()");
         } else {
-          uint32_t rep_lo = absl::time_internal::GetRepLo(duration);
-          int64_t rep_hi = absl::time_internal::GetRepHi(duration);
-          if (rep_lo == 0) {
-            absl::Format(out, "absl::Seconds(%d)", rep_hi);
-          } else if (rep_lo % 4 == 0) {
-            absl::Format(out, "absl::Seconds(%d) + absl::Nanoseconds(%u)",
-                         rep_hi, rep_lo / 4);
+          uint32_t ticks = GetTicks(duration);
+          int64_t secs = GetSeconds(duration);
+          if (ticks == 0) {
+            absl::Format(out, "absl::Seconds(%d)", secs);
+          } else if (ticks % 4 == 0) {
+            absl::Format(out, "absl::Seconds(%d) + absl::Nanoseconds(%u)", secs,
+                         ticks / 4);
           } else {
             absl::Format(out,
                          "absl::Seconds(%d) + (absl::Nanoseconds(1) / 4) * %u",
-                         rep_hi, rep_lo);
+                         secs, ticks);
           }
         }
         break;

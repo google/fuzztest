@@ -25,6 +25,7 @@
 #include <optional>
 #include <ostream>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -37,6 +38,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domain.h"
@@ -156,6 +158,22 @@ TYPED_TEST(FloatingTest, Printer) {
                   std::is_same_v<float, TypeParam>    ? "std::nanf(\"\")"
                   : std::is_same_v<double, TypeParam> ? "std::nan(\"\")"
                                                       : "std::nanl(\"\")"));
+
+  // Check round tripping.
+  for (auto v : {TypeParam{0.0013660046866830892},
+                 std::numeric_limits<TypeParam>::epsilon()}) {
+    auto printed_v = TestPrintValue(v);
+    std::stringstream human_v_str;
+    std::stringstream source_code_v_str;
+    human_v_str << absl::StripSuffix(printed_v[0], suffix);
+    source_code_v_str << absl::StripSuffix(printed_v[1], suffix);
+    TypeParam human_v = TypeParam{0};
+    TypeParam source_code_v = TypeParam{0};
+    ASSERT_TRUE(human_v_str >> human_v);
+    ASSERT_TRUE(source_code_v_str >> source_code_v);
+    EXPECT_EQ(v, human_v);
+    EXPECT_EQ(v, source_code_v);
+  }
 }
 
 TEST(StringTest, Printer) {
@@ -248,8 +266,9 @@ TEST(DomainTest, Printer) {
   auto color_domain = ElementOf({kBlue});
   auto print = [&](auto v, auto domain) {
     // We have to create the inner corpus_type of Domain here.
-    return TestPrintValue(
-        typename decltype(domain)::corpus_type(std::in_place, v), domain);
+    return TestPrintValue(typename decltype(domain)::corpus_type(
+                              std::in_place_type<decltype(v)>, v),
+                          domain);
   };
   EXPECT_THAT(print('a', Domain<char>(Arbitrary<char>())),
               ElementsAre("'a' (97)", "'a'"));
@@ -290,13 +309,14 @@ TEST(OptionalTest, Printer) {
 TEST(SmartPointerTest, Printer) {
   EXPECT_THAT(TestPrintValue({}, Arbitrary<std::unique_ptr<int>>()),
               Each("nullptr"));
-  EXPECT_THAT(TestPrintValue(Domain<int>::corpus_type(std::in_place, 7),
-                             Arbitrary<std::unique_ptr<int>>()),
-              ElementsAre("(7)", "std::make_unique<int>(7)"));
   EXPECT_THAT(
-      TestPrintValue(
-          Domain<std::string>::corpus_type(std::in_place, std::string("ABC")),
-          Arbitrary<std::shared_ptr<std::string>>()),
+      TestPrintValue(Domain<int>::corpus_type(std::in_place_type<int>, 7),
+                     Arbitrary<std::unique_ptr<int>>()),
+      ElementsAre("(7)", "std::make_unique<int>(7)"));
+  EXPECT_THAT(
+      TestPrintValue(Domain<std::string>::corpus_type(
+                         std::in_place_type<std::string>, "ABC"),
+                     Arbitrary<std::shared_ptr<std::string>>()),
       ElementsAre(
           R"(("ABC"))",
           MatchesRegex(R"re(std::make_shared<std::.*string.*>\("ABC"\))re")));
@@ -352,6 +372,23 @@ TEST(FlatMapTest, PrinterWithLambda) {
       FlatMap([](int a) { return ValueInRange(a, a + 100); }, Arbitrary<int>());
   decltype(domain)::corpus_type corpus_value = {42, 0};
   EXPECT_THAT(TestPrintValue(corpus_value, domain), Each("42"));
+}
+
+auto VectorWithSize(int size) {
+  return VectorOf(Arbitrary<int>()).WithSize(size);
+}
+
+TEST(FlatMapTest, PrintVector) {
+  auto domain = FlatMap(VectorWithSize, InRange(2, 4));
+  decltype(domain)::corpus_type corpus_value = {{1, 2, 3}, 3};
+
+  EXPECT_THAT(TestPrintValue(corpus_value, domain),
+              ElementsAre("{1, 2, 3}", "VectorWithSize(3)"));
+
+  auto lambda = [](int size) { return VectorWithSize(size); };
+  auto lambda_domain = FlatMap(lambda, InRange(2, 4));
+  EXPECT_THAT(TestPrintValue(corpus_value, lambda_domain),
+              ElementsAre("{1, 2, 3}", "{1, 2, 3}"));
 }
 
 TEST(ConstructorOfTest, Printer) {

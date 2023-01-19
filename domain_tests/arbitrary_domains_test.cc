@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,14 +28,18 @@
 #include <variant>
 #include <vector>
 
+#include "google/protobuf/descriptor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/protobuf_domain.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
@@ -42,8 +47,10 @@
 namespace fuzztest {
 namespace {
 
+using ::google::protobuf::FieldDescriptor;
 using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
@@ -147,22 +154,20 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
 }
 
 struct StatefulIncrementDomain
-    : public internal::DomainBase<StatefulIncrementDomain> {
+    : public internal::DomainBase<StatefulIncrementDomain, int> {
   using value_type = int;
   // Just to make sure we don't mix value_type with corpus_type
   using corpus_type = std::tuple<int>;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     // Minimal code to exercise prng.
     corpus_type result = {absl::Uniform<value_type>(prng, i, i + 1)};
     ++i;
     return result;
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     std::get<0>(val) += absl::Uniform<value_type>(prng, 5, 6) +
                         static_cast<value_type>(only_shrink);
   }
@@ -298,71 +303,180 @@ TEST(ProtocolBuffer,
   EXPECT_EQ(val.user_value.ByteSizeLong(), 0);
 }
 
-// TODO(JunyangShao): Consider split this test into:
-// - OptionalFieldIsEventuallySet
-// - OptionalFieldIsEventuallyUnset
-// - OptionalFieldInSubprotoIsEventuallySet
-// - OptionalFieldInSubprotoIsEventuallyUnset
-// - MinimizationEventuallyProducesMinimalProto
-TEST(ProtocolBuffer, ArbitraryWithRequiredHasAllMutations) {
-  auto domain = Arbitrary<internal::TestProtobufWithRequired>();
-
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallySet) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
   ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
 
-  // Verify that some changes happen
-  enum ThingsToFind {
-    kOptionalEmpty,
-    kOptionalFull,
-    kRequiredSubWithOptionalEmpty,
-    kRequiredSubWithOptionalFull,
-    kOptionalSubWithRequired
-  };
-  absl::flat_hash_set<ThingsToFind> to_find;
-  int i = 0;
-  while (to_find.size() < 5 && ++i < 1000) {
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
-
-    using ValueType = decltype(val.user_value);
-    const ValueType* v = &val.user_value;
-    int depth = 1000;
-    while (--depth > 0) {
-      to_find.insert(v->has_i32() ? kOptionalFull : kOptionalEmpty);
-      if (v->has_req_sub()) {
-        to_find.insert(v->req_sub().has_subproto_i32()
-                           ? kRequiredSubWithOptionalFull
-                           : kRequiredSubWithOptionalEmpty);
-      }
-      if (v->has_sub_req()) {
-        to_find.insert(kOptionalSubWithRequired);
-        v = &v->sub_req();
-      } else {
-        break;
-      }
-    }
+  for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, false);
-  }
-  EXPECT_THAT(to_find, UnorderedElementsAre(kOptionalEmpty, kOptionalFull,
-                                            kRequiredSubWithOptionalEmpty,
-                                            kRequiredSubWithOptionalFull,
-                                            kOptionalSubWithRequired));
-
-  // Test shrinking.
-  // Required fields should never be removed.
-  const auto is_minimal = [&] {
-    auto& v = val.user_value;
-    return !v.has_i32() && v.req_i32() == 0 && v.req_e() == 0 &&
-           !v.req_sub().has_subproto_i32() && !v.has_sub_req();
-  };
-  while (!is_minimal()) {
-    const auto prev = val;
-    val.Mutate(domain, bitgen, true);
     ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_i32()) break;
   }
+
+  EXPECT_TRUE(val.user_value.has_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallyUnset) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
 
   ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  // With the restricted domain, the probability of unsetting the field i32 is
+  // at least 1/800. Hence, within 11000 iterations we'll fail to observe this
+  // event with probability at most 10^(-6).
+  for (int i = 0; i < 11000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (!val.user_value.has_i32()) break;
+  }
+
+  EXPECT_FALSE(val.user_value.has_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields, OptionalFieldInSubprotoIsEventuallySet) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_req_sub() &&
+        val.user_value.req_sub().has_subproto_i32())
+      break;
+  }
+
+  EXPECT_TRUE(val.user_value.has_req_sub() &&
+              val.user_value.req_sub().has_subproto_i32());
+}
+
+TEST(ProtocolBufferWithRequiredFields,
+     OptionalFieldInSubprotoIsEventuallyUnset) {
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
+                    .WithRepeatedFieldsMaxSize(0)
+                    .WithProtobufFieldUnset("sub_req");
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  // With the restricted domain, the probability of unsetting the field
+  // req_sub.subproto_i32 is at least 1/800. Hence, within 11000 iterations
+  // we'll fail to observe this event with probability at most 10^(-6).
+  for (int i = 0; i < 11000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_req_sub() &&
+        !val.user_value.req_sub().has_subproto_i32())
+      break;
+  }
+
+  EXPECT_TRUE(val.user_value.has_req_sub() &&
+              !val.user_value.req_sub().has_subproto_i32());
+}
+
+bool IsTestProtobufWithRequired(const FieldDescriptor* field) {
+  return field->message_type()->full_name() ==
+         "fuzztest.internal.TestProtobufWithRequired";
+}
+
+TEST(ProtocolBufferWithRequiredFields,
+     OptionalFieldWithRequiredFieldsIsEventuallySet) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(0)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    if (val.user_value.has_sub_req()) {
+      ASSERT_TRUE(val.user_value.sub_req().IsInitialized())
+          << val.user_value.DebugString();
+      break;
+    }
+  }
+
+  EXPECT_TRUE(val.user_value.has_sub_req());
+}
+
+TEST(ProtocolBufferWithRequiredFields, MapFieldIsEventuallyPopulated) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(1)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  bool found = false;
+  for (int i = 0; i < 1000 && !found; ++i) {
+    val.Mutate(domain, bitgen, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    for (const auto& pair : val.user_value.map_sub_req()) {
+      found = true;
+      ASSERT_TRUE(pair.second.IsInitialized()) << pair.second.DebugString();
+    }
+  }
+
+  EXPECT_TRUE(found);
+}
+
+TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
+  auto domain =
+      Arbitrary<internal::TestProtobufWithRequired>()
+          .WithRepeatedFieldsMaxSize(1)
+          .WithProtobufFields(IsTestProtobufWithRequired,
+                              Arbitrary<internal::TestProtobufWithRequired>()
+                                  .WithRepeatedFieldsMaxSize(0)
+                                  // Disallow recursive nesting beyond depth 1.
+                                  .WithProtobufFieldUnset("sub_req"));
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, /*only_shrink=*/false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  }
+
+  const auto is_minimal = [](const auto& v) {
+    return !v.has_i32() && v.req_i32() == 0 && v.req_e() == 0 &&
+           !v.req_sub().has_subproto_i32() &&
+           v.req_sub().subproto_rep_i32().empty() && !v.has_sub_req();
+  };
+
+  while (!is_minimal(val.user_value)) {
+    val.Mutate(domain, bitgen, /*only_shrink=*/true);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  }
 }
 
 TEST(ProtocolBuffer, CanUsePerFieldDomains) {
@@ -454,6 +568,38 @@ TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
   auto user_value_after_serialize_parse = domain.GetValue(parsed.value());
   EXPECT_EQ("Hello?!?!", user_value_after_serialize_parse.GetExtension(
                              internal::ProtoExtender::ext));
+}
+
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenOptionalFieldsAreUnset) {
+  using internal::TestProtobuf;
+  Domain<TestProtobuf> test_domain =
+      Arbitrary<TestProtobuf>().WithInt32FieldAlwaysSet("i32", InRange(1, 4));
+
+  Domain<TestProtobuf> generator_domain =
+      Arbitrary<TestProtobuf>().WithInt32FieldUnset("i32");
+
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
+}
+
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenRepeatedFieldsAreUnset) {
+  using internal::TestProtobuf;
+  Domain<TestProtobuf> test_domain =
+      Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
+          "rep_i32", VectorOf(InRange(1, 4)).WithMinSize(1));
+
+  Domain<TestProtobuf> generator_domain =
+      Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
+          "rep_i32", VectorOf(InRange(1, 4)).WithMaxSize(0));
+
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
 }
 
 TEST(ProtocolBufferEnum, Arbitrary) {
@@ -598,22 +744,71 @@ TEST(SequenceContainerMutation, InsertPartAccepts) {
   EXPECT_EQ(to, "aabcbcd");
 }
 
-TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
-  enum class DurationType {
-    kInfinity,
-    kMinusInfinity,
-    kZero,
-    kNegative,
-    kPositive
-  };
+// Note: this test is based on knowledge of internal representation of
+// absl::Duration and will fail if the internal representation changes.
+TEST(ArbitraryDurationTest, ValidatesAssumptionsAboutAbslDurationInternals) {
+  absl::Duration min_positive = absl::Nanoseconds(1) / 4;
+  absl::Duration max = absl::Seconds(std::numeric_limits<int64_t>::max()) +
+                       (absl::Seconds(1) - min_positive);
 
-  absl::BitGen bitgen;
+  EXPECT_NE(absl::ZeroDuration(), min_positive);
+  EXPECT_EQ(absl::ZeroDuration(), (min_positive / 2));
+  EXPECT_NE(absl::InfiniteDuration(), max);
+  EXPECT_EQ(absl::InfiniteDuration(), max + min_positive);
+}
+
+TEST(ArbitraryDurationTest, ValidatesMakeDurationResults) {
+  EXPECT_EQ(internal::MakeDuration(0, 0), absl::ZeroDuration());
+  EXPECT_EQ(internal::MakeDuration(0, 1), absl::Nanoseconds(0.25));
+  EXPECT_EQ(internal::MakeDuration(0, 400'000), absl::Microseconds(100));
+  EXPECT_EQ(internal::MakeDuration(1, 500'000'000), absl::Seconds(1.125));
+  EXPECT_EQ(internal::MakeDuration(-50, 30), absl::Seconds(-49.9999999925));
+  EXPECT_EQ(internal::MakeDuration(-1, 3'999'999'999u),
+            absl::Nanoseconds(-0.25));
+  EXPECT_EQ(internal::MakeDuration(-2, 3'999'999'999u),
+            absl::Seconds(-1.00000000025));
+}
+
+TEST(ArbitraryDurationTest, ValidatesGetSecondsResults) {
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(10, 20)), 10);
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(-50, 30)), -50);
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(
+                std::numeric_limits<int64_t>::min(), 10)),
+            std::numeric_limits<int64_t>::min());
+  EXPECT_EQ(internal::GetSeconds(internal::MakeDuration(
+                std::numeric_limits<int64_t>::max(), 10)),
+            std::numeric_limits<int64_t>::max());
+}
+
+TEST(ArbitraryDurationTest, ValidatesGetTicksResults) {
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(100, 200)), 200);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(-100, 200)), 200);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(
+                std::numeric_limits<int64_t>::min(), 3'999'999'999u)),
+            3'999'999'999u);
+  EXPECT_EQ(internal::GetTicks(internal::MakeDuration(
+                std::numeric_limits<int64_t>::max(), 3'999'999'999u)),
+            3'999'999'999u);
+}
+
+enum class DurationType {
+  kInfinity,
+  kMinusInfinity,
+  kZero,
+  kNegative,
+  kPositive
+};
+
+TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
   absl::flat_hash_set<DurationType> to_find = {
       DurationType::kInfinity, DurationType::kMinusInfinity,
       DurationType::kZero, DurationType::kNegative, DurationType::kPositive};
-  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
-    auto domain = Arbitrary<absl::Duration>();
-    Value val(domain, bitgen);
+  auto domain = Arbitrary<absl::Duration>();
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
     if (val.user_value == absl::InfiniteDuration()) {
       to_find.erase(DurationType::kInfinity);
     } else if (val.user_value == -absl::InfiniteDuration()) {
@@ -630,24 +825,19 @@ TEST(ArbitraryDurationTest, GeneratesAllTypesOfValues) {
 }
 
 uint64_t AbsoluteValueOf(absl::Duration d) {
-  int64_t hi = absl::time_internal::GetRepHi(d);
-  uint32_t lo = absl::time_internal::GetRepLo(d);
-  if (hi == std::numeric_limits<int64_t>::min()) {
-    return static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1 + lo;
+  auto [secs, ticks] = internal::GetSecondsAndTicks(d);
+  if (secs == std::numeric_limits<int64_t>::min()) {
+    return static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1 +
+           ticks;
   }
-  return static_cast<uint64_t>(std::abs(hi)) + lo;
+  return static_cast<uint64_t>(std::abs(secs)) + ticks;
 }
 
 TEST(ArbitraryDurationTest, ShrinksCorrectly) {
-  absl::BitGen bitgen;
   auto domain = Arbitrary<absl::Duration>();
-  absl::flat_hash_set<Value<decltype(domain)>> values;
-  // Failure to generate 1000 non-special values in 10000 rounds is negligible
-  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
-    Value val(domain, bitgen);
-    values.insert(val);
-  }
-  ASSERT_THAT(values, SizeIs(1000));
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
   ASSERT_TRUE(TestShrink(
                   domain, values,
@@ -668,21 +858,52 @@ TEST(ArbitraryDurationTest, ShrinksCorrectly) {
                   .ok());
 }
 
-TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
-  enum class TimeType {
-    kInfinitePast,
-    kInfiniteFuture,
-    kUnixEpoch,
-    kFiniteNonEpoch
-  };
+// Checks that indirect call to Arbitrary<absl::Duration> works.
+TEST(ArbitraryDurationTest, ArbitraryVectorHasAllTypesOfValues) {
+  absl::flat_hash_set<DurationType> to_find = {
+      DurationType::kInfinity, DurationType::kMinusInfinity,
+      DurationType::kZero, DurationType::kNegative, DurationType::kPositive};
+  auto domain = Arbitrary<std::vector<absl::Duration>>();
+  absl::flat_hash_set<Value<decltype(domain)>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
-  absl::BitGen bitgen;
+  for (const auto& val : values) {
+    if (val.user_value.empty()) continue;
+    absl::Duration d = val.user_value[0];
+    if (d == absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kInfinity);
+    } else if (d == -absl::InfiniteDuration()) {
+      to_find.erase(DurationType::kMinusInfinity);
+    } else if (d == absl::ZeroDuration()) {
+      to_find.erase(DurationType::kZero);
+    } else if (d < absl::ZeroDuration()) {
+      to_find.erase(DurationType::kNegative);
+    } else if (d > absl::ZeroDuration()) {
+      to_find.erase(DurationType::kPositive);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+enum class TimeType {
+  kInfinitePast,
+  kInfiniteFuture,
+  kUnixEpoch,
+  kFiniteNonEpoch
+};
+
+TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
   absl::flat_hash_set<TimeType> to_find = {
       TimeType::kInfinitePast, TimeType::kInfiniteFuture, TimeType::kUnixEpoch,
       TimeType::kFiniteNonEpoch};
-  for (int i = 0; i < 1000 && !to_find.empty(); ++i) {
-    auto domain = Arbitrary<absl::Time>();
-    Value val(domain, bitgen);
+  auto domain = Arbitrary<absl::Time>();
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
     if (val.user_value == absl::InfinitePast()) {
       to_find.erase(TimeType::kInfinitePast);
     } else if (val.user_value == absl::InfiniteFuture()) {
@@ -697,14 +918,10 @@ TEST(ArbitraryTimeTest, GeneratesAllTypesOfValues) {
 }
 
 TEST(ArbitraryTimeTest, ShrinksCorrectly) {
-  absl::BitGen bitgen;
   auto domain = Arbitrary<absl::Time>();
-  absl::flat_hash_set<Value<decltype(domain)>> values;
-  for (int i = 0; values.size() < 1000 && i < 10000; ++i) {
-    Value val(domain, bitgen);
-    values.insert(val);
-  }
-  ASSERT_THAT(values, SizeIs(1000));
+  const auto values = GenerateValues(domain,
+                                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
 
   ASSERT_TRUE(TestShrink(
                   domain, values,
@@ -723,6 +940,33 @@ TEST(ArbitraryTimeTest, ShrinksCorrectly) {
                                 AbsoluteValueOf(prev - absl::UnixEpoch()));
                   })
                   .ok());
+}
+
+// Checks that indirect call to Arbitrary<absl::Time> works.
+TEST(ArbitraryTimeTest, ArbitraryVectorHasAllTypesOfValues) {
+  absl::flat_hash_set<TimeType> to_find = {
+      TimeType::kInfinitePast, TimeType::kInfiniteFuture, TimeType::kUnixEpoch,
+      TimeType::kFiniteNonEpoch};
+  auto domain = Arbitrary<std::vector<absl::Time>>();
+  absl::flat_hash_set<Value<decltype(domain)>> values =
+      GenerateValues(domain,
+                     /*num_seeds=*/100, /*num_mutations=*/900);
+  ASSERT_THAT(values, SizeIs(Ge(1000)));
+
+  for (const auto& val : values) {
+    if (val.user_value.empty()) continue;
+    absl::Time t = val.user_value[0];
+    if (t == absl::InfinitePast()) {
+      to_find.erase(TimeType::kInfinitePast);
+    } else if (t == absl::InfiniteFuture()) {
+      to_find.erase(TimeType::kInfiniteFuture);
+    } else if (t == absl::UnixEpoch()) {
+      to_find.erase(TimeType::kUnixEpoch);
+    } else {
+      to_find.erase(TimeType::kFiniteNonEpoch);
+    }
+  }
+  EXPECT_THAT(to_find, IsEmpty());
 }
 
 }  // namespace

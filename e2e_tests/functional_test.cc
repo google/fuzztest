@@ -201,6 +201,21 @@ int CountSubstrs(std::string_view haystack, std::string_view needle) {
   }
 }
 
+RE2 MakeReproducerRegex(absl::string_view suite_name,
+                        absl::string_view test_name, absl::string_view args) {
+  return RE2(
+      absl::Substitute(R"re(TEST\($0, $1.*\) {\n.*$1\(\n.*$2.*\n.*\).*\n})re",
+                       suite_name, test_name, args));
+}
+
+std::string RemoveReproducer(std::string str, absl::string_view suite_name,
+                             absl::string_view test_name,
+                             absl::string_view args) {
+  EXPECT_TRUE(
+      RE2::Replace(&str, MakeReproducerRegex(suite_name, test_name, args), ""));
+  return str;
+}
+
 // Matches strings that contain a reproducer test.
 //
 // For example, `HasReproducerTest("MySuite", "MyTest", "1, \"foo\"")` would
@@ -216,10 +231,8 @@ int CountSubstrs(std::string_view haystack, std::string_view needle) {
 // make sure they are properly escaped!
 MATCHER_P3(HasReproducerTest, suite_name, test_name, args, "") {
   // `ContainsRegex` doesn't support the following regex externally.
-  return RE2::PartialMatch(
-      arg,
-      absl::Substitute(R"re(TEST\($0, $1.*\) {\n.*$1\(\n.*$2.*\n.*\).*\n})re",
-                       suite_name, test_name, args));
+  return RE2::PartialMatch(arg,
+                           MakeReproducerRegex(suite_name, test_name, args));
 }
 
 void GoogleTestExpectationsDontAbortInUnitTestModeImpl(
@@ -346,11 +359,23 @@ TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, RequiredProtoFieldWillBeSetWhenNullnessIsNotCustomized) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredInt32FieldHasNoValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
-  auto [status, std_out, std_err] =
-      RunWith(GetGTestFilterFlag("MySuite.FailsWhenRequiredFieldHasNoValue"));
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenRequiredEnumFieldHasNoValue"));
   EXPECT_THAT(status.Signal(), Eq(SIGABRT));
   EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
+}
+
+TEST(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenOptionalFieldU32HasNoValue"));
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
 }
 
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
@@ -561,6 +586,17 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
       AnyOf(HasSubstr("ERROR: AddressSanitizer: container-overflow"),
             HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow")));
   EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+}
+
+TEST_F(FuzzingModeTest,
+       DereferencingEmptyOptionalTriggersLibcppAssertionsWhenEnabled) {
+#if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_ASSERTIONS)
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.DereferenceEmptyOptional");
+  EXPECT_THAT(std_err,
+              HasSubstr("assertion this->has_value() failed: "
+                        "optional operator* called on a disengaged value"));
+#endif
 }
 
 TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringInFuzzingMode) {

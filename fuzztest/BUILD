@@ -23,6 +23,34 @@ licenses(["notice"])
 exports_files(["LICENSE"])
 
 cc_library(
+    name = "absl_domain",
+    hdrs = ["internal/absl_domain.h"],
+    deps = [
+        ":logging",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "any",
+    hdrs = ["internal/any.h"],
+    deps = [
+        ":logging",
+        ":meta",
+    ],
+)
+
+cc_test(
+    name = "any_test",
+    srcs = ["internal/any_test.cc"],
+    deps = [
+        ":any",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "compatibility_mode",
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
@@ -54,6 +82,7 @@ cc_library(
     hdrs = ["internal/table_of_recent_compares.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
     ],
 )
@@ -79,10 +108,11 @@ cc_library(
         "internal/protobuf_domain.h",
     ],
     deps = [
+        ":absl_domain",
+        ":any",
         ":coverage",
         ":logging",
         ":meta",
-        ":polymorphic_value",
         ":regexp",
         ":serialization",
         ":table_of_recent_compares",
@@ -105,6 +135,7 @@ cc_library(
 
 cc_library(
     name = "fixture_driver",
+    srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
     deps = [
         ":logging",
@@ -213,31 +244,13 @@ cc_library(
 )
 
 cc_library(
-    name = "polymorphic_value",
-    hdrs = ["internal/polymorphic_value.h"],
-    deps = [
-        ":logging",
-        ":meta",
-    ],
-)
-
-cc_test(
-    name = "polymorphic_value_test",
-    srcs = ["internal/polymorphic_value_test.cc"],
-    deps = [
-        ":polymorphic_value",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "regexp",
     srcs = ["internal/regexp.cc"],
     hdrs = ["internal/regexp.h"],
     deps = [
         ":logging",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -279,13 +292,15 @@ cc_library(
         ":io",
         ":logging",
         ":meta",
-        ":polymorphic_value",
         ":registration",
+        ":seed_seq",
         ":serialization",
         ":type_support",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
-        "@com_google_absl//absl/random:seed_sequences",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
@@ -301,6 +316,29 @@ cc_test(
         ":runtime",
         ":test_protobuf_cc_proto",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "seed_seq",
+    srcs = ["internal/seed_seq.cc"],
+    hdrs = ["internal/seed_seq.h"],
+    deps = [
+        ":logging",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "seed_seq_test",
+    srcs = ["internal/seed_seq_test.cc"],
+    deps = [
+        ":seed_seq",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -367,6 +405,7 @@ cc_library(
     srcs = ["internal/type_support.cc"],
     hdrs = ["internal/type_support.h"],
     deps = [
+        ":absl_domain",
         ":meta",
         "@com_google_absl//absl/debugging:symbolize",
         "@com_google_absl//absl/strings",

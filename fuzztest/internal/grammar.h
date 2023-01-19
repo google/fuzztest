@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -92,18 +93,16 @@ IRObject WrapASTIntoIRObject(const ASTNode& astnode, IRObject parsed_child);
 template <ASTTypeId id, const absl::string_view& value>
 class StringLiteralDomain {
  public:
-  template <typename PRNG>
-  static ASTNode Init(PRNG& /*prng*/) {
+  static ASTNode Init(absl::BitGenRef /*prng*/) {
     return ASTNode{id, std::monostate()};
   }
 
-  template <typename PRNG>
-  static ASTNode InitWithBudget(PRNG& /*prng*/, int /*generation_budget*/) {
+  static ASTNode InitWithBudget(absl::BitGenRef /*prng*/,
+                                int /*generation_budget*/) {
     return ASTNode{id, std::monostate()};
   }
 
-  template <typename PRNG>
-  static void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {}
+  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {}
 
   static ASTTypeId TypeId() { return id; }
 
@@ -137,18 +136,16 @@ class StringLiteralDomain {
 template <ASTTypeId id, const absl::string_view& value>
 class RegexLiteralDomain {
  public:
-  template <typename PRNG>
-  static ASTNode Init(PRNG& prng) {
+  static ASTNode Init(absl::BitGenRef prng) {
     return ASTNode{id, GetInnerRegexpDomain().Init(prng)};
   }
 
-  template <typename PRNG>
-  static ASTNode InitWithBudget(PRNG& prng, int /*generation_budget*/) {
+  static ASTNode InitWithBudget(absl::BitGenRef prng,
+                                int /*generation_budget*/) {
     return ASTNode{id, GetInnerRegexpDomain().Init(prng)};
   }
 
-  template <typename PRNG>
-  static void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     GetInnerRegexpDomain().Mutate(std::get<1>(val.children), prng, only_shrink);
   }
 
@@ -219,12 +216,10 @@ inline constexpr int kMaxGenerationNum = 200;
 template <ASTTypeId id, typename ElementT, int min = 0, int max = 10000>
 class VectorDomain {
  public:
-  template <typename PRNG>
-  static ASTNode Init(PRNG& prng) {
+  static ASTNode Init(absl::BitGenRef prng) {
     return InitWithBudget(prng, kMaxGenerationNum);
   }
-  template <typename PRNG>
-  static ASTNode InitWithBudget(PRNG& prng, int generation_budget) {
+  static ASTNode InitWithBudget(absl::BitGenRef prng, int generation_budget) {
     std::vector<ASTNode> children;
     int element_size =
         generation_budget <= 0 ? min : min + absl::Uniform<int>(prng, 0, 2);
@@ -239,8 +234,7 @@ class VectorDomain {
 
   static ASTTypeId TypeId() { return id; }
 
-  template <typename PRNG>
-  static void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     FUZZTEST_INTERNAL_CHECK(val.children.index() == 2, "Not a vector!");
     std::vector<ASTNode>& elements = std::get<2>(val.children);
     if (only_shrink) {
@@ -321,8 +315,8 @@ class VectorDomain {
   }
 
  private:
-  template <typename PRNG>
-  static void ShrinkElements(std::vector<ASTNode>& elements, PRNG& prng) {
+  static void ShrinkElements(std::vector<ASTNode>& elements,
+                             absl::BitGenRef prng) {
     if (elements.empty()) return;
     bool can_remove_element = elements.size() > min;
     bool can_shrink_element = ElementT::IsMutable(elements.back());
@@ -346,8 +340,8 @@ class VectorDomain {
     }
   }
 
-  template <typename PRNG>
-  static void ChangeElementNum(std::vector<ASTNode>& elements, PRNG& prng) {
+  static void ChangeElementNum(std::vector<ASTNode>& elements,
+                               absl::BitGenRef prng) {
     if (elements.size() == min) {
       elements.emplace_back(ElementT::InitWithBudget(prng, kMaxGenerationNum));
     } else if (elements.size() == max) {
@@ -379,21 +373,18 @@ class TupleDomain {
  public:
   static ASTTypeId TypeId() { return id; }
 
-  template <typename PRNG>
-  static ASTNode Init(PRNG& prng) {
+  static ASTNode Init(absl::BitGenRef prng) {
     return InitWithBudget(prng, kMaxGenerationNum);
   }
 
-  template <typename PRNG>
-  static ASTNode InitWithBudget(PRNG& prng, int generation_budget) {
+  static ASTNode InitWithBudget(absl::BitGenRef prng, int generation_budget) {
     return ASTNode{
         id, std::vector<ASTNode>{ElementT::InitWithBudget(
                 prng,
                 generation_budget / static_cast<int>(sizeof...(ElementT)))...}};
   }
 
-  template <typename PRNG>
-  static void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     FUZZTEST_INTERNAL_CHECK(
         val.children.index() == 2 &&
             std::get<2>(val.children).size() == sizeof...(ElementT),
@@ -485,13 +476,11 @@ class VariantDomain {
  public:
   static ASTTypeId TypeId() { return id; }
 
-  template <typename PRNG>
-  static ASTNode Init(PRNG& prng) {
+  static ASTNode Init(absl::BitGenRef prng) {
     return InitWithBudget(prng, kMaxGenerationNum);
   }
 
-  template <typename PRNG>
-  static ASTNode InitWithBudget(PRNG& prng, int generation_budget) {
+  static ASTNode InitWithBudget(absl::BitGenRef prng, int generation_budget) {
     int choice = generation_budget <= 0
                      ? fallback_index
                      : absl::Uniform<int>(prng, 0, (sizeof...(ElementT)));
@@ -504,8 +493,7 @@ class VariantDomain {
     return result;
   }
 
-  template <typename PRNG>
-  static void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     constexpr bool has_alternative = sizeof...(ElementT) > 1;
     ASTNode current_value = std::get<2>(val.children).front();
     ASTTypeId current_value_id = current_value.type_id;
@@ -607,16 +595,15 @@ class VariantDomain {
   }
 
  private:
-  template <typename PRNG>
-  static void MutateCurrentValue(ASTNode& val, PRNG& prng, bool only_shrink) {
+  static void MutateCurrentValue(ASTNode& val, absl::BitGenRef prng,
+                                 bool only_shrink) {
     ASTNode& current_value = std::get<2>(val.children).front();
     ((ElementT::TypeId() == current_value.type_id
           ? (ElementT::Mutate(current_value, prng, only_shrink))
           : (void)0),
      ...);
   }
-  template <typename PRNG>
-  static void SwitchToAlternative(ASTNode& val, PRNG& prng) {
+  static void SwitchToAlternative(ASTNode& val, absl::BitGenRef prng) {
     constexpr int n_alternative = sizeof...(ElementT);
     FUZZTEST_INTERNAL_CHECK(n_alternative > 1, "No alternative to switch!");
     int child_type_id = std::get<2>(val.children).front().type_id;
@@ -647,19 +634,15 @@ void GroupElementByASTType(
     absl::flat_hash_map<ASTTypeId, std::vector<ASTNode*>>& groups);
 
 template <typename TopDomain>
-class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>> {
+class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>, std::string> {
  public:
   using value_type = std::string;
   using corpus_type = ASTNode;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename PRNG>
-  ASTNode Init(PRNG& prng) {
-    return TopDomain::Init(prng);
-  }
+  ASTNode Init(absl::BitGenRef prng) { return TopDomain::Init(prng); }
 
-  template <typename PRNG>
-  void Mutate(ASTNode& val, PRNG& prng, bool only_shrink) {
+  void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink && absl::Bernoulli(prng, 0.5) &&
         ShrinkByReplaceWithSubElementOfSameType(val, prng)) {
       return;
@@ -689,8 +672,8 @@ class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>> {
   }
 
  private:
-  template <typename PRNG>
-  bool ShrinkByReplaceWithSubElementOfSameType(ASTNode& astnode, PRNG& prng) {
+  bool ShrinkByReplaceWithSubElementOfSameType(ASTNode& astnode,
+                                               absl::BitGenRef prng) {
     absl::flat_hash_map<ASTTypeId, std::vector<ASTNode*>> groups;
     GroupElementByASTType(astnode, groups);
     std::vector<ASTTypeId> candidate_types;

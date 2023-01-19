@@ -45,8 +45,7 @@ namespace fuzztest::internal {
 
 #ifndef FUZZTEST_COMPATIBILITY_MODE
 
-template <typename RegBase, typename Fixture, typename TargetFunction>
-class FuzzTestExternalEngineAdaptor<RegBase, Fixture, TargetFunction> {};
+class FuzzTestExternalEngineAdaptor {};
 
 #else
 
@@ -69,117 +68,32 @@ extern "C" int LLVMFuzzerRunDriver(int* argc, char*** argv,
                                    int (*user_callback)(const uint8_t* data,
                                                         size_t size));
 
-template <typename RegBase, typename Fixture, typename BaseFixture,
-          typename... Args>
-class FuzzTestExternalEngineAdaptor<
-    RegBase, Fixture, void (BaseFixture::*)(Args...),
-    std::enable_if_t<std::is_base_of_v<BaseFixture, Fixture> > >
-    : public FuzzTestFuzzer, public ExternalEngineCallback {
+class FuzzTestExternalEngineAdaptor : public FuzzTestFuzzer,
+                                      public ExternalEngineCallback {
  public:
-  using TargetFunction = void (BaseFixture::*)(Args...);
+  using Driver = UntypedFixtureDriver;
 
-  FuzzTestExternalEngineAdaptor(
-      const FuzzTest& test,
-      std::unique_ptr<FixtureDriver<RegBase, Fixture, TargetFunction> >
-          fixture_driver)
-      : test_(test), fixture_driver_staging_(std::move(fixture_driver)) {}
-
-  void RunInUnitTestMode() override {
-    GetFuzzerImpl().RunInUnitTestMode();
-  };
-
-  int RunInFuzzingMode(int* argc, char*** argv) override {
-    FUZZTEST_INTERNAL_CHECK(&LLVMFuzzerRunDriver,
-                            "LibFuzzer Driver API not defined.");
-    FUZZTEST_INTERNAL_CHECK(
-        GetExternalEngineCallback() == nullptr,
-        "External engine callback is already set while running a fuzz test.");
-    SetExternalEngineCallback(this);
-    run_mode = RunMode::kFuzz;
-    auto& impl = GetFuzzerImpl();
-    on_failure.Enable(&impl.stats_, [] { return absl::Now(); });
-
-    FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                            "Invalid fixture driver!");
-    impl.fixture_driver_->SetUpFuzzTest();
-
-    static bool driver_started = false;
-    FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
-    driver_started = true;
-    LLVMFuzzerRunDriver(
-        argc, argv, [](const uint8_t* data, size_t size) -> int {
-          GetExternalEngineCallback()->RunOneInputData(
-              std::string_view(reinterpret_cast<const char*>(data), size));
-          return 0;
-        });
-
-    // If we're here, we didn't exit from RunOneInputData(), and hence we didn't
-    // tear down the fixture.
-    FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                            "Invalid fixture driver!");
-    impl.fixture_driver_->TearDownFuzzTest();
-
-    return 0;
-  }
+  FuzzTestExternalEngineAdaptor(const FuzzTest& test,
+                                std::unique_ptr<Driver> fixture_driver);
+  void RunInUnitTestMode() override;
+  int RunInFuzzingMode(int* argc, char*** argv) override;
 
   // External engine callbacks.
 
-  void RunOneInputData(std::string_view data) override {
-    auto& impl = GetFuzzerImpl();
-    if (impl.ShouldStop()) {
-      FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                              "Invalid fixture driver!");
-      impl.fixture_driver_->TearDownFuzzTest();
-      on_failure.PrintFinalStatsOnDefaultSink();
-      // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
-      std::_Exit(0);
-    }
-    on_failure.SetCurrentTest(&impl.test_);
-    if (auto input = impl.TryParse(data)) {
-      impl.RunOneInput({*std::move(input)});
-    }
-  }
-
+  void RunOneInputData(std::string_view data) override;
   std::string MutateData(std::string_view data, size_t max_size,
-                         unsigned int seed) override {
-    auto& impl = GetFuzzerImpl();
-    typename FuzzerImpl::PRNG prng(seed);
-    auto input = impl.TryParse(data);
-    if (!input) input = impl.params_domain_.Init(prng);
-    constexpr int kNumAttempts = 10;
-    std::string result;
-    for (int i = 0; i < kNumAttempts; ++i) {
-      auto copy = *input;
-      for (int mutations_at_once = absl::Poisson<int>(prng) + 1;
-           mutations_at_once > 0; --mutations_at_once) {
-        impl.params_domain_.Mutate(copy, prng,
-                                   /*only_shrink=*/max_size < data.size());
-      }
-      result = impl.params_domain_.SerializeCorpus(copy).ToString();
-      if (result.size() <= max_size) break;
-    }
-    return result;
-  }
+                         unsigned int seed) override;
 
  private:
-  using FuzzerImpl = FuzzTestFuzzerImpl<RegBase, Fixture, TargetFunction>;
+  using FuzzerImpl = FuzzTestFuzzerImpl;
 
-  FuzzerImpl& GetFuzzerImpl() {
-    // Postpone the creation to override libFuzzer signal setup.
-    if (!fuzzer_impl_) {
-      fuzzer_impl_ = std::make_unique<FuzzerImpl>(
-          test_, std::move(fixture_driver_staging_));
-      fixture_driver_staging_ = nullptr;
-    }
-    return *fuzzer_impl_;
-  }
+  FuzzerImpl& GetFuzzerImpl();
 
   const FuzzTest& test_;
   // Stores the fixture driver before the fuzzer gets instantiated. Once
   // `fuzzer_impl_` is no longer nullptr, `fixture_driver_staging_` becomes
   // nullptr.
-  std::unique_ptr<FixtureDriver<RegBase, Fixture, TargetFunction> >
-      fixture_driver_staging_;
+  std::unique_ptr<Driver> fixture_driver_staging_;
   std::unique_ptr<FuzzerImpl> fuzzer_impl_;
 };
 

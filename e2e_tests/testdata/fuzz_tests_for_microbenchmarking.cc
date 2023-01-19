@@ -26,6 +26,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -69,6 +70,13 @@ void BufferOverreadWithStringAndRvalueStringViewRef(std::string_view&& s) {
 }
 FUZZ_TEST(MySuite, BufferOverreadWithStringAndRvalueStringViewRef)
     .WithDomains(fuzztest::Arbitrary<std::string>());
+
+void DereferenceEmptyOptional(std::optional<int> i) {
+  if (!i.has_value()) {
+    googlefuzz_force_write = *i;
+  }
+}
+FUZZ_TEST(MySuite, DereferenceEmptyOptional);
 
 // Always disable optimization for this example, otherwise (when optimization is
 // enabled) SanCov doesn't instrument all edges (and therefore no feedback).

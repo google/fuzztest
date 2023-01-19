@@ -33,70 +33,70 @@ using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
 struct CallCountFixture {
-  void IncrementCallCount(int* current_call_count) {
-    ++call_count;
-    if (current_call_count != nullptr) {
-      *current_call_count = call_count;
-    }
-  }
-  int call_count = 0;
+  void IncrementCallCount(int n) { call_count += n; }
+  inline static int call_count;
 };
 
 using IncrementCallCountFunc = decltype(&CallCountFixture::IncrementCallCount);
 using CallCountRegBase =
     DefaultRegistrationBase<CallCountFixture, IncrementCallCountFunc>;
 
+template <typename... T>
+MoveOnlyAny MakeArgs(T... t) {
+  return MoveOnlyAny(std::in_place_type<std::tuple<T...>>, std::tuple(t...));
+}
+
 TEST(FixtureDriverTest, PropagatesCallToTargetFunction) {
-  FixtureDriverImpl<CallCountRegBase, CallCountFixture, IncrementCallCountFunc>
-      fixture_driver(Registration<CallCountFixture, IncrementCallCountFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1},
-          &CallCountFixture::IncrementCallCount));
-  int target_function_call_count = 0;
+  FixtureDriverImpl<Domain<std::tuple<int>>, CallCountFixture,
+                    IncrementCallCountFunc>
+      fixture_driver(&CallCountFixture::IncrementCallCount,
+                     Arbitrary<std::tuple<int>>(), {});
+
+  CallCountFixture::call_count = 0;
 
   fixture_driver.SetUpFuzzTest();
   fixture_driver.SetUpIteration();
-  fixture_driver.Test(&target_function_call_count);
+  fixture_driver.Test(MakeArgs(7));
 
-  EXPECT_EQ(target_function_call_count, 1);
+  EXPECT_EQ(CallCountFixture::call_count, 7);
 }
 
 TEST(FixtureDriverTest, ReusesSameFixtureObjectDuringFuzzTest) {
-  FixtureDriverImpl<CallCountRegBase, CallCountFixture, IncrementCallCountFunc>
-      fixture_driver(Registration<CallCountFixture, IncrementCallCountFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1},
-          &CallCountFixture::IncrementCallCount));
-  int target_function_call_count = 0;
+  FixtureDriverImpl<Domain<std::tuple<int>>, CallCountFixture,
+                    IncrementCallCountFunc>
+      fixture_driver(&CallCountFixture::IncrementCallCount,
+                     Arbitrary<std::tuple<int>>(), {});
+
+  CallCountFixture::call_count = 0;
 
   fixture_driver.SetUpFuzzTest();
   fixture_driver.SetUpIteration();
-  fixture_driver.Test(&target_function_call_count);
+  fixture_driver.Test(MakeArgs(3));
   fixture_driver.TearDownIteration();
   fixture_driver.SetUpIteration();
-  fixture_driver.Test(&target_function_call_count);
+  fixture_driver.Test(MakeArgs(3));
   fixture_driver.TearDownIteration();
   fixture_driver.SetUpIteration();
-  fixture_driver.Test(&target_function_call_count);
+  fixture_driver.Test(MakeArgs(4));
 
-  EXPECT_EQ(target_function_call_count, 3);
+  EXPECT_EQ(CallCountFixture::call_count, 10);
 }
 
 struct DerivedCallCountFixture : CallCountFixture {};
 
 TEST(FixtureDriverTest, PropagatesCallToTargetFunctionOnBaseFixture) {
-  using RegBase =
-      DefaultRegistrationBase<DerivedCallCountFixture, IncrementCallCountFunc>;
-  FixtureDriverImpl<RegBase, DerivedCallCountFixture, IncrementCallCountFunc>
-      fixture_driver(
-          Registration<DerivedCallCountFixture, IncrementCallCountFunc>(
-              {"SuiteName", "TestName", "/test/file", /*line=*/1},
-              &DerivedCallCountFixture::IncrementCallCount));
-  int target_function_call_count = 0;
+  FixtureDriverImpl<Domain<std::tuple<int>>, DerivedCallCountFixture,
+                    IncrementCallCountFunc>
+      fixture_driver(&DerivedCallCountFixture::IncrementCallCount,
+                     Arbitrary<std::tuple<int>>(), {});
+
+  CallCountFixture::call_count = 0;
 
   fixture_driver.SetUpFuzzTest();
   fixture_driver.SetUpIteration();
-  fixture_driver.Test(&target_function_call_count);
+  fixture_driver.Test(MakeArgs(3));
 
-  EXPECT_EQ(target_function_call_count, 1);
+  EXPECT_EQ(CallCountFixture::call_count, 3);
 }
 
 struct LifecycleRecordingFixture {
@@ -119,11 +119,10 @@ bool LifecycleRecordingFixture::was_destructed = false;
 
 TEST(FixtureDriverTest, FixtureGoesThroughCompleteLifecycle) {
   using NoOpFunc = decltype(&LifecycleRecordingFixture::NoOp);
-  using RegBase = DefaultRegistrationBase<LifecycleRecordingFixture, NoOpFunc>;
-  FixtureDriverImpl<RegBase, LifecycleRecordingFixture, NoOpFunc>
-      fixture_driver(Registration<LifecycleRecordingFixture, NoOpFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1},
-          &LifecycleRecordingFixture::NoOp));
+  FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingFixture, NoOpFunc>
+      fixture_driver(&LifecycleRecordingFixture::NoOp,
+                     Arbitrary<std::tuple<>>(), {});
+
   LifecycleRecordingFixture::Reset();
 
   ASSERT_TRUE(!LifecycleRecordingFixture::was_constructed &&
@@ -174,13 +173,11 @@ TEST(FixtureDriverTest, PerIterationFixtureGoesThroughCompleteLifecycle) {
   using LifecycleRecordingPerIterationFixture =
       LifecycleRecordingFixtureWithExplicitSetUp<PerIterationFixture>;
   using NoOpFunc = decltype(&LifecycleRecordingPerIterationFixture::NoOp);
-  using RegBase =
-      DefaultRegistrationBase<LifecycleRecordingPerIterationFixture, NoOpFunc>;
-  FixtureDriverImpl<RegBase, LifecycleRecordingPerIterationFixture, NoOpFunc>
-      fixture_driver(
-          Registration<LifecycleRecordingPerIterationFixture, NoOpFunc>(
-              {"SuiteName", "TestName", "/test/file", /*line=*/1},
-              &LifecycleRecordingPerIterationFixture::NoOp));
+  FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingPerIterationFixture,
+                    NoOpFunc>
+      fixture_driver(&LifecycleRecordingPerIterationFixture::NoOp,
+                     Arbitrary<std::tuple<>>(), {});
+
   LifecycleRecordingPerIterationFixture::Reset();
 
   ASSERT_TRUE(!LifecycleRecordingPerIterationFixture::was_constructed &&
@@ -206,13 +203,10 @@ TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
   using LifecycleRecordingPerFuzzTestFixture =
       LifecycleRecordingFixtureWithExplicitSetUp<PerFuzzTestFixture>;
   using NoOpFunc = decltype(&LifecycleRecordingPerFuzzTestFixture::NoOp);
-  using RegBase =
-      DefaultRegistrationBase<LifecycleRecordingPerFuzzTestFixture, NoOpFunc>;
-  FixtureDriverImpl<RegBase, LifecycleRecordingPerFuzzTestFixture, NoOpFunc>
-      fixture_driver(
-          Registration<LifecycleRecordingPerFuzzTestFixture, NoOpFunc>(
-              {"SuiteName", "TestName", "/test/file", /*line=*/1},
-              &LifecycleRecordingPerFuzzTestFixture::NoOp));
+  FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingPerFuzzTestFixture,
+                    NoOpFunc>
+      fixture_driver(&LifecycleRecordingPerFuzzTestFixture::NoOp,
+                     Arbitrary<std::tuple<>>(), {});
   LifecycleRecordingPerFuzzTestFixture::Reset();
 
   ASSERT_TRUE(!LifecycleRecordingPerFuzzTestFixture::was_constructed &&
@@ -235,49 +229,6 @@ TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
 
   EXPECT_TRUE(LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
               LifecycleRecordingPerFuzzTestFixture::was_destructed);
-}
-
-struct IntFixture {
-  void Foo(int) {}
-};
-
-using FooFunc = decltype(&IntFixture::Foo);
-
-TEST(FixtureDriverTest, GetsEmptySeedsFromUnseededRegistration) {
-  using UnseededRegBase = DefaultRegistrationBase<IntFixture, FooFunc>;
-  FixtureDriverImpl<UnseededRegBase, IntFixture, FooFunc> fixture_driver(
-      Registration<IntFixture, FooFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1},
-          &IntFixture::Foo));
-
-  EXPECT_THAT(fixture_driver.GetSeeds(), IsEmpty());
-}
-
-TEST(FixtureDriverTest, PropagatesSeedsFromSeededRegistration) {
-  using SeededRegBase =
-      RegistrationWithSeedsBase<DefaultRegistrationBase<IntFixture, FooFunc>>;
-  FixtureDriverImpl<SeededRegBase, IntFixture, FooFunc> fixture_driver(
-      Registration<IntFixture, FooFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1}, &IntFixture::Foo)
-          .WithSeeds({111, 222})
-          .WithSeeds({333}));
-
-  EXPECT_THAT(
-      fixture_driver.GetSeeds(),
-      UnorderedElementsAre(std::tuple{111}, std::tuple{222}, std::tuple{333}));
-}
-
-TEST(FixtureDriverTest, PropagatesDomainsFromRegistrationWithDomains) {
-  using PositiveInt = decltype(TupleOf(Positive<int>()));
-  using RegBaseWithDomains = RegistrationWithDomainsBase<PositiveInt>;
-  FixtureDriverImpl<RegBaseWithDomains, IntFixture, FooFunc> fixture_driver(
-      Registration<IntFixture, FooFunc>(
-          {"SuiteName", "TestName", "/test/file", /*line=*/1}, &IntFixture::Foo)
-          .WithDomains(Positive<int>()));
-
-  static_assert(
-      std::is_same_v<std::decay_t<decltype(fixture_driver.GetDomains())>,
-                     PositiveInt>);
 }
 
 }  // namespace

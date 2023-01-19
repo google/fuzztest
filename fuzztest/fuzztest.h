@@ -62,17 +62,7 @@ namespace fuzztest {
 //
 // Note: When specifying both the domains and seeds, the domain clause has to
 // be specified first.
-#define FUZZ_TEST(suite_name, func)                                        \
-  template <typename F>                                                    \
-  struct suite_name##_##func##_FuzzTestFixture;                            \
-  template <typename... Args>                                              \
-  struct suite_name##_##func##_FuzzTestFixture<void (*)(Args...)> {        \
-    void Call##func(Args... args) { func(std::move(args)...); }            \
-  };                                                                       \
-  INTERNAL_FUZZ_TEST_F(                                                    \
-      suite_name, func, /*uses_fixture=*/false,                            \
-      suite_name##_##func##_FuzzTestFixture<std::decay_t<decltype(func)>>, \
-      Call##func)
+#define FUZZ_TEST(suite_name, func) INTERNAL_FUZZ_TEST(suite_name, func)
 
 // The FUZZ_TEST_F macro registers a fuzz test that uses a test fixture.
 //
@@ -118,7 +108,7 @@ namespace fuzztest {
 //     .WithSeeds({{5, "Foo"}, {10, "Bar"}});
 //
 #define FUZZ_TEST_F(fixture, func) \
-  INTERNAL_FUZZ_TEST_F(fixture, func, /*uses_fixture=*/true, fixture, func)
+  INTERNAL_FUZZ_TEST_F(fixture, func, fixture, func)
 
 // Returns a list of all registered fuzz test names in the form of
 // "<suite_name>.<property_function_name>", e.g., `MySuite.MyFuzzTest".

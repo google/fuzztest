@@ -34,6 +34,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -109,8 +110,8 @@ struct Value {
   internal::corpus_type_t<Domain> corpus_value;
   T user_value;
 
-  Value(Domain& domain, absl::BitGen& bitgen)
-      : corpus_value(domain.Init(bitgen)),
+  Value(Domain& domain, absl::BitGenRef prng)
+      : corpus_value(domain.Init(prng)),
         user_value(domain.GetValue(corpus_value)) {}
 
   // If the value_type is not copy constructible we have to copy the corpus and
@@ -119,8 +120,8 @@ struct Value {
       : corpus_value(other.corpus_value),
         user_value(domain.GetValue(corpus_value)) {}
 
-  void Mutate(Domain& domain, absl::BitGen& bitgen, bool only_shrink) {
-    domain.Mutate(corpus_value, bitgen, only_shrink);
+  void Mutate(Domain& domain, absl::BitGenRef prng, bool only_shrink) {
+    domain.Mutate(corpus_value, prng, only_shrink);
     user_value = domain.GetValue(corpus_value);
   }
 
@@ -211,7 +212,7 @@ void VerifyRoundTripThroughConversion(const Container& values,
 }
 
 template <typename Domain>
-Value(Domain&, absl::BitGen&) -> Value<Domain>;
+Value(Domain&, absl::BitGenRef) -> Value<Domain>;
 
 template <typename Domain>
 auto GenerateValues(Domain domain, int num_seeds = 10,

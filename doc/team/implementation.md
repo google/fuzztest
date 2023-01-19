@@ -32,25 +32,19 @@ class MyDomain {
     /* set up space of possible values here */
   }
 
-  template <typename PRNG>
-  T Init(PRNG& prng) {}
+  T Init(absl::BitGenRef prng) {}
 
-  template <typename PRNG>
-  void Mutate(T& val, PRNG& prng, bool only_shrink) {}
+  void Mutate(T& val, absl::BitGenRef prng, bool only_shrink) {}
 
  private:
   /* params stored here */
 }
 ```
 
-The `PRNG` type parameter is filled by a uniform random bit generator, such as
-[absl::BitGen](https://abseil.io/docs/cpp/guides/random).
-
 ### Init
 
 ```c++
-template <typename PRNG>
-T Init(PRNG& prng);
+T Init(absl::BitGenRef prng);
 ```
 
 The `Init` method returns an arbitrary value in the domain. This may be, for
@@ -61,8 +55,7 @@ constructor sets up a Domain, and `Init` produces an initial value from it.
 ### Mutate
 
 ```c++
-template <typename PRNG>
-void Mutate(T& val, PRNG& prng, bool only_shrink);
+void Mutate(T& val, absl::BitGenRef prng, bool only_shrink);
 ```
 
 The `Mutate` method makes a small change on an existing value. The `only_shrink`
@@ -103,13 +96,11 @@ class RegexDomain {
 
   MyVectorDomain(std::string regex) : dfa_(DFA::Parse(regex)) {}
 
-  template <typename PRNG>
-  corpus_type Init(PRNG& prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     return dfa_.Generate(prng);
   }
 
-  template <typename PRNG>
-  void Mutate(corpus_type& val, PRNG& prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     dfa_.Mutate(prng, val);
   }
 
