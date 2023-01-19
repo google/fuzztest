@@ -464,6 +464,14 @@ FUZZ_TEST(MySuite,
                      .WithEnumField("e",
                                     fuzztest::Just<int>(TestProtobuf::Label1)));
 
+void FailsWhenOneofFieldDoesntHaveOneofValue(const TestProtobuf& proto) {
+  if (!proto.has_oneof_i32() && !proto.has_oneof_i64()) {
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuit, FailsWhenOneofFieldDoesntHaveOneofValue)
+    .WithDomains(Arbitrary<TestProtobuf>().WithOneofAlwaysSet("oneof_field"));
+
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
   if (e == TestProtobuf::Enum::TestProtobuf_Enum_Label4) {
     std::abort();

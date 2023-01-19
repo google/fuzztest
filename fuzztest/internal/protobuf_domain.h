@@ -431,24 +431,64 @@ class ProtobufDomainUntypedImpl
     }
   };
 
+  template <typename OneofDescriptor>
+  int SelectAFieldIndexInOneof(const OneofDescriptor* oneof,
+                               absl::BitGenRef prng, bool non_recursive_only) {
+    std::vector<int> fields;
+    for (int i = 0; i < oneof->field_count(); ++i) {
+      OptionalPolicy policy = GetOneofFieldPolicy(oneof->field(i));
+      if (policy == OptionalPolicy::kAlwaysNull) continue;
+      if (non_recursive_only && IsFieldRecursive(oneof->field(i))) continue;
+      fields.push_back(i);
+    }
+    if (fields.empty()) {  // This can happen if all fields are unset.
+      return -1;
+    }
+    uint64_t selected =
+        absl::Uniform(absl::IntervalClosedOpen, prng, size_t{0}, fields.size());
+    return oneof->field(fields[selected])->index();
+  }
+
+  void SetOneofFieldsPoliciesToWithoutNullWhereNeeded(
+      const ProtobufDescriptor<Message>* descriptor) {
+    for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
+      auto* oneof = descriptor->oneof_decl(i);
+      if (!always_set_oneofs_.contains(oneof->index())) continue;
+      for (int j = 0; j < oneof->field_count(); ++j) {
+        if (GetOneofFieldPolicy(oneof->field(j)) == OptionalPolicy::kWithNull) {
+          SetOneofFieldPolicy(oneof->field(j), OptionalPolicy::kWithoutNull);
+        }
+      }
+    }
+  }
+
   corpus_type Init(absl::BitGenRef prng) {
     FUZZTEST_INTERNAL_CHECK(
         !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
+    const auto* descriptor = prototype_->GetDescriptor();
+    SetOneofFieldsPoliciesToWithoutNullWhereNeeded(descriptor);
     corpus_type val;
+    absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
-    const auto* descriptor = prototype_->GetDescriptor();
     for (int i = 0; i < descriptor->field_count(); ++i) {
       const auto* field = descriptor->field(i);
-      // We avoid initializing non-required recursive fields by default (if they
-      // are not explicitly customized). Otherwise, the initialization may never
-      // terminate. If a proto has only non-required recursive fields, the
-      // initialization will be deterministic, which violates the assumption on
-      // domain Init. However, such cases should be extremely rare and breaking
-      // the assumption would not have severe consequences.
-      if (!IsRequired(field) && customized_fields_.empty() &&
-          IsFieldRecursive(field)) {
+      if (auto* oneof = field->containing_oneof()) {
+        if (!oneof_to_field.contains(oneof->index())) {
+          oneof_to_field[oneof->index()] = SelectAFieldIndexInOneof(
+              oneof, prng,
+              /*non_recursive_only=*/customized_fields_.empty());
+        }
+        if (oneof_to_field[oneof->index()] != field->index()) continue;
+      } else if (!IsRequired(field) && customized_fields_.empty() &&
+                 IsFieldRecursive(field)) {
+        // We avoid initializing non-required recursive fields by default (if
+        // they are not explicitly customized). Otherwise, the initialization
+        // may never terminate. If a proto has only non-required recursive
+        // fields, the initialization will be deterministic, which violates the
+        // assumption on domain Init. However, such cases should be extremely
+        // rare and breaking the assumption would not have severe consequences.
         continue;
       }
       VisitProtobufField(field, InitializeVisitor{prng, *this, val});
@@ -531,6 +571,10 @@ class ProtobufDomainUntypedImpl
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
       FieldDescriptor* field = descriptor->field(i);
+      if (field->containing_oneof() &&
+          GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
+        continue;
+      }
       ++total_weight;
 
       if (field->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
@@ -559,6 +603,10 @@ class ProtobufDomainUntypedImpl
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
       FieldDescriptor* field = descriptor->field(i);
+      if (field->containing_oneof() &&
+          GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
+        continue;
+      }
       ++field_counter;
       if (field_counter == selected_field_index) {
         VisitProtobufField(field, MutateVisitor{prng, only_shrink, *this, val});
@@ -875,10 +923,31 @@ class ProtobufDomainUntypedImpl
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !field->containing_oneof(),
-        "Customizing the domain for oneof fields is not supported yet.");
     return field;
+  }
+
+  void WithOneofField(absl::string_view field_name, OptionalPolicy policy) {
+    const FieldDescriptor* field = GetField(field_name);
+    if (!field->containing_oneof()) return;
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(policy != OptionalPolicy::kWithoutNull,
+                                         "Cannot always set oneof field ",
+                                         field_name,
+                                         " (try using WithOneofAlwaysSet).");
+    if (policy == OptionalPolicy::kAlwaysNull) {
+      SetOneofFieldPolicy(field, policy);
+    }
+  }
+
+  void WithOneofAlwaysSet(absl::string_view oneof_name) {
+    auto* oneof =
+        prototype_->GetDescriptor()->FindOneofByName(std::string(oneof_name));
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(oneof != nullptr,
+                                         "Invalid oneof name '",
+                                         std::string(oneof_name), "'.");
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !always_set_oneofs_.contains(oneof->index()), "oneof '",
+        std::string(oneof_name), "' is AlwaysSet before.");
+    always_set_oneofs_.insert(oneof->index());
   }
 
   bool IsOneofAlwaysSet(int oneof_index) {
@@ -920,6 +989,7 @@ class ProtobufDomainUntypedImpl
 
   void WithFieldNullness(absl::string_view field_name, OptionalPolicy policy) {
     const FieldDescriptor* field = GetField(field_name);
+    WithOneofField(field_name, policy);
     VisitProtobufField(field, WithFieldNullnessVisitor{*this, policy});
   }
 
@@ -1393,6 +1463,11 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
+  ProtobufDomainImpl&& WithOneofAlwaysSet(absl::string_view oneof_name) && {
+    inner_.WithOneofAlwaysSet(oneof_name);
+    return std::move(*this);
+  }
+
 #define FUZZTEST_INTERNAL_WITH_FIELD(Camel, cpp, TAG)                          \
   using Camel##type = MakeDependentType<cpp, T>;                               \
   ProtobufDomainImpl&& With##Camel##Field(std::string_view field,              \
@@ -1413,6 +1488,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ProtobufDomainImpl&& With##Camel##FieldUnset(std::string_view field)&& {     \
     auto default_domain =                                                      \
         inner_.template GetFieldTypeDefaultDomain<TAG>(field);                 \
+    inner_.WithOneofField(field, OptionalPolicy::kAlwaysNull);                 \
     inner_.WithField(                                                          \
         field,                                                                 \
         OptionalOfImpl<std::optional<Camel##type>, decltype(default_domain)>(  \
@@ -1422,6 +1498,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(                            \
       std::string_view field, Domain<Camel##type> domain)&& {                  \
+    inner_.WithOneofField(field, OptionalPolicy::kWithoutNull);                \
     inner_.WithField(                                                          \
         field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
                    std::move(domain))                                          \
@@ -1435,6 +1512,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ProtobufDomainImpl&& WithOptional##Camel##Field(                             \
       std::string_view field,                                                  \
       Domain<MakeDependentType<std::optional<cpp>, T>> domain)&& {             \
+    FailIfIsOneof(field);                                                      \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
   }                                                                            \
@@ -1529,6 +1607,13 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 #undef FUZZTEST_INTERNAL_WITH_FIELD
 
  private:
+  void FailIfIsOneof(absl::string_view field) {
+    const FieldDescriptor* descriptor = inner_.GetField(field);
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !descriptor->containing_oneof(), "Cannot customize oneof field ", field,
+        " with WithOptional<Type>Field (try using "
+        "WithOneofAlwaysSet or WithOptional<Type>Unset).");
+  }
   Inner inner_{&T::default_instance()};
 };
 

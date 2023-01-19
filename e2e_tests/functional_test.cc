@@ -564,6 +564,12 @@ TEST(UnitTestModeTest, PoliciesApplyToFieldsInOrder) {
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 
+TEST(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenOneofFieldDoesntHaveOneofValue"));
+  EXPECT_THAT(status.ExitCode(), Eq(0));
+}
+
 // The following tests are on "fuzzing mode" functionality, and can only run
 // with coverage instrumentation enabled.
 class FuzzingModeTest : public ::testing::Test {
