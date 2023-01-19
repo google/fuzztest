@@ -163,20 +163,41 @@ FUZZ_TEST(MySuite, FailsWhenFieldDoubleHasNoValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithDoubleFieldAlwaysSet(
         "d", InRange(0., 1000.)));
 
-void FailsWhenFieldI64OrRepeatedI64HaveValues(const TestProtobuf& proto) {
+bool IsUInt32(const FieldDescriptor* field) {
+  return field->type() == FieldDescriptor::TYPE_UINT32;
+}
+bool IsUInt64(const FieldDescriptor* field) {
+  return field->type() == FieldDescriptor::TYPE_UINT64;
+}
+void FailsWhen64IntegralFieldsHaveValues(const TestProtobuf& proto) {
   if (proto.has_i64()) std::abort();
   if (proto.rep_i64_size() > 0) std::abort();
+  if (proto.has_u64()) std::abort();
+  if (proto.rep_u64_size() > 0) std::abort();
+  if (proto.has_u32()) std::abort();
+  if (proto.rep_u32_size() > 0) std::abort();
 }
-FUZZ_TEST(MySuite, FailsWhenFieldI64OrRepeatedI64HaveValues)
-    .WithDomains(Arbitrary<TestProtobuf>().WithFieldUnset("i64").WithFieldUnset(
-        "rep_i64"));
+FUZZ_TEST(MySuite, FailsWhen64IntegralFieldsHaveValues)
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithFieldsUnset(IsUInt32)
+                     .WithOptionalFieldsUnset(IsUInt64)
+                     .WithRepeatedFieldsUnset(IsUInt64)
+                     .WithFieldUnset("i64")
+                     .WithFieldUnset("rep_i64"));
 
-void FailsWhenFieldI64OrRepeatedI64HaveNoValues(const TestProtobuf& proto) {
+void FailsWhen64IntegralFieldsHaveNoValues(const TestProtobuf& proto) {
   if (!proto.has_i64()) std::abort();
   if (proto.rep_i64_size() == 0) std::abort();
+  if (!proto.has_u64()) std::abort();
+  if (proto.rep_u64_size() == 0) std::abort();
+  if (!proto.has_u32()) std::abort();
+  if (proto.rep_u32_size() == 0) std::abort();
 }
-FUZZ_TEST(MySuite, FailsWhenFieldI64OrRepeatedI64HaveNoValues)
+FUZZ_TEST(MySuite, FailsWhen64IntegralFieldsHaveNoValues)
     .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithFieldsAlwaysSet(IsUInt32)
+                     .WithOptionalFieldsAlwaysSet(IsUInt64)
+                     .WithRepeatedFieldsAlwaysSet(IsUInt64)
                      .WithFieldAlwaysSet("i64")
                      .WithFieldAlwaysSet("rep_i64"));
 

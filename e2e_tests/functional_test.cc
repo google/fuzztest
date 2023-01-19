@@ -348,7 +348,7 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsUnsetNeverHasValue) {
 
 TEST(UnitTestModeTest, ProtoFieldsThatAreUnsetNeverHaveValue) {
   auto [status, std_out, std_err] = RunWith(
-      GetGTestFilterFlag("MySuite.FailsWhenFieldI64OrRepeatedI64HaveValues"));
+      GetGTestFilterFlag("MySuite.FailsWhen64IntegralFieldsHaveValues"));
   EXPECT_THAT(status.ExitCode(), Eq(0));
 }
 

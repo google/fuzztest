@@ -228,6 +228,13 @@ class ProtoPolicy {
   }
 
   void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+    if (optional_policy == OptionalPolicy::kAlwaysNull) {
+      max_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
+    } else if (optional_policy == OptionalPolicy::kWithoutNull) {
+      min_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 1});
+    }
     optional_policies_.push_back(
         {.filter = std::move(filter), .value = optional_policy});
   }
@@ -1214,7 +1221,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 
   ProtobufDomainImpl&& Self() && { return std::move(*this); }
 
-  ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
+  ProtobufDomainImpl&& WithFieldsAlwaysSet(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
     inner_.GetPolicy().SetOptionalPolicy(std::move(filter),
@@ -1222,11 +1229,47 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
-  ProtobufDomainImpl&& WithOptionalFieldsUnset(
+  ProtobufDomainImpl&& WithFieldsUnset(
       std::function<bool(const FieldDescriptor*)> filter =
           IncludeAll<FieldDescriptor>()) && {
     inner_.GetPolicy().SetOptionalPolicy(std::move(filter),
                                          OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithOptionalFieldsAlwaysSet(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithOptionalFieldsUnset(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsOptional<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kAlwaysNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsAlwaysSet(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kWithoutNull);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsUnset(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetOptionalPolicy(
+        And(IsRepeated<FieldDescriptor>(), std::move(filter)),
+        OptionalPolicy::kAlwaysNull);
     return std::move(*this);
   }
 
