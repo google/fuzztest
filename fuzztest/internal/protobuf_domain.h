@@ -934,8 +934,8 @@ class ProtobufDomainUntypedImpl
     const FieldDescriptor* field = GetField(field_name);
     if (!field->containing_oneof()) return;
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        policy != OptionalPolicy::kWithoutNull &&
-            field->containing_oneof()->field_count() > 1,
+        policy != OptionalPolicy::kWithoutNull ||
+            field->containing_oneof()->field_count() <= 1,
         "Cannot always set oneof field ", field_name,
         " (try using WithOneofAlwaysSet).");
     if (policy == OptionalPolicy::kAlwaysNull) {
