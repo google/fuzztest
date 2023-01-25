@@ -450,7 +450,7 @@ class ProtobufDomainUntypedImpl
     }
     uint64_t selected =
         absl::Uniform(absl::IntervalClosedOpen, prng, size_t{0}, fields.size());
-    return oneof->field(fields[selected])->index();
+    return fields[selected];
   }
 
   void SetOneofFieldsPoliciesToWithoutNullWhereNeeded(
@@ -484,7 +484,10 @@ class ProtobufDomainUntypedImpl
               oneof, prng,
               /*non_recursive_only=*/customized_fields_.empty());
         }
-        if (oneof_to_field[oneof->index()] != field->index()) continue;
+        if (oneof->field(oneof_to_field[oneof->index()])->index() !=
+            field->index()) {
+          continue;
+        }
       } else if (!IsRequired(field) && customized_fields_.empty() &&
                  IsFieldRecursive(field)) {
         // We avoid initializing non-required recursive fields by default (if
