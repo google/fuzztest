@@ -51,9 +51,9 @@ implemented. The inner elements will be created and mutated via the
 std::string>>()` or the `Arbitrary<std::variant<int, std::string>>()` domain
 will use `Arbitrary<int>()` and `Arbitrary<std::string>()` as sub-domains.
 
-User defined structs must support aggregate initialization
-(https://en.cppreference.com/w/cpp/language/aggregate_initialization), must have
-only public members and no more than 64 fields.
+User defined structs must support
+[aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization),
+must have only public members and no more than 64 fields.
 
 Recall that `Arbitrary` is the default input domain, which means that you can
 fuzz a function like below without a `.WithDomains()` clause:
