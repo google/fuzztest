@@ -406,7 +406,6 @@ class ProtobufDomainUntypedImpl
                                    corpus_type& val) {
     auto& domain = self.GetSubDomain<T, false>(field);
     val[field->number()] = domain.Init(prng);
-
     if (auto* oneof = field->containing_oneof()) {
       // Clear the other parts of the oneof. They are unnecessary to
       // have and mutating them would have no effect.
@@ -1249,10 +1248,10 @@ class ProtobufDomainUntypedImpl
                             /*consider_non_terminating_recursions=*/false);
   }
 
-  static bool IsOneofRecursive(const OneofDescriptor* oneof,
-                               absl::flat_hash_set<const Descriptor*>& parents,
-                               const ProtoPolicy<Message>& policy,
-                               bool consider_non_terminating_recursions) {
+  bool IsOneofRecursive(const OneofDescriptor* oneof,
+                        absl::flat_hash_set<const Descriptor*>& parents,
+                        const ProtoPolicy<Message>& policy,
+                        bool consider_non_terminating_recursions) const {
     bool is_oneof_recursive = false;
     for (int i = 0; i < oneof->field_count(); ++i) {
       const auto* field = oneof->field(i);
@@ -1278,10 +1277,10 @@ class ProtobufDomainUntypedImpl
   }
 
   template <typename Descriptor>
-  static bool IsProtoRecursive(const Descriptor* descriptor,
-                               absl::flat_hash_set<const Descriptor*>& parents,
-                               const ProtoPolicy<Message>& policy,
-                               bool consider_non_terminating_recursions) {
+  bool IsProtoRecursive(const Descriptor* descriptor,
+                        absl::flat_hash_set<const Descriptor*>& parents,
+                        const ProtoPolicy<Message>& policy,
+                        bool consider_non_terminating_recursions) const {
     if (parents.contains(descriptor)) return true;
     parents.insert(descriptor);
     for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
@@ -1326,7 +1325,11 @@ class ProtobufDomainUntypedImpl
     return false;
   }
 
-  static bool IsRequired(const FieldDescriptor* field) {
+  bool IsRequired(const FieldDescriptor* field) const {
+    if (field->containing_oneof() &&
+        GetOneofFieldPolicy(field) == OptionalPolicy::kWithoutNull) {
+      return true;
+    }
     return field->is_required() || IsMapValueMessage(field);
   }
 

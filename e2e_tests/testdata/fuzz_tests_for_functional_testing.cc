@@ -481,7 +481,7 @@ void FailsWhenOneofFieldDoesntHaveOneofValue(const TestProtobuf& proto) {
     std::abort();
   }
 }
-FUZZ_TEST(MySuit, FailsWhenOneofFieldDoesntHaveOneofValue)
+FUZZ_TEST(MySuite, FailsWhenOneofFieldDoesntHaveOneofValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithOneofAlwaysSet("oneof_field"));
 
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
