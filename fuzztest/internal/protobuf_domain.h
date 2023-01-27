@@ -387,6 +387,7 @@ class ProtobufDomainUntypedImpl
         policy_(),
         customized_fields_(),
         always_set_oneofs_(),
+        uncustomizable_oneofs_(),
         oneof_fields_policies_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other) {
@@ -396,6 +397,7 @@ class ProtobufDomainUntypedImpl
     policy_ = other.policy_;
     customized_fields_ = other.customized_fields_;
     always_set_oneofs_ = other.always_set_oneofs_;
+    uncustomizable_oneofs_ = other.uncustomizable_oneofs_;
     oneof_fields_policies_ = other.oneof_fields_policies_;
   }
 
@@ -942,15 +944,29 @@ class ProtobufDomainUntypedImpl
     }
   }
 
+  void WithOneofFieldWithoutNullnessConfiguration(
+      absl::string_view field_name) {
+    const FieldDescriptor* field = GetField(field_name);
+    auto* oneof = field->containing_oneof();
+    if (!oneof) return;
+    uncustomizable_oneofs_.insert(oneof->index());
+    if (always_set_oneofs_.contains(oneof->index())) {
+      SetOneofFieldPolicy(field, OptionalPolicy::kWithoutNull);
+    }
+  }
+
   void WithOneofAlwaysSet(absl::string_view oneof_name) {
-    auto* oneof =
-        prototype_->GetDescriptor()->FindOneofByName(std::string(oneof_name));
+    const std::string name(oneof_name);
+    auto* oneof = prototype_->GetDescriptor()->FindOneofByName(name);
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(oneof != nullptr,
-                                         "Invalid oneof name '",
-                                         std::string(oneof_name), "'.");
+                                         "Invalid oneof name '", name, "'.");
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !always_set_oneofs_.contains(oneof->index()), "oneof '",
-        std::string(oneof_name), "' is AlwaysSet before.");
+        !always_set_oneofs_.contains(oneof->index()), "oneof '", name,
+        "' is AlwaysSet before.");
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !uncustomizable_oneofs_.contains(oneof->index()),
+        "WithOneofAlwaysSet(\"", name,
+        "\") should be called before customizing sub-fields.");
     always_set_oneofs_.insert(oneof->index());
   }
 
@@ -1347,6 +1363,7 @@ class ProtobufDomainUntypedImpl
   ProtoPolicy<Message> policy_;
   absl::flat_hash_set<int> customized_fields_;
   absl::flat_hash_set<int> always_set_oneofs_;
+  absl::flat_hash_set<int> uncustomizable_oneofs_;
   absl::flat_hash_map<int, OptionalPolicy> oneof_fields_policies_;
 };
 
@@ -1524,6 +1541,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
           field, inner_.template GetOuterDomainForField</*is_repeated=*/true>( \
                      descriptor, std::move(domain)));                          \
     } else {                                                                   \
+      inner_.WithOneofFieldWithoutNullnessConfiguration(field);                \
       inner_.WithField(                                                        \
           field,                                                               \
           inner_.template GetOuterDomainForField</*is_repeated=*/false>(       \

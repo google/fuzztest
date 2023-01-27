@@ -622,25 +622,25 @@ TEST(ProtocolBuffer, CountNumberOfFieldsCorrect) {
   T v;
   auto corpus_v_uninitialized = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_uninitialized != std::nullopt);
-  EXPECT_EQ(domain.CountNumberOfFields(corpus_v_uninitialized.value()), 25);
+  EXPECT_EQ(domain.CountNumberOfFields(corpus_v_uninitialized.value()), 26);
   v.set_allocated_subproto(new SubT());
   auto corpus_v_initizalize_one_optional_proto = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_optional_proto != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_optional_proto.value()),
-            27);
+            28);
   v.add_rep_subproto();
   auto corpus_v_initizalize_one_repeated_proto_1 = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_repeated_proto_1 != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_repeated_proto_1.value()),
-            29);
+            30);
   v.add_rep_subproto();
   auto corpus_v_initizalize_one_repeated_proto_2 = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_repeated_proto_2 != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_repeated_proto_2.value()),
-            31);
+            32);
 }
 
 TEST(SequenceContainerMutation, CopyPartRejects) {

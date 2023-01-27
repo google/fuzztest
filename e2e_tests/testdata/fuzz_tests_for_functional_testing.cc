@@ -480,9 +480,15 @@ void FailsWhenOneofFieldDoesntHaveOneofValue(const TestProtobuf& proto) {
   if (!proto.has_oneof_i32() && !proto.has_oneof_i64()) {
     std::abort();
   }
+  if (proto.has_oneof_i64() && proto.oneof_i64() != 1) {
+    std::abort();
+  }
 }
 FUZZ_TEST(MySuite, FailsWhenOneofFieldDoesntHaveOneofValue)
-    .WithDomains(Arbitrary<TestProtobuf>().WithOneofAlwaysSet("oneof_field"));
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithOneofAlwaysSet("oneof_field")
+                     .WithFieldUnset("oneof_u32")
+                     .WithInt64Field("oneof_i64", fuzztest::Just(1l)));
 
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
   if (e == TestProtobuf::Enum::TestProtobuf_Enum_Label4) {
