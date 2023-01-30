@@ -145,3 +145,27 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes)
 
 NOTE: You can't use functions like `file::GetTextProto(...)` because the code in
 `WithSeeds(...)` runs prior to `InitGoogle`.
+
+## The FUZZ_TEST_F macro
+
+When integrating into a fuzzer that uses test fixtures instead of functions, you can use FUZZ_TEST_F as in the following example.
+
+```c++
+class FooFuzzTest {
+  public:
+    FooFuzzTest() { foo_.SetUp(); }
+    ~FooFuzzTest() { foo_.TearDown(); }
+
+    void CallingFooBarNeverCrashes(int x, const std::string& s) {
+      bool result = foo_.Bar(x, s);
+      ASSERT_TRUE(result);
+    }
+
+  private:
+    Foo foo_;
+};
+FUZZ_TEST_F(FooFuzzTest, CallingFooBarNeverCrashes)
+  .WithDomains(/*x:*/fuzztest::Positive<int>(),
+    /*s:*/fuzztest::AsciiString())
+  .WithSeeds({{5, "Foo"}, {10, "Bar"}});
+```
