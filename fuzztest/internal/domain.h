@@ -104,6 +104,10 @@ class UntypedDomainInterface {
       const GenericDomainCorpusType& val, absl::FormatRawSink out,
       internal::PrintMode mode,
       std::optional<int> tuple_elem = std::nullopt) const = 0;
+
+  // Returns true if the corpus value should be serialized directly as a string
+  // instead of in the FuzzTest format.
+  virtual bool IsDirectlySerializable() const = 0;
 };
 
 // A typed subinterface that provides the methods to handle `value_type`
@@ -194,6 +198,10 @@ class DomainBase : public TypedDomainInterface<ValueType> {
         v.template GetAs<corpus_type_t<Derived>>());
   }
 
+  bool IsDirectlySerializable() const final {
+    return Derived::is_directly_serializable;
+  }
+
   uint64_t UntypedCountNumberOfFields(const GenericDomainCorpusType& v) final {
     return derived().CountNumberOfFields(v.GetAs<corpus_type_t<Derived>>());
   }
@@ -255,6 +263,10 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   }
 
   static constexpr bool has_custom_corpus_type = false;
+
+  // Indicates that the corpus value can be serialized directly as a string,
+  // without using the intermediate serialization format.
+  static constexpr bool is_directly_serializable = false;
 
  private:
   Derived& derived() { return static_cast<Derived&>(*this); }
@@ -718,6 +730,11 @@ template <typename... Domain>
 auto SerializeWithDomainTuple(
     const std::tuple<Domain...>& domains,
     const std::tuple<corpus_type_t<Domain>...>& corpus) {
+  // Flatten singleton tuples to enable direct serialization of
+  // directly-serializable domains nested in singleton tuples.
+  if constexpr (sizeof...(Domain) == 1) {
+    return std::get<0>(domains).SerializeCorpus(std::get<0>(corpus));
+  }
   IRObject obj;
   auto& subs = obj.MutableSubs();
   ApplyIndex<sizeof...(Domain)>([&](auto... I) {
@@ -731,16 +748,25 @@ auto SerializeWithDomainTuple(
 template <typename... Domain>
 std::optional<std::tuple<corpus_type_t<Domain>...>> ParseWithDomainTuple(
     const std::tuple<Domain...>& domains, const IRObject& obj, int skip = 0) {
+  auto parse_subs = [&](absl::Span<const IRObject> subs) {
+    return ApplyIndex<sizeof...(Domain)>([&](auto... I) {
+      return [](auto... opts) {
+        return (!opts || ...)
+                   ? std::nullopt
+                   : std::optional(std::tuple<corpus_type_t<Domain>...>{
+                         *std::move(opts)...});
+      }(std::get<I>(domains).ParseCorpus((subs)[I + skip])...);
+    });
+  };
+  // Reverse the flattening of singleton tuples done by
+  // SerializeWithDomainTuple() by treating `obj` as a subobject, thus
+  // effectively wrapping the parsed result in a tuple.
+  if (sizeof...(Domain) == 1 && skip == 0) {
+    return parse_subs({obj});
+  }
   auto subs = obj.Subs();
   if (!subs || subs->size() != sizeof...(Domain) + skip) return std::nullopt;
-  return ApplyIndex<sizeof...(Domain)>([&](auto... I) {
-    return [](auto... opts) {
-      return (!opts || ...)
-                 ? std::nullopt
-                 : std::optional(std::tuple<corpus_type_t<Domain>...>{
-                       *std::move(opts)...});
-    }(std::get<I>(domains).ParseCorpus((*subs)[I + skip])...);
-  });
+  return parse_subs(*subs);
 }
 
 template <typename T, typename = void>
@@ -950,6 +976,9 @@ class ContainerOfImplBase : public DomainBase<Derived> {
       InnerDomainT::has_custom_corpus_type;
   // `corpus_type` might be immutable (eg std::pair<const int, int> for maps
   // inner domain). We store them in a std::list to allow for this.
+  using corpus_type =
+      std::conditional_t<has_custom_corpus_type,
+                         std::list<corpus_type_t<InnerDomainT>>, value_type>;
 
   // Some container mutation only applies to vector or string types which do
   // not have a custom corpus type.
@@ -957,16 +986,21 @@ class ContainerOfImplBase : public DomainBase<Derived> {
       !has_custom_corpus_type &&
       (is_vector_v<value_type> || std::is_same_v<value_type, std::string>);
 
+  static constexpr bool is_vector_of_uint8_or_char =
+      !has_custom_corpus_type && is_vector_v<value_type> &&
+      (std::is_same_v<ExtractTemplateParameter<0, value_type>, uint8_t> ||
+       std::is_same_v<ExtractTemplateParameter<0, value_type>, char>);
+
+  static constexpr bool is_directly_serializable =
+      !has_custom_corpus_type &&
+      (is_vector_of_uint8_or_char || std::is_same_v<value_type, std::string>);
+
   // The current implementation of container dictionary only supports
   // vector or string container value_type, whose InnerDomain is
   // an `ArbitraryImpl<T2>` where T2 is an integral type.
   static constexpr bool container_has_memory_dict =
       is_memory_dictionary_compatible<InnerDomainT>::value &&
       is_vector_or_string;
-
-  using corpus_type =
-      std::conditional_t<has_custom_corpus_type,
-                         std::list<corpus_type_t<InnerDomainT>>, value_type>;
 
   // If `!container_has_memory_dict`, dict_type is a bool and dict
   // is not used. This conditional_t may be neccessary because some
@@ -1169,6 +1203,8 @@ class ContainerOfImplBase : public DomainBase<Derived> {
         subs.push_back(inner_.SerializeCorpus(elem));
       }
       return obj;
+    } else if constexpr (is_vector_of_uint8_or_char) {
+      return IRObject::FromCorpus(std::string{v.begin(), v.end()});
     } else {
       return IRObject::FromCorpus(v);
     }
@@ -1224,6 +1260,10 @@ class ContainerOfImplBase : public DomainBase<Derived> {
         }
       }
       return res;
+    } else if constexpr (is_vector_of_uint8_or_char) {
+      std::optional<std::string> str = obj.ToCorpus<std::string>();
+      if (!str.has_value()) return std::nullopt;
+      return corpus_type{str->begin(), str->end()};
     } else {
       return obj.ToCorpus<corpus_type>();
     }
@@ -2029,6 +2069,14 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
 
 enum class RequireCustomCorpusType { kNo, kYes };
 
+// Helper to determine whether the first domain is directly serializable.
+template <typename... Domains>
+inline constexpr bool first_is_directly_serializable = false;
+
+template <typename Domain, typename... Domains>
+inline constexpr bool first_is_directly_serializable<Domain, Domains...> =
+    Domain::is_directly_serializable;
+
 template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
 class AggregateOfImpl
     : public DomainBase<AggregateOfImpl<T, require_custom, Inner...>, T> {
@@ -2042,6 +2090,10 @@ class AggregateOfImpl
   using corpus_type =
       std::conditional_t<has_custom_corpus_type,
                          std::tuple<corpus_type_t<Inner>...>, T>;
+
+  static constexpr bool is_directly_serializable =
+      require_custom == RequireCustomCorpusType::kNo && sizeof...(Inner) == 1 &&
+      first_is_directly_serializable<Inner...>;
 
   AggregateOfImpl() = default;
   explicit AggregateOfImpl(std::in_place_t, Inner... inner)
@@ -2872,6 +2924,7 @@ class ArbitraryImpl<std::basic_string_view<Char>>
   // out-of-bounds bugs.
   using corpus_type = std::vector<Char>;
   static constexpr bool has_custom_corpus_type = true;
+  static constexpr bool is_directly_serializable = true;
 
   corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
@@ -2894,11 +2947,13 @@ class ArbitraryImpl<std::basic_string_view<Char>>
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return obj.ToCorpus<corpus_type>();
+    std::optional<std::string> str = obj.ToCorpus<std::string>();
+    if (!str.has_value()) return std::nullopt;
+    return corpus_type{str->begin(), str->end()};
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
-    return IRObject::FromCorpus(v);
+    return IRObject::FromCorpus(std::string{v.begin(), v.end()});
   }
 
  private:

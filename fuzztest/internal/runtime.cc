@@ -66,7 +66,7 @@ void (*crash_handler_hook)();
 void Runtime::DumpReproducer(std::string_view outdir) const {
   const std::string content =
       current_args_->domain.UntypedSerializeCorpus(current_args_->corpus_value)
-          .ToString();
+          .ToString(current_args_->domain.IsDirectlySerializable());
   const std::string filename = WriteDataToDir(content, outdir);
 
   if (filename.empty()) {
@@ -291,7 +291,8 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
 }
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
-  if (auto parsed = IRObject::FromString(data)) {
+  if (auto parsed = IRObject::FromString(
+          data, params_domain_->IsDirectlySerializable())) {
     return params_domain_->UntypedParseCorpus(*parsed);
   }
   return std::nullopt;
@@ -311,7 +312,8 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
-        params_domain_->UntypedSerializeCorpus(*to_minimize).ToString();
+        params_domain_->UntypedSerializeCorpus(*to_minimize)
+            .ToString(params_domain_->IsDirectlySerializable());
 
     // In minimize mode we keep mutating the given reproducer value with
     // `only_shrink=true` until we crash. We drop mutations that don't
@@ -329,8 +331,8 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
       // now.
-      if (params_domain_->UntypedSerializeCorpus(copy).ToString() ==
-          original_serialized)
+      if (params_domain_->UntypedSerializeCorpus(copy).ToString(
+              params_domain_->IsDirectlySerializable()) == original_serialized)
         continue;
       RunOneInput({std::move(copy)});
     }
@@ -517,9 +519,9 @@ FuzzTestFuzzerImpl::TryReadCorpusFromFiles() {
 
 void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   if (corpus_out_dir_.empty()) return;
-  if (WriteDataToDir(
-          params_domain_->UntypedSerializeCorpus(input.args).ToString(),
-          corpus_out_dir_)
+  if (WriteDataToDir(params_domain_->UntypedSerializeCorpus(input.args)
+                         .ToString(params_domain_->IsDirectlySerializable()),
+                     corpus_out_dir_)
           .empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write corpus file.\n");
   }
@@ -666,8 +668,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // minimized anymore.
     if (params_domain_
             ->UntypedSerializeCorpus(minimal_non_fatal_counterexample_->args)
-            .ToString() !=
-        params_domain_->UntypedSerializeCorpus(copy.args).ToString()) {
+            .ToString(params_domain_->IsDirectlySerializable()) !=
+        params_domain_->UntypedSerializeCorpus(copy.args).ToString(
+            params_domain_->IsDirectlySerializable())) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {

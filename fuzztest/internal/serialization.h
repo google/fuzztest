@@ -182,6 +182,11 @@ struct IRObject {
       return obj;
     } else {
       // Must be a tuple like object.
+      // If it's a singleton tuple, flatten it to enable direct serialization of
+      // types like std::tuple<std::string>.
+      if constexpr (std::tuple_size_v<T> == 1) {
+        return FromCorpus(std::get<0>(value));
+      }
       return std::apply(
           [](const auto&... elem) {
             IRObject obj;
@@ -245,6 +250,12 @@ struct IRObject {
       return out;
     } else {
       // Must be a tuple like object.
+      // If it's a singleton tuple, reverse the flattening done in FromCorpus.
+      if constexpr (std::tuple_size_v<T> == 1) {
+        auto part = ToCorpus<std::tuple_element_t<0, T>>();
+        if (!part.has_value()) return std::nullopt;
+        return T{*std::move(part)};
+      }
       auto elems = Subs();
       if (!elems || elems->size() != std::tuple_size_v<T>) return std::nullopt;
       auto it = elems->begin();
@@ -260,10 +271,15 @@ struct IRObject {
     }
   }
 
-  // Serialize the object as a string. This is used to persist the object on
-  // files for reproducing bugs later.
-  std::string ToString() const;
-  static std::optional<IRObject> FromString(std::string_view str);
+  // Serializes the object as a string. This is used to persist the object in a
+  // file for reproducing bugs later. If `directly` is true, the object is
+  // assumed to contain a single string value, which is then returned directly.
+  std::string ToString(bool directly = false) const;
+
+  // Deserializes `str` into an IRObject. If `directly` is true, returns an
+  // IRObject that contains `str` as a single value.
+  static std::optional<IRObject> FromString(std::string_view str,
+                                            bool directly = false);
 
  private:
   template <typename T>
