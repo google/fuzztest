@@ -915,14 +915,14 @@ class ProtobufDomainUntypedImpl
   };
 
   template <typename Inner>
-  void WithField(std::string_view field_name, Inner&& domain) {
+  void WithField(absl::string_view field_name, Inner&& domain) {
     auto* field = GetField(field_name);
     VisitProtobufField(
         field, WithFieldVisitor<Inner&&>{std::forward<Inner>(domain), *this});
     customized_fields_.insert(field->index());
   }
 
-  const FieldDescriptor* GetField(std::string_view field_name) const {
+  const FieldDescriptor* GetField(absl::string_view field_name) const {
     auto* field =
         prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
@@ -1497,12 +1497,12 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
-  ProtobufDomainImpl&& WithFieldUnset(std::string_view field) && {
+  ProtobufDomainImpl&& WithFieldUnset(absl::string_view field) && {
     inner_.WithFieldNullness(field, OptionalPolicy::kAlwaysNull);
     return std::move(*this);
   }
 
-  ProtobufDomainImpl&& WithFieldAlwaysSet(std::string_view field) && {
+  ProtobufDomainImpl&& WithFieldAlwaysSet(absl::string_view field) && {
     inner_.WithFieldNullness(field, OptionalPolicy::kWithoutNull);
     return std::move(*this);
   }
@@ -1533,7 +1533,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 
 #define FUZZTEST_INTERNAL_WITH_FIELD(Camel, cpp, TAG)                          \
   using Camel##type = MakeDependentType<cpp, T>;                               \
-  ProtobufDomainImpl&& With##Camel##Field(std::string_view field,              \
+  ProtobufDomainImpl&& With##Camel##Field(absl::string_view field,             \
                                           Domain<Camel##type> domain)&& {      \
     const FieldDescriptor* descriptor = inner_.GetField(field);                \
     if (descriptor->is_repeated()) {                                           \
@@ -1549,7 +1549,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     }                                                                          \
     return std::move(*this);                                                   \
   }                                                                            \
-  ProtobufDomainImpl&& With##Camel##FieldUnset(std::string_view field)&& {     \
+  ProtobufDomainImpl&& With##Camel##FieldUnset(absl::string_view field)&& {    \
     auto default_domain =                                                      \
         inner_.template GetFieldTypeDefaultDomain<TAG>(field);                 \
     inner_.WithOneofField(field, OptionalPolicy::kAlwaysNull);                 \
@@ -1561,7 +1561,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(                            \
-      std::string_view field, Domain<Camel##type> domain)&& {                  \
+      absl::string_view field, Domain<Camel##type> domain)&& {                 \
     inner_.WithOneofField(field, OptionalPolicy::kWithoutNull);                \
     inner_.WithField(                                                          \
         field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>(   \
@@ -1569,19 +1569,20 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
                    .SetWithoutNull());                                         \
     return std::move(*this);                                                   \
   }                                                                            \
-  ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(std::string_view field)&& { \
+  ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(                            \
+      absl::string_view field)&& {                                             \
     return std::move(*this).With##Camel##FieldAlwaysSet(                       \
         field, inner_.template GetFieldTypeDefaultDomain<TAG>(field));         \
   }                                                                            \
   ProtobufDomainImpl&& WithOptional##Camel##Field(                             \
-      std::string_view field,                                                  \
+      absl::string_view field,                                                 \
       Domain<MakeDependentType<std::optional<cpp>, T>> domain)&& {             \
     FailIfIsOneof(field);                                                      \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& WithRepeated##Camel##Field(                             \
-      std::string_view field,                                                  \
+      absl::string_view field,                                                 \
       Domain<MakeDependentType<std::vector<cpp>, T>> domain)&& {               \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
@@ -1656,7 +1657,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
 
   template <typename ProtoDomain>
   ProtobufDomainImpl&& WithRepeatedProtobufField(
-      std::string_view field,
+      absl::string_view field,
       SequenceContainerOfImpl<std::vector<typename ProtoDomain::value_type>,
                               ProtoDomain>
           domain) && {
