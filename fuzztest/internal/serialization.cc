@@ -20,13 +20,13 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/variant.h"
 
 namespace fuzztest::internal {
 
@@ -62,10 +62,10 @@ struct OutputVisitor {
   void operator()(const std::vector<IRObject>& value) const {
     for (const auto& sub : value) {
       const bool sub_is_scalar =
-          !absl::holds_alternative<std::vector<IRObject>>(sub.value);
+          !std::holds_alternative<std::vector<IRObject>>(sub.value);
       absl::StrAppendFormat(&out, "%*ssub {%s", indent, "",
                             sub_is_scalar ? " " : "\n");
-      absl::visit(OutputVisitor{sub.value.index(), indent + 2, out}, sub.value);
+      std::visit(OutputVisitor{sub.value.index(), indent + 2, out}, sub.value);
       absl::StrAppendFormat(&out, "%*s}\n", sub_is_scalar ? 0 : indent,
                             sub_is_scalar ? " " : "");
     }
@@ -175,7 +175,7 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
 
 std::string IRObject::ToString() const {
   std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
-  absl::visit(OutputVisitor{value.index(), 0, out}, value);
+  std::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
 }
 

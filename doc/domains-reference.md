@@ -60,7 +60,7 @@ fuzz a function like below without a `.WithDomains()` clause:
 
 ```c++
 void MyProperty(const absl::flat_hash_map<uint32, MyProtoMessage>& m,
-                const absl::optional<std::string>& s) {
+                const std::optional<std::string>& s) {
   //...
 }
 FUZZ_TEST(MySuite, MyProperty);

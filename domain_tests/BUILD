@@ -44,6 +44,8 @@ cc_test(
     deps = [
         ":domain_testing",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:variant",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_googletest//:gtest_main",
     ],

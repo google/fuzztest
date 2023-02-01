@@ -23,11 +23,11 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/numeric/int128.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
@@ -54,8 +54,8 @@ struct IRObject;
 // set.
 
 struct IRObject {
-  using Value = absl::variant<std::monostate, uint64_t, double, std::string,
-                              std::vector<IRObject>>;
+  using Value = std::variant<std::monostate, uint64_t, double, std::string,
+                             std::vector<IRObject>>;
   Value value;
 
   IRObject() = default;
@@ -77,15 +77,15 @@ struct IRObject {
       auto inner = GetScalar<std::underlying_type_t<T>>();
       return inner ? std::optional(static_cast<T>(*inner)) : std::nullopt;
     } else if constexpr (std::is_integral_v<T>) {
-      const uint64_t* i = absl::get_if<uint64_t>(&value);
+      const uint64_t* i = std::get_if<uint64_t>(&value);
       return i != nullptr ? std::optional(static_cast<T>(*i)) : std::nullopt;
     } else if constexpr (std::is_same_v<float, T> ||
                          std::is_same_v<double, T>) {
-      const double* i = absl::get_if<double>(&value);
+      const double* i = std::get_if<double>(&value);
       return i != nullptr ? std::optional(static_cast<T>(*i)) : std::nullopt;
     } else if constexpr (std::is_same_v<std::string, T>) {
       std::optional<std::string_view> out;
-      if (const auto* s = absl::get_if<std::string>(&value)) {
+      if (const auto* s = std::get_if<std::string>(&value)) {
         out = *s;
       }
       return out;
@@ -113,12 +113,12 @@ struct IRObject {
 
   // If this node contains subs, return it as a Span. Otherwise, nullopt.
   std::optional<absl::Span<const IRObject>> Subs() const {
-    if (const auto* i = absl::get_if<std::vector<IRObject>>(&value)) {
+    if (const auto* i = std::get_if<std::vector<IRObject>>(&value)) {
       return *i;
     }
     // The empty vector is serialized the same way as the monostate: nothing.
     // Handle that case too.
-    if (absl::holds_alternative<std::monostate>(value)) {
+    if (std::holds_alternative<std::monostate>(value)) {
       return absl::Span<const IRObject>{};
     }
     return std::nullopt;
@@ -128,10 +128,10 @@ struct IRObject {
   // them.
   // Overwrites any existing data.
   std::vector<IRObject>& MutableSubs() {
-    if (!absl::holds_alternative<std::vector<IRObject>>(value)) {
+    if (!std::holds_alternative<std::vector<IRObject>>(value)) {
       value.emplace<std::vector<IRObject>>();
     }
-    return absl::get<std::vector<IRObject>>(value);
+    return std::get<std::vector<IRObject>>(value);
   }
 
   // Conversion functions to map IRObject to/from corpus values.
@@ -198,7 +198,7 @@ struct IRObject {
     if constexpr (std::is_const_v<T>) {
       return ToCorpus<std::remove_const_t<T>>();
     } else if constexpr (is_monostate_v<T>) {
-      if (absl::holds_alternative<std::monostate>(value)) return T{};
+      if (std::holds_alternative<std::monostate>(value)) return T{};
       return std::nullopt;
     } else if constexpr (std::is_same_v<T, IRObject>) {
       return *this;
@@ -226,7 +226,7 @@ struct IRObject {
       }
       return std::nullopt;
     } else if constexpr (is_protocol_buffer_v<T>) {
-      const std::string* v = absl::get_if<std::string>(&value);
+      const std::string* v = std::get_if<std::string>(&value);
       T out;
       if (v && out.ParseFromString(*v)) return out;
       return std::nullopt;

@@ -30,6 +30,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
+#include "absl/types/optional.h"
+#include "absl/types/variant.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 
