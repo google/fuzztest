@@ -61,14 +61,9 @@ inline constexpr int TRAP_PERF = 6;
 
 namespace fuzztest::internal {
 
-RunMode run_mode = RunMode::kUnitTest;
-ABSL_CONST_INIT absl::Duration fuzz_time_limit = absl::InfiniteDuration();
-std::atomic<bool> external_failure_was_detected;
-std::atomic<bool> termination_requested;
-OnFailure on_failure;
 void (*crash_handler_hook)();
 
-void OnFailure::DumpReproducer(std::string_view outdir) const {
+void Runtime::DumpReproducer(std::string_view outdir) const {
   const std::string content =
       current_args_->domain.UntypedSerializeCorpus(current_args_->corpus_value)
           .ToString();
@@ -82,7 +77,7 @@ void OnFailure::DumpReproducer(std::string_view outdir) const {
   }
 }
 
-void OnFailure::PrintFinalStats(absl::FormatRawSink out) const {
+void Runtime::PrintFinalStats(absl::FormatRawSink out) const {
   const std::string separator = '\n' + std::string(65, '=') + '\n';
   absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
 
@@ -95,10 +90,10 @@ void OnFailure::PrintFinalStats(absl::FormatRawSink out) const {
   absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
 }
 
-void OnFailure::PrintReport(absl::FormatRawSink out) const {
+void Runtime::PrintReport(absl::FormatRawSink out) const {
   // We don't want to try and print a fuzz report when we are not running a fuzz
   // test, even if we got a crash.
-  if (!enabled_) return;
+  if (!reporter_enabled_) return;
 
   if (crash_handler_hook) crash_handler_hook();
 
@@ -110,7 +105,7 @@ void OnFailure::PrintReport(absl::FormatRawSink out) const {
     }
   }
 
-  if (run_mode != RunMode::kUnitTest) {
+  if (run_mode() != RunMode::kUnitTest) {
     PrintFinalStats(out);
   }
 
@@ -118,8 +113,9 @@ void OnFailure::PrintReport(absl::FormatRawSink out) const {
 
   if (current_args_ != nullptr) {
     absl::Format(out, "%s=== BUG FOUND!\n\n", separator);
-    absl::Format(out, "%s:%d: Counterexample found for %s.%s.\n", test_->file(),
-                 test_->line(), test_->suite_name(), test_->test_name());
+    absl::Format(out, "%s:%d: Counterexample found for %s.%s.\n",
+                 current_test_->file(), current_test_->line(),
+                 current_test_->suite_name(), current_test_->test_name());
     absl::Format(out, "The test fails with input:\n");
     const int num_args = current_args_->domain.UntypedPrintCorpusValue(
         current_args_->corpus_value, out, PrintMode::kHumanReadable, -1);
@@ -133,10 +129,10 @@ void OnFailure::PrintReport(absl::FormatRawSink out) const {
 
     // There doesn't seem to be a good way to generate a reproducer test when
     // the test uses a fixture (see b/241271658).
-    if (!test_->uses_fixture()) {
+    if (!current_test_->uses_fixture()) {
       absl::Format(out, "%s=== Reproducer test\n\n", separator);
       absl::Format(out, "TEST(%1$s, %2$sRegression) {\n  %2$s(\n",
-                   test_->suite_name(), test_->test_name());
+                   current_test_->suite_name(), current_test_->test_name());
       for (size_t i = 0; i < num_args; ++i) {
         if (i != 0) absl::Format(out, ",\n");
         absl::Format(out, "    ");
@@ -148,8 +144,9 @@ void OnFailure::PrintReport(absl::FormatRawSink out) const {
     }
   } else {
     absl::Format(out, "%s=== SETUP FAILURE!\n\n", separator);
-    absl::Format(out, "%s:%d: There was a problem with %s.%s.", test_->file(),
-                 test_->line(), test_->suite_name(), test_->test_name());
+    absl::Format(out, "%s:%d: There was a problem with %s.%s.",
+                 current_test_->file(), current_test_->line(),
+                 current_test_->suite_name(), current_test_->test_name());
     if (test_abort_message != nullptr) {
       absl::Format(out, "%s", *test_abort_message);
     }
@@ -191,7 +188,7 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
   if (!old_handler || signum != SIGTRAP ||
       (info->si_code != TRAP_PERF && info->si_code != SI_TIMER)) {
     // Dump our info first.
-    on_failure.PrintReport(&signal_out_sink);
+    Runtime::instance().PrintReport(&signal_out_sink);
     // The old signal handler might print important messages (e.g., strack
     // trace) to the original file descriptors, therefore we restore them before
     // calling them.
@@ -204,7 +201,7 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
 }
 
 static void HandleTermination(int, siginfo_t*, void*) {
-  termination_requested.store(true, std::memory_order_relaxed);
+  Runtime::instance().SetTerminationRequested();
 }
 
 static void SetNewSigAction(int signum, void (*handler)(int, siginfo_t*, void*),
@@ -238,7 +235,7 @@ void InstallSignalHandlers(FILE* out) {
   // after printing its output. This handler helps us print our output
   // afterwards.
   __sanitizer_set_death_callback(
-      [](auto...) { on_failure.PrintReport(&signal_out_sink); });
+      [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
 #endif
 
   for (OldSignalHandler& h : crash_handlers) {
@@ -250,11 +247,11 @@ void InstallSignalHandlers(FILE* out) {
   }
 }
 
-void OnFailure::PrintFinalStatsOnDefaultSink() const {
+void Runtime::PrintFinalStatsOnDefaultSink() const {
   PrintFinalStats(&signal_out_sink);
 }
 
-void OnFailure::PrintReportOnDefaultSink() const {
+void Runtime::PrintReportOnDefaultSink() const {
   PrintReport(&signal_out_sink);
 }
 
@@ -262,9 +259,9 @@ void OnFailure::PrintReportOnDefaultSink() const {
 // TODO(sbenzaquen): We should still install signal handlers in other systems.
 void InstallSignalHandlers(FILE* out) {}
 
-void OnFailure::PrintFinalStatsOnDefaultSink() const {}
+void Runtime::PrintFinalStatsOnDefaultSink() const {}
 
-void OnFailure::PrintReportOnDefaultSink() const {}
+void Runtime::PrintReportOnDefaultSink() const {}
 #endif  // __linux__
 
 using corpus_type = GenericDomainCorpusType;
@@ -289,7 +286,9 @@ FuzzTestFuzzerImpl::FuzzTestFuzzerImpl(
       absl::discrete_distribution<>(weights.begin(), weights.end());
 }
 
-FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() { on_failure.Disable(); }
+FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
+  Runtime::instance().DisableReporter();
+}
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
   if (auto parsed = IRObject::FromString(data)) {
@@ -299,7 +298,7 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
 }
 
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
-  run_mode = RunMode::kFuzz;
+  runtime_.SetRunMode(RunMode::kFuzz);
 
   if (const auto replay_corpus = ReadReplayFile()) {
     for (const auto& corpus_value : *replay_corpus) {
@@ -433,6 +432,11 @@ void FuzzTestFuzzerImpl::UpdateCorpusDistribution() {
 FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::TrySample(
     const Input& sample, bool write_to_file) {
   RunResult run_result = RunOneInput(sample);
+  if (runtime_.external_failure_detected()) {
+    // We detected a non fatal failure. Record it separately to minimize it
+    // locally.
+    minimal_non_fatal_counterexample_ = sample;
+  }
   if (!run_result.new_coverage) return run_result;
 
   if (write_to_file) TryWriteCorpusFile(sample);
@@ -539,7 +543,7 @@ bool FuzzTestFuzzerImpl::ShouldStop() {
   if (runs_limit_.has_value() && stats_.runs >= *runs_limit_) return true;
   if (time_limit_ != absl::InfiniteFuture() && absl::Now() > time_limit_)
     return true;
-  return termination_requested.load(std::memory_order_relaxed);
+  return runtime_.termination_requested();
 }
 
 void FuzzTestFuzzerImpl::PopulateFromSeeds() {
@@ -552,8 +556,8 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds() {
 void FuzzTestFuzzerImpl::RunInUnitTestMode() {
   fixture_driver_->SetUpFuzzTest();
   [&] {
-    on_failure.Enable(&stats_, [] { return absl::Now(); });
-    on_failure.SetCurrentTest(&test_);
+    runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
+    runtime_.SetCurrentTest(&test_);
 
     // TODO(sbenzaquen): Currently, some infrastructure code assumes that replay
     // works in unit test mode, so we support it. However, we would like to
@@ -563,11 +567,11 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
     if (ReplayInputsIfAvailable()) {
       // If ReplayInputs returns, it means the replay didn't crash.
       // In replay mode, we only replay.
-      on_failure.Disable();
+      runtime_.DisableReporter();
       return;
     }
 
-    run_mode = RunMode::kUnitTest;
+    runtime_.SetRunMode(RunMode::kUnitTest);
 
     PopulateFromSeeds();
 
@@ -576,9 +580,9 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
     Input mutation{params_domain_->UntypedInit(prng)};
     constexpr size_t max_iterations = 10000;
     for (int i = 0; i < max_iterations; ++i) {
-      external_failure_was_detected.store(false, std::memory_order_relaxed);
+      runtime_.SetExternalFailureDetected(false);
       RunOneInput(mutation);
-      if (external_failure_was_detected.load(std::memory_order_relaxed)) {
+      if (runtime_.external_failure_detected()) {
         break;
       }
       // We mutate the value, except that every num_mutations_per_value we
@@ -597,7 +601,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
         break;
       }
     }
-    on_failure.SetCurrentTest(nullptr);
+    runtime_.SetCurrentTest(nullptr);
   }();
   fixture_driver_->TearDownFuzzTest();
 }
@@ -606,8 +610,8 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     const Input& input) {
   ++stats_.runs;
   auto untyped_args = params_domain_->UntypedGetValue(input.args);
-  OnFailure::Args debug_args{input.args, *params_domain_};
-  on_failure.SetCurrentArgs(&debug_args);
+  Runtime::Args debug_args{input.args, *params_domain_};
+  runtime_.SetCurrentArgs(&debug_args);
 
   // Reset and observe the coverage map and start tracing in
   // the tightest scope possible. In particular, we can't include the call
@@ -634,19 +638,58 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   if (execution_coverage_ != nullptr) {
     new_coverage = corpus_coverage_.Update(execution_coverage_);
   }
-  on_failure.UnsetCurrentArgs();
+  runtime_.UnsetCurrentArgs();
   return {new_coverage, run_time};
+}
+
+void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
+  // We try to minimize the counterexample until we reach a point where no new
+  // failures are found.
+  // We stop when run kMaxTriedWithoutFailure consecutive runs without finding a
+  // smaller failure, but also add a time limit in case each iteration takes too
+  // long.
+  const absl::Time deadline =
+      std::min(absl::Now() + absl::Minutes(1), time_limit_);
+  int tries_without_failure = 0;
+  constexpr int kMaxTriedWithoutFailure = 10000;
+  while (tries_without_failure < kMaxTriedWithoutFailure &&
+         absl::Now() < deadline) {
+    auto copy = *minimal_non_fatal_counterexample_;
+    // Mutate a random number of times, in case one is not enough to
+    // reach another failure, but prefer a low number of mutations (thus Zipf).
+    for (int num_mutations = absl::Zipf(prng, 10); num_mutations >= 0;
+         --num_mutations) {
+      params_domain_->UntypedMutate(copy.args, prng, /* only_shrink= */ true);
+    }
+    // Only run it if it actually is different. Random mutations might
+    // not actually change the value, or we have reached a minimum that can't be
+    // minimized anymore.
+    if (params_domain_
+            ->UntypedSerializeCorpus(minimal_non_fatal_counterexample_->args)
+            .ToString() !=
+        params_domain_->UntypedSerializeCorpus(copy.args).ToString()) {
+      runtime_.SetExternalFailureDetected(false);
+      RunOneInput(copy);
+      if (runtime_.external_failure_detected()) {
+        // Found a smaller one, record it and reset the counter.
+        minimal_non_fatal_counterexample_ = std::move(copy);
+        tries_without_failure = 0;
+        continue;
+      }
+    }
+    ++tries_without_failure;
+  }
 }
 
 int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
   fixture_driver_->SetUpFuzzTest();
   const int exit_code = [&] {
-    run_mode = RunMode::kFuzz;
+    runtime_.SetRunMode(RunMode::kFuzz);
 
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
 
-    on_failure.Enable(&stats_, [] { return absl::Now(); });
-    on_failure.SetCurrentTest(&test_);
+    runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
+    runtime_.SetCurrentTest(&test_);
 
     if (ReplayInputsIfAvailable()) {
       // If ReplayInputs returns, it means the replay didn't crash.
@@ -696,12 +739,13 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
       }
     }
 
-    if (fuzz_time_limit != absl::InfiniteDuration()) {
+    if (runtime_.fuzz_time_limit() != absl::InfiniteDuration()) {
       absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
-                    absl::FormatDuration(fuzz_time_limit));
-      time_limit_ = stats_.start_time + fuzz_time_limit;
+                    absl::FormatDuration(runtime_.fuzz_time_limit()));
+      time_limit_ = stats_.start_time + runtime_.fuzz_time_limit();
     }
 
+    runtime_.SetShouldTerminateOnNonFatalFailure(false);
     // Fuzz corpus elements in round robin fashion.
     while (!ShouldStop()) {
       Input input_to_mutate = [&]() -> Input {
@@ -723,11 +767,24 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
         Input mutation = input_to_mutate;
         MutateValue(mutation, prng);
         TrySampleAndUpdateInMemoryCorpus(std::move(mutation));
+
+        if (minimal_non_fatal_counterexample_.has_value()) {
+          // We found a failure, let's minimize it here.
+          MinimizeNonFatalFailureLocally(prng);
+          // Once we have minimized enough, let it crash with the best sample we
+          // got.
+          // TODO(sbenzaquen): Consider a different approach where we don't retry
+          // the failing sample to force a crash. Instead, we could store the
+          // information from the first failure and generate a report manually.
+          runtime_.SetShouldTerminateOnNonFatalFailure(true);
+          runtime_.SetExternalFailureDetected(false);
+          RunOneInput(*minimal_non_fatal_counterexample_);
+        }
       }
     }
 
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
-    on_failure.PrintFinalStatsOnDefaultSink();
+    runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");
     return 0;
   }();

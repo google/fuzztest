@@ -113,40 +113,62 @@ struct RuntimeStats {
 
 void InstallSignalHandlers(FILE* report_out);
 
-// Some failures are not necessarily detected by signal handlers or by
-// sanitizers. For example, we could have test framework failures like
-// `EXPECT_EQ` failures from GoogleTest.
-// If such a failure is detected, the external system can set
-// `external_failure_was_detected` to true to bubble it up.
-// Note: Even though failures should happen within the code under test, they
-// could be set from other threads at any moment. We make it an atomic to avoid
-// a race condition.
-extern std::atomic<bool> external_failure_was_detected;
-
-// If true, fuzzing should terminate as soon as possible.
-// Atomic because it is set from signal handlers.
-extern std::atomic<bool> termination_requested;
-
-extern RunMode run_mode;
-extern absl::Duration fuzz_time_limit;
-
-class OnFailure {
+// This class encapsulates the runtime state that is global by necessity.
+// The state is accessed by calling `Runtime::instance()`, which handles the
+// necessary initialization steps.
+class Runtime {
  public:
-  void Enable(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
-    enabled_ = true;
+  static Runtime& instance() {
+    static auto* runtime = new Runtime();
+    return *runtime;
+  }
+
+  void SetExternalFailureDetected(bool v) {
+    external_failure_was_detected_.store(v, std::memory_order_relaxed);
+  }
+  bool external_failure_detected() const {
+    return external_failure_was_detected_.load(std::memory_order_relaxed);
+  }
+
+  void SetShouldTerminateOnNonFatalFailure(bool v) {
+    should_terminate_on_non_fatal_failure_ = v;
+  }
+
+  bool should_terminate_on_non_fatal_failure() const {
+    return should_terminate_on_non_fatal_failure_;
+  }
+
+  void SetTerminationRequested() {
+    termination_requested_.store(true, std::memory_order_relaxed);
+  }
+
+  bool termination_requested() const {
+    return termination_requested_.load(std::memory_order_relaxed);
+  }
+
+  void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
+  RunMode run_mode() const { return run_mode_; }
+
+  void SetFuzzTimeLimit(absl::Duration fuzz_time_limit) {
+    fuzz_time_limit_ = fuzz_time_limit;
+  }
+  absl::Duration fuzz_time_limit() const { return fuzz_time_limit_; }
+
+  void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
+    reporter_enabled_ = true;
     stats_ = stats;
     clock_fn_ = clock_fn;
     // In case we have not installed them yet, do so now.
     InstallSignalHandlers(GetStderr());
   }
-  void Disable() { enabled_ = false; }
+  void DisableReporter() { reporter_enabled_ = false; }
 
   struct Args {
     const GenericDomainCorpusType& corpus_value;
     UntypedDomainInterface& domain;
   };
 
-  void SetCurrentTest(const FuzzTest* test) { test_ = test; }
+  void SetCurrentTest(const FuzzTest* test) { current_test_ = test; }
 
   void SetCurrentArgs(Args* args) { current_args_ = args; }
   void UnsetCurrentArgs() { current_args_ = nullptr; }
@@ -157,15 +179,38 @@ class OnFailure {
   void PrintReportOnDefaultSink() const;
 
  private:
+  Runtime() = default;
+
   void DumpReproducer(std::string_view outdir) const;
 
-  bool enabled_ = false;
-  Args* current_args_;
-  const FuzzTest* test_;
-  const RuntimeStats* stats_;
+  // Some failures are not necessarily detected by signal handlers or by
+  // sanitizers. For example, we could have test framework failures like
+  // `EXPECT_EQ` failures from GoogleTest.
+  // If such a failure is detected, the external system can set
+  // `external_failure_was_detected` to true to bubble it up.
+  // Note: Even though failures should happen within the code under test, they
+  // could be set from other threads at any moment. We make it an atomic to
+  // avoid a race condition.
+  std::atomic<bool> external_failure_was_detected_{false};
+
+  // To support in-process minimization for non-fatal failures we signal
+  // suppress termination until we believe minimization is complete.
+  bool should_terminate_on_non_fatal_failure_ = true;
+
+  // If true, fuzzing should terminate as soon as possible.
+  // Atomic because it is set from signal handlers.
+  std::atomic<bool> termination_requested_{false};
+
+  RunMode run_mode_ = RunMode::kUnitTest;
+  absl::Duration fuzz_time_limit_ = absl::InfiniteDuration();
+
+  bool reporter_enabled_ = false;
+  Args* current_args_ = nullptr;
+  const FuzzTest* current_test_ = nullptr;
+  const RuntimeStats* stats_ = nullptr;
   absl::Time (*clock_fn_)() = nullptr;
 };
-extern OnFailure on_failure;
+
 extern void (*crash_handler_hook)();
 
 template <typename Arg, size_t I, typename Tuple>
@@ -223,6 +268,8 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   void UpdateCorpusDistribution();
 
+  void MinimizeNonFatalFailureLocally(absl::BitGenRef prng);
+
   // Runs on `sample` and returns new coverage and run time. If there's new
   // coverage, outputs updated runtime stats. Additionally, if `write_to_file`
   // is true, tries to write the sample to a file.
@@ -265,6 +312,9 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   RuntimeStats stats_{};
   std::optional<size_t> runs_limit_;
   absl::Time time_limit_ = absl::InfiniteFuture();
+  std::optional<Input> minimal_non_fatal_counterexample_;
+
+  Runtime& runtime_ = Runtime::instance();
 
 #ifdef FUZZTEST_COMPATIBILITY_MODE
   friend class FuzzTestExternalEngineAdaptor;

@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
   const bool is_duration_specified =
       absl::ZeroDuration() < duration && duration < absl::InfiniteDuration();
   if (is_duration_specified) {
-    fuzztest::internal::fuzz_time_limit = duration;
+    fuzztest::internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
   if (is_fuzz_specified || is_duration_specified) {
     GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kFuzz, &argc,

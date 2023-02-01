@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/googletest_fixture_adapter.h"
+#include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace {
 
@@ -105,5 +106,16 @@ TEST(SharedSuite, WorksAsUnitTest) {}
 
 void WorksAsFuzzTest(int) {}
 FUZZ_TEST(SharedSuite, WorksAsFuzzTest);
+
+void NonFatalFailureAllowsMinimization(const std::string& str) {
+  // Make very fuzz predicate that would fail on a large number of values, but
+  // there is one very specific minimum.
+  if (str.size() < 4 || str[0] < '0' || str[1] < '1' || str[2] < '2' ||
+      str[3] <= str[2]) {
+    return;
+  }
+  ADD_FAILURE() << str;
+}
+FUZZ_TEST(MySuite, NonFatalFailureAllowsMinimization);
 
 }  // namespace

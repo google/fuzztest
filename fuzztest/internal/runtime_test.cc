@@ -28,9 +28,10 @@ namespace fuzztest::internal {
 namespace {
 
 TEST(OnFailureTest, Output) {
-  const auto get_failure = [] {
+  auto& runtime = Runtime::instance();
+  const auto get_failure = [&] {
     std::string s;
-    on_failure.PrintReport(&s);
+    runtime.PrintReport(&s);
     return s;
   };
   // Disabled by default.
@@ -39,14 +40,14 @@ TEST(OnFailureTest, Output) {
   FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
   std::tuple args(17, std::string("ABC"));
   const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4};
-  on_failure.Enable(&stats, [] { return absl::FromUnixNanos(1979); });
-  run_mode = RunMode::kFuzz;
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  runtime.SetRunMode(RunMode::kFuzz);
   auto domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
   GenericDomainCorpusType generic_args(
       std::in_place_type<std::tuple<int, std::string>>, args);
-  OnFailure::Args debug_args{generic_args, domain};
-  on_failure.SetCurrentTest(&test);
-  on_failure.SetCurrentArgs(&debug_args);
+  Runtime::Args debug_args{generic_args, domain};
+  runtime.SetCurrentTest(&test);
+  runtime.SetCurrentArgs(&debug_args);
   EXPECT_EQ(get_failure(), R"(
 =================================================================
 === Fuzzing stats
@@ -78,7 +79,7 @@ TEST(SUITE_NAME, TEST_NAMERegression) {
 =================================================================
 )");
 
-  on_failure.Disable();
+  runtime.DisableReporter();
   EXPECT_EQ(get_failure(), "");
 }
 

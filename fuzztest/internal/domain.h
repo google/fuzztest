@@ -990,7 +990,8 @@ class ContainerOfImplBase : public DomainBase<Derived> {
     const bool can_shrink = val.size() > this->min_size_;
     const bool can_grow = !only_shrink && val.size() < this->max_size_;
     const bool can_change = val.size() != 0;
-    const bool can_use_memory_dict = container_has_memory_dict && can_change &&
+    const bool can_use_memory_dict = !only_shrink &&
+                                     container_has_memory_dict && can_change &&
                                      GetExecutionCoverage() != nullptr;
 
     const int action_count =

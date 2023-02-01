@@ -43,7 +43,7 @@
    ::testing::UnitTest::GetInstance()->listeners().Append(                    \
        new ::fuzztest::internal::GTest_EventListener<                         \
            ::testing::EmptyTestEventListener, ::testing::TestPartResult>()),  \
-   ::fuzztest::internal::run_mode = selected_run_mode)
+   ::fuzztest::internal::Runtime::instance().SetRunMode(selected_run_mode))
 
 namespace fuzztest::internal {
 
@@ -54,7 +54,7 @@ class GTest_TestAdaptor : public ::testing::Test {
 
   void TestBody() override {
     auto test = test_.make();
-    if (run_mode == RunMode::kUnitTest) {
+    if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       test->RunInUnitTestMode();
     } else {
       ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_)) << "Fuzzing failure.";
@@ -84,14 +84,17 @@ class GTest_EventListener : public Base {
  public:
   void OnTestPartResult(const TestPartResult& test_part_result) override {
     if (!test_part_result.failed()) return;
-    if (run_mode == RunMode::kFuzz) {
-      // The SIGABRT will trigger a report.
-      std::abort();
+    Runtime& runtime = Runtime::instance();
+    if (runtime.run_mode() == RunMode::kFuzz) {
+      if (runtime.should_terminate_on_non_fatal_failure()) {
+        // The SIGABRT will trigger a report.
+        std::abort();
+      }
     } else {
       // Otherwise, we report it manually.
-      on_failure.PrintReportOnDefaultSink();
+      runtime.PrintReportOnDefaultSink();
     }
-    external_failure_was_detected.store(true, std::memory_order_relaxed);
+    runtime.SetExternalFailureDetected(true);
   }
 };
 

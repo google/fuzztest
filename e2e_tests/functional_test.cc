@@ -1249,5 +1249,15 @@ TEST_F(FuzzingModeTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
       1, CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
 }
 
+TEST_F(FuzzingModeTest, NonFatalFailureAllowsMinimization) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.NonFatalFailureAllowsMinimization");
+  // The final failure should be with the known minimal result, even though many
+  // "larger" inputs also trigger the failure.
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"0123\""));
+
+  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal
