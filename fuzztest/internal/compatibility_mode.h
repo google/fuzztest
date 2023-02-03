@@ -95,6 +95,8 @@ class FuzzTestExternalEngineAdaptor : public FuzzTestFuzzer,
   // nullptr.
   std::unique_ptr<Driver> fixture_driver_staging_;
   std::unique_ptr<FuzzerImpl> fuzzer_impl_;
+
+  Runtime& runtime_ = Runtime::instance();
 };
 
 #endif  // FUZZTEST_COMPATIBILITY_MODE

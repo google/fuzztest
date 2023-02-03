@@ -75,9 +75,9 @@ int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
       GetExternalEngineCallback() == nullptr,
       "External engine callback is already set while running a fuzz test.");
   SetExternalEngineCallback(this);
-  run_mode = RunMode::kFuzz;
+  runtime_.SetRunMode(RunMode::kFuzz);
   auto& impl = GetFuzzerImpl();
-  on_failure.Enable(&impl.stats_, [] { return absl::Now(); });
+  runtime_.EnableReporter(&impl.stats_, [] { return absl::Now(); });
 
   FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
                           "Invalid fixture driver!");
@@ -109,11 +109,11 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(std::string_view data) {
     FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
                             "Invalid fixture driver!");
     impl.fixture_driver_->TearDownFuzzTest();
-    on_failure.PrintFinalStatsOnDefaultSink();
+    runtime_.PrintFinalStatsOnDefaultSink();
     // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
     std::_Exit(0);
   }
-  on_failure.SetCurrentTest(&impl.test_);
+  runtime_.SetCurrentTest(&impl.test_);
   if (auto input = impl.TryParse(data)) {
     impl.RunOneInput({*std::move(input)});
   }
