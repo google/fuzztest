@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -2936,6 +2937,17 @@ class ArbitraryImpl<absl::Time>
               return absl::UnixEpoch() + duration;
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+template <class T>
+class ArbitraryImpl<std::complex<T>>
+    : public MapImpl<std::complex<T> (*)(T, T), ArbitraryImpl<T>,
+                     ArbitraryImpl<T>> {
+ public:
+  ArbitraryImpl()
+      : MapImpl<std::complex<T> (*)(T, T), ArbitraryImpl<T>, ArbitraryImpl<T>>(
+            [](T real, T imag) { return std::complex<T>(real, imag); },
+            ArbitraryImpl<T>(), ArbitraryImpl<T>()) {}
 };
 
 }  // namespace fuzztest::internal
