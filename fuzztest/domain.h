@@ -63,6 +63,7 @@ class Domain {
   using value_type = T;
   using corpus_type = internal::GenericDomainCorpusType;
   static constexpr bool has_custom_corpus_type = true;
+  static constexpr bool is_directly_serializable = false;
 
   template <typename Inner>
   Domain(const internal::DomainBase<Inner, T>& inner)

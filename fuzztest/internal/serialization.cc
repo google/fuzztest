@@ -27,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
 
@@ -173,13 +174,21 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
 
 }  // namespace
 
-std::string IRObject::ToString() const {
+std::string IRObject::ToString(bool directly) const {
+  if (directly) {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        std::holds_alternative<std::string>(value),
+        "IRObject must hold std::string to be directly serializable.");
+    return std::get<std::string>(value);
+  }
   std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
   std::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
 }
 
-std::optional<IRObject> IRObject::FromString(std::string_view str) {
+std::optional<IRObject> IRObject::FromString(std::string_view str,
+                                             bool directly) {
+  if (directly) return IRObject(std::string(str));
   IRObject object;
   if (ReadToken(str) != kHeader) return std::nullopt;
   if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;

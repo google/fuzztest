@@ -348,6 +348,7 @@ cc_library(
     srcs = ["internal/serialization.cc"],
     hdrs = ["internal/serialization.h"],
     deps = [
+        ":logging",
         ":meta",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings",

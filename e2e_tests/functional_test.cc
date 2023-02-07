@@ -795,7 +795,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSet) {
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = IRObject::FromString(replay_files[0].data, /*directly=*/true);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -930,12 +930,22 @@ TEST_F(FuzzingModeTest, MinimizesDuplicatedCorpus) {
                       minimized_corpus_files.size() + 2)))));
 }
 
+template <typename T>
+constexpr bool is_nested_string = false;
+
+template <>
+constexpr bool is_nested_string<std::string> = true;
+
+template <typename T>
+constexpr bool is_nested_string<std::tuple<T>> = is_nested_string<T>;
+
 class ReplayFile {
  public:
   template <typename T>
   ReplayFile(std::in_place_t, const T& corpus) {
     filename_ = absl::StrCat(dir_.dirname(), "/replay_file");
-    WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString());
+    WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString(
+                             /*directly=*/is_nested_string<T>));
   }
 
   auto GetReplayEnv() const {
@@ -1094,7 +1104,7 @@ TEST_F(FuzzingModeTest, MinimizerFindsSmallerInput) {
 
     auto replay_files = ReadFileOrDirectory(out_dir.dirname());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
-    auto parsed = IRObject::FromString(replay_files[0].data);
+    auto parsed = IRObject::FromString(replay_files[0].data, /*directly=*/true);
     ASSERT_TRUE(parsed) << std_err;
     auto args = parsed->ToCorpus<std::tuple<std::string>>();
     ASSERT_THAT(args, Optional(FieldsAre(HasSubstr("X"))));
