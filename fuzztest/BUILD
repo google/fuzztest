@@ -107,6 +107,8 @@ cc_library(
         "internal/grammar.h",
         "internal/protobuf_domain.h",
     ],
+    # Public for cc_fuzztest_grammar_library rule.
+    visibility = ["//visibility:public"],
     deps = [
         ":absl_domain",
         ":any",
