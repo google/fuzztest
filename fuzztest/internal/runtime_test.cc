@@ -52,7 +52,7 @@ TEST(OnFailureTest, Output) {
 =================================================================
 === Fuzzing stats
 
-Elapsed seconds (ns): 1979
+Elapsed time: 1.979us
 Total runs: 1
 Edges covered: 2
 Total edges: 3

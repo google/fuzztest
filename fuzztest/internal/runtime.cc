@@ -82,8 +82,7 @@ void Runtime::PrintFinalStats(absl::FormatRawSink out) const {
   absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
 
   const absl::Duration fuzzing_time = clock_fn_() - stats_->start_time;
-  absl::Format(out, "Elapsed seconds (ns): %d\n",
-               absl::ToInt64Nanoseconds(fuzzing_time));
+  absl::Format(out, "Elapsed time: %s\n", absl::FormatDuration(fuzzing_time));
   absl::Format(out, "Total runs: %d\n", stats_->runs);
   absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
   absl::Format(out, "Total edges: %d\n", stats_->total_edges);
