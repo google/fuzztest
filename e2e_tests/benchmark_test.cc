@@ -23,10 +23,13 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/subprocess.h"
@@ -155,8 +158,16 @@ void RunMicrobenchmarks(const bool list_tests, const std::string& filter) {
   // Get the list of fuzz tests in the `microbenchmarks` binary.
   auto [status, std_out, std_err] = fuzztest::internal::RunCommand(
       {MicrobenchmarksBinaryPath(), "--list_fuzz_tests"});
-  const std::vector<std::string> fuzz_test_names =
+  const std::vector<std::string> std_out_lines =
       absl::StrSplit(std_out, '\n', absl::SkipWhitespace());
+  std::vector<std::string> fuzz_test_names;
+  fuzz_test_names.reserve(std_out_lines.size());
+  for (absl::string_view line : std_out_lines) {
+    static constexpr absl::string_view kFuzzTestPrefix = "[*] Fuzz test: ";
+    if (absl::ConsumePrefix(&line, kFuzzTestPrefix)) {
+      fuzz_test_names.push_back(std::string(line));
+    }
+  }
 
   if (list_tests) {
     for (const std::string& name : fuzz_test_names) {

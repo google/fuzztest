@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 
   if (absl::GetFlag(FLAGS_list_fuzz_tests)) {
     for (const auto& name : fuzztest::ListRegisteredTests()) {
-      std::cout << name << '\n';
+      std::cout << "[*] Fuzz test: " << name << '\n';
     }
     return 0;
   }
