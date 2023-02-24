@@ -15,7 +15,9 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 
+#include <iostream>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -23,8 +25,21 @@
 
 namespace fuzztest::internal {
 
+enum class ExitCodeT : int;
+inline ExitCodeT ExitCode(int i) { return static_cast<ExitCodeT>(i); }
+inline std::ostream& operator<<(std::ostream& os, ExitCodeT code) {
+  return os << "ExitCode: " << static_cast<int>(code);
+}
+enum class SignalT : int;
+inline SignalT Signal(int i) { return static_cast<SignalT>(i); }
+inline std::ostream& operator<<(std::ostream& os, SignalT code) {
+  return os << "Signal: " << static_cast<int>(code);
+}
+
 // Represents the termination status of a process.
 class TerminationStatus {
+  using StatusT = std::variant<ExitCodeT, SignalT>;
+
  public:
   // Constructs TerminationStatus from a raw `status` value, e.g., returned by
   // the waitpid() system call.
@@ -34,12 +49,28 @@ class TerminationStatus {
   // True iff the process was terminated by a signal.
   bool Signaled() const;
 
-  // The exit code.
-  // REQUIRES: Exited() == true;
-  int ExitCode() const;
-  // The termination signal.
-  // REQUIRES: Signaled() == true;
-  int Signal() const;
+  friend std::ostream& operator<<(std::ostream& os, TerminationStatus self) {
+    std::visit([&os](auto v) { os << v; }, self.Status());
+    return os;
+  }
+
+  // TerminationStatus can be compared to ExitCodeT and SignalT.
+  friend bool operator==(TerminationStatus self, StatusT res) {
+    return self.Status() == res;
+  }
+  friend bool operator==(StatusT res, TerminationStatus self) {
+    return self.Status() == res;
+  }
+  friend bool operator!=(TerminationStatus self, StatusT res) {
+    return self.Status() != res;
+  }
+  friend bool operator!=(StatusT res, TerminationStatus self) {
+    return self.Status() != res;
+  }
+
+  // If Exited, returns an ExitCodeT.
+  // If Signaled, returns a SignalT.
+  StatusT Status() const;
 
  private:
   // The raw status.

@@ -46,14 +46,10 @@ bool TerminationStatus::Exited() const { return WIFEXITED(status_); }
 
 bool TerminationStatus::Signaled() const { return WIFSIGNALED(status_); }
 
-int TerminationStatus::ExitCode() const {
-  FUZZTEST_INTERNAL_CHECK(Exited(), "Can only get ExitCode() if Exited().");
-  return WEXITSTATUS(status_);
-}
-
-int TerminationStatus::Signal() const {
-  FUZZTEST_INTERNAL_CHECK(Signaled(), "Can only get Signal() if Signaled().");
-  return WTERMSIG(status_);
+std::variant<ExitCodeT, SignalT> TerminationStatus::Status() const {
+  if (Exited()) return static_cast<ExitCodeT>(WEXITSTATUS(status_));
+  FUZZTEST_INTERNAL_CHECK(Signaled(), "!Exited && !Signaled");
+  return static_cast<SignalT>(WTERMSIG(status_));
 }
 
 #if !defined(_MSC_VER)

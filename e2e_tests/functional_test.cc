@@ -138,13 +138,13 @@ TEST(UnitTestModeTest, FuzzTestsAreFoundInTheBinary) {
   EXPECT_THAT(std_out, HasSubstr("MySuite.Coverage"));
   EXPECT_THAT(std_out, HasSubstr("MySuite.DivByZero"));
   EXPECT_THAT(std_out, HasSubstr("MySuite.PassesWithPositiveInput"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, WrongFuzzTestNameTriggersError) {
   auto [status, std_out, std_err] = RunWith("--fuzz=WrongName");
   EXPECT_THAT(std_err, HasSubstr("No FUZZ_TEST matches the name: WrongName"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, MatchingMultipleFuzzTestsTriggersError) {
@@ -154,13 +154,13 @@ TEST(UnitTestModeTest, MatchingMultipleFuzzTestsTriggersError) {
       HasSubstr(
           "Multiple FUZZ_TESTs match the name: Bad\n\nPlease select one. "
           "Matching tests:\n MySuite.BadFilter\n MySuite.BadWithMinSize\n"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, PassingTestPassesInUnitTestingMode) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.PassesWithPositiveInput"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, InvalidSeedsCauseErrorMessageAndExit) {
@@ -168,7 +168,7 @@ TEST(UnitTestModeTest, InvalidSeedsCauseErrorMessageAndExit) {
       RunBinaryWith(BinaryPath("testdata/fuzz_tests_with_invalid_seeds"), "");
   EXPECT_THAT(std_err, HasSubstr("[!] Error using `WithSeeds()` in"));
   EXPECT_THAT(std_err, HasSubstr("Invalid seed value:\n\n{17}\n"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, CorpusIsMutatedInUnitTestMode) {
@@ -178,7 +178,7 @@ TEST(UnitTestModeTest, CorpusIsMutatedInUnitTestMode) {
   EXPECT_THAT(std_err, HasSubstr("==<<Saw size=1>>=="));
   EXPECT_THAT(std_err, HasSubstr("==<<Saw size=2>>=="));
   EXPECT_THAT(std_err, HasSubstr("==<<Saw size=3>>=="));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, UnitTestModeLimitsNumberOfIterationsByWallTime) {
@@ -188,7 +188,7 @@ TEST(UnitTestModeTest, UnitTestModeLimitsNumberOfIterationsByWallTime) {
       RunWith(GetGTestFilterFlag("MySuite.OneIterationTakesTooMuchTime"));
   EXPECT_THAT(std_out,
               HasSubstr("[       OK ] MySuite.OneIterationTakesTooMuchTime"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 int CountSubstrs(std::string_view haystack, std::string_view needle) {
@@ -251,7 +251,7 @@ void GoogleTestExpectationsDontAbortInUnitTestModeImpl(
       << std_out;
   EXPECT_THAT(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestAssert"))
       << std_out;
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 
   // There is no repro example on stdout, and there is one on stderr.
   EXPECT_THAT(
@@ -294,7 +294,7 @@ TEST(UnitTestModeTest,
      GoogleTestPerIterationFixtureInstantiatedOncePerIteration) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "CallCountPerIteration.CallCountIsAlwaysIncrementedFromInitialValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest,
@@ -318,82 +318,82 @@ TEST(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
 TEST(UnitTestModeTest, GoogleTestWorksWithProtoExtensionsUsedInSeeds) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.CheckProtoExtensions"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("Uses proto extensions"));
 }
 
 TEST(UnitTestModeTest, UnitTestAndFuzzTestCanShareSuiteName) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "SharedSuite.WorksAsUnitTest:SharedSuite.WorksAsFuzzTest"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, RepeatedFieldsHaveMinSizeWhenInitialized) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.RepeatedFieldHasMinimumSize"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, OptionalProtoFieldCanHaveNoValue) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldI32HasNoValue"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST(UnitTestModeTest, OptionalProtoFieldThatIsUnsetNeverHasValue) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldI64HasValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, ProtoFieldsThatAreUnsetNeverHaveValue) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhen64IntegralFieldsHaveValues"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldDoubleHasNoValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, ProtoFieldsThatAreAlwaysSetAlwaysHaveValue) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenFieldI64OrRepeatedI64HaveNoValues"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, CanCustomizeProtoFieldsWithTransformers) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
       "FailsIfRepeatedEnumsHaveZeroValueAndOptionalEnumHasNonZeroValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, RequiredProtoFieldWillBeSetWhenNullnessIsNotCustomized) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenRequiredInt32FieldHasNoValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenRequiredEnumFieldHasNoValue"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
 }
 
 TEST(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenOptionalFieldU32HasNoValue"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfProtobufEnumEqualsLabel4"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(
       std_err,
       HasSubstr("argument 0: fuzztest::internal::TestProtobuf::Label4"));
@@ -402,7 +402,7 @@ TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
 TEST(UnitTestModeTest, WorksWithRecursiveStructs) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithRecursiveStructs"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   // Nullptr has multiple possible human-readable representations.
   EXPECT_THAT(std_err, AnyOf(HasSubstr("argument 0: {0, 1}"),
                              HasSubstr("argument 0: {(nil), 1}")));
@@ -411,49 +411,49 @@ TEST(UnitTestModeTest, WorksWithRecursiveStructs) {
 TEST(UnitTestModeTest, WorksWithStructsWithConstructors) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithStructsWithConstructors"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0: {1, \"abc\"}"));
 }
 
 TEST(UnitTestModeTest, WorksWithStructsWithEmptyTuples) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithStructsWithEmptyTuples"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0: {}"));
 }
 
 TEST(UnitTestModeTest, WorksWithEmptyStructs) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithEmptyStructs"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0: {}"));
 }
 
 TEST(UnitTestModeTest, WorksWithStructsWithEmptyFields) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithStructsWithEmptyFields"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0: {{}}"));
 }
 
 TEST(UnitTestModeTest, WorksWithEmptyInheritance) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.WorksWithEmptyInheritance"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"abc\"}"));
 }
 
 TEST(UnitTestModeTest, ArbitraryWorksWithEmptyInheritance) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.ArbitraryWorksWithEmptyInheritance"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("argument 0:"));
 }
 
 TEST(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FlatMapCorrectlyPrintsValues"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   // This is the argument to the output domain.
   EXPECT_THAT(std_err, HasSubstr("argument 0: {\"AAA\", \"BBB\"}"));
   // This is the argument to the input domain.
@@ -463,43 +463,43 @@ TEST(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
 TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsSingleParameter) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleOfOne"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsThreeParameters) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleOfThree"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST(UnitTestModeTest, PropertyFunctionAcceptsTupleContainingTuple) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.UnpacksTupleContainingTuple"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST(UnitTestModeTest, ProtoFieldsCanBeAlwaysSet) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenSubprotoIsNull"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, ProtoFieldsCanBeUnset) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsWhenSubprotoFieldsAreSet"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, RepeatedProtoFieldsCanBeCustomized) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsWhenRepeatedSubprotoIsSmallOrHasAnEmptyElement"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, DefaultOptionalPolicyAppliesToAllOptionalFields) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenAnyOptionalFieldsHaveValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest,
@@ -507,7 +507,7 @@ TEST(UnitTestModeTest,
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
       "FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenDomain"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest,
@@ -515,13 +515,13 @@ TEST(UnitTestModeTest,
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
       "FailsWhenAnyOptionalFieldsHaveValueButNotFieldsWithOverwrittenPolicy"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfCantInitializeProto"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("recursive fields"));
 }
 
@@ -530,44 +530,44 @@ TEST(UnitTestModeTest,
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite."
       "InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, DefaultRepeatedFieldsMinSizeAppliesToAllRepeatedFields) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsIfRepeatedFieldsDoesntHaveTheMinimumSize"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, DefaultRepeatedFieldsMaxSizeAppliesToAllRepeatedFields) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsIfRepeatedFieldsDoesntHaveTheMaximumSize"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, UsesPolicyProvidedDefaultDomainForProtos) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenSubprotosDontSetOptionalI32"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, ChecksTypeOfProvidedDefaultDomainForProtos) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsWhenWrongDefaultProtobufDomainIsProvided"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   EXPECT_THAT(std_err, HasSubstr("does not match the expected message type"));
 }
 
 TEST(UnitTestModeTest, PoliciesApplyToFieldsInOrder) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
       "MySuite.FailsWhenI32FieldValuesDontRespectAllPolicies"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenOneofFieldDoesntHaveOneofValue"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 // The following tests are on "fuzzing mode" functionality, and can only run
@@ -587,13 +587,13 @@ class FuzzingModeTest : public ::testing::Test {
 TEST_F(FuzzingModeTest, AbortTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.Aborts");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FuzzTestCanBeSelectedForFuzzingUsingSubstring) {
   auto [status, std_out, std_err] = RunWith("--fuzz=Abort");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
@@ -603,7 +603,7 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
       std_err,
       AnyOf(HasSubstr("ERROR: AddressSanitizer: container-overflow"),
             HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow")));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -612,7 +612,7 @@ TEST_F(FuzzingModeTest,
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.DereferenceEmptyOptional");
   EXPECT_THAT(std_err, HasSubstr("argument 0: std::nullopt"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 #endif
 }
 
@@ -621,7 +621,7 @@ TEST_F(FuzzingModeTest, BufferOverflowIsDetectedWithStringInFuzzingMode) {
       RunWith("--fuzz=MySuite.BufferOverreadWithString");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -630,7 +630,7 @@ TEST_F(FuzzingModeTest,
       "--fuzz=MySuite.BufferOverreadWithStringAndLvalueStringViewRef");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -639,16 +639,16 @@ TEST_F(FuzzingModeTest,
       "--fuzz=MySuite.BufferOverreadWithStringAndRvalueStringViewRef");
   EXPECT_THAT(std_err,
               HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.DivByZero");
   EXPECT_THAT(std_err, HasSubstr("argument 1: 0"));
 #ifdef ADDRESS_SANITIZER
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0)));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 #else
-  EXPECT_THAT(status.Signal(), Eq(SIGFPE));
+  EXPECT_THAT(status, Eq(Signal(SIGFPE)));
 #endif
 }
 
@@ -658,45 +658,45 @@ TEST_F(FuzzingModeTest, CoverageTestFindsAbortInFuzzingMode) {
   EXPECT_THAT(std_err, HasSubstr("argument 1: 'u'"));
   EXPECT_THAT(std_err, HasSubstr("argument 2: 'z'"));
   EXPECT_THAT(std_err, HasSubstr("argument 3: 'z'"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, StringTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.String");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, StringAsciiOnlyTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.StringAsciiOnly");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, StringRegexpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.StringRegexp");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, StringViewTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.StringView");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, StrCmpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.StrCmp");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Hello!"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, BitFlagsFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.BitFlags");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 21"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, EnumTestFindsAbortInFuzzingMode) {
@@ -704,7 +704,7 @@ TEST_F(FuzzingModeTest, EnumTestFindsAbortInFuzzingMode) {
   EXPECT_THAT(std_err, HasSubstr("argument 0: Color{0}"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: Color{1}"));
   EXPECT_THAT(std_err, HasSubstr("argument 2: Color{2}"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, EnumClassTestFindsAbortInFuzzingMode) {
@@ -713,33 +713,33 @@ TEST_F(FuzzingModeTest, EnumClassTestFindsAbortInFuzzingMode) {
   EXPECT_THAT(std_err, HasSubstr("argument 0: ColorClass{0}"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: ColorClass{1}"));
   EXPECT_THAT(std_err, HasSubstr("argument 2: ColorClass{2}"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, ProtoTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.Proto");
   EXPECT_THAT(std_err, ContainsRegex(R"(argument 0: \(b:\s+true)"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, BitvectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.BitvectorValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {true"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, VectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.VectorValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, GoogleTestExpectationsStopTheFuzzer) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.GoogleTestExpect");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 
   // There is the repro example only on stderr.
   EXPECT_THAT(std_out,
@@ -751,7 +751,7 @@ TEST_F(FuzzingModeTest, GoogleTestAssertionsStopTheFuzzer) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.GoogleTestAssert");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 
   // There is the repro example only on stderr.
   EXPECT_THAT(std_out,
@@ -790,7 +790,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSet) {
       RunWith("--fuzz=MySuite.String",
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
@@ -957,7 +957,7 @@ TEST_F(FuzzingModeTest, ReplayingNonCrashingReproducerDoesNotCrash) {
 
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.String", replay.GetReplayEnv());
-  EXPECT_THAT(status.ExitCode(), Eq(0)) << std_err;
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
 }
 
 TEST_F(FuzzingModeTest, ReplayingCrashingReproducerCrashes) {
@@ -967,7 +967,7 @@ TEST_F(FuzzingModeTest, ReplayingCrashingReproducerCrashes) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.String", replay.GetReplayEnv());
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz with some tail.\""));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 // The TypeErased tests below try the same as above, but with Domain<T> domains
@@ -980,7 +980,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSetTypeErased) {
       RunWith("--fuzz=MySuite.WithDomainClass",
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
-  EXPECT_THAT(status.ExitCode(), Not(Eq(0))) << std_err;
+  EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
@@ -995,7 +995,7 @@ TEST_F(FuzzingModeTest, ReplayingNonCrashingReproducerDoesNotCrashTypeErased) {
 
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.WithDomainClass", replay.GetReplayEnv());
-  EXPECT_THAT(status.ExitCode(), Eq(0)) << std_err;
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
 }
 
 TEST_F(FuzzingModeTest, ReplayingCrashingReproducerCrashesTypeErased) {
@@ -1004,7 +1004,7 @@ TEST_F(FuzzingModeTest, ReplayingCrashingReproducerCrashesTypeErased) {
       RunWith("--fuzz=MySuite.WithDomainClass", replay.GetReplayEnv());
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: 1979.125"));
-  EXPECT_THAT(status.ExitCode(), Ne(0));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest, MappedDomainShowsMappedValue) {
@@ -1018,7 +1018,7 @@ TEST_F(FuzzingModeTest, MappedDomainShowsMappedValue) {
               // Account for the possibility that the symbol
               // NumberOfAnimalsToString may be mangled.
               R"re(.*NumberOfAnimalsToString.*\(TimesTwo\(6\), "monkey"\))re")));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FlatMappedDomainShowsMappedValue) {
@@ -1029,7 +1029,7 @@ TEST_F(FuzzingModeTest, FlatMappedDomainShowsMappedValue) {
                                  // Account for the possibility that the symbol
                                  // StringAndValidIndex may be mangled.
                                  R"re(.*StringAndValidIndex.*\("abc"\))re")));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FlatMapPassesWhenCorrect) {
@@ -1039,21 +1039,21 @@ TEST_F(FuzzingModeTest, FlatMapPassesWhenCorrect) {
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest, FilterDomainShowsOnlyFilteredValues) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.Filtering");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 8"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: 9"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, BadFilterTriggersAnAbort) {
   auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.BadFilter");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of Filter()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, BadWithMinSizeTriggersAnAbort) {
@@ -1061,21 +1061,21 @@ TEST_F(FuzzingModeTest, BadWithMinSizeTriggersAnAbort) {
       RunWith("--fuzz=MySuite.BadWithMinSize");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of WithSize()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, SmartPointer) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.SmartPointer");
   EXPECT_THAT(std_err, HasSubstr("argument 0: (1"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, UnprintableTypeRunsAndPrintsSomething) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.UsesUnprintableType");
   EXPECT_THAT(std_err, HasSubstr("argument 0: <unprintable value>"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, MinimizerFindsSmallerInput) {
@@ -1089,7 +1089,7 @@ TEST_F(FuzzingModeTest, MinimizerFindsSmallerInput) {
     auto [status, std_out, std_err] =
         RunWith("--fuzz=MySuite.Minimizer", env);
     ASSERT_THAT(std_err, HasSubstr("argument 0: \""));
-    ASSERT_THAT(status.Signal(), Eq(SIGABRT));
+    ASSERT_THAT(status, Eq(Signal(SIGABRT)));
 
     auto replay_files = ReadFileOrDirectory(out_dir.dirname());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
@@ -1109,21 +1109,21 @@ TEST_F(FuzzingModeTest, MyStructTestArbitraryCanPrint) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.MyStructArbitrary");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, MyStructTestWithDomainsCanPrint) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.MyStructWithDomains");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, ConstructorPrintsSomething) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.ConstructorWithDomains");
   EXPECT_THAT(std_err, HasSubstr("\"ccc\""));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FuzzerStatsArePrintedOnTermination) {
@@ -1133,21 +1133,21 @@ TEST_F(FuzzingModeTest, FuzzerStatsArePrintedOnTermination) {
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest, SeedInputIsUsed) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.SeedInputIsUsed");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {9439518, 21, 49153}"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.SeedInputIsUsedForMutation");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 19, 1234, 5678}"));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, UsesManualDictionary) {
@@ -1155,21 +1155,21 @@ TEST_F(FuzzingModeTest, UsesManualDictionary) {
       RunWith("--fuzz=MySuite.StringReverseTest",
               /*env=*/{}, /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FunctionPointerAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.FunctionPointerAliasesAreFuzzable");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FunctionReferenceAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.FunctionReferenceAliasesAreFuzzable");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, GlobalEnvironmentIsSetUpForFailingTest) {
@@ -1199,7 +1199,7 @@ TEST_F(FuzzingModeTest, GoogleTestHasCurrentTestInfo) {
               /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(std_out,
               HasSubstr("[       OK ] MySuite.GoogleTestHasCurrentTestInfo"));
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest, SilenceTargetWorking) {
@@ -1209,7 +1209,7 @@ TEST_F(FuzzingModeTest, SilenceTargetWorking) {
   EXPECT_THAT(std_out, Not(HasSubstr("Hello World from target stdout")));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, Not(HasSubstr("Hello World from target stderr")));
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeTest, FixtureGoesThroughCompleteLifecycle) {
@@ -1226,7 +1226,7 @@ TEST_F(FuzzingModeTest,
       "--fuzz=CallCountPerIteration."
       "CallCountIsAlwaysIncrementedFromInitialValue",
       {{"FUZZTEST_MAX_FUZZING_RUNS", "10"}});
-  EXPECT_THAT(status.ExitCode(), Eq(0));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeTest,
@@ -1255,7 +1255,7 @@ TEST_F(FuzzingModeTest, NonFatalFailureAllowsMinimization) {
   // "larger" inputs also trigger the failure.
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"0123\""));
 
-  EXPECT_THAT(status.Signal(), Eq(SIGABRT));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 }  // namespace

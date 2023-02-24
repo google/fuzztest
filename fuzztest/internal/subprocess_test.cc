@@ -26,10 +26,23 @@ namespace {
 
 using ::testing::HasSubstr;
 
+template <typename T>
+std::string ToString(T v) {
+  std::stringstream ss;
+  ss << v;
+  return ss.str();
+}
+
+TEST(SubProcessTest, ToStringWorks) {
+  EXPECT_EQ(ToString(ExitCode(1)), "ExitCode: 1");
+  EXPECT_EQ(ToString(Signal(17)), "Signal: 17");
+}
+
 TEST(SubProcessTest, StdOutIsCaptured) {
   auto [status, std_out, std_err] = RunCommand({"echo", "hello", "world"});
   EXPECT_TRUE(status.Exited());
-  EXPECT_EQ(status.ExitCode(), 0);
+  EXPECT_EQ(status, ExitCode(0));
+  EXPECT_EQ(ToString(status), "ExitCode: 0");
   EXPECT_EQ(std_out, "hello world\n");
   EXPECT_EQ(std_err, "");
 }
@@ -37,7 +50,7 @@ TEST(SubProcessTest, StdOutIsCaptured) {
 TEST(SubProcessTest, StdErrIsCaptured) {
   auto [status, std_out, std_err] = RunCommand({"bash", "-c", "not-a-binary"});
   EXPECT_TRUE(status.Exited());
-  EXPECT_NE(status.ExitCode(), 0);
+  EXPECT_NE(status, ExitCode(0));
   EXPECT_EQ(std_out, "");
   EXPECT_THAT(std_err, HasSubstr("command not found"));
 }
@@ -49,7 +62,7 @@ TEST(SubProcessTest, CrashesWithWrongArguments) {
 TEST(SubProcessTest, PassedEnvironmentIsSet) {
   auto [status, std_out, std_err] = RunCommand({"env"}, {{"THING", "42"}});
   EXPECT_TRUE(status.Exited());
-  EXPECT_EQ(status.ExitCode(), 0);
+  EXPECT_EQ(status, ExitCode(0));
   EXPECT_EQ(std_out, "THING=42\n");
   EXPECT_EQ(std_err, "");
 }
@@ -58,7 +71,8 @@ TEST(SubProcessTest, TimeoutIsEnforced) {
   auto [status, std_out, std_err] =
       RunCommand({"yes"}, /*environment=*/{}, absl::Seconds(.5));
   EXPECT_TRUE(status.Signaled());
-  EXPECT_EQ(status.Signal(), SIGTERM);
+  EXPECT_EQ(status, Signal(SIGTERM));
+  EXPECT_EQ(ToString(status), absl::StrCat("Signal: ", SIGTERM));
   EXPECT_GT(std_out.size(), 0);
   EXPECT_EQ(std_err.size(), 0);
 }
