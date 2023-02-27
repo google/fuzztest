@@ -891,6 +891,18 @@ class ProtobufDomainUntypedImpl
     Inner domain;
     ProtobufDomainUntypedImpl& self;
 
+    template <bool is_repeated, typename T>
+    Descriptor* GetDescriptor(const T& val) const {
+      auto v = domain.GetValue(val);
+      if constexpr (is_repeated) {
+        if (v.empty()) return nullptr;
+        return v[0]->GetDescriptor();
+      } else {
+        if (!v.has_value()) return nullptr;
+        return (*v)->GetDescriptor();
+      }
+    }
+
     template <typename T, typename DomainT, bool is_repeated>
     void ApplyDomain(const FieldDescriptor* field) {
       if constexpr (!std::is_constructible_v<DomainT, Inner>) {
@@ -902,11 +914,17 @@ class ProtobufDomainUntypedImpl
         if constexpr (std::is_same_v<T, ProtoMessageTag>) {
           // Verify that the type matches.
           absl::BitGen gen;
-          auto inner_domain = domain.Inner();
-          auto obj = inner_domain.GetValue(inner_domain.Init(gen));
-          auto* descriptor = obj->GetDescriptor();
+          std::string full_name;
+          constexpr int kMaxTry = 10;
+          auto val = domain.Init(gen);
+          auto descriptor = GetDescriptor<is_repeated>(val);
+          for (int i = 0; !descriptor && i < kMaxTry; ++i) {
+            domain.Mutate(val, gen, /*only_shrink=*/false);
+            descriptor = GetDescriptor<is_repeated>(val);
+          }
           FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-              descriptor->full_name() == field->message_type()->full_name(),
+              !descriptor ||
+                  descriptor->full_name() == field->message_type()->full_name(),
               "Input domain does not match the expected message type. The "
               "domain produced a message of type `",
               descriptor->full_name(),
