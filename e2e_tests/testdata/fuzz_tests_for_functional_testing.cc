@@ -241,11 +241,13 @@ void FailsWhenSubprotoFieldsAreSet(const TestProtobuf& proto) {
   }
 }
 FUZZ_TEST(MySuite, FailsWhenSubprotoFieldsAreSet)
-    .WithDomains(Arbitrary<TestProtobuf>()
-                     .WithProtobufFieldUnset("subproto")
-                     .WithRepeatedProtobufField(
-                         "rep_subproto", VectorOf(Arbitrary<TestSubProtobuf>())
-                                             .WithMaxSize(0)));
+    .WithDomains(
+        Arbitrary<TestProtobuf>()
+            .WithOptionalProtobufField("subproto",
+                                       fuzztest::NullOpt<TestSubProtobuf>())
+            .WithRepeatedProtobufField(
+                "rep_subproto",
+                VectorOf(Arbitrary<TestSubProtobuf>()).WithMaxSize(0)));
 
 void FailsWhenRepeatedSubprotoIsSmallOrHasAnEmptyElement(
     const TestProtobuf& proto) {

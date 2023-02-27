@@ -1695,21 +1695,80 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   FUZZTEST_INTERNAL_WITH_FIELD(Protobuf, std::unique_ptr<typename T::Message>,
                                ProtoMessageTag)
 
-  template <typename ProtoDomain>
-  ProtobufDomainImpl&& WithRepeatedProtobufField(
-      absl::string_view field,
-      SequenceContainerOfImpl<std::vector<typename ProtoDomain::value_type>,
-                              ProtoDomain>
-          domain) && {
-    auto cast_domain = SequenceContainerOfImpl<
-        std::vector<std::unique_ptr<typename T::Message>>,
-        Domain<std::unique_ptr<typename T::Message>>>(domain.Inner());
-    cast_domain.CopyConstraintsFrom(domain);
-    inner_.WithField(field, cast_domain);
-    return std::move(*this);
+#undef FUZZTEST_INTERNAL_WITH_FIELD
+
+  // The following methods automatically cast Domain<Proto> to
+  // Domain<unique_ptr<Message>>
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithProtobufField(absl::string_view field,
+                                         Domain<Protobuf> domain) && {
+    return std::move(*this).WithProtobufField(
+        field, ToUntypedProtoDomain(std::move(domain)));
   }
 
-#undef FUZZTEST_INTERNAL_WITH_FIELD
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithProtobufFieldAlwaysSet(absl::string_view field,
+                                                  Domain<Protobuf> domain) && {
+    return std::move(*this).WithProtobufFieldAlwaysSet(
+        field, ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithProtobufFields(Domain<Protobuf> domain) && {
+    return std::move(*this).WithProtobufFields(
+        ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithProtobufFields(
+      std::function<bool(const FieldDescriptor*)>&& filter,
+      Domain<Protobuf> domain) && {
+    return std::move(*this).WithProtobufFields(
+        std::move(filter), ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithOptionalProtobufFields(Domain<Protobuf> domain) && {
+    return std::move(*this).WithOptionalProtobufFields(
+        ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithOptionalProtobufFields(
+      std::function<bool(const FieldDescriptor*)>&& filter,
+      Domain<Protobuf> domain) && {
+    return std::move(*this).WithOptionalProtobufFields(
+        std::move(filter), ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithRepeatedProtobufFields(Domain<Protobuf> domain) && {
+    return std::move(*this).WithRepeatedProtobufFields(
+        ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename Protobuf>
+  ProtobufDomainImpl&& WithRepeatedProtobufFields(
+      std::function<bool(const FieldDescriptor*)>&& filter,
+      Domain<Protobuf> domain) && {
+    return std::move(*this).WithRepeatedProtobufFields(
+        std::move(filter), ToUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename OptionalProtobufDomain>
+  ProtobufDomainImpl&& WithOptionalProtobufField(
+      absl::string_view field, OptionalProtobufDomain domain) && {
+    return std::move(*this).WithOptionalProtobufField(
+        field, ToOptionalUntypedProtoDomain(std::move(domain)));
+  }
+
+  template <typename RepeatedProtobufDomain>
+  ProtobufDomainImpl&& WithRepeatedProtobufField(
+      absl::string_view field, RepeatedProtobufDomain domain) && {
+    return std::move(*this).WithRepeatedProtobufField(
+        field, ToRepeatedUntypedProtoDomain(std::move(domain)));
+  }
 
  private:
   void FailIfIsOneof(absl::string_view field) {
@@ -1719,6 +1778,57 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
         " with WithOptional<Type>Field (try using "
         "WithOneofAlwaysSet or WithOptional<Type>Unset).");
   }
+
+  template <typename Inner>
+  Domain<std::unique_ptr<typename T::Message>> ToUntypedProtoDomain(
+      Inner inner_domain) {
+    return internal::MapImpl<std::function<std::unique_ptr<typename T::Message>(
+                                 typename Inner::value_type)>,
+                             Inner>(
+        [](typename Inner::value_type proto_message)
+            -> std::unique_ptr<typename T::Message> {
+          return {std::make_unique<typename Inner::value_type>(proto_message)};
+        },
+        std::move(inner_domain));
+  }
+
+  template <typename Inner>
+  Domain<std::optional<std::unique_ptr<typename T::Message>>>
+  ToOptionalUntypedProtoDomain(Inner inner_domain) {
+    return internal::MapImpl<
+        std::function<std::optional<std::unique_ptr<typename T::Message>>(
+            typename Inner::value_type)>,
+        Inner>(
+        [](typename Inner::value_type proto_message)
+            -> std::optional<std::unique_ptr<typename T::Message>> {
+          if (!proto_message.has_value()) return std::nullopt;
+          return {std::make_unique<
+              std::remove_reference_t<decltype(*proto_message)>>(
+              *proto_message)};
+        },
+        std::move(inner_domain));
+  }
+
+  template <typename Inner>
+  Domain<std::vector<std::unique_ptr<typename T::Message>>>
+  ToRepeatedUntypedProtoDomain(Inner inner_domain) {
+    return internal::MapImpl<
+        std::function<std::vector<std::unique_ptr<typename T::Message>>(
+            typename Inner::value_type)>,
+        Inner>(
+        [](typename Inner::value_type proto_message)
+            -> std::vector<std::unique_ptr<typename T::Message>> {
+          std::vector<std::unique_ptr<typename T::Message>> result;
+          for (auto& entry : proto_message) {
+            result.push_back(
+                std::make_unique<std::remove_reference_t<decltype(entry)>>(
+                    entry));
+          }
+          return result;
+        },
+        std::move(inner_domain));
+  }
+
   Inner inner_{&T::default_instance()};
 };
 
