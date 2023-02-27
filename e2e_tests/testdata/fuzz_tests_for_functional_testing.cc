@@ -506,6 +506,26 @@ struct HasConstructor {
   HasConstructor(int a, std::string b) : a(a), b(b) {}
 };
 
+const google::protobuf::Message* GetPrototype() {
+  return &fuzztest::internal::TestProtobuf::default_instance();
+}
+
+void FailsWhenI32ContainsTheSecretNumber(
+    const std::unique_ptr<google::protobuf::Message>& m) {
+  fuzztest::internal::TestProtobuf proto;
+  if (m->GetDescriptor()->full_name() != "fuzztest.internal.TestProtobuf") {
+    std::abort();
+  }
+  const google::protobuf::FieldDescriptor* field =
+      m->GetDescriptor()->FindFieldByName("i32");
+  if (m->GetReflection()->GetInt32(*m, field) == /*secret number*/ -1) {
+    std::cerr << "Secret number is found !" << std::endl;
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuite, FailsWhenI32ContainsTheSecretNumber)
+    .WithDomains(fuzztest::ProtobufOf(GetPrototype()));
+
 void WorksWithStructsWithConstructors(const HasConstructor& h) {
   if (h.a == 1 && h.b == "abc") {
     std::abort();

@@ -1032,6 +1032,23 @@ auto NonEmpty(Inner inner) {
   return inner.WithMinSize(1);
 }
 
+// ProtobufOf(const Message* prototype) creates a unique_ptr<Message> domain for
+// the provided message prototype (The default protobuf Message).
+//
+// Example usage:
+//   const Message* GetPrototype(absl::string_view name) {
+//     const Descriptor* descriptor =
+//         DescriptorPool::generated_pool()->FindMessageTypeByName(name);
+//     return MessageFactory::generated_factory()->GetPrototype(descriptor);
+//   }
+//   ProtobufOf(GetPrototype("my.package.Proto"))
+//
+template <typename Message>
+auto ProtobufOf(const Message* prototype) {
+  return Domain<std::unique_ptr<Message>>(
+      internal::ProtobufDomainUntypedImpl<Message>(prototype));
+}
+
 }  // namespace internal_no_adl
 
 // Inject the names from internal_no_adl into fuzztest, without allowing for

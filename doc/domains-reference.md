@@ -249,6 +249,24 @@ exceptions are:
 *   `string` fields which will guarantee UTF8 values.
 *   `enum` fields will select only valid labels.
 
+Alternatively, you can use `ProtobufOf` to define a domain for
+`unique_ptr<Message>` using a protobuf prototype (the default protobuf message).
+This enables defining a domain at runtime:
+
+```c++
+const Message* GetDefaultProtobuf(absl::string_view) {
+  const Descriptor* descriptor =
+      DescriptorPool::generated_pool()->FindMessageTypeByName(name);
+  return MessageFactory::generated_factory()->GetPrototype(descriptor);
+}
+
+void DoStuffDoesNotCrashWithMyProto(const std::unique_ptr<Message>& my_proto){
+  DoStuff(my_proto);
+}
+FUZZ_TEST(MySuite, DoStuffDoesNotCrashWithMyProto)
+  .WithDomains(ProtobufOf(GetDefaultProtobuf('my_package.ProtoA')));
+```
+
 #### Customizing Individual Fields
 
 **Setting the domain of an *optional* field:** You can customize the subdomains

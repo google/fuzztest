@@ -390,6 +390,13 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST(UnitTestModeTest, ProtobufOfMutatesTheProto) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenI32ContainsTheSecretNumber"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  EXPECT_THAT(std_err, HasSubstr("Secret number is found"));
+}
+
 TEST(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfProtobufEnumEqualsLabel4"));
