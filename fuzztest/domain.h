@@ -1032,21 +1032,35 @@ auto NonEmpty(Inner inner) {
   return inner.WithMinSize(1);
 }
 
-// ProtobufOf(const Message* prototype) creates a unique_ptr<Message> domain for
-// the provided message prototype (The default protobuf Message).
+// ProtobufOf(std::function<const Message*()> get_prototype) creates a
+// unique_ptr<Message> domain for the protobuf prototype (the default protobuf
+// message) returned by `get_prototype()`.
+//
+// REQUIRES: `get_prototype` never returns nullptr.
 //
 // Example usage:
-//   const Message* GetPrototype(absl::string_view name) {
+//
+//   const Message* GetPrototypeMessage() {
+//     const std::string name = GetPrototypeNameFromFlags();
 //     const Descriptor* descriptor =
 //         DescriptorPool::generated_pool()->FindMessageTypeByName(name);
 //     return MessageFactory::generated_factory()->GetPrototype(descriptor);
 //   }
-//   ProtobufOf(GetPrototype("my.package.Proto"))
 //
-template <typename Message>
-auto ProtobufOf(const Message* prototype) {
-  return Domain<std::unique_ptr<Message>>(
-      internal::ProtobufDomainUntypedImpl<Message>(prototype));
+//   ProtobufOf(GetPrototypeMessage)
+template <typename PrototypeMessageProvider,
+          typename T = std::remove_cv_t<std::remove_pointer_t<
+              decltype(std::declval<PrototypeMessageProvider>()())>>>
+auto ProtobufOf(PrototypeMessageProvider get_prototype) {
+  if constexpr (std::is_abstract_v<T>) {  // T = Message
+    return Domain<std::unique_ptr<T>>(internal::ProtobufDomainUntypedImpl<T>(
+        fuzztest::internal::PrototypePtr<T>(get_prototype)));
+  } else {  // T is derived class of Message
+    using Message = typename T::Message;
+    return Domain<std::unique_ptr<Message>>(
+        internal::ProtobufDomainUntypedImpl<Message>(
+            fuzztest::internal::PrototypePtr<Message>(get_prototype)));
+  }
 }
 
 }  // namespace internal_no_adl

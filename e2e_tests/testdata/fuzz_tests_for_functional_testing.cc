@@ -506,10 +506,6 @@ struct HasConstructor {
   HasConstructor(int a, std::string b) : a(a), b(b) {}
 };
 
-const google::protobuf::Message* GetPrototype() {
-  return &fuzztest::internal::TestProtobuf::default_instance();
-}
-
 void FailsWhenI32ContainsTheSecretNumber(
     const std::unique_ptr<google::protobuf::Message>& m) {
   fuzztest::internal::TestProtobuf proto;
@@ -524,7 +520,9 @@ void FailsWhenI32ContainsTheSecretNumber(
   }
 }
 FUZZ_TEST(MySuite, FailsWhenI32ContainsTheSecretNumber)
-    .WithDomains(fuzztest::ProtobufOf(GetPrototype()));
+    .WithDomains(fuzztest::ProtobufOf([]() {
+      return &fuzztest::internal::TestProtobuf::default_instance();
+    }));
 
 void WorksWithStructsWithConstructors(const HasConstructor& h) {
   if (h.a == 1 && h.b == "abc") {

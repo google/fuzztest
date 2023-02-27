@@ -28,6 +28,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/die_if_null.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/strings/string_view.h"
@@ -367,6 +368,27 @@ class ProtoPolicy {
   FUZZTEST_INTERNAL_POLICY_MEMBERS(Protobuf, std::unique_ptr<Message>)
 };
 
+template <typename Prototype>
+class PrototypePtr {
+ public:
+  PrototypePtr(std::function<const Prototype*()> prototype_factory)
+      : prototype_factory_(std::move(prototype_factory)), prototype_(nullptr) {}
+  PrototypePtr(const Prototype* prototype)
+      : prototype_factory_(), prototype_(ABSL_DIE_IF_NULL(prototype)) {}
+
+  PrototypePtr& operator=(const PrototypePtr<Prototype>& other) = default;
+  PrototypePtr(const PrototypePtr<Prototype>& other) = default;
+
+  const Prototype* Get() const {
+    if (!prototype_) prototype_ = prototype_factory_();
+    return prototype_;
+  }
+
+ private:
+  std::function<const Prototype*()> prototype_factory_;
+  mutable const Prototype* prototype_;
+};
+
 // Domain for std::unique_ptr<Message>, where the prototype is accepted as a
 // constructor argument.
 template <typename Message>
@@ -382,16 +404,16 @@ class ProtobufDomainUntypedImpl
   using value_type = std::unique_ptr<Message>;
   static constexpr bool has_custom_corpus_type = true;
 
-  explicit ProtobufDomainUntypedImpl(const Message* prototype)
-      : prototype_(prototype),
+  explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype)
+      : prototype_(std::move(prototype)),
         policy_(),
         customized_fields_(),
         always_set_oneofs_(),
         uncustomizable_oneofs_(),
         oneof_fields_policies_() {}
 
-  ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other) {
-    prototype_ = other.prototype_;
+  ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
+      : prototype_(other.prototype_) {
     absl::MutexLock l(&other.mutex_);
     domains_ = other.domains_;
     policy_ = other.policy_;
@@ -471,7 +493,7 @@ class ProtobufDomainUntypedImpl
     FUZZTEST_INTERNAL_CHECK(
         !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
-    const auto* descriptor = prototype_->GetDescriptor();
+    const auto* descriptor = prototype_.Get()->GetDescriptor();
     SetOneofFieldsPoliciesToWithoutNullWhereNeeded(descriptor);
     corpus_type val;
     absl::flat_hash_map<int, int> oneof_to_field;
@@ -571,7 +593,7 @@ class ProtobufDomainUntypedImpl
 
   uint64_t CountNumberOfFields(const corpus_type& val) {
     uint64_t total_weight = 0;
-    auto* descriptor = prototype_->GetDescriptor();
+    auto* descriptor = prototype_.Get()->GetDescriptor();
     if (descriptor->field_count() == 0) return total_weight;
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
@@ -603,7 +625,7 @@ class ProtobufDomainUntypedImpl
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
-    auto* descriptor = prototype_->GetDescriptor();
+    auto* descriptor = prototype_.Get()->GetDescriptor();
     if (descriptor->field_count() == 0) return field_counter;
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
@@ -639,7 +661,7 @@ class ProtobufDomainUntypedImpl
   }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    auto* descriptor = prototype_->GetDescriptor();
+    auto* descriptor = prototype_.Get()->GetDescriptor();
     if (descriptor->field_count() == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
     uint64_t total_weight = CountNumberOfFields(val);
@@ -695,10 +717,10 @@ class ProtobufDomainUntypedImpl
   };
 
   value_type GetValue(const corpus_type& value) const {
-    value_type out(prototype_->New());
+    value_type out(prototype_.Get()->New());
 
     for (auto& [number, data] : value) {
-      auto* field = GetProtobufField(prototype_, number);
+      auto* field = GetProtobufField(prototype_.Get(), number);
       VisitProtobufField(field, GetValueVisitor{*out, *this, data});
     }
 
@@ -804,7 +826,7 @@ class ProtobufDomainUntypedImpl
       if (!pair_subs || pair_subs->size() != 2) return std::nullopt;
       auto number = (*pair_subs)[0].GetScalar<int>();
       if (!number) return std::nullopt;
-      auto* field = GetProtobufField(prototype_, *number);
+      auto* field = GetProtobufField(prototype_.Get(), *number);
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
       std::optional<GenericDomainCorpusType> inner_parsed;
@@ -814,10 +836,10 @@ class ProtobufDomainUntypedImpl
       out[*number] = *std::move(inner_parsed);
     }
     for (int field_index = 0;
-         field_index < prototype_->GetDescriptor()->field_count();
+         field_index < prototype_.Get()->GetDescriptor()->field_count();
          ++field_index) {
       const FieldDescriptor* field =
-          prototype_->GetDescriptor()->field(field_index);
+          prototype_.Get()->GetDescriptor()->field(field_index);
       if (present_fields.contains(field->number())) continue;
       std::optional<GenericDomainCorpusType> inner_parsed;
       IRObject unset_value;
@@ -851,7 +873,7 @@ class ProtobufDomainUntypedImpl
     IRObject out;
     auto& subs = out.MutableSubs();
     for (auto& [number, inner] : v) {
-      auto* field = GetProtobufField(prototype_, number);
+      auto* field = GetProtobufField(prototype_.Get(), number);
       FUZZTEST_INTERNAL_CHECK(field, "Field not found by number: ", number);
       IRObject& pair = subs.emplace_back();
       auto& pair_subs = pair.MutableSubs();
@@ -923,8 +945,8 @@ class ProtobufDomainUntypedImpl
   }
 
   const FieldDescriptor* GetField(absl::string_view field_name) const {
-    auto* field =
-        prototype_->GetDescriptor()->FindFieldByName(std::string(field_name));
+    auto* field = prototype_.Get()->GetDescriptor()->FindFieldByName(
+        std::string(field_name));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
@@ -957,7 +979,7 @@ class ProtobufDomainUntypedImpl
 
   void WithOneofAlwaysSet(absl::string_view oneof_name) {
     const std::string name(oneof_name);
-    auto* oneof = prototype_->GetDescriptor()->FindOneofByName(name);
+    auto* oneof = prototype_.Get()->GetDescriptor()->FindOneofByName(name);
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(oneof != nullptr,
                                          "Invalid oneof name '", name, "'.");
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -1186,7 +1208,7 @@ class ProtobufDomainUntypedImpl
       return Domain<LazyInt>(ElementOfImpl<LazyInt>(std::move(values)));
     } else if constexpr (std::is_same_v<T, ProtoMessageTag>) {
       auto result = ProtobufDomainUntypedImpl(
-          prototype_->GetReflection()->GetMessageFactory()->GetPrototype(
+          prototype_.Get()->GetReflection()->GetMessageFactory()->GetPrototype(
               field->message_type()));
       result.SetPolicy(policy_);
       return Domain<std::unique_ptr<Message>>(result);
@@ -1252,8 +1274,8 @@ class ProtobufDomainUntypedImpl
   }
 
   bool IsNonTerminatingRecursive() {
-    absl::flat_hash_set<decltype(prototype_->GetDescriptor())> parents;
-    return IsProtoRecursive(prototype_->GetDescriptor(), parents, policy_,
+    absl::flat_hash_set<decltype(prototype_.Get()->GetDescriptor())> parents;
+    return IsProtoRecursive(prototype_.Get()->GetDescriptor(), parents, policy_,
                             /*consider_non_terminating_recursions=*/true);
   }
 
@@ -1354,7 +1376,7 @@ class ProtobufDomainUntypedImpl
            field->containing_type()->map_value() == field;
   }
 
-  const Message* prototype_;
+  PrototypePtr<Message> prototype_;
 
   mutable absl::Mutex mutex_;
   mutable absl::flat_hash_map<int, CopyableAny> domains_

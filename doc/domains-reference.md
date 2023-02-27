@@ -251,10 +251,13 @@ exceptions are:
 
 Alternatively, you can use `ProtobufOf` to define a domain for
 `unique_ptr<Message>` using a protobuf prototype (the default protobuf message).
-This enables defining a domain at runtime:
+Note that `ProtobufOf` doesn't take `const Message*` (the prototype) directly.
+It takes a *function pointer* that returns a `const Message*`. This delays
+getting the prototype until the first use:
 
 ```c++
-const Message* GetDefaultProtobuf(absl::string_view) {
+const Message* GetMessagePrototype() {
+  const std::string name = GetPrototypeNameFromFlags();
   const Descriptor* descriptor =
       DescriptorPool::generated_pool()->FindMessageTypeByName(name);
   return MessageFactory::generated_factory()->GetPrototype(descriptor);
@@ -264,7 +267,7 @@ void DoStuffDoesNotCrashWithMyProto(const std::unique_ptr<Message>& my_proto){
   DoStuff(my_proto);
 }
 FUZZ_TEST(MySuite, DoStuffDoesNotCrashWithMyProto)
-  .WithDomains(ProtobufOf(GetDefaultProtobuf('my_package.ProtoA')));
+  .WithDomains(ProtobufOf(GetMessagePrototype));
 ```
 
 #### Customizing Individual Fields
