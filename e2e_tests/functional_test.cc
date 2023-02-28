@@ -135,9 +135,10 @@ RunResults RunWith(
 
 TEST(UnitTestModeTest, FuzzTestsAreFoundInTheBinary) {
   auto [status, std_out, std_err] = RunWith("--list_fuzz_tests");
-  EXPECT_THAT(std_out, HasSubstr("MySuite.Coverage"));
-  EXPECT_THAT(std_out, HasSubstr("MySuite.DivByZero"));
-  EXPECT_THAT(std_out, HasSubstr("MySuite.PassesWithPositiveInput"));
+  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.Coverage"));
+  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.DivByZero"));
+  EXPECT_THAT(std_out,
+              HasSubstr("[*] Fuzz test: MySuite.PassesWithPositiveInput"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
