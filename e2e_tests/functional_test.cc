@@ -360,7 +360,7 @@ TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
 
 TEST(UnitTestModeTest, ProtoFieldsThatAreAlwaysSetAlwaysHaveValue) {
   auto [status, std_out, std_err] = RunWith(
-      GetGTestFilterFlag("MySuite.FailsWhenFieldI64OrRepeatedI64HaveNoValues"));
+      GetGTestFilterFlag("MySuite.FailsWhen64IntegralFieldsHaveNoValues"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -542,13 +542,13 @@ TEST(UnitTestModeTest,
 
 TEST(UnitTestModeTest, DefaultRepeatedFieldsMinSizeAppliesToAllRepeatedFields) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
-      "MySuite.FailsIfRepeatedFieldsDoesntHaveTheMinimumSize"));
+      "MySuite.FailsIfRepeatedFieldsDontHaveTheMinimumSize"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST(UnitTestModeTest, DefaultRepeatedFieldsMaxSizeAppliesToAllRepeatedFields) {
   auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
-      "MySuite.FailsIfRepeatedFieldsDoesntHaveTheMaximumSize"));
+      "MySuite.FailsIfRepeatedFieldsDontHaveTheMaximumSize"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
