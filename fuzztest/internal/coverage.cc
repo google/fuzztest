@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -63,17 +64,69 @@ void ExecutionCoverage::UpdateCmpMap(size_t index, uint8_t hamming_dist,
     max_cmp_map_[index].counter = bucketized_counter;
     max_cmp_map_[index].hamming = hamming_dist;
     max_cmp_map_[index].absolute = absolute_dist;
-    new_cmp_ = true;
+    new_coverage_.store(true, std::memory_order_relaxed);
   } else if (bucketized_counter == max_cmp_map_[index].counter) {
     if (max_cmp_map_[index].hamming < hamming_dist) {
-      new_cmp_ = true;
+      new_coverage_.store(true, std::memory_order_relaxed);
       max_cmp_map_[index].hamming = hamming_dist;
     }
     if (max_cmp_map_[index].absolute < absolute_dist) {
-      new_cmp_ = true;
+      new_coverage_.store(true, std::memory_order_relaxed);
       max_cmp_map_[index].absolute = absolute_dist;
     }
   }
+}
+
+void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
+  auto *stack_top = test_thread_stack_top;
+  if (stack_top == nullptr) {
+    // Wrong thread.
+    return;
+  }
+  const char *this_frame = GetCurrentStackFrame();
+  const ptrdiff_t this_stack = stack_top - this_frame;
+
+  // Hash to use more of the map array. The PC is normally aligned which mean
+  // the lower bits are zero. By hashing we put some entropy on those bits.
+  const auto mix_or = [](uint64_t x) { return x ^ (x >> 32); };
+  const size_t index = mix_or(PC * 0x9ddfea08eb382d69) % kMaxStackMapSize;
+  if (this_stack > max_stack_map_[index]) {
+    max_stack_map_[index] = this_stack;
+    // Reaching a new max on any PC is new coverage.
+    new_coverage_.store(true, std::memory_order_relaxed);
+
+    // Keep the total max for stats.
+    max_stack_recorded_ = std::max(this_stack, max_stack_recorded_);
+
+    if (this_stack > MaxAllowedStackUsage()) {
+      // Turn off tracing before we crash, otherwise we will crash while trying
+      // to print the report.
+      SetIsTracing(false);
+      absl::FPrintF(GetStderr(),
+                    "[!] Code under test used %d bytes of stack. Configured "
+                    "limit is %d. You can change the limit by specifying "
+                    "FUZZTEST_STACK_LIMIT enviroment variable.",
+                    this_stack, MaxAllowedStackUsage());
+      std::abort();
+    }
+  }
+}
+
+size_t ExecutionCoverage::MaxAllowedStackUsage() {
+  bool old_tracing = is_tracing_;
+  is_tracing_ = false;
+  static const size_t cached = [] {
+    // Make sure we are not tracing while calculating this.
+    const char *env = getenv("FUZZTEST_STACK_LIMIT");
+    size_t res;
+    if (env == nullptr || !absl::SimpleAtoi(env, &res)) {
+      static constexpr size_t kDefault = 64 << 10;
+      res = kDefault;
+    }
+    return res;
+  }();
+  is_tracing_ = old_tracing;
+  return cached;
 }
 
 // Coverage only available in Clang, but only for Linux.
@@ -200,7 +253,7 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
 
     return UpdateVectorized(execution_map.data(), corpus_data,
                             execution_map.size(), offset_to_align) ||
-           execution_coverage->NewCmpCoverageFound();
+           execution_coverage->NewCoverageFound();
   }
 
   bool new_coverage = false;
@@ -213,7 +266,7 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
       }
     }
   }
-  return new_coverage || execution_coverage->NewCmpCoverageFound();
+  return new_coverage || execution_coverage->NewCoverageFound();
 }
 
 #else  // __clang__ && __linux__
@@ -286,6 +339,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
   fuzztest::internal::execution_coverage_instance->GetTablesOfRecentCompares()
       .GetMutable<data_size>()
       .Insert(arg1, arg2);
+
+  fuzztest::internal::execution_coverage_instance->UpdateMaxStack(PC);
 }
 
 // Use NO_SANITIZE_MEMORY and ADDRESS to skip possible errors on reading buffer.

@@ -87,12 +87,19 @@ void Runtime::PrintFinalStats(absl::FormatRawSink out) const {
   absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
   absl::Format(out, "Total edges: %d\n", stats_->total_edges);
   absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
+  absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
 }
 
 void Runtime::PrintReport(absl::FormatRawSink out) const {
   // We don't want to try and print a fuzz report when we are not running a fuzz
   // test, even if we got a crash.
   if (!reporter_enabled_) return;
+
+  if (auto* coverage = GetExecutionCoverage()) {
+    // Turn off tracing to avoid having the report trigger more problems during
+    // tracing, potentially leading to stack overflow.
+    coverage->SetIsTracing(false);
+  }
 
   if (crash_handler_hook) crash_handler_hook();
 
@@ -447,9 +454,11 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::TrySample(
       fuzzing_secs ? stats_.runs / fuzzing_secs : stats_.runs;
   absl::FPrintF(GetStderr(),
                 "[*] Corpus size: %5d | Edges covered: %6d | "
-                "Fuzzing time: %12s | Total runs:  %1.2e | Runs/secs: %5d\n",
+                "Fuzzing time: %16s | Total runs:  %1.2e | Runs/secs: %5d | "
+                "Max stack usage: %8d\n",
                 stats_.useful_inputs, stats_.edges_covered,
-                absl::FormatDuration(fuzzing_time), stats_.runs, runs_per_sec);
+                absl::FormatDuration(fuzzing_time), stats_.runs, runs_per_sec,
+                stats_.max_stack_used);
   return run_result;
 }
 
@@ -636,6 +645,8 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   bool new_coverage = false;
   if (execution_coverage_ != nullptr) {
     new_coverage = corpus_coverage_.Update(execution_coverage_);
+    stats_.max_stack_used =
+        std::max(stats_.max_stack_used, execution_coverage_->MaxStackUsed());
   }
   runtime_.UnsetCurrentArgs();
   return {new_coverage, run_time};
@@ -653,6 +664,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   constexpr int kMaxTriedWithoutFailure = 10000;
   while (tries_without_failure < kMaxTriedWithoutFailure &&
          absl::Now() < deadline) {
+    FUZZTEST_INTERNAL_CHECK(
+        minimal_non_fatal_counterexample_.has_value(),
+        "Caller didn't populate minimal_non_fatal_counterexample_");
     auto copy = *minimal_non_fatal_counterexample_;
     // Mutate a random number of times, in case one is not enough to
     // reach another failure, but prefer a low number of mutations (thus Zipf).

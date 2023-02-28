@@ -73,6 +73,7 @@ cc_library(
         ":logging",
         ":table_of_recent_compares",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )

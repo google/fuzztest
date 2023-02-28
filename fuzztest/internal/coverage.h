@@ -61,7 +61,18 @@ class ExecutionCoverage {
   void ResetState() {
     memset(new_cmp_counter_map_, 0, kCmpCovMapSize);
     memset(counter_map_.data(), 0, counter_map_.size());
-    new_cmp_ = false;
+    new_coverage_.store(false, std::memory_order_relaxed);
+
+    max_stack_recorded_ = 0;
+    test_thread_stack_top = GetCurrentStackFrame();
+  }
+
+  static char* GetCurrentStackFrame() {
+#if defined(__has_builtin) && __has_builtin(__builtin_frame_address)
+    return reinterpret_cast<char*>(__builtin_frame_address(0));
+#else
+    return nullptr;
+#endif
   }
 
   // The size of cmp coverage maps, it's a randomly picked value. But
@@ -72,8 +83,9 @@ class ExecutionCoverage {
   // If a higher score is found, set new_cmp_ to be mark a new coverage.
   void UpdateCmpMap(size_t index, uint8_t hamming_dist, uint8_t absolute_dist);
 
-  // Returns true if new cmp coverage found, will also unset new_cmp_
-  bool NewCmpCoverageFound() { return new_cmp_; }
+  bool NewCoverageFound() {
+    return new_coverage_.load(std::memory_order_relaxed);
+  }
 
   auto& GetTablesOfRecentCompares() { return tables_of_recent_compares_; }
 
@@ -84,6 +96,21 @@ class ExecutionCoverage {
   // Right before target run, call this method with true; right after
   // target run, call this method with false.
   void SetIsTracing(bool is_tracing) { is_tracing_ = is_tracing; }
+
+  // Most of the time tests are run under the main thread, which has a very
+  // large stack limit. On the other hand, code under test will tend to run on
+  // threads with a much smaller stack size.
+  // Instead of waiting for a stack overflow, we measure the stack usage and
+  // abort the process if it finds it to be larger than
+  // `MaxAllowedStackUsage()`. This limit can be configured via environment
+  // variable `FUZZTEST_STACK_LIMIT`.
+  size_t MaxAllowedStackUsage();
+  // Update the PC->max stack usage map for `PC`.
+  // It compares the current stack frame against the stack frame specified in
+  // `test_thread_stack_top`. Only applies to the thread that sets
+  // `test_thread_stack_top` and it is a noop on other threads.
+  void UpdateMaxStack(uintptr_t PC);
+  size_t MaxStackUsed() const { return max_stack_recorded_; }
 
  private:
   // 8-bit counters map, records the hit of edges.
@@ -108,8 +135,19 @@ class ExecutionCoverage {
   // Temporary map storing the hit counts of cmps for a target run.
   CmpScore max_cmp_map_[kCmpCovMapSize] = {};
 
-  // Flag marking new cmp coverage.
-  bool new_cmp_ = false;
+  static inline thread_local const char* test_thread_stack_top = nullptr;
+  // The watermark of stack usage observed on the test thread while tracing is
+  // enabled.
+  ptrdiff_t max_stack_recorded_ = 0;
+
+  // Like on other coverage maps above, we record the max stack usage on
+  // different PC seen. This allows the runtime to mark "more stack usage" as
+  // "new coverage" per PC instead of globally.
+  static constexpr size_t kMaxStackMapSize = 1024U * 256;
+  uint32_t max_stack_map_[kMaxStackMapSize] = {};
+
+  // Flag marking new coverage of any kind.
+  std::atomic<bool> new_coverage_{false};
 
   TablesOfRecentCompares tables_of_recent_compares_ = {};
   bool is_tracing_ = false;

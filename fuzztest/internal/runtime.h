@@ -109,6 +109,7 @@ struct RuntimeStats {
   size_t total_edges;
   // Number of executed inputs that increase coverage.
   size_t useful_inputs;
+  size_t max_stack_used;
 };
 
 void InstallSignalHandlers(FILE* report_out);

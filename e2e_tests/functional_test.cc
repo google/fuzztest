@@ -1266,5 +1266,17 @@ TEST_F(FuzzingModeTest, NonFatalFailureAllowsMinimization) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(FuzzingModeTest, FuzzTestCanFindStackOverflows) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=DataDependentStackOverflow");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(
+      std_err,
+      ContainsRegex("Code under test used [0-9]* bytes of stack. Configured "
+                    "limit is 65536. You can change the limit by specifying "
+                    "FUZZTEST_STACK_LIMIT enviroment variable."));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

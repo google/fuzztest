@@ -635,4 +635,16 @@ FUZZ_TEST(MySuite, UnpacksTupleContainingTuple)
     .WithDomains(TupleOf(TupleOf(Arbitrary<std::string>(), Arbitrary<int>()),
                          Arbitrary<std::string>(), Arbitrary<int>()));
 
+int DataDependentStackOverflowImpl(const std::string& s, int i) {
+  // Use a volatile to prevent the compiler from inlining the recursion.
+  volatile auto f = DataDependentStackOverflowImpl;
+  return i < s.size() ? 1 + f(s, i + 1) : 0;
+}
+
+void DataDependentStackOverflow(const std::string& s) {
+  DataDependentStackOverflowImpl(s, 0);
+}
+FUZZ_TEST(MySuite, DataDependentStackOverflow)
+    .WithDomains(fuzztest::Arbitrary<std::string>().WithMaxSize(100000));
+
 }  // namespace

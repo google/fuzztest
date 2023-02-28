@@ -39,7 +39,7 @@ TEST(OnFailureTest, Output) {
 
   FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
   std::tuple args(17, std::string("ABC"));
-  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4};
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
   runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
   runtime.SetRunMode(RunMode::kFuzz);
   auto domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
@@ -57,6 +57,7 @@ Total runs: 1
 Edges covered: 2
 Total edges: 3
 Corpus size: 4
+Max stack used: 5
 
 =================================================================
 === BUG FOUND!
