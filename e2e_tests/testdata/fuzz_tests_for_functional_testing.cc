@@ -155,13 +155,20 @@ void FailsWhenFieldI64HasValue(const TestProtobuf& proto) {
 FUZZ_TEST(MySuite, FailsWhenFieldI64HasValue)
     .WithDomains(Arbitrary<TestProtobuf>().WithInt64FieldUnset("i64"));
 
-void FailsWhenFieldDoubleHasNoValue(const TestProtobuf& proto) {
+void FailsWhenFieldsOfTypeDoubleHasNoValue(const TestProtobuf& proto) {
+  static constexpr double kTolerance = 0.01;
   if (!proto.has_d()) std::abort();
+  if (proto.d() > 10 + kTolerance || proto.d() < 0 - kTolerance) std::abort();
+  if (proto.rep_d_size() == 0) std::abort();
+  for (const auto& d : proto.rep_d()) {
+    if (d > 10 + kTolerance || d < 0 - kTolerance) std::abort();
+  }
 }
 
-FUZZ_TEST(MySuite, FailsWhenFieldDoubleHasNoValue)
-    .WithDomains(Arbitrary<TestProtobuf>().WithDoubleFieldAlwaysSet(
-        "d", InRange(0., 1000.)));
+FUZZ_TEST(MySuite, FailsWhenFieldsOfTypeDoubleHasNoValue)
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithDoubleFieldAlwaysSet("d", InRange(0., 10.))
+                     .WithDoubleFieldAlwaysSet("rep_d", InRange(0., 10.)));
 
 bool IsUInt32(const FieldDescriptor* field) {
   return field->type() == FieldDescriptor::TYPE_UINT32;

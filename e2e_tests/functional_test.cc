@@ -353,9 +353,10 @@ TEST(UnitTestModeTest, ProtoFieldsThatAreUnsetNeverHaveValue) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST(UnitTestModeTest, OptionalProtoFieldThatIsAlwaysSetAlwaysHasValue) {
-  auto [status, std_out, std_err] =
-      RunWith(GetGTestFilterFlag("MySuite.FailsWhenFieldDoubleHasNoValue"));
+TEST(UnitTestModeTest,
+     ProtoFieldThatAreCustomizedAndAlwaysSetHaveCorrectValue) {
+  auto [status, std_out, std_err] = RunWith(
+      GetGTestFilterFlag("MySuite.FailsWhenFieldsOfTypeDoubleHasNoValue"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
