@@ -1513,6 +1513,19 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
     return std::move(*this);
   }
 
+  ProtobufDomainImpl&& WithRepeatedFieldsSize(int64_t size) && {
+    WithRepeatedFieldsMinSize(size);
+    WithRepeatedFieldsMaxSize(size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsSize(
+      std::function<bool(const FieldDescriptor*)> filter, int64_t size) && {
+    WithRepeatedFieldsMinSize(filter, size);
+    WithRepeatedFieldsMaxSize(filter, size);
+    return std::move(*this);
+  }
+
   ProtobufDomainImpl&& WithRepeatedFieldsMinSize(int64_t min_size) && {
     inner_.GetPolicy().SetMinRepeatedFieldsSize(IncludeAll<FieldDescriptor>(),
                                                 min_size);
