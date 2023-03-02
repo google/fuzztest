@@ -83,6 +83,23 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
     // Wrong thread.
     return;
   }
+
+  // Avoid reentrancy here. Code below could trigger reentrancy and if we don't
+  // stop it we could easily cause an infinite recursion.
+  // We only allow a single call to `UpdateMaxStack` per thread.
+  static thread_local bool updating_max_stack = false;
+  if (updating_max_stack) {
+    // Already updating up the stack.
+    return;
+  }
+  // Mark as updating for nested calls.
+  updating_max_stack = true;
+  struct Reset {
+    ~Reset() { updating_max_stack = false; }
+  };
+  // Reset back to !updating on any exit path.
+  Reset reset;
+
   const char *this_frame = GetCurrentStackFrame();
   const ptrdiff_t this_stack = stack_top - this_frame;
 
@@ -96,12 +113,11 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
     new_coverage_.store(true, std::memory_order_relaxed);
 
     // Keep the total max for stats.
-    max_stack_recorded_ = std::max(this_stack, max_stack_recorded_);
+    if (this_stack > max_stack_recorded_) {
+      max_stack_recorded_ = this_stack;
+    }
 
     if (this_stack > MaxAllowedStackUsage()) {
-      // Turn off tracing before we crash, otherwise we will crash while trying
-      // to print the report.
-      SetIsTracing(false);
       absl::FPrintF(GetStderr(),
                     "[!] Code under test used %d bytes of stack. Configured "
                     "limit is %d. You can change the limit by specifying "
@@ -113,10 +129,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
 }
 
 size_t ExecutionCoverage::MaxAllowedStackUsage() {
-  bool old_tracing = is_tracing_;
-  is_tracing_ = false;
   static const size_t cached = [] {
-    // Make sure we are not tracing while calculating this.
     const char *env = getenv("FUZZTEST_STACK_LIMIT");
     size_t res;
     if (env == nullptr || !absl::SimpleAtoi(env, &res)) {
@@ -125,7 +138,6 @@ size_t ExecutionCoverage::MaxAllowedStackUsage() {
     }
     return res;
   }();
-  is_tracing_ = old_tracing;
   return cached;
 }
 
