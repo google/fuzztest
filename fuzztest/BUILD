@@ -25,6 +25,7 @@ exports_files(["LICENSE"])
 cc_library(
     name = "absl_domain",
     hdrs = ["internal/absl_domain.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         "@com_google_absl//absl/time",
@@ -34,6 +35,7 @@ cc_library(
 cc_library(
     name = "any",
     hdrs = ["internal/any.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         ":meta",
@@ -54,6 +56,7 @@ cc_library(
     name = "compatibility_mode",
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":fixture_driver",
         ":logging",
@@ -69,6 +72,7 @@ cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
     hdrs = ["internal/coverage.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         ":table_of_recent_compares",
@@ -81,6 +85,7 @@ cc_library(
 cc_library(
     name = "table_of_recent_compares",
     hdrs = ["internal/table_of_recent_compares.h"],
+    copts = ["-std=c++17"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random:bit_gen_ref",
@@ -108,6 +113,7 @@ cc_library(
         "internal/grammar.h",
         "internal/protobuf_domain.h",
     ],
+    copts = ["-std=c++17"],
     # Public for cc_fuzztest_grammar_library rule.
     visibility = ["//visibility:public"],
     deps = [
@@ -141,6 +147,7 @@ cc_library(
     name = "fixture_driver",
     srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         ":registration",
@@ -166,6 +173,7 @@ cc_library(
     name = "fuzztest",
     srcs = ["fuzztest.cc"],
     hdrs = ["fuzztest.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":domain",
         ":registry",
@@ -178,6 +186,7 @@ cc_library(
     name = "fuzztest_gtest_main",
     testonly = 1,
     srcs = ["fuzztest_gtest_main.cc"],
+    copts = ["-std=c++17"],
     deps = [
         ":fuzztest",
         ":googletest_adaptor",
@@ -193,6 +202,7 @@ cc_library(
     name = "googletest_adaptor",
     testonly = True,
     hdrs = ["googletest_adaptor.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":registry",
         ":runtime",
@@ -204,6 +214,7 @@ cc_library(
     name = "googletest_fixture_adapter",
     testonly = True,
     hdrs = ["googletest_fixture_adapter.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":fixture_driver",
         "@com_google_googletest//:gtest",
@@ -214,6 +225,7 @@ cc_library(
     name = "io",
     srcs = ["internal/io.cc"],
     hdrs = ["internal/io.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         "@com_google_absl//absl/hash",
@@ -236,6 +248,7 @@ cc_library(
     name = "logging",
     srcs = ["internal/logging.cc"],
     hdrs = ["internal/logging.h"],
+    copts = ["-std=c++17"],
     deps = [
         "@com_google_absl//absl/strings",
     ],
@@ -244,6 +257,7 @@ cc_library(
 cc_library(
     name = "meta",
     hdrs = ["internal/meta.h"],
+    copts = ["-std=c++17"],
     deps = ["@com_google_absl//absl/numeric:int128"],
 )
 
@@ -251,6 +265,7 @@ cc_library(
     name = "regexp",
     srcs = ["internal/regexp.cc"],
     hdrs = ["internal/regexp.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -263,6 +278,7 @@ cc_library(
 cc_library(
     name = "registration",
     hdrs = ["internal/registration.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":domain",
         ":meta",
@@ -276,6 +292,7 @@ cc_library(
     name = "registry",
     srcs = ["internal/registry.cc"],
     hdrs = ["internal/registry.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":compatibility_mode",
         ":fixture_driver",
@@ -289,6 +306,7 @@ cc_library(
     name = "runtime",
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":coverage",
         ":domain",
@@ -328,6 +346,7 @@ cc_library(
     name = "seed_seq",
     srcs = ["internal/seed_seq.cc"],
     hdrs = ["internal/seed_seq.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         "@com_google_absl//absl/random",
@@ -351,6 +370,7 @@ cc_library(
     name = "serialization",
     srcs = ["internal/serialization.cc"],
     hdrs = ["internal/serialization.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":meta",
         "@com_google_absl//absl/numeric:int128",
@@ -375,6 +395,7 @@ cc_library(
     name = "subprocess",
     srcs = ["internal/subprocess.cc"],
     hdrs = ["internal/subprocess.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":logging",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -407,6 +428,7 @@ cc_library(
     name = "type_support",
     srcs = ["internal/type_support.cc"],
     hdrs = ["internal/type_support.h"],
+    copts = ["-std=c++17"],
     deps = [
         ":absl_domain",
         ":meta",
