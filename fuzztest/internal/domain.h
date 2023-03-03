@@ -2157,11 +2157,11 @@ class AggregateOfImpl
   // more efficient. Eg a string value can be serialized as a string instead of
   // as a sequence of char values.
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    if constexpr (has_custom_corpus_type) {
-      return ParseWithDomainTuple(inner_, obj);
-    } else {
-      return obj.ToCorpus<corpus_type>();
-    }
+    // if constexpr (has_custom_corpus_type) {
+    return ParseWithDomainTuple(inner_, obj);
+    // } else {
+    //   return obj.ToCorpus<corpus_type>();
+    // }
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
