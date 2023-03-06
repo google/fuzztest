@@ -78,9 +78,11 @@ void ExecutionCoverage::UpdateCmpMap(size_t index, uint8_t hamming_dist,
 }
 
 void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
-  auto *stack_top = test_thread_stack_top;
-  if (stack_top == nullptr) {
-    // Wrong thread.
+  auto &stack = test_thread_stack;
+  if (!stack ||
+      stack->stack_frame_before_calling_property_function == nullptr ||
+      stack->allocated_stack_region.empty()) {
+    // No stack info.
     return;
   }
 
@@ -101,7 +103,17 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   Reset reset;
 
   const char *this_frame = GetCurrentStackFrame();
-  const ptrdiff_t this_stack = stack_top - this_frame;
+  if (this_frame < stack->allocated_stack_region.data() ||
+      stack->allocated_stack_region.data() +
+              stack->allocated_stack_region.size() <=
+          this_frame) {
+    // The current stack frame pointer is outside the known thread stack.
+    // This is either not the right thread, or we are running under a different
+    // stack (eg signal handler in an alt stack).
+    return;
+  }
+  const ptrdiff_t this_stack =
+      stack->stack_frame_before_calling_property_function - this_frame;
 
   // Hash to use more of the map array. The PC is normally aligned which mean
   // the lower bits are zero. By hashing we put some entropy on those bits.

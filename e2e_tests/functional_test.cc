@@ -1279,5 +1279,17 @@ TEST_F(FuzzingModeTest, FuzzTestCanFindStackOverflows) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(FuzzingModeTest,
+       StackCalculationWorksWithAlternateStackForSignalHandlers) {
+  auto [status, std_out, std_err] = RunWith(
+      "--fuzz=StackCalculationWorksWithAlternateStackForSignalHandlers");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
+  EXPECT_THAT(
+      std_err,
+      Not(HasSubstr(
+          "You can change the limit by specifying FUZZTEST_STACK_LIMIT")));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

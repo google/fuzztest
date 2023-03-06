@@ -31,9 +31,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 #include "absl/types/span.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
+
+#if defined(__linux__)
+#define FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK 1
+#include <pthread.h>
+#endif
 
 namespace fuzztest::internal {
 
@@ -64,7 +70,25 @@ class ExecutionCoverage {
     new_coverage_.store(false, std::memory_order_relaxed);
 
     max_stack_recorded_ = 0;
-    test_thread_stack_top = GetCurrentStackFrame();
+    auto& stack = test_thread_stack;
+    if (!stack) {
+      stack.emplace();
+#if defined(FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK)
+      // Read the current stack information. This will help us later detect if a
+      // stack frame pointer is within bounds.
+      pthread_attr_t attr;
+      void* addr;
+      size_t size;
+      if (pthread_getattr_np(pthread_self(), &attr) == 0 &&
+          pthread_attr_getstack(&attr, &addr, &size) == 0) {
+        stack->allocated_stack_region =
+            absl::Span<const char>(static_cast<const char*>(addr), size);
+        pthread_attr_destroy(&attr);
+      }
+#endif  // FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK
+    }
+    stack->stack_frame_before_calling_property_function =
+        GetCurrentStackFrame();
   }
 
   static char* GetCurrentStackFrame() {
@@ -107,8 +131,8 @@ class ExecutionCoverage {
   size_t MaxAllowedStackUsage();
   // Update the PC->max stack usage map for `PC`.
   // It compares the current stack frame against the stack frame specified in
-  // `test_thread_stack_top`. Only applies to the thread that sets
-  // `test_thread_stack_top` and it is a noop on other threads.
+  // `test_thread_stack`. Only applies to the thread that sets
+  // `test_thread_stack` and it is a noop on other threads.
   void UpdateMaxStack(uintptr_t PC);
   size_t MaxStackUsed() const { return max_stack_recorded_; }
 
@@ -135,7 +159,17 @@ class ExecutionCoverage {
   // Temporary map storing the hit counts of cmps for a target run.
   CmpScore max_cmp_map_[kCmpCovMapSize] = {};
 
-  static inline thread_local const char* test_thread_stack_top = nullptr;
+  struct ThreadStackInfo {
+    // Stack allocated for the running thread.
+    // Frame pointers are compared against it to make sure we are still in the
+    // same stack. In some cases, like signal handlers, we might be using a
+    // different stack.
+    absl::Span<const char> allocated_stack_region;
+    // The stack frame just before calling into the property function. Used as a
+    // the baseline for stack usage calculation.
+    const char* stack_frame_before_calling_property_function;
+  };
+  static inline std::optional<ThreadStackInfo> test_thread_stack = std::nullopt;
   // The watermark of stack usage observed on the test thread while tracing is
   // enabled.
   ptrdiff_t max_stack_recorded_ = 0;

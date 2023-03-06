@@ -16,6 +16,8 @@
 //
 // Specifically, used by `functional_test` only.
 
+#include <signal.h>
+
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -653,5 +655,45 @@ void DataDependentStackOverflow(const std::string& s) {
 }
 FUZZ_TEST(MySuite, DataDependentStackOverflow)
     .WithDomains(fuzztest::Arbitrary<std::string>().WithMaxSize(100000));
+
+void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
+  static size_t dummy_to_trigger_cmp_in_handler;
+  static bool setup_signal_with_altstack = [] {
+    stack_t sigstk = {};
+    sigstk.ss_size = 1 << 20;
+    sigstk.ss_sp = malloc(sigstk.ss_size);
+    FUZZTEST_INTERNAL_CHECK(sigaltstack(&sigstk, nullptr) == 0, errno);
+
+    struct sigaction new_sigact = {};
+    sigemptyset(&new_sigact.sa_mask);
+    new_sigact.sa_sigaction = [](auto...) {
+      ++dummy_to_trigger_cmp_in_handler;
+      if (dummy_to_trigger_cmp_in_handler > 100) {
+        dummy_to_trigger_cmp_in_handler = 1;
+      }
+    };
+
+    // We make use of the SA_ONSTACK flag to have a separate stack for the
+    // signal. This is critical to exercise the condition this test is testing,
+    // where the callbacks from the signal handler happen in a separate stack.
+    new_sigact.sa_flags = SA_SIGINFO | SA_ONSTACK;
+
+    FUZZTEST_INTERNAL_CHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0,
+                            errno);
+
+    return true;
+  }();
+  (void)setup_signal_with_altstack;
+  // Raise the signal to get the handler running.
+  // If the stack calculations are done correctly, that code will not trigger
+  // "stack overflow" detection and we will continue here.
+  raise(SIGUSR1);
+  // Just make sure the signal handler ran.
+  FUZZTEST_INTERNAL_CHECK(dummy_to_trigger_cmp_in_handler != 0, "");
+  if (i == 123456789) {
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuite, StackCalculationWorksWithAlternateStackForSignalHandlers);
 
 }  // namespace
