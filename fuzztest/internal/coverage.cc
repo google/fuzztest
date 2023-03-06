@@ -133,7 +133,7 @@ size_t ExecutionCoverage::MaxAllowedStackUsage() {
     const char *env = getenv("FUZZTEST_STACK_LIMIT");
     size_t res;
     if (env == nullptr || !absl::SimpleAtoi(env, &res)) {
-      static constexpr size_t kDefault = 64 << 10;
+      static constexpr size_t kDefault = 128 * 1024;
       res = kDefault;
     }
     return res;
