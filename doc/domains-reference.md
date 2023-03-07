@@ -272,16 +272,48 @@ FUZZ_TEST(MySuite, DoStuffDoesNotCrashWithMyProto)
 
 #### Customizing Individual Fields
 
-**Setting the domain of an *optional* field:** You can customize the subdomains
-used on individual optional fields by calling `With<Type>Field` method like so:
+Each proto field has a type (i.e., int32/string) and a rule
+(optional/repeated/required). You can customize the subdomains for type, rule,
+or both.
+
+**Customizing the field type:** You can customize the subdomains for type used
+on individual fields by calling `With<Type>Field` method. Consider the following
+proto:
+
+```proto
+message Address {
+  string number = 0;
+  string street = 1;
+  string unit = 2;
+  string city = 3;
+  string state = 4;
+  int zipcode = 5;
+}
+
+message Person {
+  optional string ldap = 2;
+  enum Gender {
+    UNKNOWN = 0
+    FEMALE = 1,
+    MALE = 2,
+    OTHER = 3,
+  }
+  optional Gender gender = 3;
+  optional Address address = 4;
+}
+```
+
+You can customize the domain for each field like the following:
 
 ```c++
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
-  WithDomains(Arbitrary<MyProto>()
-      .WithInt32Field("int", InRange(1, 10))
-      .WithStringField("string", ElementOf<std::string>("op1", "op2"))
-      .WithEnumField("enum", ElementOf<int>({Field1, Field2}))
-      .WithProtobufField("subproto", Arbitrary<SubProtobuf>()));
+  WithDomains(Arbitrary<Person>()
+      .WithStringField("ldap", StringOf(AlphaChar()))
+      .WithEnumField("gender", ElementOf<int>({FEMALE, MALE, OTHER}))
+      .WithProtobufField("address",
+                         Arbitrary<Address>()
+                             .WithInt32Field("zipcode", InRange(10000, 99999))
+                             .WithStringField("state", String().WithSize(2))));
 ```
 
 The inner domain is as follows:
@@ -306,35 +338,63 @@ failure.
 
 IMPORTANT: Note that *optional* fields are not always set by the fuzzer.
 
-**Making an optional field always or never set:** If you want to make sure an
-optional field is always set, you can use `With<Type>FieldAlwaysSet()`.
-Similarly, if you want an optional field to be always left unset, you can use
-`With<Type>FieldUnset()`. For example:
+**Customizing the field rule:** You can customize the field rule for optional or
+repeated fields:
+
+*   `WithFieldUnset` will keep the field empty.
+*   `WithFieldAlwaysSet` will keep the field non-empty.
 
 ```c++
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-      // Optional field "foo" is always set to a value in [1, 10].
-      .WithInt32FieldAlwaysSet("foo", InRange(1, 10))
-      // Optional field "bar" is always set to an Arbitrary<T> value.
-      .WithInt32FieldAlwaysSet("bar")
-      // Optional field "baz" is always left unset.
-      .WithStringFieldUnset("baz")
-  );
+      .WithFieldUnset("optional_no_val")
+      .WithFieldUnset("repeated_empty")
+      .WithFieldAlwaysSet("optional_has_val")
+      .WithFieldAlwaysSet("repeated_field_non_empty"));
 ```
 
-**Setting the domain of non-optional fields:** For *required* fields, use
-`With<Type>FieldAlwaysSet` and for *repeated* fields use
-`WithRepeated<Type>Field`:
+In addition, for repeated fields, you can customize its size with
+`WithRepeatedField[Min|Max]Size`.
 
 ```c++
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-      .WithProtobufFieldAlwaysSet("required_int", InRange(0, 10))
-      .WithRepeatedProtobufField("repeated_subproto", VectorOf(Arbitrary<SubProtobuf>()).WithSize(2)));
+      .WithRepeatedFieldSize("size1", 1)
+      .WithRepeatedFieldMinSize("size_ge_2", 2)
+      .WithRepeatedFieldMaxSize("size_le_3", 3));
 ```
 
-For *repeated* fields the domain is of the form `Domain<std::vector<Type>>`.
+**Customizing the field rule and type:** You can also customize both the rule
+and type at the same time with `With[Optional|Repeated]<Type>Field`:
+
+```c++
+FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
+  WithDomains(Arbitrary<MyProto>()
+      // Could be set or unset.
+      .WithOptionalInt64Field("int", OptionalOf(InRange(1l, 10l)))
+      // Is always unset.
+      .WithOptionalUInt32Field("uint32", NullOpt<int32_t>())
+      // Is always set.
+      .WithOptionalInt32Field("int32", NonNull(InRange(1, 10)))
+      // Is non-empty.
+      .WithRepeatedInt32Field("rep_int", VectorOf(InRange(1, 10)).WithMinSize(1))
+      // Is vector of unique elements.
+      .WithRepeatedInt64Field("rep_int64", UniqueElementsVectorOf(InRange(1l, 10l))));
+```
+
+For *optional* fields the domain is of the form `Domain<std::optional<Type>>`
+and for *repeated* fields the domain is of the form `Domain<std::vector<Type>>`.
+
+Also, `With<Type>FieldAlwaysSet` is a shorter alternative when one wants to
+customize non-empty fields:
+
+```c++
+// Short form for .WithOptionalIntField("optional_int", NonNull(InRange(1, 10)))
+.WithIntFieldAlwaysSet("optional_int", InRange(1, 10))
+
+// Short form for .WithRepeatedIntField("repeated_int", VectorOf(InRange(1, 10)).WithMinSize(1))
+.WithIntFieldAlwaysSet("repeated_int", InRange(1, 10))
+```
 
 #### Customizing a Subset of Fields
 
@@ -342,7 +402,9 @@ You can customize the domain for a subset of fields, for example all fields with
 message type `Date`, or all fields with "amount" in the field's name.
 
 IMPORTANT: Note that customization options can conflict each other. In case of
-conflicts the latter customization always overrides the former.
+conflicts the latter customization always overrides the former. Moreover,
+individual field customization discussed in the previous section cannot precede
+customizations in this section.
 
 **Customizing Multiple Fields With Same Type:** You can set the domain for a
 subset of fields with the same type using `With<Type>Fields`. By default this
@@ -350,7 +412,6 @@ applies to all fields of Type. You can also provide a filter function to select
 a subset of fields. Consider the `Moving` proto:
 
 ```proto
-
 message Address{
   optional string line1 = 1;
   optional string line2 = 2;
@@ -392,14 +453,15 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto)
     // and except all zipcode fields which should have 5 digits
     .WithInt32Fields(IsZipcode, InRange(10000, 99999))
     // All Timestamp fields should have "nanos" field unset.
-    .WithProtobufFields(IsTimestamp, Arbitrary<Timestamp>().WithInt32FieldUnset("nanos")));
+    .WithProtobufFields(IsTimestamp, Arbitrary<Timestamp>().WithFieldUnset("nanos")));
 ```
 
-Notice that these filters apply recursively to nested protos as well.
+Notice that these filters apply recursively to nested protos as well. You can
+restrict the filter to optional or repeated fields by using
+`WithOptional<Type>Fields` or `WithRepeated<Type>Fields`, respectively.
 
-**Customizing Multiple Optional Fields:** Recall that optional fields are not
-always set, you can customize the nullness for a subset of optional fields using
-`WithOptionalFieldsAlwaysSet`, `WithOptionalFieldsUnset`, and filters:
+**Customizing Rules of Multiple Fields:** You can customize the nullness for a
+subset of fields using `WithFieldsAlwaysSet`, `WithFieldsUnset`, and filters:
 
 ```c++
 bool IsProtoType(const FieldDescriptor* field){
@@ -407,42 +469,83 @@ bool IsProtoType(const FieldDescriptor* field){
 }
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-      // Always set optional fields
-      .WithOptionalFieldsAlwaysSet()
-      // except fields that contain nested protos.
-      .WithOptionalFieldsUnset(IsProtoType)
+      // Always set optional fields, and repeated fields have size > 0,
+      .WithFieldsAlwaysSet()
+      // except fields that contain nested protos,
+      .WithFieldsUnset(IsProtoType)
       // and except "foo" field. We override the nullness by using the
-      // WithInt32Filed (instead of WithInt32FieldAlwaysSet()), which will
-      // enable the fuzzer make this field both set and unset.
-      .WithInt32Field("foo", Arbitrary<int>())
+      // WithOptionalInt32Filed, which will allow the fuzzer to set and unset
+      // this field.
+      .WithOptionalInt32Field("foo", OptionalOf(Arbitrary<int>()))
   );
 ```
 
-**Customizing Multiple Repeated Fields:** You can customize the size for all or
-a subset of repeated fields using `WithRepeatedFieldsMinSize`,
-`WithRepeatedFieldsMaxSize`, and filters:
+You can restrict the filter to optional or repeated fields by using
+`WithOptionalFields[Unset|AlwaysSet]` or `WithRepeatedFields[Unset|AlwaysSet]`,
+respectively.
+
+Furthermore, you can customize repeated fields size using
+`WithRepeatedFields[Min|Max]?Size`:
 
 ```c++
-bool IsCitizenship(const FieldDescriptor* field){
-  return return field->name() == "citizenship";
+bool IsChildrenOfBinaryTree(const FieldDescriptor* field){
+  return field->containing_type()->full_name() == "my_package.Node"
+      && field->name() == "children";
 }
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
     // Repeated fields should have size in range 1-10
     .WithRepeatedFieldsMinSize(1)
     .WithRepeatedFieldsMaxSize(10)
-    // except citizenship fields which can size at most 2.
-    .WithRepeatedFieldsMaxSize(IsCitizenship, 2)
+    // except children of the inner nodes of a binary tree (has exactly two children).
+    .WithRepeatedFieldsSize(IsChildrenOfBinaryTree, 2)
     // and except "additional_info" field which can be empty or arbitrary large
-    .WithInt32Field("additional_info", VectorOf(String()).WithMinSize(0))
+    .WithInt32Field("additional_info", VectorOf(String()))
   );
 ```
 
-Notice that `WithOptionalFieldsAlwaysSet`, `WithOptionalFieldsUnset`,
-`WithRepeatedFieldsMinSize`, and `WithRepeatedFieldsMaxSize` work recursively
-and applies to subprotos as well, but calling `WithOptionalFieldsAlwaysSet()`
-and `WithRepeatedFieldsMinSizeByDefault(X)` with `X > 0` on recursively defined
-protos causes a failure.
+Notice that `With[Optional|Repeated]Fields[Unset|AlwaysSet]` and
+`WithRepeatedFields[Min|Max]?Size` work recursively and apply to subprotos as
+well, but calling `With[Optional|Repeated]FieldsAlwaysSet` or
+`WithRepeatedFields[Min]?Size(X)` with `X > 0` on recursively defined protos
+causes a failure.
+
+#### Customizing Oneof Fields
+
+You can customize oneof fields similarly as other optional fields. However, the
+oneof could be unset even if you always set one of its field. Consider the
+following example:
+
+```proto
+message Algorithm{
+  oneof strategy {
+    string strategy_id = 1;
+    int64 legacy_strategy_id = 2;
+  }
+}
+```
+
+Then, you wish to customize the domain and test different non-legacy strategies.
+The following would not work because the `legacy_strategy_id` could still have
+values.
+
+```c++
+FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
+  WithDomains(Arbitrary<Algorithm>()
+    .WithFieldAlwaysSet("strategy_id"));
+```
+
+For oneof to always have a value, at least one of its field should be marked as
+`AlwaysSet` and the rest should be marked `Unset` (for example, when you use
+`WithFieldsAlwaysSet`). Otherwise, you need to explicitly set it by
+`WithOneofAlwaysSet`:
+
+```c++
+FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
+  WithDomains(Arbitrary<Algorithm>()
+    .WithOneofAlwaysSet("strategy")
+    .WithFieldUnset("legacy_strategy_id"));
+```
 
 ## What Domains Should You Use for View Types?
 
