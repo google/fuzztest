@@ -279,7 +279,7 @@ FuzzTestFuzzerImpl::FuzzTestFuzzerImpl(
       params_domain_(fixture_driver_->GetDomains()),
       execution_coverage_(internal::GetExecutionCoverage()),
       corpus_coverage_(execution_coverage_ != nullptr
-                           ? execution_coverage_->GetCounterMap().size()
+                           ? execution_coverage_->GetMapSize()
                            : 0) {
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(fixture_driver_ != nullptr,
                                        "Invalid fixture driver!");
@@ -711,13 +711,13 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
     }
 
     if (execution_coverage_ == nullptr) {
-      absl::FPrintF(
-          GetStderr(),
-          "\n\n[!] To fuzz, please build with --config=fuzztest.\n\n\n");
+      absl::FPrintF(GetStderr(),
+                    "\n\n[!] To fuzz, please build with --config=fuzztest or "
+                    "--config=fuzztest-large.\n\n\n");
       return 1;
     }
 
-    stats_.total_edges = execution_coverage_->GetCounterMap().size();
+    stats_.total_edges = execution_coverage_->GetMapSize();
 
     PRNG prng(seed_sequence_);
 
