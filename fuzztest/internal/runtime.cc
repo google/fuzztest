@@ -643,6 +643,7 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   if (execution_coverage_ != nullptr) {
     execution_coverage_->SetIsTracing(true);
   }
+
   fixture_driver_->SetUpIteration();
   fixture_driver_->Test(std::move(untyped_args));
   fixture_driver_->TearDownIteration();
