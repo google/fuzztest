@@ -259,7 +259,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   bool ReplayInputsIfAvailable();
 
-  std::optional<std::vector<corpus_type>> ReadReplayFile();
+  std::optional<std::vector<std::string>> GetFilesToReplay();
 
   std::optional<corpus_type> ReadReproducerToMinimize();
 

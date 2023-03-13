@@ -306,9 +306,18 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   runtime_.SetRunMode(RunMode::kFuzz);
 
-  if (const auto replay_corpus = ReadReplayFile()) {
-    for (const auto& corpus_value : *replay_corpus) {
-      RunOneInput({corpus_value});
+  if (const auto file_paths = GetFilesToReplay()) {
+    for (const std::string& path : *file_paths) {
+      if (const auto content = ReadFile(path)) {
+        if (auto corpus_value = TryParse(*content)) {
+          RunOneInput({*corpus_value});
+        } else {
+          absl::FPrintF(GetStderr(),
+                        "[!] Skipping invalid input file %s.\n===\n%s\n===\n",
+                        path, *content);
+          continue;
+        }
+      }
     }
     return true;
   }
@@ -345,21 +354,18 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   return false;
 }
 
-std::optional<std::vector<corpus_type>> FuzzTestFuzzerImpl::ReadReplayFile() {
+std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
   auto file_or_dir = absl::NullSafeStringView(getenv("FUZZTEST_REPLAY"));
   if (file_or_dir.empty()) return std::nullopt;
-  std::vector<corpus_type> result;
-  for (const auto& [path, data] :
-       ReadFileOrDirectory(std::string(file_or_dir))) {
-    if (auto corpus_value = TryParse(data)) {
-      result.push_back(*std::move(corpus_value));
-    } else {
-      absl::FPrintF(GetStderr(), "[!] Invalid input file %s.\n===\n%s\n===\n",
-                    path, data);
-      continue;
-    }
+  // Try as a directory path first.
+  std::vector<std::string> files = ListDirectory(std::string(file_or_dir));
+  if (!files.empty()) return files;
+  // Then as a file path.
+  if (ReadFile(std::string(file_or_dir))) {
+    files.push_back(std::string(file_or_dir));
+    return files;
   }
-  return result;
+  return std::nullopt;
 }
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
