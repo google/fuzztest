@@ -66,7 +66,7 @@ FuzzTestExternalEngineAdaptor::FuzzTestExternalEngineAdaptor(
 
 void FuzzTestExternalEngineAdaptor::RunInUnitTestMode() {
   GetFuzzerImpl().RunInUnitTestMode();
-};
+}
 
 int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
   FUZZTEST_INTERNAL_CHECK(&LLVMFuzzerRunDriver,

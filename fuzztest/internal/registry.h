@@ -21,7 +21,9 @@
 #include <type_traits>
 #include <utility>
 
+#ifdef FUZZTEST_COMPATIBILITY_MODE
 #include "./fuzztest/internal/compatibility_mode.h"
+#endif
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/runtime.h"
