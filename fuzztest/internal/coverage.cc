@@ -133,7 +133,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
       absl::FPrintF(GetStderr(),
                     "[!] Code under test used %d bytes of stack. Configured "
                     "limit is %d. You can change the limit by specifying "
-                    "FUZZTEST_STACK_LIMIT enviroment variable.",
+                    "FUZZTEST_STACK_LIMIT environment variable.\n",
                     this_stack, MaxAllowedStackUsage());
       std::abort();
     }

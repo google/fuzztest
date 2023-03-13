@@ -1275,7 +1275,7 @@ TEST_F(FuzzingModeTest, FuzzTestCanFindStackOverflows) {
       std_err,
       ContainsRegex("Code under test used [0-9]* bytes of stack. Configured "
                     "limit is 131072. You can change the limit by specifying "
-                    "FUZZTEST_STACK_LIMIT enviroment variable."));
+                    "FUZZTEST_STACK_LIMIT environment variable."));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
