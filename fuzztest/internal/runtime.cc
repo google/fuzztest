@@ -306,9 +306,24 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   runtime_.SetRunMode(RunMode::kFuzz);
 
-  if (const auto replay_corpus = ReadReplayFile()) {
-    for (const auto& corpus_value : *replay_corpus) {
-      RunOneInput({corpus_value});
+  if (const auto file_paths = GetFilesToReplay()) {
+    for (const std::string& path : *file_paths) {
+      const auto content = ReadFile(path);
+      if (!content) {
+        absl::FPrintF(GetStderr(),
+                      "[!] Failed to read FUZZTEST_REPLAY file or directory "
+                      "(might be empty): %s\n",
+                      path);
+        continue;
+      }
+      auto corpus_value = TryParse(*content);
+      if (!corpus_value) {
+        absl::FPrintF(GetStderr(),
+                      "[!] Skipping invalid input file %s.\n===\n%s\n===\n",
+                      path, *content);
+        continue;
+      }
+      RunOneInput({*corpus_value});
     }
     return true;
   }
@@ -345,21 +360,16 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   return false;
 }
 
-std::optional<std::vector<corpus_type>> FuzzTestFuzzerImpl::ReadReplayFile() {
+std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
   auto file_or_dir = absl::NullSafeStringView(getenv("FUZZTEST_REPLAY"));
   if (file_or_dir.empty()) return std::nullopt;
-  std::vector<corpus_type> result;
-  for (const auto& [path, data] :
-       ReadFileOrDirectory(std::string(file_or_dir))) {
-    if (auto corpus_value = TryParse(data)) {
-      result.push_back(*std::move(corpus_value));
-    } else {
-      absl::FPrintF(GetStderr(), "[!] Invalid input file %s.\n===\n%s\n===\n",
-                    path, data);
-      continue;
-    }
+  // Try as a directory path first.
+  std::vector<std::string> files = ListDirectory(std::string(file_or_dir));
+  // If not, consider it a file path.
+  if (files.empty()) {
+    files.push_back(std::string(file_or_dir));
   }
-  return result;
+  return files;
 }
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
