@@ -14,6 +14,7 @@
 
 #include "./fuzztest/internal/logging.h"
 
+#include <errno.h>
 #include <string.h>
 
 #if defined(__linux__)
