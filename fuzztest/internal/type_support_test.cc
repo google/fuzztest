@@ -41,8 +41,6 @@
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
-#include "./fuzztest/internal/domain.h"
-#include "./fuzztest/internal/protobuf_domain.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {

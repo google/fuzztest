@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_INTERNAL_PROTOBUF_DOMAIN_H_
-#define FUZZTEST_FUZZTEST_INTERNAL_PROTOBUF_DOMAIN_H_
+#ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
+#define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -35,7 +35,13 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
-#include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/domains/arbitrary_impl.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
+#include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/element_of_impl.h"
+#include "./fuzztest/internal/domains/in_range_impl.h"
+#include "./fuzztest/internal/domains/map_impl.h"
+#include "./fuzztest/internal/domains/optional_of_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -1906,4 +1912,4 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
 
 }  // namespace fuzztest::internal
 
-#endif  // FUZZTEST_FUZZTEST_INTERNAL_PROTOBUF_DOMAIN_H_
+#endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_

@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_DOMAIN_H_
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <initializer_list>
@@ -41,12 +42,26 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./fuzztest/internal/absl_domain.h"
 #include "./fuzztest/internal/any.h"
-#include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/domains/aggregate_of_impl.h"
+#include "./fuzztest/internal/domains/arbitrary_impl.h"
+#include "./fuzztest/internal/domains/bit_flag_combination_of_impl.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
+#include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/element_of_impl.h"
+#include "./fuzztest/internal/domains/filter_impl.h"
+#include "./fuzztest/internal/domains/flat_map_impl.h"
+#include "./fuzztest/internal/domains/in_range_impl.h"
+#include "./fuzztest/internal/domains/in_regexp_impl.h"
+#include "./fuzztest/internal/domains/map_impl.h"
+#include "./fuzztest/internal/domains/one_of_impl.h"
+#include "./fuzztest/internal/domains/optional_of_impl.h"
+#include "./fuzztest/internal/domains/protobuf_domain_impl.h"
+#include "./fuzztest/internal/domains/smart_pointer_of_impl.h"
+#include "./fuzztest/internal/domains/unique_elements_container_of_impl.h"
+#include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
-#include "./fuzztest/internal/protobuf_domain.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 

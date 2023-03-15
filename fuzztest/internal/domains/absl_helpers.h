@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_INTERNAL_ABSL_DOMAIN_H_
-#define FUZZTEST_FUZZTEST_INTERNAL_ABSL_DOMAIN_H_
+#ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_ABSL_HELPERS_H_
+#define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_ABSL_HELPERS_H_
 
 #include <cstdint>
+#include <limits>
+#include <utility>
 
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
@@ -63,4 +65,4 @@ inline uint32_t GetTicks(absl::Duration d) {
 
 }  // namespace fuzztest::internal
 
-#endif  // FUZZTEST_FUZZTEST_INTERNAL_ABSL_DOMAIN_H_
+#endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_ABSL_HELPERS_H_

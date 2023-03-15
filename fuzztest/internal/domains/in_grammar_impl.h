@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_INTERNAL_GRAMMAR_H_
-#define FUZZTEST_FUZZTEST_INTERNAL_GRAMMAR_H_
+#ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_GRAMMAR_IMPL_H_
+#define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_GRAMMAR_IMPL_H_
 
 #include <cstddef>
 #include <optional>
@@ -29,7 +29,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
+#include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/in_regexp_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -713,4 +715,4 @@ class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>, std::string> {
 };
 }  // namespace fuzztest::internal::grammar
 
-#endif  // FUZZTEST_FUZZTEST_INTERNAL_GRAMMAR_H_
+#endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_GRAMMAR_IMPL_H_

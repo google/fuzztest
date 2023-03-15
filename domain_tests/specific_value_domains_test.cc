@@ -51,10 +51,8 @@ TEST(ElementOfTest, TwoOptions) {
 }
 
 TEST(ElementOfTest, InvalidInputReportsErrors) {
-  EXPECT_DEATH_IF_SUPPORTED(
-      ElementOf<int>({}),
-      "domain.h:.*Failed precondition .!values.empty...: ElementOf "
-      "requires a non empty list.");
+  EXPECT_DEATH_IF_SUPPORTED(ElementOf<int>({}),
+                            "ElementOf requires a non empty list.");
 }
 
 enum class Color : int { Red, Green, Blue, Yellow };

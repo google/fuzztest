@@ -77,10 +77,8 @@ TEST(BitFlagCombinationOf, UserDefined) {
 }
 
 TEST(BitFlagCombinationOf, InvalidInputReportsErrors) {
-  EXPECT_DEATH_IF_SUPPORTED(
-      BitFlagCombinationOf<int>({}),
-      "domain.h:.*Failed precondition .!flags.empty...: BitFlagCombinationOf "
-      "requires a non empty list.");
+  EXPECT_DEATH_IF_SUPPORTED(BitFlagCombinationOf<int>({}),
+                            "BitFlagCombinationOf requires a non empty list.");
 
   EXPECT_DEATH_IF_SUPPORTED(BitFlagCombinationOf({0, 1, 2}),
                             "BitFlagCombinationOf requires non zero flags.");

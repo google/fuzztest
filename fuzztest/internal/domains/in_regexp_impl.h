@@ -1,0 +1,239 @@
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_REGEXP_IMPL_H_
+#define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_REGEXP_IMPL_H_
+
+#include <algorithm>
+#include <cstddef>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
+#include "absl/types/span.h"
+#include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/regexp_dfa.h"
+#include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/type_support.h"
+
+namespace fuzztest::internal {
+
+class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
+ public:
+  using DFAPath = std::vector<RegexpDFA::Edge>;
+  using value_type = std::string;
+  using corpus_type = DFAPath;
+
+  static constexpr bool has_custom_corpus_type = true;
+
+  explicit InRegexpImpl(std::string_view regex_str)
+      : dfa_(RegexpDFA::Create(regex_str)) {}
+
+  DFAPath Init(absl::BitGenRef prng) {
+    std::optional<DFAPath> path =
+        dfa_.StringToDFAPath(dfa_.GenerateString(prng));
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.has_value(),
+                                         "Init should generate valid paths");
+    return *path;
+  }
+
+  // Strategy: Parse the input string into a path in the DFA. Pick a node in the
+  // path and random walk from the node until we reach an end state or go back
+  // to the original path.
+  void Mutate(DFAPath& path, absl::BitGenRef prng, bool only_shrink) {
+    if (only_shrink) {
+      // Fast path to remove loop.
+      if (absl::Bernoulli(prng, 0.5)) {
+        if (ShrinkByRemoveLoop(prng, path)) return;
+      }
+
+      if (ShrinkByFindShorterSubPath(prng, path)) return;
+      return;
+    }
+
+    int rand_offset = absl::Uniform<int>(prng, 0u, path.size());
+    // Maps states to the path index of their first appearance. We want the
+    // mutation to be mininal, so if a state appears multiple times in the path,
+    // we only keep the index of its first appearance.
+    std::vector<std::optional<int>> sink_states_first_appearance(
+        dfa_.state_count());
+    for (int i = rand_offset; i < path.size(); ++i) {
+      int state_id = path[i].from_state_id;
+      if (sink_states_first_appearance[state_id].has_value()) continue;
+      sink_states_first_appearance[state_id] = i;
+    }
+    std::vector<RegexpDFA::Edge> new_subpath = dfa_.FindPath(
+        prng, path[rand_offset].from_state_id, sink_states_first_appearance);
+    int to_state_id = new_subpath.back().from_state_id;
+    new_subpath.pop_back();
+
+    DFAPath new_path;
+    for (size_t i = 0; i < rand_offset; ++i) {
+      new_path.push_back(path[i]);
+    }
+    for (size_t i = 0; i < new_subpath.size(); ++i) {
+      new_path.push_back(new_subpath[i]);
+    }
+
+    // Found a node in the original path, so we append the remaining substring
+    // of the original path.
+    if (sink_states_first_appearance[to_state_id].has_value()) {
+      for (size_t i = *sink_states_first_appearance[to_state_id];
+           i < path.size(); ++i) {
+        new_path.push_back(path[i]);
+      }
+    }
+    FUZZTEST_INTERNAL_CHECK(
+        dfa_.StringToDFAPath(*dfa_.DFAPathToString(new_path)).has_value(),
+        "Mutation generate invalid strings");
+    path = std::move(new_path);
+  }
+
+  auto GetPrinter() const { return StringPrinter{}; }
+
+  value_type GetValue(const corpus_type& v) const {
+    std::optional<std::string> val = dfa_.DFAPathToString(v);
+    FUZZTEST_INTERNAL_CHECK(val.has_value(), "Corpus is invalid!");
+    return *val;
+  }
+
+  std::optional<corpus_type> FromValue(const value_type& v) const {
+    return dfa_.StringToDFAPath(v);
+  }
+
+  IRObject SerializeCorpus(const corpus_type& path) const {
+    IRObject obj;
+    auto& subs = obj.MutableSubs();
+    for (const auto& edge : path) {
+      subs.push_back(IRObject::FromCorpus(edge.from_state_id));
+      subs.push_back(IRObject::FromCorpus(edge.edge_index));
+    }
+    return obj;
+  }
+
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    auto subs = obj.Subs();
+    if (!subs) return std::nullopt;
+    if (subs->size() % 2 != 0) return std::nullopt;
+    corpus_type res;
+    for (size_t i = 0; i < subs->size(); i += 2) {
+      auto from_state_id = (*subs)[i].ToCorpus<int>();
+      auto edge_index = (*subs)[i + 1].ToCorpus<int>();
+      if (!from_state_id.has_value() || !edge_index.has_value())
+        return std::nullopt;
+      res.push_back(RegexpDFA::Edge{*from_state_id, *edge_index});
+    }
+
+    // Check whether this is a valid path in the DFA.
+    if (!dfa_.DFAPathToString(res).has_value()) return std::nullopt;
+    return res;
+  }
+
+ private:
+  // Remove a random loop in the DFA path and return the string from the
+  // modified path. A loop is a subpath that starts and ends with the same
+  // state.
+  bool ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path) {
+    std::vector<std::vector<int>> state_appearances(dfa_.state_count());
+    for (int i = 0; i < path.size(); ++i) {
+      state_appearances[path[i].from_state_id].push_back(i);
+    }
+    std::vector<int> states_with_loop;
+    for (int i = 0; i < dfa_.state_count(); ++i) {
+      if (state_appearances[i].size() > 1) states_with_loop.push_back(i);
+    }
+    if (!states_with_loop.empty()) {
+      int rand_state_id = states_with_loop[absl::Uniform<int>(
+          prng, 0, states_with_loop.size())];
+      std::vector<int>& loop_indexes = state_appearances[rand_state_id];
+      int loop_start = absl::Uniform<int>(prng, 0u, loop_indexes.size() - 1);
+      int loop_end =
+          absl::Uniform<int>(prng, loop_start + 1, loop_indexes.size());
+      // Delete the detected loop.
+      path.erase(path.begin() + loop_indexes[loop_start],
+                 path.begin() + loop_indexes[loop_end]);
+      FUZZTEST_INTERNAL_CHECK(
+          dfa_.StringToDFAPath(*dfa_.DFAPathToString(path)).has_value(),
+          "The mutated path is invalid!");
+      return true;
+    }
+    return false;
+  }
+
+  // Randomly pick a subpath and try to replace it with a shorter one. As this
+  // might fail we keep trying until success or the maximum number of trials is
+  // reached.
+  bool ShrinkByFindShorterSubPath(absl::BitGenRef prng, DFAPath& path) {
+    if (path.size() <= 1) {
+      return false;
+    }
+    constexpr int n_trial = 40;
+    constexpr int max_exploration_length = 100;
+    for (int i = 0; i < n_trial; ++i) {
+      // Pick any state in `path` as the start of the subpath, *except* the one
+      // in the last element.
+      int from_index = absl::Uniform<int>(prng, 0u, path.size() - 1);
+      int from_state_id = path[from_index].from_state_id;
+
+      // Pick a state after the "from state" as the end of the subpath.
+      int to_index, to_state_id, length;
+      if (i <= n_trial / 2) {
+        // Pick any state in `path` after the "from state" as the end of the
+        // subpath; this excludes the "end state".
+        to_index =
+            absl::Uniform<int>(prng, from_index + 1,
+                               std::min(from_index + max_exploration_length,
+                                        static_cast<int>(path.size())));
+        to_state_id = path[to_index].from_state_id;
+        length = to_index - from_index;
+      } else {
+        // If failing too many times, try to find a shorter path to the
+        // end_state as a fall back. In this case, to_index isn't the index of
+        // a valid element in `path`.
+        to_index = static_cast<int>(path.size());
+        to_state_id = dfa_.end_state_id();
+        length = to_index - from_index;
+      }
+
+      if (length == 1) continue;
+
+      std::vector<RegexpDFA::Edge> new_subpath = dfa_.FindPathWithinLengthDFS(
+          prng, from_state_id, to_state_id, length);
+      // If the size is unchanged, keep trying.
+      if (new_subpath.size() == length) continue;
+
+      DFAPath new_path(path.begin(), path.begin() + from_index);
+      new_path.insert(new_path.end(), new_subpath.begin(), new_subpath.end());
+      for (size_t idx = to_index; idx < path.size(); ++idx) {
+        new_path.push_back(path[idx]);
+      }
+      FUZZTEST_INTERNAL_CHECK(
+          dfa_.StringToDFAPath(*dfa_.DFAPathToString(new_path)).has_value(),
+          "The mutated path is invalid!");
+      path = std::move(new_path);
+      return true;
+    }
+    return false;
+  }
+  RegexpDFA dfa_;
+};
+
+}  // namespace fuzztest::internal
+
+#endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_IN_REGEXP_IMPL_H_

@@ -22,7 +22,6 @@
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
-#include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/type_support.h"
 

@@ -26,7 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
-#include "./fuzztest/internal/domain.h"
+#include "./fuzztest/internal/domains/aggregate_of_impl.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/type_support.h"
 

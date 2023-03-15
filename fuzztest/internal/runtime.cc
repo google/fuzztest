@@ -44,7 +44,6 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/coverage.h"
-#include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"

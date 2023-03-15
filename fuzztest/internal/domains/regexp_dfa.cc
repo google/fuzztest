@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./fuzztest/internal/regexp.h"
+#include "./fuzztest/internal/domains/regexp_dfa.h"
 
 #include <algorithm>
 #include <cstddef>

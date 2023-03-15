@@ -32,7 +32,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
-#include "./fuzztest/internal/absl_domain.h"
+#include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {

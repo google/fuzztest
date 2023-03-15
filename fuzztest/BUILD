@@ -23,8 +23,8 @@ licenses(["notice"])
 exports_files(["LICENSE"])
 
 cc_library(
-    name = "absl_domain",
-    hdrs = ["internal/absl_domain.h"],
+    name = "absl_helpers",
+    hdrs = ["internal/domains/absl_helpers.h"],
     deps = [
         ":logging",
         "@com_google_absl//absl/time",
@@ -101,22 +101,40 @@ cc_test(
 
 cc_library(
     name = "domain",
-    srcs = ["internal/grammar.cc"],
+    srcs = ["internal/domains/in_grammar_impl.cc"],
     hdrs = [
         "domain.h",
-        "internal/domain.h",
-        "internal/grammar.h",
-        "internal/protobuf_domain.h",
+        "internal/domains/aggregate_of_impl.h",
+        "internal/domains/arbitrary_impl.h",
+        "internal/domains/bit_flag_combination_of_impl.h",
+        "internal/domains/container_mutation_helpers.h",
+        "internal/domains/container_of_impl.h",
+        "internal/domains/domain_base.h",
+        "internal/domains/element_of_impl.h",
+        "internal/domains/filter_impl.h",
+        "internal/domains/flat_map_impl.h",
+        "internal/domains/in_grammar_impl.h",
+        "internal/domains/in_range_impl.h",
+        "internal/domains/in_regexp_impl.h",
+        "internal/domains/map_impl.h",
+        "internal/domains/one_of_impl.h",
+        "internal/domains/optional_of_impl.h",
+        "internal/domains/protobuf_domain_impl.h",
+        "internal/domains/serialization_helpers.h",
+        "internal/domains/smart_pointer_of_impl.h",
+        "internal/domains/unique_elements_container_of_impl.h",
+        "internal/domains/value_mutation_helpers.h",
+        "internal/domains/variant_of_impl.h",
     ],
     # Public for cc_fuzztest_grammar_library rule.
     visibility = ["//visibility:public"],
     deps = [
-        ":absl_domain",
+        ":absl_helpers",
         ":any",
         ":coverage",
         ":logging",
         ":meta",
-        ":regexp",
+        ":regexp_dfa",
         ":serialization",
         ":table_of_recent_compares",
         ":type_support",
@@ -248,9 +266,9 @@ cc_library(
 )
 
 cc_library(
-    name = "regexp",
-    srcs = ["internal/regexp.cc"],
-    hdrs = ["internal/regexp.h"],
+    name = "regexp_dfa",
+    srcs = ["internal/domains/regexp_dfa.cc"],
+    hdrs = ["internal/domains/regexp_dfa.h"],
     deps = [
         ":logging",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -408,7 +426,7 @@ cc_library(
     srcs = ["internal/type_support.cc"],
     hdrs = ["internal/type_support.h"],
     deps = [
-        ":absl_domain",
+        ":absl_helpers",
         ":meta",
         "@com_google_absl//absl/debugging:symbolize",
         "@com_google_absl//absl/strings",

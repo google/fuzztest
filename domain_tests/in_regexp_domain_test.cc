@@ -25,7 +25,6 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/domain.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/type_support.h"
 #include "re2/re2.h"

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_INTERNAL_REGEX_H_
-#define FUZZTEST_FUZZTEST_INTERNAL_REGEX_H_
+#ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_REGEXP_DFA_H_
+#define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_REGEXP_DFA_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -231,4 +231,4 @@ class RegexpDFA {
 
 }  // namespace fuzztest::internal
 
-#endif  // FUZZTEST_FUZZTEST_INTERNAL_REGEX_H_
+#endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_REGEXP_DFA_H_
