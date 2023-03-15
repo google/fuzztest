@@ -67,13 +67,13 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
       return;
     }
 
-    int rand_offset = absl::Uniform<int>(prng, 0u, path.size());
+    size_t rand_offset = absl::Uniform(prng, 0u, path.size());
     // Maps states to the path index of their first appearance. We want the
     // mutation to be mininal, so if a state appears multiple times in the path,
     // we only keep the index of its first appearance.
     std::vector<std::optional<int>> sink_states_first_appearance(
         dfa_.state_count());
-    for (int i = rand_offset; i < path.size(); ++i) {
+    for (size_t i = rand_offset; i < path.size(); ++i) {
       int state_id = path[i].from_state_id;
       if (sink_states_first_appearance[state_id].has_value()) continue;
       sink_states_first_appearance[state_id] = i;
@@ -159,12 +159,12 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
       if (state_appearances[i].size() > 1) states_with_loop.push_back(i);
     }
     if (!states_with_loop.empty()) {
-      int rand_state_id = states_with_loop[absl::Uniform<int>(
-          prng, 0, states_with_loop.size())];
+      size_t rand_state_id =
+          states_with_loop[absl::Uniform(prng, 0u, states_with_loop.size())];
       std::vector<int>& loop_indexes = state_appearances[rand_state_id];
-      int loop_start = absl::Uniform<int>(prng, 0u, loop_indexes.size() - 1);
-      int loop_end =
-          absl::Uniform<int>(prng, loop_start + 1, loop_indexes.size());
+      size_t loop_start = absl::Uniform(prng, 0u, loop_indexes.size() - 1);
+      size_t loop_end =
+          absl::Uniform(prng, loop_start + 1, loop_indexes.size());
       // Delete the detected loop.
       path.erase(path.begin() + loop_indexes[loop_start],
                  path.begin() + loop_indexes[loop_end]);
@@ -188,25 +188,25 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
     for (int i = 0; i < n_trial; ++i) {
       // Pick any state in `path` as the start of the subpath, *except* the one
       // in the last element.
-      int from_index = absl::Uniform<int>(prng, 0u, path.size() - 1);
+      size_t from_index = absl::Uniform(prng, 0u, path.size() - 1);
       int from_state_id = path[from_index].from_state_id;
 
       // Pick a state after the "from state" as the end of the subpath.
-      int to_index, to_state_id, length;
+      size_t to_index, length;
+      int to_state_id;
       if (i <= n_trial / 2) {
         // Pick any state in `path` after the "from state" as the end of the
         // subpath; this excludes the "end state".
-        to_index =
-            absl::Uniform<int>(prng, from_index + 1,
-                               std::min(from_index + max_exploration_length,
-                                        static_cast<int>(path.size())));
+        to_index = absl::Uniform(
+            prng, from_index + 1,
+            std::min(from_index + max_exploration_length, path.size()));
         to_state_id = path[to_index].from_state_id;
         length = to_index - from_index;
       } else {
         // If failing too many times, try to find a shorter path to the
         // end_state as a fall back. In this case, to_index isn't the index of
         // a valid element in `path`.
-        to_index = static_cast<int>(path.size());
+        to_index = path.size();
         to_state_id = dfa_.end_state_id();
         length = to_index - from_index;
       }

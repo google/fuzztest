@@ -35,7 +35,7 @@ template <typename T>
 void RandomBitFlip(absl::BitGenRef prng, T& val, size_t range) {
   using U = MakeUnsignedT<T>;
   U u = static_cast<U>(val);
-  u ^= U{1} << absl::Uniform<int>(prng, 0, range);
+  u ^= U{1} << absl::Uniform(prng, 0u, range);
   val = static_cast<T>(u);
 }
 
