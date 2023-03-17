@@ -33,6 +33,7 @@
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/subprocess.h"
+#include "re2/re2.h"
 
 // Mimic the open source google benchmark flags in order to work with benchmark
 // driver tools.
@@ -71,26 +72,48 @@ std::string MicrobenchmarksBinaryPath() {
   return binary_path;
 }
 
-// This parses the crash report output of a fuzz test.
-// We might want to pass a richer format later.
-Stats ParseStats(std::string_view output) {
-  std::vector<std::string> lines = absl::StrSplit(output, '\n');
-  const auto get_int = [](std::string_view line) -> uint64_t {
-    std::vector<std::string> p = absl::StrSplit(line, ": ");
-    if (p.size() != 2) return 0;
-    uint64_t i;
-    if (!absl::SimpleAtoi(p.back(), &i)) return 0;
-    return i;
-  };
-  int i = 0;
-  while (i < lines.size() && !absl::StartsWith(lines[i], "Elapsed seconds"))
-    ++i;
-  if (i + 4 >= lines.size()) return {};
-  return {get_int(lines[i]), get_int(lines[i + 1]), get_int(lines[i + 2]),
-          get_int(lines[i + 3]), get_int(lines[i + 4])};
+uint64_t ExtractTime(absl::string_view output) {
+  static constexpr LazyRE2 kElapsedTimeRE = {"\nElapsed time: (.+)\n"};
+  absl::string_view duration_str;
+  FUZZTEST_INTERNAL_CHECK(
+      RE2::PartialMatch(output, *kElapsedTimeRE, &duration_str),
+      "\n\nCould not find:\n\nElapsed time:\n\nin:\n\n", output);
+  absl::Duration duration;
+  FUZZTEST_INTERNAL_CHECK(absl::ParseDuration(duration_str, &duration),
+                          "Could not parse duration:", duration_str);
+  return absl::ToInt64Nanoseconds(duration);
 }
 
-std::string SingleJsonResult(std::string_view name, uint64_t value) {
+uint64_t ExtractNumber(absl::string_view output, absl::string_view name) {
+  uint64_t number;
+  FUZZTEST_INTERNAL_CHECK(
+      RE2::PartialMatch(output, absl::StrCat("\n", name, ": (.+)\n"), &number),
+      "\n\nCould not find\n\n", name, ":\n\nin:\n\n", output);
+  return number;
+}
+
+// This parses the crash report output of a fuzz test, which looks something
+// like this:
+//
+// Elapsed time: 294.414351ms
+// Total runs: 10000
+// Edges covered: 35
+// Total edges: 263165
+// Corpus size: 264
+// Max stack used: 32
+//
+// We might want to pass a richer format later.
+Stats ParseStats(absl::string_view output) {
+  return {
+      .nanos = ExtractTime(output),
+      .runs = ExtractNumber(output, "Total runs"),
+      .edges_covered = ExtractNumber(output, "Edges covered"),
+      .total_edges = ExtractNumber(output, "Total edges"),
+      .corpus_size = ExtractNumber(output, "Corpus size"),
+  };
+}
+
+std::string SingleJsonResult(absl::string_view name, uint64_t value) {
   constexpr absl::string_view kJsonFormat = R"(    {
       "cpu_time": %u,
       "real_time": %u,

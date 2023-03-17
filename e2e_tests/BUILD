@@ -59,5 +59,6 @@ cc_binary(
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:subprocess",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
