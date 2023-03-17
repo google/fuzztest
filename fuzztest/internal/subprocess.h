@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <variant>
 #include <vector>
@@ -52,6 +53,13 @@ class TerminationStatus {
   friend std::ostream& operator<<(std::ostream& os, TerminationStatus self) {
     std::visit([&os](auto v) { os << v; }, self.Status());
     return os;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const TerminationStatus self) {
+    std::stringstream ss;
+    ss << self;
+    sink.Append(ss.str());
   }
 
   // TerminationStatus can be compared to ExitCodeT and SignalT.
