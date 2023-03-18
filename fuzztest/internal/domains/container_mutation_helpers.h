@@ -255,30 +255,37 @@ bool MemoryDictionaryMutation(
 }
 
 // Randomly erases a contiguous chunk of at least 1 and at most half the
-// elements in `val`. The final size of `val` will be at least `min_size`.
+// elements in `val`. The chunk's size is sampled from a distribution that makes
+// smaller chunks more likely. The final size of `val` will be at least
+// `min_size`.
 template <typename ContainerT>
 void EraseRandomChunk(ContainerT& val, absl::BitGenRef prng, size_t min_size) {
   if (val.size() <= min_size) return;
-  size_t chunk_size =
-      absl::Uniform(absl::IntervalClosedClosed, prng, size_t{1},
-                    std::min(val.size() - min_size, val.size() >> 1));
-  size_t chunk_offset = ChooseOffset(val.size() - chunk_size, prng);
+  const size_t min_final_size = std::max(min_size, val.size() / 2);
+  const size_t chunk_size =
+      min_final_size + 1 == val.size()
+          ? 1
+          : 1 + absl::Zipf(prng, val.size() - min_final_size - 1);
+  const size_t chunk_offset = ChooseOffset(val.size() - chunk_size + 1, prng);
   auto it_start = std::next(val.begin(), chunk_offset);
   auto it_end = std::next(it_start, chunk_size);
   val.erase(it_start, it_end);
 }
 
-// Randomly inserts `new_element_val` at least 1 and at most 15 times at a
-// random position in `val`. The final size of `val` will be at most `max_size`.
+// Inserts a chunk consisting of `new_element_val` at a random position in
+// `val`. The chunk's size is sampled from a distribution so that the
+// final size of `val` is between `val.size() + 1` and `max_size`, with smaller
+// chunks being more likely.
 template <typename ContainerT, typename T>
 void InsertRandomChunk(ContainerT& val, absl::BitGenRef prng, size_t max_size,
                        T new_element_val) {
   if (val.size() >= max_size) return;
-  size_t grows = absl::Uniform(absl::IntervalClosedClosed, prng, size_t{1},
-                               std::min(max_size - val.size(), size_t{15}));
-  size_t grow_offset = ChooseOffset(val.size(), prng);
-  while (grows--) {
-    val.insert(std::next(val.begin(), grow_offset), new_element_val);
+  size_t chunk_size = val.size() + 1 == max_size
+                          ? 1
+                          : 1 + absl::Zipf(prng, max_size - val.size() - 1);
+  const size_t chunk_offset = ChooseOffset(val.size() + 1, prng);
+  while (chunk_size--) {
+    val.insert(std::next(val.begin(), chunk_offset), new_element_val);
   }
 }
 

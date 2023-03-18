@@ -120,14 +120,9 @@ class ContainerOfImplBase : public DomainBase<Derived> {
 
     if (can_shrink) {
       if (action-- == 0) {
-        // If !has_custom_corpus_type, try shrink a consecutive chunk
-        // or shrink 1 with equal probability.
-        // Otherwise always shrink 1.
         if constexpr (!has_custom_corpus_type) {
-          if (absl::Bernoulli(prng, 0.5)) {
-            EraseRandomChunk(val, prng, this->min_size_);
-            return;
-          }
+          EraseRandomChunk(val, prng, this->min_size_);
+          return;
         }
         val.erase(ChoosePosition(val, IncludeEnd::kNo, prng));
         return;
@@ -135,15 +130,10 @@ class ContainerOfImplBase : public DomainBase<Derived> {
     }
     if (can_grow) {
       if (action-- == 0) {
-        // If !has_custom_corpus_type, try grow a consecutive chunk or
-        // grow 1 with equal probability. Otherwise
-        // always grow 1.
         if constexpr (!has_custom_corpus_type) {
-          if (absl::Bernoulli(prng, 0.5)) {
-            auto element_val = inner_.Init(prng);
-            InsertRandomChunk(val, prng, this->max_size_, element_val);
-            return;
-          }
+          auto element_val = inner_.Init(prng);
+          InsertRandomChunk(val, prng, this->max_size_, element_val);
+          return;
         }
         Self().GrowOne(val, prng);
         return;
@@ -151,22 +141,18 @@ class ContainerOfImplBase : public DomainBase<Derived> {
     }
     if (can_change) {
       if (action-- == 0) {
-        // If !has_custom_corpus_type, try mutate a consecutive chunk or
-        // mutate 1 with equal probability. Otherwise
-        // always mutate 1.
+        // If possible, mutate a consecutive chunk.
         if constexpr (!has_custom_corpus_type) {
-          if (absl::Bernoulli(prng, 0.5)) {
-            size_t change_offset = ChooseOffset(val.size(), prng);
-            size_t changes =
-                absl::Uniform(absl::IntervalClosedClosed, prng, size_t{1},
-                              std::min(val.size() - change_offset, size_t{15}));
-            auto it_start = std::next(val.begin(), change_offset);
-            auto it_end = std::next(it_start, changes);
-            for (; it_start != it_end; it_start = std::next(it_start)) {
-              Self().MutateElement(val, prng, it_start, only_shrink);
-            }
-            return;
+          const size_t changes =
+              val.size() == 1 ? 1 : 1 + absl::Zipf(prng, val.size() - 1);
+          const size_t change_offset =
+              ChooseOffset(val.size() - changes + 1, prng);
+          auto it_start = std::next(val.begin(), change_offset);
+          auto it_end = std::next(it_start, changes);
+          for (; it_start != it_end; it_start = std::next(it_start)) {
+            Self().MutateElement(val, prng, it_start, only_shrink);
           }
+          return;
         }
         Self().MutateElement(
             val, prng, ChoosePosition(val, IncludeEnd::kNo, prng), only_shrink);
