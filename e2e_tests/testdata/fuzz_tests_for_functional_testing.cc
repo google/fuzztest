@@ -350,7 +350,9 @@ FUZZ_TEST(MySuite, FailsWhenSubprotosDontSetOptionalI32)
         Arbitrary<TestSubProtobuf>().WithInt32FieldAlwaysSet(
             "subproto_i32", fuzztest::Arbitrary<int32_t>())));
 
-void FailsWhenWrongDefaultProtobufDomainIsProvided(const TestProtobuf& proto) {}
+void FailsWhenWrongDefaultProtobufDomainIsProvided(const TestProtobuf& proto) {
+  (void)proto.subproto();
+}
 FUZZ_TEST(MySuite, FailsWhenWrongDefaultProtobufDomainIsProvided)
     .WithDomains(Arbitrary<TestProtobuf>().WithProtobufFields(
         IsTestSubProtobuf, Arbitrary<TestProtobufWithRecursion>()));
@@ -519,13 +521,12 @@ struct HasConstructor {
 
 void FailsWhenI32ContainsTheSecretNumber(
     const std::unique_ptr<google::protobuf::Message>& m) {
-  fuzztest::internal::TestProtobuf proto;
   if (m->GetDescriptor()->full_name() != "fuzztest.internal.TestProtobuf") {
     std::abort();
   }
-  const google::protobuf::FieldDescriptor* field =
-      m->GetDescriptor()->FindFieldByName("i32");
-  if (m->GetReflection()->GetInt32(*m, field) == /*secret number*/ -1) {
+  auto* proto =
+      google::protobuf::DynamicCastToGenerated<fuzztest::internal::TestProtobuf>(&*m);
+  if (proto->i32() == /*secret number*/ -1) {
     std::cerr << "Secret number is found !" << std::endl;
     std::abort();
   }
