@@ -328,6 +328,10 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   }
 
   if (const auto to_minimize = ReadReproducerToMinimize()) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Looking for smaller mutations indefinitely: please "
+                  "terminate the process manually (Ctrl-C) after some time.\n");
+
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
@@ -341,7 +345,8 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
     // We reduce the number of mutations if we can't find a crash, similar to
     // simulated annealing.
     int num_mutations = 20;
-    while (true) {
+    int counter = 0;
+    while (!ShouldStop()) {
       auto copy = *to_minimize;
       for (int i = 0; i < num_mutations; ++i) {
         params_domain_->UntypedMutate(copy, prng, true);
@@ -350,10 +355,19 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
       // We compare the serialized version. Not very efficient but works for
       // now.
       if (params_domain_->UntypedSerializeCorpus(copy).ToString() ==
-          original_serialized)
+          original_serialized) {
         continue;
+      }
+
       RunOneInput({std::move(copy)});
+
+      counter++;
+      if (counter == 100000) {
+        absl::FPrintF(GetStderr(), ".");
+        counter = 0;
+      }
     }
+    std::exit(130);  // Exit code termination.
   }
 
   return false;
@@ -374,6 +388,9 @@ std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
 std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
   auto file = absl::NullSafeStringView(getenv("FUZZTEST_MINIMIZE_REPRODUCER"));
   if (file.empty()) return std::nullopt;
+
+  absl::FPrintF(GetStderr(), "[*] Minimizing reproducer: %s\n", file);
+
   auto data = ReadFile(std::string(file));
 
   if (!data) {
