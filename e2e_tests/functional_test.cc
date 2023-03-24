@@ -70,7 +70,7 @@ std::string BinaryPath(const absl::string_view name =
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(
       !test_srcdir.empty(),
-      "Please set TEST_SRCDIR to non-empty value or use blaze/bazel to run the "
+      "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
       "test.");
   const std::string binary_path = absl::StrCat(
       test_srcdir, "/com_google_fuzztest/e2e_tests/", name,
