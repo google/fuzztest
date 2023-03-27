@@ -56,7 +56,10 @@ class UniqueElementsContainerImpl
   // All of these methods delegate at least partially to the unique_domain_
   // member.
 
-  corpus_type Init(absl::BitGenRef prng) { return unique_domain_.Init(prng); }
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return unique_domain_.Init(prng);
+  }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     unique_domain_.Mutate(val, prng, only_shrink);

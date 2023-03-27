@@ -498,6 +498,7 @@ class ProtobufDomainUntypedImpl
   }
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     FUZZTEST_INTERNAL_CHECK(
         !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
@@ -1426,7 +1427,10 @@ class ProtobufDomainImpl
   using typename ProtobufDomainImpl::DomainBase::value_type;
   using FieldDescriptor = ProtobufFieldDescriptor<typename T::Message>;
 
-  corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return inner_.Init(prng);
+  }
 
   uint64_t CountNumberOfFields(const corpus_type& val) {
     return inner_.CountNumberOfFields(val);
@@ -1873,6 +1877,7 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
   using typename ArbitraryImpl::DomainBase::value_type;
 
   value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const int index = absl::Uniform(prng, 0, descriptor()->value_count());
     return static_cast<T>(descriptor()->value(index)->number());
   }

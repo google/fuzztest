@@ -15,15 +15,8 @@
 // Tests of various domains that don't fit naturally into the other test files
 // in this directory: BitFlagCombinationOf and OneOf.
 
-#include <bitset>
-#include <cctype>
-#include <deque>
-#include <iterator>
-#include <list>
-#include <optional>
-#include <set>
+#include <cstdlib>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -33,15 +26,26 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
 namespace {
 
+using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
+
+TEST(BitFlagCombinationOf, InitGeneratesSeeds) {
+  auto domain = BitFlagCombinationOf({1, 4, 16, 32}).WithSeeds({5, 17});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, 5)), Contains(Value(domain, 17))));
+}
 
 TEST(BitFlagCombinationOf, Ints) {
   auto domain = BitFlagCombinationOf({1, 4, 16, 32});
@@ -86,6 +90,13 @@ TEST(BitFlagCombinationOf, InvalidInputReportsErrors) {
   EXPECT_DEATH_IF_SUPPORTED(
       BitFlagCombinationOf({1, 2, 3}),
       "BitFlagCombinationOf requires flags to be mutually exclusive.");
+}
+
+TEST(OneOf, InitGeneratesSeeds) {
+  auto domain = OneOf(Negative<int>(), Positive<int>()).WithSeeds({-42, 42});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, -42)), Contains(Value(domain, 42))));
 }
 
 TEST(OneOf, AllSubDomainsArePickedEventually) {

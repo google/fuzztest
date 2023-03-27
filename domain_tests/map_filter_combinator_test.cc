@@ -14,23 +14,19 @@
 
 // Tests of domains Map, FlatMap, and Filter.
 
-#include <bitset>
-#include <cctype>
-#include <deque>
-#include <iterator>
-#include <list>
+#include <cstddef>
 #include <optional>
-#include <set>
 #include <string>
-#include <unordered_set>
-#include <utility>
-#include <variant>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/type_support.h"
@@ -38,6 +34,7 @@
 namespace fuzztest {
 namespace {
 
+using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -208,6 +205,20 @@ TEST(Filter, CanRoundTripConversions) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   VerifyRoundTripThroughConversion(value, domain);
+}
+
+TEST(Filter, InitGeneratesSeeds) {
+  auto domain = Filter([](int i) { return i % 2 == 0; }, Arbitrary<int>())
+                    .WithSeeds({42});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(Value(domain, 42)));
+}
+
+TEST(Filter, WithSeedsFailsWhenConversionFromUserValueFails) {
+  EXPECT_DEATH_IF_SUPPORTED(
+      Filter([](int i) { return i % 2 == 0; }, Arbitrary<int>())
+          .WithSeeds({41}),
+      "Invalid seed value");
 }
 
 }  // namespace

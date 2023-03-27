@@ -81,6 +81,7 @@ template <>
 class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
  public:
   value_type Init(absl::BitGenRef prng) {
+    if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
   }
 
@@ -110,6 +111,7 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
                          IntegerDictionary<T>, bool>;
 
   value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const auto choose_from_all = [&] {
       return absl::Uniform(absl::IntervalClosedClosed, prng,
                            std::numeric_limits<T>::min(),
@@ -193,6 +195,7 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
   using typename ArbitraryImpl::DomainBase::value_type;
 
   value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const T special[] = {
         T{0.0}, T{-0.0}, T{1.0}, T{-1.0}, std::numeric_limits<T>::max(),
         std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
@@ -263,7 +266,10 @@ class ArbitraryImpl<std::basic_string_view<Char>>
   using typename ArbitraryImpl::DomainBase::corpus_type;
   using typename ArbitraryImpl::DomainBase::value_type;
 
-  corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return inner_.Init(prng);
+  }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     inner_.Mutate(val, prng, only_shrink);

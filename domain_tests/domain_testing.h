@@ -38,6 +38,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -120,8 +121,25 @@ struct Value {
       : corpus_value(other.corpus_value),
         user_value(domain.GetValue(corpus_value)) {}
 
+  Value(const Domain& domain, T user_value)
+      : corpus_value([&]() {
+          auto corpus_value = domain.FromValue(user_value);
+          FUZZTEST_INTERNAL_CHECK_PRECONDITION(corpus_value.has_value(),
+                                               "Invalid user_value!");
+          return *corpus_value;
+        }()),
+        user_value(std::move(user_value)) {}
+
   void Mutate(Domain& domain, absl::BitGenRef prng, bool only_shrink) {
     domain.Mutate(corpus_value, prng, only_shrink);
+    user_value = domain.GetValue(corpus_value);
+  }
+
+  void RandomizeByRepeatedMutation(Domain& domain, absl::BitGenRef prng) {
+    static constexpr int kMutations = 1000;
+    for (int i = 0; i < kMutations; ++i) {
+      domain.Mutate(corpus_value, prng, /*only_shrink=*/false);
+    }
     user_value = domain.GetValue(corpus_value);
   }
 
@@ -243,6 +261,17 @@ auto GenerateValues(Domain domain, int num_seeds = 10,
     values.merge(mutations);
   }
 
+  return values;
+}
+
+template <typename Domain>
+auto GenerateInitialValues(Domain domain, int n) {
+  std::vector<Value<Domain>> values;
+  absl::BitGen bitgen;
+  values.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    values.push_back(Value(domain, bitgen));
+  }
   return values;
 }
 

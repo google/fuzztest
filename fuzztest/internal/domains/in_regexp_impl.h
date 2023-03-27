@@ -42,6 +42,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
       : dfa_(RegexpDFA::Create(regex_str)) {}
 
   DFAPath Init(absl::BitGenRef prng) {
+    if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
     std::optional<DFAPath> path =
         dfa_.StringToDFAPath(dfa_.GenerateString(prng));
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.has_value(),
