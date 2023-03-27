@@ -609,7 +609,14 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
 
     PopulateFromSeeds();
 
-    const auto time_limit = stats_.start_time + absl::Seconds(1);
+    auto duration = absl::Seconds(1);
+    const auto fuzz_for = absl::NullSafeStringView(getenv("FUZZTEST_FUZZ_FOR"));
+    if (!fuzz_for.empty()) {
+      FUZZTEST_INTERNAL_CHECK(
+          absl::ParseDuration(fuzz_for, &duration),
+          "Could not parse duration in FUZZTEST_FUZZ_FOR=", fuzz_for);
+    }
+    const auto time_limit = stats_.start_time + duration;
     PRNG prng(seed_sequence_);
     Input mutation{params_domain_->UntypedInit(prng)};
     constexpr size_t max_iterations = 10000;
