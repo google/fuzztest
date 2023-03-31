@@ -32,13 +32,14 @@
 namespace fuzztest::internal {
 
 template <typename T, typename... Inner>
-class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>> {
+class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>, T,
+                                        // `T` might be a custom variant type.
+                                        // We use std::variant unconditionally
+                                        // to make it simpler.
+                                        std::variant<corpus_type_t<Inner>...>> {
  public:
-  using value_type = T;
-  static constexpr bool has_custom_corpus_type = true;
-  // `T` might be a custom variant type.
-  // We use std::variant unconditionally to make it simpler.
-  using corpus_type = std::variant<corpus_type_t<Inner>...>;
+  using typename VariantOfImpl::DomainBase::corpus_type;
+  using typename VariantOfImpl::DomainBase::value_type;
 
   VariantOfImpl() = default;
   explicit VariantOfImpl(std::in_place_t, Inner... inner)

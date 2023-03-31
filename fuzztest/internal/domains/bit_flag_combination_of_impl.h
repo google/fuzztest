@@ -30,7 +30,7 @@ template <typename T>
 class BitFlagCombinationOfImpl
     : public DomainBase<BitFlagCombinationOfImpl<T>> {
  public:
-  using value_type = T;
+  using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
       : flags_(flags.begin(), flags.end()) {

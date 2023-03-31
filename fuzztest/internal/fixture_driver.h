@@ -152,7 +152,7 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)>
           (fixture_.get()->*target_function_)(
               ForceVectorForStringView<Args>(std::move(args))...);
         },
-        args_untyped.GetAs<typename DomainT::value_type>());
+        args_untyped.GetAs<value_type_t<DomainT>>());
   }
 
  protected:
@@ -185,7 +185,7 @@ class FixtureDriver<DomainT, NoFixture, void (*)(Args...)>
         [&](auto&&... args) {
           target_function_(ForceVectorForStringView<Args>(std::move(args))...);
         },
-        args_untyped.GetAs<typename DomainT::value_type>());
+        args_untyped.GetAs<value_type_t<DomainT>>());
   }
 
  private:

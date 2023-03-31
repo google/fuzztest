@@ -28,20 +28,21 @@
 
 namespace fuzztest::internal {
 
-template <typename T, typename Inner>
-class SmartPointerOfImpl : public DomainBase<SmartPointerOfImpl<T, Inner>> {
-  // We use the type erased version here to allow for recursion in smart pointer
-  // domains.
-  // It helps cut the recursion in type traits (like corpus_type) and the
-  // indirection avoids having the domain contain itself by value.
-  using RealInner = Domain<typename T::element_type>;
+template <typename T, typename Inner,
+          // We use the type erased version here to allow for recursion in smart
+          // pointer domains. It helps cut the recursion in type traits (like
+          // corpus_type) and the indirection avoids having the domain contain
+          // itself by value.
+          typename RealInner = Domain<typename T::element_type>>
+class SmartPointerOfImpl
+    : public DomainBase<
+          SmartPointerOfImpl<T, Inner>, T,
+          std::variant<std::monostate, corpus_type_t<RealInner>>> {
   using InnerFn = const RealInner& (*)();
 
  public:
-  using value_type = T;
-  static constexpr bool has_custom_corpus_type = true;
-  using corpus_type =
-      std::variant<std::monostate, typename RealInner::corpus_type>;
+  using typename SmartPointerOfImpl::DomainBase::corpus_type;
+  using typename SmartPointerOfImpl::DomainBase::value_type;
 
   // Since we allow for recursion in this domain, we want to delay the
   // construction of the inner domain. Otherwise we would have an infinite

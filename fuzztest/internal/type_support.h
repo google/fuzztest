@@ -37,22 +37,11 @@
 
 namespace fuzztest::internal {
 
-template <typename Domain, typename = void>
-struct DomainTraitsImpl {
-  using corpus_type = typename Domain::value_type;
-};
+template <typename Domain>
+using value_type_t = typename Domain::value_type;
 
 template <typename Domain>
-struct DomainTraitsImpl<
-    Domain, std::enable_if_t<Domain::has_custom_corpus_type,
-                             std::void_t<typename Domain::corpus_type>>> {
-  using corpus_type = typename Domain::corpus_type;
-};
-
-// If `has_custom_corpus_type_v<Domain>`, `Domain::corpus_type`.
-// Otherwise `Domain::value_type`.
-template <typename Domain>
-using corpus_type_t = typename DomainTraitsImpl<Domain>::corpus_type;
+using corpus_type_t = typename Domain::corpus_type;
 
 // Return a best effort printer for type `T`.
 // This is useful for cases where the domain can't figure out how to print the
@@ -249,7 +238,7 @@ struct OptionalPrinter {
 
   void PrintCorpusValue(const corpus_type_t<Domain>& v, RawSink out,
                         PrintMode mode) const {
-    using value_type = typename Domain::value_type;
+    using value_type = value_type_t<Domain>;
     constexpr bool is_pointer = Requires<value_type>(
         [](auto probe)
             -> std::enable_if_t<std::is_pointer_v<decltype(probe.get())>> {});

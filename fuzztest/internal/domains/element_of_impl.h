@@ -30,12 +30,14 @@
 
 namespace fuzztest::internal {
 
+enum class ElementOfImplCorpusType : size_t;
+
 template <typename T>
-class ElementOfImpl : public DomainBase<ElementOfImpl<T>> {
+class ElementOfImpl
+    : public DomainBase<ElementOfImpl<T>, T, ElementOfImplCorpusType> {
  public:
-  using value_type = T;
-  enum class corpus_type : size_t;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename ElementOfImpl::DomainBase::corpus_type;
+  using typename ElementOfImpl::DomainBase::value_type;
 
   explicit ElementOfImpl(std::vector<T> values) : values_(values) {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(

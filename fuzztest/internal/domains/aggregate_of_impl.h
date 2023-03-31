@@ -35,19 +35,23 @@ namespace fuzztest::internal {
 
 enum class RequireCustomCorpusType { kNo, kYes };
 
+// For user defined types (structs) we require a custom corpus_type
+// (std::tuple), because the serializer does not support structs, only tuples.
+template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
+using AggregateOfImplCorpusType =
+    std::conditional_t<require_custom == RequireCustomCorpusType::kYes ||
+                           (Inner::has_custom_corpus_type || ...),
+                       std::tuple<corpus_type_t<Inner>...>, T>;
+
 template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
 class AggregateOfImpl
-    : public DomainBase<AggregateOfImpl<T, require_custom, Inner...>, T> {
+    : public DomainBase<
+          AggregateOfImpl<T, require_custom, Inner...>, T,
+          AggregateOfImplCorpusType<T, require_custom, Inner...>> {
  public:
-  using value_type = T;
-  // For user defined types (structs) we require a custom corpus_type
-  // (std::tuple), because the serializer does not support structs, only tuples.
-  static constexpr bool has_custom_corpus_type =
-      require_custom == RequireCustomCorpusType::kYes ||
-      (Inner::has_custom_corpus_type || ...);
-  using corpus_type =
-      std::conditional_t<has_custom_corpus_type,
-                         std::tuple<corpus_type_t<Inner>...>, T>;
+  using AggregateOfImpl::DomainBase::has_custom_corpus_type;
+  using typename AggregateOfImpl::DomainBase::corpus_type;
+  using typename AggregateOfImpl::DomainBase::value_type;
 
   AggregateOfImpl() = default;
   explicit AggregateOfImpl(std::in_place_t, Inner... inner)
@@ -106,8 +110,7 @@ class AggregateOfImpl
         if (*tuple_elem >= 0 && *tuple_elem < sizeof...(Inner)) {
           Switch<sizeof...(Inner)>(*tuple_elem, [&](auto I) {
             PrintValue(std::get<I>(inner_),
-                       std::get<I>(val.GetAs<corpus_type_t<AggregateOfImpl>>()),
-                       out, mode);
+                       std::get<I>(val.GetAs<corpus_type>()), out, mode);
           });
         }
       }

@@ -29,11 +29,11 @@ namespace fuzztest::internal {
 
 template <typename Pred, typename Inner>
 class FilterImpl
-    : public DomainBase<FilterImpl<Pred, Inner>, typename Inner::value_type> {
+    : public DomainBase<FilterImpl<Pred, Inner>, value_type_t<Inner>,
+                        corpus_type_t<Inner>> {
  public:
-  using corpus_type = corpus_type_t<Inner>;
-  using value_type = typename Inner::value_type;
-  static constexpr bool has_custom_corpus_type = Inner::has_custom_corpus_type;
+  using typename FilterImpl::DomainBase::corpus_type;
+  using typename FilterImpl::DomainBase::value_type;
 
   FilterImpl() = default;
   explicit FilterImpl(Pred predicate, Inner inner)

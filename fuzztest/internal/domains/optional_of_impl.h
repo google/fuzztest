@@ -34,15 +34,18 @@ namespace fuzztest::internal {
 enum class OptionalPolicy { kWithNull, kWithoutNull, kAlwaysNull };
 
 template <typename T, typename InnerDomain>
-class OptionalOfImpl : public DomainBase<OptionalOfImpl<T, InnerDomain>> {
+class OptionalOfImpl
+    : public DomainBase<
+          OptionalOfImpl<T, InnerDomain>, T,
+          // `T` might be a custom optional type.
+          // We use std::variant unconditionally to make it simpler.
+          std::variant<std::monostate, corpus_type_t<InnerDomain>>> {
  public:
-  using value_type = T;
+  using typename OptionalOfImpl::DomainBase::corpus_type;
+  using typename OptionalOfImpl::DomainBase::value_type;
+
   static_assert(Requires<T>([](auto x) -> decltype(!x, *x) {}),
                 "T must be an optional type.");
-  static constexpr bool has_custom_corpus_type = true;
-  // `T` might be a custom optional type.
-  // We use std::variant unconditionally to make it simpler.
-  using corpus_type = std::variant<std::monostate, corpus_type_t<InnerDomain>>;
 
   explicit OptionalOfImpl(InnerDomain inner)
       : inner_(std::move(inner)), policy_(OptionalPolicy::kWithNull) {}

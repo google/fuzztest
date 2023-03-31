@@ -82,6 +82,7 @@ cc_library(
     name = "table_of_recent_compares",
     hdrs = ["internal/table_of_recent_compares.h"],
     deps = [
+        ":type_support",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",

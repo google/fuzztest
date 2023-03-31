@@ -264,9 +264,9 @@ TEST(DomainTest, Printer) {
   auto color_domain = ElementOf({kBlue});
   auto print = [&](auto v, auto domain) {
     // We have to create the inner corpus_type of Domain here.
-    return TestPrintValue(typename decltype(domain)::corpus_type(
-                              std::in_place_type<decltype(v)>, v),
-                          domain);
+    return TestPrintValue(
+        corpus_type_t<decltype(domain)>(std::in_place_type<decltype(v)>, v),
+        domain);
   };
   EXPECT_THAT(print('a', Domain<char>(Arbitrary<char>())),
               ElementsAre("'a' (97)", "'a'"));

@@ -67,7 +67,7 @@ template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
     : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using value_type = T;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
   value_type Init(absl::BitGenRef) { return value_type{}; }
 
@@ -80,8 +80,6 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
 template <>
 class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
  public:
-  using value_type = bool;
-
   value_type Init(absl::BitGenRef prng) {
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
   }
@@ -103,7 +101,8 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
                                         std::numeric_limits<T>::is_integer>>
     : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using value_type = T;
+  using typename ArbitraryImpl::DomainBase::value_type;
+
   static constexpr bool is_memory_dictionary_compatible_v =
       sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8;
   using IntegerDictionaryT =
@@ -191,7 +190,7 @@ template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
     : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using value_type = T;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
   value_type Init(absl::BitGenRef prng) {
     const T special[] = {
@@ -234,20 +233,20 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
 // Arbitrary for containers.
 template <typename T>
 class ArbitraryImpl<
-    T, std::enable_if_t<always_true<T>,
-                        decltype(
-                            // Iterable
-                            T().begin(), T().end(), T().size(),
-                            // Values are mutable
-                            // This rejects associative containers, for example
-                            // *T().begin() = std::declval<typename
-                            // T::value_type>(), Can insert and erase elements
-                            T().insert(T().end(),
-                                       std::declval<typename T::value_type>()),
-                            T().erase(T().begin()),
-                            //
-                            (void)0)>>
-    : public ContainerOfImpl<T, ArbitraryImpl<typename T::value_type>> {};
+    T,
+    std::enable_if_t<always_true<T>,
+                     decltype(
+                         // Iterable
+                         T().begin(), T().end(), T().size(),
+                         // Values are mutable
+                         // This rejects associative containers, for example
+                         // *T().begin() = std::declval<value_type_t<T>>(),
+                         // Can insert and erase elements
+                         T().insert(T().end(), std::declval<value_type_t<T>>()),
+                         T().erase(T().begin()),
+                         //
+                         (void)0)>>
+    : public ContainerOfImpl<T, ArbitraryImpl<value_type_t<T>>> {};
 
 // Arbitrary for std::string_view.
 //
@@ -255,13 +254,14 @@ class ArbitraryImpl<
 // better. See below.
 template <typename Char>
 class ArbitraryImpl<std::basic_string_view<Char>>
-    : public DomainBase<ArbitraryImpl<std::basic_string_view<Char>>> {
+    : public DomainBase<ArbitraryImpl<std::basic_string_view<Char>>,
+                        std::basic_string_view<Char>,
+                        // We use a vector to better manage the buffer and help
+                        // ASan find out-of-bounds bugs.
+                        std::vector<Char>> {
  public:
-  using value_type = std::string_view;
-  // We use a vector to better manage the buffer and help ASan find
-  // out-of-bounds bugs.
-  using corpus_type = std::vector<Char>;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename ArbitraryImpl::DomainBase::corpus_type;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
   corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 

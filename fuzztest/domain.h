@@ -79,8 +79,11 @@ class Domain {
   using corpus_type = internal::GenericDomainCorpusType;
   static constexpr bool has_custom_corpus_type = true;
 
-  template <typename Inner>
-  Domain(const internal::DomainBase<Inner, T>& inner)
+  // Intentionally not marked as explicit to allow implicit conversion from the
+  // internal domain implementations.
+  template <int&... ExplicitArgumentBarrier, typename Inner,
+            typename CorpusType>
+  Domain(const internal::DomainBase<Inner, T, CorpusType>& inner)
       : inner_(new auto(static_cast<const Inner&>(inner))) {}
 
   Domain(const Domain& other) { *this = other; }
@@ -251,11 +254,13 @@ class DomainBuilder {
   // Domains that uses a layer of indirection. This allows us to create domains
   // for recursive data structures.
   template <typename T>
-  class IndirectDomain : public internal::DomainBase<IndirectDomain<T>> {
+  class IndirectDomain
+      : public internal::DomainBase<IndirectDomain<T>,
+                                    internal::value_type_t<Domain<T>>,
+                                    internal::corpus_type_t<Domain<T>>> {
    public:
-    using value_type = typename Domain<T>::value_type;
-    using corpus_type = typename Domain<T>::corpus_type;
-    static constexpr bool has_custom_corpus_type = true;
+    using typename IndirectDomain::DomainBase::corpus_type;
+    using typename IndirectDomain::DomainBase::value_type;
 
     explicit IndirectDomain(internal::MoveOnlyAny* indirect)
         : indirect_inner_(indirect) {}
@@ -301,15 +306,17 @@ class DomainBuilder {
   // Same as Domain<T>, but also holds ownership of the lookup table.
   // This is for toplevel domains.
   template <typename T>
-  class OwningDomain : public internal::DomainBase<OwningDomain<T>> {
+  class OwningDomain
+      : public internal::DomainBase<OwningDomain<T>,
+                                    internal::value_type_t<Domain<T>>,
+                                    internal::corpus_type_t<Domain<T>>> {
    public:
+    using typename OwningDomain::DomainBase::corpus_type;
+    using typename OwningDomain::DomainBase::value_type;
+
     OwningDomain(const Domain<T>& inner,
                  std::unique_ptr<DomainLookUpTable> domain_lookup_table)
         : inner_(inner), domain_lookup_table_(std::move(domain_lookup_table)) {}
-
-    using value_type = typename Domain<T>::value_type;
-    using corpus_type = typename Domain<T>::corpus_type;
-    static constexpr bool has_custom_corpus_type = true;
 
     corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
@@ -557,8 +564,8 @@ auto BitFlagCombinationOf(const std::vector<T>& flags) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<typename T::value_type>,
-                     internal::DropConst<typename Inner::value_type>>);
+      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
+                     internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::ContainerOfImpl<T, Inner>(std::move(inner));
 }
 
@@ -572,11 +579,11 @@ auto ContainerOf(Inner inner) {
 //
 template <template <typename, typename...> class T,
           int&... ExplicitArgumentBarrier, typename Inner,
-          typename C = T<typename Inner::value_type>>
+          typename C = T<internal::value_type_t<Inner>>>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<typename C::value_type>,
-                     internal::DropConst<typename Inner::value_type>>);
+      std::is_same_v<internal::DropConst<internal::value_type_t<C>>,
+                     internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::ContainerOfImpl<C, Inner>(std::move(inner));
 }
 
@@ -654,7 +661,7 @@ auto StructOf(Inner... inner) {
 template <int&... ExplicitArgumentBarrier, typename Inner1, typename Inner2>
 auto PairOf(Inner1 inner1, Inner2 inner2) {
   return internal::AggregateOfImpl<
-      std::pair<typename Inner1::value_type, typename Inner2::value_type>,
+      std::pair<internal::value_type_t<Inner1>, internal::value_type_t<Inner2>>,
       internal::RequireCustomCorpusType::kNo, Inner1, Inner2>(
       std::in_place, std::move(inner1), std::move(inner2));
 }
@@ -668,7 +675,7 @@ auto PairOf(Inner1 inner1, Inner2 inner2) {
 //
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto TupleOf(Inner... inner) {
-  return internal::AggregateOfImpl<std::tuple<typename Inner::value_type...>,
+  return internal::AggregateOfImpl<std::tuple<internal::value_type_t<Inner>...>,
                                    internal::RequireCustomCorpusType::kNo,
                                    Inner...>(std::in_place,
                                              std::move(inner)...);
@@ -698,7 +705,7 @@ auto VariantOf(Inner... inner) {
 
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto VariantOf(Inner... inner) {
-  return VariantOf<std::variant<typename Inner::value_type...>>(
+  return VariantOf<std::variant<internal::value_type_t<Inner>...>>(
       std::move(inner)...);
 }
 
@@ -725,7 +732,7 @@ auto OptionalOf(Inner inner) {
 
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto OptionalOf(Inner inner) {
-  return OptionalOf<std::optional<typename Inner::value_type>>(
+  return OptionalOf<std::optional<internal::value_type_t<Inner>>>(
       std::move(inner));
 }
 
@@ -775,7 +782,7 @@ auto SmartPointerOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto UniquePtrOf(Inner inner) {
-  return SmartPointerOf<std::unique_ptr<typename Inner::value_type>>(
+  return SmartPointerOf<std::unique_ptr<internal::value_type_t<Inner>>>(
       std::move(inner));
 }
 
@@ -788,7 +795,7 @@ auto UniquePtrOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto SharedPtrOf(Inner inner) {
-  return SmartPointerOf<std::shared_ptr<typename Inner::value_type>>(
+  return SmartPointerOf<std::shared_ptr<internal::value_type_t<Inner>>>(
       std::move(inner));
 }
 
@@ -834,7 +841,8 @@ auto FlatMap(FlatMapper flat_mapper, Inner... inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto VectorOf(Inner inner) {
-  return ContainerOf<std::vector<typename Inner::value_type>>(std::move(inner));
+  return ContainerOf<std::vector<internal::value_type_t<Inner>>>(
+      std::move(inner));
 }
 
 // DequeOf(inner) combinator creates a `std::deque` domain with elements of the
@@ -846,7 +854,8 @@ auto VectorOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto DequeOf(Inner inner) {
-  return ContainerOf<std::deque<typename Inner::value_type>>(std::move(inner));
+  return ContainerOf<std::deque<internal::value_type_t<Inner>>>(
+      std::move(inner));
 }
 
 // ListOf(inner) combinator creates a `std::list` domain with elements of the
@@ -858,7 +867,8 @@ auto DequeOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto ListOf(Inner inner) {
-  return ContainerOf<std::list<typename Inner::value_type>>(std::move(inner));
+  return ContainerOf<std::list<internal::value_type_t<Inner>>>(
+      std::move(inner));
 }
 
 // SetOf(inner) combinator creates a `std::set` domain with elements of the
@@ -870,7 +880,7 @@ auto ListOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto SetOf(Inner inner) {
-  return ContainerOf<std::set<typename Inner::value_type>>(std::move(inner));
+  return ContainerOf<std::set<internal::value_type_t<Inner>>>(std::move(inner));
 }
 
 // MapOf(key_domain, value_domain) combinator creates a `std::map` domain with
@@ -883,8 +893,8 @@ auto SetOf(Inner inner) {
 template <int&... ExplicitArgumentBarrier, typename KeyDomain,
           typename ValueDomain>
 auto MapOf(KeyDomain key_domain, ValueDomain value_domain) {
-  return ContainerOf<std::map<typename KeyDomain::value_type,
-                              typename ValueDomain::value_type>>(
+  return ContainerOf<std::map<internal::value_type_t<KeyDomain>,
+                              internal::value_type_t<ValueDomain>>>(
       PairOf(std::move(key_domain), std::move(value_domain)));
 }
 
@@ -897,7 +907,7 @@ auto MapOf(KeyDomain key_domain, ValueDomain value_domain) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto UnorderedSetOf(Inner inner) {
-  return ContainerOf<std::unordered_set<typename Inner::value_type>>(
+  return ContainerOf<std::unordered_set<internal::value_type_t<Inner>>>(
       std::move(inner));
 }
 
@@ -912,8 +922,8 @@ auto UnorderedSetOf(Inner inner) {
 template <int&... ExplicitArgumentBarrier, typename KeyDomain,
           typename ValueDomain>
 auto UnorderedMapOf(KeyDomain key_domain, ValueDomain value_domain) {
-  return ContainerOf<std::unordered_map<typename KeyDomain::value_type,
-                                        typename ValueDomain::value_type>>(
+  return ContainerOf<std::unordered_map<internal::value_type_t<KeyDomain>,
+                                        internal::value_type_t<ValueDomain>>>(
       PairOf(std::move(key_domain), std::move(value_domain)));
 }
 
@@ -941,9 +951,9 @@ auto ArrayOf(Inner... inner) {
   // All value_types of inner domains must be the same, though they can have
   // different corpus_types.
   using value_type =
-      typename std::tuple_element_t<0, std::tuple<Inner...>>::value_type;
+      internal::value_type_t<std::tuple_element_t<0, std::tuple<Inner...>>>;
   static_assert(std::conjunction_v<
-                    std::is_same<value_type, typename Inner::value_type>...>,
+                    std::is_same<value_type, internal::value_type_t<Inner>>...>,
                 "All domains in a ArrayOf must have the same value_type.");
   return internal::AggregateOfImpl<std::array<value_type, sizeof...(Inner)>,
                                    internal::RequireCustomCorpusType::kNo,
@@ -990,8 +1000,8 @@ auto ArrayOf(const Inner& inner) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto UniqueElementsContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<typename T::value_type>,
-                     internal::DropConst<typename Inner::value_type>>);
+      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
+                     internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::UniqueElementsContainerImpl<T, Inner>(std::move(inner));
 }
 
@@ -1007,7 +1017,7 @@ auto UniqueElementsContainerOf(Inner inner) {
 //
 template <typename Inner>
 auto UniqueElementsVectorOf(Inner inner) {
-  return UniqueElementsContainerOf<std::vector<typename Inner::value_type>>(
+  return UniqueElementsContainerOf<std::vector<internal::value_type_t<Inner>>>(
       std::move(inner));
 }
 

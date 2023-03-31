@@ -400,15 +400,15 @@ class PrototypePtr {
 template <typename Message>
 class ProtobufDomainUntypedImpl
     : public DomainBase<ProtobufDomainUntypedImpl<Message>,
-                        std::unique_ptr<Message>> {
+                        std::unique_ptr<Message>,
+                        absl::flat_hash_map<int, GenericDomainCorpusType>> {
   using Descriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
   using OneofDescriptor = ProtobufOneofDescriptor<Message>;
 
  public:
-  using corpus_type = absl::flat_hash_map<int, GenericDomainCorpusType>;
-  using value_type = std::unique_ptr<Message>;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename ProtobufDomainUntypedImpl::DomainBase::corpus_type;
+  using typename ProtobufDomainUntypedImpl::DomainBase::value_type;
 
   explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype)
       : prototype_(std::move(prototype)),
@@ -747,7 +747,7 @@ class ProtobufDomainUntypedImpl
     template <typename T>
     bool VisitSingular(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, false>(field);
-      typename std::decay_t<decltype(domain)>::value_type inner_value;
+      value_type_t<std::decay_t<decltype(domain)>> inner_value;
       auto* reflection = message.GetReflection();
       if constexpr (std::is_same_v<T, ProtoMessageTag>) {
         const auto& child = reflection->GetMessage(message, field);
@@ -768,7 +768,7 @@ class ProtobufDomainUntypedImpl
     template <typename T>
     bool VisitRepeated(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, true>(field);
-      typename std::decay_t<decltype(domain)>::value_type inner_value;
+      value_type_t<std::decay_t<decltype(domain)>> inner_value;
       auto* reflection = message.GetReflection();
       const int size = reflection->FieldSize(message, field);
       for (int i = 0; i < size; ++i) {
@@ -1281,8 +1281,7 @@ class ProtobufDomainUntypedImpl
   auto GetDomainForField(const FieldDescriptor* field,
                          bool use_policy = true) const {
     auto base_domain = GetBaseDomainForFieldType<T>(field, use_policy);
-    using field_cpptype =
-        typename std::decay_t<decltype(base_domain)>::value_type;
+    using field_cpptype = value_type_t<std::decay_t<decltype(base_domain)>>;
     if constexpr (is_repeated) {
       return Domain<std::vector<field_cpptype>>(
           GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
@@ -1416,15 +1415,14 @@ class ProtobufDomainUntypedImpl
 // Domain for `T` where `T` is a Protobuf message type.
 // It is a small wrapper around `ProtobufDomainUntypedImpl` to make its API more
 // convenient.
-template <typename T>
-class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
-  using Inner = ProtobufDomainUntypedImpl<typename T::Message>;
-
+template <typename T,
+          typename UntypedImpl = ProtobufDomainUntypedImpl<typename T::Message>>
+class ProtobufDomainImpl
+    : public DomainBase<ProtobufDomainImpl<T>, T, corpus_type_t<UntypedImpl>> {
  public:
-  using value_type = T;
-  using corpus_type = typename Inner::corpus_type;
+  using typename ProtobufDomainImpl::DomainBase::corpus_type;
+  using typename ProtobufDomainImpl::DomainBase::value_type;
   using FieldDescriptor = ProtobufFieldDescriptor<typename T::Message>;
-  static constexpr bool has_custom_corpus_type = true;
 
   corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
@@ -1813,11 +1811,11 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   Domain<std::unique_ptr<typename T::Message>> ToUntypedProtoDomain(
       Inner inner_domain) {
     return internal::MapImpl<std::function<std::unique_ptr<typename T::Message>(
-                                 typename Inner::value_type)>,
+                                 value_type_t<Inner>)>,
                              Inner>(
-        [](typename Inner::value_type proto_message)
+        [](value_type_t<Inner> proto_message)
             -> std::unique_ptr<typename T::Message> {
-          return {std::make_unique<typename Inner::value_type>(proto_message)};
+          return {std::make_unique<value_type_t<Inner>>(proto_message)};
         },
         std::move(inner_domain));
   }
@@ -1827,9 +1825,9 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ToOptionalUntypedProtoDomain(Inner inner_domain) {
     return internal::MapImpl<
         std::function<std::optional<std::unique_ptr<typename T::Message>>(
-            typename Inner::value_type)>,
+            value_type_t<Inner>)>,
         Inner>(
-        [](typename Inner::value_type proto_message)
+        [](value_type_t<Inner> proto_message)
             -> std::optional<std::unique_ptr<typename T::Message>> {
           if (!proto_message.has_value()) return std::nullopt;
           return {std::make_unique<
@@ -1844,9 +1842,9 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
   ToRepeatedUntypedProtoDomain(Inner inner_domain) {
     return internal::MapImpl<
         std::function<std::vector<std::unique_ptr<typename T::Message>>(
-            typename Inner::value_type)>,
+            value_type_t<Inner>)>,
         Inner>(
-        [](typename Inner::value_type proto_message)
+        [](value_type_t<Inner> proto_message)
             -> std::vector<std::unique_ptr<typename T::Message>> {
           std::vector<std::unique_ptr<typename T::Message>> result;
           for (auto& entry : proto_message) {
@@ -1859,7 +1857,7 @@ class ProtobufDomainImpl : public DomainBase<ProtobufDomainImpl<T>> {
         std::move(inner_domain));
   }
 
-  Inner inner_{&T::default_instance()};
+  UntypedImpl inner_{&T::default_instance()};
 };
 
 template <typename T>
@@ -1870,7 +1868,7 @@ template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using value_type = T;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
   value_type Init(absl::BitGenRef prng) {
     const int index = absl::Uniform(prng, 0, descriptor()->value_count());

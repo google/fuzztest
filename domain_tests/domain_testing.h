@@ -68,7 +68,7 @@ struct Hash {
       return !o || std::isnan(*o) ? 0 : absl::Hash<T>{}(*o);
     } else if constexpr (internal::Requires<T>(
                              [](auto v) -> decltype(v.hash_function()) {})) {
-      return (*this)(std::set<typename T::value_type>(v.begin(), v.end()));
+      return (*this)(std::set<internal::value_type_t<T>>(v.begin(), v.end()));
     } else {
       return absl::Hash<T>{}(v);
     }
@@ -106,7 +106,7 @@ using Set = absl::flat_hash_set<T, Hash, Eq>;
 // simplify their access and mutation.
 template <typename Domain>
 struct Value {
-  using T = typename Domain::value_type;
+  using T = internal::value_type_t<Domain>;
   internal::corpus_type_t<Domain> corpus_value;
   T user_value;
 
@@ -137,8 +137,8 @@ struct Value {
       return H::combine(std::move(state), o);
     } else if constexpr (internal::Requires<T>(
                              [](auto v) -> decltype(v.hash_function()) {})) {
-      return H::combine(std::move(state),
-                        std::set<typename T::value_type>(v.begin(), v.end()));
+      return H::combine(std::move(state), std::set<internal::value_type_t<T>>(
+                                              v.begin(), v.end()));
     } else {
       return H::combine(std::move(state), v);
     }
@@ -266,7 +266,7 @@ auto MutateUntilFoundN(Domain domain, size_t n) {
 }
 
 template <typename Domain, typename IsTerminal, typename IsCloser,
-          typename T = typename Domain::value_type>
+          typename T = internal::value_type_t<Domain>>
 absl::Status TestShrink(Domain domain,
                         const absl::flat_hash_set<Value<Domain>>& values,
                         IsTerminal is_terminal, IsCloser is_closer_to_zero) {

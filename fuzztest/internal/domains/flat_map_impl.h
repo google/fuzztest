@@ -31,20 +31,23 @@
 namespace fuzztest::internal {
 
 template <typename FlatMapper, typename... Inner>
+using FlatMapOutputDomain = std::decay_t<
+    std::invoke_result_t<FlatMapper, const value_type_t<Inner>&...>>;
+
+template <typename FlatMapper, typename... Inner>
 class FlatMapImpl
     : public DomainBase<
           FlatMapImpl<FlatMapper, Inner...>,
-          typename std::decay_t<std::invoke_result_t<
-              FlatMapper, const typename Inner::value_type&...>>::value_type> {
+          value_type_t<FlatMapOutputDomain<FlatMapper, Inner...>>,
+          std::tuple<corpus_type_t<FlatMapOutputDomain<FlatMapper, Inner...>>,
+                     corpus_type_t<Inner>...>> {
  private:
   using output_domain = std::decay_t<
-      std::invoke_result_t<FlatMapper, const typename Inner::value_type&...>>;
+      std::invoke_result_t<FlatMapper, const value_type_t<Inner>&...>>;
 
  public:
-  using corpus_type =
-      std::tuple<corpus_type_t<output_domain>, corpus_type_t<Inner>...>;
-  using value_type = typename output_domain::value_type;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename FlatMapImpl::DomainBase::corpus_type;
+  using typename FlatMapImpl::DomainBase::value_type;
 
   FlatMapImpl() = default;
   explicit FlatMapImpl(FlatMapper mapper, Inner... inner)

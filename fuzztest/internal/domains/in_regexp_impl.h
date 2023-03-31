@@ -34,14 +34,10 @@
 
 namespace fuzztest::internal {
 
-class InRegexpImpl : public DomainBase<InRegexpImpl, std::string> {
+using DFAPath = std::vector<RegexpDFA::Edge>;
+
+class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
  public:
-  using DFAPath = std::vector<RegexpDFA::Edge>;
-  using value_type = std::string;
-  using corpus_type = DFAPath;
-
-  static constexpr bool has_custom_corpus_type = true;
-
   explicit InRegexpImpl(std::string_view regex_str)
       : dfa_(RegexpDFA::Create(regex_str)) {}
 

@@ -33,29 +33,27 @@ namespace fuzztest::internal {
 
 template <typename... Inner>
 class OneOfImpl
-    : public DomainBase<OneOfImpl<Inner...>,
-                        typename std::tuple_element_t<
-                            0, typename std::tuple<Inner...>>::value_type> {
+    : public DomainBase<
+          OneOfImpl<Inner...>,
+          value_type_t<std::tuple_element_t<0, std::tuple<Inner...>>>,
+          std::variant<corpus_type_t<Inner>...>> {
  public:
+  using typename OneOfImpl::DomainBase::corpus_type;
+  using typename OneOfImpl::DomainBase::value_type;
+
   // All value_types of inner domains must be the same. (Though note that they
   // can have different corpus_types!)
-  using value_type =
-      typename std::tuple_element_t<0,
-                                    typename std::tuple<Inner...>>::value_type;
-  static_assert(std::conjunction_v<
-                    std::is_same<value_type, typename Inner::value_type>...>,
-                "All domains in a OneOf must have the same value_type.");
-
-  static constexpr bool has_custom_corpus_type = true;
-  using corpus_type = std::variant<corpus_type_t<Inner>...>;
+  static_assert(
+      std::conjunction_v<std::is_same<value_type, value_type_t<Inner>>...>,
+      "All domains in a OneOf must have the same value_type.");
 
   explicit OneOfImpl(Inner... domains) : domains_(std::move(domains)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
     // TODO(b/191368509): Consider the cardinality of the subdomains to weight
     // them.
-    return Switch<sizeof...(Inner)>(
-        absl::Uniform(prng, size_t{}, num_domains_), [&](auto I) {
+    return Switch<kNumDomains>(
+        absl::Uniform(prng, size_t{}, kNumDomains), [&](auto I) {
           return corpus_type(std::in_place_index<I>,
                              std::get<I>(domains_).Init(prng));
         });
@@ -63,18 +61,18 @@ class OneOfImpl
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     // Switch to another domain 1% of the time when not reducing.
-    if (num_domains_ > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
+    if (kNumDomains > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
-      size_t offset = absl::Uniform<size_t>(prng, 1, num_domains_);
+      size_t offset = absl::Uniform<size_t>(prng, 1, kNumDomains);
       size_t index = static_cast<size_t>(val.index());
       index += offset;
-      if (index >= num_domains_) index -= num_domains_;
-      Switch<sizeof...(Inner)>(index, [&](auto I) {
+      if (index >= kNumDomains) index -= kNumDomains;
+      Switch<kNumDomains>(index, [&](auto I) {
         auto& domain = std::get<I>(domains_);
         val.template emplace<I>(domain.Init(prng));
       });
     } else {
-      Switch<sizeof...(Inner)>(val.index(), [&](auto I) {
+      Switch<kNumDomains>(val.index(), [&](auto I) {
         auto& domain = std::get<I>(domains_);
         domain.Mutate(std::get<I>(val), prng, only_shrink);
       });
@@ -82,7 +80,7 @@ class OneOfImpl
   }
 
   value_type GetValue(const corpus_type& v) const {
-    return Switch<sizeof...(Inner)>(v.index(), [&](auto I) -> value_type {
+    return Switch<kNumDomains>(v.index(), [&](auto I) -> value_type {
       auto domain = std::get<I>(domains_);
       return domain.GetValue(std::get<I>(v));
     });
@@ -98,7 +96,7 @@ class OneOfImpl
       return false;
     };
 
-    ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+    ApplyIndex<kNumDomains>([&](auto... I) {
       // Try them in order, break on first success.
       (try_one_corpus(I) || ...);
     });
@@ -117,11 +115,10 @@ class OneOfImpl
   }
 
  private:
+  static constexpr size_t kNumDomains = sizeof...(Inner);
+  static_assert(kNumDomains > 0, "OneOf requires a non-empty list.");
+
   std::tuple<Inner...> domains_;
-  static_assert(std::tuple_size_v<decltype(domains_)> > 0,
-                "OneOf requires a non-empty list.");
-  // For ease of reading.
-  const size_t num_domains_ = sizeof...(Inner);
 };
 
 }  // namespace fuzztest::internal

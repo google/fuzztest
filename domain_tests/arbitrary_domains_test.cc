@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,8 +32,11 @@
 #include "google/protobuf/descriptor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
+#include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
@@ -151,12 +155,10 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
 }
 
 struct StatefulIncrementDomain
-    : public internal::DomainBase<StatefulIncrementDomain, int> {
-  using value_type = int;
-  // Just to make sure we don't mix value_type with corpus_type
-  using corpus_type = std::tuple<int>;
-  static constexpr bool has_custom_corpus_type = true;
-
+    : public internal::DomainBase<StatefulIncrementDomain, int,
+                                  // Just to make sure we don't mix value_type
+                                  // with corpus_type
+                                  std::tuple<int>> {
   corpus_type Init(absl::BitGenRef prng) {
     // Minimal code to exercise prng.
     corpus_type result = {absl::Uniform<value_type>(prng, i, i + 1)};

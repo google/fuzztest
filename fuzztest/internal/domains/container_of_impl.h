@@ -52,23 +52,32 @@ auto ChoosePosition(Container& val, IncludeEnd include_end,
   return std::next(val.begin(), i);
 }
 
+template <typename ContainerDomain,
+          typename ValueType = ExtractTemplateParameter<0, ContainerDomain>,
+          typename InnerDomain = ExtractTemplateParameter<1, ContainerDomain>>
+using ContainerOfImplBaseCorpusType = std::conditional_t<
+    // Specialized handling of vector<bool> since you can't actually hold
+    // a reference to a single bit but instead get a proxy value.
+    is_bitvector_v<ValueType> ||
+        // If the container is associative we force a custom corpus type to
+        // allow modifying the keys.
+        is_associative_container_v<ValueType> ||
+        InnerDomain::has_custom_corpus_type,
+    // Corpus type might be immutable (eg std::pair<const int, int> for maps
+    // inner domain). We store them in a std::list to allow for this.
+    std::list<corpus_type_t<InnerDomain>>, ValueType>;
+
 // Common base for container domains. Provides common APIs.
 template <typename Derived>
-class ContainerOfImplBase : public DomainBase<Derived> {
+class ContainerOfImplBase
+    : public DomainBase<Derived, ExtractTemplateParameter<0, Derived>,
+                        ContainerOfImplBaseCorpusType<Derived>> {
   using InnerDomainT = ExtractTemplateParameter<1, Derived>;
 
  public:
-  using value_type = ExtractTemplateParameter<0, Derived>;
-  static constexpr bool has_custom_corpus_type =
-      // Specialized handling of vector<bool> since you can't actually hold
-      // a reference to a single bit but instead get a proxy value.
-      is_bitvector_v<value_type> ||
-      // If the container is associative we force a custom corpus type to allow
-      // modifying the keys.
-      is_associative_container_v<value_type> ||
-      InnerDomainT::has_custom_corpus_type;
-  // `corpus_type` might be immutable (eg std::pair<const int, int> for maps
-  // inner domain). We store them in a std::list to allow for this.
+  using ContainerOfImplBase::DomainBase::has_custom_corpus_type;
+  using typename ContainerOfImplBase::DomainBase::corpus_type;
+  using typename ContainerOfImplBase::DomainBase::value_type;
 
   // Some container mutation only applies to vector or string types which do
   // not have a custom corpus type.
@@ -82,10 +91,6 @@ class ContainerOfImplBase : public DomainBase<Derived> {
   static constexpr bool container_has_memory_dict =
       is_memory_dictionary_compatible<InnerDomainT>::value &&
       is_vector_or_string;
-
-  using corpus_type =
-      std::conditional_t<has_custom_corpus_type,
-                         std::list<corpus_type_t<InnerDomainT>>, value_type>;
 
   // If `!container_has_memory_dict`, dict_type is a bool and dict
   // is not used. This conditional_t may be neccessary because some
@@ -281,7 +286,7 @@ class ContainerOfImplBase : public DomainBase<Derived> {
 
   InnerDomainT Inner() const { return inner_; }
 
-  template <typename OtherDerived>
+  template <typename>
   friend class ContainerOfImplBase;
 
   template <typename OtherDerived>
@@ -367,10 +372,9 @@ class AssociativeContainerOfImpl
   using Base = typename AssociativeContainerOfImpl::ContainerOfImplBase;
 
  public:
-  using value_type = T;
-  using corpus_type = typename Base::corpus_type;
-  static constexpr bool has_custom_corpus_type = Base::has_custom_corpus_type;
-  static_assert(has_custom_corpus_type, "Must be custom to mutate keys");
+  using typename Base::corpus_type;
+
+  static_assert(Base::has_custom_corpus_type, "Must be custom to mutate keys");
 
   AssociativeContainerOfImpl() = default;
   explicit AssociativeContainerOfImpl(InnerDomain inner)
@@ -475,8 +479,7 @@ class SequenceContainerOfImpl
   using Base = typename SequenceContainerOfImpl::ContainerOfImplBase;
 
  public:
-  using value_type = T;
-  using corpus_type = typename Base::corpus_type;
+  using typename Base::corpus_type;
 
   SequenceContainerOfImpl() = default;
   explicit SequenceContainerOfImpl(InnerDomain inner)

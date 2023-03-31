@@ -36,7 +36,8 @@ namespace fuzztest::internal {
 template <typename T>
 class InRangeImpl : public DomainBase<InRangeImpl<T>> {
  public:
-  using value_type = T;
+  using typename InRangeImpl::DomainBase::value_type;
+
   constexpr static bool T_is_integer = std::numeric_limits<T>::is_integer;
   constexpr static bool T_is_signed = std::is_signed<T>::value;
   constexpr static bool T_is_memory_dictionary_compatible =

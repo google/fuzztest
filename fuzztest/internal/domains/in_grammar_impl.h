@@ -49,9 +49,9 @@ namespace fuzztest::internal::grammar {
 using ASTTypeId = int;
 struct ASTNode {
   ASTTypeId type_id;
-  std::variant<std::monostate,  // If the node is a string terminal.
-               internal::InRegexpImpl::DFAPath,  // If the node is a regex
-                                                 // terminal.
+  std::variant<std::monostate,        // If the node is a string terminal.
+               DFAPath,               // If the node is a regex
+                                      // terminal.
                std::vector<ASTNode>>  // If the node is a non-terminal.
       children;
 
@@ -163,17 +163,14 @@ class RegexLiteralDomain {
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<internal::InRegexpImpl::DFAPath>(astnode,
-                                                                        id),
-        "Invalid node!");
-    return WrapASTIntoIRObject(
-        astnode,
-        GetInnerRegexpDomain().SerializeCorpus(
-            std::get<internal::InRegexpImpl::DFAPath>(astnode.children)));
+        CheckASTNodeTypeIdAndChildType<DFAPath>(astnode, id), "Invalid node!");
+    return WrapASTIntoIRObject(astnode,
+                               GetInnerRegexpDomain().SerializeCorpus(
+                                   std::get<DFAPath>(astnode.children)));
   }
 
   static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<internal::InRegexpImpl::DFAPath>(obj)) {
+    if (!CheckASTCorpusStructure<DFAPath>(obj)) {
       return std::nullopt;
     }
     auto subs = obj.Subs();
@@ -185,7 +182,7 @@ class RegexLiteralDomain {
     if (!path) {
       return std::nullopt;
     }
-    result.children.emplace<internal::InRegexpImpl::DFAPath>(*path);
+    result.children.emplace<DFAPath>(*path);
     return result;
   }
 
@@ -636,11 +633,11 @@ void GroupElementByASTType(
     absl::flat_hash_map<ASTTypeId, std::vector<ASTNode*>>& groups);
 
 template <typename TopDomain>
-class InGrammarImpl : public DomainBase<InGrammarImpl<TopDomain>, std::string> {
+class InGrammarImpl
+    : public DomainBase<InGrammarImpl<TopDomain>, std::string, ASTNode> {
  public:
-  using value_type = std::string;
-  using corpus_type = ASTNode;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename InGrammarImpl::DomainBase::corpus_type;
+  using typename InGrammarImpl::DomainBase::value_type;
 
   ASTNode Init(absl::BitGenRef prng) { return TopDomain::Init(prng); }
 

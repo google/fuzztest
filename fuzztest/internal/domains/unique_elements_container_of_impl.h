@@ -26,6 +26,13 @@
 
 namespace fuzztest::internal {
 
+template <typename InnerDomain>
+using UniqueDomainValueT = absl::flat_hash_set<value_type_t<InnerDomain>>;
+
+template <typename InnerDomain>
+using UniqueDomain =
+    AssociativeContainerOfImpl<UniqueDomainValueT<InnerDomain>, InnerDomain>;
+
 // UniqueElementsContainerImpl supports producing containers of type `T`, with
 // elements of type `E` from domain `InnerDomain inner`, with a guarantee that
 // each element of the container has a unique value from `InnerDomain`. The
@@ -33,16 +40,14 @@ namespace fuzztest::internal {
 // which is (effectively) produced by `UnorderedSetOf(inner)`.
 template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
-    : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>> {
-  using UniqueDomainValueT =
-      absl::flat_hash_set<typename InnerDomain::value_type>;
-  using UniqueDomain =
-      AssociativeContainerOfImpl<UniqueDomainValueT, InnerDomain>;
+    : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
+                        corpus_type_t<UniqueDomain<InnerDomain>>> {
+  using UniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
+  using UniqueDomain = UniqueDomain<InnerDomain>;
 
  public:
-  using value_type = T;
-  using corpus_type = typename UniqueDomain::corpus_type;
-  static constexpr bool has_custom_corpus_type = true;
+  using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
+  using typename UniqueElementsContainerImpl::DomainBase::value_type;
 
   UniqueElementsContainerImpl() = default;
   explicit UniqueElementsContainerImpl(InnerDomain inner)
@@ -64,7 +69,7 @@ class UniqueElementsContainerImpl
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     return unique_domain_.FromValue(
-        typename UniqueDomain::value_type(v.begin(), v.end()));
+        value_type_t<UniqueDomain>(v.begin(), v.end()));
   }
 
   auto GetPrinter() const { return unique_domain_.GetPrinter(); }

@@ -122,10 +122,9 @@ class Registration : private Base {
   // void MyProperty(std::string s, int i) { ... }
   // FUZZ_TEST(MySuite, MyProperty).WithDomains(StringAndIndex(10));
   template <typename... NewDomains>
-  auto WithDomains(
-      AggregateOfImpl<std::tuple<typename NewDomains::value_type...>,
-                      RequireCustomCorpusType::kNo, NewDomains...>
-          domain) && {
+  auto WithDomains(AggregateOfImpl<std::tuple<value_type_t<NewDomains>...>,
+                                   RequireCustomCorpusType::kNo, NewDomains...>
+                       domain) && {
     static_assert(!Registration::kHasDomain,
                   "WithDomains can only be called once.");
     static_assert(!Registration::kHasSeeds,
@@ -134,8 +133,7 @@ class Registration : private Base {
         Base::kNumArgs == sizeof...(NewDomains),
         "Number of domains specified in .WithDomains() does not match "
         "the number of function parameters.");
-    using NewBase =
-        RegistrationWithDomainsBase<typename NewDomains::value_type...>;
+    using NewBase = RegistrationWithDomainsBase<value_type_t<NewDomains>...>;
     return Registration<Fixture, TargetFunction, NewBase>(
         test_info_, target_function_, NewBase{std::move(domain)});
   }
