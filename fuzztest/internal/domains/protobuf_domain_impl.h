@@ -28,7 +28,6 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/die_if_null.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/strings/string_view.h"
@@ -380,7 +379,10 @@ class PrototypePtr {
   PrototypePtr(std::function<const Prototype*()> prototype_factory)
       : prototype_factory_(std::move(prototype_factory)), prototype_(nullptr) {}
   PrototypePtr(const Prototype* prototype)
-      : prototype_factory_(), prototype_(ABSL_DIE_IF_NULL(prototype)) {}
+      : prototype_factory_(), prototype_(prototype) {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(prototype != nullptr,
+                                         "Prototype should not be nullptr");
+  }
 
   PrototypePtr& operator=(const PrototypePtr<Prototype>& other) = default;
   PrototypePtr(const PrototypePtr<Prototype>& other) = default;

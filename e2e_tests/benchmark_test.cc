@@ -74,7 +74,7 @@ std::string MicrobenchmarksBinaryPath() {
 
 uint64_t ExtractTime(absl::string_view output) {
   static constexpr LazyRE2 kElapsedTimeRE = {"\nElapsed time: (.+)\n"};
-  absl::string_view duration_str;
+  std::string duration_str;
   FUZZTEST_INTERNAL_CHECK(
       RE2::PartialMatch(output, *kElapsedTimeRE, &duration_str),
       "\n\nCould not find:\n\nElapsed time:\n\nin:\n\n", output);
@@ -166,6 +166,8 @@ Stats RunFuzzTest(const std::string& name) {
   auto [status, std_out, std_err] = fuzztest::internal::RunCommand(
       command_line,
       /*environment=*/{}, absl::Seconds(kTimeOutSecs));
+  // Overread tests under asan might not produce any stat.
+  if (absl::StrContains(name, "Overread")) return {};
   return ParseStats(std_err);
 }
 

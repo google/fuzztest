@@ -1,0 +1,65 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CMake Test
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+  workflow_dispatch:
+
+# TODO: Support caching.
+jobs:
+  run_tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        config: ['default', 'fuzztest']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -yq \
+            clang libprotobuf-dev protobuf-compiler ninja-build cmake
+      - name: Run end-to-end tests with FUZZTEST_UNIT
+        if: matrix.config == 'default'
+        run: |
+          mkdir build && \
+          cd build && \
+          CC=clang CXX=clang++ cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebug \
+            -DRE2_BUILD_TESTING=off \
+            -Dprotobuf_BUILD_TESTS=off \
+            -DFUZZTEST_TESTING=on .. && \
+            ninja -j $(nproc) && \
+            ctest -j $(nproc) --output-on-failure -E "benchmark_test"
+      - name: Run all tests with default config
+        if: matrix.config == 'fuzztest'
+        run: |
+          mkdir build && \
+          cd build && \
+          CC=clang CXX=clang++ cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebug \
+            -DRE2_BUILD_TESTING=off \
+            -Dprotobuf_BUILD_TESTS=off \
+            -DFUZZTEST_FUZZING_MODE=on \
+            -DFUZZTEST_TESTING=on .. && \
+            ninja -j $(nproc) && \
+            ctest -j $(nproc) --output-on-failure
+

@@ -28,8 +28,7 @@
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
 #include "./fuzztest/internal/logging.h"
-#include "re2/prog.h"
-#include "re2/regexp.h"
+#include "re2/re2.h"
 
 namespace fuzztest::internal {
 // Represents the deterministic finite automaton (DFA) of a regular expression.
