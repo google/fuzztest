@@ -17,11 +17,13 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -96,6 +98,37 @@ TEST(FixtureDriverTest, PropagatesCallToTargetFunctionOnBaseFixture) {
   fixture_driver.Test(MakeArgs(3));
 
   EXPECT_EQ(CallCountFixture::call_count, 3);
+}
+
+struct SeedsFixture {
+  void AddCall(int n) { calls.push_back(n); }
+  inline static std::vector<int> calls;
+  inline static std::vector<int> dynamic_seeds;
+
+  std::vector<int> GetDynamicFuzzTestSeeds() {
+    std::vector<int> ret;
+    ret.swap(dynamic_seeds);
+    return ret;
+  }
+};
+
+using AddCallFunc = decltype(&SeedsFixture::AddCall);
+using AddCallRegBase = DefaultRegistrationBase<CallCountFixture, AddCallFunc>;
+
+TEST(FixtureDriverTest, DynamicSeeds) {
+  FixtureDriverImpl<Domain<std::tuple<int>>, SeedsFixture, AddCallFunc>
+      fixture_driver(&SeedsFixture::AddCall, Arbitrary<std::tuple<int>>(), {});
+
+  fixture_driver.SetUpFuzzTest();
+  std::vector<int> seeds = {177, 182731};
+  SeedsFixture::dynamic_seeds = seeds;
+
+  auto output_seeds = fixture_driver.GetDynamicSeeds();
+  std::vector<int> int_outputs;
+  for (const auto& output_seed : output_seeds) {
+    int_outputs.push_back(output_seed.GetAs<int>());
+  }
+  EXPECT_THAT(int_outputs, UnorderedElementsAre(177, 182731));
 }
 
 struct LifecycleRecordingFixture {

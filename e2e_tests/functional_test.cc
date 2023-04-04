@@ -316,6 +316,14 @@ TEST(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
       1, CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
 }
 
+TEST(UnitTestModeTest, DynamicFuzzTestsAreUsed) {
+  auto [status, std_out, std_err] =
+      RunWith(GetGTestFilterFlag("MySuiteSeedsFixture.AddCall"));
+  EXPECT_THAT(
+      std_err,
+      HasSubstr("<MySuiteSeedsFixture::GuessedUnguessableExampleSeed>>"));
+}
+
 TEST(UnitTestModeTest, GoogleTestWorksWithProtoExtensionsUsedInSeeds) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.CheckProtoExtensions"));

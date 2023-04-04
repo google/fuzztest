@@ -16,10 +16,12 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_FIXTURE_DRIVER_H_
 
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/type_support.h"
@@ -78,6 +80,7 @@ class UntypedFixtureDriver {
   virtual void Test(MoveOnlyAny&& args_untyped) const = 0;
 
   std::vector<GenericDomainCorpusType> GetSeeds() const;
+  virtual std::vector<GenericDomainCorpusType> GetDynamicSeeds();
   std::unique_ptr<UntypedDomainInterface> GetDomains() const;
 
  private:
@@ -205,6 +208,16 @@ class FixtureDriverImpl<DomainT, NoFixture, TargetFunction> final
   using FixtureDriver<DomainT, NoFixture, TargetFunction>::FixtureDriver;
 };
 
+// HasGetDynamicSeeds<T>::value is true_type if T has a
+// GetDynamicSeeds() member.
+template <typename T, typename = void>
+struct HasGetDynamicFuzzTestSeeds : std::false_type {};
+
+template <typename T>
+struct HasGetDynamicFuzzTestSeeds<
+    T, std::void_t<decltype(std::declval<T>().GetDynamicFuzzTestSeeds())>>
+    : std::true_type {};
+
 // The fixture driver for default-constructible classes that act like fixtures:
 // their setup is in the constructor, teardown is in the destructor, and they
 // have a target function. Such fixtures are instantiated and destructed once
@@ -223,6 +236,19 @@ class FixtureDriverImpl<
     this->fixture_ = std::make_unique<Fixture>();
   }
   void TearDownFuzzTest() override { this->fixture_ = nullptr; }
+
+  std::vector<GenericDomainCorpusType> GetDynamicSeeds() override {
+    std::vector<GenericDomainCorpusType> seeds;
+    if constexpr (HasGetDynamicFuzzTestSeeds<Fixture>::value) {
+      auto typed_seeds = this->fixture_->GetDynamicFuzzTestSeeds();
+      seeds.reserve(typed_seeds.size());
+      for (auto& seed : typed_seeds) {
+        seeds.emplace_back(std::in_place_type<std::decay_t<decltype(seed)>>,
+                           std::move(seed));
+      }
+    }
+    return seeds;
+  }
 };
 
 // The fixture driver for test fixtures with explicit setup that assume the
