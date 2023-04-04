@@ -68,7 +68,10 @@ cc_library(
 cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
-    hdrs = ["internal/coverage.h"],
+    hdrs = [
+        "internal/bitmap.h",
+        "internal/coverage.h",
+    ],
     deps = [
         ":logging",
         ":table_of_recent_compares",

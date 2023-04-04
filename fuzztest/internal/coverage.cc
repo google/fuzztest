@@ -22,12 +22,26 @@
 #include <cstring>
 #include <memory>
 #include <type_traits>
+#include <variant>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
+
+// Branch prediction hints.
+#define likely(_expr) __builtin_expect((_expr), true)
+#define unlikely(_expr) __builtin_expect((_expr), false)
+
+// Overloaded std::visit helper.
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 namespace fuzztest::internal {
 namespace {
@@ -49,10 +63,58 @@ constexpr uint8_t BitWidth(uint8_t x) {
   ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS \
   ABSL_ATTRIBUTE_NO_SANITIZE_UNDEFINED
 
-ExecutionCoverage* execution_coverage_instance = nullptr;
+ExecutionCoverage *execution_coverage_instance = nullptr;
 
-ExecutionCoverage* GetExecutionCoverage() {
+ExecutionCoverage *GetExecutionCoverage() {
   return execution_coverage_instance;
+}
+
+ExecutionCoverage::ExecutionCoverage(
+    std::variant<absl::Span<uint8_t>, absl::Span<uint32_t>>
+        counter_or_guard_map)
+    : counter_or_guard_map_(counter_or_guard_map) {
+  if (std::holds_alternative<absl::Span<uint32_t>>(counter_or_guard_map_)) {
+    // PC guards track coverage using an insert-only bitmap. The guard map is
+    // only required for index calculations (base and length of guards).
+    const auto &guards = std::get<absl::Span<uint32_t>>(counter_or_guard_map_);
+    bitmap_ = std::make_unique<Bitmap>(guards.size());
+  }
+}
+
+void ExecutionCoverage::ResetState() {
+  memset(new_cmp_counter_map_, 0, kCmpCovMapSize);
+  std::visit(::overloaded{
+                 [](const absl::Span<uint8_t> &map) {
+                   // Reset __sancov_cntrs.
+                   memset(map.data(), 0, map.size());
+                 },
+                 [&](const absl::Span<uint32_t> &guards_map) {
+                   // Save the number of edges accessed.
+                   bitmap_count_ = bitmap_->AreSet();
+                 },
+             },
+             execution_coverage_instance->counter_or_guard_map_);
+  new_coverage_.store(false, std::memory_order_relaxed);
+
+  max_stack_recorded_ = 0;
+  auto &stack = test_thread_stack;
+  if (!stack) {
+    stack.emplace();
+#if defined(FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK)
+    // Read the current stack information. This will help us later detect if a
+    // stack frame pointer is within bounds.
+    pthread_attr_t attr;
+    void *addr;
+    size_t size;
+    if (pthread_getattr_np(pthread_self(), &attr) == 0 &&
+        pthread_attr_getstack(&attr, &addr, &size) == 0) {
+      stack->allocated_stack_region =
+          absl::Span<const char>(static_cast<const char *>(addr), size);
+      pthread_attr_destroy(&attr);
+    }
+#endif  // FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK
+  }
+  stack->stack_frame_before_calling_property_function = GetCurrentStackFrame();
 }
 
 void ExecutionCoverage::UpdateCmpMap(size_t index, uint8_t hamming_dist,
@@ -166,7 +228,7 @@ namespace {
 using Vector = uint8_t __attribute__((vector_size(64)));
 
 constexpr size_t kVectorSize = sizeof(Vector);
-bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
+bool UpdateVectorized(const uint8_t *execution_data, uint8_t *corpus_data,
                       size_t size, size_t offset_to_align) {
   FUZZTEST_INTERNAL_CHECK(size >= kVectorSize,
                           "size cannot be smaller than block size!");
@@ -177,18 +239,18 @@ bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
   // When aligned, just cast. This generates an aligned instruction.
   // When unaligned, go through memcpy. This generates a slower unaligned
   // instruction.
-  const auto read = [](const uint8_t* p, auto aligned) {
+  const auto read = [](const uint8_t *p, auto aligned) {
     if constexpr (aligned) {
-      return *reinterpret_cast<const Vector*>(p);
+      return *reinterpret_cast<const Vector *>(p);
     } else {
       Vector v;
       memcpy(&v, p, sizeof(v));
       return v;
     }
   };
-  const auto write = [](uint8_t* p, Vector v, auto aligned) {
+  const auto write = [](uint8_t *p, Vector v, auto aligned) {
     if constexpr (aligned) {
-      *reinterpret_cast<Vector*>(p) = v;
+      *reinterpret_cast<Vector *>(p) = v;
     } else {
       memcpy(p, &v, sizeof(v));
     }
@@ -239,58 +301,107 @@ bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
 }
 }  // namespace
 
-CorpusCoverage::CorpusCoverage(size_t map_size) {
-  size_t alignment = alignof(Vector);
-  // Round up to a multiple of alignment.
-  map_size += alignment - 1;
-  map_size -= map_size % alignment;
-  // And allocate an extra step to make sure the alignment logic has the
-  // necessary space.
-  map_size += alignment;
-  corpus_map_size_ = map_size;
-  corpus_map_ = static_cast<uint8_t*>(std::aligned_alloc(alignment, map_size));
-  std::fill(corpus_map_, corpus_map_ + corpus_map_size_, 0);
-}
-
-CorpusCoverage::~CorpusCoverage() { std::free(corpus_map_); }
-
-bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
-  absl::Span<uint8_t> execution_map = execution_coverage->GetCounterMap();
-  // Note: corpus_map_size_ will be larger than execution_map.size().
-  // See the constructor for more details.
-  FUZZTEST_INTERNAL_CHECK(execution_map.size() <= corpus_map_size_,
-                          "Map size mismatch.");
-
-  // Calculate the offset required to align `p` to alignof(Vector).
-  void* p = execution_map.data();
-  size_t space = execution_map.size();
-  // If we can't align, then the buffer is too small and we don't need to use
-  // vectorization.
-  if (std::align(alignof(Vector), sizeof(Vector), p, space)) {
-    size_t offset_to_align = execution_map.size() - space;
-
-    // Align the corpus to the same alignemnt as execution_data (relative to
-    // alignof(Vector)). This makes it simpler to apply the same kinds of
-    // reads on both. We skip some bytes in corpus_data, which is fine, since
-    // we overallocated for this purpose.
-    uint8_t* corpus_data = corpus_map_ + (alignof(Vector) - offset_to_align);
-
-    return UpdateVectorized(execution_map.data(), corpus_data,
-                            execution_map.size(), offset_to_align) ||
-           execution_coverage->NewCoverageFound();
-  }
-
-  bool new_coverage = false;
-  for (size_t i = 0; i < execution_map.size(); i++) {
-    uint8_t bucketized_counter = BitWidth(execution_map[i]);
-    if (bucketized_counter != 0) {
-      if (corpus_map_[i] < bucketized_counter) {
-        corpus_map_[i] = bucketized_counter;
-        new_coverage = true;
-      }
+CorpusCoverage::CorpusCoverage(size_t map_size)
+    : corpus_map_size_(map_size), corpus_map_(nullptr) {
+  if (map_size > 0) {
+    // For coverage_benchmark, binaries are built without -fsanitize-coverage so
+    // ensure we can initialize object here (when size is 0, ie instance null).
+    if (std::holds_alternative<absl::Span<uint8_t>>(
+            execution_coverage_instance->counter_or_guard_map_)) {
+      // PC guard bitmap logic does not require a corpus map.
+      size_t alignment = alignof(Vector);
+      // Round up to a multiple of alignment.
+      map_size += alignment - 1;
+      map_size -= map_size % alignment;
+      // And allocate an extra step to make sure the alignment logic has the
+      // necessary space.
+      map_size += alignment;
+      corpus_map_size_ = map_size;  // Overwrite map size with aligned size.
+      corpus_map_ =
+          static_cast<uint8_t *>(std::aligned_alloc(alignment, map_size));
+      std::fill(corpus_map_, corpus_map_ + corpus_map_size_, 0);
     }
   }
+}
+
+CorpusCoverage::~CorpusCoverage() {
+  if (corpus_map_ != nullptr) {
+    std::free(corpus_map_);
+  }
+}
+
+bool CorpusCoverage::Update(ExecutionCoverage *execution_coverage) {
+  // Handle update different with inline-8bit-counters or trace-pc-guard.
+  bool new_coverage = std::visit(
+      ::overloaded{
+          [&](absl::Span<uint8_t> &execution_map) {
+            // Note: corpus_map_size_ will be larger than execution_map.size().
+            // See the constructor for more details.
+            FUZZTEST_INTERNAL_CHECK(execution_map.size() <= corpus_map_size_,
+                                    "Map size mismatch.");
+
+            // Calculate the offset required to align `p` to alignof(Vector).
+            void *p = execution_map.data();
+            size_t space = execution_map.size();
+            // If we can't align, then the buffer is too small and we don't need
+            // to use vectorization.
+            if (std::align(alignof(Vector), sizeof(Vector), p, space)) {
+              size_t offset_to_align = execution_map.size() - space;
+
+              // Align the corpus to the same alignment as execution_data
+              // (relative to alignof(Vector)). This makes it simpler to apply
+              // the same kinds of reads on both. We skip some bytes in
+              // corpus_data, which is fine, since we overallocated for this
+              // purpose.
+              uint8_t *corpus_data =
+                  corpus_map_ + (alignof(Vector) - offset_to_align);
+
+              return UpdateVectorized(execution_map.data(), corpus_data,
+                                      execution_map.size(), offset_to_align);
+            }
+            bool new_coverage = false;
+            for (size_t i = 0; i < execution_map.size(); i++) {
+              uint8_t bucketized_counter = BitWidth(execution_map[i]);
+              if (bucketized_counter != 0) {
+                if (corpus_map_[i] < bucketized_counter) {
+                  corpus_map_[i] = bucketized_counter;
+                  new_coverage = true;
+                }
+              }
+            }
+            return new_coverage;
+          },
+          [&](const absl::Span<uint32_t> &) {
+            // A new coverage was found during testing if a new bit was set in
+            // the PC guard bitmap vs last time.
+            return execution_coverage->bitmap_->AreSet() >
+                   execution_coverage->bitmap_count_;  // Set by Reset.
+          }},
+      execution_coverage->counter_or_guard_map_);
+
   return new_coverage || execution_coverage->NewCoverageFound();
+}
+
+size_t CorpusCoverage::GetNumberOfCoveredEdges() const {
+  using fuzztest::internal::execution_coverage_instance;
+  using fuzztest::internal::ExecutionCoverage;
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      execution_coverage_instance != nullptr,
+      "Execution coverage must be initialized prior to corpus coverage.");
+  size_t uncovered_edges =
+      std::visit(::overloaded{
+                     [&](const absl::Span<uint8_t> &) {
+                       // Any remaining zero counters are uncovered edges.
+                       return (size_t)std::count(
+                           corpus_map_, corpus_map_ + corpus_map_size_, 0);
+                     },
+                     [](const absl::Span<uint32_t> &guards_map) {
+                       // Number of edges at last Reset.
+                       return execution_coverage_instance->bitmap_count_;
+                     },
+                 },
+                 execution_coverage_instance->counter_or_guard_map_);
+  return corpus_map_size_ - uncovered_edges;
 }
 
 #else  // __clang__ && __linux__
@@ -300,9 +411,10 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
 CorpusCoverage::CorpusCoverage(size_t map_size)
     : corpus_map_size_(0), corpus_map_(nullptr) {}
 CorpusCoverage::~CorpusCoverage() {}
-bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
+bool CorpusCoverage::Update(ExecutionCoverage *execution_coverage) {
   return false;
 }
+size_t CorpusCoverage::GetNumberOfCoveredEdges() const { return 0; }
 
 #endif  // __clang__ && __linux__
 
@@ -313,9 +425,11 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
 
 // The instrumentation runtime calls back the following function at startup,
 // where [start,end) is the array of 8-bit counters created for the current DSO.
-extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
-                                                   uint8_t* stop) {
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start != nullptr,
+//
+// Called only when built with -fsanitize-coverage=inline-8bit-counters.
+extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t *start,
+                                                   uint8_t *stop) {
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start != nullptr && stop != nullptr,
                                        "Invalid counter map address.");
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(start < stop,
                                        "Invalid counter map size.");
@@ -333,15 +447,121 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
     fprintf(stderr, ", Cmp map size: %td\n", cmp_map_size);
     execution_coverage_instance = new fuzztest::internal::ExecutionCoverage(
         absl::Span<uint8_t>(start, map_size));
-  } else if (execution_coverage_instance->GetCounterMap() ==
-             absl::Span<uint8_t>(start, map_size)) {
-    // Nothing to do.
-  } else {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        false,
-        "__sanitizer_cov_8bit_counters_init was called multiple times with "
-        "different arguments. Currently, we support only a single DSO.");
+    return;
   }
+
+  // Anything below here is erroneous.
+  std::visit(
+      ::overloaded{[](const absl::Span<uint8_t> &) {
+                     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+                         false,
+                         "__sanitizer_cov_8bit_counters_init was called "
+                         "multiple times with "
+                         "different arguments. Currently, we support "
+                         "only a single DSO.");
+                   },
+                   [](const absl::Span<uint32_t> &) {
+                     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+                         false,
+                         "__sanitizer_cov_8bit_counters_init was called "
+                         "after __sanitizer_cov_trace_pc_guard_init. We do "
+                         "not support multiple DSOs or mixed sanitizer "
+                         "coverage flags.");
+                   }},
+      execution_coverage_instance->counter_or_guard_map_);
+}
+
+// Intrumentation runtime calls ths function on process creation.
+//
+// Called only when built with -fsanitize-coverage=trace-pc-guard.
+extern "C" void __sanitizer_cov_trace_pc_guard_init(uint32_t *start,
+                                                    uint32_t *stop) {
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start != nullptr && stop != nullptr,
+                                       "Invalid guard map address.");
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start <= stop,
+                                       "Invalid guard map size.");
+  size_t map_size = stop - start;
+
+  using fuzztest::internal::execution_coverage_instance;
+  using fuzztest::internal::ExecutionCoverage;
+
+  if (execution_coverage_instance == nullptr) {
+    fprintf(stderr, "[.] Sanitizer coverage enabled. Guard map size: %td",
+            map_size);
+    size_t cmp_map_size = fuzztest::internal::ExecutionCoverage::kCmpCovMapSize;
+    fprintf(stderr, ", Cmp map size: %td\n", cmp_map_size);
+    execution_coverage_instance = new fuzztest::internal::ExecutionCoverage(
+        absl::Span<uint32_t>(start, map_size));
+    // Guards are initialized to zero (off). Enable them.
+    for (size_t i = 0; i < map_size; ++i) {
+      start[i] = 1;
+    }
+    return;
+  }
+
+  // Anything below here is erroneous.
+  std::visit(
+      ::overloaded{[](const absl::Span<uint8_t> &) {
+                     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+                         false,
+                         "__sanitizer_cov_trace_pc_guard_init was called "
+                         "after __sanitizer_cov_8bit_counters_init. We do "
+                         "not support multiple DSOs or mixed sanitizer "
+                         "coverage flags.");
+                   },
+                   [](const absl::Span<uint32_t> &) {
+                     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+                         false,
+                         "__sanitizer_cov_trace_pc_guard_init was called "
+                         "multiple times with "
+                         "different arguments. Currently, we support "
+                         "only a single DSO.");
+                   }},
+      execution_coverage_instance->counter_or_guard_map_);
+}
+
+// Called by instrumentation on every edge. Only used for trace-pc-guard.
+//
+// Very hot path code. Ensure thread/fiber safety.
+extern "C" void __sanitizer_cov_trace_pc_guard(uint32_t *guard) {
+  uint32_t guard_value = *guard;
+  if (!guard_value) {
+    return;
+  }
+
+  using fuzztest::internal::execution_coverage_instance;
+
+  if (unlikely(execution_coverage_instance == nullptr)) {
+    return;
+  }
+
+  // TODO: remove this from hot path.
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      likely(std::holds_alternative<absl::Span<uint32_t>>(
+                 execution_coverage_instance->counter_or_guard_map_) &&
+             execution_coverage_instance->bitmap_ != nullptr),
+      "__sanitizer_cov_trace_pc_guard is being called when "
+      "__sanitizer_cov_trace_pc_guard_init was not. This is unrecoverable.");
+
+  if (unlikely(!execution_coverage_instance->IsTracing())) {
+    return;
+  }
+
+  // Clear the guard. Prevents subsequent calls to this function.
+  *guard = 0;
+
+  const auto &map = std::get<absl::Span<uint32_t>>(
+      execution_coverage_instance->counter_or_guard_map_);
+
+  // TODO: remove from hot path.
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      likely(guard >= map.data() && (map.data() + map.size()) > guard),
+      "__sanitizer_cov_trace_pc_guard called with guard outside range "
+      "initialized by __sanitizer_cov_trace_pc_guard_init was not. This is "
+      "unrecoverable (multiple DSOs?).");
+  size_t index = guard - map.data();
+
+  execution_coverage_instance->bitmap_->Set(index);
 }
 
 // This function should have no external library dependencies to prevent
