@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
@@ -38,9 +39,11 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
+#include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
@@ -49,10 +52,13 @@ namespace fuzztest {
 namespace {
 
 using ::google::protobuf::FieldDescriptor;
+using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::IsEmpty;
+using ::testing::IsTrue;
+using ::testing::ResultOf;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -71,6 +77,17 @@ TEST(BoolTest, Arbitrary) {
   EXPECT_NE(b.user_value, copy);
   b.Mutate(domain, bitgen, false);
   EXPECT_EQ(b.user_value, copy);
+}
+
+TEST(ArbitraryBoolTest, InitGeneratesSeeds) {
+  Domain<bool> domain = Arbitrary<bool>().WithSeeds({true});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, true))
+                  // Since there are only two possible values, the seed will
+                  // surely appear at least once. To make the test meaningful,
+                  // we expect to see it much more often than the other value.
+                  .Times(Ge(650)));
 }
 
 struct MyStruct {
@@ -111,6 +128,19 @@ TYPED_TEST(CompoundTypeTest, Arbitrary) {
   // Just make sure we can find 100 different objects.
   // No need to look into their actual values.
   EXPECT_EQ(values.size(), 100);
+}
+
+TYPED_TEST(CompoundTypeTest, InitGeneratesSeeds) {
+  // Seed cannot be a move-only type like std::unique_ptr<std::string>.
+  if constexpr (std::is_copy_constructible_v<TypeParam>) {
+    auto domain = Arbitrary<TypeParam>();
+    absl::BitGen bitgen;
+    auto seed = Value(domain, bitgen);
+    seed.RandomizeByRepeatedMutation(domain, bitgen);
+    domain.WithSeeds({seed.user_value});
+
+    EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
+  }
 }
 
 template <typename T>
@@ -222,6 +252,21 @@ TEST(Domain, BasicVerify) {
   EXPECT_THAT(i.user_value, j.user_value + 5);
   i.Mutate(domain, bitgen, true);
   EXPECT_THAT(i.user_value, j.user_value + 11);
+}
+
+TEST(ArbitraryProtocolBufferTest, InitGeneratesSeeds) {
+  internal::TestProtobuf seed;
+  seed.set_i32(42);
+  seed.set_str("Hello");
+
+  EXPECT_THAT(GenerateInitialValues(
+                  Arbitrary<internal::TestProtobuf>().WithSeeds({seed}), 1000),
+              Contains(ResultOf(
+                  [&seed](const auto& val) {
+                    return google::protobuf::util::MessageDifferencer::Equals(
+                        val.user_value, seed);
+                  },
+                  IsTrue())));
 }
 
 // TODO(b/246448769): Rewrite the test to decrease the chance of failure.
@@ -612,6 +657,20 @@ TEST(ProtocolBufferEnum, Arbitrary) {
     val.Mutate(domain, bitgen, false);
   }
   val.Mutate(domain, bitgen, true);
+}
+
+TEST(ArbitraryProtocolBufferEnum, InitGeneratesSeeds) {
+  auto domain = Arbitrary<internal::TestProtobuf_Enum>().WithSeeds(
+      {internal::TestProtobuf_Enum::TestProtobuf_Enum_Label5});
+
+  EXPECT_THAT(
+      GenerateInitialValues(domain, 1000),
+      Contains(
+          Value(domain, internal::TestProtobuf_Enum::TestProtobuf_Enum_Label5))
+          // Since there are only 5 enum elements, the seed will surely appear
+          // at least once. To make the test meaningful, we expect to see it at
+          // least half the time, unlike the other 4 elements.
+          .Times(Ge(500)));
 }
 
 TEST(ProtocolBuffer, CountNumberOfFieldsCorrect) {

@@ -41,8 +41,10 @@ target_link_libraries(
   fuzztest_type_support
   fuzztest_serialization
   fuzztest_logging
-  absl::random_random
+  absl::flat_hash_set
   absl::optional
+  absl::random_random
+  absl::span
   absl::variant
   GTest::gmock_main
 )
@@ -72,6 +74,7 @@ target_link_libraries(
   absl::random_random
   absl::random_bit_gen_ref
   absl::time
+  absl::span
   absl::status
   GTest::gmock_main
 )
@@ -96,6 +99,9 @@ target_link_libraries(
   fuzztest_logging
   absl::flat_hash_map
   absl::flat_hash_set
+  absl::random_random
+  absl::span
+  absl::strings
   GTest::gmock_main
 )
 add_test(
@@ -119,6 +125,7 @@ target_link_libraries(
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random
+  absl::span
   re2
   fuzztest_regexp_dfa
   GTest::gmock_main
@@ -142,7 +149,9 @@ target_link_libraries(
   fuzztest_type_support
   fuzztest_serialization
   fuzztest_logging
+  absl::flat_hash_set
   absl::random_random
+  absl::span
   GTest::gmock_main
 )
 add_test(
@@ -168,6 +177,7 @@ target_link_libraries(
   absl::flat_hash_set
   absl::int128
   absl::random_random
+  absl::span
   GTest::gmock_main
 )
 add_test(
@@ -189,6 +199,11 @@ target_link_libraries(
   fuzztest_type_support
   fuzztest_serialization
   fuzztest_logging
+  absl::flat_hash_set
+  absl::int128
+  absl::random_random
+  absl::span
+  absl::status
   absl::strings
   GTest::gmock_main
 )
@@ -280,6 +295,7 @@ target_link_libraries(
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random
+  absl::span
   GTest::gmock_main
 )
 add_test(

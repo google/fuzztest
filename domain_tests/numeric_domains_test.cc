@@ -16,30 +16,32 @@
 // type, but also Positive, Negative, NonZero, NonPositive, NonNegative, and
 // InRange.
 
-#include <bitset>
-#include <cctype>
+#include <cmath>
 #include <cstdint>
-#include <deque>
-#include <iterator>
 #include <limits>
-#include <list>
 #include <optional>
-#include <set>
 #include <string>
-#include <unordered_set>
-#include <utility>
-#include <variant>
+#include <type_traits>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/numeric/int128.h"
+#include "absl/random/random.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/serialization.h"
 
 namespace fuzztest {
 namespace {
 
+using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Field;
 using ::testing::Ge;
@@ -82,6 +84,15 @@ TYPED_TEST(NumericTest, Arbitrary) {
                   },
                   TowardsZero<T>)
                   .ok());
+}
+
+TYPED_TEST(NumericTest, InitGeneratesSeeds) {
+  using T = TypeParam;
+  auto domain = Arbitrary<T>().WithSeeds({T{7}, T{42}});
+
+  EXPECT_THAT(
+      GenerateInitialValues(domain, 1000),
+      AllOf(Contains(Value(domain, T{7})), Contains(Value(domain, T{42}))));
 }
 
 TYPED_TEST(NumericTest, Positive) {
@@ -226,6 +237,15 @@ TEST(Finite, CreatesFiniteFloatingPointValuesAndShrinksTowardsZero) {
                   domain, values, [](auto v) { return std::abs(v) <= 1; },
                   TowardsZero<double>)
                   .ok());
+}
+
+TEST(InRange, InitGeneratesSeeds) {
+  auto domain =
+      InRange(std::numeric_limits<int>::min(), std::numeric_limits<int>::max())
+          .WithSeeds({7, 42});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, 7)), Contains(Value(domain, 42))));
 }
 
 TEST(InRange, FailsWithInfiniteRange) {

@@ -639,7 +639,10 @@ class InGrammarImpl
   using typename InGrammarImpl::DomainBase::corpus_type;
   using typename InGrammarImpl::DomainBase::value_type;
 
-  ASTNode Init(absl::BitGenRef prng) { return TopDomain::Init(prng); }
+  ASTNode Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return TopDomain::Init(prng);
+  }
 
   void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink && absl::Bernoulli(prng, 0.5) &&

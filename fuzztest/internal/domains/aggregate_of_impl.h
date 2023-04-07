@@ -58,6 +58,7 @@ class AggregateOfImpl
       : inner_(std::move(inner)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::apply(
         [&](auto&... inner) { return corpus_type{inner.Init(prng)...}; },
         inner_);

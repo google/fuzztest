@@ -54,6 +54,7 @@ class FlatMapImpl
       : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     auto inner_corpus = std::apply(
         [&](auto&... inner) { return std::make_tuple(inner.Init(prng)...); },
         inner_);
