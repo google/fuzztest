@@ -45,6 +45,7 @@ class ElementOfImpl
   }
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return corpus_type{absl::Uniform<size_t>(prng, 0, values_.size())};
   }
 

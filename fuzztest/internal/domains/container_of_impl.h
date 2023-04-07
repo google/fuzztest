@@ -381,6 +381,7 @@ class AssociativeContainerOfImpl
       : Base(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const int size = this->ChooseRandomSize(prng);
 
     corpus_type val;
@@ -486,6 +487,7 @@ class SequenceContainerOfImpl
       : Base(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const int size = this->ChooseRandomSize(prng);
     corpus_type val;
     while (val.size() < size) {

@@ -14,24 +14,31 @@
 
 // Tests of domain ContainerOf, and various shorthands such as VectorOf.
 
-#include <algorithm>
+#include <array>
+#include <cstdio>
 #include <deque>
 #include <initializer_list>
 #include <list>
+#include <map>
 #include <set>
 #include <string>
+#include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/random.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
 namespace {
@@ -170,6 +177,16 @@ TYPED_TEST(ContainerTest, GenearatesDifferentValuesWithFixedSize) {
   GenerateValues(Arbitrary<TypeParam>().WithSize(7));
 }
 
+TYPED_TEST(ContainerTest, InitGeneratesSeeds) {
+  auto domain = Arbitrary<TypeParam>();
+  absl::BitGen bitgen;
+  auto seed = Value(domain, bitgen);
+  seed.RandomizeByRepeatedMutation(domain, bitgen);
+  domain.WithSeeds({seed.user_value});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
+}
+
 TEST(ContainerCombinatorTest, ValueTypeOfListContainerIsInferred) {
   for (const auto& value :
        GenerateValues(ContainerOf<std::list>(Positive<int>()).WithSize(3))) {
@@ -202,6 +219,23 @@ TEST(ContainerCombinatorTest, ValueTypeOfSetContainerIsInferred) {
                    Each(                              // character in it is
                        IsInClosedRange(32, 126)))));  // printable ASCII.
   }
+}
+
+TEST(SequencedContainerTest, InitGeneratesSeeds) {
+  auto domain =
+      ContainerOf<std::vector>(Arbitrary<int>()).WithSeeds({{1, 3, 3, 7}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, {1, 3, 3, 7})));
+}
+
+TEST(AssociativeContainerTest, InitGeneratesSeeds) {
+  auto domain = ContainerOf<absl::flat_hash_map<std::string, int>>(
+                    PairOf(Arbitrary<std::string>(), Arbitrary<int>()))
+                    .WithSeeds({{{"hello", 7}, {"world", 42}}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, {{"hello", 7}, {"world", 42}})));
 }
 
 TEST(ContainerCombinatorTest, VectorOf) {
@@ -310,6 +344,15 @@ TEST(ContainerCombinatorTest, UniqueElementsContainerOf) {
   }
 }
 
+TEST(UniqueElementsContainerTest, InitGeneratesSeeds) {
+  auto domain =
+      UniqueElementsContainerOf<std::unordered_multiset<int>>(Arbitrary<int>())
+          .WithSeeds({{1, 3, 3, 7}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, {1, 3, 7})));
+}
+
 TEST(ContainerCombinatorTest, UniqueElementsVectorOf) {
   for (const auto& value : GenerateValues(
            UniqueElementsVectorOf(InRange(100, 1000)).WithMaxSize(5))) {
@@ -410,10 +453,26 @@ TEST(TupleOf, GeneratesValidValues) {
                                                   IsInClosedRange(0, 127)))));
 }
 
+TEST(TupleOf, InitGeneratesSeeds) {
+  auto domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>())
+                    .WithSeeds({{42, "hello"}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, {42, "hello"})));
+}
+
 TEST(PairOf, GeneratesValidValues) {
   auto values = MutateUntilFoundN(PairOf(InRange(-5, 5), AsciiChar()), 100);
   EXPECT_THAT(values, Each(FieldsAre(_, FieldsAre(IsInClosedRange(-5, 5),
                                                   IsInClosedRange(0, 127)))));
+}
+
+TEST(PairOf, InitGeneratesSeeds) {
+  auto domain = PairOf(Arbitrary<int>(), Arbitrary<std::string>())
+                    .WithSeeds({{42, "hello"}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, {42, "hello"})));
 }
 
 }  // namespace

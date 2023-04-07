@@ -50,7 +50,10 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  value_type Init(absl::BitGenRef) { return value_type{}; }
+  value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return value_type{};
+  }
 
   void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     T to_switch = flags_[ChooseOffset(flags_.size(), prng)];

@@ -17,6 +17,7 @@
 #include <cctype>
 #include <deque>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -30,6 +31,7 @@ namespace fuzztest {
 namespace {
 
 using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::Ge;
 using ::testing::Gt;
 using ::testing::Lt;
@@ -65,6 +67,16 @@ TYPED_TEST(HandleTypeTest, Arbitrary) {
 
   // Some minimal checking to make sure we are generating many values.
   EXPECT_THAT(unique, SizeIs(Gt(10)));
+}
+
+TYPED_TEST(HandleTypeTest, InitGeneratesSeeds) {
+  auto domain = Arbitrary<TypeParam>();
+  absl::BitGen bitgen;
+  auto seed = Value(domain, bitgen);
+  seed.RandomizeByRepeatedMutation(domain, bitgen);
+  domain.WithSeeds({seed.user_value});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
 }
 
 TEST(Domain, Forwarding) {

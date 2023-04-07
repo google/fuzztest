@@ -14,23 +14,19 @@
 
 // Tests of StructOf, ConstructorOf, VariantOf and OptionalOf.
 
-#include <bitset>
-#include <cctype>
-#include <deque>
-#include <iterator>
-#include <list>
+#include <cstdint>
 #include <optional>
-#include <set>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
@@ -39,8 +35,9 @@ namespace fuzztest {
 namespace {
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::AnyOf;
-using ::testing::Eq;
+using ::testing::Contains;
 using ::testing::Optional;
 using ::testing::UnorderedElementsAre;
 using ::testing::VariantWith;
@@ -48,6 +45,10 @@ using ::testing::VariantWith;
 struct MyStruct {
   int a;
   std::string s;
+
+  friend bool operator==(const MyStruct& lhs, const MyStruct& rhs) {
+    return lhs.a == rhs.a && lhs.s == rhs.s;
+  }
 };
 
 TEST(StructOf, InitGeneratesValidValues) {
@@ -62,6 +63,15 @@ TEST(StructOf, InitGeneratesValidValues) {
     field_a.insert(agg.a);
     field_s.insert(agg.s);
   }
+}
+
+TEST(StructOf, InitGeneratesSeeds) {
+  auto domain = StructOf<MyStruct>(ElementOf({5, 10}), Arbitrary<std::string>())
+                    .WithSeeds({MyStruct{5, "Five"}, MyStruct{10, "Ten"}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, MyStruct{5, "Five"})),
+                    Contains(Value(domain, MyStruct{10, "Ten"}))));
 }
 
 TEST(StructOf, MutateGeneratesValidValues) {
@@ -206,6 +216,16 @@ TEST(VariantOf, InitGenerateValidValues) {
   }
 }
 
+TEST(VariantOf, InitGeneratesSeeds) {
+  using X = std::variant<int, std::string>;
+  Domain<X> domain = VariantOf(Arbitrary<int>(), PrintableAsciiString())
+                         .WithSeeds({X{42}, X{"Hello"}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, X{42})),
+                    Contains(Value(domain, X{"Hello"}))));
+}
+
 TEST(VariantOf, MutateGenerateValidValues) {
   using X = std::variant<int, int, std::string, std::vector<int>>;
   Domain<X> domain =
@@ -250,6 +270,15 @@ TEST(OptionalOf, InitCanMakeValuesOrNull) {
   }
   EXPECT_THAT(values, UnorderedElementsAre(std::nullopt, Optional(1),
                                            Optional(2), Optional(3)));
+}
+
+TEST(OptionalOf, InitGeneratesSeeds) {
+  auto domain = OptionalOf(Arbitrary<int>())
+                    .WithSeeds({std::optional{7}, std::optional{42}});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, std::optional{7})),
+                    Contains(Value(domain, std::optional{42}))));
 }
 
 TEST(OptionalOf, MutateCanMakeValuesOrNull) {

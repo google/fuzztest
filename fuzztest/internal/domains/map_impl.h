@@ -48,6 +48,7 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
         map_function_name_(map_function_name) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::apply(
         [&](auto&... inner) { return corpus_type(inner.Init(prng)...); },
         inner_);

@@ -83,6 +83,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
   }
 
   value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // TODO(sbenzaquen): Add more interesting points in the range.
     const T special[] = {min_, max_};
     return ChooseOneOr(special, prng, [&] {

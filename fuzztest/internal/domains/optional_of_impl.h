@@ -51,6 +51,7 @@ class OptionalOfImpl
       : inner_(std::move(inner)), policy_(OptionalPolicy::kWithNull) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     if (policy_ == OptionalPolicy::kAlwaysNull ||
         // 1/2 chance of returning an empty to avoid initialization with large
         // entities for recursive data structures. See
