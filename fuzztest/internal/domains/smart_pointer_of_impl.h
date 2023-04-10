@@ -50,7 +50,8 @@ class SmartPointerOfImpl
   explicit SmartPointerOfImpl(InnerFn fn) : inner_(fn) {}
   explicit SmartPointerOfImpl(Inner inner) : inner_(std::move(inner)) {}
 
-  corpus_type Init(absl::BitGenRef) {
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // Init will always have an empty smart pointer to reduce nesting.
     // Otherwise it is very easy to get a stack overflow during Init() when
     // there is recursion in the domains.

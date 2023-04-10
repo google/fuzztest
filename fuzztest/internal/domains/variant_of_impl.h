@@ -46,6 +46,7 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>, T,
       : inner_(std::move(inner)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return Switch<sizeof...(Inner)>(
         absl::Uniform(prng, size_t{}, sizeof...(Inner)), [&](auto I) {
           return corpus_type(std::in_place_index<I>,

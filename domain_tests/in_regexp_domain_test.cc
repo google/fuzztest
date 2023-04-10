@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/logging.h"
@@ -32,6 +33,7 @@
 namespace fuzztest {
 namespace {
 
+using ::testing::Contains;
 using ::testing::Optional;
 using ::testing::ResultOf;
 using ::testing::StrEq;
@@ -65,6 +67,13 @@ TEST(InRegexp, InitGenerateDifferentValidAndShortValues) {
     EXPECT_NEAR(expected_average_size,
                 static_cast<double>(total_size) / generation_times, 1);
   }
+}
+
+TEST(InRegexp, InitGeneratesSeeds) {
+  auto domain = InRegexp(R"re(a\w*b)re").WithSeeds({"a_Hello_World_b"});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, "a_Hello_World_b")));
 }
 
 // TODO(changochen): Improve the tests to verify "close" mutation.

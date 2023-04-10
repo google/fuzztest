@@ -50,6 +50,7 @@ class OneOfImpl
   explicit OneOfImpl(Inner... domains) : domains_(std::move(domains)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // TODO(b/191368509): Consider the cardinality of the subdomains to weight
     // them.
     return Switch<kNumDomains>(

@@ -16,16 +16,23 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_DOMAIN_BASE_H_
 
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
@@ -217,9 +224,42 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     return 0;
   }
 
+  // Stores `seeds` to be occasionally sampled from during value initialization.
+  std::enable_if_t<std::is_copy_constructible_v<CorpusType>, Derived&>
+  WithSeeds(absl::Span<const ValueType> seeds) {
+    seeds_.clear();
+    seeds_.reserve(seeds.size());
+    for (const ValueType& seed : seeds) {
+      std::optional<CorpusType> corpus_seed = derived().FromValue(seed);
+      if (!corpus_seed.has_value()) {
+        // This may run during fuzz test registration (i.e., global variable
+        // initialization), so we can't use `GetStderr()`.
+        absl::FPrintF(stderr, "[!] Invalid seed value:\n\n{");
+        AutodetectTypePrinter<ValueType>().PrintUserValue(
+            seed, &std::cerr, PrintMode::kHumanReadable);
+        absl::FPrintF(stderr, "}\n");
+        std::exit(1);
+      }
+      seeds_.push_back(*std::move(corpus_seed));
+    }
+    return derived();
+  }
+
+ protected:
+  // `Derived::Init()` can use this to sample seeds for this domain.
+  std::optional<CorpusType> MaybeGetRandomSeed(absl::BitGenRef prng) const {
+    static constexpr double kProbabilityToReturnSeed = 0.5;
+    if (seeds_.empty() || !absl::Bernoulli(prng, kProbabilityToReturnSeed)) {
+      return std::nullopt;
+    }
+    return seeds_[ChooseOffset(seeds_.size(), prng)];
+  }
+
  private:
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
+
+  std::vector<CorpusType> seeds_;
 };
 
 }  //  namespace fuzztest::internal

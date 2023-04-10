@@ -40,6 +40,7 @@ class FilterImpl
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     while (true) {
       auto v = inner_.Init(prng);
       if (RunFilter(v)) return v;

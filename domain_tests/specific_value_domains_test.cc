@@ -15,20 +15,21 @@
 // Tests of ElementOf and Just, which are domains that yield values from an
 // explicitly specified set of values.
 
-#include <cmath>
-#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 
 namespace fuzztest {
 namespace {
 
+using ::testing::Contains;
+using ::testing::Ge;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
 
@@ -48,6 +49,17 @@ TEST(ElementOfTest, TwoOptions) {
     copy.Mutate(domain, bitgen, false);
     EXPECT_NE(v, copy);
   }
+}
+
+TEST(ElementOfTest, InitGeneratesSeeds) {
+  Domain<int> domain = ElementOf({0, 1}).WithSeeds({0});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, 0))
+                  // Since there are only two possible values, the seed will
+                  // surely appear at least once. To make the test meaningful,
+                  // we expect to see it much more often than the other value.
+                  .Times(Ge(650)));
 }
 
 TEST(ElementOfTest, InvalidInputReportsErrors) {
