@@ -15,16 +15,12 @@
 #include "./fuzztest/internal/runtime.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cerrno>
 #include <csignal>
-#include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <random>
@@ -32,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
@@ -44,6 +39,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
@@ -792,6 +788,31 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
     }
 
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
+
+    auto try_input_and_process_counterexample = [&](Input input) -> void {
+      TrySampleAndUpdateInMemoryCorpus(std::move(input));
+
+      if (minimal_non_fatal_counterexample_.has_value()) {
+        // We found a failure, let's minimize it here.
+        MinimizeNonFatalFailureLocally(prng);
+        // Once we have minimized enough, let it crash with the best sample we
+        // got.
+        // TODO(sbenzaquen): Consider a different approach where we don't retry
+        // the failing sample to force a crash. Instead, we could store the
+        // information from the first failure and generate a report manually.
+        runtime_.SetShouldTerminateOnNonFatalFailure(true);
+        runtime_.SetExternalFailureDetected(false);
+        RunOneInput(*minimal_non_fatal_counterexample_);
+      }
+    };
+
+    // First briefly try the initial values to account for seeded domains and
+    // possible special values.
+    constexpr int kInitialValuesToTry = 32;
+    for (int i = 0; i < kInitialValuesToTry && !ShouldStop(); ++i) {
+      try_input_and_process_counterexample({params_domain_->UntypedInit(prng)});
+    }
+
     // Fuzz corpus elements in round robin fashion.
     while (!ShouldStop()) {
       Input input_to_mutate = [&]() -> Input {
@@ -812,20 +833,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
         if (ShouldStop()) break;
         Input mutation = input_to_mutate;
         MutateValue(mutation, prng);
-        TrySampleAndUpdateInMemoryCorpus(std::move(mutation));
-
-        if (minimal_non_fatal_counterexample_.has_value()) {
-          // We found a failure, let's minimize it here.
-          MinimizeNonFatalFailureLocally(prng);
-          // Once we have minimized enough, let it crash with the best sample we
-          // got.
-          // TODO(sbenzaquen): Consider a different approach where we don't retry
-          // the failing sample to force a crash. Instead, we could store the
-          // information from the first failure and generate a report manually.
-          runtime_.SetShouldTerminateOnNonFatalFailure(true);
-          runtime_.SetExternalFailureDetected(false);
-          RunOneInput(*minimal_non_fatal_counterexample_);
-        }
+        try_input_and_process_counterexample(std::move(mutation));
       }
     }
 

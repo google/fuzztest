@@ -318,7 +318,6 @@ cc_library(
         ":seed_seq",
         ":serialization",
         ":type_support",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
