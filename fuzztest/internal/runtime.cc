@@ -475,9 +475,8 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::TrySample(
   ++stats_.useful_inputs;
   stats_.edges_covered = corpus_coverage_.GetNumberOfCoveredEdges();
   const absl::Duration fuzzing_time = absl::Now() - stats_.start_time;
-  const int64_t fuzzing_secs = absl::ToInt64Seconds(fuzzing_time);
-  const size_t runs_per_sec =
-      fuzzing_secs ? stats_.runs / fuzzing_secs : stats_.runs;
+  const int runs_per_sec =
+      static_cast<int>(stats_.runs / absl::ToDoubleSeconds(fuzzing_time));
   absl::FPrintF(GetStderr(),
                 "[*] Corpus size: %5d | Edges covered: %6d | "
                 "Fuzzing time: %16s | Total runs:  %1.2e | Runs/secs: %5d | "
