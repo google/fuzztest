@@ -1161,7 +1161,15 @@ TEST_F(FuzzingModeTest, SeedInputIsUsedForMutation) {
 
 TEST_F(FuzzingModeTest, UsesManualDictionary) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.StringReverseTest",
+      RunWith("--fuzz=MySuite.StringPermutationTest",
+              /*env=*/{}, /*timeout=*/absl::Seconds(10));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeTest, UsesSeededDomain) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.StringPermutationWithSeeds",
               /*env=*/{}, /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));

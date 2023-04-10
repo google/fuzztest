@@ -24,6 +24,7 @@
 // i.e., to check that the fuzzer behaves as expected and outputs the expected
 // results. E.g., the fuzzer finds the abort() or bug.
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <optional>
@@ -401,19 +402,32 @@ auto SimpleFormatParsingTest(absl::string_view encoded_data) {
 FUZZ_TEST(MySuite, SimpleFormatParsingTest);
 
 // To test the manual dictionary. The dynamic (automatic) dictionary feature
-// would not be effective cracking this, as we are comparing to the reversed
+// would not be effective cracking this, as we are comparing to the permuted
 // string.
-void StringReverseTest(const std::string encoded_data) {
-  if (encoded_data.size() >= 10) {
-    std::string reverse(encoded_data.rbegin(), encoded_data.rend());
-    if (reverse == "0123456789") {
+void StringPermutationTest(const std::string& encoded_data) {
+  static constexpr std::array perm = {2, 1, 9, 0, 3, 6, 5, 4, 8, 7};
+  if (encoded_data.size() >= perm.size()) {
+    std::string permuted = encoded_data;
+    for (size_t i = 0; i < perm.size(); ++i) {
+      permuted[i] = encoded_data[perm[i]];
+    }
+    // The string "9876543210" maps to this.
+    if (permuted == "7809634512") {
       std::abort();
     }
   }
 }
-FUZZ_TEST(MySuite, StringReverseTest)
+FUZZ_TEST(MySuite, StringPermutationTest)
     .WithDomains(
         fuzztest::Arbitrary<std::string>().WithDictionary({"9876543210"}));
+
+// Like the manual dictionary test, but with a seeded domain.
+void StringPermutationWithSeeds(const std::string& encoded_data) {
+  StringPermutationTest(encoded_data);
+}
+FUZZ_TEST(MySuite, StringPermutationWithSeeds)
+    .WithDomains(fuzztest::Arbitrary<std::string>().WithSeeds({"9876543210"}));
+
 ////////////////////////////////////////////////////////////////////////////////
 // Examples to get working.
 #if 0
