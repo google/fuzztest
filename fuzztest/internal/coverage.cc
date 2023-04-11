@@ -41,14 +41,6 @@ constexpr uint8_t BitWidth(uint8_t x) {
 
 }  // namespace
 
-// We want to make the tracing codes as light-weight as possible, so
-// we disabled most sanitizers. Some may not be necessary but we don't
-// want any one of them in the tracing codes so it's fine.
-#define GOOGLEFUZZTEST_NOSANITIZE    \
-  ABSL_ATTRIBUTE_NO_SANITIZE_MEMORY  \
-  ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS \
-  ABSL_ATTRIBUTE_NO_SANITIZE_UNDEFINED
-
 ExecutionCoverage* execution_coverage_instance = nullptr;
 
 ExecutionCoverage* GetExecutionCoverage() {
@@ -78,7 +70,7 @@ void ExecutionCoverage::UpdateCmpMap(size_t index, uint8_t hamming_dist,
 }
 
 void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
-  auto &stack = test_thread_stack;
+  auto& stack = test_thread_stack;
   if (!stack ||
       stack->stack_frame_before_calling_property_function == nullptr ||
       stack->allocated_stack_region.empty()) {
@@ -102,7 +94,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   // Reset back to !updating on any exit path.
   Reset reset;
 
-  const char *this_frame = GetCurrentStackFrame();
+  const char* this_frame = GetCurrentStackFrame();
   if (this_frame < stack->allocated_stack_region.data() ||
       stack->allocated_stack_region.data() +
               stack->allocated_stack_region.size() <=
@@ -142,7 +134,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
 
 size_t ExecutionCoverage::MaxAllowedStackUsage() {
   static const size_t cached = [] {
-    const char *env = getenv("FUZZTEST_STACK_LIMIT");
+    const char* env = getenv("FUZZTEST_STACK_LIMIT");
     size_t res;
     if (env == nullptr || !absl::SimpleAtoi(env, &res)) {
       static constexpr size_t kDefault = 128 * 1024;
@@ -347,8 +339,8 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
 // This function should have no external library dependencies to prevent
 // accidental coverage instrumentation.
 template <int data_size>
-ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
-    GOOGLEFUZZTEST_NOSANITIZE  // To skip arg1 - arg2 overflow.
+ABSL_ATTRIBUTE_ALWAYS_INLINE  // To make __builtin_return_address(0) work. To
+                              // skip arg1 - arg2 overflow.
     void
     TraceCmp(uint64_t arg1, uint64_t arg2, uint8_t argsize_bit,
              uintptr_t PC =
@@ -368,8 +360,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
 }
 
 // Use NO_SANITIZE_MEMORY and ADDRESS to skip possible errors on reading buffer.
-GOOGLEFUZZTEST_NOSANITIZE
-static size_t InternalStrnlen(const char *s, size_t n) {
+static size_t InternalStrnlen(const char* s, size_t n) {
   size_t len = 0;
   while (len < n && s[len]) {
     len++;
@@ -377,8 +368,7 @@ static size_t InternalStrnlen(const char *s, size_t n) {
   return len;
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-static size_t InternalStrlen(const char *s1, const char *s2) {
+static size_t InternalStrlen(const char* s1, const char* s2) {
   size_t len = 0;
   while (s1[len] && s2[len]) {
     len++;
@@ -386,8 +376,7 @@ static size_t InternalStrlen(const char *s1, const char *s2) {
   return len;
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-static void TraceMemCmp(const uint8_t *s1, const uint8_t *s2, size_t n,
+static void TraceMemCmp(const uint8_t* s1, const uint8_t* s2, size_t n,
                         int result) {
   // Non-interesting cases.
   if (n <= 1 || result == 0) return;
@@ -425,8 +414,7 @@ void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp<8>(Arg1, Arg2, sizeof(Arg1) * 8);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {
+void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t* Cases) {
   uintptr_t PC = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   switch (Cases[0]) {
     case 8:
@@ -454,46 +442,41 @@ void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {
   }
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_weak_hook_strcasecmp(void *, const char *s1, const char *s2,
+void __sanitizer_weak_hook_strcasecmp(void*, const char* s1, const char* s2,
                                       int result) {
   if (s1 == nullptr || s2 == nullptr) return;
   size_t n = InternalStrlen(s1, s2);
-  TraceMemCmp(reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result);
+  TraceMemCmp(reinterpret_cast<const uint8_t*>(s1),
+              reinterpret_cast<const uint8_t*>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_weak_hook_memcmp(void *, const void *s1, const void *s2,
+void __sanitizer_weak_hook_memcmp(void*, const void* s1, const void* s2,
                                   size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
-  TraceMemCmp(reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result);
+  TraceMemCmp(reinterpret_cast<const uint8_t*>(s1),
+              reinterpret_cast<const uint8_t*>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_weak_hook_strncmp(void *, const char *s1, const char *s2,
+void __sanitizer_weak_hook_strncmp(void*, const char* s1, const char* s2,
                                    size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
   size_t len1 = InternalStrnlen(s1, n);
   size_t len2 = InternalStrnlen(s2, n);
   n = std::min(std::min(n, len1), len2);
-  TraceMemCmp(reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result);
+  TraceMemCmp(reinterpret_cast<const uint8_t*>(s1),
+              reinterpret_cast<const uint8_t*>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_weak_hook_strcmp(void *, const char *s1, const char *s2,
+void __sanitizer_weak_hook_strcmp(void*, const char* s1, const char* s2,
                                   int result) {
   if (s1 == nullptr || s2 == nullptr) return;
   size_t n = InternalStrlen(s1, s2);
-  TraceMemCmp(reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result);
+  TraceMemCmp(reinterpret_cast<const uint8_t*>(s1),
+              reinterpret_cast<const uint8_t*>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
-void __sanitizer_weak_hook_strncasecmp(void *caller_pc, const char *s1,
-                                       const char *s2, size_t n, int result) {
+void __sanitizer_weak_hook_strncasecmp(void* caller_pc, const char* s1,
+                                       const char* s2, size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
   return __sanitizer_weak_hook_strncmp(caller_pc, s1, s2, n, result);
 }

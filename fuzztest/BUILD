@@ -69,6 +69,7 @@ cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
     hdrs = ["internal/coverage.h"],
+    copts = ["-fno-sanitize=all"],
     deps = [
         ":logging",
         ":table_of_recent_compares",
