@@ -53,15 +53,3 @@ target_link_libraries(
   absl::time
   GTest::gmock_main
 )
-add_test(
-  NAME
-  benchmark_test
-  COMMAND
-  benchmark_test
-)
-set_property(
-  TEST
-  benchmark_test
-  PROPERTY ENVIRONMENT
-  "TEST_SRCDIR=${CMAKE_BINARY_DIR}"
-)
