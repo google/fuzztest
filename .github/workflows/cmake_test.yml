@@ -24,12 +24,12 @@ on:
 # TODO: Support caching.
 jobs:
   run_tests:
-    name: Run tests
+    name: Run CMake tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       matrix:
-        config: ['default', 'fuzztest']
+        mode: ['default', 'fuzzing']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -37,8 +37,8 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang libprotobuf-dev protobuf-compiler ninja-build cmake
-      - name: Run end-to-end tests with FUZZTEST_UNIT
-        if: matrix.config == 'default'
+      - name: Run all tests in the default mode
+        if: matrix.mode == 'default'
         run: |
           mkdir build && \
           cd build && \
@@ -48,9 +48,9 @@ jobs:
             -Dprotobuf_BUILD_TESTS=off \
             -DFUZZTEST_TESTING=on .. && \
             ninja -j $(nproc) && \
-            ctest -j $(nproc) --output-on-failure -E "benchmark_test"
-      - name: Run all tests with default config
-        if: matrix.config == 'fuzztest'
+            ctest -j $(nproc) --output-on-failure
+      - name: Run end-to-end tests in the fuzzing mode
+        if: matrix.mode == 'fuzzing'
         run: |
           mkdir build && \
           cd build && \
@@ -61,5 +61,5 @@ jobs:
             -DFUZZTEST_FUZZING_MODE=on \
             -DFUZZTEST_TESTING=on .. && \
             ninja -j $(nproc) && \
-            ctest -j $(nproc) --output-on-failure
+            ctest -j $(nproc) --output-on-failure -R "functional_test"
 
