@@ -1226,6 +1226,7 @@ class ProtobufDomainUntypedImpl
       // For enums, build the list of valid labels.
       auto* e = field->enum_type();
       std::vector<int> values;
+      values.reserve(e->value_count());
       for (int i = 0; i < e->value_count(); ++i) {
         values.push_back(e->value(i)->number());
       }
