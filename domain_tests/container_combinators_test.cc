@@ -221,6 +221,29 @@ TEST(ContainerCombinatorTest, ValueTypeOfSetContainerIsInferred) {
   }
 }
 
+TEST(ContainerCombinatorTest, MinSizeCanBeLargerThanDefaultMaxSize) {
+  static constexpr size_t kDefaultMaxSize = 1000;
+  auto domain = ContainerOf<std::vector>(Arbitrary<int>())
+                    .WithMinSize(kDefaultMaxSize + 1);
+  absl::BitGen bitgen;
+  auto val = Value(domain, bitgen);
+  val.Mutate(domain, bitgen, /*only_shrink=*/false);
+  ASSERT_THAT(val.user_value, SizeIs(Gt(kDefaultMaxSize)));
+}
+
+TEST(ContainerCombinatorTest, FailsWithInconsistentMinAndMaxSizes) {
+  EXPECT_DEATH_IF_SUPPORTED(
+      ContainerOf<std::vector>(Arbitrary<int>())
+          .WithMinSize(100)
+          .WithMaxSize(99),
+      "Maximal size 99 cannot be smaller than minimal size 100");
+  EXPECT_DEATH_IF_SUPPORTED(
+      ContainerOf<std::vector>(Arbitrary<int>())
+          .WithMaxSize(100)
+          .WithMinSize(101),
+      "Minimal size 101 cannot be larger than maximal size 100");
+}
+
 TEST(SequencedContainerTest, InitGeneratesSeeds) {
   auto domain =
       ContainerOf<std::vector>(Arbitrary<int>()).WithSeeds({{1, 3, 3, 7}});

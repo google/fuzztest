@@ -107,12 +107,11 @@ class ContainerOfImplBase
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     FUZZTEST_INTERNAL_CHECK(
-        val.size() >= this->min_size_ && val.size() <= this->max_size_, "size ",
-        val.size(), " is not between [", this->min_size_, "; ", this->max_size_,
-        "]");
+        min_size() <= val.size() && val.size() <= max_size(), "Size ",
+        val.size(), " is not between ", min_size(), " and ", max_size());
 
-    const bool can_shrink = val.size() > this->min_size_;
-    const bool can_grow = !only_shrink && val.size() < this->max_size_;
+    const bool can_shrink = val.size() > min_size();
+    const bool can_grow = !only_shrink && val.size() < max_size();
     const bool can_change = val.size() != 0;
     const bool can_use_memory_dict = !only_shrink &&
                                      container_has_memory_dict && can_change &&
@@ -126,7 +125,7 @@ class ContainerOfImplBase
     if (can_shrink) {
       if (action-- == 0) {
         if constexpr (!has_custom_corpus_type) {
-          EraseRandomChunk(val, prng, this->min_size_);
+          EraseRandomChunk(val, prng, min_size());
           return;
         }
         val.erase(ChoosePosition(val, IncludeEnd::kNo, prng));
@@ -137,7 +136,7 @@ class ContainerOfImplBase
       if (action-- == 0) {
         if constexpr (!has_custom_corpus_type) {
           auto element_val = inner_.Init(prng);
-          InsertRandomChunk(val, prng, this->max_size_, element_val);
+          InsertRandomChunk(val, prng, max_size(), element_val);
           return;
         }
         Self().GrowOne(val, prng);
@@ -169,7 +168,7 @@ class ContainerOfImplBase
         if (action-- == 0) {
           bool mutated = MemoryDictionaryMutation(
               val, prng, temporary_dict_, manual_dict_, permanent_dict_,
-              permanent_dict_candidate_, this->max_size_);
+              permanent_dict_candidate_, max_size());
           // If dict failed, fall back to changing an element.
           if (!mutated) {
             Self().MutateElement(val, prng,
@@ -203,14 +202,23 @@ class ContainerOfImplBase
 
   // These are specific for containers only. They are not part of the common
   // Domain API.
-  Derived& WithSize(size_t s) { return WithMinSize(s).WithMaxSize(s); }
+  Derived& WithSize(size_t s) {
+    max_size_ = min_size_ = s;
+    return Self();
+  }
   Derived& WithMinSize(size_t s) {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !max_size_.has_value() || s <= *max_size_, "Minimal size ", s,
+        " cannot be larger than maximal size ", *max_size_);
     min_size_ = s;
-    return static_cast<Derived&>(*this);
+    return Self();
   }
   Derived& WithMaxSize(size_t s) {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        min_size_ <= s, "Maximal size ", s,
+        " cannot be smaller than minimal size ", min_size_);
     max_size_ = s;
-    return static_cast<Derived&>(*this);
+    return Self();
   }
   Derived& WithDictionary(absl::Span<const value_type> manual_dict) {
     static_assert(container_has_memory_dict,
@@ -218,11 +226,11 @@ class ContainerOfImplBase
                   "std::string or std::string_view.\n");
     for (const value_type& entry : manual_dict) {
       FUZZTEST_INTERNAL_CHECK(
-          entry.size() <= this->max_size_,
+          entry.size() <= max_size(),
           "At least one dictionary entry is larger than max container size.");
       manual_dict_.AddEntry({std::nullopt, entry});
     }
-    return static_cast<Derived&>(*this);
+    return Self();
   }
 
   auto GetPrinter() const {
@@ -264,7 +272,7 @@ class ContainerOfImplBase
     std::optional<corpus_type> res = ParseCorpusWithoutValidation(obj);
     if (res.has_value()) {
       value_type v = GetValue(*res);
-      if (v.size() < min_size_ || v.size() > max_size_) {
+      if (v.size() < min_size() || v.size() > max_size()) {
         return std::nullopt;
       }
     }
@@ -298,7 +306,7 @@ class ContainerOfImplBase
  protected:
   InnerDomainT inner_;
 
-  int ChooseRandomSize(absl::BitGenRef prng) {
+  size_t ChooseRandomInitialSize(absl::BitGenRef prng) {
     // The container size should not be empty (unless max_size_ = 0) because the
     // initialization should be random if possible.
     // TODO(changochen): Increase the number of generated elements.
@@ -309,12 +317,15 @@ class ContainerOfImplBase
     // container generate `0-10` elements when calling `Init`, then
     // `E(recursive) =  4.5 E(X)`, which will make `E(X) = Infinite`.
     // Make some smallish random seed containers.
-    return absl::Uniform(prng, min_size_,
-                         std::min(max_size_ + 1, min_size_ + 2));
+    return absl::Uniform(prng, min_size(),
+                         std::min(max_size() + 1, min_size() + 2));
   }
 
-  size_t min_size_ = 0;
-  size_t max_size_ = 1000;
+  size_t min_size() const { return min_size_; }
+  size_t max_size() const {
+    static constexpr size_t kDefaultMaxSize = 1000;
+    return max_size_.value_or(std::max(min_size_, kDefaultMaxSize));
+  }
 
  private:
   // Use the generic serializer when no custom corpus type is used, since it is
@@ -340,6 +351,9 @@ class ContainerOfImplBase
   }
 
   Derived& Self() { return static_cast<Derived&>(*this); }
+
+  size_t min_size_ = 0;
+  std::optional<size_t> max_size_ = std::nullopt;
 
   // Temporary memory dictionary. Collected from tracing the program
   // execution. It will always be empty if no execution_coverage_ is found,
@@ -382,11 +396,11 @@ class AssociativeContainerOfImpl
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const int size = this->ChooseRandomSize(prng);
+    const size_t size = this->ChooseRandomInitialSize(prng);
 
     corpus_type val;
     Grow(val, prng, size, 10000);
-    if (val.size() < this->min_size_) {
+    if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
       // could not after a lot of attempts. This could be caused by an
       // unsatisfiable domain, such as one where the minimum desired size is
@@ -406,7 +420,7 @@ The minimum size requested is %u and we could only find %u elements.
 
 Please verify that the inner domain can provide enough values.
 )",
-                                  this->min_size_, val.size()));
+                                  this->min_size(), val.size()));
     }
     return val;
   }
@@ -488,7 +502,7 @@ class SequenceContainerOfImpl
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const int size = this->ChooseRandomSize(prng);
+    const size_t size = this->ChooseRandomInitialSize(prng);
     corpus_type val;
     while (val.size() < size) {
       val.insert(val.end(), this->inner_.Init(prng));

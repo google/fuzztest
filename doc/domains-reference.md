@@ -197,6 +197,7 @@ instance to provide some concrete examples while fuzzing with arbitrary inputs,
 e.g.: `OneOf(MagicNumber(), Arbitrary<uint32>())`. TODO reference combinations
 
 Or it can also be used for a
+
 [regular value-parameterized unit tests](https://google.github.io/googletest/advanced.html#value-parameterized-tests):
 
 ```c++
@@ -852,7 +853,7 @@ UniquePtrOf(int_domain) == SmartPointerOf<std::unique_ptr<int>>(int_domain)
 SharedPtrOf(int_domain) == SmartPointerOf<std::shared_ptr<int>>(int_domain)
 ```
 
-### OneOf Combinators
+### OneOf
 
 With the `OneOf` combinator we can merge multiple domains of the same type. For
 example:
@@ -869,12 +870,12 @@ necessary in this case, as OneOf only takes domains as arguments.
 Note that the list of domains must be known at compile time; unlike `ElementOf`,
 you can't use a vector of domains.
 
-### Map-ing Domains
+### Map
 
 Often the best way to define a domain is using a mapping function. The `Map()`
-domain combinator takes a mapping function and an arbitrary number of domains.
-It uses the inner domains to generate values which are mapped using the passed
-function. For example:
+domain combinator takes a mapping function and an input domain for each of its
+parameters. It uses the input domains to generate values which are mapped using
+the passed function. For example:
 
 ```c++
 auto AnyDurationString() {
@@ -886,30 +887,55 @@ auto AnyDurationString() {
 }
 ```
 
-### FlatMap-ing Domains
+### FlatMap
 
-Sometimes, it is necessary to use the output of one domain as the input for
-another domain. This can be accomplished with the `FlatMap()` function, which
-is like `Map()`, but it takes a function which returns a `Domain`. For
-example:
+Sometimes we need to fuzz parameters that are dependent on each other. Think of
+a property function that takes a string, and valid index into that string. This
+can be achieved using the `FlatMap()` combinator, which takes a domain *factory*
+function, and an input domain for each of its parameters. I.e. `FlatMap` is like
+`Map`, except it takes a function which returns a `Domain`. This allows us to
+use the output of some domains (e.g., the string) as the input for another
+domain (e.g., the string and a valid index).
+
+```c++
+Domain<pair<string,size_t>> AnyStringAndValidIndex() {
+  auto valid_index_paired_with_string = [](const string& s) {
+    return PairOf(Just(s), InRange(0, s.size() - 1));
+  };
+  return FlatMap(valid_index_paired_with_string, Arbitrary<string>());
+}
+```
+
+Here's an example domain for a vector of *equal sized strings*:
 
 ```c++
 auto AnyVectorOfFixedLengthStrings(int size) {
   return VectorOf(Arbitrary<std::string>().WithSize(size));
 }
 auto AnyVectorOfEqualSizedStrings() {
-  return FlatMap(AnyVectorOfFixedLengthStrings, /*size=*/ InRange(0, 10));
+  return FlatMap(AnyVectorOfFixedLengthStrings, /*size=*/InRange(0, 10));
 }
 ```
 
 If `AnyVectorOfFixedLengthStrings()` had been passed to `Map()`, it would have
 generated a `Domain<Domain<std::string>>`. `FlatMap()` "flattens" this to a
-`Domain<std::string>`.
+`Domain<std::string>`. Thus the name FlatMap.
 
-### Filter-ing Domains
+Another example is a pair of numbers `(a, b)`, where `b > 2 * a`:
 
-The `Filter` domain takes a domain and a predicate and returns a new domain that
-uses the predicate to filter the generated values.
+```c++
+Domain<pair<int,int>> AnyPairOfOrderedNumbers() {
+  auto a_and_b = [](int a) {
+    return PairOf(Just(a), InRange(2 * a + 1, MAX_INT));
+  };
+  return FlatMap(a_and_b, Arbitrary<int>());
+}
+```
+
+### Filter
+
+The `Filter` domain combinator takes a domain and a predicate and returns a new
+domain that uses the predicate to filter the generated values.
 
 ```c++
 auto NonZero() {
