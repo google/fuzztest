@@ -29,6 +29,12 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
+// IMPORTANT: Almost all functions (e.g. Update()) in this file will
+// be called during coverage instrumentation callbacks.
+//
+// AVOID LIBRARY FUNCTION CALLS from here:
+// Library functions can be instrumented, which cause reentrancy issues.
+
 namespace fuzztest::internal {
 namespace {
 
@@ -81,7 +87,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   auto &stack = test_thread_stack;
   if (!stack ||
       stack->stack_frame_before_calling_property_function == nullptr ||
-      stack->allocated_stack_region.empty()) {
+      stack->allocated_stack_region_size == 0) {
     // No stack info.
     return;
   }
@@ -103,9 +109,9 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   Reset reset;
 
   const char *this_frame = GetCurrentStackFrame();
-  if (this_frame < stack->allocated_stack_region.data() ||
-      stack->allocated_stack_region.data() +
-              stack->allocated_stack_region.size() <=
+  if (this_frame < stack->allocated_stack_region_start ||
+      stack->allocated_stack_region_start +
+              stack->allocated_stack_region_size <=
           this_frame) {
     // The current stack frame pointer is outside the known thread stack.
     // This is either not the right thread, or we are running under a different
