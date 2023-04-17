@@ -42,6 +42,7 @@ cc_binary(
     name = "fuzz_tests_for_functional_testing",
     testonly = 1,
     srcs = [
+        "fuzz_test_with_dynamic_seeds.cc",
         "fuzz_tests_for_functional_testing.cc",
         "fuzz_tests_for_microbenchmarking.cc",
         "fuzz_tests_using_googletest.cc",

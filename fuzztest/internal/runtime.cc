@@ -580,6 +580,10 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds() {
     TrySampleAndUpdateInMemoryCorpus(Input{seed},
                                      /*write_to_file=*/false);
   }
+  for (const auto& seed : fixture_driver_->GetDynamicSeeds()) {
+    TrySampleAndUpdateInMemoryCorpus(Input{seed},
+                                     /*write_to_file=*/false);
+  }
 }
 
 void FuzzTestFuzzerImpl::RunInUnitTestMode() {

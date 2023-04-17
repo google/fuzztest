@@ -160,6 +160,7 @@ cc_library(
     srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
     deps = [
+        ":domain",
         ":logging",
         ":registration",
         ":type_support",
@@ -171,6 +172,7 @@ cc_test(
     size = "small",
     srcs = ["internal/fixture_driver_test.cc"],
     deps = [
+        ":any",
         ":domain",
         ":fixture_driver",
         ":registration",

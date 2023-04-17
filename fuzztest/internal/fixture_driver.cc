@@ -25,9 +25,15 @@ void UntypedFixtureDriver::SetUpFuzzTest() {}
 void UntypedFixtureDriver::SetUpIteration() {}
 void UntypedFixtureDriver::TearDownIteration() {}
 void UntypedFixtureDriver::TearDownFuzzTest() {}
+std::vector<GenericDomainCorpusType> GetDynamicSeeds() { return {}; }
+
 std::vector<GenericDomainCorpusType> UntypedFixtureDriver::GetSeeds() const {
   return seeds_;
 }
+std::vector<GenericDomainCorpusType> UntypedFixtureDriver::GetDynamicSeeds() {
+  return {};
+}
+
 std::unique_ptr<UntypedDomainInterface> UntypedFixtureDriver::GetDomains()
     const {
   return domain_->Clone();
