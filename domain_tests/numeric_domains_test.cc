@@ -255,8 +255,18 @@ TEST(InRange, FailsWithInfiniteRange) {
 }
 
 TEST(InRange, FailsWithInvalidRange) {
-  EXPECT_DEATH_IF_SUPPORTED(InRange(10, 1),
-                            "Failed precondition.*min must be smaller");
+  EXPECT_DEATH_IF_SUPPORTED(
+      InRange(10, 1),
+      "Failed precondition.*min must be less than or equal to max");
+}
+
+TEST(InRange, SupportsSingletonRange) {
+  auto domain = InRange(10, 10);
+  absl::BitGen bitgen;
+  auto val = Value(domain, bitgen);
+  val.Mutate(domain, bitgen, /*only_shrink=*/false);
+
+  EXPECT_EQ(val.user_value, 10);
 }
 
 TEST(IllegalInputs, Numeric) {

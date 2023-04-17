@@ -48,8 +48,8 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
                          IntegerDictionary<T>, bool>;
 
   explicit InRangeImpl(T min, T max) : min_(min), max_(max) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(min < max,
-                                         "min must be smaller than max!");
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        min <= max, "min must be less than or equal to max!");
     if constexpr (!T_is_integer) {
       FUZZTEST_INTERNAL_CHECK_PRECONDITION(
           !(min == std::numeric_limits<T>::lowest() &&
@@ -92,6 +92,10 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
   }
 
   void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+    if (min_ == max_) {
+      val = min_;
+      return;
+    }
     permanent_dict_candidate_ = std::nullopt;
     if (val < min_ || val > max_) {
       val = Init(prng);
