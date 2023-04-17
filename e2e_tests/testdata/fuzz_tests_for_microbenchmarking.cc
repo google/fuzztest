@@ -29,7 +29,9 @@
 #include <cstdlib>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -427,6 +429,24 @@ void StringPermutationWithSeeds(const std::string& encoded_data) {
 }
 FUZZ_TEST(MySuite, StringPermutationWithSeeds)
     .WithDomains(fuzztest::Arbitrary<std::string>().WithSeeds({"9876543210"}));
+
+void StringPermutationWithSeedProvider(const std::string& encoded_data) {
+  StringPermutationTest(encoded_data);
+}
+FUZZ_TEST(MySuite, StringPermutationWithSeedProvider)
+    .WithSeeds([]() -> std::vector<std::tuple<std::string>> {
+      return {{"9876543210"}};
+    });
+
+struct SeededFixture {
+  std::vector<std::tuple<std::string>> GetSeeds() { return {{"9876543210"}}; }
+
+  void StringPermutationWithSeedProvider(const std::string& encoded_data) {
+    StringPermutationTest(encoded_data);
+  }
+};
+FUZZ_TEST_F(SeededFixture, StringPermutationWithSeedProvider)
+    .WithSeeds(&SeededFixture::GetSeeds);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Examples to get working.

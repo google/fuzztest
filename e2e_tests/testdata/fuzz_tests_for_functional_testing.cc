@@ -26,6 +26,7 @@
 #include "google/protobuf/descriptor.h"
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"

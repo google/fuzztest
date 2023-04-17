@@ -264,6 +264,7 @@ target_link_libraries(
   fuzztest_domain
   fuzztest_meta
   fuzztest_type_support
+  absl::any_invocable
   absl::str_format
   absl::span
 )
@@ -278,9 +279,14 @@ add_library(
 target_link_libraries(
   fuzztest_fixture_driver
   PUBLIC
+  fuzztest_any
+  fuzztest_domain
   fuzztest_logging
   fuzztest_registration
   fuzztest_type_support
+  absl::memory
+  absl::str_format
+  absl::span
 )
 
 if (FUZZTEST_TESTING)
@@ -291,6 +297,7 @@ if (FUZZTEST_TESTING)
   target_link_libraries(
     fuzztest_fixture_driver_test
     PUBLIC
+    fuzztest_any
     fuzztest_domain
     fuzztest_fixture_driver
     fuzztest_registration
@@ -506,6 +513,7 @@ target_link_libraries(
   fuzztest_registration
   fuzztest_serialization
   fuzztest_type_support
+  absl::any_invocable
   absl::function_ref
   absl::random_random
   absl::random_seed_sequences
@@ -578,6 +586,7 @@ target_link_libraries(
   fuzztest_registration
   fuzztest_runtime
   absl::flat_hash_map
+  absl::function_ref
 )
 
 add_library(
@@ -591,7 +600,9 @@ target_link_libraries(
   fuzztest_fuzztest
   PUBLIC
   fuzztest_domain
+  fuzztest_io
   fuzztest_registry
+  fuzztest_runtime
   absl::str_format
   absl::strings
 )

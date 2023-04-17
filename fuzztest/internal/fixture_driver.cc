@@ -16,21 +16,10 @@
 
 namespace fuzztest::internal {
 
-UntypedFixtureDriver::UntypedFixtureDriver(
-    std::unique_ptr<UntypedDomainInterface> domain,
-    std::vector<GenericDomainCorpusType> seeds)
-    : domain_(std::move(domain)), seeds_(std::move(seeds)) {}
 UntypedFixtureDriver::~UntypedFixtureDriver() = default;
 void UntypedFixtureDriver::SetUpFuzzTest() {}
 void UntypedFixtureDriver::SetUpIteration() {}
 void UntypedFixtureDriver::TearDownIteration() {}
 void UntypedFixtureDriver::TearDownFuzzTest() {}
-std::vector<GenericDomainCorpusType> UntypedFixtureDriver::GetSeeds() const {
-  return seeds_;
-}
-std::unique_ptr<UntypedDomainInterface> UntypedFixtureDriver::GetDomains()
-    const {
-  return domain_->Clone();
-}
 
 }  // namespace fuzztest::internal

@@ -26,6 +26,7 @@ target_link_libraries(
   protobuf::libprotobuf
   test_protobuf
   absl::function_ref
+  absl::str_format
   absl::time
   fuzztest_googletest_fixture_adapter
 )

@@ -16,19 +16,20 @@
 
 #include <string>
 #include <tuple>
-#include <type_traits>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/any.h"
+#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 namespace {
 
-using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
 struct CallCountFixture {
@@ -47,9 +48,9 @@ MoveOnlyAny MakeArgs(T... t) {
 
 TEST(FixtureDriverTest, PropagatesCallToTargetFunction) {
   FixtureDriverImpl<Domain<std::tuple<int>>, CallCountFixture,
-                    IncrementCallCountFunc>
+                    IncrementCallCountFunc, void*>
       fixture_driver(&CallCountFixture::IncrementCallCount,
-                     Arbitrary<std::tuple<int>>(), {});
+                     Arbitrary<std::tuple<int>>(), {}, nullptr);
 
   CallCountFixture::call_count = 0;
 
@@ -62,9 +63,9 @@ TEST(FixtureDriverTest, PropagatesCallToTargetFunction) {
 
 TEST(FixtureDriverTest, ReusesSameFixtureObjectDuringFuzzTest) {
   FixtureDriverImpl<Domain<std::tuple<int>>, CallCountFixture,
-                    IncrementCallCountFunc>
+                    IncrementCallCountFunc, void*>
       fixture_driver(&CallCountFixture::IncrementCallCount,
-                     Arbitrary<std::tuple<int>>(), {});
+                     Arbitrary<std::tuple<int>>(), {}, nullptr);
 
   CallCountFixture::call_count = 0;
 
@@ -85,9 +86,9 @@ struct DerivedCallCountFixture : CallCountFixture {};
 
 TEST(FixtureDriverTest, PropagatesCallToTargetFunctionOnBaseFixture) {
   FixtureDriverImpl<Domain<std::tuple<int>>, DerivedCallCountFixture,
-                    IncrementCallCountFunc>
+                    IncrementCallCountFunc, void*>
       fixture_driver(&DerivedCallCountFixture::IncrementCallCount,
-                     Arbitrary<std::tuple<int>>(), {});
+                     Arbitrary<std::tuple<int>>(), {}, nullptr);
 
   CallCountFixture::call_count = 0;
 
@@ -118,9 +119,10 @@ bool LifecycleRecordingFixture::was_destructed = false;
 
 TEST(FixtureDriverTest, FixtureGoesThroughCompleteLifecycle) {
   using NoOpFunc = decltype(&LifecycleRecordingFixture::NoOp);
-  FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingFixture, NoOpFunc>
+  FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingFixture, NoOpFunc,
+                    void*>
       fixture_driver(&LifecycleRecordingFixture::NoOp,
-                     Arbitrary<std::tuple<>>(), {});
+                     Arbitrary<std::tuple<>>(), {}, nullptr);
 
   LifecycleRecordingFixture::Reset();
 
@@ -173,9 +175,9 @@ TEST(FixtureDriverTest, PerIterationFixtureGoesThroughCompleteLifecycle) {
       LifecycleRecordingFixtureWithExplicitSetUp<PerIterationFixture>;
   using NoOpFunc = decltype(&LifecycleRecordingPerIterationFixture::NoOp);
   FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingPerIterationFixture,
-                    NoOpFunc>
+                    NoOpFunc, void*>
       fixture_driver(&LifecycleRecordingPerIterationFixture::NoOp,
-                     Arbitrary<std::tuple<>>(), {});
+                     Arbitrary<std::tuple<>>(), {}, nullptr);
 
   LifecycleRecordingPerIterationFixture::Reset();
 
@@ -203,9 +205,9 @@ TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
       LifecycleRecordingFixtureWithExplicitSetUp<PerFuzzTestFixture>;
   using NoOpFunc = decltype(&LifecycleRecordingPerFuzzTestFixture::NoOp);
   FixtureDriverImpl<Domain<std::tuple<>>, LifecycleRecordingPerFuzzTestFixture,
-                    NoOpFunc>
+                    NoOpFunc, void*>
       fixture_driver(&LifecycleRecordingPerFuzzTestFixture::NoOp,
-                     Arbitrary<std::tuple<>>(), {});
+                     Arbitrary<std::tuple<>>(), {}, nullptr);
   LifecycleRecordingPerFuzzTestFixture::Reset();
 
   ASSERT_TRUE(!LifecycleRecordingPerFuzzTestFixture::was_constructed &&
@@ -228,6 +230,76 @@ TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
 
   EXPECT_TRUE(LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
               LifecycleRecordingPerFuzzTestFixture::was_destructed);
+}
+
+template <typename T>
+std::vector<T> UnpackGenericValues(
+    absl::Span<const CopyableAny> generic_values) {
+  std::vector<T> values;
+  values.reserve(generic_values.size());
+  for (const auto& generic_value : generic_values) {
+    FUZZTEST_INTERNAL_CHECK(generic_value.Has<T>(),
+                            "Generic value of a wrong type.");
+    values.push_back(generic_value.GetAs<T>());
+  }
+  return values;
+}
+
+void TakesInt(int) {}
+std::vector<std::tuple<int>> GetSeeds() { return {{7}, {42}}; }
+
+TEST(FixtureDriverTest, PropagatesSeedsFromFreeSeedProvider) {
+  FixtureDriverImpl<Domain<std::tuple<int>>, NoFixture, decltype(&TakesInt),
+                    decltype(&GetSeeds)>
+      fixture_driver(&TakesInt, Arbitrary<std::tuple<int>>(), {}, &GetSeeds);
+
+  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+              UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+}
+
+struct FixtureWithSeedProvider {
+  void TakesInt(int) {}
+  std::vector<std::tuple<int>> GetSeeds() { return {{7}, {42}}; }
+};
+
+TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnFixture) {
+  FixtureDriverImpl<Domain<std::tuple<int>>, FixtureWithSeedProvider,
+                    decltype(&FixtureWithSeedProvider::TakesInt),
+                    decltype(&FixtureWithSeedProvider::GetSeeds)>
+      fixture_driver(&FixtureWithSeedProvider::TakesInt,
+                     Arbitrary<std::tuple<int>>(), {},
+                     &FixtureWithSeedProvider::GetSeeds);
+  fixture_driver.SetUpFuzzTest();
+
+  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+              UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+}
+
+struct DerivedFixtureWithSeedProvider : FixtureWithSeedProvider {};
+
+TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnBaseFixture) {
+  FixtureDriverImpl<Domain<std::tuple<int>>, DerivedFixtureWithSeedProvider,
+                    decltype(&DerivedFixtureWithSeedProvider::TakesInt),
+                    decltype(&DerivedFixtureWithSeedProvider::GetSeeds)>
+      fixture_driver(&DerivedFixtureWithSeedProvider::TakesInt,
+                     Arbitrary<std::tuple<int>>(), {},
+                     &DerivedFixtureWithSeedProvider::GetSeeds);
+  fixture_driver.SetUpFuzzTest();
+
+  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+              UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+}
+
+TEST(FixtureDriverTest, DiesIfConversionOfSeedsFromSeedProviderFails) {
+  FixtureDriverImpl<Domain<std::tuple<int>>, NoFixture, decltype(&TakesInt),
+                    decltype(&GetSeeds)>
+      fixture_driver(
+          &TakesInt,
+          Filter([](std::tuple<int> i) { return std::get<0>(i) % 2 == 0; },
+                 Arbitrary<std::tuple<int>>()),
+          {}, &GetSeeds);
+
+  EXPECT_DEATH_IF_SUPPORTED(fixture_driver.GetSeeds(), "Invalid seed value");
 }
 
 }  // namespace

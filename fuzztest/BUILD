@@ -160,9 +160,14 @@ cc_library(
     srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
     deps = [
+        ":any",
+        ":domain",
         ":logging",
         ":registration",
         ":type_support",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -171,8 +176,10 @@ cc_test(
     size = "small",
     srcs = ["internal/fixture_driver_test.cc"],
     deps = [
+        ":any",
         ":domain",
         ":fixture_driver",
+        ":logging",
         ":registration",
         ":type_support",
         "@com_google_absl//absl/types:span",
@@ -186,7 +193,9 @@ cc_library(
     hdrs = ["fuzztest.h"],
     deps = [
         ":domain",
+        ":io",
         ":registry",
+        ":runtime",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -285,6 +294,7 @@ cc_library(
         ":domain",
         ":meta",
         ":type_support",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
@@ -300,6 +310,7 @@ cc_library(
         ":registration",
         ":runtime",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/functional:function_ref",
     ],
 )
 
@@ -318,6 +329,7 @@ cc_library(
         ":seed_seq",
         ":serialization",
         ":type_support",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",

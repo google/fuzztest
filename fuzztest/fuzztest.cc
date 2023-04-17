@@ -14,14 +14,19 @@
 
 #include "./fuzztest/fuzztest.h"
 
+#include <cstdio>
 #include <cstdlib>
-#include <iostream>
 #include <string>
+#include <string_view>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
+#include "./fuzztest/internal/runtime.h"
 
 namespace fuzztest {
 
@@ -70,9 +75,10 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
 
 void RunSpecifiedFuzzTest(std::string_view name) {
   const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
-  internal::ForEachTest([&](const auto& test) {
+  internal::ForEachTest([&](auto& test) {
     if (test.full_name() == matching_fuzz_test) {
-      exit(test.make()->RunInFuzzingMode(/*argc=*/nullptr, /*argv=*/nullptr));
+      exit(std::move(test).make()->RunInFuzzingMode(/*argc=*/nullptr,
+                                                    /*argv=*/nullptr));
     }
   });
 }

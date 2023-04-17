@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdio>
 #include <deque>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -29,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
@@ -72,7 +72,7 @@ class FuzzTestFuzzer {
 class FuzzTest;
 
 using FuzzTestFuzzerFactory =
-    std::function<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&)>;
+    absl::AnyInvocable<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&) &&>;
 
 class FuzzTest {
  public:
@@ -93,7 +93,7 @@ class FuzzTest {
   const char* file() const { return test_info_.file; }
   int line() const { return test_info_.line; }
   bool uses_fixture() const { return test_info_.uses_fixture; }
-  auto make() const { return make_(*this); }
+  auto make() && { return std::move(make_)(*this); }
 
  private:
   BasicTestInfo test_info_;

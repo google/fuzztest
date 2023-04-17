@@ -15,6 +15,8 @@
 #ifndef FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_
 #define FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_
 
+#include <cstdlib>
+#include <memory>
 #include <utility>
 
 #include "gtest/gtest.h"
@@ -22,7 +24,7 @@
 #include "./fuzztest/internal/runtime.h"
 
 #define GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(selected_run_mode, argc, argv) \
-  (::fuzztest::internal::ForEachTest([&](const auto& test) {                  \
+  (::fuzztest::internal::ForEachTest([&](auto& test) {                        \
      auto fixture_factory =                                                   \
          [argc, argv, &test]() -> ::fuzztest::internal::GTest_TestAdaptor* {  \
        return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);  \
@@ -49,11 +51,11 @@ namespace fuzztest::internal {
 
 class GTest_TestAdaptor : public ::testing::Test {
  public:
-  explicit GTest_TestAdaptor(const FuzzTest& test, int* argc, char*** argv)
+  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv)
       : test_(test), argc_(argc), argv_(argv) {}
 
   void TestBody() override {
-    auto test = test_.make();
+    auto test = std::move(test_).make();
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       test->RunInUnitTestMode();
     } else {
@@ -74,7 +76,7 @@ class GTest_TestAdaptor : public ::testing::Test {
   }
 
  private:
-  const FuzzTest& test_;
+  FuzzTest& test_;
   int* argc_;
   char*** argv_;
 };

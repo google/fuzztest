@@ -49,6 +49,7 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",

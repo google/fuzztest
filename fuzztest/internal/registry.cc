@@ -15,12 +15,12 @@
 #include "./fuzztest/internal/registry.h"
 
 #include <deque>
-#include <functional>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -53,7 +53,7 @@ SetUpTearDownTestSuiteFunctionPair GetSetUpTearDownTestSuiteFunctions(
 
 }  // namespace
 
-void ForEachTest(const std::function<void(const FuzzTest&)>& func) {
+void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 

@@ -15,11 +15,23 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_FIXTURE_DRIVER_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_FIXTURE_DRIVER_H_
 
+#include <cstdlib>
+#include <functional>
+#include <iostream>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/memory/memory.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "./fuzztest/internal/any.h"
+#include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/type_support.h"
@@ -52,8 +64,6 @@ class PerFuzzTestFixture : public FixtureWithExplicitSetUp {};
 
 class UntypedFixtureDriver {
  public:
-  UntypedFixtureDriver(std::unique_ptr<UntypedDomainInterface> domain,
-                       std::vector<GenericDomainCorpusType> seeds);
   virtual ~UntypedFixtureDriver() = 0;
 
   // Methods for setting up and tearing down the fixture. All fixture driver
@@ -77,12 +87,63 @@ class UntypedFixtureDriver {
   // caller.
   virtual void Test(MoveOnlyAny&& args_untyped) const = 0;
 
-  std::vector<GenericDomainCorpusType> GetSeeds() const;
-  std::unique_ptr<UntypedDomainInterface> GetDomains() const;
+  virtual std::vector<GenericDomainCorpusType> GetSeeds() const = 0;
+  virtual std::unique_ptr<UntypedDomainInterface> GetDomains() const = 0;
+};
+
+// Typed subinterface with functionality that depends on knowing `ValueType`.
+// `SeedProvider` is the type of the function returning dynamically initialized
+// seeds.
+template <typename ValueType, typename SeedProvider>
+class TypedFixtureDriver : public UntypedFixtureDriver {
+ public:
+  TypedFixtureDriver(std::unique_ptr<TypedDomainInterface<ValueType>> domain,
+                     std::vector<GenericDomainCorpusType> seeds,
+                     SeedProvider seed_provider)
+      : domain_(std::move(domain)),
+        seeds_(std::move(seeds)),
+        seed_provider_(std::move(seed_provider)) {}
+
+  std::vector<GenericDomainCorpusType> GetSeeds() const final {
+    std::vector<GenericDomainCorpusType> seeds = GetSeedsFromSeedProvider();
+    seeds.reserve(seeds.size() + seeds_.size());
+    seeds.insert(seeds.end(), seeds_.begin(), seeds_.end());
+    return seeds;
+  }
+
+  std::unique_ptr<UntypedDomainInterface> GetDomains() const final {
+    return domain_->Clone();
+  }
+
+ protected:
+  const SeedProvider& seed_provider() const { return seed_provider_; }
+
+  std::vector<GenericDomainCorpusType> GetSeedsFromUserValues(
+      absl::Span<const ValueType> values) const {
+    std::vector<GenericDomainCorpusType> seeds;
+    seeds.reserve(values.size());
+    for (const ValueType& val : values) {
+      std::optional<GenericDomainCorpusType> seed =
+          domain_->TypedFromValue(val);
+      if (!seed.has_value()) {
+        absl::FPrintF(GetStderr(), "[!] Invalid seed value:\n\n{");
+        AutodetectTypePrinter<ValueType>().PrintUserValue(
+            val, &std::cerr, PrintMode::kHumanReadable);
+        absl::FPrintF(GetStderr(), "}\n");
+        std::exit(1);
+      }
+      seeds.push_back(*std::move(seed));
+    }
+    return seeds;
+  }
 
  private:
-  std::unique_ptr<UntypedDomainInterface> domain_;
+  virtual std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider()
+      const = 0;
+
+  std::unique_ptr<TypedDomainInterface<ValueType>> domain_;
   std::vector<GenericDomainCorpusType> seeds_;
+  SeedProvider seed_provider_;
 };
 
 // ForceVectorForStringView is a temporary hack for realiably
@@ -117,10 +178,13 @@ decltype(auto) ForceVectorForStringView(Src&& src) {
 // also acts as a proxy to the fixture's target function.
 //
 // The type parameters are:
-//   - `DomainT` -- the type of the domain. Eg `Domain<std::tuple<int>>`.
-//   - `Fixture` -- the type of the test fixture.
+//   - `DomainT`        -- the type of the domain. Eg `Domain<std::tuple<int>>`.
+//   - `Fixture`        -- the type of the test fixture.
 //   - `TargetFunction` -- the type of the fixture's target function.
-template <typename DomainT, typename Fixture, typename TargetFunction>
+//   - `SeedProvider`   -- the type of the function returning dynamically
+//                         initialized seeds.
+template <typename DomainT, typename Fixture, typename TargetFunction,
+          typename SeedProvider>
 class FixtureDriver;
 
 // Specialization for `TargetFunction = void(BaseFixture::*)(Args...)`
@@ -130,16 +194,23 @@ class FixtureDriver;
 //                      the target function.
 //   - `Args...` -- the types of the target function's parameters.
 template <typename DomainT, typename Fixture, typename BaseFixture,
-          typename... Args>
-class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)>
-    : public UntypedFixtureDriver {
+          typename SeedProvider, typename... Args>
+class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
+                    SeedProvider>
+    : public TypedFixtureDriver<value_type_t<DomainT>, SeedProvider> {
  public:
   static_assert(std::is_base_of_v<BaseFixture, Fixture>);
+
   using TargetFunction = void (BaseFixture::*)(Args...);
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
-                         std::vector<GenericDomainCorpusType> seeds)
-      : UntypedFixtureDriver(domain.Clone(), std::move(seeds)),
+                         std::vector<GenericDomainCorpusType> seeds,
+                         SeedProvider seed_provider)
+      : FixtureDriver::TypedFixtureDriver(
+            absl::WrapUnique(
+                static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
+                    domain.Clone().release())),
+            std::move(seeds), std::move(seed_provider)),
         target_function_(target_function) {}
 
   void Test(MoveOnlyAny&& args_untyped) const override {
@@ -153,6 +224,26 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)>
               ForceVectorForStringView<Args>(std::move(args))...);
         },
         args_untyped.GetAs<value_type_t<DomainT>>());
+  }
+
+  std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider() const final {
+    if (this->seed_provider() == nullptr) return {};
+    if constexpr (std::is_invocable_v<SeedProvider, Fixture*>) {
+      static_assert(std::is_same_v<std::invoke_result_t<SeedProvider, Fixture*>,
+                                   std::vector<value_type_t<DomainT>>>);
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          fixture_ != nullptr,
+          "fixture is nullptr. Did you forget to instantiate it in one of the "
+          "SetUp methods?");
+      return this->GetSeedsFromUserValues(
+          std::invoke(this->seed_provider(), fixture_.get()));
+    } else if constexpr (std::is_invocable_v<SeedProvider>) {
+      static_assert(std::is_same_v<std::invoke_result_t<SeedProvider>,
+                                   std::vector<value_type_t<DomainT>>>);
+      return this->GetSeedsFromUserValues(std::invoke(this->seed_provider()));
+    } else {
+      return {};
+    }
   }
 
  protected:
@@ -169,15 +260,20 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)>
 //
 // The new type parameters are:
 //   - `Args...` -- the types of the target function's parameters.
-template <typename DomainT, typename... Args>
-class FixtureDriver<DomainT, NoFixture, void (*)(Args...)>
-    : public UntypedFixtureDriver {
+template <typename DomainT, typename SeedProvider, typename... Args>
+class FixtureDriver<DomainT, NoFixture, void (*)(Args...), SeedProvider>
+    : public TypedFixtureDriver<value_type_t<DomainT>, SeedProvider> {
  public:
   using TargetFunction = void (*)(Args...);
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
-                         std::vector<GenericDomainCorpusType> seeds)
-      : UntypedFixtureDriver(domain.Clone(), std::move(seeds)),
+                         std::vector<GenericDomainCorpusType> seeds,
+                         SeedProvider seed_provider)
+      : FixtureDriver::TypedFixtureDriver(
+            absl::WrapUnique(
+                static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
+                    domain.Clone().release())),
+            std::move(seeds), std::move(seed_provider)),
         target_function_(target_function) {}
 
   void Test(MoveOnlyAny&& args_untyped) const override {
@@ -188,36 +284,49 @@ class FixtureDriver<DomainT, NoFixture, void (*)(Args...)>
         args_untyped.GetAs<value_type_t<DomainT>>());
   }
 
+  std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider() const final {
+    if (this->seed_provider() == nullptr) return {};
+    if constexpr (std::is_invocable_v<SeedProvider>) {
+      static_assert(std::is_same_v<std::invoke_result_t<SeedProvider>,
+                                   std::vector<value_type_t<DomainT>>>);
+      return this->GetSeedsFromUserValues(std::invoke(this->seed_provider()));
+    } else {
+      return {};
+    }
+  }
+
  private:
   TargetFunction target_function_;
 };
 
 template <typename DomainT, typename Fixture, typename TargetFunction,
-          typename = void>
+          typename SeedProvider, typename = void>
 class FixtureDriverImpl;
 
 // The fixture driver for "NoFixture", which is the tag used for the FUZZ_TEST
 // macro that uses no fixtures. No fixture is created.
-template <typename DomainT, typename TargetFunction>
-class FixtureDriverImpl<DomainT, NoFixture, TargetFunction> final
-    : public FixtureDriver<DomainT, NoFixture, TargetFunction> {
+template <typename DomainT, typename TargetFunction, typename SeedProvider>
+class FixtureDriverImpl<DomainT, NoFixture, TargetFunction, SeedProvider> final
+    : public FixtureDriver<DomainT, NoFixture, TargetFunction, SeedProvider> {
  public:
-  using FixtureDriver<DomainT, NoFixture, TargetFunction>::FixtureDriver;
+  using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 };
 
 // The fixture driver for default-constructible classes that act like fixtures:
 // their setup is in the constructor, teardown is in the destructor, and they
 // have a target function. Such fixtures are instantiated and destructed once
 // per fuzz test.
-template <typename DomainT, typename Fixture, typename TargetFunction>
+template <typename DomainT, typename Fixture, typename TargetFunction,
+          typename SeedProvider>
 class FixtureDriverImpl<
-    DomainT, Fixture, TargetFunction,
+    DomainT, Fixture, TargetFunction, SeedProvider,
     std::enable_if_t<std::conjunction_v<
         std::is_default_constructible<Fixture>,
         std::negation<std::is_base_of<FixtureWithExplicitSetUp, Fixture>>>>>
-    final : public FixtureDriver<DomainT, Fixture, TargetFunction> {
+    final
+    : public FixtureDriver<DomainT, Fixture, TargetFunction, SeedProvider> {
  public:
-  using FixtureDriver<DomainT, Fixture, TargetFunction>::FixtureDriver;
+  using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
   void SetUpFuzzTest() override {
     this->fixture_ = std::make_unique<Fixture>();
@@ -228,17 +337,17 @@ class FixtureDriverImpl<
 // The fixture driver for test fixtures with explicit setup that assume the
 // "per-iteration" semantics.
 template <typename DomainT, typename Fixture, typename BaseFixture,
-          typename... Args>
-class FixtureDriverImpl<DomainT, Fixture, void (BaseFixture::*)(Args...),
-                        std::enable_if_t<std::conjunction_v<
-                            std::is_default_constructible<Fixture>,
-                            std::is_base_of<BaseFixture, Fixture>,
-                            std::is_base_of<PerIterationFixture, Fixture>>>>
-    final
-    : public FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)> {
+          typename SeedProvider, typename... Args>
+class FixtureDriverImpl<
+    DomainT, Fixture, void (BaseFixture::*)(Args...), SeedProvider,
+    std::enable_if_t<
+        std::conjunction_v<std::is_default_constructible<Fixture>,
+                           std::is_base_of<BaseFixture, Fixture>,
+                           std::is_base_of<PerIterationFixture, Fixture>>>>
+    final : public FixtureDriver<DomainT, Fixture,
+                                 void (BaseFixture::*)(Args...), SeedProvider> {
  public:
-  using FixtureDriver<DomainT, Fixture,
-                      void (BaseFixture::*)(Args...)>::FixtureDriver;
+  using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
   void SetUpIteration() override {
     this->fixture_ = std::make_unique<Fixture>();
@@ -253,17 +362,17 @@ class FixtureDriverImpl<DomainT, Fixture, void (BaseFixture::*)(Args...),
 // The fixture driver for test fixtures with explicit setup that assume the
 // "per-fuzz-test" semantics.
 template <typename DomainT, typename Fixture, typename BaseFixture,
-          typename... Args>
-class FixtureDriverImpl<DomainT, Fixture, void (BaseFixture::*)(Args...),
-                        std::enable_if_t<std::conjunction_v<
-                            std::is_default_constructible<Fixture>,
-                            std::is_base_of<BaseFixture, Fixture>,
-                            std::is_base_of<PerFuzzTestFixture, Fixture>>>>
-    final
-    : public FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...)> {
+          typename SeedProvider, typename... Args>
+class FixtureDriverImpl<
+    DomainT, Fixture, void (BaseFixture::*)(Args...), SeedProvider,
+    std::enable_if_t<
+        std::conjunction_v<std::is_default_constructible<Fixture>,
+                           std::is_base_of<BaseFixture, Fixture>,
+                           std::is_base_of<PerFuzzTestFixture, Fixture>>>>
+    final : public FixtureDriver<DomainT, Fixture,
+                                 void (BaseFixture::*)(Args...), SeedProvider> {
  public:
-  using FixtureDriver<DomainT, Fixture,
-                      void (BaseFixture::*)(Args...)>::FixtureDriver;
+  using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
   void SetUpFuzzTest() override {
     this->fixture_ = std::make_unique<Fixture>();

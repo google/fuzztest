@@ -1175,6 +1175,22 @@ TEST_F(FuzzingModeTest, UsesSeededDomain) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(FuzzingModeTest, UsesSeedFromSeedProvider) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.StringPermutationWithSeedProvider",
+              /*env=*/{}, /*timeout=*/absl::Seconds(10));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeTest, UsesSeedFromSeedProviderOnFixture) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=SeededFixture.StringPermutationWithSeedProvider",
+              /*env=*/{}, /*timeout=*/absl::Seconds(10));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 TEST_F(FuzzingModeTest, FunctionPointerAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.FunctionPointerAliasesAreFuzzable");

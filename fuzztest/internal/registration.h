@@ -17,16 +17,19 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
+#include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -51,6 +54,7 @@ template <typename... Args>
 struct DefaultRegistrationBase {
   static constexpr bool kHasDomain = false;
   static constexpr bool kHasSeeds = false;
+  static constexpr bool kHasSeedProvider = false;
   static constexpr size_t kNumArgs = sizeof...(Args);
 
   static_assert((std::is_same_v<Args, std::decay_t<Args>> && ...));
@@ -79,6 +83,7 @@ template <typename... Args>
 struct RegistrationWithDomainsBase {
   static constexpr bool kHasDomain = true;
   static constexpr bool kHasSeeds = false;
+  static constexpr bool kHasSeedProvider = false;
   static constexpr size_t kNumArgs = sizeof...(Args);
 
   Domain<std::tuple<Args...>> domains_;
@@ -100,10 +105,23 @@ struct RegistrationWithSeedsBase : Base {
       seeds_;
 };
 
+template <typename Base, typename SeedProvider>
+struct RegistrationWithSeedProviderBase : Base {
+  static constexpr bool kHasSeedProvider = true;
+
+  explicit RegistrationWithSeedProviderBase(Base base,
+                                            SeedProvider seed_provider)
+      : Base(std::move(base)), seed_provider_(std::move(seed_provider)) {}
+
+  SeedProvider seed_provider_;
+};
+
+class PerIterationFixture;
 struct RegistrationToken;
 
 template <typename Fixture, typename TargetFunction,
-          typename Base = DefaultRegistrationBaseT<Fixture, TargetFunction>>
+          typename Base = DefaultRegistrationBaseT<Fixture, TargetFunction>,
+          typename SeedProvider = void*>
 class Registration : private Base {
   using SeedT = typename Base::SeedT;
 
@@ -129,12 +147,14 @@ class Registration : private Base {
                   "WithDomains can only be called once.");
     static_assert(!Registration::kHasSeeds,
                   "WithDomains can not be called after WithSeeds.");
+    static_assert(!Registration::kHasSeedProvider,
+                  "WithDomains can not be called after WithSeedProvider.");
     static_assert(
         Base::kNumArgs == sizeof...(NewDomains),
         "Number of domains specified in .WithDomains() does not match "
         "the number of function parameters.");
     using NewBase = RegistrationWithDomainsBase<value_type_t<NewDomains>...>;
-    return Registration<Fixture, TargetFunction, NewBase>(
+    return Registration<Fixture, TargetFunction, NewBase, SeedProvider>(
         test_info_, target_function_, NewBase{std::move(domain)});
   }
 
@@ -153,7 +173,7 @@ class Registration : private Base {
   auto WithSeeds(absl::Span<const SeedT> seeds) && {
     if constexpr (!Registration::kHasSeeds) {
       return Registration<Fixture, TargetFunction,
-                          RegistrationWithSeedsBase<Base>>(
+                          RegistrationWithSeedsBase<Base>, SeedProvider>(
                  test_info_, target_function_,
                  RegistrationWithSeedsBase<Base>(std::move(*this)))
           .WithSeeds(seeds);
@@ -195,6 +215,51 @@ class Registration : private Base {
     }
   }
 
+  // Registers a (free) function that returns a vector of seeds. This can be
+  // used when the seeds need to be initialized dynamically. For example, if the
+  // seeds depend on any global variables, this is a way to resolve the static
+  // initialization order fiasco.
+  auto WithSeeds(
+      absl::AnyInvocable<std::vector<SeedT>() const> seed_provider) && {
+    static_assert(
+        !Registration::kHasSeedProvider,
+        "WithSeeds that registers a seed provider can only be called once.");
+    return Registration<
+        Fixture, TargetFunction,
+        RegistrationWithSeedProviderBase<Base, decltype(seed_provider)>,
+        decltype(seed_provider)>(
+        test_info_, target_function_,
+        RegistrationWithSeedProviderBase<Base, decltype(seed_provider)>(
+            std::move(*this), std::move(seed_provider)));
+  }
+
+  // Registers a member function of `Fixture` (or any of its base classes
+  // `BaseFixture`) that returns a vector of seeds. This is useful if the seeds
+  // not only need to be initialized dynamically (e.g., to avoid the static
+  // initialization order fiasco), but they also depend on the fixture's
+  // internal state.
+  //
+  // NOTE: `Fixture` cannot be a fixture that uses the "per-iteration" semantics
+  // (see GoogleTest fixture adapters for details).
+  template <typename BaseFixture>
+  auto WithSeeds(std::vector<SeedT> (BaseFixture::*seed_provider)()) && {
+    static_assert(std::is_base_of_v<BaseFixture, Fixture>,
+                  "Seed provider that is a member function must be a member of "
+                  "the fixture.");
+    static_assert(!std::is_base_of_v<PerIterationFixture, Fixture>,
+                  "Seed provider cannot be a member of a fixture that uses "
+                  "\"per-iteration\" semantics.");
+    static_assert(
+        !Registration::kHasSeedProvider,
+        "WithSeeds that registers a seed provider can only be called once.");
+    using NewSeedProvider =
+        absl::AnyInvocable<std::vector<SeedT>(BaseFixture*) const>;
+    using NewBase = RegistrationWithSeedProviderBase<Base, NewSeedProvider>;
+    return Registration<Fixture, TargetFunction, NewBase, NewSeedProvider>(
+        test_info_, target_function_,
+        NewBase(std::move(*this), std::mem_fn(seed_provider)));
+  }
+
  private:
   std::vector<GenericDomainCorpusType> seeds() const {
     if constexpr (Base::kHasSeeds) {
@@ -204,7 +269,15 @@ class Registration : private Base {
     }
   }
 
-  template <typename, typename, typename>
+  SeedProvider seed_provider() {
+    if constexpr (Base::kHasSeedProvider) {
+      return std::move(this->seed_provider_);
+    } else {
+      return {};
+    }
+  }
+
+  template <typename, typename, typename, typename>
   friend class Registration;
   friend struct RegistrationToken;
 
