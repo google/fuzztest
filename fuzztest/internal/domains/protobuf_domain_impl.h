@@ -1525,16 +1525,16 @@ class ProtobufDomainImpl
   }
 
   ProtobufDomainImpl&& WithRepeatedFieldsSize(int64_t size) && {
-    WithRepeatedFieldsMinSize(size);
-    WithRepeatedFieldsMaxSize(size);
-    return std::move(*this);
+    return std::move(*this)
+        .WithRepeatedFieldsMinSize(size)
+        .WithRepeatedFieldsMaxSize(size);
   }
 
   ProtobufDomainImpl&& WithRepeatedFieldsSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t size) && {
-    WithRepeatedFieldsMinSize(filter, size);
-    WithRepeatedFieldsMaxSize(filter, size);
-    return std::move(*this);
+    return std::move(*this)
+        .WithRepeatedFieldsMinSize(filter, size)
+        .WithRepeatedFieldsMaxSize(filter, size);
   }
 
   ProtobufDomainImpl&& WithRepeatedFieldsMinSize(int64_t min_size) && {
