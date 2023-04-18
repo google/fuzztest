@@ -36,21 +36,13 @@ include(cmake/FuzzTestFlagSetup.cmake)
 
 fuzztest_setup_fuzzing_flags()
 
-if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
-  add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
-endif ()
-
 include_directories(${re2_SOURCE_DIR})
-
-add_subdirectory(${abseil-cpp_SOURCE_DIR} ${abseil-cpp_BINARY_DIR})
-add_subdirectory(${re2_SOURCE_DIR} ${re2_BINARY_DIR})
 
 if (FUZZTEST_TESTING)
   enable_testing()
 endif ()
 
 if (FUZZTEST_TESTING)
-  add_subdirectory(${protobuf_SOURCE_DIR} ${protobuf_BINARY_DIR})
   set(protobuf_PROTOC_EXE "${protobuf_BINARY_DIR}/protoc")
   include(${protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake)
 endif ()
