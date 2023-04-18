@@ -30,11 +30,12 @@ if (NOT FUZZTEST_COMPATIBILITY_MODE STREQUAL "" AND
   message (FATAL_ERROR "Compatibility mode is only supported for libfuzzer")
 endif ()
 
-include(cmake/BuildDependencies.cmake)
 include(cmake/AddFuzzTest.cmake)
 include(cmake/FuzzTestFlagSetup.cmake)
 
 fuzztest_setup_fuzzing_flags()
+
+include(cmake/BuildDependencies.cmake)
 
 include_directories(${re2_SOURCE_DIR})
 

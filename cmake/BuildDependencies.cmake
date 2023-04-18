@@ -25,7 +25,7 @@ endif ()
 FetchContent_Declare(
   abseil-cpp
   GIT_REPOSITORY ${absl_URL}
-  GIT_TAG        ${absl_COMMIT}
+  GIT_TAG        ${absl_TAG}
 )
 
 FetchContent_Declare(
