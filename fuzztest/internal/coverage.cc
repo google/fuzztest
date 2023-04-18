@@ -50,7 +50,7 @@ constexpr uint8_t BitWidth(uint8_t x) {
 // We want to make the tracing codes as light-weight as possible, so
 // we disabled most sanitizers. Some may not be necessary but we don't
 // want any one of them in the tracing codes so it's fine.
-#define GOOGLEFUZZTEST_NOSANITIZE    \
+#define FUZZTEST_INTERNAL_NOSANITIZE \
   ABSL_ATTRIBUTE_NO_SANITIZE_MEMORY  \
   ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS \
   ABSL_ATTRIBUTE_NO_SANITIZE_UNDEFINED
@@ -61,8 +61,8 @@ ExecutionCoverage* GetExecutionCoverage() {
   return execution_coverage_instance;
 }
 
-void ExecutionCoverage::UpdateCmpMap(size_t index, uint8_t hamming_dist,
-                                     uint8_t absolute_dist) {
+FUZZTEST_INTERNAL_NOSANITIZE void ExecutionCoverage::UpdateCmpMap(
+    size_t index, uint8_t hamming_dist, uint8_t absolute_dist) {
   index %= kCmpCovMapSize;
   // Normalize counter value with log2 to reduce corpus size.
   uint8_t bucketized_counter = BitWidth(++new_cmp_counter_map_[index]);
@@ -172,8 +172,9 @@ namespace {
 using Vector = uint8_t __attribute__((vector_size(64)));
 
 constexpr size_t kVectorSize = sizeof(Vector);
-bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
-                      size_t size, size_t offset_to_align) {
+FUZZTEST_INTERNAL_NOSANITIZE bool UpdateVectorized(
+    const uint8_t *execution_data, uint8_t *corpus_data, size_t size,
+    size_t offset_to_align) {
   FUZZTEST_INTERNAL_CHECK(size >= kVectorSize,
                           "size cannot be smaller than block size!");
 
@@ -183,28 +184,30 @@ bool UpdateVectorized(const uint8_t* execution_data, uint8_t* corpus_data,
   // When aligned, just cast. This generates an aligned instruction.
   // When unaligned, go through memcpy. This generates a slower unaligned
   // instruction.
-  const auto read = [](const uint8_t* p, auto aligned) {
-    if constexpr (aligned) {
-      return *reinterpret_cast<const Vector*>(p);
-    } else {
-      Vector v;
-      memcpy(&v, p, sizeof(v));
-      return v;
-    }
-  };
-  const auto write = [](uint8_t* p, Vector v, auto aligned) {
-    if constexpr (aligned) {
-      *reinterpret_cast<Vector*>(p) = v;
-    } else {
-      memcpy(p, &v, sizeof(v));
-    }
-  };
+  const auto read = [](const uint8_t *p, auto aligned)
+                        FUZZTEST_INTERNAL_NOSANITIZE {
+                          if constexpr (aligned) {
+                            return *reinterpret_cast<const Vector *>(p);
+                          } else {
+                            Vector v;
+                            memcpy(&v, p, sizeof(v));
+                            return v;
+                          }
+                        };
+  const auto write = [](uint8_t *p, Vector v, auto aligned)
+                         FUZZTEST_INTERNAL_NOSANITIZE {
+                           if constexpr (aligned) {
+                             *reinterpret_cast<Vector *>(p) = v;
+                           } else {
+                             memcpy(p, &v, sizeof(v));
+                           }
+                         };
   // We don't care about potential ABI change since all of this has internal
   // linkage. Silence the warning.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunknown-warning-option"
 #pragma clang diagnostic ignored "-Wpsabi"
-  const auto merge_data = [&](auto aligned) {
+  const auto merge_data = [&](auto aligned) FUZZTEST_INTERNAL_NOSANITIZE {
     const Vector execution_v = read(execution_data, aligned);
     const Vector corpus_v = read(corpus_data, aligned);
     // Normalize counter value with log2 to reduce corpus size.
@@ -353,8 +356,8 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
 // This function should have no external library dependencies to prevent
 // accidental coverage instrumentation.
 template <int data_size>
-ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
-    GOOGLEFUZZTEST_NOSANITIZE  // To skip arg1 - arg2 overflow.
+ABSL_ATTRIBUTE_ALWAYS_INLINE      // To make __builtin_return_address(0) work.
+    FUZZTEST_INTERNAL_NOSANITIZE  // To skip arg1 - arg2 overflow.
     void
     TraceCmp(uint64_t arg1, uint64_t arg2, uint8_t argsize_bit,
              uintptr_t PC =
@@ -374,7 +377,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE   // To make __builtin_return_address(0) work.
 }
 
 // Use NO_SANITIZE_MEMORY and ADDRESS to skip possible errors on reading buffer.
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 static size_t InternalStrnlen(const char *s, size_t n) {
   size_t len = 0;
   while (len < n && s[len]) {
@@ -383,7 +386,7 @@ static size_t InternalStrnlen(const char *s, size_t n) {
   return len;
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 static size_t InternalStrlen(const char *s1, const char *s2) {
   size_t len = 0;
   while (s1[len] && s2[len]) {
@@ -392,7 +395,7 @@ static size_t InternalStrlen(const char *s1, const char *s2) {
   return len;
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 static void TraceMemCmp(const uint8_t *s1, const uint8_t *s2, size_t n,
                         int result) {
   // Non-interesting cases.
@@ -431,7 +434,7 @@ void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp<8>(Arg1, Arg2, sizeof(Arg1) * 8);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {
   uintptr_t PC = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   switch (Cases[0]) {
@@ -460,7 +463,7 @@ void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {
   }
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_strcasecmp(void *, const char *s1, const char *s2,
                                       int result) {
   if (s1 == nullptr || s2 == nullptr) return;
@@ -469,7 +472,7 @@ void __sanitizer_weak_hook_strcasecmp(void *, const char *s1, const char *s2,
               reinterpret_cast<const uint8_t *>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_memcmp(void *, const void *s1, const void *s2,
                                   size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
@@ -477,7 +480,7 @@ void __sanitizer_weak_hook_memcmp(void *, const void *s1, const void *s2,
               reinterpret_cast<const uint8_t *>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_strncmp(void *, const char *s1, const char *s2,
                                    size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
@@ -488,7 +491,7 @@ void __sanitizer_weak_hook_strncmp(void *, const char *s1, const char *s2,
               reinterpret_cast<const uint8_t *>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_strcmp(void *, const char *s1, const char *s2,
                                   int result) {
   if (s1 == nullptr || s2 == nullptr) return;
@@ -497,7 +500,7 @@ void __sanitizer_weak_hook_strcmp(void *, const char *s1, const char *s2,
               reinterpret_cast<const uint8_t *>(s2), n, result);
 }
 
-GOOGLEFUZZTEST_NOSANITIZE
+FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_strncasecmp(void *caller_pc, const char *s1,
                                        const char *s2, size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;

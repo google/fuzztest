@@ -20,8 +20,9 @@ echo "
 #
 # Do not use directly.
 
-# Link with Address Sanitizer (ASAN).
+# Compile and link with Address Sanitizer (ASAN).
 build:fuzztest-common --linkopt=-fsanitize=address
+build:fuzztest-common --copt=-fsanitize=address
 
 # Standard define for \"ifdef-ing\" any fuzz test specific code.
 build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -62,9 +63,9 @@ else
   exit 1
 fi
 
-echo "# We apply coverage tracking and ASAN instrumentation to everything but the
+echo "# We apply coverage tracking instrumentation to everything but the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize=address,-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
+build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
 "
 
 # Do not use the extra configurations below, unless you know what you're doing.
@@ -98,7 +99,6 @@ echo "
 build:libfuzzer --config=fuzztest-common
 build:libfuzzer --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:libfuzzer --copt=-fsanitize=fuzzer-no-link
-build:libfuzzer --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize=address
 build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)
 "
 

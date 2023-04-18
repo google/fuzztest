@@ -34,6 +34,8 @@ include(cmake/BuildDependencies.cmake)
 include(cmake/AddFuzzTest.cmake)
 include(cmake/FuzzTestFlagSetup.cmake)
 
+fuzztest_setup_fuzzing_flags()
+
 if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
   add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
 endif ()
@@ -52,8 +54,6 @@ if (FUZZTEST_TESTING)
   set(protobuf_PROTOC_EXE "${protobuf_BINARY_DIR}/protoc")
   include(${protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake)
 endif ()
-
-fuzztest_setup_fuzzing_flags()
 
 add_subdirectory(fuzztest)
 

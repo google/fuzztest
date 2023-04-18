@@ -26,8 +26,8 @@ endif ()
 
 # TODO: introduce similar functions to absl_cc_library and absl_cc_test to ease
 # the automation of synchronization.
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sanitize=address,undefined -fsanitize-coverage=0")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-sanitize=address,undefined -fsanitize-coverage=0")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
 
 add_library(
   fuzztest_logging
