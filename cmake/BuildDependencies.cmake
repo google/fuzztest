@@ -6,7 +6,7 @@ set(gtest_URL https://github.com/google/googletest.git)
 set(gtest_TAG release-1.12.1)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_COMMIT dbc61b490c5c259df33af59f9922a7224341397b)
+set(absl_TAG 20230125.0)
 
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2023-03-01)
