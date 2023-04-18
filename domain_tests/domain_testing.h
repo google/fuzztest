@@ -360,8 +360,12 @@ bool AreSame(const T& prev, const T& next) {
 
 template <typename T>
 bool TowardsZero(const T& prev, const T& next) {
-  if constexpr (std::numeric_limits<T>::is_integer || std::is_arithmetic_v<T> ||
-                std::is_enum_v<T>) {
+  if constexpr (std::is_same_v<std::byte, T> ||
+                std::is_same_v<const std::byte, T>) {
+    return TowardsZero(std::to_integer<unsigned char>(prev),
+                       std::to_integer<unsigned char>(next));
+  } else if constexpr (std::numeric_limits<T>::is_integer ||
+                       std::is_arithmetic_v<T> || std::is_enum_v<T>) {
     if constexpr (std::is_floating_point_v<T>) {
       // Ignore non-finites. Those never move towards zero.
       if (!std::isfinite(prev) || !std::isfinite(next)) return true;

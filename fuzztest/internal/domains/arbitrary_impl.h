@@ -199,6 +199,34 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
   static constexpr size_t kPermanentDictMaxSize = 512;
 };
 
+// Arbitrary for std::byte.
+template<>
+class ArbitraryImpl<std::byte> : public DomainBase<ArbitraryImpl<std::byte>> {
+ public:
+  using typename ArbitraryImpl::DomainBase::corpus_type;
+  using typename ArbitraryImpl::DomainBase::value_type;
+
+  value_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return std::byte{inner_.Init(prng)};
+  }
+
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    unsigned char u8 = std::to_integer<unsigned char>(val);
+    inner_.Mutate(u8, prng, only_shrink);
+    val = std::byte{u8};
+  }
+
+  bool ValidateCorpusValue(const corpus_type&) const {
+    return true;  // Nothing to validate.
+  }
+
+  auto GetPrinter() const { return IntegralPrinter{}; }
+
+private:
+  ArbitraryImpl<unsigned char> inner_;
+};
+
 // Arbitrary for floats.
 template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
