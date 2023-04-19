@@ -292,10 +292,16 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
 }
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
-  if (auto parsed = IRObject::FromString(data)) {
-    return params_domain_->UntypedParseCorpus(*parsed);
-  }
-  return std::nullopt;
+  auto ir_value = IRObject::FromString(data);
+  if (!ir_value) return std::nullopt;
+
+  auto corpus_value = params_domain_->UntypedParseCorpus(*ir_value);
+  if (!corpus_value) return std::nullopt;
+
+  bool valid = params_domain_->UntypedValidateCorpusValue(*corpus_value);
+  if (!valid) return std::nullopt;
+
+  return corpus_value;
 }
 
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {

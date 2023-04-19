@@ -30,40 +30,49 @@
 
 namespace fuzztest::internal {
 
-template <typename FlatMapper, typename... Inner>
+// FlatMap takes a domain factory function (flat mapper) and an input domain
+// for each parameter of the factory function. The output domain is what the
+// flat mapper returns and the domain that FlatMap represents. I.e., the "output
+// domain" is re-created dynamically, as it depends on values created by the
+// input domains.
+template <typename FlatMapper, typename... InputDomain>
 using FlatMapOutputDomain = std::decay_t<
-    std::invoke_result_t<FlatMapper, const value_type_t<Inner>&...>>;
+    std::invoke_result_t<FlatMapper, const value_type_t<InputDomain>&...>>;
 
-template <typename FlatMapper, typename... Inner>
+template <typename FlatMapper, typename... InputDomain>
 class FlatMapImpl
     : public DomainBase<
-          FlatMapImpl<FlatMapper, Inner...>,
-          value_type_t<FlatMapOutputDomain<FlatMapper, Inner...>>,
-          std::tuple<corpus_type_t<FlatMapOutputDomain<FlatMapper, Inner...>>,
-                     corpus_type_t<Inner>...>> {
- private:
-  using output_domain = std::decay_t<
-      std::invoke_result_t<FlatMapper, const value_type_t<Inner>&...>>;
-
+          FlatMapImpl<FlatMapper, InputDomain...>,
+          // The user value is the user value of the output domain.
+          value_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
+          // The corpus value is a tuple where the first element is the corpus
+          // value of the output domain, and the rest is the corpus value of the
+          // input domains.
+          std::tuple<
+              corpus_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
+              corpus_type_t<InputDomain>...>> {
  public:
   using typename FlatMapImpl::DomainBase::corpus_type;
   using typename FlatMapImpl::DomainBase::value_type;
 
   FlatMapImpl() = default;
-  explicit FlatMapImpl(FlatMapper mapper, Inner... inner)
-      : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
+  explicit FlatMapImpl(FlatMapper flat_mapper, InputDomain... input_domains)
+      : flat_mapper_(std::move(flat_mapper)),
+        input_domains_(std::move(input_domains)...) {}
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    auto inner_corpus = std::apply(
-        [&](auto&... inner) { return std::make_tuple(inner.Init(prng)...); },
-        inner_);
-    auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper_(
-          std::get<I>(inner_).GetValue(std::get<I>(inner_corpus))...);
+    auto input_corpus = std::apply(
+        [&](auto&... input_domains) {
+          return std::make_tuple(input_domains.Init(prng)...);
+        },
+        input_domains_);
+    auto output_domain = ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
+      return flat_mapper_(
+          std::get<I>(input_domains_).GetValue(std::get<I>(input_corpus))...);
     });
     return std::tuple_cat(std::make_tuple(output_domain.Init(prng)),
-                          inner_corpus);
+                          input_corpus);
   }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
@@ -74,9 +83,10 @@ class FlatMapImpl
     // re-initializing would lose the "still crashing" output value.
     bool mutate_inputs = !only_shrink && absl::Bernoulli(prng, 0.1);
     if (mutate_inputs) {
-      ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+      ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
         // The first field of `val` is the output corpus value, so skip it.
-        (std::get<I>(inner_).Mutate(std::get<I + 1>(val), prng, only_shrink),
+        (std::get<I>(input_domains_)
+             .Mutate(std::get<I + 1>(val), prng, only_shrink),
          ...);
       });
       std::get<0>(val) = GetOutputDomain(val).Init(prng);
@@ -101,40 +111,60 @@ class FlatMapImpl
   }
 
   auto GetPrinter() const {
-    return FlatMappedPrinter<FlatMapper, Inner...>{mapper_, inner_};
+    return FlatMappedPrinter<FlatMapper, InputDomain...>{flat_mapper_,
+                                                         input_domains_};
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    auto inner_corpus = ParseWithDomainTuple(inner_, obj, /*skip=*/1);
-    if (!inner_corpus.has_value()) {
+    auto input_corpus = ParseWithDomainTuple(input_domains_, obj, /*skip=*/1);
+    if (!input_corpus.has_value()) {
       return std::nullopt;
     }
-    auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper_(
-          std::get<I>(inner_).GetValue(std::get<I>(*inner_corpus))...);
+    auto output_domain = ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
+      return flat_mapper_(
+          std::get<I>(input_domains_).GetValue(std::get<I>(*input_corpus))...);
     });
     // We know obj.Subs()[0] exists because ParseWithDomainTuple succeeded.
     auto output_corpus = output_domain.ParseCorpus((*obj.Subs())[0]);
     if (!output_corpus.has_value()) {
       return std::nullopt;
     }
-    return std::tuple_cat(std::make_tuple(*output_corpus), *inner_corpus);
+    return std::tuple_cat(std::make_tuple(*output_corpus), *input_corpus);
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
-    auto domain = std::tuple_cat(std::make_tuple(GetOutputDomain(v)), inner_);
+    auto domain =
+        std::tuple_cat(std::make_tuple(GetOutputDomain(v)), input_domains_);
     return SerializeWithDomainTuple(domain, v);
   }
 
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    // Check input values first.
+    bool input_values_valid =
+        ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
+          return (std::get<I>(input_domains_)
+                      .ValidateCorpusValue(std::get<I + 1>(corpus_value)) &&
+                  ...);
+        });
+    if (!input_values_valid) return false;
+    // Check the output value.
+    return GetOutputDomain(corpus_value)
+        .ValidateCorpusValue(std::get<0>(corpus_value));
+  }
+
  private:
-  output_domain GetOutputDomain(const corpus_type& val) const {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+  using output_domain_t = std::decay_t<
+      std::invoke_result_t<FlatMapper, const value_type_t<InputDomain>&...>>;
+  output_domain_t GetOutputDomain(const corpus_type& val) const {
+    return ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
       // The first field of `val` is the output corpus value, so skip it.
-      return mapper_(std::get<I>(inner_).GetValue(std::get<I + 1>(val))...);
+      return flat_mapper_(
+          std::get<I>(input_domains_).GetValue(std::get<I + 1>(val))...);
     });
   }
-  FlatMapper mapper_;
-  std::tuple<Inner...> inner_;
+
+  FlatMapper flat_mapper_;
+  std::tuple<InputDomain...> input_domains_;
 };
 
 }  // namespace fuzztest::internal

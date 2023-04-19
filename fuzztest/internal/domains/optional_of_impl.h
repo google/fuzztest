@@ -112,20 +112,22 @@ class OptionalOfImpl
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    std::optional<corpus_type> result = ParseWithDomainOptional(inner_, obj);
-    if (!result.has_value()) {
-      return std::nullopt;
-    }
-    bool is_null = std::get_if<std::monostate>(&(*result));
-    if ((is_null && policy_ == OptionalPolicy::kWithoutNull) ||
-        (!is_null && policy_ == OptionalPolicy::kAlwaysNull)) {
-      return std::nullopt;
-    }
-    return result;
+    return ParseWithDomainOptional(inner_, obj);
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
     return SerializeWithDomainOptional(inner_, v);
+  }
+
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    bool is_null = std::get_if<std::monostate>(&corpus_value);
+    if (is_null) {
+      return policy_ != OptionalPolicy::kWithoutNull;
+    } else {
+      if (policy_ == OptionalPolicy::kAlwaysNull) return false;
+      // Validate inner object.
+      return inner_.ValidateCorpusValue(std::get<1>(corpus_value));
+    }
   }
 
   OptionalOfImpl& SetAlwaysNull() {

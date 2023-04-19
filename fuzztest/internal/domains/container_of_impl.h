@@ -56,15 +56,16 @@ template <typename ContainerDomain,
           typename ValueType = ExtractTemplateParameter<0, ContainerDomain>,
           typename InnerDomain = ExtractTemplateParameter<1, ContainerDomain>>
 using ContainerOfImplBaseCorpusType = std::conditional_t<
-    // Specialized handling of vector<bool> since you can't actually hold
-    // a reference to a single bit but instead get a proxy value.
-    is_bitvector_v<ValueType> ||
-        // If the container is associative we force a custom corpus type to
-        // allow modifying the keys.
-        is_associative_container_v<ValueType> ||
+    // We use std::list as corpus type if:
+    // 1) Container is vector<bool>, in order to be able to hold a reference to
+    // a single bit. Otherwise that would only be possible through the
+    // `reference` proxy class.
+    // 2) Container is associative, in order to allow modifying the keys.
+    // Otherwise the inner domain would be immutable (e.g., std::pair<const int,
+    // int> for maps).
+    // 3) Inner domain has custom corpus type.
+    is_bitvector_v<ValueType> || is_associative_container_v<ValueType> ||
         InnerDomain::has_custom_corpus_type,
-    // Corpus type might be immutable (eg std::pair<const int, int> for maps
-    // inner domain). We store them in a std::list to allow for this.
     std::list<corpus_type_t<InnerDomain>>, ValueType>;
 
 // Common base for container domains. Provides common APIs.
@@ -258,25 +259,35 @@ class ContainerOfImplBase
     if constexpr (!has_custom_corpus_type) {
       return value;
     } else {
-      corpus_type res;
+      corpus_type copus_value;
       for (const auto& elem : value) {
         auto inner_value = inner_.FromValue(elem);
         if (!inner_value) return std::nullopt;
-        res.push_back(*std::move(inner_value));
+        copus_value.push_back(*std::move(inner_value));
       }
-      return res;
+      return copus_value;
     }
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    std::optional<corpus_type> res = ParseCorpusWithoutValidation(obj);
-    if (res.has_value()) {
-      value_type v = GetValue(*res);
-      if (v.size() < min_size() || v.size() > max_size()) {
-        return std::nullopt;
+    // Use the generic serializer when no custom corpus type is used, since it
+    // is more efficient. Eg a string value can be serialized as a string
+    // instead of as a sequence of char values.
+    if constexpr (has_custom_corpus_type) {
+      auto subs = obj.Subs();
+      if (!subs) return std::nullopt;
+      corpus_type res;
+      for (const auto& elem : *subs) {
+        if (auto parsed_elem = inner_.ParseCorpus(elem)) {
+          res.insert(res.end(), std::move(*parsed_elem));
+        } else {
+          return std::nullopt;
+        }
       }
+      return res;
+    } else {
+      return obj.ToCorpus<corpus_type>();
     }
-    return res;
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
@@ -290,6 +301,20 @@ class ContainerOfImplBase
     } else {
       return IRObject::FromCorpus(v);
     }
+  }
+
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    // Check size.
+    if (corpus_value.size() < min_size() || corpus_value.size() > max_size()) {
+      return false;
+    }
+    // Check elements.
+    for (const auto& elem : corpus_value) {
+      if (!inner_.ValidateCorpusValue(elem)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   InnerDomainT Inner() const { return inner_; }
@@ -328,30 +353,9 @@ class ContainerOfImplBase
   }
 
  private:
-  // Use the generic serializer when no custom corpus type is used, since it is
-  // more efficient. Eg a string value can be serialized as a string instead of
-  // as a sequence of char values.
-  std::optional<corpus_type> ParseCorpusWithoutValidation(
-      const IRObject& obj) const {
-    if constexpr (has_custom_corpus_type) {
-      auto subs = obj.Subs();
-      if (!subs) return std::nullopt;
-      corpus_type res;
-      for (const auto& elem : *subs) {
-        if (auto parsed_elem = inner_.ParseCorpus(elem)) {
-          res.insert(res.end(), std::move(*parsed_elem));
-        } else {
-          return std::nullopt;
-        }
-      }
-      return res;
-    } else {
-      return obj.ToCorpus<corpus_type>();
-    }
-  }
-
   Derived& Self() { return static_cast<Derived&>(*this); }
 
+  // DO NOT use directly. Use min_size() and max_size() instead.
   size_t min_size_ = 0;
   std::optional<size_t> max_size_ = std::nullopt;
 

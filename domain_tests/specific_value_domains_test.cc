@@ -99,6 +99,19 @@ TEST(ElementOfTest, Colors) {
   ASSERT_THAT(found, UnorderedElementsAreArray(all_colors));
 }
 
+TEST(ElementOfTest, ValidationRejectsInvalidValue) {
+  auto domain_a = ElementOf({'a', 'b'});
+  auto domain_b = ElementOf({'a', 'b', 'c'});
+
+  auto corpus_value_a = domain_a.FromValue('a');
+  auto corpus_value_b = domain_b.FromValue('c');
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(*corpus_value_a));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(*corpus_value_b));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(*corpus_value_b));
+}
+
 TEST(Just, Basic) {
   absl::BitGen bitgen;
   auto domain = Just(3);

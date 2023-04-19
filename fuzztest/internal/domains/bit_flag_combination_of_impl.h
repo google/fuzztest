@@ -63,6 +63,8 @@ class BitFlagCombinationOfImpl
     }
   }
 
+  bool ValidateCorpusValue(const value_type&) const { return true; }
+
   auto GetPrinter() const { return AutodetectTypePrinter<T>(); }
 
  private:
