@@ -70,8 +70,6 @@ class UntypedDomainInterface {
       const GenericDomainCorpusType& val) = 0;
   virtual std::optional<GenericDomainCorpusType> UntypedParseCorpus(
       const IRObject& obj) const = 0;
-  virtual bool UntypedValidateCorpusValue(
-      const GenericDomainCorpusType& corpus_value) const = 0;
   virtual IRObject UntypedSerializeCorpus(
       const GenericDomainCorpusType& v) const = 0;
   virtual uint64_t UntypedCountNumberOfFields(
@@ -174,11 +172,6 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   IRObject UntypedSerializeCorpus(
       const GenericDomainCorpusType& v) const final {
     return derived().SerializeCorpus(v.template GetAs<CorpusType>());
-  }
-
-  bool UntypedValidateCorpusValue(
-      const GenericDomainCorpusType& corpus_value) const final {
-    return derived().ValidateCorpusValue(corpus_value.GetAs<CorpusType>());
   }
 
   uint64_t UntypedCountNumberOfFields(const GenericDomainCorpusType& v) final {

@@ -893,36 +893,6 @@ class ProtobufDomainUntypedImpl
     return out;
   }
 
-  struct ValidateVisitor {
-    const ProtobufDomainUntypedImpl& self;
-    const GenericDomainCorpusType& corpus_value;
-    bool& out;
-
-    template <typename T>
-    void VisitSingular(const FieldDescriptor* field) {
-      out =
-          self.GetSubDomain<T, false>(field).ValidateCorpusValue(corpus_value);
-    }
-
-    template <typename T>
-    void VisitRepeated(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, true>(field).ValidateCorpusValue(corpus_value);
-    }
-  };
-
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    for (auto& [field_number, inner_corpus_value] : corpus_value) {
-      auto* field = GetProtobufField(prototype_.Get(), field_number);
-      FUZZTEST_INTERNAL_CHECK(field,
-                              "Field not found by number: ", field_number);
-      bool result;
-      VisitProtobufField(field,
-                         ValidateVisitor{*this, inner_corpus_value, result});
-      if (!result) return false;
-    }
-    return true;
-  }
-
   auto GetPrinter() const { return ProtobufPrinter{}; }
 
   template <typename Inner>
@@ -1494,10 +1464,6 @@ class ProtobufDomainImpl
     return inner_.SerializeCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return inner_.ValidateCorpusValue(corpus_value);
-  }
-
   // Provide a conversion to the type that WithMessageField wants.
   // Makes it easier on the user.
   operator Domain<std::unique_ptr<typename T::Message>>() const {
@@ -1941,10 +1907,6 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
 
   auto GetPrinter() const {
     return ProtobufEnumPrinter<decltype(descriptor())>{descriptor()};
-  }
-
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Any number is fine.
   }
 
  private:

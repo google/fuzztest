@@ -214,8 +214,6 @@ struct StatefulIncrementDomain
     return internal::IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type&) const { return true; }
-
   auto GetPrinter() const { return internal::IntegralPrinter{}; }
 
   value_type i = 0;
@@ -616,46 +614,36 @@ TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
                              internal::ProtoExtender::ext));
 }
 
-TEST(ProtocolBuffer, ValidationRejectsUnexpectedSingularField) {
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenOptionalFieldsAreUnset) {
   using internal::TestProtobuf;
-
-  absl::BitGen bitgen;
-
-  Domain<TestProtobuf> domain_a =
+  Domain<TestProtobuf> test_domain =
       Arbitrary<TestProtobuf>().WithInt32FieldAlwaysSet("i32", InRange(1, 4));
-  Domain<TestProtobuf> domain_b =
+
+  Domain<TestProtobuf> generator_domain =
       Arbitrary<TestProtobuf>().WithInt32FieldUnset("i32");
 
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
 }
 
-TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedField) {
+TEST(ProtocolBuffer, IgnoresInvalidProtosWhenRepeatedFieldsAreUnset) {
   using internal::TestProtobuf;
-
-  absl::BitGen bitgen;
-
-  Domain<TestProtobuf> domain_a =
+  Domain<TestProtobuf> test_domain =
       Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
           "rep_i32", VectorOf(InRange(1, 4)).WithMinSize(1));
-  Domain<TestProtobuf> domain_b =
+
+  Domain<TestProtobuf> generator_domain =
       Arbitrary<TestProtobuf>().WithRepeatedInt32Field(
           "rep_i32", VectorOf(InRange(1, 4)).WithMaxSize(0));
 
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  absl::BitGen bitgen;
+  Value val(generator_domain, bitgen);
+  EXPECT_THAT(test_domain.ParseCorpus(
+                  generator_domain.SerializeCorpus(val.corpus_value)),
+              testing::Eq(std::nullopt));
 }
 
 TEST(ProtocolBufferEnum, Arbitrary) {

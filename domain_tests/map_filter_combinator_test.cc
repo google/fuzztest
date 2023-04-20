@@ -79,22 +79,6 @@ TEST(Map, AcceptsMultipleInnerDomains) {
               UnorderedElementsAre("AA", "AAA", "AAAA", "BB", "BBB", "BBBB"));
 }
 
-TEST(Map, ValidationRejectsInvalidValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = Map([](int a) { return ~a; }, InRange(0, 9));
-  auto domain_b = Map([](int a) { return ~a; }, InRange(10, 19));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
 TEST(FlatMap, WorksWithSameCorpusType) {
   auto domain = FlatMap([](int a) { return Just(~a); }, Arbitrary<int>());
   absl::BitGen bitgen;
@@ -138,22 +122,6 @@ TEST(FlatMap, SerializationRoundTrip) {
   Value value(domain, bitgen);
   auto serialized = domain.SerializeCorpus(value.corpus_value);
   EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
-}
-
-TEST(FlatMap, ValidationRejectsInvalidValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = FlatMap([](int a) { return Just(~a); }, InRange(0, 9));
-  auto domain_b = FlatMap([](int a) { return Just(~a); }, InRange(10, 19));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
 TEST(FlatMap, MutationAcceptsChangingDomains) {
@@ -251,24 +219,6 @@ TEST(Filter, WithSeedsFailsWhenConversionFromUserValueFails) {
       Filter([](int i) { return i % 2 == 0; }, Arbitrary<int>())
           .WithSeeds({41}),
       "Invalid seed value");
-}
-
-TEST(Filter, ValidationRejectsInvalidValue) {
-  absl::BitGen bitgen;
-
-  Domain<int> domain_a =
-      Filter([](int i) { return i % 2 == 0; }, InRange(1, 10));
-  Domain<int> domain_b =
-      Filter([](int i) { return i % 2 != 0; }, InRange(1, 10));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
 }  // namespace

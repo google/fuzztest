@@ -82,14 +82,6 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
     return SerializeWithDomainTuple(inner_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return (
-          std::get<I>(inner_).ValidateCorpusValue(std::get<I>(corpus_value)) &&
-          ...);
-    });
-  }
-
  private:
   Mapper mapper_;
   std::tuple<Inner...> inner_;

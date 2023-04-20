@@ -73,22 +73,5 @@ TEST(SmartPointerOf, CanMakeValuesOrNull) {
   TestSmartPointer(SmartPointerOf<MyCustomSmartPointer>(InRange(1, 3)));
 }
 
-// TODO(b/277974548): Add support for NonNull(SmartPointerOf(...)).
-// TEST(SmartPointerOf, ValidationRejectsInvalidValue) {
-//   absl::BitGen bitgen;
-
-//   auto domain_a = NonNull(UniquePtrOf(InRange(0, 9)));
-//   auto domain_b = NonNull(UniquePtrOf(InRange(10, 19)));
-
-//   Value value_a(domain_a, bitgen);
-//   Value value_b(domain_b, bitgen);
-
-//   ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-//   ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-//   EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-//   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-// }
-
 }  // namespace
 }  // namespace fuzztest

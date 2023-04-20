@@ -66,15 +66,14 @@ class FilterImpl
   auto GetPrinter() const { return inner_.GetPrinter(); }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return inner_.ParseCorpus(obj);
+    auto inner_value = inner_.ParseCorpus(obj);
+    if (!inner_value || !predicate_(GetValue(*inner_value)))
+      return std::nullopt;
+    return inner_value;
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
     return inner_.SerializeCorpus(v);
-  }
-
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return predicate_(GetValue(corpus_value));
   }
 
  private:

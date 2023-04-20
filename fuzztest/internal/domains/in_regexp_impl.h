@@ -114,21 +114,6 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
     return dfa_.StringToDFAPath(v);
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    auto subs = obj.Subs();
-    if (!subs) return std::nullopt;
-    if (subs->size() % 2 != 0) return std::nullopt;
-    corpus_type corpus_value;
-    for (size_t i = 0; i < subs->size(); i += 2) {
-      auto from_state_id = (*subs)[i].ToCorpus<int>();
-      auto edge_index = (*subs)[i + 1].ToCorpus<int>();
-      if (!from_state_id.has_value() || !edge_index.has_value())
-        return std::nullopt;
-      corpus_value.push_back(RegexpDFA::Edge{*from_state_id, *edge_index});
-    }
-    return corpus_value;
-  }
-
   IRObject SerializeCorpus(const corpus_type& path) const {
     IRObject obj;
     auto& subs = obj.MutableSubs();
@@ -139,9 +124,22 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
     return obj;
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    auto subs = obj.Subs();
+    if (!subs) return std::nullopt;
+    if (subs->size() % 2 != 0) return std::nullopt;
+    corpus_type res;
+    for (size_t i = 0; i < subs->size(); i += 2) {
+      auto from_state_id = (*subs)[i].ToCorpus<int>();
+      auto edge_index = (*subs)[i + 1].ToCorpus<int>();
+      if (!from_state_id.has_value() || !edge_index.has_value())
+        return std::nullopt;
+      res.push_back(RegexpDFA::Edge{*from_state_id, *edge_index});
+    }
+
     // Check whether this is a valid path in the DFA.
-    return dfa_.DFAPathToString(corpus_value).has_value();
+    if (!dfa_.DFAPathToString(res).has_value()) return std::nullopt;
+    return res;
   }
 
  private:

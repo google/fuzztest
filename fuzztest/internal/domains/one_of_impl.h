@@ -115,13 +115,6 @@ class OneOfImpl
     return SerializeWithDomainVariant(domains_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return Switch<kNumDomains>(corpus_value.index(), [&](auto I) {
-      return std::get<I>(domains_).ValidateCorpusValue(
-          std::get<I>(corpus_value));
-    });
-  }
-
  private:
   static constexpr size_t kNumDomains = sizeof...(Inner);
   static_assert(kNumDomains > 0, "OneOf requires a non-empty list.");

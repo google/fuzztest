@@ -92,15 +92,14 @@ class ElementOfImpl
   auto GetPrinter() const { return AutodetectTypePrinter<T>(); }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return obj.ToCorpus<corpus_type>();
+    auto as_corpus = obj.ToCorpus<corpus_type>();
+    if (!as_corpus || static_cast<size_t>(*as_corpus) >= values_.size())
+      return std::nullopt;
+    return as_corpus;
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
     return IRObject::FromCorpus(v);
-  }
-
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return static_cast<size_t>(corpus_value) < values_.size();
   }
 
  private:

@@ -155,8 +155,12 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     } while (val == prev);  // Make sure Mutate really mutates.
   }
 
-  bool ValidateCorpusValue(const value_type& corpus_value) const {
-    return (min_ <= corpus_value && corpus_value <= max_);
+  std::optional<value_type> ParseCorpus(const IRObject& obj) const {
+    auto as_corpus = obj.ToCorpus<value_type>();
+    if (!as_corpus || *as_corpus > max_ || *as_corpus < min_) {
+      return std::nullopt;
+    }
+    return as_corpus;
   }
 
   auto GetPrinter() const {

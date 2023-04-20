@@ -171,22 +171,6 @@ TEST(OneOf, SwitchesDomains) {
   ASSERT_THAT(found, UnorderedElementsAreArray(all_colors));
 }
 
-TEST(OneOf, ValidationRejectsInvalidValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = OneOf(InRange(0, 3), InRange(5, 7));
-  auto domain_b = OneOf(InRange(10, 12), InRange(15, 17));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
 }  // namespace
 }  // namespace fuzztest
 

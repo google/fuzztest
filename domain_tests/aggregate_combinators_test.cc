@@ -261,22 +261,6 @@ TEST(VariantOf, WorksWithACustomVariantType) {
   EXPECT_THAT(v, AnyOf(VariantWith<int>(_), VariantWith<double>(_)));
 }
 
-TEST(Variantof, ValidationRejectsInvalidValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = VariantOf(InRange(0, 9), InRange(0.4, 9.1));
-  auto domain_b = VariantOf(InRange(10, 19), InRange(11.4, 19.1));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
 TEST(OptionalOf, InitCanMakeValuesOrNull) {
   auto domain = OptionalOf(InRange(1, 3));
   Set<std::optional<int>> values;
@@ -344,54 +328,6 @@ TEST(OptionalOf, DoesntGenerateNulloptWhenPolicySet) {
 TEST(OptionalOfDeathTest, FromValueOnNulloptDiesWhenPolicySetToAlwaysSet) {
   auto domain = NonNull(OptionalOf(Arbitrary<int>()));
   EXPECT_DEATH(domain.FromValue(std::nullopt), "cannot be null");
-}
-
-TEST(OptionalOf, ValidationRejectsInvalidNullness) {
-  absl::BitGen bitgen;
-
-  auto domain_a = NonNull(OptionalOf(Arbitrary<int>()));
-  auto domain_b = NullOpt<int>();
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
-TEST(OptionalOf, ValidationRejectsInvalidInnerValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = NonNull(OptionalOf(InRange(0, 9)));
-  auto domain_b = NonNull(OptionalOf(InRange(10, 19)));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
-TEST(TupleOf, ValidationRejectsInvalidInnerValue) {
-  absl::BitGen bitgen;
-
-  auto domain_a = TupleOf(Arbitrary<int>(), InRange(0, 9));
-  auto domain_b = TupleOf(Arbitrary<int>(), InRange(10, 99));
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
 }  // namespace

@@ -206,7 +206,6 @@ void VerifyRoundTripThroughConversion(const Value<Domain>& v,
   {
     auto corpus_value = domain.FromValue(v.user_value);
     ASSERT_TRUE(corpus_value) << v;
-    ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
     auto new_v = domain.GetValue(*corpus_value);
     EXPECT_TRUE(Eq{}(v.user_value, new_v))
         << "v=" << v << " new_v=" << testing::PrintToString(new_v);
@@ -218,7 +217,6 @@ void VerifyRoundTripThroughConversion(const Value<Domain>& v,
     auto parsed_corpus = domain.ParseCorpus(*parsed);
     ASSERT_TRUE(parsed_corpus)
         << serialized << " value = " << testing::PrintToString(v.user_value);
-    ASSERT_TRUE(domain.ValidateCorpusValue(*parsed_corpus));
     EXPECT_TRUE(Eq{}(v.user_value, domain.GetValue(*parsed_corpus)));
   }
 }

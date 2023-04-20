@@ -98,11 +98,6 @@ class SmartPointerOfImpl
     return SerializeWithDomainOptional(GetOrMakeInnerConst(), v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return (corpus_value.index() == 0) ||
-           GetOrMakeInnerConst().ValidateCorpusValue(std::get<1>(corpus_value));
-  }
-
  private:
   RealInner& GetOrMakeInner() {
     if (inner_.index() == 0) {

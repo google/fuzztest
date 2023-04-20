@@ -137,8 +137,6 @@ class Domain {
     return inner_->TypedFromValue(v);
   }
 
-  // Parses corpus value _without validating it_. Validation must be done with
-  // ValidateCorpusValue().
   std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
     return inner_->UntypedParseCorpus(obj);
   }
@@ -146,13 +144,6 @@ class Domain {
   internal::IRObject SerializeCorpus(const corpus_type& v) const {
     return inner_->UntypedSerializeCorpus(v);
   }
-
-  // After creating a corpus value, either via ParseCorpus() or via FromValue()
-  // this method is used to determine if the corpus value is valid.
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return inner_->UntypedValidateCorpusValue(corpus_value);
-  }
-
   // TODO(JunyangShao): Get rid of this API so it won't be exposed
   // to outside.
   // Return the field counts of `val` if `val` is
@@ -305,10 +296,6 @@ class DomainBuilder {
       return GetInnerDomain().SerializeCorpus(v);
     }
 
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-      return GetInnerDomain().ValidateCorpusValue(corpus_value);
-    }
-
    private:
     Domain<T>& GetInnerDomain() const {
       return indirect_inner_->GetAs<Domain<T>>();
@@ -358,10 +345,6 @@ class DomainBuilder {
 
     internal::IRObject SerializeCorpus(const corpus_type& v) const {
       return inner_.SerializeCorpus(v);
-    }
-
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-      return inner_.ValidateCorpusValue(corpus_value);
     }
 
    private:
