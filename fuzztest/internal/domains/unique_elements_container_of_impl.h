@@ -85,6 +85,10 @@ class UniqueElementsContainerImpl
     return unique_domain_.SerializeCorpus(v);
   }
 
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    return unique_domain_.ValidateCorpusValue(corpus_value);
+  }
+
   auto& WithSize(size_t s) { return WithMinSize(s).WithMaxSize(s); }
   auto& WithMinSize(size_t s) {
     unique_domain_.WithMinSize(s);

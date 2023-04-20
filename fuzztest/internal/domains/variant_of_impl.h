@@ -98,6 +98,12 @@ class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>, T,
     return SerializeWithDomainVariant(inner_, v);
   }
 
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    return Switch<sizeof...(Inner)>(corpus_value.index(), [&](auto I) {
+      return std::get<I>(inner_).ValidateCorpusValue(std::get<I>(corpus_value));
+    });
+  }
+
  private:
   std::tuple<Inner...> inner_;
 };

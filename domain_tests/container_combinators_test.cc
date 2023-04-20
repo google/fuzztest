@@ -187,6 +187,38 @@ TYPED_TEST(ContainerTest, InitGeneratesSeeds) {
   EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
 }
 
+TEST(Container, ValidationRejectsInvalidSize) {
+  absl::BitGen bitgen;
+
+  auto domain_a = Arbitrary<std::vector<int>>().WithSize(2);
+  auto domain_b = Arbitrary<std::vector<int>>().WithSize(3);
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+}
+
+TEST(Container, ValidationRejectsInvalidElements) {
+  absl::BitGen bitgen;
+
+  auto domain_a = VectorOf(InRange(0, 9)).WithMinSize(1);
+  auto domain_b = VectorOf(InRange(10, 12)).WithMinSize(1);
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+}
+
 TEST(ContainerCombinatorTest, ValueTypeOfListContainerIsInferred) {
   for (const auto& value :
        GenerateValues(ContainerOf<std::list>(Positive<int>()).WithSize(3))) {
@@ -418,6 +450,22 @@ TEST(ContainerCombinatorTest, UniqueElementsVectorOfVectorOfInt) {
     ASSERT_THAT(value.user_value,
                 Each(AllOf(SizeIs(3), Each(IsInClosedRange(500, 1000)))));
   }
+}
+
+TEST(UniqueElementsVectorOf, ValidationRejectsInvalidValue) {
+  absl::BitGen bitgen;
+
+  auto domain_a = UniqueElementsVectorOf(InRange(0, 9)).WithMinSize(1);
+  auto domain_b = UniqueElementsVectorOf(InRange(10, 19)).WithMinSize(1);
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
 TEST(ContainerCombinatorTest, ArrayOfOne) {

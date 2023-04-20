@@ -190,7 +190,30 @@ TYPED_TEST(NumericTest, ShrinkingWorksForInRange) {
                   .ok());
 }
 
-TYPED_TEST(NumericTest, InRangeDeserializesCorrectly) {
+TYPED_TEST(NumericTest, InRangeValidationRejectsInvalidRange) {
+  using T = TypeParam;
+
+  absl::BitGen bitgen;
+
+  const T min_a = std::numeric_limits<T>::is_signed ? -100 : 10;
+  const T max_a = 42;
+  const T min_b = 48;
+  const T max_b = std::numeric_limits<T>::max();
+
+  Domain<T> domain_a = InRange<T>(min_a, max_a);
+  Domain<T> domain_b = InRange<T>(min_b, max_b);
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+}
+
+TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
   using T = TypeParam;
   const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
   const T max = 120;
@@ -203,19 +226,20 @@ TYPED_TEST(NumericTest, InRangeDeserializesCorrectly) {
       : is_at_most_64_bit_integer      ? "i: $0"
                                        : R"(sub { i: 0 } sub { i: $0 })";
 
-  EXPECT_TRUE(
-      domain
-          .ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
-              "FUZZTESTv1 ",
-              absl::Substitute(serialized_format, static_cast<int32_t>(max)))))
-          .has_value());
-  // Greater than max should not be true
-  EXPECT_FALSE(
-      domain
-          .ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
-              "FUZZTESTv1 ", absl::Substitute(serialized_format,
-                                              static_cast<int32_t>(max) + 1))))
-          .has_value());
+  auto corpus_value =
+      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
+          "FUZZTESTv1 ",
+          absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
+  ASSERT_TRUE(corpus_value.has_value());
+  EXPECT_TRUE(domain.ValidateCorpusValue(*corpus_value));
+
+  corpus_value =
+      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
+          "FUZZTESTv1 ",
+          absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
+  // Greater than max should be parsed, but rejected by validation.
+  ASSERT_TRUE(corpus_value.has_value());
+  EXPECT_FALSE(domain.ValidateCorpusValue(*corpus_value));
 }
 
 TYPED_TEST(NumericTest, NonZero) {

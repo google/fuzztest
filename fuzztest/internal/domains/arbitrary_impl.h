@@ -73,6 +73,10 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
 
   void Mutate(value_type&, absl::BitGenRef, bool) {}
 
+  bool ValidateCorpusValue(const value_type&) const {
+    return true;  // Nothing to validate.
+  }
+
   auto GetPrinter() const { return MonostatePrinter{}; }
 };
 
@@ -91,6 +95,10 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
     } else {
       val = !val;
     }
+  }
+
+  bool ValidateCorpusValue(const value_type&) const {
+    return true;  // Nothing to validate.
   }
 
   auto GetPrinter() const { return IntegralPrinter{}; }
@@ -170,6 +178,10 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     }
   }
 
+  bool ValidateCorpusValue(const value_type&) const {
+    return true;  // Nothing to validate.
+  }
+
   auto GetPrinter() const { return IntegralPrinter{}; }
 
  private:
@@ -228,6 +240,10 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
 
       // Make sure Mutate really mutates.
     } while (val == prev || (std::isnan(prev) && std::isnan(val)));
+  }
+
+  bool ValidateCorpusValue(const value_type&) const {
+    return true;  // Nothing to validate.
   }
 
   auto GetPrinter() const { return FloatingPrinter{}; }
@@ -295,6 +311,10 @@ class ArbitraryImpl<std::basic_string_view<Char>>
 
   IRObject SerializeCorpus(const corpus_type& v) const {
     return IRObject::FromCorpus(v);
+  }
+
+  bool ValidateCorpusValue(const corpus_type&) const {
+    return true;  // Nothing to validate.
   }
 
  private:

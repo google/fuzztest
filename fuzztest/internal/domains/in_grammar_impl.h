@@ -673,6 +673,13 @@ class InGrammarImpl
     return TopDomain::ParseCorpus(obj);
   }
 
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    // Validation is currently done during Parsing, and UserToCorpusValue() is
+    // not supported yet.
+    // TODO(lszekeres): Refactor so that validation happens here instead.
+    return true;
+  }
+
  private:
   bool ShrinkByReplaceWithSubElementOfSameType(ASTNode& astnode,
                                                absl::BitGenRef prng) {

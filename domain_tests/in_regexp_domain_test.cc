@@ -173,6 +173,20 @@ TEST(InRegexp, OnlyShrinkFindsDifferentValueWithMinimalLength) {
   }
 }
 
+TEST(InRegexp, ValidationRejectsInvalidValue) {
+  auto domain_a = InRegexp("a(c|d)+(e|f)+b");
+  auto domain_b = InRegexp("A{2,10}D{2,10}");
+
+  auto corpus_value_a = domain_a.FromValue("acceeb");
+  auto corpus_value_b = domain_b.FromValue("AADD");
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(*corpus_value_a));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(*corpus_value_b));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(*corpus_value_b));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(*corpus_value_a));
+}
+
 struct InRegexString {
   std::string regexp;
   std::string string_in_domain;
@@ -182,10 +196,11 @@ using InRegexpTest = ::testing::TestWithParam<InRegexString>;
 TEST_P(InRegexpTest, SerializationWorksCorrectly) {
   auto [regexp, string_in_domain] = GetParam();
   auto domain = InRegexp(regexp);
-  auto corpus = domain.FromValue(string_in_domain);
-  FUZZTEST_INTERNAL_CHECK(corpus.has_value(), "Invalid corpus");
+  auto corpus_value = domain.FromValue(string_in_domain);
+  ASSERT_TRUE(corpus_value.has_value());
+  ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
 
-  EXPECT_THAT(domain.ParseCorpus(domain.SerializeCorpus(*corpus)),
+  EXPECT_THAT(domain.ParseCorpus(domain.SerializeCorpus(*corpus_value)),
               Optional(ResultOf(
                   [&](const auto& parsed_corpus) {
                     return domain.GetValue(parsed_corpus);
