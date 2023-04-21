@@ -36,7 +36,8 @@ namespace fuzztest::internal {
 
 using DFAPath = std::vector<RegexpDFA::Edge>;
 
-class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
+class InRegexpImpl : public DomainBase<InRegexpImpl, /*UserValueT=*/std::string,
+                                       /*CorpusValueT=*/DFAPath> {
  public:
   explicit InRegexpImpl(std::string_view regex_str)
       : dfa_(RegexpDFA::Create(regex_str)) {}
@@ -104,21 +105,21 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
 
   auto GetPrinter() const { return StringPrinter{}; }
 
-  value_type GetValue(const corpus_type& v) const {
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
     std::optional<std::string> val = dfa_.DFAPathToString(v);
     FUZZTEST_INTERNAL_CHECK(val.has_value(), "Corpus is invalid!");
     return *val;
   }
 
-  std::optional<corpus_type> FromValue(const value_type& v) const {
+  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
     return dfa_.StringToDFAPath(v);
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    auto subs = obj.Subs();
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    auto subs = ir.Subs();
     if (!subs) return std::nullopt;
     if (subs->size() % 2 != 0) return std::nullopt;
-    corpus_type corpus_value;
+    corpus_value_t corpus_value;
     for (size_t i = 0; i < subs->size(); i += 2) {
       auto from_state_id = (*subs)[i].ToCorpus<int>();
       auto edge_index = (*subs)[i + 1].ToCorpus<int>();
@@ -129,17 +130,17 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
     return corpus_value;
   }
 
-  IRObject SerializeCorpus(const corpus_type& path) const {
-    IRObject obj;
-    auto& subs = obj.MutableSubs();
+  IrValue CorpusToIrValue(const corpus_value_t& path) const {
+    IrValue ir;
+    auto& subs = ir.MutableSubs();
     for (const auto& edge : path) {
-      subs.push_back(IRObject::FromCorpus(edge.from_state_id));
-      subs.push_back(IRObject::FromCorpus(edge.edge_index));
+      subs.push_back(IrValue::FromCorpus(edge.from_state_id));
+      subs.push_back(IrValue::FromCorpus(edge.edge_index));
     }
-    return obj;
+    return ir;
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     // Check whether this is a valid path in the DFA.
     return dfa_.DFAPathToString(corpus_value).has_value();
   }

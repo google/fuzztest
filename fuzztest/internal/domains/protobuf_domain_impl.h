@@ -309,7 +309,7 @@ class ProtoPolicy {
       if constexpr (std::is_same_v<T, Domain<std::unique_ptr<Message>>>) {
         absl::BitGen gen;
         auto domain = filter_to_values[i].value;
-        auto obj = domain.GetValue(domain.Init(gen));
+        auto obj = domain.CorpusToUserValue(domain.Init(gen));
         auto* descriptor = obj->GetDescriptor();
         FUZZTEST_INTERNAL_CHECK_PRECONDITION(
             descriptor->full_name() == field->message_type()->full_name(),
@@ -403,14 +403,14 @@ template <typename Message>
 class ProtobufDomainUntypedImpl
     : public DomainBase<ProtobufDomainUntypedImpl<Message>,
                         std::unique_ptr<Message>,
-                        absl::flat_hash_map<int, GenericDomainCorpusType>> {
+                        absl::flat_hash_map<int, GenericCorpusValue>> {
   using Descriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
   using OneofDescriptor = ProtobufOneofDescriptor<Message>;
 
  public:
-  using typename ProtobufDomainUntypedImpl::DomainBase::corpus_type;
-  using typename ProtobufDomainUntypedImpl::DomainBase::value_type;
+  using typename ProtobufDomainUntypedImpl::DomainBase::corpus_value_t;
+  using typename ProtobufDomainUntypedImpl::DomainBase::user_value_t;
 
   explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype)
       : prototype_(std::move(prototype)),
@@ -435,7 +435,7 @@ class ProtobufDomainUntypedImpl
   static void InitializeFieldValue(absl::BitGenRef prng,
                                    const ProtobufDomainUntypedImpl& self,
                                    const FieldDescriptor* field,
-                                   corpus_type& val) {
+                                   corpus_value_t& val) {
     auto& domain = self.GetSubDomain<T, false>(field);
     val[field->number()] = domain.Init(prng);
     if (auto* oneof = field->containing_oneof()) {
@@ -452,7 +452,7 @@ class ProtobufDomainUntypedImpl
   struct InitializeVisitor {
     absl::BitGenRef prng;
     ProtobufDomainUntypedImpl& self;
-    corpus_type& val;
+    corpus_value_t& val;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
@@ -497,14 +497,14 @@ class ProtobufDomainUntypedImpl
     }
   }
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     FUZZTEST_INTERNAL_CHECK(
         !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
     const auto* descriptor = prototype_.Get()->GetDescriptor();
     SetOneofFieldsPoliciesToWithoutNullWhereNeeded(descriptor);
-    corpus_type val;
+    corpus_value_t val;
     absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
@@ -536,7 +536,7 @@ class ProtobufDomainUntypedImpl
     absl::BitGenRef prng;
     bool only_shrink;
     ProtobufDomainUntypedImpl& self;
-    corpus_type& val;
+    corpus_value_t& val;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
@@ -575,22 +575,22 @@ class ProtobufDomainUntypedImpl
         // }
         //
         // The generic code is not doing dedup and it would only happen some
-        // time after GetValue when the map field is synchronized between
-        // reflection and codegen. Let's do it eagerly to drop dead entries so
-        // that we don't keep mutating them later.
+        // time after CorpusToUserValue when the map field is synchronized
+        // between reflection and codegen. Let's do it eagerly to drop dead
+        // entries so that we don't keep mutating them later.
         //
         // TODO(b/231212420): Improve mutation to not add duplicate keys on the
         // first place. The current hack is very inefficient.
         // Switch the inner domain for maps to use flat_hash_map instead.
-        corpus_type corpus_copy;
+        corpus_value_t corpus_copy;
         auto& copy = corpus_copy[field->number()] = it->second;
         domain.Mutate(copy, prng, only_shrink);
-        auto v = self.GetValue(corpus_copy);
+        auto v = self.CorpusToUserValue(corpus_copy);
         // We need to roundtrip through serialization to really dedup. The
         // reflection API alone doesn't cut it.
         v->ParsePartialFromString(v->SerializePartialAsString());
         if (v->GetReflection()->FieldSize(*v, field) ==
-            domain.GetValue(copy).size()) {
+            domain.CorpusToUserValue(copy).size()) {
           // The number of entries is the same, so accept the change.
           it->second = std::move(copy);
         }
@@ -600,7 +600,7 @@ class ProtobufDomainUntypedImpl
     }
   };
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_value_t& val) {
     uint64_t total_weight = 0;
     auto* descriptor = prototype_.Get()->GetDescriptor();
     if (descriptor->field_count() == 0) return total_weight;
@@ -630,7 +630,7 @@ class ProtobufDomainUntypedImpl
     return total_weight;
   }
 
-  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+  uint64_t MutateSelectedField(corpus_value_t& val, absl::BitGenRef prng,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
@@ -669,7 +669,7 @@ class ProtobufDomainUntypedImpl
     return field_counter;
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     auto* descriptor = prototype_.Get()->GetDescriptor();
     if (descriptor->field_count() == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
@@ -679,15 +679,15 @@ class ProtobufDomainUntypedImpl
     MutateSelectedField(val, prng, only_shrink, selected_weight);
   }
 
-  struct GetValueVisitor {
+  struct CorpusToUserValueVisitor {
     Message& message;
     const ProtobufDomainUntypedImpl& self;
-    const GenericDomainCorpusType& data;
+    const GenericCorpusValue& data;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, false>(field);
-      auto value = domain.GetValue(data);
+      auto value = domain.CorpusToUserValue(data);
       if (!value.has_value()) {
         FUZZTEST_INTERNAL_CHECK_PRECONDITION(
             !field->is_required(), "required field '",
@@ -709,48 +709,49 @@ class ProtobufDomainUntypedImpl
     void VisitRepeated(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, true>(field);
       if constexpr (std::is_same_v<T, ProtoMessageTag>) {
-        for (auto& v : domain.GetValue(data)) {
+        for (auto& v : domain.CorpusToUserValue(data)) {
           message.GetReflection()->AddAllocatedMessage(&message, field,
                                                        v.release());
         }
       } else if constexpr (std::is_same_v<T, ProtoEnumTag>) {
-        for (const auto& v : domain.GetValue(data)) {
+        for (const auto& v : domain.CorpusToUserValue(data)) {
           message.GetReflection()->AddEnumValue(&message, field, v);
         }
       } else {
-        for (const auto& v : domain.GetValue(data)) {
+        for (const auto& v : domain.CorpusToUserValue(data)) {
           ProtocolBufferAccess<Message, T>(&message, field).AddRepeatedField(v);
         }
       }
     }
   };
 
-  value_type GetValue(const corpus_type& value) const {
-    value_type out(prototype_.Get()->New());
+  user_value_t CorpusToUserValue(const corpus_value_t& value) const {
+    user_value_t out(prototype_.Get()->New());
 
     for (auto& [number, data] : value) {
       auto* field = GetProtobufField(prototype_.Get(), number);
-      VisitProtobufField(field, GetValueVisitor{*out, *this, data});
+      VisitProtobufField(field, CorpusToUserValueVisitor{*out, *this, data});
     }
 
     return out;
   }
 
-  std::optional<corpus_type> FromValue(const value_type& value) const {
-    return FromValue(*value);
+  std::optional<corpus_value_t> UserToCorpusValue(
+      const user_value_t& value) const {
+    return UserToCorpusValue(*value);
   }
 
-  struct FromValueVisitor {
+  struct UserToCorpusValueVisitor {
     const Message& message;
-    corpus_type& out;
+    corpus_value_t& out;
     const ProtobufDomainUntypedImpl& self;
 
     // TODO(sbenzaquen): We might want to try avoid these copies. On the other hand,
-    // FromValue is not called much so it might be ok.
+    // UserToCorpusValue is not called much so it might be ok.
     template <typename T>
     bool VisitSingular(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, false>(field);
-      value_type_t<std::decay_t<decltype(domain)>> inner_value;
+      user_value_t_of<std::decay_t<decltype(domain)>> inner_value;
       auto* reflection = message.GetReflection();
       if constexpr (std::is_same_v<T, ProtoMessageTag>) {
         const auto& child = reflection->GetMessage(message, field);
@@ -762,7 +763,7 @@ class ProtobufDomainUntypedImpl
         inner_value =
             ProtocolBufferAccess<Message, T>::GetField(message, field);
       }
-      auto inner = domain.FromValue(inner_value);
+      auto inner = domain.UserToCorpusValue(inner_value);
       if (!inner) return false;
       out[field->number()] = *std::move(inner);
       return true;
@@ -771,7 +772,7 @@ class ProtobufDomainUntypedImpl
     template <typename T>
     bool VisitRepeated(const FieldDescriptor* field) {
       auto& domain = self.GetSubDomain<T, true>(field);
-      value_type_t<std::decay_t<decltype(domain)>> inner_value;
+      user_value_t_of<std::decay_t<decltype(domain)>> inner_value;
       auto* reflection = message.GetReflection();
       const int size = reflection->FieldSize(message, field);
       for (int i = 0; i < size; ++i) {
@@ -790,20 +791,21 @@ class ProtobufDomainUntypedImpl
         }
       }
 
-      auto inner = domain.FromValue(inner_value);
+      auto inner = domain.UserToCorpusValue(inner_value);
       if (!inner) return false;
       out[field->number()] = *std::move(inner);
       return true;
     }
   };
 
-  std::optional<corpus_type> FromValue(const Message& value) const {
-    corpus_type ret;
+  std::optional<corpus_value_t> UserToCorpusValue(const Message& value) const {
+    corpus_value_t ret;
     auto* reflection = value.GetReflection();
     std::vector<const FieldDescriptor*> fields;
     reflection->ListFields(value, &fields);
     for (auto field : fields) {
-      if (!VisitProtobufField(field, FromValueVisitor{value, ret, *this}))
+      if (!VisitProtobufField(field,
+                              UserToCorpusValueVisitor{value, ret, *this}))
         return std::nullopt;
     }
     return ret;
@@ -811,23 +813,23 @@ class ProtobufDomainUntypedImpl
 
   struct ParseVisitor {
     const ProtobufDomainUntypedImpl& self;
-    const IRObject& obj;
-    std::optional<GenericDomainCorpusType>& out;
+    const IrValue& ir;
+    std::optional<GenericCorpusValue>& out;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, false>(field).ParseCorpus(obj);
+      out = self.GetSubDomain<T, false>(field).IrToCorpusValue(ir);
     }
 
     template <typename T>
     void VisitRepeated(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, true>(field).ParseCorpus(obj);
+      out = self.GetSubDomain<T, true>(field).IrToCorpusValue(ir);
     }
   };
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    corpus_type out;
-    auto subs = obj.Subs();
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    corpus_value_t out;
+    auto subs = ir.Subs();
     if (!subs) return std::nullopt;
     absl::flat_hash_set<int> present_fields;
     for (const auto& sub : *subs) {
@@ -838,7 +840,7 @@ class ProtobufDomainUntypedImpl
       auto* field = GetProtobufField(prototype_.Get(), *number);
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
-      std::optional<GenericDomainCorpusType> inner_parsed;
+      std::optional<GenericCorpusValue> inner_parsed;
       VisitProtobufField(field,
                          ParseVisitor{*this, (*pair_subs)[1], inner_parsed});
       if (!inner_parsed) return std::nullopt;
@@ -850,12 +852,12 @@ class ProtobufDomainUntypedImpl
       const FieldDescriptor* field =
           prototype_.Get()->GetDescriptor()->field(field_index);
       if (present_fields.contains(field->number())) continue;
-      std::optional<GenericDomainCorpusType> inner_parsed;
-      IRObject unset_value;
+      std::optional<GenericCorpusValue> inner_parsed;
+      IrValue unset_value;
       if (field->is_repeated()) {
-        unset_value = IRObject(std::vector<IRObject>{});
+        unset_value = IrValue(std::vector<IrValue>{});
       } else {
-        unset_value = IRObject(std::vector<IRObject>{IRObject(0)});
+        unset_value = IrValue(std::vector<IrValue>{IrValue(0)});
       }
       VisitProtobufField(field, ParseVisitor{*this, unset_value, inner_parsed});
       if (!inner_parsed) return std::nullopt;
@@ -865,26 +867,26 @@ class ProtobufDomainUntypedImpl
 
   struct SerializeVisitor {
     const ProtobufDomainUntypedImpl& self;
-    const GenericDomainCorpusType& corpus_value;
-    IRObject& out;
+    const GenericCorpusValue& corpus_value;
+    IrValue& out;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, false>(field).SerializeCorpus(corpus_value);
+      out = self.GetSubDomain<T, false>(field).CorpusToIrValue(corpus_value);
     }
     template <typename T>
     void VisitRepeated(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, true>(field).SerializeCorpus(corpus_value);
+      out = self.GetSubDomain<T, true>(field).CorpusToIrValue(corpus_value);
     }
   };
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
-    IRObject out;
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
+    IrValue out;
     auto& subs = out.MutableSubs();
     for (auto& [number, inner] : v) {
       auto* field = GetProtobufField(prototype_.Get(), number);
       FUZZTEST_INTERNAL_CHECK(field, "Field not found by number: ", number);
-      IRObject& pair = subs.emplace_back();
+      IrValue& pair = subs.emplace_back();
       auto& pair_subs = pair.MutableSubs();
       pair_subs.emplace_back(number);
       VisitProtobufField(
@@ -895,7 +897,7 @@ class ProtobufDomainUntypedImpl
 
   struct ValidateVisitor {
     const ProtobufDomainUntypedImpl& self;
-    const GenericDomainCorpusType& corpus_value;
+    const GenericCorpusValue& corpus_value;
     bool& out;
 
     template <typename T>
@@ -910,7 +912,7 @@ class ProtobufDomainUntypedImpl
     }
   };
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     for (auto& [field_number, inner_corpus_value] : corpus_value) {
       auto* field = GetProtobufField(prototype_.Get(), field_number);
       FUZZTEST_INTERNAL_CHECK(field,
@@ -932,7 +934,7 @@ class ProtobufDomainUntypedImpl
 
     template <bool is_repeated, typename T>
     Descriptor* GetDescriptor(const T& val) const {
-      auto v = domain.GetValue(val);
+      auto v = domain.CorpusToUserValue(val);
       if constexpr (is_repeated) {
         if (v.empty()) return nullptr;
         return v[0]->GetDescriptor();
@@ -1315,7 +1317,7 @@ class ProtobufDomainUntypedImpl
   auto GetDomainForField(const FieldDescriptor* field,
                          bool use_policy = true) const {
     auto base_domain = GetBaseDomainForFieldType<T>(field, use_policy);
-    using field_cpptype = value_type_t<std::decay_t<decltype(base_domain)>>;
+    using field_cpptype = user_value_t_of<std::decay_t<decltype(base_domain)>>;
     if constexpr (is_repeated) {
       return Domain<std::vector<field_cpptype>>(
           GetOuterDomainForField<is_repeated>(field, base_domain, use_policy));
@@ -1446,61 +1448,64 @@ class ProtobufDomainUntypedImpl
   absl::flat_hash_map<int, OptionalPolicy> oneof_fields_policies_;
 };
 
-// Domain for `T` where `T` is a Protobuf message type.
+// Domain for `UserValueT` where `UserValueT` is a Protobuf message type.
 // It is a small wrapper around `ProtobufDomainUntypedImpl` to make its API more
 // convenient.
-template <typename T,
-          typename UntypedImpl = ProtobufDomainUntypedImpl<typename T::Message>>
+template <typename UserValueT,
+          typename UntypedImpl =
+              ProtobufDomainUntypedImpl<typename UserValueT::Message>>
 class ProtobufDomainImpl
-    : public DomainBase<ProtobufDomainImpl<T>, T, corpus_type_t<UntypedImpl>> {
+    : public DomainBase<ProtobufDomainImpl<UserValueT>, UserValueT,
+                        corpus_value_t_of<UntypedImpl>> {
  public:
-  using typename ProtobufDomainImpl::DomainBase::corpus_type;
-  using typename ProtobufDomainImpl::DomainBase::value_type;
-  using FieldDescriptor = ProtobufFieldDescriptor<typename T::Message>;
+  using typename ProtobufDomainImpl::DomainBase::corpus_value_t;
+  using typename ProtobufDomainImpl::DomainBase::user_value_t;
+  using FieldDescriptor = ProtobufFieldDescriptor<typename UserValueT::Message>;
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return inner_.Init(prng);
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_value_t& val) {
     return inner_.CountNumberOfFields(val);
   }
 
-  uint64_t MutateNumberOfProtoFields(corpus_type& val) {
+  uint64_t MutateNumberOfProtoFields(corpus_value_t& val) {
     return inner_.MutateNumberOfProtoFields(val);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     inner_.Mutate(val, prng, only_shrink);
   }
 
-  value_type GetValue(const corpus_type& v) const {
-    auto inner_v = inner_.GetValue(v);
-    return std::move(static_cast<T&>(*inner_v));
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+    auto inner_v = inner_.CorpusToUserValue(v);
+    return std::move(static_cast<UserValueT&>(*inner_v));
   }
 
-  std::optional<corpus_type> FromValue(const value_type& value) const {
-    return inner_.FromValue(value);
+  std::optional<corpus_value_t> UserToCorpusValue(
+      const user_value_t& value) const {
+    return inner_.UserToCorpusValue(value);
   }
 
   auto GetPrinter() const { return ProtobufPrinter{}; }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return inner_.ParseCorpus(obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return inner_.IrToCorpusValue(ir);
   }
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
-    return inner_.SerializeCorpus(v);
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
+    return inner_.CorpusToIrValue(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     return inner_.ValidateCorpusValue(corpus_value);
   }
 
   // Provide a conversion to the type that WithMessageField wants.
   // Makes it easier on the user.
-  operator Domain<std::unique_ptr<typename T::Message>>() const {
+  operator Domain<std::unique_ptr<typename UserValueT::Message>>() const {
     return inner_;
   }
 
@@ -1630,7 +1635,7 @@ class ProtobufDomainImpl
   }
 
 #define FUZZTEST_INTERNAL_WITH_FIELD(Camel, cpp, TAG)                          \
-  using Camel##type = MakeDependentType<cpp, T>;                               \
+  using Camel##type = MakeDependentType<cpp, UserValueT>;                      \
   ProtobufDomainImpl&& With##Camel##Field(absl::string_view field,             \
                                           Domain<Camel##type> domain)&& {      \
     const FieldDescriptor* descriptor = inner_.GetField(field);                \
@@ -1685,14 +1690,14 @@ class ProtobufDomainImpl
   }                                                                            \
   ProtobufDomainImpl&& WithOptional##Camel##Field(                             \
       absl::string_view field,                                                 \
-      Domain<MakeDependentType<std::optional<cpp>, T>> domain)&& {             \
+      Domain<MakeDependentType<std::optional<cpp>, UserValueT>> domain)&& {    \
     FailIfIsOneof(field);                                                      \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& WithRepeated##Camel##Field(                             \
       absl::string_view field,                                                 \
-      Domain<MakeDependentType<std::vector<cpp>, T>> domain)&& {               \
+      Domain<MakeDependentType<std::vector<cpp>, UserValueT>> domain)&& {      \
     inner_.WithField(field, std::move(domain));                                \
     return std::move(*this);                                                   \
   }                                                                            \
@@ -1761,7 +1766,8 @@ class ProtobufDomainImpl
   FUZZTEST_INTERNAL_WITH_FIELD(Double, double, double)
   FUZZTEST_INTERNAL_WITH_FIELD(String, std::string, std::string)
   FUZZTEST_INTERNAL_WITH_FIELD(Enum, int, ProtoEnumTag)
-  FUZZTEST_INTERNAL_WITH_FIELD(Protobuf, std::unique_ptr<typename T::Message>,
+  FUZZTEST_INTERNAL_WITH_FIELD(Protobuf,
+                               std::unique_ptr<typename UserValueT::Message>,
                                ProtoMessageTag)
 
 #undef FUZZTEST_INTERNAL_WITH_FIELD
@@ -1849,27 +1855,28 @@ class ProtobufDomainImpl
   }
 
   template <typename Inner>
-  Domain<std::unique_ptr<typename T::Message>> ToUntypedProtoDomain(
+  Domain<std::unique_ptr<typename UserValueT::Message>> ToUntypedProtoDomain(
       Inner inner_domain) {
-    return internal::MapImpl<std::function<std::unique_ptr<typename T::Message>(
-                                 value_type_t<Inner>)>,
-                             Inner>(
-        [](value_type_t<Inner> proto_message)
-            -> std::unique_ptr<typename T::Message> {
-          return {std::make_unique<value_type_t<Inner>>(proto_message)};
+    return internal::MapImpl<
+        std::function<std::unique_ptr<typename UserValueT::Message>(
+            user_value_t_of<Inner>)>,
+        Inner>(
+        [](user_value_t_of<Inner> proto_message)
+            -> std::unique_ptr<typename UserValueT::Message> {
+          return {std::make_unique<user_value_t_of<Inner>>(proto_message)};
         },
         std::move(inner_domain));
   }
 
   template <typename Inner>
-  Domain<std::optional<std::unique_ptr<typename T::Message>>>
+  Domain<std::optional<std::unique_ptr<typename UserValueT::Message>>>
   ToOptionalUntypedProtoDomain(Inner inner_domain) {
-    return internal::MapImpl<
-        std::function<std::optional<std::unique_ptr<typename T::Message>>(
-            value_type_t<Inner>)>,
-        Inner>(
-        [](value_type_t<Inner> proto_message)
-            -> std::optional<std::unique_ptr<typename T::Message>> {
+    return internal::MapImpl<std::function<std::optional<
+                                 std::unique_ptr<typename UserValueT::Message>>(
+                                 user_value_t_of<Inner>)>,
+                             Inner>(
+        [](user_value_t_of<Inner> proto_message)
+            -> std::optional<std::unique_ptr<typename UserValueT::Message>> {
           if (!proto_message.has_value()) return std::nullopt;
           return {std::make_unique<
               std::remove_reference_t<decltype(*proto_message)>>(
@@ -1879,15 +1886,15 @@ class ProtobufDomainImpl
   }
 
   template <typename Inner>
-  Domain<std::vector<std::unique_ptr<typename T::Message>>>
+  Domain<std::vector<std::unique_ptr<typename UserValueT::Message>>>
   ToRepeatedUntypedProtoDomain(Inner inner_domain) {
-    return internal::MapImpl<
-        std::function<std::vector<std::unique_ptr<typename T::Message>>(
-            value_type_t<Inner>)>,
-        Inner>(
-        [](value_type_t<Inner> proto_message)
-            -> std::vector<std::unique_ptr<typename T::Message>> {
-          std::vector<std::unique_ptr<typename T::Message>> result;
+    return internal::MapImpl<std::function<std::vector<
+                                 std::unique_ptr<typename UserValueT::Message>>(
+                                 user_value_t_of<Inner>)>,
+                             Inner>(
+        [](user_value_t_of<Inner> proto_message)
+            -> std::vector<std::unique_ptr<typename UserValueT::Message>> {
+          std::vector<std::unique_ptr<typename UserValueT::Message>> result;
           for (auto& entry : proto_message) {
             result.push_back(
                 std::make_unique<std::remove_reference_t<decltype(entry)>>(
@@ -1898,7 +1905,7 @@ class ProtobufDomainImpl
         std::move(inner_domain));
   }
 
-  UntypedImpl inner_{&T::default_instance()};
+  UntypedImpl inner_{&UserValueT::default_instance()};
 };
 
 template <typename T>
@@ -1909,15 +1916,15 @@ template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using typename ArbitraryImpl::DomainBase::value_type;
+  using typename ArbitraryImpl::DomainBase::user_value_t;
 
-  value_type Init(absl::BitGenRef prng) {
+  user_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const int index = absl::Uniform(prng, 0, descriptor()->value_count());
     return static_cast<T>(descriptor()->value(index)->number());
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(user_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink) {
       std::vector<int> numbers;
       for (int i = 0; i < descriptor()->value_count(); ++i) {
@@ -1943,7 +1950,7 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     return ProtobufEnumPrinter<decltype(descriptor())>{descriptor()};
   }
 
-  bool ValidateCorpusValue(const value_type&) const {
+  bool ValidateCorpusValue(const user_value_t&) const {
     return true;  // Any number is fine.
   }
 

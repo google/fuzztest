@@ -60,7 +60,7 @@ void (*crash_handler_hook)();
 
 void Runtime::DumpReproducer(std::string_view outdir) const {
   const std::string content =
-      current_args_->domain.UntypedSerializeCorpus(current_args_->corpus_value)
+      current_args_->domain.UntypedCorpusToIrValue(current_args_->corpus_value)
           .ToString();
   const std::string filename = WriteDataToDir(content, outdir);
 
@@ -265,7 +265,7 @@ void Runtime::PrintFinalStatsOnDefaultSink() const {}
 void Runtime::PrintReportOnDefaultSink() const {}
 #endif  // __linux__
 
-using corpus_type = GenericDomainCorpusType;
+using corpus_value_t = GenericCorpusValue;
 
 FuzzTestFuzzerImpl::FuzzTestFuzzerImpl(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
@@ -291,11 +291,12 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
   Runtime::instance().DisableReporter();
 }
 
-std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
-  auto ir_value = IRObject::FromString(data);
+std::optional<corpus_value_t> FuzzTestFuzzerImpl::TryParse(
+    std::string_view data) {
+  auto ir_value = IrValue::FromString(data);
   if (!ir_value) return std::nullopt;
 
-  auto corpus_value = params_domain_->UntypedParseCorpus(*ir_value);
+  auto corpus_value = params_domain_->UntypedIrToCorpusValue(*ir_value);
   if (!corpus_value) return std::nullopt;
 
   bool valid = params_domain_->UntypedValidateCorpusValue(*corpus_value);
@@ -337,7 +338,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
-        params_domain_->UntypedSerializeCorpus(*to_minimize).ToString();
+        params_domain_->UntypedCorpusToIrValue(*to_minimize).ToString();
 
     // In minimize mode we keep mutating the given reproducer value with
     // `only_shrink=true` until we crash. We drop mutations that don't
@@ -356,7 +357,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
       // now.
-      if (params_domain_->UntypedSerializeCorpus(copy).ToString() ==
+      if (params_domain_->UntypedCorpusToIrValue(copy).ToString() ==
           original_serialized) {
         continue;
       }
@@ -387,7 +388,7 @@ std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
   return files;
 }
 
-std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
+std::optional<corpus_value_t> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
   auto file = absl::NullSafeStringView(getenv("FUZZTEST_MINIMIZE_REPRODUCER"));
   if (file.empty()) return std::nullopt;
 
@@ -553,7 +554,7 @@ FuzzTestFuzzerImpl::TryReadCorpusFromFiles() {
 void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   if (corpus_out_dir_.empty()) return;
   if (WriteDataToDir(
-          params_domain_->UntypedSerializeCorpus(input.args).ToString(),
+          params_domain_->UntypedCorpusToIrValue(input.args).ToString(),
           corpus_out_dir_)
           .empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write corpus file.\n");
@@ -651,13 +652,13 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
 FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     const Input& input) {
   ++stats_.runs;
-  auto untyped_args = params_domain_->UntypedGetValue(input.args);
+  auto untyped_args = params_domain_->UntypedCorpusToUserValue(input.args);
   Runtime::Args debug_args{input.args, *params_domain_};
   runtime_.SetCurrentArgs(&debug_args);
 
   // Reset and observe the coverage map and start tracing in
   // the tightest scope possible. In particular, we can't include the call
-  // to GetValue in the scope as it will run user code.
+  // to CorpusToUserValue in the scope as it will run user code.
   if (execution_coverage_ != nullptr) {
     execution_coverage_->ResetState();
   }
@@ -713,9 +714,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // not actually change the value, or we have reached a minimum that can't be
     // minimized anymore.
     if (params_domain_
-            ->UntypedSerializeCorpus(minimal_non_fatal_counterexample_->args)
+            ->UntypedCorpusToIrValue(minimal_non_fatal_counterexample_->args)
             .ToString() !=
-        params_domain_->UntypedSerializeCorpus(copy.args).ToString()) {
+        params_domain_->UntypedCorpusToIrValue(copy.args).ToString()) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {

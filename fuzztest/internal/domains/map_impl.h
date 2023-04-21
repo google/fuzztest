@@ -29,61 +29,66 @@
 
 namespace fuzztest::internal {
 
-template <typename Mapper, typename... Inner>
-class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
-                                  std::decay_t<std::invoke_result_t<
-                                      Mapper, const value_type_t<Inner>&...>>,
-                                  std::tuple<corpus_type_t<Inner>...>> {
+template <typename Mapper, typename... InnerDomains>
+class MapImpl
+    : public DomainBase<MapImpl<Mapper, InnerDomains...>,
+                        /*UserValueT=*/
+                        std::decay_t<std::invoke_result_t<
+                            Mapper, const user_value_t_of<InnerDomains>&...>>,
+                        /*CorpusValueT=*/
+                        std::tuple<corpus_value_t_of<InnerDomains>...>> {
  public:
-  using typename MapImpl::DomainBase::corpus_type;
-  using typename MapImpl::DomainBase::value_type;
+  using typename MapImpl::DomainBase::corpus_value_t;
+  using typename MapImpl::DomainBase::user_value_t;
 
   MapImpl() = default;
-  explicit MapImpl(Mapper mapper, Inner... inner)
+  explicit MapImpl(Mapper mapper, InnerDomains... inner)
       : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
 
-  MapImpl(absl::string_view map_function_name, Mapper mapper, Inner... inner)
+  MapImpl(absl::string_view map_function_name, Mapper mapper,
+          InnerDomains... inner)
       : mapper_(std::move(mapper)),
         inner_(std::move(inner)...),
         map_function_name_(map_function_name) {}
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::apply(
-        [&](auto&... inner) { return corpus_type(inner.Init(prng)...); },
+        [&](auto&... inner) { return corpus_value_t(inner.Init(prng)...); },
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+    return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
       (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
     });
   }
 
-  value_type GetValue(const corpus_type& v) const {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper_(std::get<I>(inner_).GetValue(std::get<I>(v))...);
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+    return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
+      return mapper_(std::get<I>(inner_).CorpusToUserValue(std::get<I>(v))...);
     });
   }
 
-  std::optional<corpus_type> FromValue(const value_type&) const {
+  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t&) const {
     return std::nullopt;
   }
 
   auto GetPrinter() const {
-    return MappedPrinter<Mapper, Inner...>{mapper_, inner_, map_function_name_};
+    return MappedPrinter<Mapper, InnerDomains...>{mapper_, inner_,
+                                                  map_function_name_};
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return ParseWithDomainTuple(inner_, obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return ParseWithDomainTuple(inner_, ir);
   }
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
     return SerializeWithDomainTuple(inner_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
+    return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
       return (
           std::get<I>(inner_).ValidateCorpusValue(std::get<I>(corpus_value)) &&
           ...);
@@ -92,7 +97,7 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
 
  private:
   Mapper mapper_;
-  std::tuple<Inner...> inner_;
+  std::tuple<InnerDomains...> inner_;
   absl::string_view map_function_name_;
 };
 

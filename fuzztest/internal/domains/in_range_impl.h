@@ -36,7 +36,7 @@ namespace fuzztest::internal {
 template <typename T>
 class InRangeImpl : public DomainBase<InRangeImpl<T>> {
  public:
-  using typename InRangeImpl::DomainBase::value_type;
+  using typename InRangeImpl::DomainBase::user_value_t;
 
   constexpr static bool T_is_integer = std::numeric_limits<T>::is_integer;
   constexpr static bool T_is_signed = std::is_signed<T>::value;
@@ -82,7 +82,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     }
   }
 
-  value_type Init(absl::BitGenRef prng) {
+  user_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // TODO(sbenzaquen): Add more interesting points in the range.
     const T special[] = {min_, max_};
@@ -91,7 +91,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     });
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(user_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     if (min_ == max_) {
       val = min_;
       return;
@@ -155,7 +155,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     } while (val == prev);  // Make sure Mutate really mutates.
   }
 
-  bool ValidateCorpusValue(const value_type& corpus_value) const {
+  bool ValidateCorpusValue(const user_value_t& corpus_value) const {
     return (min_ <= corpus_value && corpus_value <= max_);
   }
 
@@ -167,7 +167,7 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     }
   }
 
-  void UpdateMemoryDictionary(const value_type& val) {
+  void UpdateMemoryDictionary(const user_value_t& val) {
     if constexpr (T_is_memory_dictionary_compatible) {
       if (GetExecutionCoverage() != nullptr) {
         temporary_dict_.MatchEntriesFromTableOfRecentCompares(

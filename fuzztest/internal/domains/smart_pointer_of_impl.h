@@ -28,37 +28,38 @@
 
 namespace fuzztest::internal {
 
-template <typename T, typename Inner,
+template <typename UserValueT, typename InnerDomain,
           // We use the type erased version here to allow for recursion in smart
           // pointer domains. It helps cut the recursion in type traits (like
-          // corpus_type) and the indirection avoids having the domain contain
-          // itself by value.
-          typename RealInner = Domain<typename T::element_type>>
+          // corpus_value_t) and the indirection avoids having the domain
+          // contain itself by value.
+          typename RealInnerDomain = Domain<typename UserValueT::element_type>>
 class SmartPointerOfImpl
     : public DomainBase<
-          SmartPointerOfImpl<T, Inner>, T,
-          std::variant<std::monostate, corpus_type_t<RealInner>>> {
-  using InnerFn = const RealInner& (*)();
+          SmartPointerOfImpl<UserValueT, InnerDomain>, UserValueT,
+          /*CorpusValueT=*/
+          std::variant<std::monostate, corpus_value_t_of<RealInnerDomain>>> {
+  using InnerFn = const RealInnerDomain& (*)();
 
  public:
-  using typename SmartPointerOfImpl::DomainBase::corpus_type;
-  using typename SmartPointerOfImpl::DomainBase::value_type;
+  using typename SmartPointerOfImpl::DomainBase::corpus_value_t;
+  using typename SmartPointerOfImpl::DomainBase::user_value_t;
 
   // Since we allow for recursion in this domain, we want to delay the
   // construction of the inner domain. Otherwise we would have an infinite
   // recursion of domains being created.
   explicit SmartPointerOfImpl(InnerFn fn) : inner_(fn) {}
-  explicit SmartPointerOfImpl(Inner inner) : inner_(std::move(inner)) {}
+  explicit SmartPointerOfImpl(InnerDomain inner) : inner_(std::move(inner)) {}
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // Init will always have an empty smart pointer to reduce nesting.
     // Otherwise it is very easy to get a stack overflow during Init() when
     // there is recursion in the domains.
-    return corpus_type();
+    return corpus_value_t();
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     const bool has_value = val.index() == 1;
     if (!has_value) {
       // Only add a value if we are not shrinking.
@@ -72,52 +73,53 @@ class SmartPointerOfImpl
   }
 
   auto GetPrinter() const {
-    return OptionalPrinter<SmartPointerOfImpl, RealInner>{
+    return OptionalPrinter<SmartPointerOfImpl, RealInnerDomain>{
         *this, GetOrMakeInnerConst()};
   }
 
-  value_type GetValue(const corpus_type& v) const {
-    if (v.index() == 0) return value_type();
-    return value_type(new auto(GetOrMakeInnerConst().GetValue(std::get<1>(v))));
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+    if (v.index() == 0) return user_value_t();
+    return user_value_t(
+        new auto(GetOrMakeInnerConst().CorpusToUserValue(std::get<1>(v))));
   }
 
-  std::optional<corpus_type> FromValue(const value_type& v) const {
-    if (!v) return corpus_type(std::in_place_index<0>);
-    if (auto inner_value = GetOrMakeInnerConst().FromValue(*v)) {
-      return corpus_type(std::in_place_index<1>, *std::move(inner_value));
+  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
+    if (!v) return corpus_value_t(std::in_place_index<0>);
+    if (auto inner_value = GetOrMakeInnerConst().UserToCorpusValue(*v)) {
+      return corpus_value_t(std::in_place_index<1>, *std::move(inner_value));
     } else {
       return std::nullopt;
     }
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return ParseWithDomainOptional(GetOrMakeInnerConst(), obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return ParseWithDomainOptional(GetOrMakeInnerConst(), ir);
   }
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
     return SerializeWithDomainOptional(GetOrMakeInnerConst(), v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     return (corpus_value.index() == 0) ||
            GetOrMakeInnerConst().ValidateCorpusValue(std::get<1>(corpus_value));
   }
 
  private:
-  RealInner& GetOrMakeInner() {
+  RealInnerDomain& GetOrMakeInner() {
     if (inner_.index() == 0) {
       inner_.template emplace<1>(std::get<0>(inner_)());
     }
     return std::get<1>(inner_);
   }
 
-  const RealInner& GetOrMakeInnerConst() const {
+  const RealInnerDomain& GetOrMakeInnerConst() const {
     return inner_.index() == 0 ? std::get<0>(inner_)() : std::get<1>(inner_);
   }
 
   // We don't construct it eagerly to avoid an infinite recursion during
   // default construction. We only construct the sub domain on demand.
-  std::variant<InnerFn, RealInner> inner_;
+  std::variant<InnerFn, RealInnerDomain> inner_;
 };
 
 }  // namespace fuzztest::internal

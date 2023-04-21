@@ -133,7 +133,7 @@ TEST(OneOf, Mutate) {
   for (int i = 0; i < kRuns; ++i) {
     int k = absl::Uniform(bitgen, -kMax, kMax);
     Value v(domain, bitgen);
-    // Construct the internal corpus_type representation from the integer.
+    // Construct the internal corpus_value_t representation from the integer.
     if (k < 0) {
       v.corpus_value = std::variant<int, int>(std::in_place_index_t<0>{}, k);
     } else {

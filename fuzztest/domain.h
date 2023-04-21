@@ -67,104 +67,186 @@
 
 namespace fuzztest {
 
-// Type erased version of the domain concept.
-// It can be constructed from any object that follows the domain concept for the
-// right `value_type`. This class implements the domain concept too.
-// TODO(sbenzaquen): Document the domain concept when it is stable enough.
-
-template <typename T>
+// Type erased version of the Domain concept.
+//
+// It can be constructed from any object that follows the Domain concept for the
+// right `UserValueT`. This class implements the Domain concept itself.
+template <typename UserValueT>
 class Domain {
  public:
-  using value_type = T;
-  using corpus_type = internal::GenericDomainCorpusType;
-  static constexpr bool has_custom_corpus_type = true;
+  // Domains deal with three different types:
+  //
+  // 1) The "user value type" is the user-facing type that serves as the basis
+  //    for values represented by the domain. E.g., the user value type of:
+  //
+  //      Domain<std::string> d = InRegexp("a+");
+  //
+  //    is std::string, as the InRegexp domain represents std::strings.
+  //
+  using user_value_t = UserValueT;
+
+  // 2) The "corpus value type" is the internal type the domain works on. E.g.,
+  //    for InRegexp() this is a data structure that represents paths through
+  //    the Deterministic Finite Automaton (DFA) representing the given regular
+  //    expression.
+  //
+  //    In this typed erased Domain, we use a generic type erased type (similar
+  //    to std::any) to store any corpus value type.
+  //
+  using corpus_value_t = internal::GenericCorpusValue;
+
+  // 3) Finally, the IrValue is an intermediate representation for
+  //    serialization. Corpus values are serialized by first transforming them
+  //    into an IrValue (then to a string), and parsed the other way around.
+  //    Note that while user_value_t and corpus_value_t can be many different
+  //    types, there's only a single IrValue.
+
+  // TODO(lszekeres): Get rid of this:
+  static constexpr bool has_custom_corpus_value_t = true;
 
   // Intentionally not marked as explicit to allow implicit conversion from the
-  // internal domain implementations.
-  template <int&... ExplicitArgumentBarrier, typename Inner,
-            typename CorpusType>
-  Domain(const internal::DomainBase<Inner, T, CorpusType>& inner)
+  // inner domain implementations.
+  template <typename Inner, typename CorpusValueT>
+  Domain(const internal::DomainBase<Inner, UserValueT, CorpusValueT>& inner)
       : inner_(new auto(static_cast<const Inner&>(inner))) {}
 
   Domain(const Domain& other) { *this = other; }
   Domain& operator=(const Domain& other) {
-    inner_.reset(static_cast<internal::TypedDomainInterface<T>*>(
+    inner_.reset(static_cast<internal::TypedDomainInterface<UserValueT>*>(
         other.inner_->Clone().release()));
     return *this;
   }
   // No default constructor or move operations to avoid a null state.
 
-  // Init() generates a random value of corpus_type.
+  // TODO(b/245995117): Add the following API:
   //
-  // The generated value can often be a "special value" (e.g., 0, MAX_INT, NaN,
-  // infinity, empty vector, etc.). For basic, fixed sized data types (e.g.,
-  // optional<int>) Init() might give any value. For variable-sized data types
-  // (e.g., containers, linked lists, trees, etc) Init() typically returns a
-  // smaller sized value. Larger sized values however can be created through
-  // Mutate() calls.
+  // GetRandomValue() returns a random user value of the Domain. This is useful
+  // e.g., for generation-based black-box fuzzing, when coverage-guided fuzzing
+  // is not possible. Or for other use cases when manually sampling a Domain
+  // makes sense (e.g., get random values for benchmarking). These are the only
+  // uses cases Domains should be directly used by users, and this is the only
+  // method that users should call.
+  //
+  // user_value_t GetRandomValue() const {}
+
+  // The methods below are used by the FuzzTest framwork.
+
+  // Init() generates a random value of corpus_value_t.
+  //
+  // Used to create initial values for fuzzing. The generated value can often be
+  // a "special value" (e.g., 0, MAX_INT, NaN, infinity, empty vector, etc.).
+  // For basic, fixed sized data types (e.g., optional<int>) Init() might give
+  // any value. For variable-sized data types (e.g., containers, linked lists,
+  // trees, etc) Init() typically returns a smaller sized value. Larger sized
+  // values however can be created through Mutate() calls.
   //
   // ENSURES: That Init() is non-deterministic, i.e., it doesn't always return
   // the same value. This is because Mutate() often relies on Init() giving
   // different values (e.g., when growing a std::set<T> and adding new T
   // values).
-  corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
-
-  // Mutate() makes a relatively small modification on `val` of corpus_type.
-  //
-  // When `only_shrink` is enabled, the mutated value is always "simpler" (e.g.,
-  // smaller).
-  //
-  // ENSURES: That the mutated value is not the same as the original.
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    return inner_->UntypedMutate(val, prng, only_shrink);
+  corpus_value_t Init(absl::BitGenRef prng) {
+    return inner_->UntypedInit(prng);
   }
 
+  // Mutate() makes a relatively small modification on `corpus_value`.
+  //
+  // Used during coverage-guided fuzzing. When `only_shrink` is enabled, the
+  // mutated value is always "simpler" (e.g., smaller). This is used for input
+  // minimization ("shrinking").
+  //
+  // ENSURES: That the mutated value is not the same as the original.
+  void Mutate(corpus_value_t& corpus_value, absl::BitGenRef prng,
+              bool only_shrink) {
+    return inner_->UntypedMutate(corpus_value, prng, only_shrink);
+  }
+
+  // The methods below are responsible for transforming between the above
+  // described three types that Domains deal with. Here's a quick overview:
+  //
+  //       +-- CorpusToUserValue() --+        +-- IrToCorpusValue() --+
+  //       |                         |        |                       |
+  //       v                         |        v                       |
+  //
+  //  user_value_t                 corpus_value_t                  IrValue
+  //
+  //       |                         ^        |                       ^
+  //       |                         |        |                       |
+  //       +-- UserToCorpusValue() --+        +-> CorpusToIrValue() --+
+
+  // Turns `corpus_value` into the user value.
+  //
+  // Used before passing the user value to the property function.
+  user_value_t CorpusToUserValue(const corpus_value_t& corpus_value) const {
+    return inner_->TypedCorpusToUserValue(corpus_value);
+  }
+
+  // Turns `user_value` back to a corpus values, *without validation*.
+  //
+  // This is necessary to support WithSeeds() for a domain: WithSeeds() takes
+  // user values. In order to mutate the provided seeds, they need to be turned
+  // into corpus values first. Some domains might not support this method.
+  //
+  // Note that validation must be done with ValidateCorpusValue() after calling
+  // this function.
+  std::optional<corpus_value_t> UserToCorpusValue(
+      const user_value_t& user_value) const {
+    return inner_->TypedUserToCorpusValue(user_value);
+  }
+
+  // Turns `ir_value` to corpus value, *without validation*.
+  //
+  // This is used during parsing.
+  //
+  // Note that validation must be done with ValidateCorpusValue() after parsing.
+  std::optional<corpus_value_t> IrToCorpusValue(
+      const internal::IrValue& ir_value) const {
+    return inner_->UntypedIrToCorpusValue(ir_value);
+  }
+
+  // Turns `corpus_value` into an IrValue.
+  //
+  // Used for serialization.
+  internal::IrValue CorpusToIrValue(const corpus_value_t& corpus_value) const {
+    return inner_->UntypedCorpusToIrValue(corpus_value);
+  }
+
+  // Checks the validity of the corpus value, e.g., if it matches the Domain's
+  // constraints.
+  //
+  // After creating a corpus value, either via IrToCorpusValue() or via
+  // UserToCorpusValue(), this method should be called to determine if the
+  // corpus value is valid.
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
+    return inner_->UntypedValidateCorpusValue(corpus_value);
+  }
+
+  // Returns the printer to be used to print values.
+  auto GetPrinter() const { return Printer{*inner_}; }
+
+  // TODO(lszekeres): Get rid of this API.
+  //
   // Try to update the dynamic memory dictionary.
   // If it propagates to a domain that's compatible with dynamic
   // dictionary, it will try to match and save dictionary entries from
   // dynamic data collected by SanCov.
-  void UpdateMemoryDictionary(const corpus_type& val) {
+  void UpdateMemoryDictionary(const corpus_value_t& val) {
     return inner_->UntypedUpdateMemoryDictionary(val);
   }
 
-  auto GetPrinter() const { return Printer{*inner_}; }
-
-  value_type GetValue(const corpus_type& v) const {
-    return inner_->TypedGetValue(v);
-  }
-
-  std::optional<corpus_type> FromValue(const value_type& v) const {
-    return inner_->TypedFromValue(v);
-  }
-
-  // Parses corpus value _without validating it_. Validation must be done with
-  // ValidateCorpusValue().
-  std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
-    return inner_->UntypedParseCorpus(obj);
-  }
-
-  internal::IRObject SerializeCorpus(const corpus_type& v) const {
-    return inner_->UntypedSerializeCorpus(v);
-  }
-
-  // After creating a corpus value, either via ParseCorpus() or via FromValue()
-  // this method is used to determine if the corpus value is valid.
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return inner_->UntypedValidateCorpusValue(corpus_value);
-  }
-
-  // TODO(JunyangShao): Get rid of this API so it won't be exposed
-  // to outside.
+  // TODO(lszekeres): Get rid of this API.
+  //
   // Return the field counts of `val` if `val` is
-  // a `ProtobufDomainImpl::corpus_type`. Otherwise propagate it
+  // a `ProtobufDomainImpl::corpus_value_t`. Otherwise propagate it
   // to inner domains and returns the sum of inner results.
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_value_t& val) {
     return inner_->UntypedCountNumberOfFields(val);
   }
 
+  // TODO(lszekeres): Get rid of this API.
+  //
   // Mutate the selected protobuf field using `selected_field_index`.
   // Return value is the same as CountNumberOfFields.
-  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+  uint64_t MutateSelectedField(corpus_value_t& val, absl::BitGenRef prng,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     return inner_->UntypedMutateSelectedField(val, prng, only_shrink,
@@ -180,13 +262,14 @@ class Domain {
 
   struct Printer {
     const internal::UntypedDomainInterface& inner;
-    void PrintCorpusValue(const corpus_type& val, absl::FormatRawSink out,
+    void PrintCorpusValue(const corpus_value_t& val, absl::FormatRawSink out,
                           internal::PrintMode mode) const {
       inner.UntypedPrintCorpusValue(val, out, mode);
     }
   };
 
-  std::unique_ptr<internal::TypedDomainInterface<T>> inner_;
+  // The wrapped inner domain.
+  std::unique_ptr<internal::TypedDomainInterface<UserValueT>> inner_;
 };
 
 class DomainBuilder {
@@ -265,47 +348,48 @@ class DomainBuilder {
   template <typename T>
   class IndirectDomain
       : public internal::DomainBase<IndirectDomain<T>,
-                                    internal::value_type_t<Domain<T>>,
-                                    internal::corpus_type_t<Domain<T>>> {
+                                    internal::user_value_t_of<Domain<T>>,
+                                    internal::corpus_value_t_of<Domain<T>>> {
    public:
-    using typename IndirectDomain::DomainBase::corpus_type;
-    using typename IndirectDomain::DomainBase::value_type;
+    using typename IndirectDomain::DomainBase::corpus_value_t;
+    using typename IndirectDomain::DomainBase::user_value_t;
 
     explicit IndirectDomain(internal::MoveOnlyAny* indirect)
         : indirect_inner_(indirect) {}
 
-    corpus_type Init(absl::BitGenRef prng) {
+    corpus_value_t Init(absl::BitGenRef prng) {
       return GetInnerDomain().Init(prng);
     }
 
-    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
       GetInnerDomain().Mutate(val, prng, only_shrink);
     }
 
-    void UpdateMemoryDictionary(const corpus_type& val) {
+    void UpdateMemoryDictionary(const corpus_value_t& val) {
       return GetInnerDomain().UpdateMemoryDictionary(val);
     }
 
     auto GetPrinter() const { return GetInnerDomain().GetPrinter(); }
 
-    value_type GetValue(const corpus_type& v) const {
-      return GetInnerDomain().GetValue(v);
+    user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+      return GetInnerDomain().CorpusToUserValue(v);
     }
 
-    std::optional<corpus_type> FromValue(const value_type& v) const {
-      return GetInnerDomain().FromValue(v);
+    std::optional<corpus_value_t> UserToCorpusValue(
+        const user_value_t& v) const {
+      return GetInnerDomain().UserToCorpusValue(v);
     }
 
-    std::optional<corpus_type> ParseCorpus(
-        const internal::IRObject& obj) const {
-      return GetInnerDomain().ParseCorpus(obj);
+    std::optional<corpus_value_t> IrToCorpusValue(
+        const internal::IrValue& ir) const {
+      return GetInnerDomain().IrToCorpusValue(ir);
     }
 
-    internal::IRObject SerializeCorpus(const corpus_type& v) const {
-      return GetInnerDomain().SerializeCorpus(v);
+    internal::IrValue CorpusToIrValue(const corpus_value_t& v) const {
+      return GetInnerDomain().CorpusToIrValue(v);
     }
 
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
       return GetInnerDomain().ValidateCorpusValue(corpus_value);
     }
 
@@ -321,46 +405,47 @@ class DomainBuilder {
   template <typename T>
   class OwningDomain
       : public internal::DomainBase<OwningDomain<T>,
-                                    internal::value_type_t<Domain<T>>,
-                                    internal::corpus_type_t<Domain<T>>> {
+                                    internal::user_value_t_of<Domain<T>>,
+                                    internal::corpus_value_t_of<Domain<T>>> {
    public:
-    using typename OwningDomain::DomainBase::corpus_type;
-    using typename OwningDomain::DomainBase::value_type;
+    using typename OwningDomain::DomainBase::corpus_value_t;
+    using typename OwningDomain::DomainBase::user_value_t;
 
     OwningDomain(const Domain<T>& inner,
                  std::unique_ptr<DomainLookUpTable> domain_lookup_table)
         : inner_(inner), domain_lookup_table_(std::move(domain_lookup_table)) {}
 
-    corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
+    corpus_value_t Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
-    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
       inner_.Mutate(val, prng, only_shrink);
     }
 
-    void UpdateMemoryDictionary(const corpus_type& val) {
+    void UpdateMemoryDictionary(const corpus_value_t& val) {
       return inner_.UpdateMemoryDictionary(val);
     }
 
     auto GetPrinter() const { return inner_.GetPrinter(); }
 
-    value_type GetValue(const corpus_type& v) const {
-      return inner_.GetValue(v);
+    user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+      return inner_.CorpusToUserValue(v);
     }
 
-    std::optional<corpus_type> FromValue(const value_type& v) const {
-      return inner_.FromValue(v);
+    std::optional<corpus_value_t> UserToCorpusValue(
+        const user_value_t& v) const {
+      return inner_.UserToCorpusValue(v);
     }
 
-    std::optional<corpus_type> ParseCorpus(
-        const internal::IRObject& obj) const {
-      return inner_.ParseCorpus(obj);
+    std::optional<corpus_value_t> IrToCorpusValue(
+        const internal::IrValue& ir) const {
+      return inner_.IrToCorpusValue(ir);
     }
 
-    internal::IRObject SerializeCorpus(const corpus_type& v) const {
-      return inner_.SerializeCorpus(v);
+    internal::IrValue CorpusToIrValue(const corpus_value_t& v) const {
+      return inner_.CorpusToIrValue(v);
     }
 
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
       return inner_.ValidateCorpusValue(corpus_value);
     }
 
@@ -581,26 +666,26 @@ auto BitFlagCombinationOf(const std::vector<T>& flags) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
-                     internal::DropConst<internal::value_type_t<Inner>>>);
+      std::is_same_v<internal::DropConst<typename T::value_type>,
+                     internal::DropConst<internal::user_value_t_of<Inner>>>);
   return internal::ContainerOfImpl<T, Inner>(std::move(inner));
 }
 
 // If the container type `T` is a class template whose first template parameter
 // is the type of values stored in the container, and whose other template
 // parameters, if any, are optional, the template parameters of `T` may be
-// omitted, in which case `ContainerOf` will use the `value_type` of the
+// omitted, in which case `ContainerOf` will use the `user_value_t` of the
 // `elements_domain` as the first template parameter for T. For example:
 //
 //   ContainerOf<std::vector>(Positive<int>()).WithSize(3);
 //
 template <template <typename, typename...> class T,
           int&... ExplicitArgumentBarrier, typename Inner,
-          typename C = T<internal::value_type_t<Inner>>>
+          typename C = T<internal::user_value_t_of<Inner>>>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<C>>,
-                     internal::DropConst<internal::value_type_t<Inner>>>);
+      std::is_same_v<internal::DropConst<typename C::value_type>,
+                     internal::DropConst<internal::user_value_t_of<Inner>>>);
   return internal::ContainerOfImpl<C, Inner>(std::move(inner));
 }
 
@@ -662,7 +747,7 @@ inline auto InRegexp(std::string_view regex) {
 //
 template <typename T, int&... ExplicitArgumentBarrier, typename... Inner>
 auto StructOf(Inner... inner) {
-  return internal::AggregateOfImpl<T, internal::RequireCustomCorpusType::kYes,
+  return internal::AggregateOfImpl<T, internal::RequireCustomCorpusValueT::kYes,
                                    Inner...>(std::in_place,
                                              std::move(inner)...);
 }
@@ -677,9 +762,10 @@ auto StructOf(Inner... inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner1, typename Inner2>
 auto PairOf(Inner1 inner1, Inner2 inner2) {
-  return internal::AggregateOfImpl<
-      std::pair<internal::value_type_t<Inner1>, internal::value_type_t<Inner2>>,
-      internal::RequireCustomCorpusType::kNo, Inner1, Inner2>(
+  return internal::AggregateOfImpl<std::pair<internal::user_value_t_of<Inner1>,
+                                             internal::user_value_t_of<Inner2>>,
+                                   internal::RequireCustomCorpusValueT::kNo,
+                                   Inner1, Inner2>(
       std::in_place, std::move(inner1), std::move(inner2));
 }
 
@@ -692,10 +778,10 @@ auto PairOf(Inner1 inner1, Inner2 inner2) {
 //
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto TupleOf(Inner... inner) {
-  return internal::AggregateOfImpl<std::tuple<internal::value_type_t<Inner>...>,
-                                   internal::RequireCustomCorpusType::kNo,
-                                   Inner...>(std::in_place,
-                                             std::move(inner)...);
+  return internal::AggregateOfImpl<
+      std::tuple<internal::user_value_t_of<Inner>...>,
+      internal::RequireCustomCorpusValueT::kNo, Inner...>(std::in_place,
+                                                          std::move(inner)...);
 }
 
 // VariantOf(inner...) combinator creates a `std::variant` domain with elements
@@ -722,7 +808,7 @@ auto VariantOf(Inner... inner) {
 
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto VariantOf(Inner... inner) {
-  return VariantOf<std::variant<internal::value_type_t<Inner>...>>(
+  return VariantOf<std::variant<internal::user_value_t_of<Inner>...>>(
       std::move(inner)...);
 }
 
@@ -749,7 +835,7 @@ auto OptionalOf(Inner inner) {
 
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto OptionalOf(Inner inner) {
-  return OptionalOf<std::optional<internal::value_type_t<Inner>>>(
+  return OptionalOf<std::optional<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -799,7 +885,7 @@ auto SmartPointerOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto UniquePtrOf(Inner inner) {
-  return SmartPointerOf<std::unique_ptr<internal::value_type_t<Inner>>>(
+  return SmartPointerOf<std::unique_ptr<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -812,7 +898,7 @@ auto UniquePtrOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto SharedPtrOf(Inner inner) {
-  return SmartPointerOf<std::shared_ptr<internal::value_type_t<Inner>>>(
+  return SmartPointerOf<std::shared_ptr<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -858,7 +944,7 @@ auto FlatMap(FlatMapper flat_mapper, Inner... inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto VectorOf(Inner inner) {
-  return ContainerOf<std::vector<internal::value_type_t<Inner>>>(
+  return ContainerOf<std::vector<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -871,7 +957,7 @@ auto VectorOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto DequeOf(Inner inner) {
-  return ContainerOf<std::deque<internal::value_type_t<Inner>>>(
+  return ContainerOf<std::deque<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -884,7 +970,7 @@ auto DequeOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto ListOf(Inner inner) {
-  return ContainerOf<std::list<internal::value_type_t<Inner>>>(
+  return ContainerOf<std::list<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -897,7 +983,8 @@ auto ListOf(Inner inner) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto SetOf(Inner inner) {
-  return ContainerOf<std::set<internal::value_type_t<Inner>>>(std::move(inner));
+  return ContainerOf<std::set<internal::user_value_t_of<Inner>>>(
+      std::move(inner));
 }
 
 // MapOf(key_domain, value_domain) combinator creates a `std::map` domain with
@@ -910,8 +997,8 @@ auto SetOf(Inner inner) {
 template <int&... ExplicitArgumentBarrier, typename KeyDomain,
           typename ValueDomain>
 auto MapOf(KeyDomain key_domain, ValueDomain value_domain) {
-  return ContainerOf<std::map<internal::value_type_t<KeyDomain>,
-                              internal::value_type_t<ValueDomain>>>(
+  return ContainerOf<std::map<internal::user_value_t_of<KeyDomain>,
+                              internal::user_value_t_of<ValueDomain>>>(
       PairOf(std::move(key_domain), std::move(value_domain)));
 }
 
@@ -924,7 +1011,7 @@ auto MapOf(KeyDomain key_domain, ValueDomain value_domain) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto UnorderedSetOf(Inner inner) {
-  return ContainerOf<std::unordered_set<internal::value_type_t<Inner>>>(
+  return ContainerOf<std::unordered_set<internal::user_value_t_of<Inner>>>(
       std::move(inner));
 }
 
@@ -939,8 +1026,9 @@ auto UnorderedSetOf(Inner inner) {
 template <int&... ExplicitArgumentBarrier, typename KeyDomain,
           typename ValueDomain>
 auto UnorderedMapOf(KeyDomain key_domain, ValueDomain value_domain) {
-  return ContainerOf<std::unordered_map<internal::value_type_t<KeyDomain>,
-                                        internal::value_type_t<ValueDomain>>>(
+  return ContainerOf<
+      std::unordered_map<internal::user_value_t_of<KeyDomain>,
+                         internal::user_value_t_of<ValueDomain>>>(
       PairOf(std::move(key_domain), std::move(value_domain)));
 }
 
@@ -965,15 +1053,16 @@ template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto ArrayOf(Inner... inner) {
   static_assert(sizeof...(Inner) > 0,
                 "ArrayOf can only be used to create a non-empty std::array.");
-  // All value_types of inner domains must be the same, though they can have
-  // different corpus_types.
-  using value_type =
-      internal::value_type_t<std::tuple_element_t<0, std::tuple<Inner...>>>;
-  static_assert(std::conjunction_v<
-                    std::is_same<value_type, internal::value_type_t<Inner>>...>,
-                "All domains in a ArrayOf must have the same value_type.");
-  return internal::AggregateOfImpl<std::array<value_type, sizeof...(Inner)>,
-                                   internal::RequireCustomCorpusType::kNo,
+  // All user_value_ts of inner domains must be the same, though they can have
+  // different corpus_value_ts.
+  using user_value_t =
+      internal::user_value_t_of<std::tuple_element_t<0, std::tuple<Inner...>>>;
+  static_assert(
+      std::conjunction_v<
+          std::is_same<user_value_t, internal::user_value_t_of<Inner>>...>,
+      "All domains in a ArrayOf must have the same user_value_t.");
+  return internal::AggregateOfImpl<std::array<user_value_t, sizeof...(Inner)>,
+                                   internal::RequireCustomCorpusValueT::kNo,
                                    Inner...>(std::in_place,
                                              std::move(inner)...);
 }
@@ -989,20 +1078,20 @@ auto ArrayOf(const Inner& inner) {
 
 // UniqueElementsContainerOf(inner) combinator is similar to:
 //
-//   Map([](absl::flat_hash_set<value_type> unique_values) {
+//   Map([](absl::flat_hash_set<user_value_t> unique_values) {
 //        return T(unique_values.begin(), unique_values.end());
 //     }, UnorderedSetOf(inner))
 //
-// Where `value_type` is the type of values produced by domain `inner`.
+// Where `user_value_t` is the type of values produced by domain `inner`.
 // UniqueElementsContainerOf creates an intermediate domain similar to:
 //
 //   ContainerOf<absl::flat_hash_set>(inner)
 //
-// That domain produces collections of instances of `value_type`, where each
-// value in the collection is unique; this means that `value_type` must meet the
-// type constraints necessary to create an instance of:
+// That domain produces collections of instances of `user_value_t`, where each
+// value in the collection is unique; this means that `user_value_t` must meet
+// the type constraints necessary to create an instance of:
 //
-//   absl::flat_hash_set<value_type>
+//   absl::flat_hash_set<user_value_t>
 //
 // Example usage:
 //
@@ -1017,8 +1106,8 @@ auto ArrayOf(const Inner& inner) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto UniqueElementsContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
-                     internal::DropConst<internal::value_type_t<Inner>>>);
+      std::is_same_v<internal::DropConst<typename T::value_type>,
+                     internal::DropConst<internal::user_value_t_of<Inner>>>);
   return internal::UniqueElementsContainerImpl<T, Inner>(std::move(inner));
 }
 
@@ -1034,8 +1123,8 @@ auto UniqueElementsContainerOf(Inner inner) {
 //
 template <typename Inner>
 auto UniqueElementsVectorOf(Inner inner) {
-  return UniqueElementsContainerOf<std::vector<internal::value_type_t<Inner>>>(
-      std::move(inner));
+  return UniqueElementsContainerOf<
+      std::vector<internal::user_value_t_of<Inner>>>(std::move(inner));
 }
 
 // ConstructorOf<T>(inner...) combinator creates a user-defined type `T` domain

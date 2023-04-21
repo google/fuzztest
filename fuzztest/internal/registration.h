@@ -90,7 +90,7 @@ struct RegistrationWithDomainsBase {
 
   const auto& GetDomains() const { return domains_; }
 
-  using SeedT = decltype(domains_.GetValue({}));
+  using SeedT = decltype(domains_.CorpusToUserValue({}));
 };
 
 // Seeds were specified. It derived from the existing base to augment it.
@@ -100,8 +100,8 @@ struct RegistrationWithSeedsBase : Base {
 
   explicit RegistrationWithSeedsBase(Base base) : Base(std::move(base)) {}
 
-  std::vector<
-      corpus_type_t<std::decay_t<decltype(std::declval<Base>().GetDomains())>>>
+  std::vector<corpus_value_t_of<
+      std::decay_t<decltype(std::declval<Base>().GetDomains())>>>
       seeds_;
 };
 
@@ -140,9 +140,10 @@ class Registration : private Base {
   // void MyProperty(std::string s, int i) { ... }
   // FUZZ_TEST(MySuite, MyProperty).WithDomains(StringAndIndex(10));
   template <typename... NewDomains>
-  auto WithDomains(AggregateOfImpl<std::tuple<value_type_t<NewDomains>...>,
-                                   RequireCustomCorpusType::kNo, NewDomains...>
-                       domain) && {
+  auto WithDomains(
+      AggregateOfImpl<std::tuple<user_value_t_of<NewDomains>...>,
+                      RequireCustomCorpusValueT::kNo, NewDomains...>
+          domain) && {
     static_assert(!Registration::kHasDomain,
                   "WithDomains can only be called once.");
     static_assert(!Registration::kHasSeeds,
@@ -153,7 +154,7 @@ class Registration : private Base {
         Base::kNumArgs == sizeof...(NewDomains),
         "Number of domains specified in .WithDomains() does not match "
         "the number of function parameters.");
-    using NewBase = RegistrationWithDomainsBase<value_type_t<NewDomains>...>;
+    using NewBase = RegistrationWithDomainsBase<user_value_t_of<NewDomains>...>;
     return Registration<Fixture, TargetFunction, NewBase, SeedProvider>(
         test_info_, target_function_, NewBase{std::move(domain)});
   }
@@ -181,7 +182,7 @@ class Registration : private Base {
       const auto& domains = this->GetDomains();
       bool found_error = false;
       for (const auto& seed : seeds) {
-        if (auto from_value = domains.FromValue(seed)) {
+        if (auto from_value = domains.UserToCorpusValue(seed)) {
           this->seeds_.push_back(*std::move(from_value));
         } else {
           // TODO(sbenzaquen): Should we abort the process or make the test fail
@@ -194,11 +195,11 @@ class Registration : private Base {
               test_info_.line);
 
           // We use a direct call to PrintUserValue because we don't have a
-          // corpus_type object to pass to PrintValue.
+          // corpus_value_t object to pass to PrintValue.
           bool first = true;
           const auto print_one_arg = [&](auto I) {
-            using value_type = std::decay_t<std::tuple_element_t<I, SeedT>>;
-            AutodetectTypePrinter<value_type>().PrintUserValue(
+            using user_value_t = std::decay_t<std::tuple_element_t<I, SeedT>>;
+            AutodetectTypePrinter<user_value_t>().PrintUserValue(
                 std::get<I>(seed), &std::cerr, PrintMode::kHumanReadable);
             if (!first) absl::FPrintF(stderr, ", ");
             first = false;
@@ -261,7 +262,7 @@ class Registration : private Base {
   }
 
  private:
-  std::vector<GenericDomainCorpusType> seeds() const {
+  std::vector<GenericCorpusValue> seeds() const {
     if constexpr (Base::kHasSeeds) {
       return this->seeds_;
     } else {

@@ -42,7 +42,7 @@ TEST(OnFailureTest, Output) {
   runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
   runtime.SetRunMode(RunMode::kFuzz);
   auto domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
-  GenericDomainCorpusType generic_args(
+  GenericCorpusValue generic_args(
       std::in_place_type<std::tuple<int, std::string>>, args);
   Runtime::Args debug_args{generic_args, domain};
   runtime.SetCurrentTest(&test);

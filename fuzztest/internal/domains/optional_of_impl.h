@@ -33,37 +33,38 @@ namespace fuzztest::internal {
 
 enum class OptionalPolicy { kWithNull, kWithoutNull, kAlwaysNull };
 
-template <typename T, typename InnerDomain>
+template <typename UserValueT, typename InnerDomain>
 class OptionalOfImpl
     : public DomainBase<
-          OptionalOfImpl<T, InnerDomain>, T,
+          OptionalOfImpl<UserValueT, InnerDomain>, UserValueT,
           // `T` might be a custom optional type.
           // We use std::variant unconditionally to make it simpler.
-          std::variant<std::monostate, corpus_type_t<InnerDomain>>> {
+          /*CorpusValueT=*/
+          std::variant<std::monostate, corpus_value_t_of<InnerDomain>>> {
  public:
-  using typename OptionalOfImpl::DomainBase::corpus_type;
-  using typename OptionalOfImpl::DomainBase::value_type;
+  using typename OptionalOfImpl::DomainBase::corpus_value_t;
+  using typename OptionalOfImpl::DomainBase::user_value_t;
 
-  static_assert(Requires<T>([](auto x) -> decltype(!x, *x) {}),
+  static_assert(Requires<UserValueT>([](auto x) -> decltype(!x, *x) {}),
                 "T must be an optional type.");
 
   explicit OptionalOfImpl(InnerDomain inner)
       : inner_(std::move(inner)), policy_(OptionalPolicy::kWithNull) {}
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     if (policy_ == OptionalPolicy::kAlwaysNull ||
         // 1/2 chance of returning an empty to avoid initialization with large
         // entities for recursive data structures. See
         // ContainerOfImplBase::ChooseRandomSize for more details.
         (policy_ == OptionalPolicy::kWithNull && absl::Bernoulli(prng, 0.5))) {
-      return corpus_type(std::in_place_index<0>);
+      return corpus_value_t(std::in_place_index<0>);
     } else {
-      return corpus_type(std::in_place_index<1>, inner_.Init(prng));
+      return corpus_value_t(std::in_place_index<1>, inner_.Init(prng));
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     if (policy_ == OptionalPolicy::kAlwaysNull) {
       val.template emplace<0>();
       return;
@@ -85,41 +86,41 @@ class OptionalOfImpl
     return OptionalPrinter<OptionalOfImpl, InnerDomain>{*this, inner_};
   }
 
-  value_type GetValue(const corpus_type& v) const {
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
     if (v.index() == 0) {
       FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kWithoutNull,
                               "Value cannot be null!");
-      return value_type();
+      return user_value_t();
     }
     FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kAlwaysNull,
                             "Value cannot be non-null!");
-    return value_type(inner_.GetValue(std::get<1>(v)));
+    return user_value_t(inner_.CorpusToUserValue(std::get<1>(v)));
   }
 
-  std::optional<corpus_type> FromValue(const value_type& v) const {
+  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
     if (!v) {
       FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kWithoutNull,
                               "Value cannot be null!");
-      return corpus_type(std::in_place_index<0>);
+      return corpus_value_t(std::in_place_index<0>);
     }
     FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kAlwaysNull,
                             "Value cannot be non-null!");
-    if (auto inner_value = inner_.FromValue(*v)) {
-      return corpus_type(std::in_place_index<1>, *std::move(inner_value));
+    if (auto inner_value = inner_.UserToCorpusValue(*v)) {
+      return corpus_value_t(std::in_place_index<1>, *std::move(inner_value));
     } else {
       return std::nullopt;
     }
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return ParseWithDomainOptional(inner_, obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return ParseWithDomainOptional(inner_, ir);
   }
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
     return SerializeWithDomainOptional(inner_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     bool is_null = std::get_if<std::monostate>(&corpus_value);
     if (is_null) {
       return policy_ != OptionalPolicy::kWithoutNull;
@@ -139,14 +140,14 @@ class OptionalOfImpl
     return *this;
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(const corpus_value_t& val) {
     if (val.index() == 1) {
       return inner_.CountNumberOfFields(std::get<1>(val));
     }
     return 0;
   }
 
-  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+  uint64_t MutateSelectedField(corpus_value_t& val, absl::BitGenRef prng,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     if (val.index() == 1) {

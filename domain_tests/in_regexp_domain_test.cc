@@ -58,7 +58,7 @@ TEST(InRegexp, InitGenerateDifferentValidAndShortValues) {
 
     while (unique_values.size() < num_unique_values) {
       ++generation_times;
-      std::string val = domain.GetValue(domain.Init(bitgen));
+      std::string val = domain.CorpusToUserValue(domain.Init(bitgen));
       total_size += val.size();
       EXPECT_TRUE(RE2::FullMatch(val, regexp));
       unique_values.insert(val);
@@ -118,7 +118,7 @@ TEST(InRegexp, MutatingRepetitionCanIncreaseAndDecreaseLength) {
   std::vector<int> size_histogram(7, 0);
   constexpr int mutate_times = 50000;
   for (int i = 0; i < mutate_times; ++i) {
-    val.corpus_value = domain.FromValue("aaaaa").value();
+    val.corpus_value = domain.UserToCorpusValue("aaaaa").value();
     val.Mutate(domain, bitgen, false);
     size_t size_after_mutation = val.user_value.size();
     ASSERT_LT(size_after_mutation, 7) << val.user_value;
@@ -177,8 +177,8 @@ TEST(InRegexp, ValidationRejectsInvalidValue) {
   auto domain_a = InRegexp("a(c|d)+(e|f)+b");
   auto domain_b = InRegexp("A{2,10}D{2,10}");
 
-  auto corpus_value_a = domain_a.FromValue("acceeb");
-  auto corpus_value_b = domain_b.FromValue("AADD");
+  auto corpus_value_a = domain_a.UserToCorpusValue("acceeb");
+  auto corpus_value_b = domain_b.UserToCorpusValue("AADD");
 
   ASSERT_TRUE(domain_a.ValidateCorpusValue(*corpus_value_a));
   ASSERT_TRUE(domain_b.ValidateCorpusValue(*corpus_value_b));
@@ -196,14 +196,14 @@ using InRegexpTest = ::testing::TestWithParam<InRegexString>;
 TEST_P(InRegexpTest, SerializationWorksCorrectly) {
   auto [regexp, string_in_domain] = GetParam();
   auto domain = InRegexp(regexp);
-  auto corpus_value = domain.FromValue(string_in_domain);
+  auto corpus_value = domain.UserToCorpusValue(string_in_domain);
   ASSERT_TRUE(corpus_value.has_value());
   ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
 
-  EXPECT_THAT(domain.ParseCorpus(domain.SerializeCorpus(*corpus_value)),
+  EXPECT_THAT(domain.IrToCorpusValue(domain.CorpusToIrValue(*corpus_value)),
               Optional(ResultOf(
                   [&](const auto& parsed_corpus) {
-                    return domain.GetValue(parsed_corpus);
+                    return domain.CorpusToUserValue(parsed_corpus);
                   },
                   StrEq(string_in_domain))));
 }

@@ -32,40 +32,40 @@
 
 namespace fuzztest::internal {
 
-struct IRObject;
+struct IrValue;
 
-// Simple intermediate representation object and ParseInput/SerializeInput
+// Simple intermediate representation value and ParseInput/SerializeInput
 // functions for it.
 //
 // The serialization format follows the Text format for Protocol Buffers of the
-// `IRObject` message, with the following message definition:
+// `IrValue` message, with the following message definition:
 //
-// message IRObject {
+// message IrValue {
 //   oneof value {
 //     uint64 i = 1;
 //     double d = 2;
 //     bytes s = 3;
 //   }
-//   repeated IRObject sub = 4;
+//   repeated IrValue sub = 4;
 // }
 //
 // The protobuf definition does not allow putting `sub` in the oneof because it
 // is repeated, but the C++ type enforces the invariant that only one field is
 // set.
 
-struct IRObject {
+struct IrValue {
   using Value = std::variant<std::monostate, uint64_t, double, std::string,
-                             std::vector<IRObject>>;
+                             std::vector<IrValue>>;
   Value value;
 
-  IRObject() = default;
+  IrValue() = default;
   template <
       typename T,
       std::enable_if_t<std::is_enum_v<T> || std::is_integral_v<T>, int> = 0>
-  explicit IRObject(T v) : value(static_cast<uint64_t>(v)) {}
+  explicit IrValue(T v) : value(static_cast<uint64_t>(v)) {}
   template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
-  explicit IRObject(T v) : value(static_cast<double>(v)) {}
-  explicit IRObject(Value v) : value(std::move(v)) {}
+  explicit IrValue(T v) : value(static_cast<double>(v)) {}
+  explicit IrValue(Value v) : value(std::move(v)) {}
 
   // Accessors for scalars to simplify their use, and hide conversions when
   // needed.
@@ -112,14 +112,14 @@ struct IRObject {
   }
 
   // If this node contains subs, return it as a Span. Otherwise, nullopt.
-  std::optional<absl::Span<const IRObject>> Subs() const {
-    if (const auto* i = std::get_if<std::vector<IRObject>>(&value)) {
+  std::optional<absl::Span<const IrValue>> Subs() const {
+    if (const auto* i = std::get_if<std::vector<IrValue>>(&value)) {
       return *i;
     }
     // The empty vector is serialized the same way as the monostate: nothing.
     // Handle that case too.
     if (std::holds_alternative<std::monostate>(value)) {
-      return absl::Span<const IRObject>{};
+      return absl::Span<const IrValue>{};
     }
     return std::nullopt;
   }
@@ -127,14 +127,14 @@ struct IRObject {
   // Set this node to contain subs, and return a reference to the vector of
   // them.
   // Overwrites any existing data.
-  std::vector<IRObject>& MutableSubs() {
-    if (!std::holds_alternative<std::vector<IRObject>>(value)) {
-      value.emplace<std::vector<IRObject>>();
+  std::vector<IrValue>& MutableSubs() {
+    if (!std::holds_alternative<std::vector<IrValue>>(value)) {
+      value.emplace<std::vector<IrValue>>();
     }
-    return std::get<std::vector<IRObject>>(value);
+    return std::get<std::vector<IrValue>>(value);
   }
 
-  // Conversion functions to map IRObject to/from corpus values.
+  // Conversion functions to map IrValue to/from corpus values.
   // Corpus types have restrictions.
   // They must be one of:
   //  - A scalar (integer, floating, string).
@@ -142,52 +142,52 @@ struct IRObject {
   //    supported.
   //  - A tuple-like, where the inner types are supported.
   //  - A std::variant, where the inner types are supported.
-  //  - A monostate object.
+  //  - A monostate value.
   //  - A protobuf message object.
-  //  - An IRObject itself.
+  //  - An IrValue itself.
   template <typename T>
-  static IRObject FromCorpus(const T& value) {
+  static IrValue FromCorpus(const T& value) {
     if constexpr (is_monostate_v<T>) {
       return {};
-    } else if constexpr (std::is_constructible_v<IRObject, T>) {
-      return IRObject(value);
+    } else if constexpr (std::is_constructible_v<IrValue, T>) {
+      return IrValue(value);
     } else if constexpr (is_variant_v<T>) {
-      IRObject obj;
-      auto& v = obj.MutableSubs();
+      IrValue ir;
+      auto& v = ir.MutableSubs();
       v.emplace_back(value.index());
       v.push_back(
           std::visit([](const auto& v) { return FromCorpus(v); }, value));
-      return obj;
+      return ir;
     } else if constexpr (std::is_same_v<T, absl::int128> ||
                          std::is_same_v<T, absl::uint128>) {
       return FromCorpus(
           std::pair(absl::Uint128High64(value), absl::Uint128Low64(value)));
     } else if constexpr (is_protocol_buffer_v<T>) {
-      return IRObject(value.SerializeAsString());
+      return IrValue(value.SerializeAsString());
     } else if constexpr (is_bitvector_v<T>) {
-      IRObject obj;
-      auto& v = obj.MutableSubs();
+      IrValue ir;
+      auto& v = ir.MutableSubs();
       // Force conversion to bool. The `is_dynamic_container_v` case allows elem
-      // to keep the bit iterator type, which IRObject doesn't understand.
+      // to keep the bit iterator type, which IrValue doesn't understand.
       for (bool elem : value) {
-        v.push_back(IRObject(elem));
+        v.push_back(IrValue(elem));
       }
-      return obj;
+      return ir;
     } else if constexpr (is_dynamic_container_v<T>) {
-      IRObject obj;
-      auto& v = obj.MutableSubs();
+      IrValue ir;
+      auto& v = ir.MutableSubs();
       for (const auto& elem : value) {
         v.push_back(FromCorpus(elem));
       }
-      return obj;
+      return ir;
     } else {
-      // Must be a tuple like object.
+      // Must be a tuple like value.
       return std::apply(
           [](const auto&... elem) {
-            IRObject obj;
-            auto& v = obj.MutableSubs();
+            IrValue ir;
+            auto& v = ir.MutableSubs();
             (v.push_back(FromCorpus(elem)), ...);
-            return obj;
+            return ir;
           },
           value);
     }
@@ -200,9 +200,9 @@ struct IRObject {
     } else if constexpr (is_monostate_v<T>) {
       if (std::holds_alternative<std::monostate>(value)) return T{};
       return std::nullopt;
-    } else if constexpr (std::is_same_v<T, IRObject>) {
+    } else if constexpr (std::is_same_v<T, IrValue>) {
       return *this;
-    } else if constexpr (std::is_constructible_v<IRObject, T>) {
+    } else if constexpr (std::is_constructible_v<IrValue, T>) {
       if (auto v = GetScalar<T>()) {
         return static_cast<T>(*v);
       }
@@ -244,7 +244,7 @@ struct IRObject {
       }
       return out;
     } else {
-      // Must be a tuple like object.
+      // Must be a tuple-like value.
       auto elems = Subs();
       if (!elems || elems->size() != std::tuple_size_v<T>) return std::nullopt;
       auto it = elems->begin();
@@ -260,10 +260,12 @@ struct IRObject {
     }
   }
 
-  // Serialize the object as a string. This is used to persist the object on
-  // files for reproducing bugs later.
+  // Serialize the IR value as a string. This is used to persist values in files
+  // for reproducing bugs later.
   std::string ToString() const;
-  static std::optional<IRObject> FromString(std::string_view str);
+  // Parse back the IR value from a string. This is used to load back values
+  // from files.
+  static std::optional<IrValue> FromString(std::string_view str);
 
  private:
   template <typename T>

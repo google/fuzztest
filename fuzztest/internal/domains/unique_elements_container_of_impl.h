@@ -27,27 +27,29 @@
 namespace fuzztest::internal {
 
 template <typename InnerDomain>
-using UniqueDomainValueT = absl::flat_hash_set<value_type_t<InnerDomain>>;
+using UniqueDomainValueT = absl::flat_hash_set<user_value_t_of<InnerDomain>>;
 
 template <typename InnerDomain>
 using UniqueDomain =
     AssociativeContainerOfImpl<UniqueDomainValueT<InnerDomain>, InnerDomain>;
 
-// UniqueElementsContainerImpl supports producing containers of type `T`, with
-// elements of type `E` from domain `InnerDomain inner`, with a guarantee that
-// each element of the container has a unique value from `InnerDomain`. The
-// guarantee is provided by using a `absl::flat_hash_set<E>` as our corpus_type,
-// which is (effectively) produced by `UnorderedSetOf(inner)`.
-template <typename T, typename InnerDomain>
+// UniqueElementsContainerImpl supports producing containers of type
+// `ContainerT`, with elements of type `ElemenT` from domain `InnerDomain
+// inner`, with a guarantee that each element of the container has a unique
+// value from `InnerDomain`. The guarantee is provided by using a
+// `absl::flat_hash_set<ElementT>` as our corpus_value_t, which is (effectively)
+// produced by `UnorderedSetOf(inner)`.
+template <typename ContainerT, typename InnerDomain>
 class UniqueElementsContainerImpl
-    : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
-                        corpus_type_t<UniqueDomain<InnerDomain>>> {
+    : public DomainBase<UniqueElementsContainerImpl<ContainerT, InnerDomain>,
+                        /*UserValueT=*/ContainerT,
+                        corpus_value_t_of<UniqueDomain<InnerDomain>>> {
   using UniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
   using UniqueDomain = UniqueDomain<InnerDomain>;
 
  public:
-  using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
-  using typename UniqueElementsContainerImpl::DomainBase::value_type;
+  using typename UniqueElementsContainerImpl::DomainBase::corpus_value_t;
+  using typename UniqueElementsContainerImpl::DomainBase::user_value_t;
 
   UniqueElementsContainerImpl() = default;
   explicit UniqueElementsContainerImpl(InnerDomain inner)
@@ -56,36 +58,36 @@ class UniqueElementsContainerImpl
   // All of these methods delegate at least partially to the unique_domain_
   // member.
 
-  corpus_type Init(absl::BitGenRef prng) {
+  corpus_value_t Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return unique_domain_.Init(prng);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
     unique_domain_.Mutate(val, prng, only_shrink);
   }
 
-  value_type GetValue(const corpus_type& v) const {
-    UniqueDomainValueT unique_values = unique_domain_.GetValue(v);
-    return value_type(unique_values.begin(), unique_values.end());
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
+    UniqueDomainValueT unique_values = unique_domain_.CorpusToUserValue(v);
+    return user_value_t(unique_values.begin(), unique_values.end());
   }
 
-  std::optional<corpus_type> FromValue(const value_type& v) const {
-    return unique_domain_.FromValue(
-        value_type_t<UniqueDomain>(v.begin(), v.end()));
+  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
+    return unique_domain_.UserToCorpusValue(
+        user_value_t_of<UniqueDomain>(v.begin(), v.end()));
   }
 
   auto GetPrinter() const { return unique_domain_.GetPrinter(); }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return unique_domain_.ParseCorpus(obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return unique_domain_.IrToCorpusValue(ir);
   }
 
-  IRObject SerializeCorpus(const corpus_type& v) const {
-    return unique_domain_.SerializeCorpus(v);
+  IrValue CorpusToIrValue(const corpus_value_t& v) const {
+    return unique_domain_.CorpusToIrValue(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
     return unique_domain_.ValidateCorpusValue(corpus_value);
   }
 

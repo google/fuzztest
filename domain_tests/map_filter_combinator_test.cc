@@ -40,7 +40,7 @@ using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-TEST(Map, WorksWithSameCorpusType) {
+TEST(Map, WorksWithSameCorpusValueType) {
   auto domain = Map([](int a) { return ~a; }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
@@ -49,7 +49,7 @@ TEST(Map, WorksWithSameCorpusType) {
 
 enum class Color : int { Red, Green, Blue, Yellow };
 
-TEST(Map, WorksWithDifferentCorpusType) {
+TEST(Map, WorksWithDifferentCorpusValueType) {
   auto colors = ElementOf({Color::Blue});
   auto domain = Map(
       [](Color a) -> std::string { return a == Color::Blue ? "Blue" : "None"; },
@@ -57,7 +57,7 @@ TEST(Map, WorksWithDifferentCorpusType) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   // `0` is the index in the ElementOf
-  EXPECT_EQ(typename decltype(colors)::corpus_type{0},
+  EXPECT_EQ(typename decltype(colors)::corpus_value_t{0},
             std::get<0>(value.corpus_value));
   EXPECT_EQ("Blue", value.user_value);
 }
@@ -95,14 +95,14 @@ TEST(Map, ValidationRejectsInvalidValue) {
   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
-TEST(FlatMap, WorksWithSameCorpusType) {
+TEST(FlatMap, WorksWithSameCorpusValueType) {
   auto domain = FlatMap([](int a) { return Just(~a); }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   EXPECT_EQ(value.user_value, ~std::get<1>(value.corpus_value));
 }
 
-TEST(FlatMap, WorksWithDifferentCorpusType) {
+TEST(FlatMap, WorksWithDifferentCorpusValueType) {
   auto colors = Just(Color::Blue);
   auto domain = FlatMap(
       [](Color a) {
@@ -113,7 +113,7 @@ TEST(FlatMap, WorksWithDifferentCorpusType) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   // `0` is the index in the ElementOf
-  EXPECT_EQ(typename decltype(colors)::corpus_type{0},
+  EXPECT_EQ(typename decltype(colors)::corpus_value_t{0},
             std::get<1>(value.corpus_value));
   EXPECT_EQ("Blue", value.user_value);
 }
@@ -136,8 +136,8 @@ TEST(FlatMap, SerializationRoundTrip) {
                         InRange(0, 10));
   absl::BitGen bitgen;
   Value value(domain, bitgen);
-  auto serialized = domain.SerializeCorpus(value.corpus_value);
-  EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
+  auto serialized = domain.CorpusToIrValue(value.corpus_value);
+  EXPECT_EQ(domain.IrToCorpusValue(serialized), value.corpus_value);
 }
 
 TEST(FlatMap, ValidationRejectsInvalidValue) {
@@ -168,7 +168,7 @@ TEST(FlatMap, MutationAcceptsChangingDomains) {
     // length.
     domain.Mutate(mutated, bitgen, false);
   }
-  EXPECT_EQ(domain.GetValue(mutated).size(), std::get<1>(mutated));
+  EXPECT_EQ(domain.CorpusToUserValue(mutated).size(), std::get<1>(mutated));
 }
 
 TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
@@ -181,10 +181,10 @@ TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
     value = Value(domain, bitgen);
   }
   auto mutated = value->corpus_value;
-  while (!domain.GetValue(mutated).empty()) {
+  while (!domain.CorpusToUserValue(mutated).empty()) {
     domain.Mutate(mutated, bitgen, true);
   }
-  EXPECT_THAT(domain.GetValue(mutated), IsEmpty());
+  EXPECT_THAT(domain.CorpusToUserValue(mutated), IsEmpty());
 }
 
 TEST(FlatMap, MutationDoesNotAlterInputDomains) {
@@ -202,11 +202,11 @@ TEST(FlatMap, MutationDoesNotAlterInputDomains) {
   }
   auto mutated = value->corpus_value;
   const size_t original_size = value->user_value.size();
-  while (!all_zeros(domain.GetValue(mutated))) {
+  while (!all_zeros(domain.CorpusToUserValue(mutated))) {
     domain.Mutate(mutated, bitgen, true);
-    EXPECT_THAT(domain.GetValue(mutated).size(), Eq(original_size));
+    EXPECT_THAT(domain.CorpusToUserValue(mutated).size(), Eq(original_size));
   }
-  EXPECT_THAT(domain.GetValue(mutated), Each(Eq(0)));
+  EXPECT_THAT(domain.CorpusToUserValue(mutated), Each(Eq(0)));
 }
 
 TEST(Filter, CanFilterInitCalls) {

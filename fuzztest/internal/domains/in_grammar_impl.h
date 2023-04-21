@@ -65,10 +65,10 @@ bool CheckASTNodeTypeIdAndChildType(const ASTNode& astnode, ASTTypeId type_id) {
 }
 
 template <typename T>
-bool CheckASTCorpusStructure(const IRObject& obj) {
-  auto subs = obj.Subs();
+bool CheckASTCorpusStructure(const IrValue& ir) {
+  auto subs = ir.Subs();
   // An valid sub should contain a type id, an index for the variant, and an
-  // IRObject for the children. So the size should be 3.
+  // IrValue for the children. So the size should be 3.
   if (!subs || subs->size() != 3) {
     return false;
   }
@@ -90,7 +90,7 @@ bool CheckASTCorpusStructure(const IRObject& obj) {
   });
 }
 
-IRObject WrapASTIntoIRObject(const ASTNode& astnode, IRObject parsed_child);
+IrValue WrapASTIntoIrValue(const ASTNode& astnode, IrValue parsed_child);
 
 template <ASTTypeId id, const absl::string_view& value>
 class StringLiteralDomain {
@@ -114,18 +114,18 @@ class StringLiteralDomain {
 
   static bool IsMutable(const ASTNode& /*val*/) { return false; }
 
-  static IRObject SerializeCorpus(const ASTNode& astnode) {
+  static IrValue CorpusToIrValue(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
         CheckASTNodeTypeIdAndChildType<std::monostate>(astnode, id),
         "Invalid node!");
-    return WrapASTIntoIRObject(astnode, {});
+    return WrapASTIntoIrValue(astnode, {});
   }
 
-  static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<std::monostate>(obj)) {
+  static std::optional<ASTNode> IrToCorpusValue(const IrValue& ir) {
+    if (!CheckASTCorpusStructure<std::monostate>(ir)) {
       return std::nullopt;
     }
-    auto subs = obj.Subs();
+    auto subs = ir.Subs();
     auto type_id = (*subs)[0].ToCorpus<ASTTypeId>();
 
     ASTNode result;
@@ -155,30 +155,30 @@ class RegexLiteralDomain {
 
   static void ToString(std::string& output, const ASTNode& val) {
     FUZZTEST_INTERNAL_CHECK(val.children.index() == 1, "Not a regex literal!");
-    absl::StrAppend(&output,
-                    GetInnerRegexpDomain().GetValue(std::get<1>(val.children)));
+    absl::StrAppend(&output, GetInnerRegexpDomain().CorpusToUserValue(
+                                 std::get<1>(val.children)));
   }
 
   static bool IsMutable(const ASTNode& /*val*/) { return true; }
 
-  static IRObject SerializeCorpus(const ASTNode& astnode) {
+  static IrValue CorpusToIrValue(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
         CheckASTNodeTypeIdAndChildType<DFAPath>(astnode, id), "Invalid node!");
-    return WrapASTIntoIRObject(astnode,
-                               GetInnerRegexpDomain().SerializeCorpus(
-                                   std::get<DFAPath>(astnode.children)));
+    return WrapASTIntoIrValue(astnode,
+                              GetInnerRegexpDomain().CorpusToIrValue(
+                                  std::get<DFAPath>(astnode.children)));
   }
 
-  static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<DFAPath>(obj)) {
+  static std::optional<ASTNode> IrToCorpusValue(const IrValue& ir) {
+    if (!CheckASTCorpusStructure<DFAPath>(ir)) {
       return std::nullopt;
     }
-    auto subs = obj.Subs();
+    auto subs = ir.Subs();
     auto type_id = (*subs)[0].ToCorpus<ASTTypeId>();
 
     ASTNode result;
     result.type_id = *type_id;
-    auto path = GetInnerRegexpDomain().ParseCorpus((*subs)[2]);
+    auto path = GetInnerRegexpDomain().IrToCorpusValue((*subs)[2]);
     if (!path) {
       return std::nullopt;
     }
@@ -273,23 +273,23 @@ class VectorDomain {
 
   static bool IsMutable(const ASTNode& /*val*/) { return true; }
 
-  static IRObject SerializeCorpus(const ASTNode& astnode) {
+  static IrValue CorpusToIrValue(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
         CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
         "Invalid node!");
-    IRObject expansion_obj;
+    IrValue expansion_obj;
     auto& inner_subs = expansion_obj.MutableSubs();
     for (auto& node : std::get<std::vector<ASTNode>>(astnode.children)) {
-      inner_subs.push_back(ElementT::SerializeCorpus(node));
+      inner_subs.push_back(ElementT::CorpusToIrValue(node));
     }
-    return WrapASTIntoIRObject(astnode, expansion_obj);
+    return WrapASTIntoIrValue(astnode, expansion_obj);
   }
 
-  static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(obj)) {
+  static std::optional<ASTNode> IrToCorpusValue(const IrValue& ir) {
+    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(ir)) {
       return std::nullopt;
     }
-    auto subs = obj.Subs();
+    auto subs = ir.Subs();
     auto type_id = (*subs)[0].ToCorpus<ASTTypeId>();
 
     auto children = (*subs)[2].Subs();
@@ -304,7 +304,7 @@ class VectorDomain {
         result.children.emplace<std::vector<ASTNode>>();
 
     for (const auto& child : *children) {
-      auto child_node = ElementT::ParseCorpus(child);
+      auto child_node = ElementT::IrToCorpusValue(child);
       if (!child_node) {
         return std::nullopt;
       }
@@ -424,25 +424,25 @@ class TupleDomain {
     return result;
   }
 
-  static IRObject SerializeCorpus(const ASTNode& astnode) {
+  static IrValue CorpusToIrValue(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
         CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
         "Invalid node!");
-    IRObject expansion_obj;
+    IrValue expansion_obj;
     auto& inner_subs = expansion_obj.MutableSubs();
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
       (inner_subs.push_back(
-           ElementT::SerializeCorpus(std::get<2>(astnode.children)[I])),
+           ElementT::CorpusToIrValue(std::get<2>(astnode.children)[I])),
        ...);
     });
-    return WrapASTIntoIRObject(astnode, expansion_obj);
+    return WrapASTIntoIrValue(astnode, expansion_obj);
   }
 
-  static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(obj)) {
+  static std::optional<ASTNode> IrToCorpusValue(const IrValue& ir) {
+    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(ir)) {
       return std::nullopt;
     }
-    auto subs = obj.Subs();
+    auto subs = ir.Subs();
     auto type_id = (*subs)[0].ToCorpus<ASTTypeId>();
 
     auto children = (*subs)[2].Subs();
@@ -454,7 +454,7 @@ class TupleDomain {
 
     std::vector<std::optional<ASTNode>> parsed_child_nodes;
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
-      (parsed_child_nodes.push_back(ElementT::ParseCorpus((*children)[I])),
+      (parsed_child_nodes.push_back(ElementT::IrToCorpusValue((*children)[I])),
        ...);
     });
 
@@ -550,28 +550,28 @@ class VariantDomain {
     return result;
   }
 
-  static IRObject SerializeCorpus(const ASTNode& astnode) {
+  static IrValue CorpusToIrValue(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
         CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
         "Invalid node!");
 
     ASTTypeId child_id =
         std::get<std::vector<ASTNode>>(astnode.children).front().type_id;
-    IRObject expansion_obj;
+    IrValue expansion_obj;
     auto& inner_subs = expansion_obj.MutableSubs();
     ((ElementT::TypeId() == child_id
-          ? inner_subs.push_back(ElementT::SerializeCorpus(
+          ? inner_subs.push_back(ElementT::CorpusToIrValue(
                 std::get<std::vector<ASTNode>>(astnode.children).front()))
           : (void)0),
      ...);
-    return WrapASTIntoIRObject(astnode, expansion_obj);
+    return WrapASTIntoIrValue(astnode, expansion_obj);
   }
 
-  static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(obj)) {
+  static std::optional<ASTNode> IrToCorpusValue(const IrValue& ir) {
+    if (!CheckASTCorpusStructure<std::vector<ASTNode>>(ir)) {
       return std::nullopt;
     }
-    auto subs = obj.Subs();
+    auto subs = ir.Subs();
     auto type_id = (*subs)[0].ToCorpus<ASTTypeId>();
 
     auto children = (*subs)[2].Subs();
@@ -584,7 +584,8 @@ class VariantDomain {
     std::optional<ASTNode> child_node;
     ((child_node.has_value()
           ? (void)0
-          : (child_node = ElementT::ParseCorpus(children->front()), (void)0)),
+          : (child_node = ElementT::IrToCorpusValue(children->front()),
+             (void)0)),
      ...);
     if (!child_node.has_value()) {
       return std::nullopt;
@@ -636,8 +637,8 @@ template <typename TopDomain>
 class InGrammarImpl
     : public DomainBase<InGrammarImpl<TopDomain>, std::string, ASTNode> {
  public:
-  using typename InGrammarImpl::DomainBase::corpus_type;
-  using typename InGrammarImpl::DomainBase::value_type;
+  using typename InGrammarImpl::DomainBase::corpus_value_t;
+  using typename InGrammarImpl::DomainBase::user_value_t;
 
   ASTNode Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
@@ -654,28 +655,29 @@ class InGrammarImpl
 
   auto GetPrinter() const { return StringPrinter{}; }
 
-  value_type GetValue(const corpus_type& v) const {
+  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
     std::string result;
     TopDomain::ToString(result, v);
     return result;
   }
 
-  std::optional<corpus_type> FromValue(const value_type& /*v*/) const {
+  std::optional<corpus_value_t> UserToCorpusValue(
+      const user_value_t& /*v*/) const {
     FUZZTEST_INTERNAL_CHECK(false, "Parsing is not implemented yet!");
     return std::nullopt;
   }
 
-  IRObject SerializeCorpus(const corpus_type& astnode) const {
-    return TopDomain::SerializeCorpus(astnode);
+  IrValue CorpusToIrValue(const corpus_value_t& astnode) const {
+    return TopDomain::CorpusToIrValue(astnode);
   }
 
-  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return TopDomain::ParseCorpus(obj);
+  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+    return TopDomain::IrToCorpusValue(ir);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    // Validation is currently done during Parsing, and UserToCorpusValue() is
-    // not supported yet.
+  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
+    // Validation is currently done by IrToCorpusValue(), and
+    // UserToCorpusValue() is not supported yet.
     // TODO(lszekeres): Refactor so that validation happens here instead.
     return true;
   }

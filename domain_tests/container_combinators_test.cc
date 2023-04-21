@@ -86,7 +86,7 @@ TYPED_TEST(ContainerTest, Arbitrary) {
     // Basic checks to make sure we have a few sizes and values.
     // TODO: Check these values in a more principled way.
     absl::flat_hash_map<size_t, size_t> size_distribution;
-    absl::flat_hash_map<internal::value_type_t<T>, size_t> value_distribution;
+    absl::flat_hash_map<typename T::value_type, size_t> value_distribution;
     for (const auto& s : values) {
       ++size_distribution[s.user_value.size()];
       for (const auto& v : s.user_value) ++value_distribution[v];
@@ -163,7 +163,7 @@ TYPED_TEST(ContainerTest, SettingSizesLimitsOutput) {
   TestMinMaxContainerSize(Arbitrary<T>().WithMaxSize(7), 0, 7);
   TestMinMaxContainerSize(Arbitrary<T>().WithMinSize(3).WithMaxSize(7), 3, 7);
 
-  auto inner = Arbitrary<internal::value_type_t<T>>();
+  auto inner = Arbitrary<typename T::value_type>();
 
   TestMinMaxContainerSize(ContainerOf<T>(inner).WithSize(7), 7, 7);
   TestMinMaxContainerSize(ContainerOf<T>(inner).WithMinSize(7), 7, ~size_t{});
@@ -378,8 +378,7 @@ MATCHER(ElementsAreUnique, absl::StrCat(negation ? "has duplicate elements"
   // Note that we avoid using testing::IsSubsetOf(some_values) here because it
   // isn't optimized for some_values being an associative collection of values.
   using ArgT = std::remove_reference_t<decltype(arg)>;
-  absl::flat_hash_set<internal::value_type_t<ArgT>> copy(arg.begin(),
-                                                         arg.end());
+  absl::flat_hash_set<typename ArgT::value_type> copy(arg.begin(), arg.end());
   return arg.size() == copy.size();
 }
 

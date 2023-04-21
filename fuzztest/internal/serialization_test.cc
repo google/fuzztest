@@ -58,11 +58,11 @@ auto ValueIs(const T& v) {
 
 template <typename... T>
 auto SubsAre(const T&... v) {
-  return FieldsAre(VariantWith<std::vector<IRObject>>(ElementsAre(v...)));
+  return FieldsAre(VariantWith<std::vector<IrValue>>(ElementsAre(v...)));
 }
 
 struct VerifyVisitor {
-  const IRObjectTestProto& proto;
+  const IrValueTestProto& proto;
 
   void operator()(uint64_t v) const {
     EXPECT_EQ(v, proto.i());
@@ -76,7 +76,7 @@ struct VerifyVisitor {
     EXPECT_EQ(v, proto.s());
     EXPECT_EQ(proto.sub_size(), 0);
   }
-  void operator()(const std::vector<IRObject>& subs) const {
+  void operator()(const std::vector<IrValue>& subs) const {
     EXPECT_EQ(0, proto.value_case());
     ASSERT_EQ(subs.size(), proto.sub_size());
     for (int i = 0; i < subs.size(); ++i) {
@@ -90,28 +90,27 @@ struct VerifyVisitor {
   }
 };
 
-void VerifyProtobufFormat(const IRObject& object) {
-  IRObjectTestProto proto;
-  std::string s = object.ToString();
+void VerifyProtobufFormat(const IrValue& ir) {
+  IrValueTestProto proto;
+  std::string s = ir.ToString();
   // Chop the header.
   s.erase(0, strlen("FUZZTESTv1\n"));
 
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(s, &proto));
-  std::visit(VerifyVisitor{proto}, object.value);
+  std::visit(VerifyVisitor{proto}, ir.value);
 }
 
 template <typename... T>
 void RoundTripVerify(const T&... values) {
-  IRObject object;
-  object.value = std::vector{IRObject{values}...};
-  std::string s = object.ToString();
+  IrValue ir;
+  ir.value = std::vector{IrValue{values}...};
+  std::string s = ir.ToString();
 
   SCOPED_TRACE(s);
 
-  VerifyProtobufFormat(object);
+  VerifyProtobufFormat(ir);
 
-  EXPECT_THAT(IRObject::FromString(s),
-              Optional(SubsAre(ValueIs<T>(values)...)));
+  EXPECT_THAT(IrValue::FromString(s), Optional(SubsAre(ValueIs<T>(values)...)));
 }
 
 template <typename T>
@@ -127,12 +126,12 @@ TEST(SerializerTest, ScalarsRoundTrip) {
 }
 
 TEST(SerializerTest, SubobjectsRoundTrip) {
-  IRObject root{std::vector{
-      IRObject{"child1"}, IRObject{"child2"},
-      IRObject{std::vector<IRObject>{
-          IRObject{"child3.1"}, IRObject{std::vector{IRObject{"child3.2.1"},
-                                                     IRObject{"child3.2.2"}}}}},
-      IRObject{"child4"}}};
+  IrValue root{std::vector{
+      IrValue{"child1"}, IrValue{"child2"},
+      IrValue{std::vector<IrValue>{
+          IrValue{"child3.1"},
+          IrValue{std::vector{IrValue{"child3.2.1"}, IrValue{"child3.2.2"}}}}},
+      IrValue{"child4"}}};
 
   std::string s = root.ToString();
 
@@ -140,7 +139,7 @@ TEST(SerializerTest, SubobjectsRoundTrip) {
 
   VerifyProtobufFormat(root);
 
-  std::optional<IRObject> obj = IRObject::FromString(s);
+  std::optional<IrValue> obj = IrValue::FromString(s);
   EXPECT_THAT(
       obj, Optional(SubsAre(
                ValueIs<std::string>("child1"), ValueIs<std::string>("child2"),
@@ -151,9 +150,9 @@ TEST(SerializerTest, SubobjectsRoundTrip) {
 }
 
 TEST(SerializerTest, EmptyObjectRoundTrips) {
-  std::string s = IRObject{}.ToString();
+  std::string s = IrValue{}.ToString();
   SCOPED_TRACE(s);
-  EXPECT_THAT(IRObject::FromString(s), Optional(ValueIs<std::monostate>({})));
+  EXPECT_THAT(IrValue::FromString(s), Optional(ValueIs<std::monostate>({})));
 }
 
 TEST(SerializerTest, IndentationIsCorrect) {
@@ -161,13 +160,12 @@ TEST(SerializerTest, IndentationIsCorrect) {
   // The indentation is irrelevant for the correctness of the algorithm, but it
   // is good for human readability.
 
-  IRObject root{
-      std::vector{IRObject{uint64_t{1}}, IRObject{uint64_t{2}},
-                  IRObject{std::vector<IRObject>{
-                      IRObject{uint64_t{31}},
-                      IRObject{std::vector{IRObject{uint64_t{321}},
-                                           IRObject{uint64_t{322}}}}}},
-                  IRObject{uint64_t{4}}}};
+  IrValue root{std::vector{
+      IrValue{uint64_t{1}}, IrValue{uint64_t{2}},
+      IrValue{std::vector<IrValue>{
+          IrValue{uint64_t{31}}, IrValue{std::vector{IrValue{uint64_t{321}},
+                                                     IrValue{uint64_t{322}}}}}},
+      IrValue{uint64_t{4}}}};
 
   std::string s = root.ToString();
 
@@ -188,58 +186,58 @@ sub { i: 4 }
 // We manually write the serialized form to test the error handling of the
 // parser. The serializer would not generate these, so we can't use it.
 TEST(SerializerTest, WrongHeaderWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 0"), Optional(_));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv2"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZtESTv1"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("-FUZZTESTv1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: 0"), Optional(_));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv2"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZtESTv1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("-FUZZTESTv1"), Not(Optional(_)));
 }
 
 TEST(SerializerTest, HandlesUnterminatedString) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1\""), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1\""), Not(Optional(_)));
 }
 
 TEST(SerializerTest, BadScalarWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 1"),
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: 1"),
               Optional(ValueIs<uint64_t>(1)));
   // Out of bounds values
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 123456789012345678901"),
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: 123456789012345678901"),
               Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: -1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: -1"), Not(Optional(_)));
   // Missing :
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i 1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i 1"), Not(Optional(_)));
   // Bad tag
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 x: 1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 x: 1"), Not(Optional(_)));
   // Wrong separator
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i; 1"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i; 1"), Not(Optional(_)));
   // Extra close
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 1}"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: 1}"), Not(Optional(_)));
 }
 
 TEST(SerializerTest, BadSubWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { i: 0 }"),
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub { i: 0 }"),
               Optional(SubsAre(ValueIs<uint64_t>(0))));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub: { }"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub  }"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { "), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { } }"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub: { }"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub  }"), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub { "), Not(Optional(_)));
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub { } }"), Not(Optional(_)));
 }
 
 TEST(SerializerTest, ExtraWhitespaceIsFine) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 0 \n "),
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 i: 0 \n "),
               Optional(ValueIs<uint64_t>(0)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub {   \n i:   0 \n}  \n "),
+  EXPECT_THAT(IrValue::FromString("FUZZTESTv1 sub {   \n i:   0 \n}  \n "),
               Optional(SubsAre(ValueIs<uint64_t>(0))));
 }
 
 template <typename T>
 void TestScalarRoundTrips(T value) {
-  EXPECT_THAT(IRObject(value).GetScalar<T>(), Optional(value));
+  EXPECT_THAT(IrValue(value).GetScalar<T>(), Optional(value));
 
-  IRObject obj;
+  IrValue obj;
   obj.SetScalar(value);
   EXPECT_THAT(obj.GetScalar<T>(), Optional(value));
 
-  auto roundtrip = IRObject::FromString(obj.ToString());
+  auto roundtrip = IrValue::FromString(obj.ToString());
   EXPECT_THAT(obj.GetScalar<T>(), Optional(value));
 }
 
@@ -259,7 +257,7 @@ TEST(SerializerTest, ScalarConversionsWorks) {
 }
 
 TEST(SerializerTest, SubsAccesors) {
-  IRObject obj;
+  IrValue obj;
   // The empty obj shows as an empty subs too due to how it is serialized.
   EXPECT_THAT(obj.Subs(), Optional(ElementsAre()));
 
@@ -279,7 +277,7 @@ TEST(SerializerTest, SubsAccesors) {
 
 TEST(CorpusToIR, ValidRoundTrips) {
   const auto round_trip = [](auto v) -> std::optional<decltype(v)> {
-    return IRObject::FromCorpus(v).template ToCorpus<decltype(v)>();
+    return IrValue::FromCorpus(v).template ToCorpus<decltype(v)>();
   };
 
   // Monostates
@@ -327,8 +325,8 @@ TEST(CorpusToIR, ValidRoundTrips) {
       round_trip_proto.has_value() &&
       google::protobuf::util::MessageDifferencer::Equals(*round_trip_proto, proto));
 
-  // IRObject's identity
-  IRObject obj(1979);
+  // IrValue's identity
+  IrValue obj(1979);
   obj = round_trip(obj).value();
   EXPECT_THAT(obj.GetScalar<int>(), Optional(1979));
   obj.MutableSubs().emplace_back("ABC");
@@ -340,46 +338,46 @@ TEST(CorpusToIR, ValidRoundTrips) {
 
 TEST(CorpusToIR, FailureConditions) {
   // simple
-  EXPECT_FALSE(IRObject(1).ToCorpus<std::true_type>());
-  EXPECT_FALSE(IRObject("ABC").ToCorpus<int>());
+  EXPECT_FALSE(IrValue(1).ToCorpus<std::true_type>());
+  EXPECT_FALSE(IrValue("ABC").ToCorpus<int>());
 
   // variant
   {
     using V = std::variant<int, std::string>;
     // Valid index, but bad value.
-    IRObject var = IRObject::FromCorpus(V(2));
-    auto& v = std::get<std::vector<IRObject>>(var.value);
+    IrValue var = IrValue::FromCorpus(V(2));
+    auto& v = std::get<std::vector<IrValue>>(var.value);
     EXPECT_THAT(v[0].GetScalar<int>(), Optional(0));
-    v[0] = IRObject(1);
+    v[0] = IrValue(1);
     EXPECT_FALSE(var.ToCorpus<V>());
 
     // Reset
-    v[0] = IRObject(0);
+    v[0] = IrValue(0);
     EXPECT_THAT(var.ToCorpus<V>(), Optional(VariantWith<int>(2)));
 
     // Invalid index
-    v[0] = IRObject(2);
+    v[0] = IrValue(2);
     EXPECT_FALSE(var.ToCorpus<V>());
   }
 
   // proto
-  EXPECT_FALSE(IRObject(1).ToCorpus<TestProtobuf>());
-  EXPECT_TRUE(IRObject("").ToCorpus<TestProtobuf>());
+  EXPECT_FALSE(IrValue(1).ToCorpus<TestProtobuf>());
+  EXPECT_TRUE(IrValue("").ToCorpus<TestProtobuf>());
 
   // container
   using Vector = std::vector<int>;
-  EXPECT_FALSE(IRObject(1).ToCorpus<Vector>());
-  EXPECT_TRUE(IRObject(std::vector<IRObject>{IRObject(1), IRObject(2)})
-                  .ToCorpus<Vector>());
-  EXPECT_FALSE(IRObject(std::vector<IRObject>{IRObject(1), IRObject("ABC")})
+  EXPECT_FALSE(IrValue(1).ToCorpus<Vector>());
+  EXPECT_TRUE(
+      IrValue(std::vector<IrValue>{IrValue(1), IrValue(2)}).ToCorpus<Vector>());
+  EXPECT_FALSE(IrValue(std::vector<IrValue>{IrValue(1), IrValue("ABC")})
                    .ToCorpus<Vector>());
 
   // tuples
   using Tuple = std::tuple<int, std::string>;
-  EXPECT_FALSE(IRObject(1).ToCorpus<Tuple>());
-  EXPECT_TRUE(IRObject(std::vector<IRObject>{IRObject(1), IRObject("ABC")})
+  EXPECT_FALSE(IrValue(1).ToCorpus<Tuple>());
+  EXPECT_TRUE(IrValue(std::vector<IrValue>{IrValue(1), IrValue("ABC")})
                   .ToCorpus<Tuple>());
-  EXPECT_FALSE(IRObject(std::vector<IRObject>{IRObject("A"), IRObject("ABC")})
+  EXPECT_FALSE(IrValue(std::vector<IrValue>{IrValue("A"), IrValue("ABC")})
                    .ToCorpus<Tuple>());
 }
 

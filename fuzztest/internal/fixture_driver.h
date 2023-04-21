@@ -87,7 +87,7 @@ class UntypedFixtureDriver {
   // caller.
   virtual void Test(MoveOnlyAny&& args_untyped) const = 0;
 
-  virtual std::vector<GenericDomainCorpusType> GetSeeds() const = 0;
+  virtual std::vector<GenericCorpusValue> GetSeeds() const = 0;
   virtual std::unique_ptr<UntypedDomainInterface> GetDomains() const = 0;
 };
 
@@ -98,14 +98,14 @@ template <typename ValueType, typename SeedProvider>
 class TypedFixtureDriver : public UntypedFixtureDriver {
  public:
   TypedFixtureDriver(std::unique_ptr<TypedDomainInterface<ValueType>> domain,
-                     std::vector<GenericDomainCorpusType> seeds,
+                     std::vector<GenericCorpusValue> seeds,
                      SeedProvider seed_provider)
       : domain_(std::move(domain)),
         seeds_(std::move(seeds)),
         seed_provider_(std::move(seed_provider)) {}
 
-  std::vector<GenericDomainCorpusType> GetSeeds() const final {
-    std::vector<GenericDomainCorpusType> seeds = GetSeedsFromSeedProvider();
+  std::vector<GenericCorpusValue> GetSeeds() const final {
+    std::vector<GenericCorpusValue> seeds = GetSeedsFromSeedProvider();
     seeds.reserve(seeds.size() + seeds_.size());
     seeds.insert(seeds.end(), seeds_.begin(), seeds_.end());
     return seeds;
@@ -118,13 +118,13 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
  protected:
   const SeedProvider& seed_provider() const { return seed_provider_; }
 
-  std::vector<GenericDomainCorpusType> GetSeedsFromUserValues(
+  std::vector<GenericCorpusValue> GetSeedsFromUserValues(
       absl::Span<const ValueType> values) const {
-    std::vector<GenericDomainCorpusType> seeds;
+    std::vector<GenericCorpusValue> seeds;
     seeds.reserve(values.size());
     for (const ValueType& val : values) {
-      std::optional<GenericDomainCorpusType> seed =
-          domain_->TypedFromValue(val);
+      std::optional<GenericCorpusValue> seed =
+          domain_->TypedUserToCorpusValue(val);
       if (!seed.has_value()) {
         absl::FPrintF(GetStderr(), "[!] Invalid seed value:\n\n{");
         AutodetectTypePrinter<ValueType>().PrintUserValue(
@@ -138,11 +138,10 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
   }
 
  private:
-  virtual std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider()
-      const = 0;
+  virtual std::vector<GenericCorpusValue> GetSeedsFromSeedProvider() const = 0;
 
   std::unique_ptr<TypedDomainInterface<ValueType>> domain_;
-  std::vector<GenericDomainCorpusType> seeds_;
+  std::vector<GenericCorpusValue> seeds_;
   SeedProvider seed_provider_;
 };
 
@@ -197,18 +196,18 @@ template <typename DomainT, typename Fixture, typename BaseFixture,
           typename SeedProvider, typename... Args>
 class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
                     SeedProvider>
-    : public TypedFixtureDriver<value_type_t<DomainT>, SeedProvider> {
+    : public TypedFixtureDriver<user_value_t_of<DomainT>, SeedProvider> {
  public:
   static_assert(std::is_base_of_v<BaseFixture, Fixture>);
 
   using TargetFunction = void (BaseFixture::*)(Args...);
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
-                         std::vector<GenericDomainCorpusType> seeds,
+                         std::vector<GenericCorpusValue> seeds,
                          SeedProvider seed_provider)
       : FixtureDriver::TypedFixtureDriver(
             absl::WrapUnique(
-                static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
+                static_cast<TypedDomainInterface<user_value_t_of<DomainT>>*>(
                     domain.Clone().release())),
             std::move(seeds), std::move(seed_provider)),
         target_function_(target_function) {}
@@ -223,14 +222,14 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
           (fixture_.get()->*target_function_)(
               ForceVectorForStringView<Args>(std::move(args))...);
         },
-        args_untyped.GetAs<value_type_t<DomainT>>());
+        args_untyped.GetAs<user_value_t_of<DomainT>>());
   }
 
-  std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider() const final {
+  std::vector<GenericCorpusValue> GetSeedsFromSeedProvider() const final {
     if (this->seed_provider() == nullptr) return {};
     if constexpr (std::is_invocable_v<SeedProvider, Fixture*>) {
       static_assert(std::is_same_v<std::invoke_result_t<SeedProvider, Fixture*>,
-                                   std::vector<value_type_t<DomainT>>>);
+                                   std::vector<user_value_t_of<DomainT>>>);
       FUZZTEST_INTERNAL_CHECK_PRECONDITION(
           fixture_ != nullptr,
           "fixture is nullptr. Did you forget to instantiate it in one of the "
@@ -239,7 +238,7 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
           std::invoke(this->seed_provider(), fixture_.get()));
     } else if constexpr (std::is_invocable_v<SeedProvider>) {
       static_assert(std::is_same_v<std::invoke_result_t<SeedProvider>,
-                                   std::vector<value_type_t<DomainT>>>);
+                                   std::vector<user_value_t_of<DomainT>>>);
       return this->GetSeedsFromUserValues(std::invoke(this->seed_provider()));
     } else {
       return {};
@@ -262,16 +261,16 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
 //   - `Args...` -- the types of the target function's parameters.
 template <typename DomainT, typename SeedProvider, typename... Args>
 class FixtureDriver<DomainT, NoFixture, void (*)(Args...), SeedProvider>
-    : public TypedFixtureDriver<value_type_t<DomainT>, SeedProvider> {
+    : public TypedFixtureDriver<user_value_t_of<DomainT>, SeedProvider> {
  public:
   using TargetFunction = void (*)(Args...);
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
-                         std::vector<GenericDomainCorpusType> seeds,
+                         std::vector<GenericCorpusValue> seeds,
                          SeedProvider seed_provider)
       : FixtureDriver::TypedFixtureDriver(
             absl::WrapUnique(
-                static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
+                static_cast<TypedDomainInterface<user_value_t_of<DomainT>>*>(
                     domain.Clone().release())),
             std::move(seeds), std::move(seed_provider)),
         target_function_(target_function) {}
@@ -281,14 +280,14 @@ class FixtureDriver<DomainT, NoFixture, void (*)(Args...), SeedProvider>
         [&](auto&&... args) {
           target_function_(ForceVectorForStringView<Args>(std::move(args))...);
         },
-        args_untyped.GetAs<value_type_t<DomainT>>());
+        args_untyped.GetAs<user_value_t_of<DomainT>>());
   }
 
-  std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider() const final {
+  std::vector<GenericCorpusValue> GetSeedsFromSeedProvider() const final {
     if (this->seed_provider() == nullptr) return {};
     if constexpr (std::is_invocable_v<SeedProvider>) {
       static_assert(std::is_same_v<std::invoke_result_t<SeedProvider>,
-                                   std::vector<value_type_t<DomainT>>>);
+                                   std::vector<user_value_t_of<DomainT>>>);
       return this->GetSeedsFromUserValues(std::invoke(this->seed_provider()));
     } else {
       return {};

@@ -227,14 +227,14 @@ TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
                                        : R"(sub { i: 0 } sub { i: $0 })";
 
   auto corpus_value =
-      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
+      domain.IrToCorpusValue(*internal::IrValue::FromString(absl::StrCat(
           "FUZZTESTv1 ",
           absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
   ASSERT_TRUE(corpus_value.has_value());
   EXPECT_TRUE(domain.ValidateCorpusValue(*corpus_value));
 
   corpus_value =
-      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
+      domain.IrToCorpusValue(*internal::IrValue::FromString(absl::StrCat(
           "FUZZTESTv1 ",
           absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
   // Greater than max should be parsed, but rejected by validation.
