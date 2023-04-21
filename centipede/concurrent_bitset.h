@@ -49,15 +49,15 @@ namespace centipede {
 
 // A fixed-size bitset with a lossy concurrent set() function.
 // kSize (in bits) must be a multiple of 2**16.
+// Should only be constructed with static storage duration.
 template <size_t kSizeInBits>
 class ConcurrentBitSet {
  public:
   static_assert((kSizeInBits % (1<<16)) == 0);
 
-  // Constructs an empty bit set.
-  ConcurrentBitSet() = default;
   // Creates a ConcurrentBitSet with static storage duration.
-  explicit constexpr ConcurrentBitSet(absl::ConstInitType) {}
+  explicit constexpr ConcurrentBitSet(absl::ConstInitType)
+      : lines_{absl::kConstInit} {}
 
   // Clears the bit set.
   void clear() {
@@ -128,7 +128,7 @@ class ConcurrentBitSet {
   static const size_t kWordsInLine = kBytesInLine / kBytesInWord;
   static const size_t kSizeInLines = kSizeInWords / kWordsInLine;
   ConcurrentByteSet<kSizeInLines> lines_;
-  word_t words_[kSizeInWords] = {};
+  word_t words_[kSizeInWords];  // No initializer.
 };
 
 }  // namespace centipede

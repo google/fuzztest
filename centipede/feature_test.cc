@@ -258,7 +258,7 @@ TEST(Feature, HashedRingBuffer) {
 
 TEST(Feature, ConcurrentBitSet) {
   constexpr size_t kSize = 1 << 16;
-  ConcurrentBitSet<kSize> bs;
+  static ConcurrentBitSet<kSize> bs(absl::kConstInit);
   std::vector<size_t> in_bits = {0, 1, 2, 100, 102, 1000000};
   std::vector<size_t> expected_out_bits = {0, 1, 2, 100, 102, 1000000 % kSize};
   std::vector<size_t> out_bits;
@@ -283,7 +283,7 @@ TEST(Feature, ConcurrentBitSet) {
 }
 
 TEST(Feature, ConcurrentByteSet) {
-  ConcurrentByteSet<1024> bs;
+  static ConcurrentByteSet<1024> bs(absl::kConstInit);
   const std::vector<std::pair<size_t, uint8_t>> in = {
       {0, 1}, {1, 42}, {2, 33}, {100, 15}, {102, 1}, {800, 66}};
 
@@ -304,8 +304,8 @@ TEST(Feature, ConcurrentByteSet) {
   EXPECT_TRUE(out.empty());
 }
 
-// Declare as __thread to test the existence of constexpr CTOR.
-static __thread TwoLayerConcurrentByteSet<(1 << 17)> two_layer_byte_set(
+// Test a thread_local object.
+static thread_local TwoLayerConcurrentByteSet<(1 << 17)> two_layer_byte_set(
     absl::kConstInit);
 
 TEST(Feature, TwoLayerConcurrentByteSet) {
@@ -332,7 +332,7 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
 
 // Tests ConcurrentBitSet from multiple threads.
 TEST(Feature, ConcurrentBitSet_Threads) {
-  ConcurrentBitSet<(1 << 16)> bs;
+  static ConcurrentBitSet<(1 << 16)> bs(absl::kConstInit);
   // 3 threads will each set one specific bit in a long loop.
   // 4th thread will set another bit, just once.
   // The set() function is lossy, i.e. it may fail to set the bit.
@@ -366,8 +366,8 @@ TEST(Feature, ConcurrentBitSet_Threads) {
 
 // Global ConcurrentBitSet with a absl::kConstInit CTOR.
 static ConcurrentBitSet<(1 << 20)> large_concurrent_bitset(absl::kConstInit);
-// Create a __thread object to ensure we can have a constexpr CTOR.
-static __thread ConcurrentBitSet<(1 << 20)> large_tls_concurrent_bitset(
+// Test a thread-local object.
+static thread_local ConcurrentBitSet<(1 << 20)> large_tls_concurrent_bitset(
     absl::kConstInit);
 
 TEST(Feature, ConcurrentBitSet_Large) {

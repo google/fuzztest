@@ -44,6 +44,7 @@ namespace centipede {
 // Set() can be called concurrently with another Set(), other uses should be
 // synchronized externally.
 // Intended usage is to call ForEachNonZeroByte() from one thread.
+// Should only be constructed with static storage duration.
 template <size_t kSize>
 class ConcurrentByteSet {
  public:
@@ -52,8 +53,6 @@ class ConcurrentByteSet {
   static constexpr size_t kSizeMultiple = 64;
   static_assert((kSize % kSizeMultiple) == 0);
 
-  // Constructs an empty byte set.
-  ConcurrentByteSet() = default;
   // Creates a ConcurrentByteSet with static storage duration.
   explicit constexpr ConcurrentByteSet(absl::ConstInitType) {}
 
@@ -94,7 +93,7 @@ class ConcurrentByteSet {
   }
 
  private:
-  uint8_t bytes_[kSize] __attribute__((aligned(64))) = {};
+  uint8_t bytes_[kSize] __attribute__((aligned(64)));  // No initializer.
 };
 
 // Similar to ConcurrentByteSet, but consists of two layers, upper and lower.
