@@ -1,3 +1,4 @@
+
 // Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -205,7 +206,7 @@ class TableOfRecentlyComparedBuffers {
   template <typename ContainerT>
   std::vector<DictionaryEntry<ContainerT>>
   GetMatchingContainerDictionaryEntries(const ContainerT& val) const {
-    using T = typename ContainerT::value_type;
+    using T = value_type_t<ContainerT>;
     static_assert(
         sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
         "GetMatchingDictionaryEntries only accepts basic"
@@ -236,7 +237,7 @@ class TableOfRecentlyComparedBuffers {
   GetMatchingContainerDictionaryEntry(const ContainerT& val,
                                       const uint8_t* buf1, const uint8_t* buf2,
                                       size_t buf_size) {
-    using T = typename ContainerT::value_type;
+    using T = value_type_t<ContainerT>;
     size_t val_size = val.size() * sizeof(T);
     static constexpr size_t kBufSizeValueMask = sizeof(T) - 1;
 
@@ -273,7 +274,7 @@ class TableOfRecentlyComparedBuffers {
   static std::optional<DictionaryEntry<ContainerT>> GetRandomSide(
       absl::BitGenRef prng, const uint8_t* buf1, const uint8_t* buf2,
       size_t buf_size) {
-    using T = typename ContainerT::value_type;
+    using T = value_type_t<ContainerT>;
     static constexpr size_t kBufSizeValueMask = sizeof(T) - 1;
     if ((buf_size & kBufSizeValueMask) != 0 || buf_size == 0) {
       return std::nullopt;
@@ -288,7 +289,7 @@ class TableOfRecentlyComparedBuffers {
   }
 
  private:
-  template <typename ContainerT, typename T = typename ContainerT::value_type>
+  template <typename ContainerT, typename T = value_type_t<ContainerT>>
   static ContainerT MakeContainer(const uint8_t* buf, size_t buf_size) {
     ContainerT result = {};
     std::copy(reinterpret_cast<const T*>(buf),
@@ -385,11 +386,11 @@ class IntegerDictionary {
 
 template <typename ContainerT>
 class ContainerDictionary {
-  static_assert(std::is_integral_v<typename ContainerT::value_type> &&
-                    (sizeof(typename ContainerT::value_type) == 1 ||
-                     sizeof(typename ContainerT::value_type) == 2 ||
-                     sizeof(typename ContainerT::value_type) == 4 ||
-                     sizeof(typename ContainerT::value_type) == 8),
+  static_assert(std::is_integral_v<value_type_t<ContainerT>> &&
+                    (sizeof(value_type_t<ContainerT>) == 1 ||
+                     sizeof(value_type_t<ContainerT>) == 2 ||
+                     sizeof(value_type_t<ContainerT>) == 4 ||
+                     sizeof(value_type_t<ContainerT>) == 8),
                 "ContainerDictionary only accepts container::value_type being "
                 "basic types with size = "
                 "{1, 2, 4, 8}.");
@@ -415,7 +416,7 @@ class ContainerDictionary {
   static std::optional<DictionaryEntry<ContainerT>> GetRandomTORCEntry(
       const ContainerT& val, absl::BitGenRef prng,
       const TablesOfRecentCompares& torc) {
-    using T = typename ContainerT::value_type;
+    using T = value_type_t<ContainerT>;
     std::optional<DictionaryEntry<ContainerT>> result = std::nullopt;
     // Get from mem_cmp_table or i*_cmp_table with 50/50 probability.
     if (RandomBool(prng)) {
@@ -492,7 +493,7 @@ class ContainerDictionary {
   // `GetMatchingContainerDictionaryEntry` to find matches in `val`.
   void AddMatchingIntegerDictionaryEntriesFromTORC(
       const ContainerT& val, const TablesOfRecentCompares& torc) {
-    using T = typename ContainerT::value_type;
+    using T = value_type_t<ContainerT>;
     if constexpr (sizeof(T) <= 4) {
       if (val.size() >= 4) {
         for (auto& i : torc.Get<4>().GetTable()) {

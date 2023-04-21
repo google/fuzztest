@@ -30,7 +30,7 @@ template <typename T>
 class BitFlagCombinationOfImpl
     : public DomainBase<BitFlagCombinationOfImpl<T>> {
  public:
-  using typename BitFlagCombinationOfImpl::DomainBase::user_value_t;
+  using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
       : flags_(flags.begin(), flags.end()) {
@@ -50,12 +50,12 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  user_value_t Init(absl::BitGenRef prng) {
+  value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    return user_value_t{};
+    return value_type{};
   }
 
-  void Mutate(user_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     T to_switch = flags_[ChooseOffset(flags_.size(), prng)];
 
     if (!only_shrink || BitAnd(val, to_switch) != T{}) {
@@ -63,32 +63,32 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  bool ValidateCorpusValue(const user_value_t&) const { return true; }
+  bool ValidateCorpusValue(const value_type&) const { return true; }
 
   auto GetPrinter() const { return AutodetectTypePrinter<T>(); }
 
  private:
   template <typename U>
-  static user_value_t BitAnd(U a, U b) {
+  static value_type BitAnd(U a, U b) {
     if constexpr (std::is_enum_v<U>) {
       return BitAnd(static_cast<std::underlying_type_t<U>>(a),
                     static_cast<std::underlying_type_t<U>>(b));
     } else {
-      return static_cast<user_value_t>(a & b);
+      return static_cast<value_type>(a & b);
     }
   }
 
   template <typename U>
-  static user_value_t BitXor(U a, U b) {
+  static value_type BitXor(U a, U b) {
     if constexpr (std::is_enum_v<U>) {
       return BitXor(static_cast<std::underlying_type_t<U>>(a),
                     static_cast<std::underlying_type_t<U>>(b));
     } else {
-      return static_cast<user_value_t>(a ^ b);
+      return static_cast<value_type>(a ^ b);
     }
   }
 
-  std::vector<user_value_t> flags_;
+  std::vector<value_type> flags_;
 };
 
 }  // namespace fuzztest::internal

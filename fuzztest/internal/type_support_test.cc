@@ -56,7 +56,7 @@ using ::testing::Le;
 using ::testing::MatchesRegex;
 
 template <typename Domain>
-std::vector<std::string> TestPrintValue(const corpus_value_t_of<Domain>& value,
+std::vector<std::string> TestPrintValue(const corpus_type_t<Domain>& value,
                                         const Domain& domain) {
   std::vector<std::string> res(2);
   PrintValue(domain, value, &res[0], PrintMode::kHumanReadable);
@@ -240,18 +240,17 @@ TEST(ContainerTest, Printer) {
   EXPECT_THAT(
       TestPrintValue(std::vector{1, 2, 3}, Arbitrary<std::vector<int>>()),
       Each("{1, 2, 3}"));
-  EXPECT_THAT(
-      TestPrintValue(*Arbitrary<std::set<int>>().UserToCorpusValue({1, 2, 3}),
-                     Arbitrary<std::set<int>>()),
-      Each("{1, 2, 3}"));
-  EXPECT_THAT(TestPrintValue(*Arbitrary<std::map<int, int>>().UserToCorpusValue(
-                                 {{1, 2}, {2, 3}}),
-                             Arbitrary<std::map<int, int>>()),
+  EXPECT_THAT(TestPrintValue(*Arbitrary<std::set<int>>().FromValue({1, 2, 3}),
+                             Arbitrary<std::set<int>>()),
+              Each("{1, 2, 3}"));
+  EXPECT_THAT(TestPrintValue(
+                  *Arbitrary<std::map<int, int>>().FromValue({{1, 2}, {2, 3}}),
+                  Arbitrary<std::map<int, int>>()),
               Each("{{1, 2}, {2, 3}}"));
 
   // With custom inner
   auto inner = ElementOf({kGreen, kRed});
-  using InnerCorpusT = corpus_value_t_of<decltype(inner)>;
+  using InnerCorpusT = corpus_type_t<decltype(inner)>;
   EXPECT_THAT(TestPrintValue(
                   std::list{InnerCorpusT{0}, InnerCorpusT{0}, InnerCorpusT{1}},
                   ContainerOf<std::vector<Color>>(inner)),
@@ -264,14 +263,14 @@ TEST(DomainTest, Printer) {
   // Make sure we can print through the type erased Domain<T>
   auto color_domain = ElementOf({kBlue});
   auto print = [&](auto v, auto domain) {
-    // We have to create the inner corpus_value_t of Domain here.
+    // We have to create the inner corpus_type of Domain here.
     return TestPrintValue(
-        corpus_value_t_of<decltype(domain)>(std::in_place_type<decltype(v)>, v),
+        corpus_type_t<decltype(domain)>(std::in_place_type<decltype(v)>, v),
         domain);
   };
   EXPECT_THAT(print('a', Domain<char>(Arbitrary<char>())),
               ElementsAre("'a' (97)", "'a'"));
-  EXPECT_THAT(print(typename decltype(color_domain)::corpus_value_t{0},
+  EXPECT_THAT(print(typename decltype(color_domain)::corpus_type{0},
                     Domain<Color>(color_domain)),
               ElementsAre("Color{1}", "static_cast<Color>(1)"));
 }
@@ -309,11 +308,11 @@ TEST(SmartPointerTest, Printer) {
   EXPECT_THAT(TestPrintValue({}, Arbitrary<std::unique_ptr<int>>()),
               Each("nullptr"));
   EXPECT_THAT(
-      TestPrintValue(Domain<int>::corpus_value_t(std::in_place_type<int>, 7),
+      TestPrintValue(Domain<int>::corpus_type(std::in_place_type<int>, 7),
                      Arbitrary<std::unique_ptr<int>>()),
       ElementsAre("(7)", "std::make_unique<int>(7)"));
   EXPECT_THAT(
-      TestPrintValue(Domain<std::string>::corpus_value_t(
+      TestPrintValue(Domain<std::string>::corpus_type(
                          std::in_place_type<std::string>, "ABC"),
                      Arbitrary<std::shared_ptr<std::string>>()),
       ElementsAre(
@@ -323,13 +322,12 @@ TEST(SmartPointerTest, Printer) {
 
 TEST(OneOfTest, Printer) {
   auto domain = OneOf(ElementOf({17}), InRange(20, 22));
-  using corpus_value_t = corpus_value_t_of<decltype(domain)>;
+  using corpus_type = corpus_type_t<decltype(domain)>;
 
-  EXPECT_THAT(TestPrintValue(corpus_value_t(std::in_place_index<0>), domain),
+  EXPECT_THAT(TestPrintValue(corpus_type(std::in_place_index<0>), domain),
               Each("17"));
-  EXPECT_THAT(
-      TestPrintValue(corpus_value_t(std::in_place_index<1>, 21), domain),
-      Each("21"));
+  EXPECT_THAT(TestPrintValue(corpus_type(std::in_place_index<1>, 21), domain),
+              Each("21"));
 }
 
 std::string StringTimes(int n, char c) { return std::string(n, c); }
@@ -362,7 +360,7 @@ auto ValueInRange(int a, int b) {
 
 TEST(FlatMapTest, PrinterWithNamedFunction) {
   auto domain = FlatMap(ValueInRange, Arbitrary<int>(), Arbitrary<int>());
-  decltype(domain)::corpus_value_t corpus_value = {2, 3, 1};
+  decltype(domain)::corpus_type corpus_value = {2, 3, 1};
   EXPECT_THAT(TestPrintValue(corpus_value, domain),
               ElementsAre("2", "ValueInRange(3, 1)"));
 }
@@ -370,7 +368,7 @@ TEST(FlatMapTest, PrinterWithNamedFunction) {
 TEST(FlatMapTest, PrinterWithLambda) {
   auto domain =
       FlatMap([](int a) { return ValueInRange(a, a + 100); }, Arbitrary<int>());
-  decltype(domain)::corpus_value_t corpus_value = {42, 0};
+  decltype(domain)::corpus_type corpus_value = {42, 0};
   EXPECT_THAT(TestPrintValue(corpus_value, domain), Each("42"));
 }
 
@@ -380,7 +378,7 @@ auto VectorWithSize(int size) {
 
 TEST(FlatMapTest, PrintVector) {
   auto domain = FlatMap(VectorWithSize, InRange(2, 4));
-  decltype(domain)::corpus_value_t corpus_value = {{1, 2, 3}, 3};
+  decltype(domain)::corpus_type corpus_value = {{1, 2, 3}, 3};
 
   EXPECT_THAT(TestPrintValue(corpus_value, domain),
               ElementsAre("{1, 2, 3}", "VectorWithSize(3)"));

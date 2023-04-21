@@ -27,19 +27,19 @@
 
 namespace fuzztest::internal {
 
-template <typename Predicate, typename InnerDomain>
-class FilterImpl : public DomainBase<FilterImpl<Predicate, InnerDomain>,
-                                     user_value_t_of<InnerDomain>,
-                                     corpus_value_t_of<InnerDomain>> {
+template <typename Pred, typename Inner>
+class FilterImpl
+    : public DomainBase<FilterImpl<Pred, Inner>, value_type_t<Inner>,
+                        corpus_type_t<Inner>> {
  public:
-  using typename FilterImpl::DomainBase::corpus_value_t;
-  using typename FilterImpl::DomainBase::user_value_t;
+  using typename FilterImpl::DomainBase::corpus_type;
+  using typename FilterImpl::DomainBase::value_type;
 
   FilterImpl() = default;
-  explicit FilterImpl(Predicate predicate, InnerDomain inner)
+  explicit FilterImpl(Pred predicate, Inner inner)
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     while (true) {
       auto v = inner_.Init(prng);
@@ -47,8 +47,8 @@ class FilterImpl : public DomainBase<FilterImpl<Predicate, InnerDomain>,
     }
   }
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
-    corpus_value_t original_val = val;
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    corpus_type original_val = val;
     while (true) {
       inner_.Mutate(val, prng, only_shrink);
       if (RunFilter(val)) return;
@@ -56,33 +56,31 @@ class FilterImpl : public DomainBase<FilterImpl<Predicate, InnerDomain>,
     }
   }
 
-  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
-    return inner_.CorpusToUserValue(v);
-  }
+  value_type GetValue(const corpus_type& v) const { return inner_.GetValue(v); }
 
-  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
+  std::optional<corpus_type> FromValue(const value_type& v) const {
     if (!predicate_(v)) return std::nullopt;
-    return inner_.UserToCorpusValue(v);
+    return inner_.FromValue(v);
   }
 
   auto GetPrinter() const { return inner_.GetPrinter(); }
 
-  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
-    return inner_.IrToCorpusValue(ir);
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return inner_.ParseCorpus(obj);
   }
 
-  IrValue CorpusToIrValue(const corpus_value_t& v) const {
-    return inner_.CorpusToIrValue(v);
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return inner_.SerializeCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
-    return predicate_(CorpusToUserValue(corpus_value));
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    return predicate_(GetValue(corpus_value));
   }
 
  private:
-  bool RunFilter(const corpus_value_t& v) {
+  bool RunFilter(const corpus_type& v) {
     ++num_values_;
-    bool res = predicate_(CorpusToUserValue(v));
+    bool res = predicate_(GetValue(v));
     if (!res) {
       ++num_skips_;
       if (num_skips_ > 100 && num_skips_ > .9 * num_values_) {
@@ -103,8 +101,8 @@ See more details in the User Guide.
     return res;
   }
 
-  Predicate predicate_;
-  InnerDomain inner_;
+  Pred predicate_;
+  Inner inner_;
   uint64_t num_values_ = 0;
   uint64_t num_skips_ = 0;
 };

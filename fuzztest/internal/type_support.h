@@ -38,10 +38,10 @@
 namespace fuzztest::internal {
 
 template <typename Domain>
-using user_value_t_of = typename Domain::user_value_t;
+using value_type_t = typename Domain::value_type;
 
 template <typename Domain>
-using corpus_value_t_of = typename Domain::corpus_value_t;
+using corpus_type_t = typename Domain::corpus_type;
 
 // Return a best effort printer for type `T`.
 // This is useful for cases where the domain can't figure out how to print the
@@ -90,19 +90,18 @@ enum class PrintMode { kHumanReadable, kSourceCode };
 
 // Invokes PrintCorpusValue or PrintUserValue from the domain's type printer,
 // depending on what's available.
-// It will automatically call CorpusToUserValue if needed for the PrintUserValue
-// call. It simplifies as few of the Print implementations.
+// It will automatically call GetValue if needed for the PrintUserValue call. It
+// simplifies as few of the Print implementations.
 template <typename Domain>
-void PrintValue(const Domain& domain,
-                const corpus_value_t_of<Domain>& corpus_value, RawSink out,
-                PrintMode mode) {
+void PrintValue(const Domain& domain, const corpus_type_t<Domain>& corpus_value,
+                RawSink out, PrintMode mode) {
   auto printer = domain.GetPrinter();
   if constexpr (Requires<decltype(printer)>(
                     [&](auto t) -> decltype(t.PrintCorpusValue(
                                     corpus_value, out, mode)) {})) {
     printer.PrintCorpusValue(corpus_value, out, mode);
   } else {
-    printer.PrintUserValue(domain.CorpusToUserValue(corpus_value), out, mode);
+    printer.PrintUserValue(domain.GetValue(corpus_value), out, mode);
   }
 }
 
@@ -237,10 +236,10 @@ struct OptionalPrinter {
   const Domain& domain;
   const Inner& inner_domain;
 
-  void PrintCorpusValue(const corpus_value_t_of<Domain>& v, RawSink out,
+  void PrintCorpusValue(const corpus_type_t<Domain>& v, RawSink out,
                         PrintMode mode) const {
-    using user_value_t = user_value_t_of<Domain>;
-    constexpr bool is_pointer = Requires<user_value_t>(
+    using value_type = value_type_t<Domain>;
+    constexpr bool is_pointer = Requires<value_type>(
         [](auto probe)
             -> std::enable_if_t<std::is_pointer_v<decltype(probe.get())>> {});
     if (v.index() == 1) {
@@ -255,11 +254,11 @@ struct OptionalPrinter {
           // unambiguous.
           if constexpr (is_pointer) {
             std::string_view maker =
-                is_unique_ptr_v<user_value_t>   ? "std::make_unique"
-                : is_shared_ptr_v<user_value_t> ? "std::make_shared"
-                                                : "<MAKE_SMART_POINTER>";
+                is_unique_ptr_v<value_type>   ? "std::make_unique"
+                : is_shared_ptr_v<value_type> ? "std::make_shared"
+                                              : "<MAKE_SMART_POINTER>";
             absl::Format(out, "%s<%s>(", maker,
-                         GetTypeName<typename user_value_t::element_type>());
+                         GetTypeName<typename value_type::element_type>());
           }
           PrintValue(inner_domain, std::get<1>(v), out, mode);
           if (is_pointer) absl::Format(out, ")");
@@ -270,7 +269,7 @@ struct OptionalPrinter {
       if (is_pointer) {
         absl::Format(out, "%s", "nullptr");
       } else {
-        auto type_name = GetTypeName<user_value_t>();
+        auto type_name = GetTypeName<value_type>();
         size_t pos = type_name.find("::");
         if (pos != type_name.npos) {
           type_name = type_name.substr(0, pos + 2);
@@ -349,7 +348,7 @@ template <typename Domain, typename Inner>
 struct ContainerPrinter {
   const Inner& inner_domain;
 
-  void PrintCorpusValue(const corpus_value_t_of<Domain>& val, RawSink out,
+  void PrintCorpusValue(const corpus_type_t<Domain>& val, RawSink out,
                         PrintMode mode) const {
     absl::Format(out, "{");
     bool first = true;
@@ -392,8 +391,7 @@ struct MappedPrinter {
   void PrintCorpusValue(const CorpusT& corpus_value, RawSink out,
                         PrintMode mode) const {
     auto value = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper(
-          std::get<I>(inner).CorpusToUserValue(std::get<I>(corpus_value))...);
+      return mapper(std::get<I>(inner).GetValue(std::get<I>(corpus_value))...);
     });
 
     switch (mode) {
@@ -443,8 +441,7 @@ struct FlatMappedPrinter {
     auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
       return mapper(
           // the first field of `corpus_value` is the output value, so skip it
-          std::get<I>(inner).CorpusToUserValue(
-              std::get<I + 1>(corpus_value))...);
+          std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
     });
 
     switch (mode) {

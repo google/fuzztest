@@ -53,9 +53,9 @@
 namespace fuzztest::internal {
 
 // Fallback for error reporting, if T is not matched in Arbitrary<T>.
-template <typename UserValueT, typename = void>
+template <typename T, typename = void>
 class ArbitraryImpl {
-  static_assert(always_false<UserValueT>,
+  static_assert(always_false<T>,
                 "=> Type not supported yet. Consider filing an issue."
   );
 };
@@ -63,17 +63,17 @@ class ArbitraryImpl {
 // Arbitrary for monostate.
 //
 // For monostate types with a default constructor, just give the single value.
-template <typename MonoT>
-class ArbitraryImpl<MonoT, std::enable_if_t<is_monostate_v<MonoT>>>
-    : public DomainBase<ArbitraryImpl<MonoT>> {
+template <typename T>
+class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
+    : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using typename ArbitraryImpl::DomainBase::user_value_t;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
-  user_value_t Init(absl::BitGenRef) { return user_value_t{}; }
+  value_type Init(absl::BitGenRef) { return value_type{}; }
 
-  void Mutate(user_value_t&, absl::BitGenRef, bool) {}
+  void Mutate(value_type&, absl::BitGenRef, bool) {}
 
-  bool ValidateCorpusValue(const user_value_t&) const {
+  bool ValidateCorpusValue(const value_type&) const {
     return true;  // Nothing to validate.
   }
 
@@ -84,12 +84,12 @@ class ArbitraryImpl<MonoT, std::enable_if_t<is_monostate_v<MonoT>>>
 template <>
 class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
  public:
-  user_value_t Init(absl::BitGenRef prng) {
+  value_type Init(absl::BitGenRef prng) {
     if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
   }
 
-  void Mutate(user_value_t& val, absl::BitGenRef, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef, bool only_shrink) {
     if (only_shrink) {
       val = false;
     } else {
@@ -97,7 +97,7 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
     }
   }
 
-  bool ValidateCorpusValue(const user_value_t&) const {
+  bool ValidateCorpusValue(const value_type&) const {
     return true;  // Nothing to validate.
   }
 
@@ -105,73 +105,70 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
 };
 
 // Arbitrary for integers.
-template <typename IntegerT>
-class ArbitraryImpl<IntegerT,
-                    std::enable_if_t<!std::is_const_v<IntegerT> &&
-                                     std::numeric_limits<IntegerT>::is_integer>>
-    : public DomainBase<ArbitraryImpl<IntegerT>> {
+template <typename T>
+class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
+                                        std::numeric_limits<T>::is_integer>>
+    : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using typename ArbitraryImpl::DomainBase::user_value_t;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
   static constexpr bool is_memory_dictionary_compatible_v =
-      sizeof(IntegerT) == 1 || sizeof(IntegerT) == 2 || sizeof(IntegerT) == 4 ||
-      sizeof(IntegerT) == 8;
+      sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8;
   using IntegerDictionaryT =
       std::conditional_t<is_memory_dictionary_compatible_v,
-                         IntegerDictionary<IntegerT>, bool>;
+                         IntegerDictionary<T>, bool>;
 
-  user_value_t Init(absl::BitGenRef prng) {
+  value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const auto choose_from_all = [&] {
       return absl::Uniform(absl::IntervalClosedClosed, prng,
-                           std::numeric_limits<IntegerT>::min(),
-                           std::numeric_limits<IntegerT>::max());
+                           std::numeric_limits<T>::min(),
+                           std::numeric_limits<T>::max());
     };
-    if constexpr (sizeof(IntegerT) == 1) {
+    if constexpr (sizeof(T) == 1) {
       return choose_from_all();
     } else {
-      static constexpr IntegerT special[] = {
-          IntegerT{0}, IntegerT{1},
+      static constexpr T special[] = {
+          T{0}, T{1},
           // For some types, ~T{} is promoted to int. Convert back to T.
-          static_cast<IntegerT>(~IntegerT{}),
-          std::numeric_limits<IntegerT>::is_signed
-              ? std::numeric_limits<IntegerT>::max()
-              : std::numeric_limits<IntegerT>::max() >> 1};
+          static_cast<T>(~T{}),
+          std::numeric_limits<T>::is_signed
+              ? std::numeric_limits<T>::max()
+              : std::numeric_limits<T>::max() >> 1};
       return ChooseOneOr(special, prng, choose_from_all);
     }
   }
 
-  void Mutate(user_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     if (only_shrink) {
       if (val == 0) return;
-      val = ShrinkTowards(prng, val, IntegerT{0});
+      val = ShrinkTowards(prng, val, T{0});
       return;
     }
-    const IntegerT prev = val;
+    const T prev = val;
     do {
       // Randomly apply 4 kinds of mutations with equal probabilities.
       // Use permanent_dictionary_ or temporary_dictionary_ with equal
       // probabilities.
       if (absl::Bernoulli(prng, 0.25)) {
-        RandomBitFlip(prng, val, sizeof(IntegerT) * 8);
+        RandomBitFlip(prng, val, sizeof(T) * 8);
       } else {
-        RandomWalkOrUniformOrDict<5>(
-            prng, val, std::numeric_limits<IntegerT>::min(),
-            std::numeric_limits<IntegerT>::max(), temporary_dict_,
-            permanent_dict_, permanent_dict_candidate_);
+        RandomWalkOrUniformOrDict<5>(prng, val, std::numeric_limits<T>::min(),
+                                     std::numeric_limits<T>::max(),
+                                     temporary_dict_, permanent_dict_,
+                                     permanent_dict_candidate_);
       }
       // Make sure Mutate really mutates.
     } while (val == prev);
   }
 
-  void UpdateMemoryDictionary(const user_value_t& val) {
+  void UpdateMemoryDictionary(const value_type& val) {
     if constexpr (is_memory_dictionary_compatible_v) {
       if (GetExecutionCoverage() != nullptr) {
         temporary_dict_.MatchEntriesFromTableOfRecentCompares(
             val, GetExecutionCoverage()->GetTablesOfRecentCompares(),
-            std::numeric_limits<IntegerT>::min(),
-            std::numeric_limits<IntegerT>::max());
+            std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
         if (permanent_dict_candidate_.has_value() &&
             permanent_dict_.Size() < kPermanentDictMaxSize) {
           permanent_dict_.AddEntry(std::move(*permanent_dict_candidate_));
@@ -181,7 +178,7 @@ class ArbitraryImpl<IntegerT,
     }
   }
 
-  bool ValidateCorpusValue(const user_value_t&) const {
+  bool ValidateCorpusValue(const value_type&) const {
     return true;  // Nothing to validate.
   }
 
@@ -198,37 +195,35 @@ class ArbitraryImpl<IntegerT,
   // that such entries may lead to interesting behaviors even
   // after the first new coverage it triggered.
   IntegerDictionaryT permanent_dict_;
-  std::optional<IntegerT> permanent_dict_candidate_;
+  std::optional<T> permanent_dict_candidate_;
   static constexpr size_t kPermanentDictMaxSize = 512;
 };
 
 // Arbitrary for floats.
-template <typename FloatT>
-class ArbitraryImpl<FloatT, std::enable_if_t<std::is_floating_point_v<FloatT>>>
-    : public DomainBase<ArbitraryImpl<FloatT>> {
+template <typename T>
+class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
+    : public DomainBase<ArbitraryImpl<T>> {
  public:
-  using typename ArbitraryImpl::DomainBase::user_value_t;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
-  user_value_t Init(absl::BitGenRef prng) {
+  value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const FloatT special[] = {FloatT{0.0}, FloatT{-0.0}, FloatT{1.0},
-                              FloatT{-1.0}, std::numeric_limits<FloatT>::max(),
-                              std::numeric_limits<FloatT>::infinity(),
-                              -std::numeric_limits<FloatT>::infinity(),
-                              // std::nan is double. Cast to T explicitly.
-                              static_cast<FloatT>(std::nan(""))};
-    return ChooseOneOr(special, prng, [&] {
-      return absl::Uniform(prng, FloatT{0}, FloatT{1});
-    });
+    const T special[] = {
+        T{0.0}, T{-0.0}, T{1.0}, T{-1.0}, std::numeric_limits<T>::max(),
+        std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
+        // std::nan is double. Cast to T explicitly.
+        static_cast<T>(std::nan(""))};
+    return ChooseOneOr(special, prng,
+                       [&] { return absl::Uniform(prng, T{0}, T{1}); });
   }
 
-  void Mutate(user_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
     if (only_shrink) {
       if (!std::isfinite(val) || val == 0) return;
-      val = ShrinkTowards(prng, val, FloatT{0});
+      val = ShrinkTowards(prng, val, T{0});
       return;
     }
-    const FloatT prev = val;
+    const T prev = val;
     do {
       // If it is not finite we can't change it a bit because it would stay the
       // same. eg inf/2 == inf.
@@ -247,7 +242,7 @@ class ArbitraryImpl<FloatT, std::enable_if_t<std::is_floating_point_v<FloatT>>>
     } while (val == prev || (std::isnan(prev) && std::isnan(val)));
   }
 
-  bool ValidateCorpusValue(const user_value_t&) const {
+  bool ValidateCorpusValue(const value_type&) const {
     return true;  // Nothing to validate.
   }
 
@@ -255,81 +250,75 @@ class ArbitraryImpl<FloatT, std::enable_if_t<std::is_floating_point_v<FloatT>>>
 };
 
 // Arbitrary for containers.
-template <typename ContainerT>
+template <typename T>
 class ArbitraryImpl<
-    ContainerT,
-    std::enable_if_t<always_true<ContainerT>,
+    T,
+    std::enable_if_t<always_true<T>,
                      decltype(
-                         // Iterable:
-                         ContainerT().begin(), ContainerT().end(),
-                         ContainerT().size(),
-                         // Values are mutable:
+                         // Iterable
+                         T().begin(), T().end(), T().size(),
+                         // Values are mutable
                          // This rejects associative containers, for example
-                         // *ContainerT().begin() = std::declval<typename
-                         // ContainerT::value_type>(),
-                         // Can insert and erase elements:
-                         ContainerT().insert(
-                             ContainerT().end(),
-                             std::declval<typename ContainerT::value_type>()),
-                         ContainerT().erase(ContainerT().begin()),
+                         // *T().begin() = std::declval<value_type_t<T>>(),
+                         // Can insert and erase elements
+                         T().insert(T().end(), std::declval<value_type_t<T>>()),
+                         T().erase(T().begin()),
                          //
                          (void)0)>>
-    : public ContainerOfImpl<ContainerT,
-                             ArbitraryImpl<typename ContainerT::value_type>> {};
+    : public ContainerOfImpl<T, ArbitraryImpl<value_type_t<T>>> {};
 
 // Arbitrary for std::string_view.
 //
 // We define a separate container for string_view, to detect out of bounds bugs
 // better. See below.
-template <typename CharT>
-class ArbitraryImpl<std::basic_string_view<CharT>>
-    : public DomainBase<ArbitraryImpl<std::basic_string_view<CharT>>,
-                        std::basic_string_view<CharT>,
+template <typename Char>
+class ArbitraryImpl<std::basic_string_view<Char>>
+    : public DomainBase<ArbitraryImpl<std::basic_string_view<Char>>,
+                        std::basic_string_view<Char>,
                         // We use a vector to better manage the buffer and help
                         // ASan find out-of-bounds bugs.
-                        std::vector<CharT>> {
+                        std::vector<Char>> {
  public:
-  using typename ArbitraryImpl::DomainBase::corpus_value_t;
-  using typename ArbitraryImpl::DomainBase::user_value_t;
+  using typename ArbitraryImpl::DomainBase::corpus_type;
+  using typename ArbitraryImpl::DomainBase::value_type;
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return inner_.Init(prng);
   }
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     inner_.Mutate(val, prng, only_shrink);
   }
 
-  void UpdateMemoryDictionary(const corpus_value_t& val) {
+  void UpdateMemoryDictionary(const corpus_type& val) {
     inner_.UpdateMemoryDictionary(val);
   }
 
   auto GetPrinter() const { return StringPrinter{}; }
 
-  user_value_t CorpusToUserValue(const corpus_value_t& value) const {
-    return user_value_t(value.data(), value.size());
+  value_type GetValue(const corpus_type& value) const {
+    return value_type(value.data(), value.size());
   }
 
-  std::optional<corpus_value_t> UserToCorpusValue(
-      const user_value_t& value) const {
-    return corpus_value_t(value.begin(), value.end());
+  std::optional<corpus_type> FromValue(const value_type& value) const {
+    return corpus_type(value.begin(), value.end());
   }
 
-  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
-    return ir.ToCorpus<corpus_value_t>();
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return obj.ToCorpus<corpus_type>();
   }
 
-  IrValue CorpusToIrValue(const corpus_value_t& v) const {
-    return IrValue::FromCorpus(v);
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_value_t&) const {
+  bool ValidateCorpusValue(const corpus_type&) const {
     return true;  // Nothing to validate.
   }
 
  private:
-  ArbitraryImpl<std::vector<CharT>> inner_;
+  ArbitraryImpl<std::vector<Char>> inner_;
 };
 
 // Arbitrary for any const T.
@@ -344,7 +333,7 @@ class ArbitraryImpl<const T> : public ArbitraryImpl<T> {};
 // Arbitrary for user-defined aggregate types (structs/classes).
 
 template <typename T, typename... Elem>
-AggregateOfImpl<T, RequireCustomCorpusValueT::kYes, ArbitraryImpl<Elem>...>
+AggregateOfImpl<T, RequireCustomCorpusType::kYes, ArbitraryImpl<Elem>...>
     DetectAggregateOfImpl2(std::tuple<Elem&...>);
 
 // Detect the number and types of the fields.
@@ -370,21 +359,21 @@ class ArbitraryImpl<std::pair<T, U>>
     : public AggregateOfImpl<
           std::pair<std::remove_const_t<T>, std::remove_const_t<U>>,
           std::is_const_v<T> || std::is_const_v<U>
-              ? RequireCustomCorpusValueT::kYes
-              : RequireCustomCorpusValueT::kNo,
+              ? RequireCustomCorpusType::kYes
+              : RequireCustomCorpusType::kNo,
           ArbitraryImpl<T>, ArbitraryImpl<U>> {};
 
 // Arbitrary for std::tuple.
 template <typename... T>
 class ArbitraryImpl<std::tuple<T...>, std::enable_if_t<sizeof...(T) != 0>>
-    : public AggregateOfImpl<std::tuple<T...>, RequireCustomCorpusValueT::kNo,
+    : public AggregateOfImpl<std::tuple<T...>, RequireCustomCorpusType::kNo,
                              ArbitraryImpl<T>...> {};
 
 // Arbitrary for std::array.
 template <typename T, size_t N>
 auto AggregateOfImplForArray() {
   return ApplyIndex<N>([&](auto... I) {
-    return AggregateOfImpl<std::array<T, N>, RequireCustomCorpusValueT::kNo,
+    return AggregateOfImpl<std::array<T, N>, RequireCustomCorpusType::kNo,
                            std::enable_if_t<(I >= 0), ArbitraryImpl<T>>...>{};
   });
 }

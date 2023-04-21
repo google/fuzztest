@@ -136,7 +136,7 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(std::string_view data,
           copy, prng,
           /*only_shrink=*/max_size < data.size());
     }
-    result = impl.params_domain_->UntypedCorpusToIrValue(copy).ToString();
+    result = impl.params_domain_->UntypedSerializeCorpus(copy).ToString();
     if (result.size() <= max_size) break;
   }
   return result;

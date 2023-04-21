@@ -186,42 +186,39 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
 
 struct StatefulIncrementDomain
     : public internal::DomainBase<StatefulIncrementDomain, int,
-                                  // Just to make sure we don't mix user_value_t
-                                  // with corpus_value_t
+                                  // Just to make sure we don't mix value_type
+                                  // with corpus_type
                                   std::tuple<int>> {
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     // Minimal code to exercise prng.
-    corpus_value_t result = {absl::Uniform<user_value_t>(prng, i, i + 1)};
+    corpus_type result = {absl::Uniform<value_type>(prng, i, i + 1)};
     ++i;
     return result;
   }
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
-    std::get<0>(val) += absl::Uniform<user_value_t>(prng, 5, 6) +
-                        static_cast<user_value_t>(only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    std::get<0>(val) += absl::Uniform<value_type>(prng, 5, 6) +
+                        static_cast<value_type>(only_shrink);
   }
 
-  user_value_t CorpusToUserValue(corpus_value_t v) const {
-    return std::get<0>(v);
-  }
-  std::optional<corpus_value_t> UserToCorpusValue(user_value_t v) const {
+  value_type GetValue(corpus_type v) const { return std::get<0>(v); }
+  std::optional<corpus_type> FromValue(value_type v) const {
     return std::tuple{v};
   }
 
-  std::optional<corpus_value_t> IrToCorpusValue(
-      const internal::IrValue& ir) const {
-    return ir.ToCorpus<corpus_value_t>();
+  std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
+    return obj.ToCorpus<corpus_type>();
   }
 
-  internal::IrValue CorpusToIrValue(const corpus_value_t& v) const {
-    return internal::IrValue::FromCorpus(v);
+  internal::IRObject SerializeCorpus(const corpus_type& v) const {
+    return internal::IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_value_t&) const { return true; }
+  bool ValidateCorpusValue(const corpus_type&) const { return true; }
 
   auto GetPrinter() const { return internal::IntegralPrinter{}; }
 
-  user_value_t i = 0;
+  value_type i = 0;
 };
 
 TEST(Domain, Constructability) {
@@ -577,10 +574,9 @@ TEST(ProtocolBuffer, CanUsePerFieldDomains) {
     }
 
     // Let's make sure the custom corpus information can be serialized properly.
-    auto parsed =
-        domain.IrToCorpusValue(domain.CorpusToIrValue(val.corpus_value));
+    auto parsed = domain.ParseCorpus(domain.SerializeCorpus(val.corpus_value));
     ASSERT_TRUE(parsed);
-    auto value_copy = domain.CorpusToUserValue(*parsed);
+    auto value_copy = domain.GetValue(*parsed);
     EXPECT_TRUE(Eq{}(val.user_value, value_copy));
   }
 
@@ -610,13 +606,12 @@ TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
   auto domain = Arbitrary<internal::TestProtobufWithExtension>();
   internal::TestProtobufWithExtension user_value;
   user_value.SetExtension(internal::ProtoExtender::ext, "Hello?!?!");
-  auto corpus_value = domain.UserToCorpusValue(user_value);
+  auto corpus_value = domain.FromValue(user_value);
   EXPECT_TRUE(corpus_value != std::nullopt);
-  auto serialized = domain.CorpusToIrValue(corpus_value.value());
-  auto parsed = domain.IrToCorpusValue(serialized);
+  auto serialized = domain.SerializeCorpus(corpus_value.value());
+  auto parsed = domain.ParseCorpus(serialized);
   EXPECT_TRUE(parsed != std::nullopt);
-  auto user_value_after_serialize_parse =
-      domain.CorpusToUserValue(parsed.value());
+  auto user_value_after_serialize_parse = domain.GetValue(parsed.value());
   EXPECT_EQ("Hello?!?!", user_value_after_serialize_parse.GetExtension(
                              internal::ProtoExtender::ext));
 }
@@ -695,23 +690,23 @@ TEST(ProtocolBuffer, CountNumberOfFieldsCorrect) {
   using SubT = internal::TestSubProtobuf;
   auto domain = Arbitrary<T>();
   T v;
-  auto corpus_v_uninitialized = domain.UserToCorpusValue(v);
+  auto corpus_v_uninitialized = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_uninitialized != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(corpus_v_uninitialized.value()), 26);
   v.set_allocated_subproto(new SubT());
-  auto corpus_v_initizalize_one_optional_proto = domain.UserToCorpusValue(v);
+  auto corpus_v_initizalize_one_optional_proto = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_optional_proto != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_optional_proto.value()),
             28);
   v.add_rep_subproto();
-  auto corpus_v_initizalize_one_repeated_proto_1 = domain.UserToCorpusValue(v);
+  auto corpus_v_initizalize_one_repeated_proto_1 = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_repeated_proto_1 != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_repeated_proto_1.value()),
             30);
   v.add_rep_subproto();
-  auto corpus_v_initizalize_one_repeated_proto_2 = domain.UserToCorpusValue(v);
+  auto corpus_v_initizalize_one_repeated_proto_2 = domain.FromValue(v);
   EXPECT_TRUE(corpus_v_initizalize_one_repeated_proto_2 != std::nullopt);
   EXPECT_EQ(domain.CountNumberOfFields(
                 corpus_v_initizalize_one_repeated_proto_2.value()),

@@ -59,7 +59,7 @@ struct Hash {
   template <typename T>
   size_t operator()(const T& v) const {
     if constexpr (internal::Requires<T>(
-                      [](auto v) -> decltype(v&& v.get()) {})) {
+                      [](auto v) -> decltype(v && v.get()) {})) {
       // Smart pointers.
       return v ? absl::HashOf(*v) : 0;
     } else if constexpr (internal::Requires<T>(
@@ -69,7 +69,7 @@ struct Hash {
       return !o || std::isnan(*o) ? 0 : absl::Hash<T>{}(*o);
     } else if constexpr (internal::Requires<T>(
                              [](auto v) -> decltype(v.hash_function()) {})) {
-      return (*this)(std::set<typename T::value_type>(v.begin(), v.end()));
+      return (*this)(std::set<internal::value_type_t<T>>(v.begin(), v.end()));
     } else {
       return absl::Hash<T>{}(v);
     }
@@ -86,7 +86,7 @@ struct Eq {
       differencer.set_field_comparator(&cmp);
       return differencer.Compare(a, b);
     } else if constexpr (internal::Requires<T>(
-                             [](auto v) -> decltype(v&& v.get()) {})) {
+                             [](auto v) -> decltype(v && v.get()) {})) {
       // Smart pointers.
       return a ? b && *a == *b : !b;
     } else if constexpr (internal::Requires<T>(
@@ -107,23 +107,23 @@ using Set = absl::flat_hash_set<T, Hash, Eq>;
 // simplify their access and mutation.
 template <typename Domain>
 struct Value {
-  using UserValueT = internal::user_value_t_of<Domain>;
-  internal::corpus_value_t_of<Domain> corpus_value;
-  UserValueT user_value;
+  using T = internal::value_type_t<Domain>;
+  internal::corpus_type_t<Domain> corpus_value;
+  T user_value;
 
   Value(Domain& domain, absl::BitGenRef prng)
       : corpus_value(domain.Init(prng)),
-        user_value(domain.CorpusToUserValue(corpus_value)) {}
+        user_value(domain.GetValue(corpus_value)) {}
 
-  // If the user_value_t is not copy constructible we have to copy the corpus
-  // and regenerate the value.
+  // If the value_type is not copy constructible we have to copy the corpus and
+  // regenerate the value.
   Value(const Value& other, Domain& domain)
       : corpus_value(other.corpus_value),
-        user_value(domain.CorpusToUserValue(corpus_value)) {}
+        user_value(domain.GetValue(corpus_value)) {}
 
-  Value(const Domain& domain, UserValueT user_value)
+  Value(const Domain& domain, T user_value)
       : corpus_value([&]() {
-          auto corpus_value = domain.UserToCorpusValue(user_value);
+          auto corpus_value = domain.FromValue(user_value);
           FUZZTEST_INTERNAL_CHECK_PRECONDITION(corpus_value.has_value(),
                                                "Invalid user_value!");
           return *corpus_value;
@@ -132,7 +132,7 @@ struct Value {
 
   void Mutate(Domain& domain, absl::BitGenRef prng, bool only_shrink) {
     domain.Mutate(corpus_value, prng, only_shrink);
-    user_value = domain.CorpusToUserValue(corpus_value);
+    user_value = domain.GetValue(corpus_value);
   }
 
   void RandomizeByRepeatedMutation(Domain& domain, absl::BitGenRef prng) {
@@ -140,31 +140,30 @@ struct Value {
     for (int i = 0; i < kMutations; ++i) {
       domain.Mutate(corpus_value, prng, /*only_shrink=*/false);
     }
-    user_value = domain.CorpusToUserValue(corpus_value);
+    user_value = domain.GetValue(corpus_value);
   }
 
   // Make the Value hashable/comparable to put them in sets/maps.
   template <typename H>
   friend H AbslHashValue(H state, const Value& self) {
     const auto& v = self.user_value;
-    if constexpr (internal::Requires<UserValueT>(
+    if constexpr (internal::Requires<T>(
                       [](auto v) -> decltype(std::isnan(*std::optional(v))) {
                       })) {
       auto o = std::optional(v);
       if (o && std::isnan(*o)) o = 0;
       return H::combine(std::move(state), o);
-    } else if constexpr (internal::Requires<UserValueT>(
+    } else if constexpr (internal::Requires<T>(
                              [](auto v) -> decltype(v.hash_function()) {})) {
-      return H::combine(
-          std::move(state),
-          std::set<typename UserValueT::value_type>(v.begin(), v.end()));
+      return H::combine(std::move(state), std::set<internal::value_type_t<T>>(
+                                              v.begin(), v.end()));
     } else {
       return H::combine(std::move(state), v);
     }
   }
 
   friend bool operator==(const Value& a, const Value& b) {
-    if constexpr (internal::Requires<UserValueT>(
+    if constexpr (internal::Requires<T>(
                       [](auto v) -> decltype(std::isnan(*std::optional(v))) {
                       })) {
       auto oa = std::optional(a.user_value), ob = std::optional(b.user_value);
@@ -177,22 +176,18 @@ struct Value {
 
   friend bool operator!=(const Value& a, const Value& b) { return !(a == b); }
 
-  friend bool operator==(const Value& a, const UserValueT& b) {
+  friend bool operator==(const Value& a, const T& b) {
     return a.user_value == b;
   }
-  friend bool operator!=(const Value& a, const UserValueT& b) {
+  friend bool operator!=(const Value& a, const T& b) {
     return a.user_value != b;
   }
-  friend bool operator<(const Value& a, const UserValueT& b) {
-    return a.user_value < b;
-  }
-  friend bool operator>(const Value& a, const UserValueT& b) {
-    return a.user_value > b;
-  }
-  friend bool operator<=(const Value& a, const UserValueT& b) {
+  friend bool operator<(const Value& a, const T& b) { return a.user_value < b; }
+  friend bool operator>(const Value& a, const T& b) { return a.user_value > b; }
+  friend bool operator<=(const Value& a, const T& b) {
     return a.user_value <= b;
   }
-  friend bool operator>=(const Value& a, const UserValueT& b) {
+  friend bool operator>=(const Value& a, const T& b) {
     return a.user_value >= b;
   }
   friend std::ostream& operator<<(std::ostream& s, const Value& v) {
@@ -209,22 +204,22 @@ template <typename Domain>
 void VerifyRoundTripThroughConversion(const Value<Domain>& v,
                                       const Domain& domain) {
   {
-    auto corpus_value = domain.UserToCorpusValue(v.user_value);
+    auto corpus_value = domain.FromValue(v.user_value);
     ASSERT_TRUE(corpus_value) << v;
     ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
-    auto new_v = domain.CorpusToUserValue(*corpus_value);
+    auto new_v = domain.GetValue(*corpus_value);
     EXPECT_TRUE(Eq{}(v.user_value, new_v))
         << "v=" << v << " new_v=" << testing::PrintToString(new_v);
   }
   {
-    auto serialized = domain.CorpusToIrValue(v.corpus_value).ToString();
-    auto parsed = internal::IrValue::FromString(serialized);
+    auto serialized = domain.SerializeCorpus(v.corpus_value).ToString();
+    auto parsed = internal::IRObject::FromString(serialized);
     ASSERT_TRUE(parsed);
-    auto parsed_corpus = domain.IrToCorpusValue(*parsed);
+    auto parsed_corpus = domain.ParseCorpus(*parsed);
     ASSERT_TRUE(parsed_corpus)
         << serialized << " value = " << testing::PrintToString(v.user_value);
     ASSERT_TRUE(domain.ValidateCorpusValue(*parsed_corpus));
-    EXPECT_TRUE(Eq{}(v.user_value, domain.CorpusToUserValue(*parsed_corpus)));
+    EXPECT_TRUE(Eq{}(v.user_value, domain.GetValue(*parsed_corpus)));
   }
 }
 
@@ -302,7 +297,7 @@ auto MutateUntilFoundN(Domain domain, size_t n) {
 }
 
 template <typename Domain, typename IsTerminal, typename IsCloser,
-          typename UserValueT = internal::user_value_t_of<Domain>>
+          typename T = internal::value_type_t<Domain>>
 absl::Status TestShrink(Domain domain,
                         const absl::flat_hash_set<Value<Domain>>& values,
                         IsTerminal is_terminal, IsCloser is_closer_to_zero) {

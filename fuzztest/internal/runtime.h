@@ -164,7 +164,7 @@ class Runtime {
   void DisableReporter() { reporter_enabled_ = false; }
 
   struct Args {
-    const GenericCorpusValue& corpus_value;
+    const GenericDomainCorpusType& corpus_value;
     UntypedDomainInterface& domain;
   };
 
@@ -242,10 +242,10 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   // guarantee seed stability
   // (https://abseil.io/docs/cpp/guides/random#seed-stability).
   using PRNG = std::mt19937;
-  using corpus_value_t = GenericCorpusValue;
+  using corpus_type = GenericDomainCorpusType;
 
   struct Input {
-    corpus_value_t args;
+    corpus_type args;
     size_t depth = 0;
     absl::Duration run_time = absl::ZeroDuration();
   };
@@ -260,9 +260,9 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   std::optional<std::vector<std::string>> GetFilesToReplay();
 
-  std::optional<corpus_value_t> ReadReproducerToMinimize();
+  std::optional<corpus_type> ReadReproducerToMinimize();
 
-  std::optional<corpus_value_t> TryParse(std::string_view data);
+  std::optional<corpus_type> TryParse(std::string_view data);
 
   void MutateValue(Input& input, absl::BitGenRef prng);
 

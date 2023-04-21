@@ -84,13 +84,13 @@ message TestProtobufWithRequired {
   map<int32, TestProtobufWithRequired> map_sub_req = 204;
 }
 
-message IrValueTestProto {
+message IRObjectTestProto {
   oneof value {
     uint64 i = 1;
     double d = 2;
     bytes s = 3;
   }
-  repeated IrValueTestProto sub = 4;
+  repeated IRObjectTestProto sub = 4;
 }
 
 message TestProtobufWithExtension {

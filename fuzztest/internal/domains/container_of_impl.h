@@ -53,9 +53,9 @@ auto ChoosePosition(Container& val, IncludeEnd include_end,
 }
 
 template <typename ContainerDomain,
-          typename UserValueT = ExtractTemplateParameter<0, ContainerDomain>,
+          typename ValueType = ExtractTemplateParameter<0, ContainerDomain>,
           typename InnerDomain = ExtractTemplateParameter<1, ContainerDomain>>
-using ContainerOfImplBaseCorpusValueT = std::conditional_t<
+using ContainerOfImplBaseCorpusType = std::conditional_t<
     // We use std::list as corpus type if:
     // 1) Container is vector<bool>, in order to be able to hold a reference to
     // a single bit. Otherwise that would only be possible through the
@@ -64,33 +64,30 @@ using ContainerOfImplBaseCorpusValueT = std::conditional_t<
     // Otherwise the inner domain would be immutable (e.g., std::pair<const int,
     // int> for maps).
     // 3) Inner domain has custom corpus type.
-    is_bitvector_v<UserValueT> || is_associative_container_v<UserValueT> ||
-        InnerDomain::has_custom_corpus_value_t,
-    std::list<corpus_value_t_of<InnerDomain>>, UserValueT>;
+    is_bitvector_v<ValueType> || is_associative_container_v<ValueType> ||
+        InnerDomain::has_custom_corpus_type,
+    std::list<corpus_type_t<InnerDomain>>, ValueType>;
 
 // Common base for container domains. Provides common APIs.
 template <typename Derived>
 class ContainerOfImplBase
-    : public DomainBase<Derived,
-                        /*UserValueT=*/
-                        ExtractTemplateParameter<0, Derived>,
-                        /*CorpusValueT=*/
-                        ContainerOfImplBaseCorpusValueT<Derived>> {
+    : public DomainBase<Derived, ExtractTemplateParameter<0, Derived>,
+                        ContainerOfImplBaseCorpusType<Derived>> {
   using InnerDomainT = ExtractTemplateParameter<1, Derived>;
 
  public:
-  using ContainerOfImplBase::DomainBase::has_custom_corpus_value_t;
-  using typename ContainerOfImplBase::DomainBase::corpus_value_t;
-  using typename ContainerOfImplBase::DomainBase::user_value_t;
+  using ContainerOfImplBase::DomainBase::has_custom_corpus_type;
+  using typename ContainerOfImplBase::DomainBase::corpus_type;
+  using typename ContainerOfImplBase::DomainBase::value_type;
 
   // Some container mutation only applies to vector or string types which do
   // not have a custom corpus type.
   static constexpr bool is_vector_or_string =
-      !has_custom_corpus_value_t &&
-      (is_vector_v<user_value_t> || std::is_same_v<user_value_t, std::string>);
+      !has_custom_corpus_type &&
+      (is_vector_v<value_type> || std::is_same_v<value_type, std::string>);
 
   // The current implementation of container dictionary only supports
-  // vector or string container user_value_t, whose InnerDomain is
+  // vector or string container value_type, whose InnerDomain is
   // an `ArbitraryImpl<T2>` where T2 is an integral type.
   static constexpr bool container_has_memory_dict =
       is_memory_dictionary_compatible<InnerDomainT>::value &&
@@ -98,18 +95,17 @@ class ContainerOfImplBase
 
   // If `!container_has_memory_dict`, dict_type is a bool and dict
   // is not used. This conditional_t may be neccessary because some
-  // user_value_t may not have copy constructors(for example, proto).
+  // value_type may not have copy constructors(for example, proto).
   // Making it a safe type(bool) to not break some targets.
   using dict_type = std::conditional_t<container_has_memory_dict,
-                                       ContainerDictionary<user_value_t>, bool>;
-  using dict_entry_type =
-      std::conditional_t<container_has_memory_dict,
-                         DictionaryEntry<user_value_t>, bool>;
+                                       ContainerDictionary<value_type>, bool>;
+  using dict_entry_type = std::conditional_t<container_has_memory_dict,
+                                             DictionaryEntry<value_type>, bool>;
 
   ContainerOfImplBase() = default;
   explicit ContainerOfImplBase(InnerDomainT inner) : inner_(std::move(inner)) {}
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     FUZZTEST_INTERNAL_CHECK(
         min_size() <= val.size() && val.size() <= max_size(), "Size ",
@@ -129,7 +125,7 @@ class ContainerOfImplBase
 
     if (can_shrink) {
       if (action-- == 0) {
-        if constexpr (!has_custom_corpus_value_t) {
+        if constexpr (!has_custom_corpus_type) {
           EraseRandomChunk(val, prng, min_size());
           return;
         }
@@ -139,7 +135,7 @@ class ContainerOfImplBase
     }
     if (can_grow) {
       if (action-- == 0) {
-        if constexpr (!has_custom_corpus_value_t) {
+        if constexpr (!has_custom_corpus_type) {
           auto element_val = inner_.Init(prng);
           InsertRandomChunk(val, prng, max_size(), element_val);
           return;
@@ -151,7 +147,7 @@ class ContainerOfImplBase
     if (can_change) {
       if (action-- == 0) {
         // If possible, mutate a consecutive chunk.
-        if constexpr (!has_custom_corpus_value_t) {
+        if constexpr (!has_custom_corpus_type) {
           const size_t changes =
               val.size() == 1 ? 1 : 1 + absl::Zipf(prng, val.size() - 1);
           const size_t change_offset =
@@ -186,7 +182,7 @@ class ContainerOfImplBase
     }
   }
 
-  void UpdateMemoryDictionary(const corpus_value_t& val) {
+  void UpdateMemoryDictionary(const corpus_type& val) {
     // TODO(JunyangShao): Implement dictionary propagation to container
     // elements. For now the propagation stops in container domains.
     // Because all elements share an `inner_` and will share
@@ -225,11 +221,11 @@ class ContainerOfImplBase
     max_size_ = s;
     return Self();
   }
-  Derived& WithDictionary(absl::Span<const user_value_t> manual_dict) {
+  Derived& WithDictionary(absl::Span<const value_type> manual_dict) {
     static_assert(container_has_memory_dict,
                   "Manual Dictionary now only supports std::vector or "
                   "std::string or std::string_view.\n");
-    for (const user_value_t& entry : manual_dict) {
+    for (const value_type& entry : manual_dict) {
       FUZZTEST_INTERNAL_CHECK(
           entry.size() <= max_size(),
           "At least one dictionary entry is larger than max container size.");
@@ -239,7 +235,7 @@ class ContainerOfImplBase
   }
 
   auto GetPrinter() const {
-    if constexpr (std::is_same_v<user_value_t, std::string>) {
+    if constexpr (std::is_same_v<value_type, std::string>) {
       // std::string has special handling for better output
       return StringPrinter{};
     } else {
@@ -247,11 +243,11 @@ class ContainerOfImplBase
     }
   }
 
-  user_value_t CorpusToUserValue(const corpus_value_t& value) const {
-    if constexpr (has_custom_corpus_value_t) {
-      user_value_t result;
+  value_type GetValue(const corpus_type& value) const {
+    if constexpr (has_custom_corpus_type) {
+      value_type result;
       for (const auto& v : value) {
-        result.insert(result.end(), inner_.CorpusToUserValue(v));
+        result.insert(result.end(), inner_.GetValue(v));
       }
       return result;
     } else {
@@ -259,14 +255,13 @@ class ContainerOfImplBase
     }
   }
 
-  std::optional<corpus_value_t> UserToCorpusValue(
-      const user_value_t& value) const {
-    if constexpr (!has_custom_corpus_value_t) {
+  std::optional<corpus_type> FromValue(const value_type& value) const {
+    if constexpr (!has_custom_corpus_type) {
       return value;
     } else {
-      corpus_value_t copus_value;
+      corpus_type copus_value;
       for (const auto& elem : value) {
-        auto inner_value = inner_.UserToCorpusValue(elem);
+        auto inner_value = inner_.FromValue(elem);
         if (!inner_value) return std::nullopt;
         copus_value.push_back(*std::move(inner_value));
       }
@@ -274,16 +269,16 @@ class ContainerOfImplBase
     }
   }
 
-  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
     // Use the generic serializer when no custom corpus type is used, since it
     // is more efficient. Eg a string value can be serialized as a string
     // instead of as a sequence of char values.
-    if constexpr (has_custom_corpus_value_t) {
-      auto subs = ir.Subs();
+    if constexpr (has_custom_corpus_type) {
+      auto subs = obj.Subs();
       if (!subs) return std::nullopt;
-      corpus_value_t res;
+      corpus_type res;
       for (const auto& elem : *subs) {
-        if (auto parsed_elem = inner_.IrToCorpusValue(elem)) {
+        if (auto parsed_elem = inner_.ParseCorpus(elem)) {
           res.insert(res.end(), std::move(*parsed_elem));
         } else {
           return std::nullopt;
@@ -291,24 +286,24 @@ class ContainerOfImplBase
       }
       return res;
     } else {
-      return ir.ToCorpus<corpus_value_t>();
+      return obj.ToCorpus<corpus_type>();
     }
   }
 
-  IrValue CorpusToIrValue(const corpus_value_t& v) const {
-    if constexpr (has_custom_corpus_value_t) {
-      IrValue ir;
-      auto& subs = ir.MutableSubs();
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    if constexpr (has_custom_corpus_type) {
+      IRObject obj;
+      auto& subs = obj.MutableSubs();
       for (const auto& elem : v) {
-        subs.push_back(inner_.CorpusToIrValue(elem));
+        subs.push_back(inner_.SerializeCorpus(elem));
       }
-      return ir;
+      return obj;
     } else {
-      return IrValue::FromCorpus(v);
+      return IRObject::FromCorpus(v);
     }
   }
 
-  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Check size.
     if (corpus_value.size() < min_size() || corpus_value.size() > max_size()) {
       return false;
@@ -395,20 +390,19 @@ class AssociativeContainerOfImpl
   using Base = typename AssociativeContainerOfImpl::ContainerOfImplBase;
 
  public:
-  using typename Base::corpus_value_t;
+  using typename Base::corpus_type;
 
-  static_assert(Base::has_custom_corpus_value_t,
-                "Must be custom to mutate keys");
+  static_assert(Base::has_custom_corpus_type, "Must be custom to mutate keys");
 
   AssociativeContainerOfImpl() = default;
   explicit AssociativeContainerOfImpl(InnerDomain inner)
       : Base(std::move(inner)) {}
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const size_t size = this->ChooseRandomInitialSize(prng);
 
-    corpus_value_t val;
+    corpus_type val;
     Grow(val, prng, size, 10000);
     if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
@@ -438,13 +432,13 @@ Please verify that the inner domain can provide enough values.
  private:
   friend Base;
 
-  void GrowOne(corpus_value_t& val, absl::BitGenRef prng) {
+  void GrowOne(corpus_type& val, absl::BitGenRef prng) {
     constexpr size_t kFailuresAllowed = 100;
     Grow(val, prng, 1, kFailuresAllowed);
   }
 
   // Try to grow `val` by `n` elements.
-  void Grow(corpus_value_t& val, absl::BitGenRef prng, size_t n,
+  void Grow(corpus_type& val, absl::BitGenRef prng, size_t n,
             size_t failures_allowed) {
     // Try a few times to insert a new element (correctly assuming the
     // initialization yields a random element if possible). We might get
@@ -453,12 +447,11 @@ Please verify that the inner domain can provide enough values.
     //
     // Use the real value to make sure we are not adding invalid elements to the
     // list. The insertion in `real_value` will do the deduping for us.
-    auto real_value = this->CorpusToUserValue(val);
+    auto real_value = this->GetValue(val);
     const size_t final_size = real_value.size() + n;
     while (real_value.size() < final_size) {
       auto new_element = this->inner_.Init(prng);
-      if (real_value.insert(this->inner_.CorpusToUserValue(new_element))
-              .second) {
+      if (real_value.insert(this->inner_.GetValue(new_element)).second) {
         val.push_back(std::move(new_element));
       } else {
         // Just stop if we reached the allowed failures.
@@ -469,8 +462,8 @@ Please verify that the inner domain can provide enough values.
   }
 
   // Try to mutate the element in `it`.
-  void MutateElement(corpus_value_t& val, absl::BitGenRef prng,
-                     typename corpus_value_t::iterator it, bool only_shrink) {
+  void MutateElement(corpus_type& val, absl::BitGenRef prng,
+                     typename corpus_type::iterator it, bool only_shrink) {
     size_t failures_allowed = 100;
     // Try a few times to mutate the element.
     // If the mutation reduces the number of elements in the container it means
@@ -480,15 +473,14 @@ Please verify that the inner domain can provide enough values.
     //
     // Use the real value to make sure we are not adding invalid elements to the
     // list. The insertion in `real_value` will do the deduping for us.
-    corpus_value_t original_element_list;
+    corpus_type original_element_list;
     original_element_list.splice(original_element_list.end(), val, it);
-    auto real_value = this->CorpusToUserValue(val);
+    auto real_value = this->GetValue(val);
 
     while (failures_allowed > 0) {
       auto new_element = original_element_list.front();
       this->inner_.Mutate(new_element, prng, only_shrink);
-      if (real_value.insert(this->inner_.CorpusToUserValue(new_element))
-              .second) {
+      if (real_value.insert(this->inner_.GetValue(new_element)).second) {
         val.push_back(std::move(new_element));
         return;
       } else {
@@ -506,23 +498,23 @@ class SequenceContainerOfImpl
   using Base = typename SequenceContainerOfImpl::ContainerOfImplBase;
 
  public:
-  using typename Base::corpus_value_t;
+  using typename Base::corpus_type;
 
   SequenceContainerOfImpl() = default;
   explicit SequenceContainerOfImpl(InnerDomain inner)
       : Base(std::move(inner)) {}
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     const size_t size = this->ChooseRandomInitialSize(prng);
-    corpus_value_t val;
+    corpus_type val;
     while (val.size() < size) {
       val.insert(val.end(), this->inner_.Init(prng));
     }
     return val;
   }
 
-  uint64_t CountNumberOfFields(const corpus_value_t& val) {
+  uint64_t CountNumberOfFields(const corpus_type& val) {
     uint64_t total_weight = 0;
     for (auto& i : val) {
       total_weight += this->inner_.CountNumberOfFields(i);
@@ -530,7 +522,7 @@ class SequenceContainerOfImpl
     return total_weight;
   }
 
-  uint64_t MutateSelectedField(corpus_value_t& val, absl::BitGenRef prng,
+  uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
@@ -545,13 +537,13 @@ class SequenceContainerOfImpl
  private:
   friend Base;
 
-  void GrowOne(corpus_value_t& val, absl::BitGenRef prng) {
+  void GrowOne(corpus_type& val, absl::BitGenRef prng) {
     val.insert(ChoosePosition(val, IncludeEnd::kYes, prng),
                this->inner_.Init(prng));
   }
 
-  void MutateElement(corpus_value_t&, absl::BitGenRef prng,
-                     typename corpus_value_t::iterator it, bool only_shrink) {
+  void MutateElement(corpus_type&, absl::BitGenRef prng,
+                     typename corpus_type::iterator it, bool only_shrink) {
     this->inner_.Mutate(*it, prng, only_shrink);
   }
 };

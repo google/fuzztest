@@ -51,9 +51,9 @@ TYPED_TEST(HandleTypeTest, Arbitrary) {
 
   Domain<TypeParam> domain = Arbitrary<TypeParam>();
 
-  // Handle types contain pointers/references to the corpus_value_t so we have
-  // to handle them with care. We use a std::deque to make sure we don't
-  // invalidate them.
+  // Handle types contain pointers/references to the corpus_type so we have to
+  // handle them with care.
+  // We use a std::deque to make sure we don't invalidate them.
   std::deque<Value<Domain<TypeParam>>> values;
 
   Set<TypeParam> unique;

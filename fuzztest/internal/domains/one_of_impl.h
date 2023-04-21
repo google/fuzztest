@@ -31,39 +31,36 @@
 
 namespace fuzztest::internal {
 
-template <typename... InnerDomains>
+template <typename... Inner>
 class OneOfImpl
     : public DomainBase<
-          OneOfImpl<InnerDomains...>,
-          user_value_t_of<std::tuple_element_t<0, std::tuple<InnerDomains...>>>,
-          /*CorpusValueT=*/
-          std::variant<corpus_value_t_of<InnerDomains>...>> {
+          OneOfImpl<Inner...>,
+          value_type_t<std::tuple_element_t<0, std::tuple<Inner...>>>,
+          std::variant<corpus_type_t<Inner>...>> {
  public:
-  using typename OneOfImpl::DomainBase::corpus_value_t;
-  using typename OneOfImpl::DomainBase::user_value_t;
+  using typename OneOfImpl::DomainBase::corpus_type;
+  using typename OneOfImpl::DomainBase::value_type;
 
-  // All user_value_ts of inner domains must be the same. (Though note that they
-  // can have different corpus_value_ts!)
+  // All value_types of inner domains must be the same. (Though note that they
+  // can have different corpus_types!)
   static_assert(
-      std::conjunction_v<
-          std::is_same<user_value_t, user_value_t_of<InnerDomains>>...>,
-      "All domains in a OneOf must have the same user_value_t.");
+      std::conjunction_v<std::is_same<value_type, value_type_t<Inner>>...>,
+      "All domains in a OneOf must have the same value_type.");
 
-  explicit OneOfImpl(InnerDomains... domains)
-      : domains_(std::move(domains)...) {}
+  explicit OneOfImpl(Inner... domains) : domains_(std::move(domains)...) {}
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     // TODO(b/191368509): Consider the cardinality of the subdomains to weight
     // them.
     return Switch<kNumDomains>(
         absl::Uniform(prng, size_t{}, kNumDomains), [&](auto I) {
-          return corpus_value_t(std::in_place_index<I>,
-                                std::get<I>(domains_).Init(prng));
+          return corpus_type(std::in_place_index<I>,
+                             std::get<I>(domains_).Init(prng));
         });
   }
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
     // Switch to another domain 1% of the time when not reducing.
     if (kNumDomains > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
@@ -83,17 +80,17 @@ class OneOfImpl
     }
   }
 
-  user_value_t CorpusToUserValue(const corpus_value_t& v) const {
-    return Switch<kNumDomains>(v.index(), [&](auto I) -> user_value_t {
+  value_type GetValue(const corpus_type& v) const {
+    return Switch<kNumDomains>(v.index(), [&](auto I) -> value_type {
       auto domain = std::get<I>(domains_);
-      return domain.CorpusToUserValue(std::get<I>(v));
+      return domain.GetValue(std::get<I>(v));
     });
   }
 
-  std::optional<corpus_value_t> UserToCorpusValue(const user_value_t& v) const {
-    std::optional<corpus_value_t> res;
+  std::optional<corpus_type> FromValue(const value_type& v) const {
+    std::optional<corpus_type> res;
     const auto try_one_corpus = [&](auto I) {
-      if (auto inner_res = std::get<I>(domains_).UserToCorpusValue(v)) {
+      if (auto inner_res = std::get<I>(domains_).FromValue(v)) {
         res.emplace(std::in_place_index<I>, *std::move(inner_res));
         return true;
       }
@@ -108,17 +105,17 @@ class OneOfImpl
     return res;
   }
 
-  auto GetPrinter() const { return OneOfPrinter<InnerDomains...>{domains_}; }
+  auto GetPrinter() const { return OneOfPrinter<Inner...>{domains_}; }
 
-  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
-    return ParseWithDomainVariant(domains_, ir);
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return ParseWithDomainVariant(domains_, obj);
   }
 
-  IrValue CorpusToIrValue(const corpus_value_t& v) const {
+  IRObject SerializeCorpus(const corpus_type& v) const {
     return SerializeWithDomainVariant(domains_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
     return Switch<kNumDomains>(corpus_value.index(), [&](auto I) {
       return std::get<I>(domains_).ValidateCorpusValue(
           std::get<I>(corpus_value));
@@ -126,10 +123,10 @@ class OneOfImpl
   }
 
  private:
-  static constexpr size_t kNumDomains = sizeof...(InnerDomains);
+  static constexpr size_t kNumDomains = sizeof...(Inner);
   static_assert(kNumDomains > 0, "OneOf requires a non-empty list.");
 
-  std::tuple<InnerDomains...> domains_;
+  std::tuple<Inner...> domains_;
 };
 
 }  // namespace fuzztest::internal

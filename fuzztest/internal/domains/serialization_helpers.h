@@ -32,23 +32,23 @@ namespace fuzztest::internal {
 // Helper serialization functions for common patterns: optional/variant/tuple.
 
 template <typename... Domain>
-IrValue SerializeWithDomainVariant(
+IRObject SerializeWithDomainVariant(
     const std::tuple<Domain...>& domains,
-    const std::variant<corpus_value_t_of<Domain>...>& v) {
-  IrValue ir;
-  auto& subs = ir.MutableSubs();
-  subs.push_back(IrValue::FromCorpus(v.index()));
+    const std::variant<corpus_type_t<Domain>...>& v) {
+  IRObject obj;
+  auto& subs = obj.MutableSubs();
+  subs.push_back(IRObject::FromCorpus(v.index()));
   Switch<sizeof...(Domain)>(v.index(), [&](auto I) {
-    subs.push_back(std::get<I>(domains).CorpusToIrValue(std::get<I>(v)));
+    subs.push_back(std::get<I>(domains).SerializeCorpus(std::get<I>(v)));
   });
-  return ir;
+  return obj;
 }
 
 template <typename... Domain,
-          typename ReturnT = std::variant<corpus_value_t_of<Domain>...>>
+          typename ReturnT = std::variant<corpus_type_t<Domain>...>>
 std::optional<ReturnT> ParseWithDomainVariant(
-    const std::tuple<Domain...>& domains, const IrValue& ir) {
-  auto subs = ir.Subs();
+    const std::tuple<Domain...>& domains, const IRObject& obj) {
+  auto subs = obj.Subs();
   if (!subs || subs->size() != 2) return std::nullopt;
 
   auto alternative = (*subs)[0].GetScalar<size_t>();
@@ -56,7 +56,7 @@ std::optional<ReturnT> ParseWithDomainVariant(
 
   return Switch<sizeof...(Domain)>(
       *alternative, [&](auto I) -> std::optional<ReturnT> {
-        auto inner_corpus = std::get<I>(domains).IrToCorpusValue((*subs)[1]);
+        auto inner_corpus = std::get<I>(domains).ParseCorpus((*subs)[1]);
         if (!inner_corpus) return std::nullopt;
         return ReturnT(std::in_place_index<I>, *std::move(inner_corpus));
       });
@@ -65,21 +65,21 @@ std::optional<ReturnT> ParseWithDomainVariant(
 template <typename Domain>
 auto SerializeWithDomainOptional(
     const Domain& domain,
-    const std::variant<std::monostate, corpus_value_t_of<Domain>>& v) {
-  IrValue ir;
-  auto& subs = ir.MutableSubs();
-  subs.push_back(IrValue(v.index()));
+    const std::variant<std::monostate, corpus_type_t<Domain>>& v) {
+  IRObject obj;
+  auto& subs = obj.MutableSubs();
+  subs.push_back(IRObject(v.index()));
   if (v.index() == 1) {
-    subs.push_back(domain.CorpusToIrValue(std::get<1>(v)));
+    subs.push_back(domain.SerializeCorpus(std::get<1>(v)));
   }
-  return ir;
+  return obj;
 }
 
 template <typename Domain, typename ReturnT = std::variant<
-                               std::monostate, corpus_value_t_of<Domain>>>
+                               std::monostate, corpus_type_t<Domain>>>
 std::optional<ReturnT> ParseWithDomainOptional(const Domain& domain,
-                                               const IrValue& ir) {
-  auto subs = ir.Subs();
+                                               const IRObject& obj) {
+  auto subs = obj.Subs();
   if (!subs || subs->empty()) return std::nullopt;
   auto index = (*subs)[0].GetScalar<size_t>();
   if (index == 0) {
@@ -87,7 +87,7 @@ std::optional<ReturnT> ParseWithDomainOptional(const Domain& domain,
     return ReturnT();
   } else if (index == 1) {
     if (subs->size() != 2) return std::nullopt;
-    auto inner_corpus = domain.IrToCorpusValue((*subs)[1]);
+    auto inner_corpus = domain.ParseCorpus((*subs)[1]);
     if (!inner_corpus) return std::nullopt;
     return ReturnT(std::in_place_index<1>, *std::move(inner_corpus));
   } else {
@@ -98,29 +98,29 @@ std::optional<ReturnT> ParseWithDomainOptional(const Domain& domain,
 template <typename... Domain>
 auto SerializeWithDomainTuple(
     const std::tuple<Domain...>& domains,
-    const std::tuple<corpus_value_t_of<Domain>...>& corpus) {
-  IrValue ir;
-  auto& subs = ir.MutableSubs();
+    const std::tuple<corpus_type_t<Domain>...>& corpus) {
+  IRObject obj;
+  auto& subs = obj.MutableSubs();
   ApplyIndex<sizeof...(Domain)>([&](auto... I) {
-    (subs.push_back(std::get<I>(domains).CorpusToIrValue(std::get<I>(corpus))),
+    (subs.push_back(std::get<I>(domains).SerializeCorpus(std::get<I>(corpus))),
      ...);
   });
-  return ir;
+  return obj;
 }
 
 // Parse a corpus given a tuple of domains, skipping the first `skip` subs.
 template <typename... Domain>
-std::optional<std::tuple<corpus_value_t_of<Domain>...>> ParseWithDomainTuple(
-    const std::tuple<Domain...>& domains, const IrValue& ir, int skip = 0) {
-  auto subs = ir.Subs();
+std::optional<std::tuple<corpus_type_t<Domain>...>> ParseWithDomainTuple(
+    const std::tuple<Domain...>& domains, const IRObject& obj, int skip = 0) {
+  auto subs = obj.Subs();
   if (!subs || subs->size() != sizeof...(Domain) + skip) return std::nullopt;
   return ApplyIndex<sizeof...(Domain)>([&](auto... I) {
     return [](auto... opts) {
       return (!opts || ...)
                  ? std::nullopt
-                 : std::optional(std::tuple<corpus_value_t_of<Domain>...>{
+                 : std::optional(std::tuple<corpus_type_t<Domain>...>{
                        *std::move(opts)...});
-    }(std::get<I>(domains).IrToCorpusValue((*subs)[I + skip])...);
+    }(std::get<I>(domains).ParseCorpus((*subs)[I + skip])...);
   });
 }
 

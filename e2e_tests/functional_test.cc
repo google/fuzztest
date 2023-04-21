@@ -803,7 +803,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSet) {
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IrValue::FromString(replay_files[0].data);
+  auto parsed = IRObject::FromString(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -943,7 +943,7 @@ class ReplayFile {
   template <typename T>
   ReplayFile(std::in_place_t, const T& corpus) {
     filename_ = absl::StrCat(dir_.dirname(), "/replay_file");
-    WriteFile(filename_, internal::IrValue::FromCorpus(corpus).ToString());
+    WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString());
   }
 
   auto GetReplayEnv() const {
@@ -980,7 +980,7 @@ TEST_F(FuzzingModeTest, ReplayingCrashingReproducerCrashes) {
 }
 
 // The TypeErased tests below try the same as above, but with Domain<T> domains
-// to makes sure the type erasure of the corpus_value_t can be correctly
+// to makes sure the type erasure of the corpus_type can be correctly
 // serialized.
 TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSetTypeErased) {
   TempDir out_dir;
@@ -993,7 +993,7 @@ TEST_F(FuzzingModeTest, ReproducerIsDumpedWhenEnvVarIsSetTypeErased) {
 
   auto replay_files = ReadFileOrDirectory(out_dir.dirname());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IrValue::FromString(replay_files[0].data);
+  auto parsed = IRObject::FromString(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<uint8_t, double>>();
   EXPECT_THAT(args, Optional(FieldsAre(10, _))) << std_err;
@@ -1102,7 +1102,7 @@ TEST_F(FuzzingModeTest, MinimizerFindsSmallerInput) {
 
     auto replay_files = ReadFileOrDirectory(out_dir.dirname());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
-    auto parsed = IrValue::FromString(replay_files[0].data);
+    auto parsed = IRObject::FromString(replay_files[0].data);
     ASSERT_TRUE(parsed) << std_err;
     auto args = parsed->ToCorpus<std::tuple<std::string>>();
     ASSERT_THAT(args, Optional(FieldsAre(HasSubstr("X"))));

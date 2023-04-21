@@ -55,13 +55,13 @@ size_t ASTNode::NodeCount() const {
       children);
 }
 
-IrValue WrapASTIntoIrValue(const ASTNode& astnode, IrValue parsed_child) {
-  IrValue ir;
-  auto& subs = ir.MutableSubs();
-  subs.push_back(IrValue::FromCorpus(astnode.type_id));
-  subs.push_back(IrValue::FromCorpus(astnode.children.index()));
+IRObject WrapASTIntoIRObject(const ASTNode& astnode, IRObject parsed_child) {
+  IRObject obj;
+  auto& subs = obj.MutableSubs();
+  subs.push_back(IRObject::FromCorpus(astnode.type_id));
+  subs.push_back(IRObject::FromCorpus(astnode.children.index()));
   subs.emplace_back(parsed_child);
-  return ir;
+  return obj;
 }
 
 }  // namespace fuzztest::internal::grammar

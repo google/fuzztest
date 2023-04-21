@@ -33,52 +33,46 @@
 
 namespace fuzztest::internal {
 
-enum class RequireCustomCorpusValueT { kNo, kYes };
+enum class RequireCustomCorpusType { kNo, kYes };
 
-// For user defined types (structs) we require a custom corpus_value_t
+// For user defined types (structs) we require a custom corpus_type
 // (std::tuple), because the serializer does not support structs, only tuples.
-template <typename UserValueT, RequireCustomCorpusValueT require_custom,
-          typename... InnerDomains>
-using AggregateOfImplCorpusValueT =
-    std::conditional_t<require_custom == RequireCustomCorpusValueT::kYes ||
-                           (InnerDomains::has_custom_corpus_value_t || ...),
-                       std::tuple<corpus_value_t_of<InnerDomains>...>,
-                       UserValueT>;
+template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
+using AggregateOfImplCorpusType =
+    std::conditional_t<require_custom == RequireCustomCorpusType::kYes ||
+                           (Inner::has_custom_corpus_type || ...),
+                       std::tuple<corpus_type_t<Inner>...>, T>;
 
-template <typename UserValueT, RequireCustomCorpusValueT require_custom,
-          typename... InnerDomains>
+template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
 class AggregateOfImpl
     : public DomainBase<
-          AggregateOfImpl<UserValueT, require_custom, InnerDomains...>,
-          UserValueT,
-          /*CorpusValueT=*/
-          AggregateOfImplCorpusValueT<UserValueT, require_custom,
-                                      InnerDomains...>> {
+          AggregateOfImpl<T, require_custom, Inner...>, T,
+          AggregateOfImplCorpusType<T, require_custom, Inner...>> {
  public:
-  using AggregateOfImpl::DomainBase::has_custom_corpus_value_t;
-  using typename AggregateOfImpl::DomainBase::corpus_value_t;
-  using typename AggregateOfImpl::DomainBase::user_value_t;
+  using AggregateOfImpl::DomainBase::has_custom_corpus_type;
+  using typename AggregateOfImpl::DomainBase::corpus_type;
+  using typename AggregateOfImpl::DomainBase::value_type;
 
   AggregateOfImpl() = default;
-  explicit AggregateOfImpl(std::in_place_t, InnerDomains... inner)
+  explicit AggregateOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}
 
-  corpus_value_t Init(absl::BitGenRef prng) {
+  corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::apply(
-        [&](auto&... inner) { return corpus_value_t{inner.Init(prng)...}; },
+        [&](auto&... inner) { return corpus_type{inner.Init(prng)...}; },
         inner_);
   }
 
-  void Mutate(corpus_value_t& val, absl::BitGenRef prng, bool only_shrink) {
-    std::integral_constant<int, sizeof...(InnerDomains)> size;
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    std::integral_constant<int, sizeof...(Inner)> size;
     auto bound = internal::BindAggregate(val, size);
     // Filter the tuple to only the mutable fields.
     // The const ones can't be mutated.
     // Eg in `std::pair<const int, int>` for maps.
     static constexpr auto to_mutate =
-        GetMutableSubtuple<decltype(internal::BindAggregate(
-            std::declval<UserValueT&>(), size))>();
+        GetMutableSubtuple<decltype(internal::BindAggregate(std::declval<T&>(),
+                                                            size))>();
     static constexpr size_t actual_size =
         std::tuple_size_v<decltype(to_mutate)>;
     if constexpr (actual_size > 0) {
@@ -90,13 +84,13 @@ class AggregateOfImpl
     }
   }
 
-  void UpdateMemoryDictionary(const corpus_value_t& val) {
+  void UpdateMemoryDictionary(const corpus_type& val) {
     // Copy codes from Mutate that does the mutable domain filtering things.
-    std::integral_constant<int, sizeof...(InnerDomains)> size;
+    std::integral_constant<int, sizeof...(Inner)> size;
     auto bound = internal::BindAggregate(val, size);
     static constexpr auto to_mutate =
-        GetMutableSubtuple<decltype(internal::BindAggregate(
-            std::declval<UserValueT&>(), size))>();
+        GetMutableSubtuple<decltype(internal::BindAggregate(std::declval<T&>(),
+                                                            size))>();
     static constexpr size_t actual_size =
         std::tuple_size_v<decltype(to_mutate)>;
     // Apply UpdateMemoryDictionary to every mutable domain.
@@ -109,15 +103,15 @@ class AggregateOfImpl
     }
   }
 
-  int UntypedPrintCorpusValue(const GenericCorpusValue& val,
+  int UntypedPrintCorpusValue(const GenericDomainCorpusType& val,
                               absl::FormatRawSink out, internal::PrintMode mode,
                               std::optional<int> tuple_elem) const final {
     if (tuple_elem.has_value()) {
-      if constexpr (sizeof...(InnerDomains) != 0) {
-        if (*tuple_elem >= 0 && *tuple_elem < sizeof...(InnerDomains)) {
-          Switch<sizeof...(InnerDomains)>(*tuple_elem, [&](auto I) {
+      if constexpr (sizeof...(Inner) != 0) {
+        if (*tuple_elem >= 0 && *tuple_elem < sizeof...(Inner)) {
+          Switch<sizeof...(Inner)>(*tuple_elem, [&](auto I) {
             PrintValue(std::get<I>(inner_),
-                       std::get<I>(val.GetAs<corpus_value_t>()), out, mode);
+                       std::get<I>(val.GetAs<corpus_type>()), out, mode);
           });
         }
       }
@@ -125,27 +119,25 @@ class AggregateOfImpl
       AggregateOfImpl::DomainBase::UntypedPrintCorpusValue(val, out, mode,
                                                            std::nullopt);
     }
-    return sizeof...(InnerDomains);
+    return sizeof...(Inner);
   }
 
-  auto GetPrinter() const { return AggregatePrinter<InnerDomains...>{inner_}; }
+  auto GetPrinter() const { return AggregatePrinter<Inner...>{inner_}; }
 
-  user_value_t CorpusToUserValue(const corpus_value_t& value) const {
-    if constexpr (has_custom_corpus_value_t) {
-      if constexpr (DetectBindableFieldCount<user_value_t>() ==
-                    DetectBraceInitCount<user_value_t>()) {
-        return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
-          return UserValueT{
-              std::get<I>(inner_).CorpusToUserValue(std::get<I>(value))...};
+  value_type GetValue(const corpus_type& value) const {
+    if constexpr (has_custom_corpus_type) {
+      if constexpr (DetectBindableFieldCount<value_type>() ==
+                    DetectBraceInitCount<value_type>()) {
+        return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+          return T{std::get<I>(inner_).GetValue(std::get<I>(value))...};
         });
       } else {
         // Right now the only other possibility is that the bindable field count
         // is one less than the brace init field count. In that case, that extra
         // field is used to initialize an empty base class. We'll need to update
         // this if that ever changes.
-        return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
-          return UserValueT{
-              {}, std::get<I>(inner_).CorpusToUserValue(std::get<I>(value))...};
+        return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+          return T{{}, std::get<I>(inner_).GetValue(std::get<I>(value))...};
         });
       }
     } else {
@@ -153,19 +145,18 @@ class AggregateOfImpl
     }
   }
 
-  std::optional<corpus_value_t> UserToCorpusValue(
-      const user_value_t& value) const {
-    if constexpr (has_custom_corpus_value_t) {
-      return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
+  std::optional<corpus_type> FromValue(const value_type& value) const {
+    if constexpr (has_custom_corpus_type) {
+      return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
         auto bound = internal::BindAggregate(
-            value, std::integral_constant<int, sizeof...(InnerDomains)>{});
-        return [](auto... optional_values) -> std::optional<corpus_value_t> {
+            value, std::integral_constant<int, sizeof...(Inner)>{});
+        return [](auto... optional_values) -> std::optional<corpus_type> {
           if ((optional_values.has_value() && ...)) {
             return std::tuple(*std::move(optional_values)...);
           } else {
             return std::nullopt;
           }
-        }(std::get<I>(inner_).UserToCorpusValue(std::get<I>(bound))...);
+        }(std::get<I>(inner_).FromValue(std::get<I>(bound))...);
       });
     } else {
       return value;
@@ -175,24 +166,24 @@ class AggregateOfImpl
   // Use the generic serializer when no custom corpus type is used, since it is
   // more efficient. Eg a string value can be serialized as a string instead of
   // as a sequence of char values.
-  std::optional<corpus_value_t> IrToCorpusValue(const IrValue& ir) const {
-    if constexpr (has_custom_corpus_value_t) {
-      return ParseWithDomainTuple(inner_, ir);
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    if constexpr (has_custom_corpus_type) {
+      return ParseWithDomainTuple(inner_, obj);
     } else {
-      return ir.ToCorpus<corpus_value_t>();
+      return obj.ToCorpus<corpus_type>();
     }
   }
 
-  IrValue CorpusToIrValue(const corpus_value_t& v) const {
-    if constexpr (has_custom_corpus_value_t) {
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    if constexpr (has_custom_corpus_type) {
       return SerializeWithDomainTuple(inner_, v);
     } else {
-      return IrValue::FromCorpus(v);
+      return IRObject::FromCorpus(v);
     }
   }
 
-  bool ValidateCorpusValue(const corpus_value_t& corpus_value) const {
-    return ApplyIndex<sizeof...(InnerDomains)>([&](auto... I) {
+  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
       return (
           std::get<I>(inner_).ValidateCorpusValue(std::get<I>(corpus_value)) &&
           ...);
@@ -214,7 +205,7 @@ class AggregateOfImpl
     });
   }
 
-  std::tuple<InnerDomains...> inner_;
+  std::tuple<Inner...> inner_;
 };
 
 }  // namespace fuzztest::internal

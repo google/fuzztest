@@ -59,10 +59,10 @@ struct OutputVisitor {
     absl::StrAppend(&out, "\"");
   }
 
-  void operator()(const std::vector<IrValue>& value) const {
+  void operator()(const std::vector<IRObject>& value) const {
     for (const auto& sub : value) {
       const bool sub_is_scalar =
-          !std::holds_alternative<std::vector<IrValue>>(sub.value);
+          !std::holds_alternative<std::vector<IRObject>>(sub.value);
       absl::StrAppendFormat(&out, "%*ssub {%s", indent, "",
                             sub_is_scalar ? " " : "\n");
       std::visit(OutputVisitor{sub.value.index(), indent + 2, out}, sub.value);
@@ -134,7 +134,7 @@ bool ReadScalar(std::string& out, std::string_view value) {
   return true;
 }
 
-bool ParseImpl(IrValue& ir, std::string_view& str) {
+bool ParseImpl(IRObject& obj, std::string_view& str) {
   std::string_view key = ReadToken(str);
   if (key.empty() || key == "}") {
     // The object is empty. Put the token back and return.
@@ -143,7 +143,7 @@ bool ParseImpl(IrValue& ir, std::string_view& str) {
   }
 
   if (key == "sub") {
-    auto& v = ir.value.emplace<std::vector<IrValue>>();
+    auto& v = obj.value.emplace<std::vector<IRObject>>();
     do {
       if (ReadToken(str) != "{") return false;
       if (!ParseImpl(v.emplace_back(), str)) return false;
@@ -157,7 +157,7 @@ bool ParseImpl(IrValue& ir, std::string_view& str) {
   } else {
     if (ReadToken(str) != ":") return false;
     auto value = ReadToken(str);
-    auto& v = ir.value;
+    auto& v = obj.value;
     if (key == "i") {
       return ReadScalar(v.emplace<uint64_t>(), value);
     } else if (key == "d") {
@@ -173,17 +173,17 @@ bool ParseImpl(IrValue& ir, std::string_view& str) {
 
 }  // namespace
 
-std::string IrValue::ToString() const {
+std::string IRObject::ToString() const {
   std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
   std::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
 }
 
-std::optional<IrValue> IrValue::FromString(std::string_view str) {
-  IrValue ir;
+std::optional<IRObject> IRObject::FromString(std::string_view str) {
+  IRObject object;
   if (ReadToken(str) != kHeader) return std::nullopt;
-  if (!ParseImpl(ir, str) || !ReadToken(str).empty()) return std::nullopt;
-  return ir;
+  if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
+  return object;
 }
 
 }  // namespace fuzztest::internal
