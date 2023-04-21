@@ -76,13 +76,15 @@ void Exit(const char *reason) {
 
 // Contents of /proc/self/environ. We avoid malloc, so it's a fixed-size global.
 // The fork server will fail to initialize if /proc/self/environ is too large.
-char env[ARG_MAX];
+static char env[ARG_MAX];
+static ssize_t env_size;
 
 // Reads /proc/self/environ into env.
 void GetAllEnv() {
   int fd = open("/proc/self/environ", O_RDONLY);
   if (fd < 0) Exit("GetEnv: can't open /proc/self/environ\n");
-  if (read(fd, env, sizeof(env)) < 0) Exit("GetEnv: can't read to env\n");
+  env_size = read(fd, env, sizeof(env));
+  if (env_size < 0) Exit("GetEnv: can't read to env\n");
   if (close(fd) != 0) Exit("GetEnv: can't close /proc/self/environ\n");
   env[sizeof(env) - 1] = 0;  // Just in case.
 }
@@ -90,10 +92,11 @@ void GetAllEnv() {
 // Gets a zero-terminated string matching the environment `key` (ends with '=').
 const char *GetOneEnv(const char *key) {
   size_t key_len = strlen(key);
+  if (env_size < key_len) return nullptr;
   bool in_the_beginning_of_key = true;
   // env is not a C string.
   // It is an array of bytes, with '\0' between individual key=val pairs.
-  for (size_t idx = 0; idx < sizeof(env) - key_len; ++idx) {
+  for (size_t idx = 0; idx < env_size - key_len; ++idx) {
     if (env[idx] == 0) {
       in_the_beginning_of_key = true;
       continue;
