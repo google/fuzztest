@@ -302,6 +302,16 @@ TEST(Feature, ConcurrentByteSet) {
   bs.ForEachNonZeroByte(
       [&](size_t idx, uint8_t value) { out.emplace_back(idx, value); });
   EXPECT_TRUE(out.empty());
+
+  // Test SaturatedIncrement.
+  for (const auto &idx_value : in) {
+    for (auto iter = 0; iter < idx_value.second; ++iter) {
+      bs.SaturatedIncrement(idx_value.first);
+    }
+  }
+  bs.ForEachNonZeroByte(
+      [&](size_t idx, uint8_t value) { out.emplace_back(idx, value); });
+  EXPECT_EQ(out, in);
 }
 
 // Test a thread_local object.
@@ -328,6 +338,16 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
   bs.ForEachNonZeroByte(
       [&](size_t idx, uint8_t value) { out.emplace_back(idx, value); });
   EXPECT_TRUE(out.empty());
+
+  // Test SaturatedIncrement.
+  for (const auto &idx_value : in) {
+    for (auto iter = 0; iter < idx_value.second; ++iter) {
+      bs.SaturatedIncrement(idx_value.first);
+    }
+  }
+  bs.ForEachNonZeroByte(
+      [&](size_t idx, uint8_t value) { out.emplace_back(idx, value); });
+  EXPECT_EQ(out, in);
 }
 
 // Tests ConcurrentBitSet from multiple threads.
@@ -362,6 +382,32 @@ TEST(Feature, ConcurrentBitSet_Threads) {
   } else {
     EXPECT_EQ(bits, possible_bits4);
   }
+}
+
+// Tests TwoLayerConcurrentByteSet from multiple threads.
+TEST(Feature, TwoLayerConcurrentByteSet_Threads) {
+  static TwoLayerConcurrentByteSet<(1 << 16)> bs(absl::kConstInit);
+  // 3 threads will each increment one specific byte in a long loop.
+  // 4th thread will increment another byte, just once.
+  auto cb = [&](size_t idx) {
+    for (size_t i = 0; i < 10000000; i++) {
+      bs.SaturatedIncrement(idx);
+    }
+  };
+  std::thread t1(cb, 10);
+  std::thread t2(cb, 11);
+  std::thread t3(cb, 14);
+  std::thread t4([&]() { bs.SaturatedIncrement(15); });
+  t1.join();
+  t2.join();
+  t3.join();
+  t4.join();
+  const std::vector<std::pair<size_t, uint8_t>> expected = {
+      {10, 255}, {11, 255}, {14, 255}, {15, 1}};
+  std::vector<std::pair<size_t, uint8_t>> out;
+  bs.ForEachNonZeroByte(
+      [&](size_t idx, uint8_t value) { out.emplace_back(idx, value); });
+  EXPECT_EQ(out, expected);
 }
 
 // Global ConcurrentBitSet with a absl::kConstInit CTOR.

@@ -66,6 +66,14 @@ class ConcurrentByteSet {
     __atomic_store_n(&bytes_[idx], value, __ATOMIC_RELAXED);
   }
 
+  // Performs a saturated increment of element `idx`.
+  void SaturatedIncrement(size_t idx) {
+    if (idx >= kSize) __builtin_trap();
+    uint8_t counter = __atomic_load_n(&bytes_[idx], __ATOMIC_RELAXED);
+    if (counter != 255)
+      __atomic_store_n(&bytes_[idx], counter + 1, __ATOMIC_RELAXED);
+  }
+
   // Calls `action(index, value)` for every {index,value} of a non-zero byte in
   // the set, then sets all those bytes to zero.
   // `from` and `to` set the range of elements to iterate, both must be
@@ -125,6 +133,12 @@ class LayeredConcurrentByteSet {
     if (idx >= kSize) __builtin_trap();
     upper_layer_.Set(idx / kLayerRatio, 1);
     lower_layer_.Set(idx, value);
+  }
+
+  void SaturatedIncrement(size_t idx) {
+    if (idx >= kSize) __builtin_trap();
+    upper_layer_.Set(idx / kLayerRatio, 1);
+    lower_layer_.SaturatedIncrement(idx);
   }
 
   void ForEachNonZeroByte(const std::function<void(size_t, uint8_t)> &action,
