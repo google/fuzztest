@@ -72,6 +72,9 @@ void *MyThreadStart(void *arg) {
 static auto memcmp_orig =
     FuncAddr<int (*)(const void *s1, const void *s2, size_t n)>("memcmp");
 
+// TODO(kcc): as we implement more functions like memcmp_fallback and
+// length_of_common_prefix, move them into a separate module and unittest.
+
 // Fallback for the case memcmp_orig is null.
 // Will be executed several times at process startup, if at all.
 static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
@@ -84,19 +87,31 @@ static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
   return 0;
 }
 
+// Returns the length of the common prefix of `s1` and `s2`, but not more
+// than 63. I.e. the returned value is in [0, 64).
+static size_t length_of_common_prefix(const void *s1, const void *s2,
+                                      size_t n) {
+  const auto *p1 = static_cast<const uint8_t *>(s1);
+  const auto *p2 = static_cast<const uint8_t *>(s2);
+  static constexpr size_t kMaxLen = 63;
+  if (n > kMaxLen) n = kMaxLen;
+  for (size_t i = 0; i < n; ++i) {
+    if (p1[i] != p2[i]) return i;
+  }
+  return n;
+}
+
 // memcmp interceptor.
 // Calls the real memcmp() and possibly modifies state.cmp_feature_set.
 extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
-  uint64_t a = 0, b = 0;
-  if (n <= sizeof(a) && state.run_time_flags.use_cmp_features) {
-    memcpy(&a, s1, n);
-    memcpy(&b, s2, n);
+  if (state.run_time_flags.use_cmp_features) {
     auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
     uintptr_t pc_offset = caller_pc - state.main_object.start_address;
     uintptr_t hash =
         centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
-    state.cmp_feature_set.set(
-        centipede::ConvertContextAndArgPairToNumber(a, b, hash));
+    const size_t lcp = length_of_common_prefix(s1, s2, n);
+    hash <<= 6;  // lcp is a 6-bit number.
+    state.cmp_feature_set.set(hash | lcp);
   }
   int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
