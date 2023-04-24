@@ -27,6 +27,8 @@
 
 #include "absl/base/const_init.h"
 #include "./centipede/byte_array_mutator.h"
+#include "./centipede/concurrent_bitset.h"
+#include "./centipede/concurrent_byteset.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
@@ -228,8 +230,15 @@ struct GlobalRunnerState {
   // The actual initialization may happen before the CTOR is called.
   uint32_t *pc_guard_start;  // from __sanitizer_cov_trace_pc_guard_init.
   uint32_t *pc_guard_stop;   // from __sanitizer_cov_trace_pc_guard_init.
-  uint8_t *pc_counters;      // initialized once we know pc_guard_start/stop.
-  size_t pc_counters_size;   // ditto.
+
+  // kMaxNumPcs is the maximum number of instrumented PCs in the binary.
+  // We can be generous here since the unused memory will not cost anything.
+  // `pc_counter_set` is a static byte set supporting up to kMaxNumPcs PCs.
+  static constexpr size_t kMaxNumPcs = 1 << 28;
+  TwoLayerConcurrentByteSet<kMaxNumPcs> pc_counter_set{absl::kConstInit};
+  // This is the actual number of PCs, aligned up to
+  // pc_counter_set::kSizeMultiple, computed at startup.
+  size_t actual_pc_counter_set_size_aligned;
 
   // Initialized in CTOR from the __centipede_extra_features section.
   feature_t *user_defined_begin;

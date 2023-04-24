@@ -292,8 +292,8 @@ PostProcessCoverage(int target_return_value) {
   if (target_return_value == -1) return;
 
   // Convert counters to features.
-  centipede::ForEachNonZeroByte(
-      state.pc_counters, state.pc_counters_size, [](size_t idx, uint8_t value) {
+  state.pc_counter_set.ForEachNonZeroByte(
+      [](size_t idx, uint8_t value) {
         if (state.run_time_flags.use_pc_features) {
           g_features.push_back(
               centipede::feature_domains::kPCs.ConvertToMe(idx));
@@ -303,7 +303,8 @@ PostProcessCoverage(int target_return_value) {
               centipede::feature_domains::k8bitCounters.ConvertToMe(
                   centipede::Convert8bitCounterToNumber(idx, value)));
         }
-      });
+      },
+      0, state.actual_pc_counter_set_size_aligned);
 
   // Convert data flow bit set to features.
   if (state.run_time_flags.use_dataflow_features) {

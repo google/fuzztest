@@ -174,12 +174,7 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
 static inline void HandleOnePc(uintptr_t normalized_pc) {
-  if (uint8_t *counters = state.pc_counters) {
-    // Perform a saturating increment of the counter.
-    uint8_t *ptr = counters + normalized_pc;
-    uint8_t counter = __atomic_load_n(ptr, __ATOMIC_RELAXED);
-    if (counter != 255) __atomic_store_n(ptr, counter + 1, __ATOMIC_RELAXED);
-  }
+  state.pc_counter_set.SaturatedIncrement(normalized_pc);
 
   // path features.
   if (auto path_level = state.run_time_flags.path_level)
@@ -200,15 +195,12 @@ static uintptr_t ReturnAddressToCallerPc(uintptr_t return_address) {
 #endif
 }
 
-// Lazily initializes state.pc_counters / state.pc_counters_size.
+// Lazily initializes actual_pc_counter_set_size_aligned.
 static void LazyAllocatePcCounters(size_t size) {
-  if (state.pc_counters) return;
-  state.pc_counters_size = size;
-  // We use calloc() assuming that for large allocations it will not clear
-  // the memory but will simply rely on mmap to return zero pages.
-  // TODO(ussuri): If this assumption doesn't hold, may need to use mmap
-  //  directly.
-  state.pc_counters = static_cast<uint8_t *>(calloc(size, sizeof(uint8_t)));
+  if (state.actual_pc_counter_set_size_aligned) return;
+  constexpr size_t kAlignment = state.pc_counter_set.kSizeMultiple;
+  constexpr size_t kMask = kAlignment - 1;
+  state.actual_pc_counter_set_size_aligned = (size + kMask) & ~kMask;
 }
 
 // MainObjectLazyInit() and helpers allow us to initialize state.main_object
@@ -252,7 +244,8 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 // this variant.
 void __sanitizer_cov_trace_pc() {
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-  if (!state.main_object.start_address || !state.pc_counters)
+  if (!state.main_object.start_address ||
+      !state.actual_pc_counter_set_size_aligned)
     MainObjectLazyInit();
   pc -= state.main_object.start_address;
   pc = ReturnAddressToCallerPc(pc);
@@ -271,6 +264,7 @@ void __sanitizer_cov_trace_pc_guard_init(uint32_t *start, uint32_t *stop) {
 NO_SANITIZE
 void __sanitizer_cov_trace_pc_guard(uint32_t *guard) {
   // `guard` is in [pc_guard_start, pc_guard_stop), which gives us the offset.
+  if (!state.pc_guard_start) return;  // early stage of process init.
   uintptr_t offset = guard - state.pc_guard_start;
   HandleOnePc(offset);
 }
