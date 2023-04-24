@@ -205,66 +205,6 @@ inline uintptr_t ABToCmpDiffLog(uintptr_t a, uintptr_t b) {
   return __builtin_clzll(a > b ? a - b : b - a);
 }
 
-// TODO(kcc): deprecated, remove.
-// Encodes {context, a, b} into a number.
-// `a` and `b` are arguments of an instruction "a CMP b".
-// `context` identifies the CMP call site.
-// Usually, `context` is a random-looking number derived from a hash function.
-//
-// This function has several mutually conflicting requirements:
-//  * it must be very fast, as it is executed on every CMP instruction.
-//  * it must allow to distinguish {a,b} pairs in some non-trivial way.
-//  * it must not produce too many different values
-//    (where "too many" is hard to define)
-inline size_t ConvertContextAndArgPairToNumber(uintptr_t a, uintptr_t b,
-                                               uintptr_t context) {
-  // Below is a giant unscientific heuristic.
-  // Expect quite a bit of tuning effort here.
-  //
-  // The idea is to treat different {context,a,b} tuples as different features,
-  // so that a sufficiently new argument pair for a given context is recognized
-  // as interesting.
-  //
-  // Obviously, we can't generate 2^128 different features per context,
-  // and so we need to bucketize them.
-  //
-  // The following relationships between a and b seem worthy of
-  // differentiation via different feature values:
-  //  * a==b
-  //  * [diff]      a==b+K or a==b-K (for some small K, e.g. 1 to 31).
-  //  * [hamming]   Different values of hamming distance.
-  //  * [msb_eq]    The number of most significant bits being equal.
-  //  * [diff_log2] Different values of Log2(a-b)
-  // We compute a superposition of these properties.
-  //
-  // Similar ideas:
-  // * https://lafintel.wordpress.com/
-  // * https://llvm.org/docs/LibFuzzer.html#value-profile
-
-  // ab is the component of the feature based on {a,b}.
-  uintptr_t ab = 0;  // Value for the case of a == b;
-  if (a != b) {
-    uintptr_t diff = a - b;
-    // diff_component is in [0,64)
-    uintptr_t diff_component = diff < 32 ? diff : -diff < 32 ? 32 + -diff : 0;
-    // hamming_component is in [0, 64)
-    uintptr_t hamming_component = __builtin_popcountll(a ^ b) - 1;
-    // diff_log2_component is in [0, 64)
-    uintptr_t diff_log2_component = __builtin_clzll(diff);
-    // msb_eq_component is in [0, 64)
-    uintptr_t msb_eq_component = __builtin_clzll(a ^ b);
-    ab = (diff_component << 0) | (hamming_component << 6) |
-         (diff_log2_component << 12) | (msb_eq_component << 18);
-    // This gives us whooping 2^24 different features for just one context.
-    // In theory this is pretty bad: it will bloat the corpus beyond reasonable.
-    // Whether it's bad in practice remains to be seen.
-    // We may want to reduce the number of different features with e.g. this:
-    // ab %= 7919;  // mod large prime
-  }
-  // Combine {a,b} and context.
-  return ab ^ context;
-}
-
 // Fixed-size ring buffer that maintains a hash of its elements.
 // Create objects of this type as zero-initialized globals or thread-locals.
 // In a zero-initialized object all values and the hash are zero.
