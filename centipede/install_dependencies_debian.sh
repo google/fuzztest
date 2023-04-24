@@ -28,30 +28,34 @@
 #     (https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-data-flow)
 
 set -eux -o pipefail
+declare MAYBE_SUDO=""
+if (( "$EUID" != 0 )); then
+    MAYBE_SUDO="sudo"
+fi
 
-apt update
+${MAYBE_SUDO} apt update
 
 # Add Bazel distribution URI as a package source following:
 # https://docs.bazel.build/versions/main/install-ubuntu.html
-apt install -y curl gnupg apt-transport-https
+${MAYBE_SUDO} apt install -y curl gnupg apt-transport-https
 curl -fsSL https://bazel.build/bazel-release.pub.gpg \
-  | gpg --dearmor > /etc/apt/trusted.gpg.d/bazel.gpg
+  | gpg --dearmor | ${MAYBE_SUDO} tee /etc/apt/trusted.gpg.d/bazel.gpg >/dev/null
 echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" \
-  > /etc/apt/sources.list.d/bazel.list
-apt update
+  | ${MAYBE_SUDO} tee /etc/apt/sources.list.d/bazel.list >/dev/null
+${MAYBE_SUDO} apt update
 
 # Install LLVM, which provides llvm-symbolizer required for running Centipede in
 # some modes.
-apt install -y llvm
+${MAYBE_SUDO} apt install -y llvm
 
 # Install other dependencies.
-apt install -y git bazel binutils libssl-dev
+${MAYBE_SUDO} apt install -y git bazel binutils libssl-dev
 
 # Get Clang-14, the earliest version that supports dataflow tracing:
 #   * Download Clang from Chromium to support old OS (e.g. Ubuntu 16).
 #   * Alternatively, download the fresh Clang from https://releases.llvm.org/
-declare -r clang_url="https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-14-init-9436-g65120988-1.tgz"
-declare -r clang_dir="/clang"
-mkdir "${clang_dir}"
-tar zxvf <(curl "${clang_url}") -C "${clang_dir}"
-export CLANG_BIN_DIR="${clang_dir}/bin"
+declare -r CLANG_URL="https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-14-init-9436-g65120988-1.tgz"
+declare -r CLANG_DIR="/tmp/clang"
+mkdir "${CLANG_DIR}"
+tar zxvf <(curl "${CLANG_URL}") -C "${CLANG_DIR}"
+export CLANG_BIN_DIR="${CLANG_DIR}/bin"

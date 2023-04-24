@@ -22,24 +22,28 @@ source ./centipede/install_dependencies_debian.sh
 # The above script installs a custom version of clang and exports its bin subdir
 # in CLANG_BIN_DIR envvar.
 export PATH="${CLANG_BIN_DIR}:$PATH"
+declare MAYBE_SUDO=""
+if (( "$EUID" != 0 )); then
+    MAYBE_SUDO="sudo"
+fi
 
-apt install -y rename
+${MAYBE_SUDO} apt install -y rename
 
 ########################################
 # LOG ENVIRONMENT DEBUG INFO
 ########################################
 date --rfc-3339=seconds
 echo "Debug Info"
-echo "KOKORO_ARTIFACTS_DIR=${KOKORO_ARTIFACTS_DIR}"
+echo "OUTPUT_ARTIFACTS_DIR=${OUTPUT_ARTIFACTS_DIR}"
 
-mkdir -p "${KOKORO_ARTIFACTS_DIR}"
-find . >"${KOKORO_ARTIFACTS_DIR}/full_file_list.log"
+mkdir -p "${OUTPUT_ARTIFACTS_DIR}"
+find . >"${OUTPUT_ARTIFACTS_DIR}/full_file_list.log"
 {
   printenv
   which bazel
   bazel version
   bazel info --show_make_env
-} >"${KOKORO_ARTIFACTS_DIR}/build_environment.log"
+} >"${OUTPUT_ARTIFACTS_DIR}/build_environment.log"
 
 ########################################
 # RUN TESTS
@@ -66,32 +70,32 @@ set -e
 
 # Capture the build log as a fake test to reduce download spam
 declare -r FULL_BUILD_LOG_DIR="bazel_full_build_log"
-mkdir -p "${KOKORO_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}"
-cp "${BAZEL_OUTPUT_DIR}/command.log" "${KOKORO_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}/sponge_log.log"
-cat >"${KOKORO_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}/sponge_log.xml" <<DOC
+mkdir -p "${OUTPUT_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}"
+cp "${BAZEL_OUTPUT_DIR}/command.log" "${OUTPUT_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}/sponge_log.log"
+cat >"${OUTPUT_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}/sponge_log.xml" <<DOC
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="">
   <testsuite name="${FULL_BUILD_LOG_DIR}" tests="1" errors="${exit_code}"></testsuite>
 </testsuites>
 DOC
-chmod -R a+w "${KOKORO_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}"
+chmod -R a+w "${OUTPUT_ARTIFACTS_DIR}/${FULL_BUILD_LOG_DIR}"
 
 ########################################
 # REMAP OUTPUT FILES
 ########################################
-declare -r KOKORO_BAZEL_LOGS_DIR="${KOKORO_ARTIFACTS_DIR}/bazel_test_logs"
-rm -rf "${KOKORO_BAZEL_LOGS_DIR}"  # For local testing
-mkdir -p "${KOKORO_BAZEL_LOGS_DIR}"
+declare -r OUTPUT_BAZEL_LOGS_DIR="${OUTPUT_ARTIFACTS_DIR}/bazel_test_logs"
+rm -rf "${OUTPUT_BAZEL_LOGS_DIR}"  # For local testing
+mkdir -p "${OUTPUT_BAZEL_LOGS_DIR}"
 
 # Copy test.{log,xml} files to kokoro artifacts directory, then rename them.
-find -L bazel-testlogs -name "test.log" -exec cp --parents {} "${KOKORO_BAZEL_LOGS_DIR}" \;
-find -L "${KOKORO_BAZEL_LOGS_DIR}" -name "test.log" -exec rename 's/test\.log/sponge_log.log/' {} \;
-find -L bazel-testlogs -name "test.xml" -exec cp --parents {} "${KOKORO_BAZEL_LOGS_DIR}" \;
-find -L "${KOKORO_BAZEL_LOGS_DIR}" -name "test.xml" -exec rename 's/test\.xml/sponge_log.xml/' {} \;
+find -L bazel-testlogs -name "test.log" -exec cp --parents {} "${OUTPUT_BAZEL_LOGS_DIR}" \;
+find -L "${OUTPUT_BAZEL_LOGS_DIR}" -name "test.log" -exec rename 's/test\.log/sponge_log.log/' {} \;
+find -L bazel-testlogs -name "test.xml" -exec cp --parents {} "${OUTPUT_BAZEL_LOGS_DIR}" \;
+find -L "${OUTPUT_BAZEL_LOGS_DIR}" -name "test.xml" -exec rename 's/test\.xml/sponge_log.xml/' {} \;
 
-chmod -R a+w "${KOKORO_BAZEL_LOGS_DIR}"
+chmod -R a+w "${OUTPUT_BAZEL_LOGS_DIR}"
 
 date --rfc-3339=seconds
-echo "Exiting Docker"
+echo "Exiting test workflow"
 
 exit ${exit_code}
