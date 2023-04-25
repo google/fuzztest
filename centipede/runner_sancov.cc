@@ -17,16 +17,20 @@
 
 #include <pthread.h>
 
+#include <cstddef>
 #include <cstdint>
 
 #include "./centipede/feature.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner.h"
+#include "./centipede/runner_utils.h"
 
 namespace centipede {
 void RunnerSancov() {}  // to be referenced in runner.cc
 }  // namespace centipede
 
+using centipede::PCGuard;
+using centipede::RunnerCheck;
 using centipede::state;
 using centipede::tls;
 
@@ -145,10 +149,27 @@ NO_SANITIZE
 void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
 
 // https://clang.llvm.org/docs/SanitizerCoverage.html#pc-table
-// This function is called at the DSO init time.
+// This function is called at the DSO init time, potentially several times.
+// When called from the same DSO, the arguments will always be the same.
+// If a different DSO calls this function, it will have different arguments.
+// We currently do not support more than one sancov-instrumented DSO.
 void __sanitizer_cov_pcs_init(const uintptr_t *beg, const uintptr_t *end) {
-  state.pcs_beg = beg;
-  state.pcs_end = end;
+  RunnerCheck(state.pc_guard_start && state.pc_guard_stop,
+              "__sanitizer_cov_pcs_init is called before "
+              "__sanitizer_cov_trace_pc_guard_init");
+  if (state.pcs_beg == nullptr) {
+    state.pcs_beg = beg;
+    state.pcs_end = end;
+    // TODO(kcc): we know the PCs, set is_function_entry for all the guards.
+  } else {
+    RunnerCheck(
+        state.pcs_beg == beg && state.pcs_end == end,
+        "__sanitizer_cov_pcs_init is called with different "
+        "arguments than previously. This may indicate more than one DSO "
+        "instrumented with sancov. This is currently not supported by the "
+        "Centipede runner. Please let the Centipede developers know if this is "
+        "an important use case.");
+  }
 }
 
 // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow
@@ -254,19 +275,40 @@ void __sanitizer_cov_trace_pc() {
 }
 
 // This function is called at the DSO init time.
-void __sanitizer_cov_trace_pc_guard_init(uint32_t *start, uint32_t *stop) {
-  state.pc_guard_start = start;
-  state.pc_guard_stop = stop;
-  LazyAllocatePcCounters(stop - start);
+void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
+  if (state.pc_guard_start == nullptr) {
+    RunnerCheck(state.pcs_beg == nullptr,
+                "__sanitizer_cov_pcs_init was called before "
+                "__sanitizer_cov_trace_pc_guard_init");
+    RunnerCheck(stop - start <= PCGuard::kMaxNumPCs,
+                "__sanitizer_cov_trace_pc_guard_init: too many PCs");
+    state.pc_guard_start = start;
+    state.pc_guard_stop = stop;
+    LazyAllocatePcCounters(stop - start);
+    size_t idx = 0;
+    for (PCGuard *guard = start; guard != stop; ++guard) {
+      guard->pc_index = idx;
+      ++idx;
+    }
+  } else {
+    RunnerCheck(
+        state.pc_guard_start == start && state.pc_guard_stop == stop,
+        "__sanitizer_cov_trace_pc_guard_init is called with different "
+        "arguments than previously. This may indicate more than one DSO "
+        "instrumented with sancov. This is currently not supported by the "
+        "Centipede runner. Please let the Centipede developers know if this is "
+        "an important use case.");
+  }
 }
 
 // This function is called on every instrumented edge.
 NO_SANITIZE
-void __sanitizer_cov_trace_pc_guard(uint32_t *guard) {
-  // `guard` is in [pc_guard_start, pc_guard_stop), which gives us the offset.
-  if (!state.pc_guard_start) return;  // early stage of process init.
-  uintptr_t offset = guard - state.pc_guard_start;
-  HandleOnePc(offset);
+void __sanitizer_cov_trace_pc_guard(PCGuard *guard) {
+  // Very early at process startup, the `*guard` may still be not initialized.
+  // But in this case it's just going to be zero.
+  // TODO(kcc): the check below seems almost reduntant. See if we can remove it.
+  if (state.pc_guard_start == nullptr) return;
+  HandleOnePc(guard->pc_index);
 }
 
 }  // extern "C"
