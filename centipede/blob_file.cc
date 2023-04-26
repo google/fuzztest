@@ -29,8 +29,12 @@
 
 namespace centipede {
 
-// Simple implementation of BlobFileReader/BlobFileAppender based on
-// PackBytesForAppendFile() / UnpackBytesFromAppendFile().
+// TODO(ussuri): Return more informative statuses, at least with the file path
+//  included. That will require adjustments in the test: use
+//  `testing::status::StatusIs` instead of direct `absl::Status` comparisons).
+
+// Simple implementations of `BlobFileReader` / `BlobFileWriter` based on
+// `PackBytesForAppendFile()` / `UnpackBytesFromAppendFile()`.
 // We expect to eventually replace this code with something more robust,
 // and efficient, e.g. possibly https://github.com/google/riegeli.
 // But the current implementation is fully functional.
@@ -87,12 +91,12 @@ class SimpleBlobFileReader : public BlobFileReader {
 };
 
 // See SimpleBlobFileReader.
-class SimpleBlobFileAppender : public BlobFileAppender {
+class SimpleBlobFileWriter : public BlobFileWriter {
  public:
-  ~SimpleBlobFileAppender() override {
+  ~SimpleBlobFileWriter() override {
     if (file_ && !closed_) {
       // Virtual resolution is off in dtors, so use a specific Close().
-      CHECK_OK(SimpleBlobFileAppender::Close());
+      CHECK_OK(SimpleBlobFileWriter::Close());
     }
   }
 
@@ -105,7 +109,7 @@ class SimpleBlobFileAppender : public BlobFileAppender {
     return absl::OkStatus();
   }
 
-  absl::Status Append(absl::Span<const uint8_t> blob) override {
+  absl::Status Write(absl::Span<const uint8_t> blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     // TODO(kcc): [as-needed] This copy from a span to vector is clumsy. Change
@@ -134,8 +138,8 @@ std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
   return std::make_unique<SimpleBlobFileReader>();
 }
 
-std::unique_ptr<BlobFileAppender> DefaultBlobFileAppenderFactory() {
-  return std::make_unique<SimpleBlobFileAppender>();
+std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory() {
+  return std::make_unique<SimpleBlobFileWriter>();
 }
 
 }  // namespace centipede

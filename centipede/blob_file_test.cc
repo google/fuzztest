@@ -15,7 +15,6 @@
 #include "./centipede/blob_file.h"
 
 #include <cstdint>
-#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -24,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./centipede/test_util.h"
-#include "./centipede/util.h"
 
 namespace centipede {
 namespace {
@@ -37,7 +35,7 @@ std::string TempFilePath() {
 // We may have more than one BlobFile factory.
 // Need to test every factory the same way.
 void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
-                     std::unique_ptr<BlobFileAppender> (*AppenderFactory)()) {
+                     std::unique_ptr<BlobFileWriter> (*WriterFactory)()) {
   ByteArray input1{1, 2, 3};
   ByteArray input2{4, 5};
   ByteArray input3{6, 7, 8, 9};
@@ -47,10 +45,10 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Append two blobs to a file.
   {
-    auto appender = AppenderFactory();
+    auto appender = WriterFactory();
     EXPECT_OK(appender->Open(path, "a"));
-    EXPECT_OK(appender->Append(input1));
-    EXPECT_OK(appender->Append(input2));
+    EXPECT_OK(appender->Write(input1));
+    EXPECT_OK(appender->Write(input2));
     EXPECT_OK(appender->Close());
   }
 
@@ -68,9 +66,9 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Append one more blob to the same file.
   {
-    auto appender = AppenderFactory();
+    auto appender = WriterFactory();
     EXPECT_OK(appender->Open(path, "a"));
-    EXPECT_OK(appender->Append(input3));
+    EXPECT_OK(appender->Write(input3));
     EXPECT_OK(appender->Close());
   }
 
@@ -90,9 +88,9 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Overwrite the contents of the file by a new blob.
   {
-    auto appender = AppenderFactory();
+    auto appender = WriterFactory();
     EXPECT_OK(appender->Open(path, "w"));
-    EXPECT_OK(appender->Append(input4));
+    EXPECT_OK(appender->Write(input4));
     EXPECT_OK(appender->Close());
   }
 
@@ -108,18 +106,16 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 }
 
 TEST(BlobFile, DefaultTest) {
-  TestOneBlobFile(&DefaultBlobFileReaderFactory,
-                  &DefaultBlobFileAppenderFactory);
+  TestOneBlobFile(&DefaultBlobFileReaderFactory, &DefaultBlobFileWriterFactory);
 }
 
-// Tests incorrect ways of using a BlobFileReader/BlobFileAppender.
-void TestIncorrectUsage(
-    std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
-    std::unique_ptr<BlobFileAppender> (*AppenderFactory)()) {
+// Tests incorrect ways of using a BlobFileReader/BlobFileWriter.
+void TestIncorrectUsage(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
+                        std::unique_ptr<BlobFileWriter> (*WriterFactory)()) {
   const std::string invalid_path = "/DOES/NOT/EXIST";
   const auto path = TempFilePath();
   auto reader = ReaderFactory();
-  auto appender = AppenderFactory();
+  auto appender = WriterFactory();
 
   // open invalid file path.
   EXPECT_EQ(reader->Open(invalid_path), absl::UnknownError("can't open file"));
@@ -129,15 +125,15 @@ void TestIncorrectUsage(
 
   // Use the calls in the wrong order, e.g. Close() before Open(), etc.
 
-  // Appender first, it will create `path` if it doesn't exist.
+  // Writer first, it will create `path` if it doesn't exist.
   EXPECT_EQ(appender->Close(), absl::FailedPreconditionError("was not open"));
-  EXPECT_EQ(appender->Append(blob),
+  EXPECT_EQ(appender->Write(blob),
             absl::FailedPreconditionError("was not open"));
   EXPECT_OK(appender->Open(path, "a"));
   EXPECT_EQ(appender->Open(path, "a"),
             absl::FailedPreconditionError("already open"));
   EXPECT_OK(appender->Close());
-  EXPECT_EQ(appender->Append(blob),
+  EXPECT_EQ(appender->Write(blob),
             absl::FailedPreconditionError("already closed"));
   EXPECT_EQ(appender->Open(path, "a"),
             absl::FailedPreconditionError("already closed"));
@@ -158,7 +154,7 @@ void TestIncorrectUsage(
 
 TEST(BlobFile, IncorrectUsage) {
   TestIncorrectUsage(&DefaultBlobFileReaderFactory,
-                     &DefaultBlobFileAppenderFactory);
+                     &DefaultBlobFileWriterFactory);
 }
 
 }  // namespace

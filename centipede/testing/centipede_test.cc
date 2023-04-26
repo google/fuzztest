@@ -689,10 +689,10 @@ TEST(Centipede, UndetectedCrashingInput) {
 
 static void WriteBlobsToFile(const std::vector<ByteArray> &blobs,
                              const std::string_view path) {
-  auto appender = DefaultBlobFileAppenderFactory();
+  auto appender = DefaultBlobFileWriterFactory();
   CHECK_OK(appender->Open(path, "a"));
   for (const auto &blob : blobs) {
-    CHECK_OK(appender->Append(blob));
+    CHECK_OK(appender->Write(blob));
   }
 }
 

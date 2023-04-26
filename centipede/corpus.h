@@ -16,6 +16,7 @@
 #define THIRD_PARTY_CENTIPEDE_CORPUS_H_
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
@@ -40,6 +41,18 @@ namespace centipede {
 // different features as such. But in practice such collisions should be rare.
 class FeatureSet {
  public:
+  // Lifetime.
+
+  FeatureSet() = default;
+
+  // Non-copy-assignable (due to a const member).
+  FeatureSet(const FeatureSet &) = default;
+  FeatureSet(FeatureSet &&) noexcept = default;
+  FeatureSet &operator=(const FeatureSet &) = delete;
+  FeatureSet &operator=(FeatureSet &&) noexcept = default;
+
+  ~FeatureSet() = default;
+
   explicit FeatureSet(uint8_t frequency_threshold)
       : frequency_threshold_(frequency_threshold), frequencies_(kSize) {}
 
@@ -70,6 +83,14 @@ class FeatureSet {
   // The weight of a FeatureVec is a sum of individual feature weights.
   uint64_t ComputeWeight(const FeatureVec &features) const;
 
+  // Resets this object.
+  void Reset() {
+    std::fill(frequencies_.begin(), frequencies_.end(), 0);
+    num_features_ = 0;
+    features_per_domain_.fill(0);
+    pc_index_set_.clear();
+  }
+
  private:
   // Maps feature into an index in frequencies_.
   static size_t Feature2Idx(feature_t feature) { return feature % kSize; }
@@ -99,7 +120,8 @@ class FeatureSet {
   size_t num_features_ = 0;
 
   // Counts features in each domain.
-  size_t features_per_domain_[feature_domains::Domain::kMaxNumDomains] = {};
+  std::array<size_t, feature_domains::Domain::kMaxNumDomains>
+      features_per_domain_ = {};
 
   // Maintains the set of PC indices that correspond to added features.
   absl::flat_hash_set<PCIndex> pc_index_set_;
@@ -166,6 +188,8 @@ struct CorpusRecord {
 // Allows to prune (forget) inputs that become uninteresting.
 class Corpus {
  public:
+  // Lifetime.
+
   Corpus() = default;
 
   Corpus(const Corpus &) = default;
@@ -188,6 +212,12 @@ class Corpus {
   // Returns the number of removed elements.
   size_t Prune(const FeatureSet &fs, const CoverageFrontier &coverage_frontier,
                size_t max_corpus_size, Rng &rng);
+  // Resets this object.
+  void Reset() {
+    records_.clear();
+    weighted_distribution_.clear();
+    num_pruned_ = 0;
+  }
 
   // Accessors.
 
@@ -232,6 +262,17 @@ class Corpus {
 // first.
 class CoverageFrontier {
  public:
+  // Lifetime.
+
+  CoverageFrontier() = delete;
+
+  CoverageFrontier(const CoverageFrontier &) = default;
+  CoverageFrontier(CoverageFrontier &&) noexcept = default;
+  CoverageFrontier &operator=(const CoverageFrontier &) = default;
+  CoverageFrontier &operator=(CoverageFrontier &&) noexcept = default;
+
+  ~CoverageFrontier() = default;
+
   explicit CoverageFrontier(const BinaryInfo &binary_info)
       : binary_info_(binary_info),
         frontier_(binary_info.pc_table.size()),
@@ -260,6 +301,13 @@ class CoverageFrontier {
   uint64_t FrontierWeight(size_t idx) const {
     CHECK_LT(idx, MaxPcIndex());
     return frontier_weight_[idx];
+  }
+
+  // Resets this object.
+  void Reset() {
+    frontier_.clear();
+    frontier_weight_.clear();
+    num_functions_in_frontier_ = 0;
   }
 
  private:
