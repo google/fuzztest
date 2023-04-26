@@ -93,6 +93,12 @@ cc_library(
     deps = ["@com_google_absl//absl/types:span"],
 )
 
+cc_library(
+    name = "callstack",
+    hdrs = ["callstack.h"],
+    # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
+)
+
 # simple definitions only, no code, no deps other than span.
 cc_library(
     name = "defs",
@@ -911,6 +917,15 @@ cc_test(
     srcs = ["reverse_pc_table_test.cc"],
     deps = [
         ":reverse_pc_table",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "callstack_test",
+    srcs = ["callstack_test.cc"],
+    deps = [
+        ":callstack",
         "@com_google_googletest//:gtest_main",
     ],
 )
