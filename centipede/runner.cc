@@ -88,6 +88,8 @@ static void WriteFailureDescription(const char *description) {
 }
 
 void ThreadLocalRunnerState::OnThreadStart() {
+  tls.lowest_sp = tls.top_frame_sp =
+      reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   LockGuard lock(state.tls_list_mu);
   // Add myself to state.tls_list.
   auto *old_list = state.tls_list;
@@ -273,6 +275,7 @@ PrepareCoverage() {
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.clear();
+      tls.lowest_sp = tls.top_frame_sp;
     });
   }
 }
@@ -344,6 +347,15 @@ PostProcessCoverage(int target_return_value) {
           centipede::feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
+
+  // Iterate all threads and get features from TLS data.
+  state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
+    RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
+                "bad values of tls.top_frame_sp and tls.lowest_sp");
+    size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
+    g_features.push_back(
+        centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
+  });
 
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.

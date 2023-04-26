@@ -99,6 +99,11 @@ struct ThreadLocalRunnerState {
   static constexpr size_t kBoundedPathLength = 100;
   HashedRingBuffer<kBoundedPathLength> path_ring_buffer;
 
+  // Value of SP in the top call frame of the thread, computed in OnThreadStart.
+  uintptr_t top_frame_sp;
+  // Lowest observed value of SP.
+  uintptr_t lowest_sp;
+
   // Cmp traces capture the arguments of CMP instructions, memcmp, etc.
   // We have dedicated traces for 2-, 4-, and 8-byte comparison, and
   // a catch-all `cmp_traceN` trace for memcmp, etc.

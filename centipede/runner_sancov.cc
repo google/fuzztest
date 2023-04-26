@@ -197,6 +197,9 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
 static inline void HandleOnePc(uintptr_t normalized_pc) {
   state.pc_counter_set.SaturatedIncrement(normalized_pc);
 
+  uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
+  if (sp < tls.lowest_sp) tls.lowest_sp = sp;
+
   // path features.
   if (auto path_level = state.run_time_flags.path_level)
     HandlePath(normalized_pc, path_level);

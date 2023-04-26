@@ -139,6 +139,8 @@ constexpr Domain kCMPHamming = {__COUNTER__};
 // log2(a > b ? a - b : b - a), see ABToCmpDiffLog.
 constexpr Domain kCMPDiffLog = {__COUNTER__};
 
+// Features derived from observing function call stacks.
+constexpr Domain kCallStack = {__COUNTER__};
 // Features derived from computing (bounded) control flow paths.
 constexpr Domain kBoundedPath = {__COUNTER__};
 // Features derived from (unordered) pairs of PCs.
