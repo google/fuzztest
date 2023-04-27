@@ -59,7 +59,18 @@ namespace centipede {
 // from constructor functions (CentipedeRunnerMain needs to run after
 // state constructor).
 // Note: it must run after ForkServerCallMeVeryEarly, see comment there.
-GlobalRunnerState state __attribute__((init_priority(200)));
+GlobalRunnerState state __attribute__((init_priority(200), no_destroy));
+// Guard to call `Finalize` on the global state when the program could
+// have destroy the state but instructed to not do so (due to the
+// `no_destory` attribute). This is needed because when combining
+// sanitizer coverage instrumentation with e.g. -ftest-coverage, the
+// sanitizer coverage callbacks will be called after this destruction
+// timing, so the state object needs to be still alive after that.
+struct GlobalRunnerStateFinalizeGuard {
+  ~GlobalRunnerStateFinalizeGuard() { state.Finalize(); }
+} state_finalize_guard
+    // Must have the same priority as `state`.
+    __attribute__((init_priority(200)));
 // We use __thread instead of thread_local so that the compiler warns if
 // the initializer for `tls` is not a constant expression.
 // `tls` thus must not have a CTOR.
@@ -770,7 +781,7 @@ GlobalRunnerState::GlobalRunnerState() {
   }
 }
 
-GlobalRunnerState::~GlobalRunnerState() {
+void GlobalRunnerState::Finalize() {
   // The process is winding down, but CentipedeRunnerMain did not run.
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.

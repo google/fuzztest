@@ -260,7 +260,7 @@ TEST(CFTable, GetCfTable) {
         // Check for properties.
         SCOPED_TRACE(testing::Message()
                      << "Checking for " << VV(current_function)
-                     << VV(current_pc) << VV(cf_table[j]) << VV(j));
+                     << VV(current_pc));
         if (current_function == "SingleEdgeFunc") {
           EXPECT_EQ(successor_num, 0);
           EXPECT_EQ(icallee_num, 0);

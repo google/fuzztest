@@ -124,7 +124,8 @@ struct GlobalRunnerState {
   Knobs knobs;
 
   GlobalRunnerState();
-  ~GlobalRunnerState();
+  // Report the stats when process is exiting.
+  void Finalize();
 
   // Runner reads flags from a dedicated env var, CENTIPEDE_RUNNER_FLAGS.
   // We don't use flags passed via argv so that argv flags can be passed
