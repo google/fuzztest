@@ -62,7 +62,7 @@ class ContainerTest : public testing::Test {};
 
 using ContainerTypes = testing::Types<
     // Simple types
-    std::string, std::vector<int>, std::deque<int>,
+    std::string, std::vector<int>, std::deque<int>, std::vector<std::byte>,
     // Nested types
     std::vector<std::string>, std::list<std::vector<int>>,
     // Sets

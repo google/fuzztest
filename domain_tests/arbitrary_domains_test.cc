@@ -90,6 +90,24 @@ TEST(ArbitraryBoolTest, InitGeneratesSeeds) {
                   .Times(Ge(650)));
 }
 
+TEST(ArbitraryByteTest, RepeatedMutationYieldsEveryValue) {
+  Domain<std::byte> domain = Arbitrary<std::byte>();
+  // Verify every value appears.
+  auto values = MutateUntilFoundN(domain, 256);
+  VerifyRoundTripThroughConversion(values, domain);
+  EXPECT_EQ(values.size(), 256);
+}
+
+TEST(ArbitraryByteTest, InitGeneratesSeeds) {
+  auto domain = Arbitrary<std::byte>().WithSeeds({std::byte{42}});
+
+  // With a 1000 tries, it's likely that any specific value will show up. To
+  // make this test meanigful, we expect to see the seed many more times than
+  // in a uniform distribution.
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, std::byte{42})).Times(Ge(350)));
+}
+
 struct MyStruct {
   int a;
   std::string s;
