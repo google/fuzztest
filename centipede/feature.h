@@ -45,6 +45,7 @@
 
 #include "./centipede/concurrent_bitset.h"
 #include "./centipede/foreach_nonzero.h"
+#include "./centipede/int_utils.h"
 
 namespace centipede {
 
@@ -57,20 +58,6 @@ using feature_t = uint64_t;
 // A vector of features. It is not expected to be ordered.
 // It typically does not contain repetitions, but it's ok to have them.
 using FeatureVec = std::vector<feature_t>;
-
-// Computes a hash of `bits`. The purpose is to use the result for XOR-ing with
-// some other values, such that all resulting bits look random.
-inline uint64_t Hash64Bits(uint64_t bits) {
-  // This particular prime number seems to mix bits well.
-  // TODO(kcc): find a more scientific way to mix bits, e.g. switch to Murmur.
-  constexpr uint64_t kPrime = 13441014529ULL;
-  return bits * kPrime;
-}
-
-// Returns `bits` rotated left by `n`.
-inline uint64_t RotateLeft(uint64_t bits, uint64_t n) {
-  return (bits << n) | (bits >> (64 - n));
-}
 
 namespace feature_domains {
 

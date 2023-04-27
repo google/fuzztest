@@ -48,6 +48,12 @@ cc_binary(
 #                             C++ libraries
 ################################################################################
 
+# This lib must have zero non-trivial dependencies (other than libc).
+cc_library(
+    name = "int_utils",
+    hdrs = ["int_utils.h"],
+)
+
 # This lib must have zero non-trivial dependencies (other than libc). See feature.h.
 cc_library(
     name = "feature",
@@ -60,6 +66,7 @@ cc_library(
     ],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":int_utils",
         "@com_google_absl//absl/base:core_headers",  # exception, ok to depend on here.
     ],
 )
@@ -611,6 +618,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "feature.cc",
     "feature.h",
     "foreach_nonzero.h",
+    "int_utils.h",
     "knobs.h",
     "knobs.cc",
     "reverse_pc_table.h",
