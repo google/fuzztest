@@ -200,7 +200,7 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
 };
 
 // Arbitrary for std::byte.
-template<>
+template <>
 class ArbitraryImpl<std::byte> : public DomainBase<ArbitraryImpl<std::byte>> {
  public:
   using typename ArbitraryImpl::DomainBase::corpus_type;
@@ -223,7 +223,7 @@ class ArbitraryImpl<std::byte> : public DomainBase<ArbitraryImpl<std::byte>> {
 
   auto GetPrinter() const { return IntegralPrinter{}; }
 
-private:
+ private:
   ArbitraryImpl<unsigned char> inner_;
 };
 
