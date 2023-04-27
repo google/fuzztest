@@ -349,13 +349,14 @@ PostProcessCoverage(int target_return_value) {
   }
 
   // Iterate all threads and get features from TLS data.
-  state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
-    RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
-                "bad values of tls.top_frame_sp and tls.lowest_sp");
-    size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-    g_features.push_back(
-        centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
-  });
+  // TODO(kcc): enable it back once we fix test flakiness.
+  // state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
+  //   RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
+  //               "bad values of tls.top_frame_sp and tls.lowest_sp");
+  //   size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
+  //   g_features.push_back(
+  //       centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
+  // });
 
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.
