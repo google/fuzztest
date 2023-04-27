@@ -24,23 +24,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 
 class SymbolTable;  // To avoid mutual inclusion with symbol_table.h.
-
-// PCInfo is a pair {PC, bit mask with PC flags}.
-// See https://clang.llvm.org/docs/SanitizerCoverage.html#pc-table
-struct PCInfo {
-  enum PCFlags : uintptr_t {
-    kFuncEntry = 1 << 0,  // The PC is the function entry block.
-  };
-
-  uintptr_t pc;
-  uintptr_t flags;
-
-  bool has_flag(PCFlags f) const { return flags & f; }
-};
 
 // Array of PCInfo-s.
 // PCTable is created by the compiler/linker in the instrumented binary.

@@ -343,6 +343,7 @@ cc_library(
     ],
     hdrs = [
         "control_flow.h",
+        "pc_info.h",
         "symbol_table.h",
     ],
     visibility = PUBLIC_API_VISIBILITY,
@@ -621,6 +622,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "int_utils.h",
     "knobs.h",
     "knobs.cc",
+    "pc_info.h",
     "reverse_pc_table.h",
     "runner.cc",
     "runner.h",
