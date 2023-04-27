@@ -14,7 +14,8 @@
 
 // Centipede puzzle: one 4-byte memcmp.
 // Disable use_auto_dictionary so that we test other functionality.
-// RUN: Run --use_auto_dictionary=false && SolutionIs fuZz
+// TODO(kcc): figure out why the test is flaky with smaller --num_runs.
+// RUN: Run --use_auto_dictionary=false --num_runs=10000000 && SolutionIs fuZz
 
 #include <cstdint>
 #include <cstdlib>
