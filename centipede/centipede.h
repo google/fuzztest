@@ -163,11 +163,9 @@ class Centipede {
 
   // Binary-related data, initialized at startup, once per process,
   // by calling the PopulateBinaryInfo callback.
-  const PCTable &pc_table_;
-  const SymbolTable &symbols_;
-  // TODO(ussuri): Replace usages of the above two with matching binary_info_
-  //  members.
   const BinaryInfo &binary_info_;
+  const PCTable &pc_table_;     // same as binary_info_.pc_table.
+  const SymbolTable &symbols_;  // same as binary_info_.symbols.
 
   // Derived from env_.function_filter. Currently, duplicated by every thread.
   // In future, threads may have different filters.
