@@ -104,6 +104,7 @@ cc_library(
     name = "callstack",
     hdrs = ["callstack.h"],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
+    deps = [":int_utils"],
 )
 
 # simple definitions only, no code, no deps other than span.
@@ -936,6 +937,8 @@ cc_test(
     srcs = ["callstack_test.cc"],
     deps = [
         ":callstack",
+        ":defs",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
 )

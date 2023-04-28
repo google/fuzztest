@@ -20,6 +20,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "./centipede/defs.h"
 
 namespace centipede {
 namespace {
@@ -136,6 +138,45 @@ TEST(CallStack, DeepRecursion) {
   EXPECT_EQ(cs.PC(0), 0);
   EXPECT_EQ(cs.PC(1), 1);
   EXPECT_EQ(cs.PC(2), 42);
+}
+
+// Tests CallStack::Hash().
+TEST(CallStack, Hash) {
+  constexpr size_t kDepth = 2000;
+  constexpr size_t kNumDifferentPCs = 10000;
+  constexpr uintptr_t kStackTop = 100000000;
+  static CallStack<kDepth> cs;  // CallStack should be global/tls only.
+  centipede::Rng rng;
+
+  // Push the first PC on the stack, remembers it hash.
+  cs.OnFunctionEntry(42, kStackTop);
+  const auto initial_hash = cs.Hash();
+
+  absl::flat_hash_set<uintptr_t> hashes;
+
+  for (size_t iter = 0; iter < kNumDifferentPCs; ++iter) {
+    // Push many PCs on the stack, collect their hashes.
+    hashes.clear();
+    for (size_t i = 0; i < kDepth; ++i) {
+      cs.OnFunctionEntry(rng() % kNumDifferentPCs, kStackTop - i);
+      auto hash = cs.Hash();
+      hashes.insert(hash);
+    }
+    // Check that most hashes are unique.
+    EXPECT_GE(hashes.size(), kDepth);
+    // unwind all the way to the top.
+    cs.OnFunctionEntry(42, kStackTop);
+    EXPECT_EQ(cs.Depth(), 1);
+    EXPECT_EQ(cs.Hash(), initial_hash);
+  }
+
+  // Push the same PC on the stack many times, ensure hashes are different.
+  hashes.clear();
+  for (size_t i = 0; i < kDepth; ++i) {
+    cs.OnFunctionEntry(42, kStackTop - i);
+    hashes.insert(cs.Hash());
+  }
+  EXPECT_EQ(hashes.size(), kDepth);
 }
 
 }  // namespace
