@@ -87,7 +87,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
       user_callbacks_(user_callbacks),
       rng_(env_.seed),
       // TODO(kcc): [impl] find a better way to compute frequency_threshold.
-      fs_(env_.feature_frequency_threshold),
+      features_(env_.feature_frequency_threshold),
       coverage_frontier_(binary_info),
       binary_info_(binary_info),
       pc_table_(binary_info_.pc_table),
@@ -182,7 +182,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
 void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
   stats_.corpus_size = corpus_.NumActive();
-  stats_.num_covered_pcs = fs_.ToCoveragePCs().size();
+  stats_.num_covered_pcs = features_.ToCoveragePCs().size();
 
   if (env_.log_level < min_log_level) return;
 
@@ -195,31 +195,33 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   if (execs_per_sec > 1.) execs_per_sec = std::round(execs_per_sec);
   auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
   static const auto rusage_scope = perf::RUsageScope::ThisProcess();
-  auto num_cmp_features = fs_.CountFeatures(feature_domains::kCMP) +
-                          fs_.CountFeatures(feature_domains::kCMPEq) +
-                          fs_.CountFeatures(feature_domains::kCMPModDiff) +
-                          fs_.CountFeatures(feature_domains::kCMPHamming) +
-                          fs_.CountFeatures(feature_domains::kCMPDiffLog);
-  LOG(INFO) << env_.experiment_name << "[" << num_runs_ << "]"
-            << " " << log_type << ":"
-            << " ft: " << fs_.size() << " cov: " << fs_.ToCoveragePCs().size()
-            << " cnt: " << fs_.CountFeatures(feature_domains::k8bitCounters)
-            << " df: " << fs_.CountFeatures(feature_domains::kDataFlow)
-            << " cmp: " << num_cmp_features
-            << " path: " << fs_.CountFeatures(feature_domains::kBoundedPath)
-            << " pair: " << fs_.CountFeatures(feature_domains::kPCPair)
-            << " usr: " << fs_.CountFeatures(feature_domains::kUserDefined)
-            << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal()
-            << " fr: " << coverage_frontier_.NumFunctionsInFrontier()
-            << " max/avg: " << max_corpus_size << "/" << avg_corpus_size << " "
-            << corpus_.MemoryUsageString() << " exec/s: " << execs_per_sec
-            << " mb: "
-            << (perf::RUsageMemory::Snapshot(rusage_scope).mem_rss >> 20);
+  auto num_cmp_features =
+      features_.CountFeatures(feature_domains::kCMP) +
+      features_.CountFeatures(feature_domains::kCMPEq) +
+      features_.CountFeatures(feature_domains::kCMPModDiff) +
+      features_.CountFeatures(feature_domains::kCMPHamming) +
+      features_.CountFeatures(feature_domains::kCMPDiffLog);
+  LOG(INFO)                                                                   //
+      << env_.experiment_name << "[" << num_runs_ << "] " << log_type << ":"  //
+      << " ft: " << features_.size()                                          //
+      << " cov: " << features_.ToCoveragePCs().size()                         //
+      << " cnt: " << features_.CountFeatures(feature_domains::k8bitCounters)  //
+      << " df: " << features_.CountFeatures(feature_domains::kDataFlow)       //
+      << " cmp: " << num_cmp_features                                         //
+      << " path: " << features_.CountFeatures(feature_domains::kBoundedPath)  //
+      << " pair: " << features_.CountFeatures(feature_domains::kPCPair)       //
+      << " usr: " << features_.CountFeatures(feature_domains::kUserDefined)   //
+      << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal()        //
+      << " fr: " << coverage_frontier_.NumFunctionsInFrontier()               //
+      << " max/avg: " << max_corpus_size << "/" << avg_corpus_size            //
+      << " " << corpus_.MemoryUsageString()                                   //
+      << " exec/s: " << execs_per_sec                                         //
+      << " mb: " << (perf::RUsageMemory::Snapshot(rusage_scope).mem_rss >> 20);
 }
 
-void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
+void Centipede::LogFeaturesAsSymbols(const FeatureVec &features) {
   if (!env_.LogFeaturesInThisShard()) return;
-  for (auto feature : fv) {
+  for (auto feature : features) {
     if (!feature_domains::kPCs.Contains(feature)) continue;
     PCIndex pc_index = ConvertPCFeatureToPcIndex(feature);
     auto description = coverage_logger_.ObserveAndDescribeIfNew(pc_index);
@@ -255,7 +257,7 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
 // Rationale: if two different parts of the target are exercised simultaneously,
 // this may create interesting behaviour that is hard to capture with regular
 // control flow (or other) features.
-size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
+size_t Centipede::AddPcPairFeatures(FeatureVec &features) {
   // Using a scratch vector to avoid allocations.
   auto &pcs = add_pc_pair_scratch_;
   pcs.clear();
@@ -263,8 +265,8 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
   size_t num_pcs = pc_table_.size();
   size_t num_added_pairs = 0;
 
-  // Collect PCs from fv.
-  for (auto feature : fv) {
+  // Collect PCs from features.
+  for (auto feature : features) {
     if (feature_domains::kPCs.Contains(feature))
       pcs.push_back(ConvertPCFeatureToPcIndex(feature));
   }
@@ -277,8 +279,8 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
       feature_t f = feature_domains::kPCPair.ConvertToMe(
           ConvertPcPairToNumber(pc1, pc2, num_pcs));
       // If we have seen this pair at least once, ignore it.
-      if (fs_.Frequency(f) != 0) continue;
-      fv.push_back(f);
+      if (features_.Frequency(f) != 0) continue;
+      features.push_back(f);
       ++num_added_pairs;
     }
   }
@@ -309,26 +311,27 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < input_vec.size(); i++) {
     if (EarlyExitRequested()) break;
-    FeatureVec &fv = batch_result.results()[i].mutable_features();
-    bool function_filter_passed = function_filter_.filter(fv);
+    FeatureVec &features = batch_result.results()[i].mutable_features();
+    bool function_filter_passed = function_filter_.filter(features);
     bool input_gained_new_coverage =
-        fs_.CountUnseenAndPruneFrequentFeatures(fv) != 0;
-    if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
+        features_.CountUnseenAndPruneFrequentFeatures(features) != 0;
+    if (env_.use_pcpair_features && AddPcPairFeatures(features) != 0)
       input_gained_new_coverage = true;
     if (unconditional_features_file != nullptr) {
       CHECK_OK(unconditional_features_file->Append(
-          PackFeaturesAndHash(input_vec[i], fv)));
+          PackFeaturesAndHash(input_vec[i], features)));
     }
     if (input_gained_new_coverage) {
       // TODO(kcc): [impl] add stats for filtered-out inputs.
       if (!InputPassesFilter(input_vec[i])) continue;
-      fs_.IncrementFrequencies(fv);
-      LogFeaturesAsSymbols(fv);
+      features_.IncrementFrequencies(features);
+      LogFeaturesAsSymbols(features);
       batch_gained_new_coverage = true;
-      CHECK_GT(fv.size(), 0UL);
+      CHECK_GT(features.size(), 0UL);
       if (function_filter_passed) {
         const auto &cmp_args = batch_result.results()[i].cmp_args();
-        corpus_.Add(input_vec[i], fv, cmp_args, fs_, coverage_frontier_);
+        corpus_.Add(input_vec[i], features, cmp_args, features_,
+                    coverage_frontier_);
       }
       if (corpus_file != nullptr) {
         CHECK_OK(corpus_file->Append(input_vec[i]));
@@ -337,7 +340,8 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
         WriteToLocalHashedFileInDir(env_.corpus_dir[0], input_vec[i]);
       }
       if (features_file != nullptr) {
-        CHECK_OK(features_file->Append(PackFeaturesAndHash(input_vec[i], fv)));
+        CHECK_OK(
+            features_file->Append(PackFeaturesAndHash(input_vec[i], features)));
       }
     }
   }
@@ -358,10 +362,11 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
       }
     } else {
       LogFeaturesAsSymbols(features);
-      if (fs_.CountUnseenAndPruneFrequentFeatures(features) != 0) {
-        fs_.IncrementFrequencies(features);
+      if (features_.CountUnseenAndPruneFrequentFeatures(features) != 0) {
+        VLOG(2) << "Adding input " << Hash(input);
+        features_.IncrementFrequencies(features);
         // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
-        corpus_.Add(input, features, {}, fs_, coverage_frontier_);
+        corpus_.Add(input, features, {}, features_, coverage_frontier_);
         added_to_corpus++;
       }
     }
@@ -421,7 +426,7 @@ void Centipede::GenerateCoverageReport(std::string_view annotation,
                                        size_t batch_index) {
   if (pc_table_.empty()) return;
 
-  auto pci_vec = fs_.ToCoveragePCs();
+  auto pci_vec = features_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
   std::stringstream out;
   out << "# Last batch: " << batch_index << "\n\n";
@@ -436,7 +441,7 @@ void Centipede::GenerateCorpusStats(std::string_view annotation,
                                     size_t batch_index) {
   std::ostringstream os;
   os << "# Last batch: " << batch_index << "\n\n";
-  corpus_.PrintStats(os, fs_);
+  corpus_.PrintStats(os, features_);
   auto stats_path = env_.MakeCorpusStatsPath(annotation);
   LOG(INFO) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
   RemoteFileSetContents(stats_path, os.str());
@@ -609,7 +614,7 @@ void Centipede::FuzzingLoop() {
   CHECK_OK(features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index)));
 
   if (corpus_.NumTotal() == 0) {
-    corpus_.Add(user_callbacks_.DummyValidInput(), {}, {}, fs_,
+    corpus_.Add(user_callbacks_.DummyValidInput(), {}, {}, features_,
                 coverage_frontier_);
   }
 
@@ -680,7 +685,7 @@ void Centipede::FuzzingLoop() {
         corpus_.NumActive() >
             corpus_size_at_last_prune + env_.prune_frequency) {
       if (env_.use_coverage_frontier) coverage_frontier_.Compute(corpus_);
-      corpus_.Prune(fs_, coverage_frontier_, env_.max_corpus_size, rng_);
+      corpus_.Prune(features_, coverage_frontier_, env_.max_corpus_size, rng_);
       corpus_size_at_last_prune = corpus_.NumActive();
     }
   }

@@ -68,7 +68,7 @@ class Centipede {
   // For every input, its pruned features are written to
   // `unconditional_features_file`, (if that's non-null).
   // For every input that caused new features to be observed:
-  //   * the input is added to the corpus (corpus_ and fs_ are updated).
+  //   * the input is added to the corpus (corpus_ and features_ are updated).
   //   * the input is written to `corpus_file` (if that's non-null).
   //   * its features are written to `features_file` (if that's non-null).
   // Returns true if new features were observed.
@@ -156,7 +156,7 @@ class Centipede {
   // the fuzzing performance.
   absl::Time fuzz_start_time_ = absl::InfiniteFuture();
 
-  FeatureSet fs_;
+  FeatureSet features_;
   Corpus corpus_;
   CoverageFrontier coverage_frontier_;
   size_t num_runs_ = 0;  // counts executed inputs
