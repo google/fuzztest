@@ -41,13 +41,14 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   ByteArray input1{1, 2, 3};
   ByteArray input2{4, 5};
   ByteArray input3{6, 7, 8, 9};
+  ByteArray input4{10, 11};
   const auto path = TempFilePath();
   absl::Span<uint8_t> blob;
 
   // Append two blobs to a file.
   {
     auto appender = AppenderFactory();
-    EXPECT_OK(appender->Open(path));
+    EXPECT_OK(appender->Open(path, "a"));
     EXPECT_OK(appender->Append(input1));
     EXPECT_OK(appender->Append(input2));
     EXPECT_OK(appender->Close());
@@ -68,7 +69,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   // Append one more blob to the same file.
   {
     auto appender = AppenderFactory();
-    EXPECT_OK(appender->Open(path));
+    EXPECT_OK(appender->Open(path, "a"));
     EXPECT_OK(appender->Append(input3));
     EXPECT_OK(appender->Close());
   }
@@ -83,6 +84,24 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
     EXPECT_EQ(input2, blob);
     EXPECT_OK(reader->Read(blob));
     EXPECT_EQ(input3, blob);
+    EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
+    EXPECT_OK(reader->Close());
+  }
+
+  // Overwrite the contents of the file by a new blob.
+  {
+    auto appender = AppenderFactory();
+    EXPECT_OK(appender->Open(path, "w"));
+    EXPECT_OK(appender->Append(input4));
+    EXPECT_OK(appender->Close());
+  }
+
+  // Re-read the file, expect to see all 3 blobs.
+  {
+    auto reader = ReaderFactory();
+    EXPECT_OK(reader->Open(path));
+    EXPECT_OK(reader->Read(blob));
+    EXPECT_EQ(input4, blob);
     EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
     EXPECT_OK(reader->Close());
   }
@@ -104,7 +123,7 @@ void TestIncorrectUsage(
 
   // open invalid file path.
   EXPECT_EQ(reader->Open(invalid_path), absl::UnknownError("can't open file"));
-  EXPECT_EQ(appender->Open(invalid_path),
+  EXPECT_EQ(appender->Open(invalid_path, "a"),
             absl::UnknownError("can't open file"));
   absl::Span<uint8_t> blob;
 
@@ -114,13 +133,13 @@ void TestIncorrectUsage(
   EXPECT_EQ(appender->Close(), absl::FailedPreconditionError("was not open"));
   EXPECT_EQ(appender->Append(blob),
             absl::FailedPreconditionError("was not open"));
-  EXPECT_OK(appender->Open(path));
-  EXPECT_EQ(appender->Open(path),
+  EXPECT_OK(appender->Open(path, "a"));
+  EXPECT_EQ(appender->Open(path, "a"),
             absl::FailedPreconditionError("already open"));
   EXPECT_OK(appender->Close());
   EXPECT_EQ(appender->Append(blob),
             absl::FailedPreconditionError("already closed"));
-  EXPECT_EQ(appender->Open(path),
+  EXPECT_EQ(appender->Open(path, "a"),
             absl::FailedPreconditionError("already closed"));
   EXPECT_EQ(appender->Close(), absl::FailedPreconditionError("already closed"));
 

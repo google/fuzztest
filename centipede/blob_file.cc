@@ -75,7 +75,7 @@ class SimpleBlobFileReader : public BlobFileReader {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     closed_ = true;
-    // Nothing to do here, we've already closed the file (in Open()).
+    // Nothing to do here, we've already closed the underlying file (in Open()).
     return absl::OkStatus();
   }
 
@@ -96,10 +96,11 @@ class SimpleBlobFileAppender : public BlobFileAppender {
     }
   }
 
-  absl::Status Open(std::string_view path) override {
+  absl::Status Open(std::string_view path, std::string_view mode) override {
+    CHECK(mode == "w" || mode == "a") << VV(mode);
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, "a");
+    file_ = RemoteFileOpen(path, mode.data());
     if (file_ == nullptr) return absl::UnknownError("can't open file");
     return absl::OkStatus();
   }

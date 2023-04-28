@@ -65,9 +65,9 @@ class BlobFileReader {
   virtual absl::Status Close() = 0;
 };
 
-// Appends blobs to a BlobFile.
 // See also comments for BlobFileReader.
 class BlobFileAppender {
+  // Writes blobs to a BlobFile. See the top file comment.
  public:
   BlobFileAppender() = default;
   // Implementations must take care to call their Close() in the dtor, unless
@@ -80,12 +80,12 @@ class BlobFileAppender {
   BlobFileAppender(BlobFileAppender &&) = delete;
   BlobFileAppender &operator=(BlobFileAppender &&) = delete;
 
-  // Opens the file `path`.
-  // Implementations must ensure that this is called only once.
-  virtual absl::Status Open(std::string_view path) = 0;
+  // Opens the file `path` with mode `mode` (which must be either "w" or "a" at
+  // the moment). Implementations must ensure that this is called only once.
+  virtual absl::Status Open(std::string_view path, std::string_view mode) = 0;
 
-  // Appends `blob` to this file.
-  // Implementations must ensure that the file has been opened.
+  // Writes `blob` to this file. Implementations must ensure that the file has
+  // been opened.
   virtual absl::Status Append(absl::Span<const uint8_t> blob) = 0;
 
   // Same as above, but for ByteArray.
