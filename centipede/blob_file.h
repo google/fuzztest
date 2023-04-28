@@ -12,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Blob is a sequence of bytes, a BlobFile is a sequence of blobs.
+// BlobFileReader reads blobs from a BlobFile.
+// BlobFileWriter writes blobs to a BlobFile.
+// Only one active BlobFileWriter is allowed for a given file.
+// Multiple BlobFileReader objects can open the same file, concurrently
+// with up to one BlobFileWriter.
+// BlobFileReader/BlobFileWriter should have some level of protection against
+// failed operations (may vary depending on the implementation).
+// Different implementations of BlobFileReader/BlobFileWriter don't have to
+// be file-format compatible.
+
 #ifndef THIRD_PARTY_CENTIPEDE_BLOB_FILE_H_
 #define THIRD_PARTY_CENTIPEDE_BLOB_FILE_H_
 
@@ -25,19 +36,7 @@
 
 namespace centipede {
 
-// Blob is a sequence of bytes, a BlobFile is a sequence of blobs.
-// BlobFileReader reads blobs from a BlobFile.
-// BlobFileAppender appends blobs to a BlobFile.
-// Only one active BlobFileAppender is allowed for a given file.
-// Multiple BlobFileReader objects can open the same file, concurrently
-// with up to one BlobFileAppender.
-// BlobFileReader/BlobFileAppender should have some level of protection against
-// failed appends (may vary depending on the implementation).
-//
-// BlobFileReader reads blobs from a file.
-//
-// Different implementations of BlobFileReader/BlobFileAppender don't have to
-// be file-format compatible.
+// Reads blobs from a BlobFile. See the top file comment.
 class BlobFileReader {
  public:
   BlobFileReader() = default;
@@ -65,20 +64,19 @@ class BlobFileReader {
   virtual absl::Status Close() = 0;
 };
 
-// See also comments for BlobFileReader.
-class BlobFileAppender {
-  // Writes blobs to a BlobFile. See the top file comment.
+// Writes blobs to a BlobFile. See the top file comment.
+class BlobFileWriter {
  public:
-  BlobFileAppender() = default;
+  BlobFileWriter() = default;
   // Implementations must take care to call their Close() in the dtor, unless
   // the client has already explicitly called it.
-  virtual ~BlobFileAppender() = default;
+  virtual ~BlobFileWriter() = default;
 
   // Not copyable or movable.
-  BlobFileAppender(const BlobFileAppender &) = delete;
-  BlobFileAppender &operator=(const BlobFileAppender &) = delete;
-  BlobFileAppender(BlobFileAppender &&) = delete;
-  BlobFileAppender &operator=(BlobFileAppender &&) = delete;
+  BlobFileWriter(const BlobFileWriter &) = delete;
+  BlobFileWriter &operator=(const BlobFileWriter &) = delete;
+  BlobFileWriter(BlobFileWriter &&) = delete;
+  BlobFileWriter &operator=(BlobFileWriter &&) = delete;
 
   // Opens the file `path` with mode `mode` (which must be either "w" or "a" at
   // the moment). Implementations must ensure that this is called only once.
@@ -86,11 +84,11 @@ class BlobFileAppender {
 
   // Writes `blob` to this file. Implementations must ensure that the file has
   // been opened.
-  virtual absl::Status Append(absl::Span<const uint8_t> blob) = 0;
+  virtual absl::Status Write(absl::Span<const uint8_t> blob) = 0;
 
-  // Same as above, but for ByteArray.
-  absl::Status Append(const ByteArray &bytes) {
-    return Append(absl::Span<const uint8_t>{bytes});
+  // Same as above, but for `ByteArray`.
+  absl::Status Write(const ByteArray &bytes) {
+    return Write(absl::Span<const uint8_t>{bytes});
   }
 
   // Closes the file, which was previously opened and never closed.
@@ -100,8 +98,8 @@ class BlobFileAppender {
 // Creates a new object of a default implementation of BlobFileReader.
 std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory();
 
-// Creates a new object of a default implementation of BlobFileAppender.
-std::unique_ptr<BlobFileAppender> DefaultBlobFileAppenderFactory();
+// Creates a new object of a default implementation of BlobFileWriter.
+std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory();
 
 }  // namespace centipede
 

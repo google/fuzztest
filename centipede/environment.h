@@ -162,8 +162,10 @@ struct Environment {
   // shard. See the related RUsageTelemetryScope().
   bool DumpRUsageTelemetryInThisShard() const;
   // Returns true if we want to generate the telemetry files (coverage report,
-  // the corpus stats, etc.) after processing `batch_index`-th batch.
-  bool DumpTelemetryForThisBatch(size_t batch_index) const;
+  // the corpus stats, etc.) after processing `batch_index`-th batch out of
+  // `num_batches`. Always returns true for 0th and `num_batches`th batch
+  // (initial and final telemetry, respectively).
+  bool DumpTelemetryForThisBatch(size_t batch_index, size_t num_batches) const;
 
   // Sets flag 'name' to `value`. CHECK-fails on invalid name/value combination.
   void SetFlag(std::string_view name, std::string_view value);

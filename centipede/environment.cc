@@ -575,9 +575,11 @@ bool Environment::DumpRUsageTelemetryInThisShard() const {
   return my_shard_index % num_threads == 0;
 }
 
-bool Environment::DumpTelemetryForThisBatch(size_t batch_index) const {
-  // Always dump for batch 0 (i.e. at the beginning of execution).
-  if (batch_index == 0) {
+bool Environment::DumpTelemetryForThisBatch(size_t batch_index,
+                                            size_t num_batches) const {
+  // Always dump for batch 0 (the beginning of execution) and batch
+  // `num_batches` (the end of execution).
+  if (batch_index == 0 || batch_index == num_batches) {
     return true;
   }
   // Special mode for negative --telemetry_frequency: dump when batch_index

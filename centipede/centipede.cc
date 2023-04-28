@@ -158,7 +158,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
       }
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
-    auto appender = DefaultBlobFileAppenderFactory();
+    auto appender = DefaultBlobFileWriterFactory();
     std::string corpus_path = env.MakeCorpusPath(shard);
     CHECK_OK(appender->Open(corpus_path, "a"))
         << "Failed to open corpus file: " << corpus_path;
@@ -170,7 +170,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
         ++inputs_ignored;
         continue;
       }
-      CHECK_OK(appender->Append(input));
+      CHECK_OK(appender->Write(input));
       ++inputs_added;
     }
     LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
@@ -294,9 +294,9 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 }
 
 bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
-                         BlobFileAppender *corpus_file,
-                         BlobFileAppender *features_file,
-                         BlobFileAppender *unconditional_features_file) {
+                         BlobFileWriter *corpus_file,
+                         BlobFileWriter *features_file,
+                         BlobFileWriter *unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   CHECK_EQ(input_vec.size(), batch_result.results().size());
@@ -324,7 +324,7 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
     if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
       input_gained_new_coverage = true;
     if (unconditional_features_file != nullptr) {
-      CHECK_OK(unconditional_features_file->Append(
+      CHECK_OK(unconditional_features_file->Write(
           PackFeaturesAndHash(input_vec[i], fv)));
     }
     if (input_gained_new_coverage) {
@@ -339,13 +339,13 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
         corpus_.Add(input_vec[i], fv, cmp_args, fs_, coverage_frontier_);
       }
       if (corpus_file != nullptr) {
-        CHECK_OK(corpus_file->Append(input_vec[i]));
+        CHECK_OK(corpus_file->Write(input_vec[i]));
       }
       if (!env_.corpus_dir.empty()) {
         WriteToLocalHashedFileInDir(env_.corpus_dir[0], input_vec[i]);
       }
       if (features_file != nullptr) {
-        CHECK_OK(features_file->Append(PackFeaturesAndHash(input_vec[i], fv)));
+        CHECK_OK(features_file->Write(PackFeaturesAndHash(input_vec[i], fv)));
       }
     }
   }
@@ -355,22 +355,32 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
 // TODO(kcc): [impl] don't reread the same corpus twice.
 void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
                           bool rerun) {
-  size_t added_to_corpus = 0;
-  std::vector<ByteArray> to_rerun;
+  VLOG(1) << "Loading shard " << shard_index
+          << (rerun ? " with rerunning" : " without rerunning");
+  size_t num_added_inputs = 0;
+  size_t num_skipped_inputs = 0;
+  std::vector<ByteArray> inputs_to_rerun;
   auto input_features_callback = [&](const ByteArray &input,
-                                     FeatureVec &features) {
+                                     FeatureVec &input_features) {
     if (EarlyExitRequested()) return;
-    if (features.empty()) {
+    if (input_features.empty()) {
       if (rerun) {
-        to_rerun.push_back(input);
+        inputs_to_rerun.push_back(input);
       }
     } else {
-      LogFeaturesAsSymbols(features);
-      if (fs_.CountUnseenAndPruneFrequentFeatures(features) != 0) {
-        fs_.IncrementFrequencies(features);
+      LogFeaturesAsSymbols(input_features);
+      const auto num_new_features =
+          fs_.CountUnseenAndPruneFrequentFeatures(input_features);
+      if (num_new_features != 0) {
+        VLOG(10) << "Adding input " << Hash(input)
+                 << "; new features: " << num_new_features;
+        fs_.IncrementFrequencies(input_features);
         // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
-        corpus_.Add(input, features, {}, fs_, coverage_frontier_);
-        added_to_corpus++;
+        corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
+        ++num_added_inputs;
+      } else {
+        VLOG(10) << "Skipping input: " << Hash(input);
+        ++num_skipped_inputs;
       }
     }
   };
@@ -386,15 +396,16 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
     ReadShard(load_env.MakeCorpusPath(shard_index),
               load_env.MakeFeaturesPath(shard_index), input_features_callback);
   }
-  if (added_to_corpus > 0) UpdateAndMaybeLogStats("load-shard", 1);
-  Rerun(to_rerun);
+
+  VLOG(1) << "Loaded shard " << shard_index << ": added " << num_added_inputs
+          << " / skipped " << num_skipped_inputs << " inputs";
+
+  if (num_added_inputs > 0) UpdateAndMaybeLogStats("load-shard", 1);
+  if (!inputs_to_rerun.empty()) Rerun(inputs_to_rerun);
 }
 
 void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
                                            bool rerun_my_shard) {
-  // TODO(ussuri): It seems logical to reset `corpus_` before this, but
-  //  that broke `ShardsAndDistillTest` in testing/centipede_test.cc.
-  //  Investigate.
   std::vector<size_t> shard_idxs(env_.total_shards);
   std::iota(shard_idxs.begin(), shard_idxs.end(), 0);
   std::shuffle(shard_idxs.begin(), shard_idxs.end(), rng_);
@@ -408,7 +419,7 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
 
 void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
-  auto features_file = DefaultBlobFileAppenderFactory();
+  auto features_file = DefaultBlobFileWriterFactory();
   CHECK_OK(
       features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
 
@@ -436,8 +447,8 @@ void Centipede::GenerateCoverageReport(std::string_view annotation,
   out << "# Last batch: " << batch_index << "\n\n";
   coverage.Print(symbols_, out);
   auto coverage_path = env_.MakeCoverageReportPath(annotation);
-  LOG(INFO) << "Generate coverage report: " << VV(batch_index)
-            << VV(coverage_path);
+  VLOG(2) << "Generate coverage report: " << VV(batch_index)
+          << VV(coverage_path);
   RemoteFileSetContents(coverage_path, out.str());
 }
 
@@ -447,7 +458,7 @@ void Centipede::GenerateCorpusStats(std::string_view annotation,
   os << "# Last batch: " << batch_index << "\n\n";
   corpus_.PrintStats(os, fs_);
   auto stats_path = env_.MakeCorpusStatsPath(annotation);
-  LOG(INFO) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
+  VLOG(2) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
   RemoteFileSetContents(stats_path, os.str());
 }
 
@@ -494,7 +505,7 @@ void Centipede::GenerateSourceBasedCoverageReport(std::string_view annotation,
 }
 
 void Centipede::GenerateRUsageReport(std::string_view annotation,
-                                     size_t batch_index) {
+                                     size_t batch_index, size_t num_batches) {
   class ReportDumper : public RUsageProfiler::ReportSink {
    public:
     explicit ReportDumper(std::string_view path)
@@ -513,31 +524,27 @@ void Centipede::GenerateRUsageReport(std::string_view annotation,
     RemoteFile *file_;
   };
 
-  const auto description = absl::StrCat("Batch ", batch_index);
+  const auto description =
+      absl::StrCat("Batch ", batch_index, "/", num_batches);
   const auto &snapshot =
       rusage_profiler_.TakeSnapshot({__FILE__, __LINE__}, description);
-  VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
-  // The very first call with `batch_index`==0 is for the initial state: just
-  // take a baseline snapshot, but skip the report.
-  if (batch_index > 0) {
-    auto path = env_.MakeRUsageReportPath(annotation);
-    LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
-              << VV(batch_index) << VV(path);
-    ReportDumper dumper{path};
-    rusage_profiler_.GenerateReport(&dumper);
-  }
+  LOG(INFO) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
+  auto path = env_.MakeRUsageReportPath(annotation);
+  VLOG(2) << "Generate rusage report: " << VV(batch_index) << VV(path);
+  ReportDumper dumper{path};
+  rusage_profiler_.GenerateReport(&dumper);
 }
 
 void Centipede::MaybeGenerateTelemetry(std::string_view annotation,
-                                       size_t batch_index) {
-  if (env_.DumpTelemetryForThisBatch(batch_index)) {
+                                       size_t batch_index, size_t num_batches) {
+  if (env_.DumpTelemetryForThisBatch(batch_index, num_batches)) {
     if (env_.DumpCorpusTelemetryInThisShard()) {
       GenerateCoverageReport(annotation, batch_index);
       GenerateCorpusStats(annotation, batch_index);
       GenerateSourceBasedCoverageReport(annotation, batch_index);
     }
     if (env_.DumpRUsageTelemetryInThisShard()) {
-      GenerateRUsageReport(annotation, batch_index);
+      GenerateRUsageReport(annotation, batch_index, num_batches);
     }
   }
 }
@@ -552,17 +559,20 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   size_t new_corpus_size = corpus_.NumActive();
   CHECK_GE(new_corpus_size, initial_corpus_size);  // Corpus can't shrink here.
   if (new_corpus_size > initial_corpus_size) {
-    auto appender = DefaultBlobFileAppenderFactory();
+    auto appender = DefaultBlobFileWriterFactory();
     CHECK_OK(appender->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
-    for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
-      CHECK_OK(appender->Append(corpus_.Get(idx)));
-    }
     LOG(INFO) << "Merge: " << (new_corpus_size - initial_corpus_size)
               << " new inputs added";
   }
 }
 
-void Centipede::ReloadAllShardsAndDistillCorpusToDir() {
+void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
+  // Reset the corpus-related state in case this shard has been actually fuzzing
+  // (--num_runs is not 0) up until now.
+  corpus_.Reset();
+  fs_.Reset();
+  coverage_frontier_.Reset();
+
   // Reload the shards. This automatically distills the corpus by discarding
   // inputs with duplicate feature sets as they are being added. Reloading
   // randomly leaves random winners from such sets of duplicates in the
@@ -576,11 +586,13 @@ void Centipede::ReloadAllShardsAndDistillCorpusToDir() {
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
-  const auto appender = DefaultBlobFileAppenderFactory();
-  CHECK_OK(appender->Open(distill_to_path, "a"));
+  const auto appender = DefaultBlobFileWriterFactory();
+  // NOTE: Always overwrite distilled corpus files -- never append, unlike
+  // "regular", per-shard corpus files.
+  CHECK_OK(appender->Open(distill_to_path, "w"));
   for (size_t i = 0; i < corpus_.NumActive(); ++i) {
     const ByteArray &input = corpus_.Get(i);
-    CHECK_OK(appender->Append(input));
+    CHECK_OK(appender->Write(input));
     if (!env_.corpus_dir.empty()) {
       WriteToLocalHashedFileInDir(env_.corpus_dir[0], input);
     }
@@ -612,8 +624,8 @@ void Centipede::FuzzingLoop() {
     MergeFromOtherCorpus(env_.merge_from, env_.my_shard_index);
   }
 
-  auto corpus_file = DefaultBlobFileAppenderFactory();
-  auto features_file = DefaultBlobFileAppenderFactory();
+  auto corpus_file = DefaultBlobFileWriterFactory();
+  auto features_file = DefaultBlobFileWriterFactory();
   CHECK_OK(corpus_file->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
   CHECK_OK(
       features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
@@ -629,6 +641,9 @@ void Centipede::FuzzingLoop() {
   // affect them.
   fuzz_start_time_ = absl::Now();
   num_runs_ = 0;
+  // num_runs / batch_size, rounded up.
+  size_t number_of_batches = env_.num_runs / env_.batch_size;
+  if (env_.num_runs % env_.batch_size != 0) ++number_of_batches;
 
   // Dump the initial telemetry files. For a brand-new run, these will be
   // functionally empty, e.g. the coverage report will list all target functions
@@ -636,11 +651,8 @@ void Centipede::FuzzingLoop() {
   // data), these may or may not coincide with the final "latest" report of the
   // previous run, depending on how the runs are configured (the same number of
   // shards, for example).
-  MaybeGenerateTelemetry("initial", /*batch_index=*/0);
+  MaybeGenerateTelemetry("initial", /*batch_index=*/0, number_of_batches);
 
-  // num_runs / batch_size, rounded up.
-  size_t number_of_batches = env_.num_runs / env_.batch_size;
-  if (env_.num_runs % env_.batch_size != 0) ++number_of_batches;
   size_t new_runs = 0;
   size_t corpus_size_at_last_prune = corpus_.NumActive();
   for (size_t batch_index = 0; batch_index < number_of_batches; batch_index++) {
@@ -672,9 +684,6 @@ void Centipede::FuzzingLoop() {
       UpdateAndMaybeLogStats("pulse", 1);
     }
 
-    // Dump the intermediate telemetry files.
-    MaybeGenerateTelemetry("latest", batch_index);
-
     if (env_.load_other_shard_frequency != 0 && batch_index != 0 &&
         (batch_index % env_.load_other_shard_frequency) == 0 &&
         env_.total_shards > 1) {
@@ -693,11 +702,14 @@ void Centipede::FuzzingLoop() {
       corpus_.Prune(fs_, coverage_frontier_, env_.max_corpus_size, rng_);
       corpus_size_at_last_prune = corpus_.NumActive();
     }
+
+    // Dump the intermediate telemetry files.
+    MaybeGenerateTelemetry("latest", batch_index, number_of_batches);
   }
 
   // Dump the final telemetry files, possibly overwriting the last intermediate
   // version dumped inside the loop.
-  MaybeGenerateTelemetry("latest", number_of_batches);
+  MaybeGenerateTelemetry("latest", number_of_batches, number_of_batches);
 
   // The tests rely on this stat being logged last.
   UpdateAndMaybeLogStats("end-fuzz", 0);
@@ -706,7 +718,7 @@ void Centipede::FuzzingLoop() {
   // will essentially be the single action this run will carry out, with the
   // fuzzing loop being a no-op.
   if (env_.DistillingInThisShard()) {
-    ReloadAllShardsAndDistillCorpusToDir();
+    ReloadAllShardsAndWriteDistilledCorpus();
   }
 }
 
