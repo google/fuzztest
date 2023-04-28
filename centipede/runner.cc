@@ -43,6 +43,7 @@
 #include "./centipede/execution_request.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_utils.h"
@@ -524,24 +525,18 @@ static void DumpPcTable(const char *output_path) {
   // Otherwise, we need to pass this ASLR offset at the symbolization time,
   // e.g. via `llvm-symbolizer --adjust-vma=<ASLR offset>`.
   // Another alternative is to build the binary w/o -fPIE or with -static.
-  const uintptr_t *data = state.pcs_beg;
-  const size_t data_size_in_words = state.pcs_end - state.pcs_beg;
-  const size_t data_size_in_bytes = data_size_in_words * sizeof(*state.pcs_beg);
-  PrintErrorAndExitIf((data_size_in_words % 2) != 0, "bad data_size_in_words");
-  auto *data_copy = new uintptr_t[data_size_in_words];
-  for (size_t i = 0; i < data_size_in_words; i += 2) {
-    // data_copy is an array of pairs. First element is the pc, which we need to
-    // modify. The second element is the pc flags, we just copy it.
-    data_copy[i] = data[i] - state.main_object.start_address;
-    data_copy[i + 1] = data[i + 1];
+  std::vector<PCInfo> modified_pcs(state.pcs_end - state.pcs_beg);
+  for (size_t i = 0; i < modified_pcs.size(); ++i) {
+    modified_pcs[i].pc = state.pcs_beg[i].pc - state.main_object.start_address;
+    modified_pcs[i].flags = state.pcs_beg[i].flags;
   }
-  // Dump the modified table.
+  // Dump the modified pc table.
+  const auto data_size_in_bytes = modified_pcs.size() * sizeof(PCInfo);
   auto num_bytes_written =
-      fwrite(data_copy, 1, data_size_in_bytes, output_file);
+      fwrite(modified_pcs.data(), 1, data_size_in_bytes, output_file);
   PrintErrorAndExitIf(num_bytes_written != data_size_in_bytes,
                       "wrong number of bytes written for pc table");
   fclose(output_file);
-  delete[] data_copy;
 }
 
 // Dumps the control-flow table to `output_path`.

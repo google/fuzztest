@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "./centipede/feature.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner.h"
 #include "./centipede/runner_utils.h"
@@ -30,6 +31,7 @@ void RunnerSancov() {}  // to be referenced in runner.cc
 }  // namespace centipede
 
 using centipede::PCGuard;
+using centipede::PCInfo;
 using centipede::RunnerCheck;
 using centipede::state;
 using centipede::tls;
@@ -153,14 +155,21 @@ void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
 // When called from the same DSO, the arguments will always be the same.
 // If a different DSO calls this function, it will have different arguments.
 // We currently do not support more than one sancov-instrumented DSO.
-void __sanitizer_cov_pcs_init(const uintptr_t *beg, const uintptr_t *end) {
+void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
   RunnerCheck(state.pc_guard_start && state.pc_guard_stop,
               "__sanitizer_cov_pcs_init is called before "
               "__sanitizer_cov_trace_pc_guard_init");
+  RunnerCheck(state.pc_guard_stop - state.pc_guard_start == end - beg,
+              "__sanitizer_cov_pcs_init: mismatch between guard size and pc "
+              "table size");
   if (state.pcs_beg == nullptr) {
     state.pcs_beg = beg;
     state.pcs_end = end;
-    // TODO(kcc): we know the PCs, set is_function_entry for all the guards.
+    // Set is_function_entry for all the guards.
+    for (size_t i = 0, n = end - beg; i < n; ++i) {
+      state.pc_guard_start[i].is_function_entry =
+          beg[i].has_flag(PCInfo::kFuncEntry);
+    }
   } else {
     RunnerCheck(
         state.pcs_beg == beg && state.pcs_end == end,
