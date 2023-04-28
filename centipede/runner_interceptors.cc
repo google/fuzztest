@@ -119,6 +119,14 @@ extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
     tls.cmp_traceN.Capture(n, reinterpret_cast<const uint8_t *>(s1),
                            reinterpret_cast<const uint8_t *>(s2));
   }
+  // Normalize the return value to be one of {1, -1, 0}.
+  // According to the spec, memcmp can return any positive or negative value,
+  // and in fact it does return various different positive and negative values
+  // depending on <some random factors>. These values are later passed to our
+  // CMP instrumentation and are used to produce features.
+  // If we don't normalize the return value here, our tests may be flaky.
+  if (result < 0) return -1;
+  if (result > 0) return 1;
   return result;
 }
 
