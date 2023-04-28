@@ -32,6 +32,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Run all Centipede tests
+        # Always upload test artifacts in the next step.
+        continue-on-error: true
         run: |
           env OUTPUT_ARTIFACTS_DIR="$HOME/.output_artifacts" \
             ./centipede/run_test_workflow.sh
