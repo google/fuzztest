@@ -20,7 +20,7 @@ namespace centipede {
 namespace {
 
 TEST(ReversePCTable, ReversePCTable) {
-  ReversePCTable table;
+  static ReversePCTable table;
   table.SetFromPCs({500, 400, 100, 200, 300});
 
   EXPECT_EQ(table.NumPcs(), 5);

@@ -269,8 +269,11 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 void __sanitizer_cov_trace_pc() {
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   if (!state.main_object.start_address ||
-      !state.actual_pc_counter_set_size_aligned)
+      !state.actual_pc_counter_set_size_aligned) {
+    // Don't track coverage at all before the PC table is initialized.
+    if (state.reverse_pc_table.NumPcs() == 0) return;
     MainObjectLazyInit();
+  }
   pc -= state.main_object.start_address;
   pc = ReturnAddressToCallerPc(pc);
   auto idx = state.reverse_pc_table.GetPCIndex(pc);

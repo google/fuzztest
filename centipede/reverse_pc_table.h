@@ -34,12 +34,18 @@ class ReversePCTable {
   // implementation is allowed to create an array of max_element(pcs) elements.
   void SetFromPCs(absl::Span<const uintptr_t> pcs) {
     num_pcs_ = pcs.size();
+    if (table_ != nullptr) delete[] table_;
+    if (num_pcs_ == 0) {
+      size_ = 0;
+      table_ = nullptr;
+      return;
+    }
     uintptr_t max_pc = *std::max_element(pcs.begin(), pcs.end());
     // Create an array of max_pc + 1 elements such that we can directly
     // index this array with any pc from `pcs`.
     size_ = max_pc + 1;
-    table_.reset(new uintptr_t[size_]);
-    std::fill(table_.get(), table_.get() + size_, kUnknownPC);
+    table_ = new size_t[size_];
+    std::fill(table_, table_ + size_, kUnknownPC);
     for (size_t idx = 0; idx < pcs.size(); ++idx) {
       table_[pcs[idx]] = idx;
     }
@@ -57,11 +63,15 @@ class ReversePCTable {
   size_t NumPcs() const { return num_pcs_; }
 
  private:
-  // We use size_ and std::unique_ptr instead of std::vector<>
-  // because this way size_ is cheaper to compute inside GetPCIndex().
+  // We use size_ and table_ pointer instead of std::vector<> because
+  // (1) we need ReversePCTable object to be accessible even after the
+  // destruction (in static storage duration); (2) size_ is cheaper to
+  // compute inside GetPCIndex(). This would cause leakage if not
+  // declared as static - one can explicitly call SetFromPCs({}) to
+  // free the table.
   size_t size_ = 0;
   size_t num_pcs_ = 0;
-  std::unique_ptr<size_t[]> table_;
+  size_t* table_ = nullptr;
 };
 
 }  // namespace centipede
