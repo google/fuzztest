@@ -37,7 +37,7 @@ centipede::ensure_empty_dir "${WD}"
   2>&1 |tee "${LOG}"
 
 # Check that we observe the edge coverage, not just random features.
-centipede::assert_regex_in_file "cov: [3456] cnt" "${LOG}"
+centipede::assert_regex_in_file "cov: [3456] " "${LOG}"
 # Check that we fell back to GetPcTableFromBinaryWithTracePC.
 centipede::assert_regex_in_file \
   "Fall back to GetPcTableFromBinaryWithTracePC" "${LOG}"

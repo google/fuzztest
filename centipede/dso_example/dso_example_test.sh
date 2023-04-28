@@ -60,7 +60,7 @@ centipede::ensure_empty_dir "${WD}"
 centipede::assert_fuzzing_success "${LOG}"
 
 # Check that we observe the edge coverage, not just random features.
-centipede::assert_regex_in_file "cov: [234] cnt" "${LOG}"
+centipede::assert_regex_in_file "cov: [234] " "${LOG}"
 
 echo "Running fuzzing for some number of iterations: ${TARGET_BINARY_DLOPEN}"
 WD="${TEST_TMPDIR}/WD"
@@ -75,6 +75,6 @@ centipede::ensure_empty_dir "${WD}"
 centipede::assert_fuzzing_success "${LOG}"
 
 # Check that we observe the edge coverage, not just random features.
-centipede::assert_regex_in_file "cov: [234] cnt" "${LOG}"
+centipede::assert_regex_in_file "cov: [234] " "${LOG}"
 
 echo "PASS"

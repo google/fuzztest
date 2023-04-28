@@ -200,21 +200,29 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                           fs_.CountFeatures(feature_domains::kCMPModDiff) +
                           fs_.CountFeatures(feature_domains::kCMPHamming) +
                           fs_.CountFeatures(feature_domains::kCMPDiffLog);
-  LOG(INFO) << env_.experiment_name << "[" << num_runs_ << "]"
-            << " " << log_type << ":"
-            << " ft: " << fs_.size() << " cov: " << fs_.ToCoveragePCs().size()
-            << " cnt: " << fs_.CountFeatures(feature_domains::k8bitCounters)
-            << " df: " << fs_.CountFeatures(feature_domains::kDataFlow)
-            << " cmp: " << num_cmp_features
-            << " path: " << fs_.CountFeatures(feature_domains::kBoundedPath)
-            << " pair: " << fs_.CountFeatures(feature_domains::kPCPair)
-            << " usr: " << fs_.CountFeatures(feature_domains::kUserDefined)
-            << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal()
-            << " fr: " << coverage_frontier_.NumFunctionsInFrontier()
-            << " max/avg: " << max_corpus_size << "/" << avg_corpus_size << " "
-            << corpus_.MemoryUsageString() << " exec/s: " << execs_per_sec
-            << " mb: "
-            << (perf::RUsageMemory::Snapshot(rusage_scope).mem_rss >> 20);
+  std::ostringstream os;
+  auto LogIfNotZero = [&os](size_t value, std::string_view name) {
+    if (!value) return;
+    os << " " << name << ": " << value;
+  };
+  os << env_.experiment_name << "[" << num_runs_ << "]"
+     << " " << log_type << ":"
+     << " ft: " << fs_.size();
+  LogIfNotZero(fs_.ToCoveragePCs().size(), "cov");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::k8bitCounters), "cnt");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kDataFlow), "df");
+  LogIfNotZero(num_cmp_features, "cmp");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kBoundedPath), "path");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kPCPair), "pair");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kCallStack), "stk");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kUserDefined), "usr");
+  os << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal();
+  LogIfNotZero(coverage_frontier_.NumFunctionsInFrontier(), "fr");
+  os << " max/avg: " << max_corpus_size << "/" << avg_corpus_size << " "
+     << corpus_.MemoryUsageString();
+  os << " exec/s: " << execs_per_sec;
+  os << " mb: " << (perf::RUsageMemory::Snapshot(rusage_scope).mem_rss >> 20);
+  LOG(INFO) << os.str();
 }
 
 void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
