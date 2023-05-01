@@ -355,22 +355,23 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
 // TODO(kcc): [impl] don't reread the same corpus twice.
 void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
                           bool rerun) {
-  size_t added_to_corpus = 0;
-  std::vector<ByteArray> to_rerun;
+  size_t num_added_inputs = 0;
+  std::vector<ByteArray> inputs_to_rerun;
   auto input_features_callback = [&](const ByteArray &input,
-                                     FeatureVec &features) {
+                                     FeatureVec &input_features) {
     if (EarlyExitRequested()) return;
-    if (features.empty()) {
+    if (input_features.empty()) {
       if (rerun) {
-        to_rerun.push_back(input);
+        inputs_to_rerun.push_back(input);
       }
     } else {
-      LogFeaturesAsSymbols(features);
-      if (fs_.CountUnseenAndPruneFrequentFeatures(features) != 0) {
-        fs_.IncrementFrequencies(features);
+      LogFeaturesAsSymbols(input_features);
+      if (fs_.CountUnseenAndPruneFrequentFeatures(input_features) != 0) {
+        VLOG(2) << "Adding input " << Hash(input);
+        fs_.IncrementFrequencies(input_features);
         // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
-        corpus_.Add(input, features, {}, fs_, coverage_frontier_);
-        added_to_corpus++;
+        corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
+        num_added_inputs++;
       }
     }
   };
@@ -386,8 +387,8 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
     ReadShard(load_env.MakeCorpusPath(shard_index),
               load_env.MakeFeaturesPath(shard_index), input_features_callback);
   }
-  if (added_to_corpus > 0) UpdateAndMaybeLogStats("load-shard", 1);
-  Rerun(to_rerun);
+  if (num_added_inputs > 0) UpdateAndMaybeLogStats("load-shard", 1);
+  if (!inputs_to_rerun.empty()) Rerun(inputs_to_rerun);
 }
 
 void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
@@ -562,7 +563,7 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   }
 }
 
-void Centipede::ReloadAllShardsAndDistillCorpusToDir() {
+void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   // Reload the shards. This automatically distills the corpus by discarding
   // inputs with duplicate feature sets as they are being added. Reloading
   // randomly leaves random winners from such sets of duplicates in the
@@ -708,7 +709,7 @@ void Centipede::FuzzingLoop() {
   // will essentially be the single action this run will carry out, with the
   // fuzzing loop being a no-op.
   if (env_.DistillingInThisShard()) {
-    ReloadAllShardsAndDistillCorpusToDir();
+    ReloadAllShardsAndWriteDistilledCorpus();
   }
 }
 

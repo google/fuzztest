@@ -141,7 +141,7 @@ class Centipede {
   // Reloads the entire corpus for all the shards from workdir (as if with
   // `env_.full_sync`) thus distilling it, and saves it to a single file with a
   // shard-hashed name in the workdir.
-  void ReloadAllShardsAndDistillCorpusToDir();
+  void ReloadAllShardsAndWriteDistilledCorpus();
 
   // Collects all PCs from `fv`, then adds PC-pair features to `fv`.
   // Returns the number of added features.
