@@ -56,6 +56,7 @@ struct RunTimeFlags {
   uint64_t use_pc_features : 1;
   uint64_t use_dataflow_features : 1;
   uint64_t use_cmp_features : 1;
+  uint64_t use_callstack_features : 1;
   uint64_t use_counter_features : 1;
   uint64_t use_auto_dictionary : 1;
   uint64_t timeout_per_input;
@@ -112,6 +113,9 @@ struct ThreadLocalRunnerState {
   CmpTrace<4, 64> cmp_trace4;
   CmpTrace<8, 64> cmp_trace8;
   CmpTrace<0, 64> cmp_traceN;
+
+  // Set this to true if the thread needs to be ignored in ForEachTLS.
+  bool ignore;
 };
 
 // One global object of this type is created by the runner at start up.
@@ -148,6 +152,7 @@ struct GlobalRunnerState {
       .use_pc_features = HasFlag(":use_pc_features:"),
       .use_dataflow_features = HasFlag(":use_dataflow_features:"),
       .use_cmp_features = HasFlag(":use_cmp_features:"),
+      .use_callstack_features = HasFlag(":use_callstack_features:"),
       .use_counter_features = HasFlag(":use_counter_features:"),
       .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
       .timeout_per_input = HasFlag(":timeout_per_input=", 0),
@@ -190,12 +195,14 @@ struct GlobalRunnerState {
   // Doubly linked list of TLSs of all live threads.
   ThreadLocalRunnerState *tls_list;
   pthread_mutex_t tls_list_mu;  // Guards tls_list.
-  // Iterates all TLS objects under tls_list_mu.
+  // Iterates all TLS objects under tls_list_mu, except those with `ignore` set.
   // Calls `callback()` on every TLS.
   template <typename Callback>
   void ForEachTls(Callback callback) {
     LockGuard lock(tls_list_mu);
-    for (auto *it = tls_list; it; it = it->next) callback(*it);
+    for (auto *it = tls_list; it; it = it->next) {
+      if (!it->ignore) callback(*it);
+    }
   }
 
   // Computed by DlInfo().
@@ -297,6 +304,9 @@ struct GlobalRunnerState {
   // Per-batch timer. Initially, zero. ResetInputTimer() sets it to the current
   // time before the first input and never resets it.
   std::atomic<time_t> batch_start_time;
+
+  // The Watchdog thread sets this to true.
+  std::atomic<bool> watchdog_thread_started;
 };
 
 extern GlobalRunnerState state;

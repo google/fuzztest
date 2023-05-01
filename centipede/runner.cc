@@ -182,6 +182,8 @@ static void CheckWatchdogLimits() {
 // Watchdog thread. Periodically checks if it's time to abort due to a
 // timeout/OOM.
 [[noreturn]] static void *WatchdogThread(void *unused) {
+  tls.ignore = true;
+  state.watchdog_thread_started = true;
   while (true) {
     sleep(1);
 
@@ -208,6 +210,10 @@ void GlobalRunnerState::StartWatchdogThread() {
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
+  // Wait until the watchdog actually starts and initializes itself.
+  while (!state.watchdog_thread_started) {
+    sleep(0);
+  }
 }
 
 void GlobalRunnerState::ResetTimers() {
@@ -350,14 +356,15 @@ PostProcessCoverage(int target_return_value) {
   }
 
   // Iterate all threads and get features from TLS data.
-  // TODO(kcc): enable it back once we fix test flakiness.
-  // state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
-  //   RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
-  //               "bad values of tls.top_frame_sp and tls.lowest_sp");
-  //   size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-  //   g_features.push_back(
-  //       centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
-  // });
+  state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
+    if (state.run_time_flags.use_callstack_features) {
+      RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
+                  "bad values of tls.top_frame_sp and tls.lowest_sp");
+      size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
+      g_features.push_back(
+          centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
+    }
+  });
 
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.

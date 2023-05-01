@@ -100,6 +100,8 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
     if (env_.use_pc_features) flags.emplace_back("use_pc_features");
     if (env_.use_counter_features) flags.emplace_back("use_counter_features");
     if (env_.use_cmp_features) flags.emplace_back("use_cmp_features");
+    if (env_.use_callstack_features)
+      flags.emplace_back("use_callstack_features");
     if (env_.use_auto_dictionary) flags.emplace_back("use_auto_dictionary");
     if (env_.use_dataflow_features) flags.emplace_back("use_dataflow_features");
   }

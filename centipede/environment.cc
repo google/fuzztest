@@ -177,6 +177,9 @@ ABSL_FLAG(bool, use_pc_features, true,
 ABSL_FLAG(bool, use_cmp_features, true,
           "When available from instrumentation, use features derived from "
           "instrumentation of CMP instructions.");
+ABSL_FLAG(bool, use_callstack_features, true,
+          "When available from instrumentation, use features derived from "
+          "observing the function call stack.");
 ABSL_FLAG(bool, use_auto_dictionary, true,
           "If true, use automatically-generated dictionary derived from "
           "intercepting comparison instructions, memcmp, and similar.");
@@ -387,6 +390,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       use_pc_features(absl::GetFlag(FLAGS_use_pc_features)),
       path_level(absl::GetFlag(FLAGS_path_level)),
       use_cmp_features(absl::GetFlag(FLAGS_use_cmp_features)),
+      use_callstack_features(absl::GetFlag(FLAGS_use_callstack_features)),
       use_auto_dictionary(absl::GetFlag(FLAGS_use_auto_dictionary)),
       use_dataflow_features(absl::GetFlag(FLAGS_use_dataflow_features)),
       use_counter_features(absl::GetFlag(FLAGS_use_counter_features)),
