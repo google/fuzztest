@@ -74,8 +74,8 @@ class Centipede {
   // Returns true if new features were observed.
   // Post-condition: `batch_result.results.size()` == `input_vec.size()`.
   bool RunBatch(const std::vector<ByteArray> &input_vec,
-                BlobFileAppender *corpus_file, BlobFileAppender *features_file,
-                BlobFileAppender *unconditional_features_file);
+                BlobFileWriter *corpus_file, BlobFileWriter *features_file,
+                BlobFileWriter *unconditional_features_file);
   // Loads a shard `shard_index` from `load_env.workdir`.
   // Note: `load_env_` may be different from `env_`.
   // If `rerun` is true, then also re-runs any inputs

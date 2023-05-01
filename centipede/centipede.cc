@@ -158,7 +158,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
       }
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
-    auto appender = DefaultBlobFileAppenderFactory();
+    auto appender = DefaultBlobFileWriterFactory();
     std::string corpus_path = env.MakeCorpusPath(shard);
     CHECK_OK(appender->Open(corpus_path, "a"))
         << "Failed to open corpus file: " << corpus_path;
@@ -170,7 +170,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
         ++inputs_ignored;
         continue;
       }
-      CHECK_OK(appender->Append(input));
+      CHECK_OK(appender->Write(input));
       ++inputs_added;
     }
     LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
@@ -294,9 +294,9 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 }
 
 bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
-                         BlobFileAppender *corpus_file,
-                         BlobFileAppender *features_file,
-                         BlobFileAppender *unconditional_features_file) {
+                         BlobFileWriter *corpus_file,
+                         BlobFileWriter *features_file,
+                         BlobFileWriter *unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   CHECK_EQ(input_vec.size(), batch_result.results().size());
@@ -324,7 +324,7 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
     if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
       input_gained_new_coverage = true;
     if (unconditional_features_file != nullptr) {
-      CHECK_OK(unconditional_features_file->Append(
+      CHECK_OK(unconditional_features_file->Write(
           PackFeaturesAndHash(input_vec[i], fv)));
     }
     if (input_gained_new_coverage) {
@@ -339,13 +339,13 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
         corpus_.Add(input_vec[i], fv, cmp_args, fs_, coverage_frontier_);
       }
       if (corpus_file != nullptr) {
-        CHECK_OK(corpus_file->Append(input_vec[i]));
+        CHECK_OK(corpus_file->Write(input_vec[i]));
       }
       if (!env_.corpus_dir.empty()) {
         WriteToLocalHashedFileInDir(env_.corpus_dir[0], input_vec[i]);
       }
       if (features_file != nullptr) {
-        CHECK_OK(features_file->Append(PackFeaturesAndHash(input_vec[i], fv)));
+        CHECK_OK(features_file->Write(PackFeaturesAndHash(input_vec[i], fv)));
       }
     }
   }
@@ -408,7 +408,7 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
 
 void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
-  auto features_file = DefaultBlobFileAppenderFactory();
+  auto features_file = DefaultBlobFileWriterFactory();
   CHECK_OK(
       features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
 
@@ -552,10 +552,10 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   size_t new_corpus_size = corpus_.NumActive();
   CHECK_GE(new_corpus_size, initial_corpus_size);  // Corpus can't shrink here.
   if (new_corpus_size > initial_corpus_size) {
-    auto appender = DefaultBlobFileAppenderFactory();
+    auto appender = DefaultBlobFileWriterFactory();
     CHECK_OK(appender->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
     for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
-      CHECK_OK(appender->Append(corpus_.Get(idx)));
+      CHECK_OK(appender->Write(corpus_.Get(idx)));
     }
     LOG(INFO) << "Merge: " << (new_corpus_size - initial_corpus_size)
               << " new inputs added";
@@ -576,11 +576,11 @@ void Centipede::ReloadAllShardsAndDistillCorpusToDir() {
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
-  const auto appender = DefaultBlobFileAppenderFactory();
+  const auto appender = DefaultBlobFileWriterFactory();
   CHECK_OK(appender->Open(distill_to_path, "a"));
   for (size_t i = 0; i < corpus_.NumActive(); ++i) {
     const ByteArray &input = corpus_.Get(i);
-    CHECK_OK(appender->Append(input));
+    CHECK_OK(appender->Write(input));
     if (!env_.corpus_dir.empty()) {
       WriteToLocalHashedFileInDir(env_.corpus_dir[0], input);
     }
@@ -612,8 +612,8 @@ void Centipede::FuzzingLoop() {
     MergeFromOtherCorpus(env_.merge_from, env_.my_shard_index);
   }
 
-  auto corpus_file = DefaultBlobFileAppenderFactory();
-  auto features_file = DefaultBlobFileAppenderFactory();
+  auto corpus_file = DefaultBlobFileWriterFactory();
+  auto features_file = DefaultBlobFileWriterFactory();
   CHECK_OK(corpus_file->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
   CHECK_OK(
       features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
