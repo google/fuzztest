@@ -577,7 +577,9 @@ void Centipede::ReloadAllShardsAndDistillCorpusToDir() {
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
   const auto appender = DefaultBlobFileWriterFactory();
-  CHECK_OK(appender->Open(distill_to_path, "a"));
+  // NOTE: Always overwrite distilled corpus files -- never append, unlike
+  // "regular", per-shard corpus files.
+  CHECK_OK(appender->Open(distill_to_path, "w"));
   for (size_t i = 0; i < corpus_.NumActive(); ++i) {
     const ByteArray &input = corpus_.Get(i);
     CHECK_OK(appender->Write(input));
