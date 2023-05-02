@@ -366,6 +366,13 @@ PostProcessCoverage(int target_return_value) {
     }
   });
 
+  if (state.run_time_flags.use_callstack_features) {
+    state.callstack_set.ForEachNonZeroBit([](size_t idx) {
+      g_features.push_back(
+          centipede::feature_domains::kCallStack.ConvertToMe(idx));
+    });
+  }
+
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {

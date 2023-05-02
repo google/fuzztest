@@ -200,14 +200,20 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
 // Handles one observed PC.
 // `normalized_pc` is an integer representation of PC that is stable between
 // the executions.
+// `is_function_entry` is true if the PC is known to be a function entry.
 // With __sanitizer_cov_trace_pc_guard this is an index of PC in the PC table.
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
-static inline void HandleOnePc(uintptr_t normalized_pc) {
+static inline void HandleOnePc(uintptr_t normalized_pc,
+                               bool is_function_entry) {
   state.pc_counter_set.SaturatedIncrement(normalized_pc);
 
-  uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-  if (sp < tls.lowest_sp) tls.lowest_sp = sp;
+  if (is_function_entry && state.run_time_flags.use_callstack_features) {
+    uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
+    if (sp < tls.lowest_sp) tls.lowest_sp = sp;
+    tls.call_stack.OnFunctionEntry(normalized_pc, sp);
+    state.callstack_set.set(tls.call_stack.Hash());
+  }
 
   // path features.
   if (auto path_level = state.run_time_flags.path_level)
@@ -286,7 +292,8 @@ void __sanitizer_cov_trace_pc() {
   pc -= state.main_object.start_address;
   pc = ReturnAddressToCallerPc(pc);
   auto idx = state.reverse_pc_table.GetPCIndex(pc);
-  if (idx != centipede::ReversePCTable::kUnknownPC) HandleOnePc(idx);
+  // TODO(kcc): compute is_function_entry for this case.
+  if (idx != centipede::ReversePCTable::kUnknownPC) HandleOnePc(idx, false);
 }
 
 // This function is called at the DSO init time.
@@ -323,7 +330,7 @@ void __sanitizer_cov_trace_pc_guard(PCGuard *guard) {
   // But in this case it's just going to be zero.
   // TODO(kcc): the check below seems almost reduntant. See if we can remove it.
   if (state.pc_guard_start == nullptr) return;
-  HandleOnePc(guard->pc_index);
+  HandleOnePc(guard->pc_index, guard->is_function_entry);
 }
 
 }  // extern "C"

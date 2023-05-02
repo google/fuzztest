@@ -18,7 +18,7 @@
 // All functions but F0 also modify `g_result`.
 // The puzzle can be solved if the call sequence is FA->FB->FC->FD.
 
-// RUN: Run
+// RUN: Run --use_cmp_features=0 --use_dataflow_features=0
 // RUN: SolutionIs ABCD
 #include <cstddef>
 #include <cstdint>

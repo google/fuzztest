@@ -27,6 +27,7 @@
 
 #include "absl/base/const_init.h"
 #include "./centipede/byte_array_mutator.h"
+#include "./centipede/callstack.h"
 #include "./centipede/concurrent_bitset.h"
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/execution_result.h"
@@ -105,6 +106,9 @@ struct ThreadLocalRunnerState {
   uintptr_t top_frame_sp;
   // Lowest observed value of SP.
   uintptr_t lowest_sp;
+
+  // The (imprecise) call stack is updated by the PC callback.
+  CallStack<> call_stack;
 
   // Cmp traces capture the arguments of CMP instructions, memcmp, etc.
   // We have dedicated traces for 2-, 4-, and 8-byte comparison, and
@@ -236,6 +240,9 @@ struct GlobalRunnerState {
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_moddiff_set{absl::kConstInit};
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_hamming_set{absl::kConstInit};
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_difflog_set{absl::kConstInit};
+
+  static const size_t kCallStackFeatureSetSize = 1 << 18;
+  ConcurrentBitSet<kCallStackFeatureSetSize> callstack_set{absl::kConstInit};
 
   // trace-pc-guard callbacks (edge instrumentation).
   // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-pcs-with-guards

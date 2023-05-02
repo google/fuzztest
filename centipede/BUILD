@@ -610,6 +610,7 @@ cc_library(
 RUNNER_SOURCES_NO_MAIN = [
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
+    "callstack.h",
     "concurrent_bitset.h",
     "concurrent_byteset.h",
     "defs.h",
