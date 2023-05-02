@@ -44,7 +44,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/substitute.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
@@ -52,66 +51,6 @@
 #include "./centipede/logging.h"
 
 namespace centipede {
-
-std::string ResolveExecutablePath(std::string_view path,
-                                  std::string_view description,
-                                  bool allow_empty, bool allow_unresolved) {
-  if (path.empty() || path == "/dev/null") {
-    CHECK(allow_empty) << "Required '" << description
-                       << "' path is empty or /dev/null: " << path;
-    return "";
-  }
-
-  // NOTE: `which` writes nothing to stdout if the path can't be found,
-  // returning a null FILE. We write an empty string using `echo` in this case,
-  // so a null FILE becomes an indicator of a real problem.
-  const std::string which_cmd = absl::Substitute("which $0 || echo ''", path);
-  FILE *which_stdout = popen(which_cmd.c_str(), "r");
-  PCHECK(which_stdout != nullptr) << "Error running `which`: " << VV(which_cmd);
-  char resolved_path_buf[PATH_MAX] = {'\0'};
-  PCHECK(fgets(resolved_path_buf, PATH_MAX, which_stdout) != nullptr)
-      << "Error reading `which` output: " << VV(which_cmd);
-  (void)pclose(which_stdout);  // Ignore pclose() errors.
-
-  std::string resolved_path{absl::StripAsciiWhitespace(resolved_path_buf)};
-
-  if (resolved_path.empty()) {
-    CHECK(allow_unresolved)
-        << "Required '" << description
-        << "' path not found or is not executable"
-        << (allow_empty ? " (fix or use '' or '/dev/null' to suppress)" : "")
-        << ": " << VV(path) << VV(getenv("PATH"));
-  }
-
-  return resolved_path;
-}
-
-std::vector<std::string> ResolveExecutablePaths(
-    const std::vector<std::string_view> &paths, std::string_view description,
-    bool allow_empty, bool allow_unresolved) {
-  std::vector<std::string> resolved_paths;
-  resolved_paths.reserve(paths.size());
-  for (const auto &path : paths) {
-    resolved_paths.emplace_back(ResolveExecutablePath(
-        path, description, allow_empty, allow_unresolved));
-  }
-  return resolved_paths;
-}
-
-void AssertExecutablePath(std::string_view path) {
-  std::error_code error;
-  const auto status = std::filesystem::status(path, error);
-  CHECK(!error) << "Failed to get file status: " << VV(path) << "; "
-                << error.message();
-  CHECK(std::filesystem::is_regular_file(status))
-      << "File is not regular: " << VV(path);
-  const auto perms = status.permissions();
-  using std::filesystem::perms;
-  constexpr auto kExec =
-      perms::owner_exec | perms::group_exec | perms::others_exec;
-  CHECK((perms & kExec) != perms::none)
-      << "File is not executable: " << VV(path);
-}
 
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;

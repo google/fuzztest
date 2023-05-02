@@ -16,7 +16,7 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
@@ -29,42 +29,6 @@
 #include "./centipede/test_util.h"
 
 namespace centipede {
-
-TEST(UtilTest, ResolveExecutablePath) {
-  const std::filesystem::path dir{GetTestTempDir(test_info_->name())};
-  const std::filesystem::path exe = dir / "exe";
-  WriteToLocalFile(exe.string(), "echo 'hi'");
-  std::filesystem::permissions(exe, std::filesystem::perms::all);
-  const std::filesystem::path not_exe = dir / "not_exe";
-  WriteToLocalFile(not_exe.string(), "echo 'hi'");
-
-  EXPECT_DEATH(ResolveExecutablePath("exe", "x", false, false), "not found");
-  EXPECT_DEATH(ResolveExecutablePath("exe", "x", true, false), "not found");
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", false, true), "");
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", true, true), "");
-
-  PrependDirToPathEnvvar(dir.string());
-
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", false, false), exe);
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", true, false), exe);
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", false, true), exe);
-  EXPECT_EQ(ResolveExecutablePath("exe", "x", true, true), exe);
-
-  EXPECT_DEATH(ResolveExecutablePath("not_exe", "x", false, false), "not exe");
-  EXPECT_DEATH(ResolveExecutablePath("not_exe", "x", true, false), "not exe");
-  EXPECT_EQ(ResolveExecutablePath("not_exe", "x", false, true), "");
-  EXPECT_EQ(ResolveExecutablePath("not_exe", "x", true, true), "");
-
-  EXPECT_DEATH(ResolveExecutablePath("", "x", false, false), "empty");
-  EXPECT_EQ(ResolveExecutablePath("/dev/null", "x", true, false), "");
-  EXPECT_DEATH(ResolveExecutablePath("", "x", false, true), "empty");
-  EXPECT_EQ(ResolveExecutablePath("/dev/null", "x", true, true), "");
-
-  EXPECT_DEATH(ResolveExecutablePath("miss", "x", false, false), "not found");
-  EXPECT_DEATH(ResolveExecutablePath("miss", "x", true, false), "not found");
-  EXPECT_EQ(ResolveExecutablePath("miss", "x", false, true), "");
-  EXPECT_EQ(ResolveExecutablePath("miss", "x", true, true), "");
-}
 
 static void Append(ByteArray &to, const ByteArray &from) {
   to.insert(to.end(), from.begin(), from.end());
