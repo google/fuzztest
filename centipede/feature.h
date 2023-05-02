@@ -97,20 +97,20 @@ class Domain {
 };
 
 // Catch-all domain for unknown features.
-constexpr Domain kUnknown = {__COUNTER__};
+inline constexpr Domain kUnknown = {__COUNTER__};
 static_assert(kUnknown.domain_id() == 0);  // No one used __COUNTER__ before.
 // Represents PCs, i.e. control flow edges.
 // Use ConvertPCFeatureToPcIndex() to convert back to a PC index.
-constexpr Domain kPCs = {__COUNTER__};
+inline constexpr Domain kPCs = {__COUNTER__};
 static_assert(kPCs.domain_id() != kUnknown.domain_id());  // just in case.
 // Features derived from edge counters. See Convert8bitCounterToNumber().
-constexpr Domain k8bitCounters = {__COUNTER__};
+inline constexpr Domain k8bitCounters = {__COUNTER__};
 // Features derived from data flow edges.
 // A typical data flow edge is a pair of PCs: {store-PC, load-PC}.
 // Another variant of a data flow edge is a pair of {global-address, load-PC}.
-constexpr Domain kDataFlow = {__COUNTER__};
+inline constexpr Domain kDataFlow = {__COUNTER__};
 // Features derived from instrumenting CMP instructions. TODO(kcc): remove.
-constexpr Domain kCMP = {__COUNTER__};
+inline constexpr Domain kCMP = {__COUNTER__};
 
 // Features in the following domains are created for comparison instructions
 // 'a CMP b'. One component of the feature is the context, i.e. where the
@@ -118,29 +118,30 @@ constexpr Domain kCMP = {__COUNTER__};
 //
 // a == b.
 // The other domains (kCMPModDiff, kCMPHamming, kCMPDiffLog) are for a != b.
-constexpr Domain kCMPEq = {__COUNTER__};
+inline constexpr Domain kCMPEq = {__COUNTER__};
 // (a - b) if |a-b| < 32, see ABToCmpModDiff.
-constexpr Domain kCMPModDiff = {__COUNTER__};
+inline constexpr Domain kCMPModDiff = {__COUNTER__};
 // hamming_distance(a, b), ABToCmpHamming.
-constexpr Domain kCMPHamming = {__COUNTER__};
+inline constexpr Domain kCMPHamming = {__COUNTER__};
 // log2(a > b ? a - b : b - a), see ABToCmpDiffLog.
-constexpr Domain kCMPDiffLog = {__COUNTER__};
+inline constexpr Domain kCMPDiffLog = {__COUNTER__};
 
 // Features derived from observing function call stacks.
 constexpr Domain kCallStack = {__COUNTER__};
 // Features derived from computing (bounded) control flow paths.
-constexpr Domain kBoundedPath = {__COUNTER__};
+inline constexpr Domain kBoundedPath = {__COUNTER__};
 // Features derived from (unordered) pairs of PCs.
-constexpr Domain kPCPair = {__COUNTER__};
+inline constexpr Domain kPCPair = {__COUNTER__};
 // Features defined by a user via
 // __attribute__((section("__centipede_extra_features"))).
-constexpr Domain kUserDefined = {__COUNTER__};
+inline constexpr Domain kUserDefined = {__COUNTER__};
 static_assert(__COUNTER__ < Domain::kLastDomainId);
-constexpr Domain kLastDomainId = {Domain::kLastDomainId};  // must be last.
+inline constexpr Domain kLastDomainId = {
+    Domain::kLastDomainId};  // must be last.
 
 // Special feature used to indicate an absence of features. Typically used where
 // a feature array must not be empty, but doesn't have any other features.
-constexpr feature_t kNoFeature = kUnknown.begin();
+inline constexpr feature_t kNoFeature = kUnknown.begin();
 
 }  // namespace feature_domains
 
