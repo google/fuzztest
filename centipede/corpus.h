@@ -70,6 +70,9 @@ class FeatureSet {
   // The weight of a FeatureVec is a sum of individual feature weights.
   uint64_t ComputeWeight(const FeatureVec &features) const;
 
+  // Returns a debug string representing the state of *this.
+  std::string DebugString() const;
+
  private:
   // Maps feature into an index in frequencies_.
   static size_t Feature2Idx(feature_t feature) { return feature % kSize; }

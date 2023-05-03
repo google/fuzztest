@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,8 @@ void FeatureSet::IncrementFrequencies(const FeatureVec &features) {
         pc_index_set_.insert(ConvertPCFeatureToPcIndex(f));
     }
     if (freq < FrequencyThreshold(f)) ++freq;
+    VLOG(10) << "IncFreq: " << Feature2Idx(f) << " " << (int)freq << " "
+             << feature_domains::Domain::FeatureToDomainId(f);
   }
 }
 
@@ -92,10 +95,29 @@ FeatureSet::ComputeWeight(const FeatureVec &features) const {
     auto domain_weight = num_features_ / features_in_domain;
     auto feature_idx = Feature2Idx(feature);
     auto feature_frequency = frequencies_[feature_idx];
-    CHECK_GT(feature_frequency, 0) << VV(feature) << VV(feature_idx);
+    // Temporary debug print, while we are hunting a CHECK failure.
+    VLOG(10) << VV(feature) << VV(domain_id) << VV(features_in_domain)
+             << VV(domain_weight) << VV(feature_idx) << VV(feature_frequency)
+             << DebugString();
+    CHECK_GT(feature_frequency, 0)
+        << VV(feature) << VV(domain_id) << VV(features_in_domain)
+        << VV(domain_weight) << VV(feature_idx) << VV(feature_frequency)
+        << DebugString();
     weight += domain_weight * (256 / feature_frequency);
   }
   return weight;
+}
+
+std::string FeatureSet::DebugString() const {
+  std::ostringstream os;
+  os << VV((int)frequency_threshold_);
+  os << VV(num_features_);
+  for (size_t domain = 0; domain < feature_domains::kLastDomainId.domain_id();
+       ++domain) {
+    if (features_per_domain_[domain] == 0) continue;
+    os << " dom" << domain << ": " << features_per_domain_[domain];
+  }
+  return os.str();
 }
 
 //------------------------------------------------------------------------------
