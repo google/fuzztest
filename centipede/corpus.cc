@@ -74,8 +74,6 @@ void FeatureSet::IncrementFrequencies(const FeatureVec &features) {
         pc_index_set_.insert(ConvertPCFeatureToPcIndex(f));
     }
     if (freq < FrequencyThreshold(f)) ++freq;
-    VLOG(10) << "IncFreq: " << Feature2Idx(f) << " " << (int)freq << " "
-             << feature_domains::Domain::FeatureToDomainId(f);
   }
 }
 
@@ -91,17 +89,19 @@ FeatureSet::ComputeWeight(const FeatureVec &features) const {
     // The less frequent is the domain, the more valuable are its features.
     auto domain_id = feature_domains::Domain::FeatureToDomainId(feature);
     auto features_in_domain = features_per_domain_[domain_id];
-    CHECK_GT(features_in_domain, 0) << VV(feature) << VV(domain_id);
-    auto domain_weight = num_features_ / features_in_domain;
+    // features_in_domain may be 0. This is an unfortunate consequence of
+    // having a table with collisions. `feature` may have collided with another
+    // feature that was from a different domain, and thus didn't increment
+    // the right features_per_domain_.
+    // TODO(kcc): this class needs a major facelift.
+    // Perhaps even rewriting to not have collisions.
+    auto domain_weight =
+        features_in_domain ? num_features_ / features_in_domain : 1;
     auto feature_idx = Feature2Idx(feature);
     auto feature_frequency = frequencies_[feature_idx];
-    // Temporary debug print, while we are hunting a CHECK failure.
-    VLOG(10) << VV(feature) << VV(domain_id) << VV(features_in_domain)
-             << VV(domain_weight) << VV(feature_idx) << VV(feature_frequency)
-             << DebugString();
     CHECK_GT(feature_frequency, 0)
         << VV(feature) << VV(domain_id) << VV(features_in_domain)
-        << VV(domain_weight) << VV(feature_idx) << VV(feature_frequency)
+        << VV(domain_weight) << VV(feature_idx) << VV((int)feature_frequency)
         << DebugString();
     weight += domain_weight * (256 / feature_frequency);
   }
