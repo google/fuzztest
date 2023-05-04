@@ -389,6 +389,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "feature_set",
+    srcs = ["feature_set.cc"],
+    hdrs = ["feature_set.h"],
+    deps = [
+        ":coverage",
+        ":defs",
+        ":feature",
+        "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
 # TODO(kcc): [impl] add dedicated unittests.
 cc_library(
     name = "corpus",
@@ -400,9 +412,8 @@ cc_library(
         ":coverage",
         ":defs",
         ":feature",
-        ":logging",
+        ":feature_set",
         ":util",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -493,6 +504,7 @@ cc_library(
         ":environment",
         ":execution_result",
         ":feature",
+        ":feature_set",
         ":logging",
         ":remote_file",
         ":rusage_profiler",
@@ -939,6 +951,16 @@ cc_test(
         ":callstack",
         ":defs",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "feature_set_test",
+    srcs = ["feature_set_test.cc"],
+    deps = [
+        ":feature",
+        ":feature_set",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -69,6 +69,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
+#include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
