@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <csignal>
@@ -24,6 +25,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 
 #include "absl/log/check.h"
 #include "absl/strings/match.h"
@@ -39,6 +41,45 @@ namespace centipede {
 // See the definition of --fork_server flag.
 inline constexpr std::string_view kCommandLineSeparator(" \\\n");
 inline constexpr std::string_view kNoForkServerRequestPrefix("%f");
+
+// TODO(ussuri): Encapsulate as much of the fork server functionality from
+//  this source as possible in this struct, and make it a class.
+struct Command::ForkServerProps {
+  // The file paths of the comms pipes.
+  std::string fifo_path_[2];
+  // The file descriptors of the comms pipes.
+  int pipe_[2] = {-1, -1};
+  // The file path to write the PID of the fork server process to.
+  std::string pid_file_path_;
+  // The PID of the fork server process. Used to verify that the fork server is
+  // running and the pipes are ready for comms.
+  pid_t pid_ = -1;
+  // A `stat` of the fork server's binary right after it's started. Used to
+  // detect that the running process with `pid_` is still the original fork
+  // server, not a PID recycled by the OS.
+  struct stat exe_stat_ = {};
+
+  ~ForkServerProps() {
+    for (int i = 0; i < 2; ++i) {
+      if (pipe_[i] >= 0 && close(pipe_[i]) != 0) {
+        LOG(ERROR) << "Failed to close fork server pipe for " << fifo_path_[i];
+      }
+      std::error_code ec;
+      if (!fifo_path_[i].empty() &&
+          !std::filesystem::remove(fifo_path_[i], ec)) {
+        LOG(ERROR) << "Failed to remove fork server pipe file " << fifo_path_[i]
+                   << ": " << ec;
+      }
+    }
+  }
+};
+
+// NOTE: Because std::unique_ptr<T> requires T to be a complete type wherever
+// the deleter is instantiated, the special member functions must be defined
+// out-of-line here, now that ForkServerProps is complete (that's by-the-book
+// PIMPL).
+Command::Command(Command &&other) noexcept = default;
+Command::~Command() = default;
 
 Command::Command(std::string_view path, std::vector<std::string> args,
                  std::vector<std::string> env, std::string_view out,
@@ -99,27 +140,30 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   }
   LOG(INFO) << "Starting fork server for " << path();
 
-  fifo_path_[0] = std::filesystem::path(temp_dir_path)
-                      .append(absl::StrCat(prefix, "_FIFO0"));
-  fifo_path_[1] = std::filesystem::path(temp_dir_path)
-                      .append(absl::StrCat(prefix, "_FIFO1"));
+  fork_server_.reset(new ForkServerProps);
+
+  fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
+                                    .append(absl::StrCat(prefix, "_FIFO0"));
+  fork_server_->fifo_path_[1] = std::filesystem::path(temp_dir_path)
+                                    .append(absl::StrCat(prefix, "_FIFO1"));
   (void)std::filesystem::create_directory(temp_dir_path);  // it may not exist.
   for (int i = 0; i < 2; ++i) {
-    PCHECK(mkfifo(fifo_path_[i].c_str(), 0600) == 0)
-        << VV(i) << VV(fifo_path_[i]);
+    PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
+        << VV(i) << VV(fork_server_->fifo_path_[i]);
   }
 
-  const std::string command = absl::StrCat(
-      "CENTIPEDE_FORK_SERVER_FIFO0=", fifo_path_[0], kCommandLineSeparator,
-      "CENTIPEDE_FORK_SERVER_FIFO1=", fifo_path_[1], kCommandLineSeparator,
-      command_line_, " &");
+  const std::string command =
+      absl::StrCat("CENTIPEDE_FORK_SERVER_FIFO0=", fork_server_->fifo_path_[0],
+                   kCommandLineSeparator,
+                   "CENTIPEDE_FORK_SERVER_FIFO1=", fork_server_->fifo_path_[1],
+                   kCommandLineSeparator, command_line_, " &");
   LOG(INFO) << "Fork server command:\n" << command;
   int ret = system(command.c_str());
   CHECK_EQ(ret, 0) << "Failed to start fork server using command:\n" << command;
 
-  pipe_[0] = open(fifo_path_[0].c_str(), O_WRONLY);
-  pipe_[1] = open(fifo_path_[1].c_str(), O_RDONLY);
-  if (pipe_[0] < 0 || pipe_[1] < 0) {
+  fork_server_->pipe_[0] = open(fork_server_->fifo_path_[0].c_str(), O_WRONLY);
+  fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(), O_RDONLY);
+  if (fork_server_->pipe_[0] < 0 || fork_server_->pipe_[1] < 0) {
     LOG(INFO) << "Failed to establish communication with fork server; will "
                  "proceed without it";
     return false;
@@ -127,20 +171,12 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   return true;
 }
 
-Command::~Command() {
-  for (int i = 0; i < 2; ++i) {
-    if (pipe_[i] >= 0) CHECK_EQ(close(pipe_[i]), 0);
-    if (!fifo_path_[i].empty())
-      CHECK(std::filesystem::remove(fifo_path_[i])) << fifo_path_[i];
-  }
-}
-
 int Command::Execute() {
   int exit_code = 0;
-  if (pipe_[0] >= 0 && pipe_[1] >= 0) {
+  if (fork_server_ != nullptr) {
     // Wake up the fork server.
     char x = ' ';
-    CHECK_EQ(1, write(pipe_[0], &x, 1));
+    CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
 
     // The fork server forks, the child is running. Block until some readable
     // data appears in the pipe (that is, after the fork server writes the
@@ -153,8 +189,8 @@ int Command::Execute() {
     do {
       // NOTE: `poll_fd` has to be reset every time.
       poll_fd = {
-          .fd = pipe_[1],    // The file descriptor to wait for.
-          .events = POLLIN,  // Wait until `fd` gets readable data.
+          .fd = fork_server_->pipe_[1],  // The file descriptor to wait for.
+          .events = POLLIN,              // Wait until `fd` gets readable data.
       };
       const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
           std::max(poll_deadline - absl::Now(), absl::Milliseconds(1))));
@@ -180,7 +216,8 @@ int Command::Execute() {
     }
 
     // The fork server wrote the execution result to the pipe: read it.
-    CHECK_EQ(sizeof(exit_code), read(pipe_[1], &exit_code, sizeof(exit_code)));
+    CHECK_EQ(sizeof(exit_code),
+             read(fork_server_->pipe_[1], &exit_code, sizeof(exit_code)));
   } else {
     // No fork server, use system().
     exit_code = system(command_line_.c_str());

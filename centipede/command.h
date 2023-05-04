@@ -15,40 +15,22 @@
 #ifndef THIRD_PARTY_CENTIPEDE_COMMAND_H_
 #define THIRD_PARTY_CENTIPEDE_COMMAND_H_
 
+#include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/time/time.h"
 
 namespace centipede {
+
 class Command final {
  public:
   // Move-constructible only.
   Command(const Command& other) = delete;
   Command& operator=(const Command& other) = delete;
-  Command& operator=(Command&& other) = delete;
-
-  // Move constructor, ensures the moved-from object doesn't own the pipes.
-  // TODO(kcc): [impl] add a test, other than multi_sanitizer_fuzz_target.sh,
-  // for this.
-  Command(Command&& other) noexcept
-      : path_(other.path_),
-        args_(other.args_),
-        env_(other.env_),
-        out_(other.out_),
-        err_(other.err_),
-        timeout_(other.timeout_),
-        temp_file_path_(other.temp_file_path_),
-        command_line_(other.command_line_),
-        fifo_path_{std::move(other.fifo_path_[0]),
-                   std::move(other.fifo_path_[1])},
-        pipe_{other.pipe_[0], other.pipe_[1]} {
-    // If we don't do this, the moved-from object will close these pipes.
-    other.pipe_[0] = -1;
-    other.pipe_[1] = -1;
-  }
+  Command(Command&& other) noexcept;
+  Command& operator=(Command&& other) noexcept = delete;
 
   // Constructs a command:
   // `path`: path to the binary.
@@ -88,6 +70,8 @@ class Command final {
   const std::string& path() const { return path_; }
 
  private:
+  struct ForkServerProps;
+
   const std::string path_;
   const std::vector<std::string> args_;
   const std::vector<std::string> env_;
@@ -96,9 +80,8 @@ class Command final {
   const absl::Duration timeout_;
   const std::string temp_file_path_;
   const std::string command_line_ = ToString();
-  // Pipe paths and file descriptors for the fork server.
-  std::string fifo_path_[2];
-  int pipe_[2] = {-1, -1};
+
+  std::unique_ptr<ForkServerProps> fork_server_;
 };
 
 }  // namespace centipede
