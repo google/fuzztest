@@ -77,6 +77,16 @@ class Command final {
   // previously started using `StartForkServer()`.
   absl::Status VerifyForkServerIsHealthy();
 
+  // Reads and returns the stdout of the command, if redirected to a file. If
+  // not redirected, returns a placeholder text.
+  std::string ReadRedirectedStdout() const;
+  // Reads and returns the stderr of the command, if redirected to a file that
+  // is also different from the redirected stdout. If not redirected, returns a
+  // placeholder text.
+  std::string ReadRedirectedStderr() const;
+  // Logs the redirected stdout and stderr of the command in a readable format.
+  void LogRedirectedStdoutAndStderr() const;
+
   const std::string path_;
   const std::vector<std::string> args_;
   const std::vector<std::string> env_;

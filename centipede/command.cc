@@ -35,6 +35,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "./centipede/logging.h"
 #include "./centipede/util.h"
@@ -179,6 +180,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   if (exit_code != EXIT_SUCCESS) {
     LOG(ERROR) << "Failed to parse or run command to launch fork server; will "
                   "proceed without it";
+    LogRedirectedStdoutAndStderr();
     return false;
   }
 
@@ -200,6 +202,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
                                      O_RDONLY | O_NONBLOCK)) < 0) {
     PLOG(ERROR) << "Failed to establish communication with fork server; will "
                    "proceed without it";
+    LogRedirectedStdoutAndStderr();
     return false;
   }
 
@@ -214,6 +217,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
     PLOG(ERROR) << "Fork server appears not running; will proceed without it: "
                 << VV(proc_exe);
+    LogRedirectedStdoutAndStderr();
     return false;
   }
 
@@ -257,13 +261,14 @@ absl::Status Command::VerifyForkServerIsHealthy() {
 int Command::Execute() {
   VLOG(1) << "Executing command '" << command_line_ << "'...";
 
-  int exit_code = 0;
+  int exit_code = EXIT_SUCCESS;
 
   if (fork_server_ != nullptr) {
     VLOG(1) << "Sending execution request to fork server: " << VV(timeout_);
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
       LOG(ERROR) << "Fork server should be running, but isn't: " << status;
+      LogRedirectedStdoutAndStderr();
       return EXIT_FAILURE;
     }
 
@@ -293,17 +298,14 @@ int Command::Execute() {
     if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
-      std::string fork_server_log = "<not dumped>";
-      if (!out_.empty()) {
-        ReadFromLocalFile(out_, fork_server_log);
-      }
+      LOG(ERROR) << "Failed to communicate with fork server:";
+      LogRedirectedStdoutAndStderr();
       if (poll_ret == 0) {
         LOG(FATAL) << "Timeout while waiting for fork server: " << VV(timeout_)
-                   << VV(fork_server_log) << VV(command_line_);
+                   << VV(command_line_);
       } else {
         PLOG(FATAL) << "Error or interrupt while waiting for fork server: "
-                    << VV(poll_ret) << VV(poll_fd.revents)
-                    << VV(fork_server_log) << VV(command_line_);
+                    << VV(poll_ret) << VV(poll_fd.revents) << VV(command_line_);
       }
       __builtin_unreachable();
     }
@@ -320,14 +322,49 @@ int Command::Execute() {
   if (WIFEXITED(exit_code) && WEXITSTATUS(exit_code) != EXIT_SUCCESS) {
     LOG(ERROR) << "Runner or target returned error: exit code="
                << WEXITSTATUS(exit_code);
+    LogRedirectedStdoutAndStderr();
     exit_code = WEXITSTATUS(exit_code);
   } else if (WIFSIGNALED(exit_code)) {
     LOG(ERROR) << "Runner or target signalled: signal=" << WTERMSIG(exit_code);
+    LogRedirectedStdoutAndStderr();
     if (WTERMSIG(exit_code) == SIGINT) RequestEarlyExit(EXIT_FAILURE);
     exit_code = WTERMSIG(exit_code);
   }
 
   return exit_code;
+}
+
+std::string Command::ReadRedirectedStdout() const {
+  std::string ret;
+  if (!out_.empty()) {
+    ReadFromLocalFile(out_, ret);
+    if (ret.empty()) ret = "<EMPTY>";
+  }
+  return ret;
+}
+
+std::string Command::ReadRedirectedStderr() const {
+  std::string ret;
+  if (!err_.empty()) {
+    if (err_ == "2>&1" || err_ == out_) {
+      ret = "<DUPED TO STDOUT>";
+    } else {
+      ReadFromLocalFile(err_, ret);
+      if (ret.empty()) ret = "<EMPTY>";
+    }
+  }
+  return ret;
+}
+
+void Command::LogRedirectedStdoutAndStderr() const {
+  LOG(INFO).NoPrefix() << "=== STDOUT ===";
+  for (const auto &line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
+    LOG(INFO).NoPrefix() << line;
+  }
+  LOG(INFO).NoPrefix() << "=== STDERR ===";
+  for (const auto &line : absl::StrSplit(ReadRedirectedStderr(), '\n')) {
+    LOG(INFO).NoPrefix() << line;
+  }
 }
 
 }  // namespace centipede
