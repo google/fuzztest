@@ -15,13 +15,16 @@
 #include "./centipede/reverse_pc_table.h"
 
 #include "gtest/gtest.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 namespace {
 
+// TODO(kcc): extend the test to use non-zero PCInfo::flags.
 TEST(ReversePCTable, ReversePCTable) {
   static ReversePCTable table;
-  table.SetFromPCs({500, 400, 100, 200, 300});
+  const PCTable pc_table = {{500, 0}, {400, 0}, {100, 0}, {200, 0}, {300, 0}};
+  table.SetFromPCs(pc_table);
 
   EXPECT_EQ(table.NumPcs(), 5);
   EXPECT_EQ(table.GetPCIndex(0), ReversePCTable::kUnknownPC);
@@ -36,7 +39,8 @@ TEST(ReversePCTable, ReversePCTable) {
   EXPECT_EQ(table.GetPCIndex(300), 4);
 
   // Reset the table and try new values.
-  table.SetFromPCs({40, 20, 30});
+  const PCTable pc_table1 = {{40, 0}, {20, 0}, {30, 0}};
+  table.SetFromPCs(pc_table1);
   EXPECT_EQ(table.GetPCIndex(200), ReversePCTable::kUnknownPC);
   EXPECT_EQ(table.GetPCIndex(40), 0);
   EXPECT_EQ(table.GetPCIndex(20), 1);

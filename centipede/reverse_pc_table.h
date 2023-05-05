@@ -18,9 +18,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 
-#include "absl/types/span.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 
@@ -29,25 +28,30 @@ class ReversePCTable {
  public:
   static constexpr size_t kUnknownPC = -1;
 
-  // Constructs the reverse PC table from `pcs`.
+  // Constructs the reverse PC table from `pc_table`.
   // The assumption is that all PCs are relatively small, such that the
   // implementation is allowed to create an array of max_element(pcs) elements.
-  void SetFromPCs(absl::Span<const uintptr_t> pcs) {
-    num_pcs_ = pcs.size();
+  // TODO(kcc): make use of PCInfo::flags.
+  void SetFromPCs(const PCTable& pc_table) {
+    num_pcs_ = pc_table.size();
     if (table_ != nullptr) delete[] table_;
     if (num_pcs_ == 0) {
       size_ = 0;
       table_ = nullptr;
       return;
     }
-    uintptr_t max_pc = *std::max_element(pcs.begin(), pcs.end());
+    // Compute max_pc.
+    uintptr_t max_pc = 0;
+    for (const auto& pc_info : pc_table) {
+      max_pc = std::max(max_pc, pc_info.pc);
+    }
     // Create an array of max_pc + 1 elements such that we can directly
     // index this array with any pc from `pcs`.
     size_ = max_pc + 1;
     table_ = new size_t[size_];
     std::fill(table_, table_ + size_, kUnknownPC);
-    for (size_t idx = 0; idx < pcs.size(); ++idx) {
-      table_[pcs[idx]] = idx;
+    for (size_t idx = 0; idx < pc_table.size(); ++idx) {
+      table_[pc_table[idx].pc] = idx;
     }
   }
 

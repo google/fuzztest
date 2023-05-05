@@ -406,16 +406,19 @@ static void RunOneInput(const uint8_t *data, size_t size,
   state.stats.peak_rss_mb = centipede::GetPeakRSSMb();
 }
 
-static std::vector<uint8_t> ReadBytesFromFilePath(const char *input_path) {
+template <typename Type>
+static std::vector<Type> ReadBytesFromFilePath(const char *input_path) {
   FILE *input_file = fopen(input_path, "r");
   RunnerCheck(input_file != nullptr, "can't open the input file");
   struct stat statbuf = {};
   RunnerCheck(fstat(fileno(input_file), &statbuf) == 0, "fstat failed");
-  size_t size = statbuf.st_size;
-  RunnerCheck(size != 0, "empty file");
-  std::vector<uint8_t> data(size);
-  auto num_bytes_read = fread(data.data(), 1, data.size(), input_file);
-  RunnerCheck(num_bytes_read == data.size(), "read failed");
+  size_t size_in_bytes = statbuf.st_size;
+  RunnerCheck(size_in_bytes != 0, "empty file");
+  RunnerCheck((size_in_bytes % sizeof(Type)) == 0,
+              "file size is not multiple of the type size");
+  std::vector<Type> data(size_in_bytes / sizeof(Type));
+  auto num_bytes_read = fread(data.data(), 1, size_in_bytes, input_file);
+  RunnerCheck(num_bytes_read == size_in_bytes, "read failed");
   RunnerCheck(fclose(input_file) == 0, "fclose failed");
   return data;
 }
@@ -427,7 +430,7 @@ static void
 ReadOneInputExecuteItAndDumpCoverage(
     const char *input_path, FuzzerTestOneInputCallback test_one_input_cb) {
   // Read the input.
-  auto data = ReadBytesFromFilePath(input_path);
+  auto data = ReadBytesFromFilePath<uint8_t>(input_path);
 
   RunOneInput(data.data(), data.size(), test_one_input_cb);
 
@@ -706,12 +709,8 @@ static void SetLimits() {
 static void MaybePopulateReversePcTable() {
   const char *pcs_file_path = state.GetStringFlag(":pcs_file_path=");
   if (!pcs_file_path) return;
-  const auto bytes = ReadBytesFromFilePath(pcs_file_path);
-  const uintptr_t *pcs_beg = reinterpret_cast<const uintptr_t *>(bytes.data());
-  size_t pcs_size = bytes.size() / sizeof(uintptr_t);
-  RunnerCheck(bytes.size() % sizeof(uintptr_t) == 0,
-              "pcs_size is not multiple of sizeof(uintptr_t)");
-  state.reverse_pc_table.SetFromPCs({pcs_beg, pcs_size});
+  const auto pc_table = ReadBytesFromFilePath<PCInfo>(pcs_file_path);
+  state.reverse_pc_table.SetFromPCs(pc_table);
 }
 
 // Create a fake reference to ForkServerCallMeVeryEarly() here so that the

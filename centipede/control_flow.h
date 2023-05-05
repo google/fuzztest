@@ -30,14 +30,6 @@ namespace centipede {
 
 class SymbolTable;  // To avoid mutual inclusion with symbol_table.h.
 
-// Array of PCInfo-s.
-// PCTable is created by the compiler/linker in the instrumented binary.
-// The order of elements is significant: each element corresponds
-// to the coverage counter with the same index.
-// Every PCInfo that is kFuncEntry is followed by PCInfo-s from the same
-// function.
-using PCTable = std::vector<PCInfo>;
-
 // Reads the pc table from the binary file at `binary_path`. May create a file
 // `tmp_path`, but will delete it afterwards. Currently works for:
 // * binaries linked with :centipede_runner and built with

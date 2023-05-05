@@ -72,6 +72,11 @@ cc_library(
 )
 
 cc_library(
+    name = "pc_info",
+    hdrs = ["pc_info.h"],
+)
+
+cc_library(
     name = "logging",
     srcs = ["logging.cc"],
     hdrs = ["logging.h"],
@@ -97,7 +102,10 @@ cc_library(
     name = "reverse_pc_table",
     hdrs = ["reverse_pc_table.h"],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = ["@com_google_absl//absl/types:span"],
+    deps = [
+        ":pc_info",
+        "@com_google_absl//absl/types:span",
+    ],
 )
 
 cc_library(
@@ -344,7 +352,6 @@ cc_library(
     ],
     hdrs = [
         "control_flow.h",
-        "pc_info.h",
         "symbol_table.h",
     ],
     visibility = PUBLIC_API_VISIBILITY,
@@ -352,6 +359,7 @@ cc_library(
         ":command",
         ":defs",
         ":logging",
+        ":pc_info",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -942,6 +950,7 @@ cc_test(
     name = "reverse_pc_table_test",
     srcs = ["reverse_pc_table_test.cc"],
     deps = [
+        ":pc_info",
         ":reverse_pc_table",
         "@com_google_googletest//:gtest_main",
     ],

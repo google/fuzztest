@@ -173,12 +173,10 @@ int Analyze(const Environment &env, const BinaryInfo &binary_info) {
   return EXIT_SUCCESS;
 }
 
-void SavePCsToFile(const PCTable &pc_table, std::string_view file_path) {
-  std::vector<uintptr_t> pcs(pc_table.size());
-  for (size_t i = 0; i < pcs.size(); ++i) {
-    pcs[i] = pc_table[i].pc;
-  }
-  WriteToLocalFile(file_path, pcs);
+void SavePCTableToFile(const PCTable &pc_table, std::string_view file_path) {
+  ByteSpan bytes = {reinterpret_cast<const uint8_t *>(pc_table.data()),
+                    pc_table.size() * sizeof(pc_table[0])};
+  WriteToLocalFile(file_path, bytes);
 }
 
 }  // namespace
@@ -231,7 +229,7 @@ int CentipedeMain(const Environment &env,
   std::string pcs_file_path;
   if (binary_info.uses_legacy_trace_pc_instrumentation) {
     pcs_file_path = std::filesystem::path(tmpdir).append("pcs");
-    SavePCsToFile(binary_info.pc_table, pcs_file_path);
+    SavePCTableToFile(binary_info.pc_table, pcs_file_path);
   }
 
   if (env.analyze) return Analyze(env, binary_info);

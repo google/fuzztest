@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace centipede {
 
@@ -32,6 +33,14 @@ struct PCInfo {
 
   bool has_flag(PCFlags f) const { return flags & f; }
 };
+
+// Array of PCInfo-s.
+// PCTable is created by the compiler/linker in the instrumented binary.
+// The order of elements is significant: each element corresponds
+// to the coverage counter with the same index.
+// Every PCInfo that is kFuncEntry is followed by PCInfo-s from the same
+// function.
+using PCTable = std::vector<PCInfo>;
 
 }  // namespace centipede
 
