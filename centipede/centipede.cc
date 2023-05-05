@@ -183,7 +183,7 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
 void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
   stats_.corpus_size = corpus_.NumActive();
-  stats_.num_covered_pcs = fs_.ToCoveragePCs().size();
+  stats_.num_covered_pcs = fs_.CountFeatures(feature_domains::kPCs);
 
   if (env_.log_level < min_log_level) return;
 
@@ -209,7 +209,7 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   os << env_.experiment_name << "[" << num_runs_ << "]"
      << " " << log_type << ":"
      << " ft: " << fs_.size();
-  LogIfNotZero(fs_.ToCoveragePCs().size(), "cov");
+  LogIfNotZero(fs_.CountFeatures(feature_domains::kPCs), "cov");
   LogIfNotZero(fs_.CountFeatures(feature_domains::k8bitCounters), "cnt");
   LogIfNotZero(fs_.CountFeatures(feature_domains::kDataFlow), "df");
   LogIfNotZero(num_cmp_features, "cmp");
