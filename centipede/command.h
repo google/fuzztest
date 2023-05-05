@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 
 namespace centipede {
@@ -71,6 +72,10 @@ class Command final {
 
  private:
   struct ForkServerProps;
+
+  // Returns the status of the fork server process. Expects that the server was
+  // previously started using `StartForkServer()`.
+  absl::Status VerifyForkServerIsHealthy();
 
   const std::string path_;
   const std::vector<std::string> args_;
