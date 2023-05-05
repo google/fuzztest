@@ -18,6 +18,7 @@
 #include "./centipede/util.h"
 
 #include <linux/limits.h>  // NOLINT(PATH_MAX)
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -390,5 +391,17 @@ void RequestEarlyExit(int exit_code) {
 bool EarlyExitRequested() { return early_exit_requested; }
 
 int ExitCode() { return requested_exit_code; }
+
+uint8_t *MmapNoReserve(size_t size) {
+  auto result = mmap(0, size, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  CHECK(result != MAP_FAILED);
+  return reinterpret_cast<uint8_t *>(result);
+}
+
+void Munmap(uint8_t *ptr, size_t size) {
+  auto result = munmap(ptr, size);
+  CHECK_EQ(result, 0);
+}
 
 }  // namespace centipede

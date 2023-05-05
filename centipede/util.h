@@ -25,6 +25,7 @@
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
+#include "./centipede/logging.h"
 
 namespace centipede {
 
@@ -159,6 +160,40 @@ ByteArray PackFeaturesAndHash(const ByteArray &data,
 // Returns true iff parsing completes successfully.
 bool ParseAFLDictionary(std::string_view dictionary_text,
                         std::vector<ByteArray> &dictionary_entries);
+
+// Maps `size` bytes with `mmap(NO_RESERVE)` or equivalent, returns the result.
+// CHECK-fails on error.
+// The resulting memory is unreserved, and will be zero-initialized on first
+// access.
+uint8_t *MmapNoReserve(size_t size);
+
+// Unmaps memory returned by `MmapNoReserve`().
+// CHECK-fails on error.
+void Munmap(uint8_t *ptr, size_t size);
+
+// Fixed size array allocated/deallocated with MmapNoReserve/Munmap.
+// operator[] checks indices for out-of-bounds.
+template <size_t kSize>
+class MmapNoReserveArray {
+ public:
+  MmapNoReserveArray() : array_(MmapNoReserve(kSize)) {}
+  ~MmapNoReserveArray() { Munmap(array_, kSize); }
+  MmapNoReserveArray(const MmapNoReserveArray &) = delete;
+  MmapNoReserveArray &operator=(const MmapNoReserveArray &) = delete;
+  MmapNoReserveArray(MmapNoReserveArray &&) = delete;
+  MmapNoReserveArray &operator=(MmapNoReserveArray &&) = delete;
+  uint8_t operator[](size_t i) const {
+    CHECK_LT(i, kSize);
+    return array_[i];
+  }
+  uint8_t &operator[](size_t i) {
+    CHECK_LT(i, kSize);
+    return array_[i];
+  }
+
+ private:
+  uint8_t *array_;
+};
 
 }  // namespace centipede
 

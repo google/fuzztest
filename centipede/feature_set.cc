@@ -45,7 +45,7 @@ FeatureSet::CountUnseenAndPruneFrequentFeatures(FeatureVec &features) const {
   size_t num_kept = 0;
   for (size_t i = 0, n = features.size(); i < n; i++) {
     auto feature = features[i];
-    auto freq = frequencies_[Feature2Idx(feature)];
+    auto freq = frequencies_[feature];
     if (freq == 0) {
       ++number_of_unseen_features;
     }
@@ -59,7 +59,7 @@ FeatureSet::CountUnseenAndPruneFrequentFeatures(FeatureVec &features) const {
 
 void FeatureSet::IncrementFrequencies(const FeatureVec &features) {
   for (auto f : features) {
-    auto &freq = frequencies_[Feature2Idx(f)];
+    auto &freq = frequencies_[f];
     if (freq == 0) {
       ++num_features_;
       ++features_per_domain_[feature_domains::Domain::FeatureToDomainId(f)];
@@ -90,12 +90,10 @@ FeatureSet::ComputeWeight(const FeatureVec &features) const {
     // Perhaps even rewriting to not have collisions.
     auto domain_weight =
         features_in_domain ? num_features_ / features_in_domain : 1;
-    auto feature_idx = Feature2Idx(feature);
-    auto feature_frequency = frequencies_[feature_idx];
+    auto feature_frequency = frequencies_[feature];
     CHECK_GT(feature_frequency, 0)
         << VV(feature) << VV(domain_id) << VV(features_in_domain)
-        << VV(domain_weight) << VV(feature_idx) << VV((int)feature_frequency)
-        << DebugString();
+        << VV(domain_weight) << VV((int)feature_frequency) << DebugString();
     weight += domain_weight * (256 / feature_frequency);
   }
   return weight;

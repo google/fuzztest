@@ -24,18 +24,18 @@
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
+#include "./centipede/util.h"
 
 namespace centipede {
 
 // Set of features with their frequencies.
 // Features that have a frequency >= frequency_threshold
 // are considered too frequent and thus less interesting for further fuzzing.
-// FeatureSet is "a bit lossy", i.e. it may fail to distinguish some
-// different features as such. But in practice such collisions should be rare.
+// All features must be in [0, feature_domains::kLastDomain.begin()).
 class FeatureSet {
  public:
   explicit FeatureSet(uint8_t frequency_threshold)
-      : frequency_threshold_(frequency_threshold), frequencies_(kSize) {}
+      : frequency_threshold_(frequency_threshold) {}
 
   // Returns the number of features in `features` not present in `this`.
   // Removes all features from `features` that are too frequent.
@@ -55,9 +55,7 @@ class FeatureSet {
   size_t CountFeatures(feature_domains::Domain domain);
 
   // Returns the frequency associated with `feature`.
-  size_t Frequency(feature_t feature) const {
-    return frequencies_[Feature2Idx(feature)];
-  }
+  size_t Frequency(feature_t feature) const { return frequencies_[feature]; }
 
   // Computes combined weight of `features`.
   // The less frequent the feature is, the bigger its weight.
@@ -68,9 +66,6 @@ class FeatureSet {
   std::string DebugString() const;
 
  private:
-  // Maps feature into an index in frequencies_.
-  static size_t Feature2Idx(feature_t feature) { return feature % kSize; }
-
   // Computes the frequency threshold based on the domain of `feature`.
   // For now, just uses 1 for kPCPair and frequency_threshold_ for all others.
   // Rationale: the kPCPair features might be too numerous, we don't want to
@@ -82,15 +77,13 @@ class FeatureSet {
 
   const uint8_t frequency_threshold_;
 
-  // Size of frequencies_. The bigger this is, the fewer collisions there are.
-  // Must be a prime number, so that Feature2Idx works well.
-  // This value is taken from https://primes.utm.edu/lists/2small/0bit.html.
-  static constexpr size_t kSize = (1ULL << 28) - 57;
+  static constexpr size_t kSize = feature_domains::kLastDomain.begin();
 
   // Maps features to their frequencies.
-  // The index into this array is Feature2Idx(feature), and this is
-  // where collisions are possible.
-  std::vector<uint8_t> frequencies_;
+  // This array is huge but sparse, and depending on the enabled features
+  // some parts of it will never be written to or read from.
+  // Unused parts of MmapNoReserveArray don't actually reserve memory.
+  MmapNoReserveArray<kSize> frequencies_;
 
   // Counts all unique features added to this.
   size_t num_features_ = 0;

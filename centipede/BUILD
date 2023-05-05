@@ -397,6 +397,7 @@ cc_library(
         ":coverage",
         ":defs",
         ":feature",
+        ":util",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
