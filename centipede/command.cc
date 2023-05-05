@@ -255,9 +255,13 @@ absl::Status Command::VerifyForkServerIsHealthy() {
 }
 
 int Command::Execute() {
+  VLOG(1) << "Executing command '" << command_line_ << "'...";
+
   int exit_code = 0;
 
   if (fork_server_ != nullptr) {
+    VLOG(1) << "Sending execution request to fork server: " << VV(timeout_);
+
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
       LOG(ERROR) << "Fork server should be running, but isn't: " << status;
       return EXIT_FAILURE;
@@ -308,12 +312,21 @@ int Command::Execute() {
     CHECK_EQ(sizeof(exit_code),
              read(fork_server_->pipe_[1], &exit_code, sizeof(exit_code)));
   } else {
+    VLOG(1) << "Fork server disabled - executing command directly";
     // No fork server, use system().
     exit_code = system(command_line_.c_str());
   }
-  if (WIFSIGNALED(exit_code) && (WTERMSIG(exit_code) == SIGINT))
-    RequestEarlyExit(EXIT_FAILURE);
-  if (WIFEXITED(exit_code)) return WEXITSTATUS(exit_code);
+
+  if (WIFEXITED(exit_code) && WEXITSTATUS(exit_code) != EXIT_SUCCESS) {
+    LOG(ERROR) << "Runner or target returned error: exit code="
+               << WEXITSTATUS(exit_code);
+    exit_code = WEXITSTATUS(exit_code);
+  } else if (WIFSIGNALED(exit_code)) {
+    LOG(ERROR) << "Runner or target signalled: signal=" << WTERMSIG(exit_code);
+    if (WTERMSIG(exit_code) == SIGINT) RequestEarlyExit(EXIT_FAILURE);
+    exit_code = WTERMSIG(exit_code);
+  }
+
   return exit_code;
 }
 
