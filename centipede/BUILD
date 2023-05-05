@@ -995,7 +995,6 @@ cc_test(
         ":test_util",
         ":util",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1030,8 +1029,8 @@ cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],
     deps = [
+        ":call_graph",
         ":logging",
-        "@com_google_fuzztest//centipede:call_graph",
         "@com_google_googletest//:gtest_main",
     ],
 )

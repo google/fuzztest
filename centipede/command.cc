@@ -185,11 +185,21 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   // The fork server is probably running now. However, one failure scenario is
   // that it starts and exits early. Try opening the read/write comms pipes with
   // it: if that fails, something is wrong.
-  fork_server_->pipe_[0] = open(fork_server_->fifo_path_[0].c_str(), O_WRONLY);
-  fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(), O_RDONLY);
-  if (fork_server_->pipe_[0] < 0 || fork_server_->pipe_[1] < 0) {
-    LOG(INFO) << "Failed to establish communication with fork server; will "
-                 "proceed without it";
+  // We use non-blocking I/O to open the pipes. That is good and safe, because:
+  // 1) This prevents the `open()` calls from hanging when the fork server fails
+  // to open the pipes on its side (note the use of O_RDWR, not O_WRONLY, to
+  // avoid ENXIO).
+  // 2) In `Command::Execute`, we wait for the return channel pipe with a
+  // `poll()`, so it should always have data when we attempt to `read()` from
+  // it.
+  // See more at
+  // https://www.gnu.org/software/libc/manual/html_node/Operating-Modes.html.
+  if ((fork_server_->pipe_[0] = open(fork_server_->fifo_path_[0].c_str(),
+                                     O_RDWR | O_NONBLOCK)) < 0 ||
+      (fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(),
+                                     O_RDONLY | O_NONBLOCK)) < 0) {
+    PLOG(ERROR) << "Failed to establish communication with fork server; will "
+                   "proceed without it";
     return false;
   }
 
