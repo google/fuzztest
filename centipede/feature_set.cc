@@ -105,7 +105,7 @@ std::string FeatureSet::DebugString() const {
   std::ostringstream os;
   os << VV((int)frequency_threshold_);
   os << VV(num_features_);
-  for (size_t domain = 0; domain < feature_domains::kLastDomainId.domain_id();
+  for (size_t domain = 0; domain < feature_domains::kLastDomain.domain_id();
        ++domain) {
     if (features_per_domain_[domain] == 0) continue;
     os << " dom" << domain << ": " << features_per_domain_[domain];

@@ -67,11 +67,14 @@ namespace feature_domains {
 // a domain for a given feature by dividing by kDomainSize.
 class Domain {
  public:
-  // kDomainSize is the largest power of two such that all domains fit.
-  static constexpr size_t kMaxNumDomainsLog = 6;
-  static constexpr size_t kMaxNumDomains = 1 << kMaxNumDomainsLog;
-  static constexpr size_t kDomainSize = 1ULL << (64 - kMaxNumDomainsLog);
-  static constexpr size_t kLastDomainId = kMaxNumDomains - 1;
+  // kDomainSize is a large enough value to hold all PCs of our largest target.
+  // It is also large enough to avoid too many collisions in other domains.
+  // At the same time, it is small enough that all domains combined require
+  // not too many bits (e.g. 32 bits is a good practical limit).
+  // TODO(kcc): consider making feature_t a 32-bit type if we expect to not
+  // use more than 32 bits.
+  // NOTE: this value may change in future.
+  static constexpr size_t kDomainSize = 1ULL << 27;
 
   constexpr Domain(size_t domain_id) : domain_id_(domain_id) {}
 
@@ -135,9 +138,12 @@ inline constexpr Domain kPCPair = {__COUNTER__};
 // Features defined by a user via
 // __attribute__((section("__centipede_extra_features"))).
 inline constexpr Domain kUserDefined = {__COUNTER__};
-static_assert(__COUNTER__ < Domain::kLastDomainId);
-inline constexpr Domain kLastDomainId = {
-    Domain::kLastDomainId};  // must be last.
+
+// A fake domain, not actually used, must be last.
+inline constexpr Domain kLastDomain = {__COUNTER__};
+// For now, check that all domains (except maybe for kLastDomain) fit
+// into 32 bits.
+static_assert(kLastDomain.begin() <= (1ULL << 32));
 
 // Special feature used to indicate an absence of features. Typically used where
 // a feature array must not be empty, but doesn't have any other features.

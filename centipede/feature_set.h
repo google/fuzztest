@@ -96,7 +96,7 @@ class FeatureSet {
   size_t num_features_ = 0;
 
   // Counts features in each domain.
-  size_t features_per_domain_[feature_domains::Domain::kMaxNumDomains] = {};
+  size_t features_per_domain_[feature_domains::kLastDomain.domain_id()] = {};
 
   // Maintains the set of PC indices that correspond to added features.
   absl::flat_hash_set<PCIndex> pc_index_set_;
