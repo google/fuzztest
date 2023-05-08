@@ -23,15 +23,19 @@
 
 namespace centipede {
 
-// Maps PCs to indices.
+// Maps PCs to PCGuard objects.
 class ReversePCTable {
  public:
-  static constexpr size_t kUnknownPC = -1;
+  ReversePCTable() = default;
+  // Non copyable, non-movable.
+  ReversePCTable(const ReversePCTable &) = delete;
+  ReversePCTable &operator=(const ReversePCTable &) = delete;
+  ReversePCTable(ReversePCTable &&) = default;
+  ReversePCTable &operator=(ReversePCTable &&) = default;
 
   // Constructs the reverse PC table from `pc_table`.
   // The assumption is that all PCs are relatively small, such that the
-  // implementation is allowed to create an array of max_element(pcs) elements.
-  // TODO(kcc): make use of PCInfo::flags.
+  // implementation is allowed to create an array indexed by a PC.
   void SetFromPCs(const PCTable& pc_table) {
     num_pcs_ = pc_table.size();
     if (table_ != nullptr) delete[] table_;
@@ -46,27 +50,39 @@ class ReversePCTable {
       max_pc = std::max(max_pc, pc_info.pc);
     }
     // Create an array of max_pc + 1 elements such that we can directly
-    // index this array with any pc from `pcs`.
+    // index this array with any valid PC.
     size_ = max_pc + 1;
-    table_ = new size_t[size_];
-    std::fill(table_, table_ + size_, kUnknownPC);
+    table_ = new PCGuard[size_];
+    std::fill(table_, table_ + size_, kInvalidPCGuard);
+    // Make sure all PC indices fit into PCGuard::kMaxNumPCs.
+    if (pc_table.size() >= PCGuard::kMaxNumPCs)
+      __builtin_trap();  // no logging in runner. TODO(kcc): use RunnerCheck.
+    // Fill in the table.
     for (size_t idx = 0; idx < pc_table.size(); ++idx) {
-      table_[pc_table[idx].pc] = idx;
+      const auto &pc_info = pc_table[idx];
+      if (pc_info.pc >= size_) __builtin_trap();  // TODO(kcc): use RunnerCheck.
+      table_[pc_info.pc] = {
+          .is_function_entry = pc_info.has_flag(PCInfo::kFuncEntry),
+          .pc_index = static_cast<uint32_t>(idx)};
     }
   }
 
-  // Returns the index of `pc` inside the `pcs` (passed to SetFromPCs()).
-  // If `pc` was not present in `pcs`, returns kUnknownPC.
-  // This is a hot function and needs to be as simple and fast as possible.
-  size_t GetPCIndex(uintptr_t pc) const {
-    if (pc >= size_) return kUnknownPC;
+  // Returns PCGuard that corresponds to `pc`. If `pc` was not present in
+  // `pc_table` passed to SetFromPCs, returns kInvalidPCGuard. This is a hot
+  // function and needs to be as simple and fast as possible.
+  PCGuard GetPCGuard(uintptr_t pc) const {
+    if (pc >= size_) return kInvalidPCGuard;
     return table_[pc];
   }
 
-  // Returns the number of PCs that was passes to SetFromPCs().
+  // Returns the number of PCs that was passed to SetFromPCs().
   size_t NumPcs() const { return num_pcs_; }
 
  private:
+  // A PCGuard object, such that IsValid() will return false.
+  static constexpr PCGuard kInvalidPCGuard = {
+      .is_function_entry = 0, .pc_index = PCGuard::kInvalidPcIndex};
+
   // We use size_ and table_ pointer instead of std::vector<> because
   // (1) we need ReversePCTable object to be accessible even after the
   // destruction (in static storage duration); (2) size_ is cheaper to
@@ -75,7 +91,7 @@ class ReversePCTable {
   // free the table.
   size_t size_ = 0;
   size_t num_pcs_ = 0;
-  size_t* table_ = nullptr;
+  PCGuard *table_ = nullptr;
 };
 
 }  // namespace centipede

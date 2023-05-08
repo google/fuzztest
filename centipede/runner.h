@@ -66,23 +66,6 @@ struct RunTimeFlags {
   uint64_t crossover_level;
 };
 
-// The SanitizerCoverage 'trace pcs with guards'
-// (https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-pcs-with-guards)
-// passes a pointer to a 32-bit object, unique for every instrumented PC.
-// At the DSO initialization time, we initialize these unique 32-bit objects
-// to represent the information about the given PC.
-struct PCGuard {
-  // True if this is the function entry PC.
-  // This information may not be available, and so the code should tolerate
-  // the situation where no PC is marked as a function entry.
-  uint32_t is_function_entry : 1;
-  // The index of the PC.
-  uint32_t pc_index : 31;
-
-  // pc_index is 31-bit, so we can't have more than this number of PCs.
-  static constexpr size_t kMaxNumPCs = 1ULL << 31;
-};
-
 // One such object is created in runner's TLS.
 // There is no CTOR, since we don't want to use the brittle and lazy TLS CTORs.
 // All data members are zero-initialized during thread creation.

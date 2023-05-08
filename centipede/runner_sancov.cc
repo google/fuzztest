@@ -204,20 +204,20 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
 // With __sanitizer_cov_trace_pc_guard this is an index of PC in the PC table.
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
-static inline void HandleOnePc(uintptr_t normalized_pc,
-                               bool is_function_entry) {
-  state.pc_counter_set.SaturatedIncrement(normalized_pc);
+static inline void HandleOnePc(PCGuard pc_guard) {
+  state.pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
 
-  if (is_function_entry && state.run_time_flags.use_callstack_features) {
+  if (pc_guard.is_function_entry &&
+      state.run_time_flags.use_callstack_features) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
     if (sp < tls.lowest_sp) tls.lowest_sp = sp;
-    tls.call_stack.OnFunctionEntry(normalized_pc, sp);
+    tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
     state.callstack_set.set(tls.call_stack.Hash());
   }
 
   // path features.
   if (auto path_level = state.run_time_flags.path_level)
-    HandlePath(normalized_pc, path_level);
+    HandlePath(pc_guard.pc_index, path_level);
 }
 
 // Caller PC is the PC of the call instruction.
@@ -291,9 +291,9 @@ void __sanitizer_cov_trace_pc() {
   }
   pc -= state.main_object.start_address;
   pc = ReturnAddressToCallerPc(pc);
-  auto idx = state.reverse_pc_table.GetPCIndex(pc);
+  const auto pc_guard = state.reverse_pc_table.GetPCGuard(pc);
   // TODO(kcc): compute is_function_entry for this case.
-  if (idx != centipede::ReversePCTable::kUnknownPC) HandleOnePc(idx, false);
+  if (pc_guard.IsValid()) HandleOnePc(pc_guard);
 }
 
 // This function is called at the DSO init time.
@@ -330,7 +330,7 @@ void __sanitizer_cov_trace_pc_guard(PCGuard *guard) {
   // But in this case it's just going to be zero.
   // TODO(kcc): the check below seems almost reduntant. See if we can remove it.
   if (state.pc_guard_start == nullptr) return;
-  HandleOnePc(guard->pc_index, guard->is_function_entry);
+  HandleOnePc(*guard);
 }
 
 }  // extern "C"
