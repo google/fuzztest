@@ -16,15 +16,15 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_META_H_
 
 #include <array>
-#include <cstddef>
+#include <complex>
 #include <cstdlib>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/numeric/int128.h"
 
@@ -149,6 +149,12 @@ template <typename T>
 inline constexpr bool is_shared_ptr_v<std::shared_ptr<T>> = true;
 
 template <typename T>
+inline constexpr bool is_std_complex_v = false;
+
+template <typename T>
+inline constexpr bool is_std_complex_v<std::complex<T>> = true;
+
+template <typename T>
 using MakeUnsignedT = typename std::conditional_t<
     std::is_same_v<T, absl::int128> || std::is_same_v<T, absl::uint128>,
     std::enable_if<true, absl::uint128>, std::make_unsigned<T>>::type;
@@ -202,11 +208,6 @@ template <typename T>
 inline constexpr bool is_associative_container_v = is_dynamic_container_v<T>&&
 Requires<T>([](auto v) -> decltype(v.find(
                            std::declval<typename decltype(v)::key_type>())) {});
-
-template <typename T>
-inline constexpr bool is_ostreamable_v =
-    Requires<T>([](auto&& v) -> decltype(std::declval<std::ostream&>()
-                                         << std::forward<decltype(v)>(v)) {});
 
 template <typename T, typename = void>
 struct is_memory_dictionary_compatible : std::false_type {};

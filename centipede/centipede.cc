@@ -206,9 +206,9 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
     if (!value) return;
     os << " " << name << ": " << value;
   };
-  os << env_.experiment_name << "[" << num_runs_ << "]"
-     << " " << log_type << ":"
-     << " ft: " << fs_.size();
+  if (!env_.experiment_name.empty()) os << env_.experiment_name << " ";
+  os << "[S" << env_.my_shard_index << "." << num_runs_ << "] " << log_type
+     << ": ft: " << fs_.size();
   LogIfNotZero(fs_.CountFeatures(feature_domains::kPCs), "cov");
   LogIfNotZero(fs_.CountFeatures(feature_domains::k8bitCounters), "cnt");
   LogIfNotZero(fs_.CountFeatures(feature_domains::kDataFlow), "df");

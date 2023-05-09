@@ -84,8 +84,13 @@ class Command final {
   // is also different from the redirected stdout. If not redirected, returns a
   // placeholder text.
   std::string ReadRedirectedStderr() const;
-  // Logs the redirected stdout and stderr of the command in a readable format.
-  void LogRedirectedStdoutAndStderr() const;
+  // Possibly logs information about a crash, starting with `message`, followed
+  // by the the command line, followed by the redirected stdout and stderr read
+  // from `out_` and `err_` files, if any.
+  void LogProblemInfo(std::string_view message) const;
+  // Just as `LogCrashInfo()`, but logging occurs only when the VLOG level (set
+  // via `--v` or its equivalents) is >= `min_vlog`.
+  void VlogProblemInfo(std::string_view message, int vlog_level) const;
 
   const std::string path_;
   const std::vector<std::string> args_;

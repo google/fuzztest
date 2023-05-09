@@ -19,11 +19,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <variant>
+#include <utility>
 
 #include "absl/debugging/symbolize.h"
 #include "absl/strings/escaping.h"
@@ -83,6 +82,21 @@ absl::string_view GetTypeName() {
   return "<TYPE>";
 #endif
 }
+
+// Used only in the predicate `HasAbslStringify`.
+struct DummySink {};
+
+template <typename T, typename = void>
+struct HasAbslStringify : std::false_type {};
+
+template <typename T>
+struct HasAbslStringify<
+    T, std::enable_if_t<std::is_void_v<decltype(AbslStringify(
+           std::declval<DummySink&>(), std::declval<const T&>()))>>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool has_absl_stringify_v = HasAbslStringify<T>::value;
 
 using RawSink = absl::FormatRawSink;
 
@@ -477,9 +491,9 @@ struct AutodetectAggregatePrinter {
   template <typename T>
   void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
     if (mode == PrintMode::kHumanReadable) {
-      // In human-readable mode, prefer streaming if available.
-      if constexpr (is_ostreamable_v<const T&>) {
-        absl::Format(out, "%s", absl::FormatStreamed(v));
+      // In human-readable mode, prefer formatting with Abseil if possible.
+      if constexpr (has_absl_stringify_v<T>) {
+        absl::Format(out, "%v", v);
         return;
       }
     }
@@ -556,12 +570,15 @@ struct UnknownPrinter {
   template <typename T>
   void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
     if (mode == PrintMode::kHumanReadable) {
-      // Try streaming the object. We can't guarantee a good source code result,
-      // but it should be ok for human readable.
-      if constexpr (is_ostreamable_v<const T&>) {
-        std::stringstream ss;
-        ss << v;
-        absl::Format(out, "%s", ss.str());
+      // Try formatting with Abseil. We can't guarantee a good source code
+      // result, but it should be ok for human readable.
+      if constexpr (has_absl_stringify_v<T>) {
+        absl::Format(out, "%v", v);
+        return;
+      }
+      // Some standard types have operator<<.
+      if constexpr (std::is_scalar_v<T> || is_std_complex_v<T>) {
+        absl::Format(out, "%s", absl::FormatStreamed(v));
         return;
       }
     }
