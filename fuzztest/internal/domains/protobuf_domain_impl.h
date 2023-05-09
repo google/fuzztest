@@ -1888,29 +1888,34 @@ class ProtobufDomainImpl
   template <typename Inner>
   Domain<std::unique_ptr<typename T::Message>> ToUntypedProtoDomain(
       Inner inner_domain) {
-    return internal::MapImpl<std::function<std::unique_ptr<typename T::Message>(
-                                 value_type_t<Inner>)>,
-                             Inner>(
+    return BidiMap(
         [](value_type_t<Inner> proto_message)
             -> std::unique_ptr<typename T::Message> {
           return {std::make_unique<value_type_t<Inner>>(proto_message)};
         },
+        [](const std::unique_ptr<typename T::Message>& proto_message)
+            -> std::tuple<value_type_t<Inner>> { return {*proto_message}; },
         std::move(inner_domain));
   }
 
   template <typename Inner>
   Domain<std::optional<std::unique_ptr<typename T::Message>>>
   ToOptionalUntypedProtoDomain(Inner inner_domain) {
-    return internal::MapImpl<
-        std::function<std::optional<std::unique_ptr<typename T::Message>>(
-            value_type_t<Inner>)>,
-        Inner>(
+    return BidiMap(
         [](value_type_t<Inner> proto_message)
             -> std::optional<std::unique_ptr<typename T::Message>> {
           if (!proto_message.has_value()) return std::nullopt;
-          return {std::make_unique<
+          return std::make_unique<
               std::remove_reference_t<decltype(*proto_message)>>(
-              *proto_message)};
+              *proto_message);
+        },
+        [](const std::optional<std::unique_ptr<typename T::Message>>&
+               proto_message) -> std::tuple<value_type_t<Inner>> {
+          if (!proto_message.has_value()) return std::nullopt;
+          return *(
+              static_cast<
+                  std::add_pointer_t<typename value_type_t<Inner>::value_type>>(
+                  proto_message->get()));
         },
         std::move(inner_domain));
   }
@@ -1918,17 +1923,24 @@ class ProtobufDomainImpl
   template <typename Inner>
   Domain<std::vector<std::unique_ptr<typename T::Message>>>
   ToRepeatedUntypedProtoDomain(Inner inner_domain) {
-    return internal::MapImpl<
-        std::function<std::vector<std::unique_ptr<typename T::Message>>(
-            value_type_t<Inner>)>,
-        Inner>(
+    return BidiMap(
         [](value_type_t<Inner> proto_message)
             -> std::vector<std::unique_ptr<typename T::Message>> {
           std::vector<std::unique_ptr<typename T::Message>> result;
           for (auto& entry : proto_message) {
             result.push_back(
-                std::make_unique<std::remove_reference_t<decltype(entry)>>(
-                    entry));
+                std::make_unique<std::remove_const_t<
+                    std::remove_reference_t<decltype(entry)>>>(entry));
+          }
+          return result;
+        },
+        [](const std::vector<std::unique_ptr<typename T::Message>>&
+               proto_message) -> std::tuple<value_type_t<Inner>> {
+          value_type_t<Inner> result;
+          for (auto& entry : proto_message) {
+            result.push_back(
+                *(static_cast<std::add_pointer_t<
+                      typename value_type_t<Inner>::value_type>>(entry.get())));
           }
           return result;
         },
