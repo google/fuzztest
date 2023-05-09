@@ -326,8 +326,20 @@ int Command::Execute() {
     exit_code = WEXITSTATUS(exit_code);
   } else if (WIFSIGNALED(exit_code)) {
     LOG(ERROR) << "Runner or target signalled: signal=" << WTERMSIG(exit_code);
-    LogRedirectedStdoutAndStderr();
-    if (WTERMSIG(exit_code) == SIGINT) RequestEarlyExit(EXIT_FAILURE);
+    if (WTERMSIG(exit_code) == SIGINT) {
+      RequestEarlyExit(EXIT_FAILURE);
+      // When the user kills Centipede via ^C, they are unlikely to be
+      // interested in any of the subprocesses' outputs. Also, ^C terminates all
+      // the subprocesses, including all the runners, so all their outputs would
+      // get printed simultaneously, flooding the log.
+      LOG(WARNING) << "Process likely terminated via Ctrl-C - not printing "
+                      "fork server log (override with --v=10 or higher)";
+      if (VLOG_IS_ON(10)) LogRedirectedStdoutAndStderr();
+    } else {
+      // The fork server subprocess was killed by something other than ^C: print
+      // the log to help diagnose problems.
+      LogRedirectedStdoutAndStderr();
+    }
     exit_code = WTERMSIG(exit_code);
   }
 
