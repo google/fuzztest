@@ -895,26 +895,58 @@ class ProtobufDomainUntypedImpl
 
   struct ValidateVisitor {
     const ProtobufDomainUntypedImpl& self;
-    const GenericDomainCorpusType& corpus_value;
+    // nullopt indicates that the field is not set.
+    const std::optional<GenericDomainCorpusType>& corpus_value;
     bool& out;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
-      out =
-          self.GetSubDomain<T, false>(field).ValidateCorpusValue(corpus_value);
+      const GenericDomainCorpusType value =
+          corpus_value.has_value()
+              ? *corpus_value
+              : GetUnsetCorpusValue<T, /*is_repeated=*/false>(field);
+      out = self.GetSubDomain<T, /*is_repeated=*/false>(field)
+                .ValidateCorpusValue(value);
     }
 
     template <typename T>
     void VisitRepeated(const FieldDescriptor* field) {
-      out = self.GetSubDomain<T, true>(field).ValidateCorpusValue(corpus_value);
+      const GenericDomainCorpusType value =
+          corpus_value.has_value()
+              ? *corpus_value
+              : GetUnsetCorpusValue<T, /*is_repeated=*/true>(field);
+      out =
+          self.GetSubDomain<T, /*is_repeated=*/true>(field).ValidateCorpusValue(
+              value);
+    }
+
+   private:
+    template <typename T, bool is_repeated>
+    GenericDomainCorpusType GetUnsetCorpusValue(const FieldDescriptor* field) {
+      IRObject unset_value;
+      if constexpr (is_repeated) {
+        unset_value = IRObject(std::vector<IRObject>{});
+      } else {
+        unset_value = IRObject(std::vector<IRObject>{IRObject(0)});
+      }
+      std::optional<GenericDomainCorpusType> result =
+          self.GetSubDomain<T, is_repeated>(field).ParseCorpus(unset_value);
+      FUZZTEST_INTERNAL_CHECK(result.has_value(),
+                              "Invalid unset value for field.");
+      return *result;
     }
   };
 
   bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    for (auto& [field_number, inner_corpus_value] : corpus_value) {
-      auto* field = GetProtobufField(prototype_.Get(), field_number);
-      FUZZTEST_INTERNAL_CHECK(field,
-                              "Field not found by number: ", field_number);
+    for (int field_index = 0;
+         field_index < prototype_.Get()->GetDescriptor()->field_count();
+         ++field_index) {
+      const FieldDescriptor* field =
+          prototype_.Get()->GetDescriptor()->field(field_index);
+      auto field_number_value = corpus_value.find(field->number());
+      auto inner_corpus_value = (field_number_value != corpus_value.end())
+                                    ? std::optional(field_number_value->second)
+                                    : std::nullopt;
       bool result;
       VisitProtobufField(field,
                          ValidateVisitor{*this, inner_corpus_value, result});

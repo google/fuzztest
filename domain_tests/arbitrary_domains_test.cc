@@ -620,6 +620,20 @@ TEST(ProtocolBuffer, InvalidInputReportsError) {
       "field `fuzztest.internal.TestProtobuf.i32` has been set multiple times");
 }
 
+TEST(ProtocolBuffer, ValidationRejectsUnexpectedOptionalField) {
+  internal::TestSubProtobuf user_value;
+  auto domain_with_optional_always_set =
+      Arbitrary<internal::TestSubProtobuf>().WithOptionalFieldsAlwaysSet();
+  auto corpus_value = domain_with_optional_always_set.FromValue(user_value);
+  EXPECT_FALSE(
+      domain_with_optional_always_set.ValidateCorpusValue(*corpus_value));
+
+  auto domain_with_repeated_always_set =
+      Arbitrary<internal::TestSubProtobuf>().WithRepeatedFieldsAlwaysSet();
+  EXPECT_FALSE(domain_with_repeated_always_set.ValidateCorpusValue(
+      *domain_with_optional_always_set.FromValue(user_value)));
+}
+
 TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
   auto domain = Arbitrary<internal::TestProtobufWithExtension>();
   internal::TestProtobufWithExtension user_value;
