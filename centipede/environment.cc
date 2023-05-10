@@ -422,10 +422,10 @@ Environment::Environment(const std::vector<std::string> &argv)
       max_num_crash_reports(absl::GetFlag(FLAGS_num_crash_reports)),
       minimize_crash_file_path(absl::GetFlag(FLAGS_minimize_crash)),
       shmem_size_mb(absl::GetFlag(FLAGS_shmem_size_mb)),
+      dry_run(absl::GetFlag(FLAGS_dry_run)),
       cmd(binary),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
-      binary_hash(HashOfFileContents(coverage_binary)),
-      dry_run(absl::GetFlag(FLAGS_dry_run)) {
+      binary_hash(HashOfFileContents(coverage_binary)) {
   if (size_t j = absl::GetFlag(FLAGS_j)) {
     total_shards = j;
     num_threads = j;
@@ -614,7 +614,8 @@ static size_t GetIntFlag(std::string_view value) {
   return result;
 }
 
-void Environment::SetFlag(std::string_view name, std::string_view value) {
+void Environment::SetFlagForExperiment(std::string_view name,
+                                       std::string_view value) {
   // TODO(kcc): support more flags, as needed.
 
   // Handle bool flags.
@@ -639,7 +640,8 @@ void Environment::SetFlag(std::string_view name, std::string_view value) {
     *int_iter->second = GetIntFlag(value);
     return;
   }
-  CHECK(false) << "Unknown flag for experiment: " << name << "=" << value;
+
+  LOG(FATAL) << "Unknown flag for experiment: " << name << "=" << value;
 }
 
 void Environment::UpdateForExperiment() {
@@ -683,7 +685,7 @@ void Environment::UpdateForExperiment() {
   std::reverse(experiments.begin(), experiments.end());
   for (const auto &exp : experiments) {
     size_t idx = my_combination_num % exp.flag_values.size();
-    SetFlag(exp.flag_name, exp.flag_values[idx]);
+    SetFlagForExperiment(exp.flag_name, exp.flag_values[idx]);
     my_combination_num /= exp.flag_values.size();
     experiment_name = std::to_string(idx) + experiment_name;
     experiment_flags =

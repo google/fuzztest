@@ -655,16 +655,14 @@ void Centipede::FuzzingLoop() {
   // shards, for example).
   MaybeGenerateTelemetry("initial", /*batch_index=*/0);
 
-  // num_runs / batch_size, rounded up.
-  size_t number_of_batches = env_.num_runs / env_.batch_size;
-  if (env_.num_runs % env_.batch_size != 0) ++number_of_batches;
-  size_t new_runs = 0;
+  size_t num_done_runs = 0;
   size_t corpus_size_at_last_prune = corpus_.NumActive();
-  for (size_t batch_index = 0; batch_index < number_of_batches; batch_index++) {
+
+  for (size_t batch_index = 0; batch_index < env_.NumBatches(); ++batch_index) {
     if (EarlyExitRequested()) break;
-    CHECK_LT(new_runs, env_.num_runs);
-    auto remaining_runs = env_.num_runs - new_runs;
-    auto batch_size = std::min(env_.batch_size, remaining_runs);
+
+    CHECK_LT(num_done_runs, env_.num_runs);
+
     std::vector<ByteArray> inputs, mutants;
     inputs.resize(env_.mutate_batch_size);
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
@@ -677,10 +675,10 @@ void Centipede::FuzzingLoop() {
       if (i == 0) user_callbacks_.SetCmpDictionary(corpus_record.cmp_args);
     }
 
-    user_callbacks_.Mutate(inputs, batch_size, mutants);
+    user_callbacks_.Mutate(inputs, env_.BatchSize(num_done_runs), mutants);
     bool gained_new_coverage =
         RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
-    new_runs += mutants.size();
+    num_done_runs += mutants.size();
 
     if (gained_new_coverage) {
       UpdateAndMaybeLogStats("new-feature", 1);
@@ -714,7 +712,7 @@ void Centipede::FuzzingLoop() {
 
   // Dump the final telemetry files, possibly overwriting the last intermediate
   // version dumped inside the loop.
-  MaybeGenerateTelemetry("latest", number_of_batches);
+  MaybeGenerateTelemetry("latest", env_.NumBatches());
 
   // The tests rely on this stat being logged last.
   UpdateAndMaybeLogStats("end-fuzz", 0);
