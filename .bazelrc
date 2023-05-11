@@ -19,6 +19,9 @@ build --action_env=CXX=clang++
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
 
+# Use the builtin crc32 for fast integer hashing.
+build --copt=-mcrc32
+
 # To create this file, please run:
 #
 #  bazel run //bazel:setup_configs > fuzztest.bazelrc
