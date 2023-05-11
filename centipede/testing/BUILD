@@ -126,6 +126,7 @@ cc_test(
         ":test_fuzz_target_trace_pc",
         ":threaded_fuzz_target",
     ],
+    tags = ["not_run:arm"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",

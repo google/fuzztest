@@ -1003,6 +1003,7 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
         "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
     ],
+    tags = ["not_run:arm"],
     deps = [
         ":control_flow",
         ":defs",
