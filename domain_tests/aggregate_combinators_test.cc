@@ -341,10 +341,9 @@ TEST(OptionalOf, DoesntGenerateNulloptWhenPolicySet) {
   }
 }
 
-TEST(OptionalOfDeathTest, ValidationRejectsNullValueWhenPolicySetToAlwaysSet) {
+TEST(OptionalOfDeathTest, FromValueOnNulloptDiesWhenPolicySetToAlwaysSet) {
   auto domain = NonNull(OptionalOf(Arbitrary<int>()));
-  auto corpus_value = domain.FromValue(std::nullopt);
-  EXPECT_FALSE(domain.ValidateCorpusValue(*corpus_value));
+  EXPECT_DEATH(domain.FromValue(std::nullopt), "cannot be null");
 }
 
 TEST(OptionalOf, ValidationRejectsInvalidNullness) {

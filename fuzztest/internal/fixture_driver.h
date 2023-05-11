@@ -123,27 +123,21 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
     std::vector<GenericDomainCorpusType> seeds;
     seeds.reserve(values.size());
     for (const ValueType& val : values) {
-      std::optional<GenericDomainCorpusType> corpus_value =
+      std::optional<GenericDomainCorpusType> seed =
           domain_->TypedFromValue(val);
-      if (!corpus_value.has_value()) ReportBadSeedAndExit(val);
-
-      bool valid = domain_->UntypedValidateCorpusValue(*corpus_value);
-      if (!valid) ReportBadSeedAndExit(val);
-
-      seeds.push_back(*std::move(corpus_value));
+      if (!seed.has_value()) {
+        absl::FPrintF(GetStderr(), "[!] Invalid seed value:\n\n{");
+        AutodetectTypePrinter<ValueType>().PrintUserValue(
+            val, &std::cerr, PrintMode::kHumanReadable);
+        absl::FPrintF(GetStderr(), "}\n");
+        std::exit(1);
+      }
+      seeds.push_back(*std::move(seed));
     }
     return seeds;
   }
 
  private:
-  void ReportBadSeedAndExit(const ValueType& seed) const {
-    absl::FPrintF(GetStderr(), "[!] Invalid seed value:\n\n{");
-    AutodetectTypePrinter<ValueType>().PrintUserValue(
-        seed, &std::cerr, PrintMode::kHumanReadable);
-    absl::FPrintF(GetStderr(), "}\n");
-    std::exit(1);
-  }
-
   virtual std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider()
       const = 0;
 
