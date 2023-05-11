@@ -904,7 +904,8 @@ class ProtobufDomainUntypedImpl
       const GenericDomainCorpusType value =
           corpus_value.has_value()
               ? *corpus_value
-              : GetUnsetCorpusValue<T, /*is_repeated=*/false>(field);
+              : *self.GetSubDomain<T, /*is_repeated=*/false>(field).FromValue(
+                    std::nullopt);
       out = self.GetSubDomain<T, /*is_repeated=*/false>(field)
                 .ValidateCorpusValue(value);
     }
@@ -914,26 +915,11 @@ class ProtobufDomainUntypedImpl
       const GenericDomainCorpusType value =
           corpus_value.has_value()
               ? *corpus_value
-              : GetUnsetCorpusValue<T, /*is_repeated=*/true>(field);
+              : *self.GetSubDomain<T, /*is_repeated=*/true>(field).FromValue(
+                    {});
       out =
           self.GetSubDomain<T, /*is_repeated=*/true>(field).ValidateCorpusValue(
               value);
-    }
-
-   private:
-    template <typename T, bool is_repeated>
-    GenericDomainCorpusType GetUnsetCorpusValue(const FieldDescriptor* field) {
-      IRObject unset_value;
-      if constexpr (is_repeated) {
-        unset_value = IRObject(std::vector<IRObject>{});
-      } else {
-        unset_value = IRObject(std::vector<IRObject>{IRObject(0)});
-      }
-      std::optional<GenericDomainCorpusType> result =
-          self.GetSubDomain<T, is_repeated>(field).ParseCorpus(unset_value);
-      FUZZTEST_INTERNAL_CHECK(result.has_value(),
-                              "Invalid unset value for field.");
-      return *result;
     }
   };
 
