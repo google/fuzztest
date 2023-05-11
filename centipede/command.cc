@@ -320,12 +320,15 @@ int Command::Execute() {
   }
 
   if (WIFEXITED(exit_code) && WEXITSTATUS(exit_code) != EXIT_SUCCESS) {
-    LOG(ERROR) << "Runner or target returned error: exit code="
-               << WEXITSTATUS(exit_code);
+    const auto exit_status = WEXITSTATUS(exit_code);
+    LOG(ERROR) << "Runner or target returned error: " << VV(exit_status)
+               << VV(command_line_);
     LogRedirectedStdoutAndStderr();
-    exit_code = WEXITSTATUS(exit_code);
+    exit_code = exit_status;
   } else if (WIFSIGNALED(exit_code)) {
-    LOG(ERROR) << "Runner or target signalled: signal=" << WTERMSIG(exit_code);
+    const auto signal = WTERMSIG(exit_code);
+    LOG(ERROR) << "Runner or target signalled: " << VV(signal)
+               << VV(command_line_);
     if (WTERMSIG(exit_code) == SIGINT) {
       RequestEarlyExit(EXIT_FAILURE);
       // When the user kills Centipede via ^C, they are unlikely to be
