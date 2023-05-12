@@ -60,9 +60,14 @@ TEST(Corpus, PrintStats) {
   std::ostringstream os;
   corpus.PrintStats(os, fs);
   EXPECT_EQ(os.str(),
-            "{ \"corpus_stats\": [\n"
-            "  {\"size\": 3, \"frequencies\": [1, 2, 1]},\n"
-            "  {\"size\": 2, \"frequencies\": [2, 1]}]}\n");
+            R"({
+  "num_inputs": 2,
+  "corpus_stats": [
+    {"size": 3, "frequencies": [1, 2, 1]},
+    {"size": 2, "frequencies": [2, 1]}
+  ]
+}
+)");
 }
 
 TEST(Corpus, Prune) {

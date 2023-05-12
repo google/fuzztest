@@ -120,26 +120,24 @@ const CorpusRecord &Corpus::UniformRandom(size_t random) const {
 }
 
 void Corpus::PrintStats(std::ostream &out, const FeatureSet &fs) {
-  out << "{ \"corpus_stats\": [\n";
+  out << "{\n";
+  out << "  \"num_inputs\": " << records_.size() << ",\n";
+  out << "  \"corpus_stats\": [\n";
   std::string before_record;
-  for (auto &record : records_) {
+  for (const auto &record : records_) {
     out << before_record;
     before_record = ",\n";
-    out << "  {";
-    out << "\"size\": " << record.data.size() << ", ";
-    {
-      out << "\"frequencies\": [";
-      std::string before_feature;
-      for (auto feature : record.features) {
-        out << before_feature;
-        before_feature = ", ";
-        out << fs.Frequency(feature);
-      }
-      out << "]";
+    out << "    {\"size\": " << record.data.size() << ", ";
+    out << "\"frequencies\": [";
+    std::string before_feature;
+    for (const auto feature : record.features) {
+      out << before_feature;
+      before_feature = ", ";
+      out << fs.Frequency(feature);
     }
-    out << "}";
+    out << "]}";
   }
-  out << "]}\n";
+  out << "\n  ]\n}\n";
 }
 
 std::string Corpus::MemoryUsageString() const {
