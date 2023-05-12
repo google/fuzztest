@@ -458,11 +458,11 @@ void Centipede::GenerateCoverageReport(std::string_view annotation,
 
 void Centipede::GenerateCorpusStats(std::string_view annotation,
                                     size_t batch_index) {
+  auto stats_path = env_.MakeCorpusStatsPath(annotation);
+  LOG(INFO) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
   std::ostringstream os;
   os << "# Last batch: " << batch_index << "\n\n";
   corpus_.PrintStats(os, fs_);
-  auto stats_path = env_.MakeCorpusStatsPath(annotation);
-  LOG(INFO) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
   RemoteFileSetContents(stats_path, os.str());
 }
 
