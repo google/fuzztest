@@ -90,11 +90,14 @@ class OneOfImpl
   std::optional<corpus_type> FromValue(const value_type& v) const {
     std::optional<corpus_type> res;
     const auto try_one_corpus = [&](auto I) {
-      if (auto inner_res = std::get<I>(domains_).FromValue(v)) {
-        res.emplace(std::in_place_index<I>, *std::move(inner_res));
-        return true;
-      }
-      return false;
+      auto corpus_value = std::get<I>(domains_).FromValue(v);
+      if (!corpus_value.has_value()) return false;
+
+      bool valid = std::get<I>(domains_).ValidateCorpusValue(*corpus_value);
+      if (!valid) return false;
+
+      res.emplace(std::in_place_index<I>, *std::move(corpus_value));
+      return true;
     };
 
     ApplyIndex<kNumDomains>([&](auto... I) {

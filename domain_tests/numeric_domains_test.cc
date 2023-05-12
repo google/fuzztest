@@ -272,6 +272,30 @@ TEST(InRange, InitGeneratesSeeds) {
               AllOf(Contains(Value(domain, 7)), Contains(Value(domain, 42))));
 }
 
+TEST(InRange, InitGeneratesSeedsFromSeedProvider) {
+  auto domain =
+      InRange(std::numeric_limits<int>::min(), std::numeric_limits<int>::max())
+          .WithSeeds([]() -> std::vector<int> {
+            return {7, 42};
+          });
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              AllOf(Contains(Value(domain, 7)), Contains(Value(domain, 42))));
+}
+
+TEST(InRange, WithSeedsFailsWhenSeedValidationFails) {
+  EXPECT_DEATH_IF_SUPPORTED(InRange(0, 40).WithSeeds({42}),
+                            "Invalid seed value");
+}
+
+TEST(InRange, InitFailsWhenValidatingSeedsFromSeedProviderFails) {
+  auto domain =
+      InRange(0, 40).WithSeeds([]() -> std::vector<int> { return {42}; });
+
+  EXPECT_DEATH_IF_SUPPORTED(GenerateInitialValues(domain, 1000),
+                            "Invalid seed value");
+}
+
 TEST(InRange, FailsWithInfiniteRange) {
   EXPECT_DEATH_IF_SUPPORTED(InRange(std::numeric_limits<double>::lowest(),
                                     std::numeric_limits<double>::max()),
