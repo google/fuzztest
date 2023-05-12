@@ -28,6 +28,15 @@ inline uint64_t Hash64Bits(uint64_t bits) {
   return bits * kPrime;
 }
 
+// Accumulates the 32-bit CRC for `previous` with `input`.
+inline uint32_t CRC32(uint32_t previous, uint32_t input) {
+#if __ARM_FEATURE_CRC32
+  return __builtin_arm_crc32w(previous, input);
+#else
+  return __builtin_ia32_crc32si(previous, input);
+#endif
+}
+
 // Returns `bits` rotated left by `n`.
 inline uint64_t RotateLeft(uint64_t bits, uint64_t n) {
   return (bits << n) | (bits >> (64 - n));

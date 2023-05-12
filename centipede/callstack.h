@@ -87,7 +87,7 @@ class CallStack {
     pc_[depth_] = pc;
     sp_[depth_] = sp;
     uint32_t previous_hash = depth_ == 0 ? 0 : hashes_[depth_ - 1];
-    hashes_[depth_] = __builtin_ia32_crc32si(previous_hash, pc);
+    hashes_[depth_] = CRC32(previous_hash, pc);
     ++depth_;
   }
 
