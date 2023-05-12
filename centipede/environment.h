@@ -30,10 +30,21 @@ namespace centipede {
 // Users or tests can override any of the non-const fields after the object
 // is constructed, but before it is passed to CentipedeMain.
 struct Environment {
+  // Life cycle ----------------------------------------------------------------
+
   explicit Environment(const std::vector<std::string>& argv = {});
 
   Environment(int argc, char **argv)
       : Environment(std::vector<std::string>{argv, argv + argc}) {}
+
+  Environment(const Environment&) = default;
+  Environment& operator=(const Environment&) = default;
+  Environment(Environment&&) noexcept = delete;             // const members
+  Environment& operator=(Environment&&) noexcept = delete;  // const members
+
+  // Data ----------------------------------------------------------------------
+
+  // Global params. Set in CTOR from the flags in environment.cc ---------------
 
   std::string binary;
   std::string coverage_binary;
@@ -94,30 +105,38 @@ struct Environment {
   size_t max_num_crash_reports;
   std::string minimize_crash_file_path;
   size_t shmem_size_mb;
+  bool dry_run = false;
 
-  std::string experiment_name;   // Set by UpdateForExperiment.
-  std::string experiment_flags;  // Set by UpdateForExperiment.
-
-  // Set to zero to reduce logging in tests.
-  size_t log_level = 1;
+  // Command line-related fields -----------------------------------------------
 
   std::string exec_name;          // copied from argv[0]
   std::vector<std::string> args;  // copied from argv[1:].
-
-  // Created once in CTOR, don't override.
   // The command to execute the binary (may contain arguments).
   const std::string cmd;
-  const std::string binary_name;  // Name of coverage_binary, w/o directories.
-  const std::string binary_hash;  // Hash of the coverage_binary file.
-  bool has_input_wildcards = false;  // Set to true iff `binary` contains "@@"
+  const std::string binary_name;  // Name of `coverage_binary`, w/o directories.
+  const std::string binary_hash;  // Hash of the `coverage_binary` file.
+  bool has_input_wildcards = false;  // Set to true iff `binary` contains "@@".
 
-  bool dry_run = false;
+  // Experiment-related settings -----------------------------------------------
 
-  // Path to a file with PCs. This file is created once per process
-  // if trace_pc instrumentation is detected.
+  std::string experiment_name;   // Set by `UpdateForExperiment`.
+  std::string experiment_flags;  // Set by `UpdateForExperiment`.
+
+  // Other ---------------------------------------------------------------------
+
+  Knobs knobs;  // Read from a file by `ReadKnobsFileIfSpecified`, see knobs.h.
+
+  // Defines internal logging level. Set to zero to reduce logging in tests.
+  // TODO(ussuri): Retire in favor of VLOGs?
+  size_t log_level = 1;
+
+  // Path to a file with PCs. This file is created and the field is set in
+  // `CentipedeMain()` once per process if trace_pc instrumentation is detected.
   std::string pcs_file_path;
 
-  Knobs knobs;  // read from a file by ReadKnobsFileIfSpecified, see knobs.h.
+  // APIs ----------------------------------------------------------------------
+
+  // Paths to various input and output files and directories -------------------
 
   // Returns the path to the coverage dir.
   std::string MakeCoverageDirPath() const;
@@ -129,18 +148,10 @@ struct Environment {
   std::string MakeFeaturesPath(size_t shard_index) const;
   // Returns the path to the coverage profile for this shard.
   std::string MakeSourceBasedCoverageRawProfilePath() const;
-  // Returns all shards' raw profile paths by scanning the coverage directory.
-  std::vector<std::string> EnumerateRawCoverageProfiles() const;
   // Returns the path to the indexed code coverage file.
   std::string MakeSourceBasedCoverageIndexedProfilePath() const;
   // Returns the path for the distilled corpus file for my_shard_index.
   std::string MakeDistilledPath() const;
-  // Returns true if we want to distill the corpus in this shard before fuzzing.
-  bool DistillingInThisShard() const { return my_shard_index < distill_shards; }
-  // Returns true if we want to log features as symbols in this shard.
-  bool LogFeaturesInThisShard() const {
-    return my_shard_index < log_features_shards;
-  }
   // Returns the path for the coverage report file for my_shard_index.
   // Non-default `annotation` becomes a part of the returned filename.
   // `annotation` must not start with a '.'.
@@ -156,6 +167,17 @@ struct Environment {
   // Non-default `annotation` becomes a part of the returned filename.
   // `annotation` must not start with a '.'.
   std::string MakeRUsageReportPath(std::string_view annotation = "") const;
+  // Returns all shards' raw profile paths by scanning the coverage directory.
+  std::vector<std::string> EnumerateRawCoverageProfiles() const;
+
+  // Should certain actions be performed ---------------------------------------
+
+  // Returns true if we want to distill the corpus in this shard before fuzzing.
+  bool DistillingInThisShard() const { return my_shard_index < distill_shards; }
+  // Returns true if we want to log features as symbols in this shard.
+  bool LogFeaturesInThisShard() const {
+    return my_shard_index < log_features_shards;
+  }
   // Returns true if we want to generate the corpus telemetry files (coverage
   // report, corpus stats, etc.) in this shard.
   bool DumpCorpusTelemetryInThisShard() const;
@@ -166,8 +188,7 @@ struct Environment {
   // the corpus stats, etc.) after processing `batch_index`-th batch.
   bool DumpTelemetryForThisBatch(size_t batch_index) const;
 
-  // Sets flag 'name' to `value`. CHECK-fails on invalid name/value combination.
-  void SetFlag(std::string_view name, std::string_view value);
+  // Experiment-related functions ----------------------------------------------
 
   // Updates `this` according to the `--experiment` flag.
   // The `--experiment` flag, if not empty, has this form:
@@ -193,6 +214,12 @@ struct Environment {
   // Sets this->experiment_name to a string like "E01",
   // which means "value #0 is used for foo and value #1 is used for bar".
   void UpdateForExperiment();
+
+  // Sets flag 'name' to `value` for an experiment. CHECK-fails on
+  // invalid name/value combination. Used in `UpdateForExperiment()`.
+  void SetFlagForExperiment(std::string_view name, std::string_view value);
+
+  // Other ---------------------------------------------------------------------
 
   // Reads `knobs` from `knobs_file`. Does nothing if the `knobs_file` is empty.
   void ReadKnobsFileIfSpecified();
