@@ -62,7 +62,6 @@ cc_library(
         "concurrent_bitset.h",  # TODO(kcc): consider moving to a separate cc_library.
         "concurrent_byteset.h",  # TODO(kcc): consider moving to a separate cc_library.
         "feature.h",
-        "foreach_nonzero.h",  # TODO(kcc): consider moving to a separate cc_library.
     ],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
@@ -633,7 +632,6 @@ RUNNER_SOURCES_NO_MAIN = [
     "execution_result.h",
     "feature.cc",
     "feature.h",
-    "foreach_nonzero.h",
     "int_utils.h",
     "knobs.h",
     "knobs.cc",

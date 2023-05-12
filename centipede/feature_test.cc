@@ -33,59 +33,6 @@
 namespace centipede {
 namespace {
 
-template <typename Action>
-void TrivialForEachNonZeroByte(uint8_t *bytes, size_t num_bytes,
-                               Action action) {
-  for (size_t i = 0; i < num_bytes; i++) {
-    uint8_t value = bytes[i];
-    if (value) {
-      action(i, value);
-      bytes[i] = 0;
-    }
-  }
-}
-
-TEST(Feature, ForEachNonZeroByte) {
-  // Some long data with long spans of zeros and a few non-zeros.
-  // We will test all sub-arrays of this array.
-  const uint8_t test_data[] = {
-      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  };
-  const size_t kTestDataSize = sizeof(test_data);
-  uint8_t test_data_copy[kTestDataSize];
-
-  for (size_t offset = 0; offset < kTestDataSize; offset++) {
-    for (size_t size = 0; offset + size < kTestDataSize; size++) {
-      std::vector<std::pair<size_t, uint8_t>> v1, v2;
-      memcpy(test_data_copy, test_data, kTestDataSize);
-      TrivialForEachNonZeroByte(
-          test_data_copy + offset, size,
-          [&](size_t idx, uint8_t value) { v1.emplace_back(idx, value); });
-      for (size_t i = 0; i < size; ++i) {
-        CHECK_EQ(test_data_copy[offset + i], 0);
-      }
-
-      memcpy(test_data_copy, test_data, kTestDataSize);
-      ForEachNonZeroByte(
-          test_data_copy + offset, size,
-          [&](size_t idx, uint8_t value) { v2.emplace_back(idx, value); });
-      for (size_t i = 0; i < size; ++i) {
-        CHECK_EQ(test_data_copy[offset + i], 0);
-      }
-
-      EXPECT_EQ(v1, v2);
-    }
-  }
-}
-
 TEST(Feature, HashedRingBuffer) {
   HashedRingBuffer<32> rb16;  // used with ring_buffer_size == 16
   HashedRingBuffer<32> rb32;  // used with ring_buffer_size == 32

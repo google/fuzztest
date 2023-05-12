@@ -62,11 +62,11 @@ class CentipedeMock : public CentipedeCallbacks {
         counters[byte]++;
       }
       FeatureVec features;
-      ForEachNonZeroByte(
-          counters.data(), counters.size(), [&](size_t idx, uint8_t value) {
-            features.push_back(feature_domains::k8bitCounters.ConvertToMe(
-                Convert8bitCounterToNumber(idx, value)));
-          });
+      for (size_t i = 0; i < counters.size(); ++i) {
+        if (counters[i] == 0) continue;
+        features.push_back(feature_domains::k8bitCounters.ConvertToMe(
+            Convert8bitCounterToNumber(i, counters[i])));
+      }
       batch_result.results().emplace_back(ExecutionResult{features});
       if (input.size() == 1) {
         observed_1byte_inputs_.insert(input[0]);

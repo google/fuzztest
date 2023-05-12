@@ -44,7 +44,6 @@
 #include <vector>
 
 #include "./centipede/concurrent_bitset.h"
-#include "./centipede/foreach_nonzero.h"
 #include "./centipede/int_utils.h"
 
 namespace centipede {
