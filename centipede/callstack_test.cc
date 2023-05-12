@@ -142,7 +142,7 @@ TEST(CallStack, DeepRecursion) {
 
 // Tests CallStack::Hash().
 TEST(CallStack, Hash) {
-  constexpr size_t kDepth = 2000;
+  constexpr size_t kDepth = 5000;
   constexpr size_t kNumDifferentPCs = 10000;
   constexpr uintptr_t kStackTop = 100000000;
   static CallStack<kDepth> cs;  // CallStack should be global/tls only.
@@ -162,8 +162,8 @@ TEST(CallStack, Hash) {
       auto hash = cs.Hash();
       hashes.insert(hash);
     }
-    // Check that most hashes are unique.
-    EXPECT_GE(hashes.size(), kDepth);
+    // Check that most hashes are unique. Some collisions are ok.
+    EXPECT_GE(hashes.size(), kDepth - 1);
     // unwind all the way to the top.
     cs.OnFunctionEntry(42, kStackTop);
     EXPECT_EQ(cs.Depth(), 1);

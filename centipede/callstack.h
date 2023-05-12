@@ -71,42 +71,32 @@ class CallStack {
   }
 
   // Returns the hash of the current call stack.
-  uintptr_t Hash() const { return hash_; }
+  uint32_t Hash() const { return depth_ == 0 ? 0 : hashes_[depth_ - 1]; }
 
   // Updates the call stack and its hash on function entry.
   // `pc` is the function PC to be recorded.
   // `sp` is the current stack pointer value, which grows down.
   void OnFunctionEntry(uintptr_t pc, uintptr_t sp) {
     // First, unwind until the last record's SP is above `sp`.
-    while (depth_) {
-      if (sp_[depth_ - 1] <= sp) {
-        RemovePcFromHash(pc_[depth_ - 1], depth_ - 1);
-        --depth_;
-      } else {
-        break;
-      }
+    while (depth_ && sp_[depth_ - 1] <= sp) {
+      --depth_;
     }
     // Ignore this call if we are already too deep.
     if (depth_ == kMaxDepth) return;
-    // Record the frame.
+    // Record the frame, compute and remember the hash.
     pc_[depth_] = pc;
     sp_[depth_] = sp;
-    AddPcToHash(pc, depth_);
+    uint32_t previous_hash = depth_ == 0 ? 0 : hashes_[depth_ - 1];
+    hashes_[depth_] = __builtin_ia32_crc32si(previous_hash, pc);
     ++depth_;
   }
 
  private:
-  // Computes a hash of pc/pos and XORs it with hash_, so that we can un-XOR
-  // it back in RemovePcFromHash().
-  void AddPcToHash(uintptr_t pc, size_t pos) {
-    hash_ ^= Hash64Bits(pc * kMaxDepth + pos);
-  }
-  void RemovePcFromHash(uintptr_t pc, size_t pos) { AddPcToHash(pc, pos); }
   // All data fields are zero initialized at process or thread startup.
   size_t depth_;
-  uintptr_t hash_;
   uintptr_t pc_[kMaxDepth];
   uintptr_t sp_[kMaxDepth];
+  uint32_t hashes_[kMaxDepth];
 };
 
 }  // namespace centipede
