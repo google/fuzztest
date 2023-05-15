@@ -37,10 +37,11 @@ struct Environment {
   Environment(int argc, char **argv)
       : Environment(std::vector<std::string>{argv, argv + argc}) {}
 
+  // Copy-constructible only (due to const members).
   Environment(const Environment&) = default;
-  Environment& operator=(const Environment&) = default;
-  Environment(Environment&&) noexcept = delete;             // const members
-  Environment& operator=(Environment&&) noexcept = delete;  // const members
+  Environment& operator=(const Environment&) = delete;
+  Environment(Environment&&) noexcept = delete;
+  Environment& operator=(Environment&&) noexcept = delete;
 
   // Data ----------------------------------------------------------------------
 
