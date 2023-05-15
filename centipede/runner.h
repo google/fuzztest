@@ -224,7 +224,8 @@ struct GlobalRunnerState {
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_hamming_set{absl::kConstInit};
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_difflog_set{absl::kConstInit};
 
-  static const size_t kCallStackFeatureSetSize = 1 << 18;
+  // We think that call stack produces rich signal, so we give a few bits to it.
+  static const size_t kCallStackFeatureSetSize = 1 << 24;
   ConcurrentBitSet<kCallStackFeatureSetSize> callstack_set{absl::kConstInit};
 
   // trace-pc-guard callbacks (edge instrumentation).

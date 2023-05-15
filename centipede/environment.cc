@@ -177,7 +177,7 @@ ABSL_FLAG(bool, use_pc_features, true,
 ABSL_FLAG(bool, use_cmp_features, true,
           "When available from instrumentation, use features derived from "
           "instrumentation of CMP instructions.");
-ABSL_FLAG(bool, use_callstack_features, true,
+ABSL_FLAG(bool, use_callstack_features, false,
           "When available from instrumentation, use features derived from "
           "observing the function call stack.");
 ABSL_FLAG(bool, use_auto_dictionary, true,

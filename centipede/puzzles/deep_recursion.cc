@@ -13,8 +13,10 @@
 // limitations under the License.
 
 // Centipede puzzle: deep recursion that may cause stack overflow.
-// RUN: Run --use_cmp_features=0 --max_len=10 --num_runs=10000000
+// clang-format off
+// RUN: Run --use_callstack_features=1 --use_cmp_features=0 --max_len=10 --num_runs=10000000 # NOLINT
 // RUN: SolutionIs ABCDEF
+// clang-format on
 #include <sys/resource.h>
 
 #include <cstddef>
