@@ -70,7 +70,7 @@ TEST(Feature, HashedRingBuffer) {
 }
 
 TEST(Feature, ConcurrentBitSet) {
-  constexpr size_t kSize = 1 << 16;
+  constexpr size_t kSize = 1 << 18;
   static ConcurrentBitSet<kSize> bs(absl::kConstInit);
   std::vector<size_t> in_bits = {0, 1, 2, 100, 102, 1000000};
   std::vector<size_t> expected_out_bits = {0, 1, 2, 100, 102, 1000000 % kSize};
@@ -165,7 +165,7 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
 
 // Tests ConcurrentBitSet from multiple threads.
 TEST(Feature, ConcurrentBitSet_Threads) {
-  static ConcurrentBitSet<(1 << 16)> bs(absl::kConstInit);
+  static ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
   // 3 threads will each set one specific bit in a long loop.
   // 4th thread will set another bit, just once.
   // The set() function is lossy, i.e. it may fail to set the bit.

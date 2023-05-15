@@ -124,7 +124,7 @@ class ConcurrentBitSet {
   // When Set() is called, we set the corresponding element of lines_ to 1, so
   // that we now know that at least 1 bit in that line is set. Then, in
   // ForEachNonZeroBit, we iterate only those lines that have non-zero bits.
-  static const size_t kBytesInLine = 64;
+  static const size_t kBytesInLine = 64 * 8;
   static const size_t kWordsInLine = kBytesInLine / kBytesInWord;
   static const size_t kSizeInLines = kSizeInWords / kWordsInLine;
   ConcurrentByteSet<kSizeInLines> lines_;
