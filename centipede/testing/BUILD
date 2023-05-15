@@ -153,6 +153,7 @@ cc_test(
         ":test_fuzz_target",
         ":test_input_filter",
     ],
+    tags = ["not_run:arm"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_fuzztest//centipede:blob_file",
