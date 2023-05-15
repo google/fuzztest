@@ -589,6 +589,20 @@ cc_library(
 )
 
 cc_library(
+    name = "fuzztest_mutator",
+    srcs = ["fuzztest_mutator.cc"],
+    hdrs = ["fuzztest_mutator.h"],
+    visibility = PUBLIC_API_VISIBILITY,
+    # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
+    deps = [
+        ":defs",
+        "@com_google_absl//absl/random",
+        "@com_google_fuzztest//fuzztest:container_domain_compat",
+        "@com_google_fuzztest//fuzztest:type_support_compat",
+    ],
+)
+
+cc_library(
     name = "weak_sancov_stubs",
     srcs = ["weak_sancov_stubs.cc"],
     alwayslink = 1,
@@ -622,6 +636,8 @@ cc_library(
 RUNNER_SOURCES_NO_MAIN = [
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
+    "fuzztest_mutator.cc",
+    "fuzztest_mutator.h",
     "callstack.h",
     "concurrent_bitset.h",
     "concurrent_byteset.h",
@@ -667,6 +683,9 @@ RUNNER_LINKOPTS = [
 RUNNER_DEPS = [
     "@com_google_absl//absl/types:span",
     "@com_google_absl//absl/base:core_headers",
+    "@com_google_absl//absl/random:random",
+    "//third_party/googlefuzztest:container_domain_compat",
+    "//third_party/googlefuzztest:type_support_compat",
 ]
 
 # A fuzz target needs to link with this library in order to run with Centipede.

@@ -156,6 +156,38 @@ cc_library(
 )
 
 cc_library(
+    name = "container_domain",
+    hdrs = [
+        "internal/domains/container_mutation_helpers.h",
+        "internal/domains/container_of_impl.h",
+        "internal/domains/domain_base.h",
+        "internal/domains/value_mutation_helpers.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":absl_helpers",
+        ":any",
+        ":coverage",
+        ":logging",
+        ":meta",
+        ":serialization",
+        ":table_of_recent_compares",
+        ":type_support",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "fixture_driver",
     srcs = ["internal/fixture_driver.cc"],
     hdrs = ["internal/fixture_driver.h"],
