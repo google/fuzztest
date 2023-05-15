@@ -52,7 +52,7 @@ TEST(ElementOfTest, TwoOptions) {
 }
 
 TEST(ElementOfTest, InitGeneratesSeeds) {
-  Domain<int> domain = ElementOf({0, 1}).WithSeeds(std::vector{0});
+  Domain<int> domain = ElementOf({0, 1}).WithSeeds({0});
 
   EXPECT_THAT(GenerateInitialValues(domain, 1000),
               Contains(Value(domain, 0))

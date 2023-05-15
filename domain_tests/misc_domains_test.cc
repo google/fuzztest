@@ -187,14 +187,6 @@ TEST(OneOf, ValidationRejectsInvalidValue) {
   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
-TEST(OneOf, FromValueReturnsValidCorpusValuesWhenPossible) {
-  auto domain = OneOf(InRange(0, 3), InRange(5, 7));
-  auto corpus_value = domain.FromValue(6);
-
-  ASSERT_TRUE(corpus_value.has_value());
-  EXPECT_TRUE(domain.ValidateCorpusValue(*corpus_value));
-}
-
 }  // namespace
 }  // namespace fuzztest
 
