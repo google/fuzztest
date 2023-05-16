@@ -441,11 +441,11 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   }
 }
 
-void Centipede::GenerateCoverageReport(std::string_view annotation,
+void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
                                        std::string_view description) {
   if (pc_table_.empty()) return;
 
-  auto coverage_path = env_.MakeCoverageReportPath(annotation);
+  auto coverage_path = env_.MakeCoverageReportPath(filename_annotation);
   LOG(INFO) << "Generate coverage report: " << description << " "
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
@@ -456,9 +456,9 @@ void Centipede::GenerateCoverageReport(std::string_view annotation,
   RemoteFileSetContents(coverage_path, out.str());
 }
 
-void Centipede::GenerateCorpusStats(std::string_view annotation,
+void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
-  auto stats_path = env_.MakeCorpusStatsPath(annotation);
+  auto stats_path = env_.MakeCorpusStatsPath(filename_annotation);
   LOG(INFO) << "Generate corpus stats: " << description << " "
             << VV(stats_path);
   std::ostringstream os;
@@ -469,10 +469,11 @@ void Centipede::GenerateCorpusStats(std::string_view annotation,
 
 // TODO(nedwill): add integration test once tests are refactored per b/255660879
 void Centipede::GenerateSourceBasedCoverageReport(
-    std::string_view annotation, std::string_view description) {
+    std::string_view filename_annotation, std::string_view description) {
   if (env_.clang_coverage_binary.empty()) return;
 
-  auto report_path = env_.MakeSourceBasedCoverageReportPath(annotation);
+  auto report_path =
+      env_.MakeSourceBasedCoverageReportPath(filename_annotation);
   LOG(INFO) << "Generate source based coverage report: " << description << " "
             << VV(report_path);
   RemoteMkdir(report_path);
@@ -511,7 +512,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
   }
 }
 
-void Centipede::GenerateRUsageReport(std::string_view annotation,
+void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
                                      std::string_view description) {
   class ReportDumper : public RUsageProfiler::ReportSink {
    public:
@@ -534,30 +535,30 @@ void Centipede::GenerateRUsageReport(std::string_view annotation,
   const auto &snapshot = rusage_profiler_.TakeSnapshot(
       {__FILE__, __LINE__}, std::string{description});
   VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
-  auto path = env_.MakeRUsageReportPath(annotation);
+  auto path = env_.MakeRUsageReportPath(filename_annotation);
   LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
             << description << " " << VV(path);
   ReportDumper dumper{path};
   rusage_profiler_.GenerateReport(&dumper);
 }
 
-void Centipede::MaybeGenerateTelemetry(std::string_view annotation,
+void Centipede::MaybeGenerateTelemetry(std::string_view filename_annotation,
                                        std::string_view description) {
   if (env_.DumpCorpusTelemetryInThisShard()) {
-    GenerateCoverageReport(annotation, description);
-    GenerateCorpusStats(annotation, description);
-    GenerateSourceBasedCoverageReport(annotation, description);
+    GenerateCoverageReport(filename_annotation, description);
+    GenerateCorpusStats(filename_annotation, description);
+    GenerateSourceBasedCoverageReport(filename_annotation, description);
   }
   if (env_.DumpRUsageTelemetryInThisShard()) {
-    GenerateRUsageReport(annotation, description);
+    GenerateRUsageReport(filename_annotation, description);
   }
 }
 
-void Centipede::MaybeGenerateTelemetryAfterBatch(std::string_view annotation,
-                                                 size_t batch_index) {
+void Centipede::MaybeGenerateTelemetryAfterBatch(
+    std::string_view filename_annotation, size_t batch_index) {
   if (env_.DumpTelemetryForThisBatch(batch_index)) {
     MaybeGenerateTelemetry(  //
-        annotation, absl::StrCat("After batch ", batch_index));
+        filename_annotation, absl::StrCat("After batch ", batch_index));
   }
 }
 

@@ -100,28 +100,26 @@ class Centipede {
   // Uses coverage_logger_.
   void LogFeaturesAsSymbols(const FeatureVec &f);
 
-  // TODO(ussuri): Rename `annotation`s below: used only as part of filenames.
-
   // Generates a coverage report file in workdir.
-  void GenerateCoverageReport(std::string_view annotation,
+  void GenerateCoverageReport(std::string_view filename_annotation,
                               std::string_view description);
   // Generates a corpus stats file in workdir.
-  void GenerateCorpusStats(std::string_view annotation,
+  void GenerateCorpusStats(std::string_view filename_annotation,
                            std::string_view description);
   // Generates the clang source-based coverage report in workdir.
-  void GenerateSourceBasedCoverageReport(std::string_view annotation,
+  void GenerateSourceBasedCoverageReport(std::string_view filename_annotation,
                                          std::string_view description);
   // Generates a performance report file in workdir.
-  void GenerateRUsageReport(std::string_view annotation,
+  void GenerateRUsageReport(std::string_view filename_annotation,
                             std::string_view description);
   // Generates all the report and stats files in workdir if this shard is
   // assigned to do that.
-  void MaybeGenerateTelemetry(std::string_view annotation,
+  void MaybeGenerateTelemetry(std::string_view filename_annotation,
                               std::string_view description);
   // Generates all the report and stats files in workdir if this shard is
   // assigned to do that and if `batch_index` satisfies the telemetry frequency
   // criteria set via the flags.
-  void MaybeGenerateTelemetryAfterBatch(std::string_view annotation,
+  void MaybeGenerateTelemetryAfterBatch(std::string_view filename_annotation,
                                         size_t batch_index);
 
   // Returns true if `input` passes env_.input_filter.
