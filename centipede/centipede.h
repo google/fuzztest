@@ -29,7 +29,6 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/execution_result.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/stats.h"
 #include "./centipede/symbol_table.h"
@@ -100,19 +99,30 @@ class Centipede {
   // If symbolization failed, prints a simpler logging line.
   // Uses coverage_logger_.
   void LogFeaturesAsSymbols(const FeatureVec &f);
+
+  // TODO(ussuri): Rename `annotation`s below: used only as part of filenames.
+
   // Generates a coverage report file in workdir.
-  void GenerateCoverageReport(std::string_view annotation, size_t batch_index);
+  void GenerateCoverageReport(std::string_view annotation,
+                              std::string_view description);
   // Generates a corpus stats file in workdir.
-  void GenerateCorpusStats(std::string_view annotation, size_t batch_index);
+  void GenerateCorpusStats(std::string_view annotation,
+                           std::string_view description);
   // Generates the clang source-based coverage report in workdir.
   void GenerateSourceBasedCoverageReport(std::string_view annotation,
-                                         size_t batch_index);
+                                         std::string_view description);
   // Generates a performance report file in workdir.
-  void GenerateRUsageReport(std::string_view annotation, size_t batch_index);
+  void GenerateRUsageReport(std::string_view annotation,
+                            std::string_view description);
   // Generates all the report and stats files in workdir if this shard is
-  // assigned to do that and if `batch_index` == 0 or satisfies the criteria set
-  // via the flags.
-  void MaybeGenerateTelemetry(std::string_view annotation, size_t batch_index);
+  // assigned to do that.
+  void MaybeGenerateTelemetry(std::string_view annotation,
+                              std::string_view description);
+  // Generates all the report and stats files in workdir if this shard is
+  // assigned to do that and if `batch_index` satisfies the telemetry frequency
+  // criteria set via the flags.
+  void MaybeGenerateTelemetryAfterBatch(std::string_view annotation,
+                                        size_t batch_index);
 
   // Returns true if `input` passes env_.input_filter.
   bool InputPassesFilter(const ByteArray &input);

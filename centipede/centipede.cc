@@ -442,36 +442,39 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
 }
 
 void Centipede::GenerateCoverageReport(std::string_view annotation,
-                                       size_t batch_index) {
+                                       std::string_view description) {
   if (pc_table_.empty()) return;
 
+  auto coverage_path = env_.MakeCoverageReportPath(annotation);
+  LOG(INFO) << "Generate coverage report: " << description << " "
+            << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
   std::stringstream out;
-  out << "# Last batch: " << batch_index << "\n\n";
+  out << "# " << description << ":\n\n";
   coverage.Print(symbols_, out);
-  auto coverage_path = env_.MakeCoverageReportPath(annotation);
-  LOG(INFO) << "Generate coverage report: " << VV(batch_index)
-            << VV(coverage_path);
   RemoteFileSetContents(coverage_path, out.str());
 }
 
 void Centipede::GenerateCorpusStats(std::string_view annotation,
-                                    size_t batch_index) {
+                                    std::string_view description) {
   auto stats_path = env_.MakeCorpusStatsPath(annotation);
-  LOG(INFO) << "Generate corpus stats: " << VV(batch_index) << VV(stats_path);
+  LOG(INFO) << "Generate corpus stats: " << description << " "
+            << VV(stats_path);
   std::ostringstream os;
-  os << "# Last batch: " << batch_index << "\n\n";
+  os << "# " << description << ":\n\n";
   corpus_.PrintStats(os, fs_);
   RemoteFileSetContents(stats_path, os.str());
 }
 
 // TODO(nedwill): add integration test once tests are refactored per b/255660879
-void Centipede::GenerateSourceBasedCoverageReport(std::string_view annotation,
-                                                  size_t batch_index) {
+void Centipede::GenerateSourceBasedCoverageReport(
+    std::string_view annotation, std::string_view description) {
   if (env_.clang_coverage_binary.empty()) return;
 
   auto report_path = env_.MakeSourceBasedCoverageReportPath(annotation);
+  LOG(INFO) << "Generate source based coverage report: " << description << " "
+            << VV(report_path);
   RemoteMkdir(report_path);
 
   std::vector<std::string> raw_profiles = env_.EnumerateRawCoverageProfiles();
@@ -509,7 +512,7 @@ void Centipede::GenerateSourceBasedCoverageReport(std::string_view annotation,
 }
 
 void Centipede::GenerateRUsageReport(std::string_view annotation,
-                                     size_t batch_index) {
+                                     std::string_view description) {
   class ReportDumper : public RUsageProfiler::ReportSink {
    public:
     explicit ReportDumper(std::string_view path)
@@ -528,32 +531,33 @@ void Centipede::GenerateRUsageReport(std::string_view annotation,
     RemoteFile *file_;
   };
 
-  const auto description = absl::StrCat("Batch ", batch_index);
-  const auto &snapshot =
-      rusage_profiler_.TakeSnapshot({__FILE__, __LINE__}, description);
+  const auto &snapshot = rusage_profiler_.TakeSnapshot(
+      {__FILE__, __LINE__}, std::string{description});
   VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
-  // The very first call with `batch_index`==0 is for the initial state: just
-  // take a baseline snapshot, but skip the report.
-  if (batch_index > 0) {
-    auto path = env_.MakeRUsageReportPath(annotation);
-    LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
-              << VV(batch_index) << VV(path);
-    ReportDumper dumper{path};
-    rusage_profiler_.GenerateReport(&dumper);
-  }
+  auto path = env_.MakeRUsageReportPath(annotation);
+  LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
+            << description << " " << VV(path);
+  ReportDumper dumper{path};
+  rusage_profiler_.GenerateReport(&dumper);
 }
 
 void Centipede::MaybeGenerateTelemetry(std::string_view annotation,
-                                       size_t batch_index) {
+                                       std::string_view description) {
+  if (env_.DumpCorpusTelemetryInThisShard()) {
+    GenerateCoverageReport(annotation, description);
+    GenerateCorpusStats(annotation, description);
+    GenerateSourceBasedCoverageReport(annotation, description);
+  }
+  if (env_.DumpRUsageTelemetryInThisShard()) {
+    GenerateRUsageReport(annotation, description);
+  }
+}
+
+void Centipede::MaybeGenerateTelemetryAfterBatch(std::string_view annotation,
+                                                 size_t batch_index) {
   if (env_.DumpTelemetryForThisBatch(batch_index)) {
-    if (env_.DumpCorpusTelemetryInThisShard()) {
-      GenerateCoverageReport(annotation, batch_index);
-      GenerateCorpusStats(annotation, batch_index);
-      GenerateSourceBasedCoverageReport(annotation, batch_index);
-    }
-    if (env_.DumpRUsageTelemetryInThisShard()) {
-      GenerateRUsageReport(annotation, batch_index);
-    }
+    MaybeGenerateTelemetry(  //
+        annotation, absl::StrCat("After batch ", batch_index));
   }
 }
 
@@ -653,7 +657,7 @@ void Centipede::FuzzingLoop() {
   // workdir already has data), these may or may not coincide with the final
   // "latest" report of the previous run, depending on how the runs are
   // configured (the same number of shards, for example).
-  if (env_.num_runs != 0) MaybeGenerateTelemetry("initial", /*batch_index=*/0);
+  if (env_.num_runs != 0) MaybeGenerateTelemetry("initial", "Before fuzzing");
 
   // num_runs / batch_size, rounded up.
   size_t number_of_batches = env_.num_runs / env_.batch_size;
@@ -690,7 +694,7 @@ void Centipede::FuzzingLoop() {
     }
 
     // Dump the intermediate telemetry files.
-    MaybeGenerateTelemetry("latest", batch_index);
+    MaybeGenerateTelemetryAfterBatch("latest", batch_index);
 
     if (env_.load_other_shard_frequency != 0 && batch_index != 0 &&
         (batch_index % env_.load_other_shard_frequency) == 0 &&
@@ -717,13 +721,17 @@ void Centipede::FuzzingLoop() {
 
   // If we've fuzzed anything, dump the final telemetry files, possibly
   // overwriting the last intermediate version dumped inside the loop.
-  if (env_.num_runs != 0) MaybeGenerateTelemetry("latest", number_of_batches);
+  if (env_.num_runs != 0) MaybeGenerateTelemetry("latest", "After fuzzing");
 
   // If requested, distill the corpus. Note that with `--num_runs` == 0, this
   // will essentially be the single action this run will carry out, with the
   // fuzzing loop being a no-op.
   if (env_.DistillingInThisShard()) {
     ReloadAllShardsAndWriteDistilledCorpus();
+
+    // Dump the distillation telemetry so the post-distillation vs. post-fuzzing
+    // stats can be compared.
+    MaybeGenerateTelemetry("distilled", "After distillation");
   }
 }
 
