@@ -105,7 +105,7 @@ inline size_t GetOrGuessPositionHint(std::optional<size_t> position_hint,
   if (position_hint.has_value()) {
     return *position_hint;
   } else {
-    return ChooseOffset(max, prng);
+    return ChooseOffset(max + 1, prng);
   }
 }
 

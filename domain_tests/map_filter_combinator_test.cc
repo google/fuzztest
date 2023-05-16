@@ -40,7 +40,7 @@ using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-TEST(Map, WorksWithSameCorpusType) {
+TEST(Map, WorksWhenMapFunctionHasSameDomainAndRange) {
   auto domain = Map([](int a) { return ~a; }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
@@ -49,7 +49,7 @@ TEST(Map, WorksWithSameCorpusType) {
 
 enum class Color : int { Red, Green, Blue, Yellow };
 
-TEST(Map, WorksWithDifferentCorpusType) {
+TEST(Map, WorksWhenMapFunctionHasDifferentDomainAndRange) {
   auto colors = ElementOf({Color::Blue});
   auto domain = Map(
       [](Color a) -> std::string { return a == Color::Blue ? "Blue" : "None"; },
@@ -93,6 +93,64 @@ TEST(Map, ValidationRejectsInvalidValue) {
 
   EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+}
+
+TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
+  auto domain =
+      internal::BidiMap([](int a) { return ~a; },
+                        [](int a) { return std::tuple(~a); }, Arbitrary<int>());
+  absl::BitGen bitgen;
+  Value value(domain, bitgen);
+  EXPECT_EQ(value.user_value, ~std::get<0>(value.corpus_value));
+}
+
+TEST(BidiMap, ValidationRejectsInvalidValue) {
+  absl::BitGen bitgen;
+
+  auto domain_a =
+      internal::BidiMap([](int a) { return ~a; },
+                        [](int a) { return std::tuple(~a); }, InRange(0, 9));
+  auto domain_b =
+      BidiMap([](int a) { return ~a; }, [](int a) { return std::tuple(~a); },
+              InRange(10, 19));
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
+  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+}
+
+TEST(BidiMap, AcceptsMultipleInnerDomains) {
+  auto domain = internal::BidiMap(
+      [](int a, char b) {
+        std::string s;
+        for (; a > 0; --a) s += b;
+        return s;
+      },
+      [](const std::string& s) {
+        return std::tuple<int, char>(s.length(), s[0]);
+      },
+      InRange(2, 4), ElementOf<char>({'A', 'B'}));
+  auto all_values = {"AA", "AAA", "AAAA", "BB", "BBB", "BBBB"};
+  for (const std::string& s : all_values) {
+    ASSERT_TRUE(domain.FromValue(s).has_value());
+    EXPECT_EQ(domain.GetValue(domain.FromValue(s).value()), s);
+  }
+}
+
+TEST(BidiMap, WorksWithSeeds) {
+  absl::BitGen bitgen;
+
+  auto domain = internal::BidiMap([](int a) { return a + 1; },
+                                  [](int a) { return std::tuple(a - 1); },
+                                  InRange(0, 1000000))
+                    .WithSeeds({7});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(7));
 }
 
 TEST(FlatMap, WorksWithSameCorpusType) {
