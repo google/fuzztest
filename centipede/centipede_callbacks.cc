@@ -253,7 +253,7 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
 }
 
 size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
-  if (dictionary_path.empty()) return 0;
+  if (dictionary_path.empty() || dictionary_path == "/dev/null") return 0;
   // First, try to parse the dictionary as an AFL/libFuzzer dictionary.
   // These dictionaries are in plain text format and thus a Centipede-native
   // dictionary will never be mistaken for an AFL/libFuzzer dictionary.
