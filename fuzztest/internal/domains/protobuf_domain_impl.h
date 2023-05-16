@@ -412,8 +412,10 @@ class ProtobufDomainUntypedImpl
   using typename ProtobufDomainUntypedImpl::DomainBase::corpus_type;
   using typename ProtobufDomainUntypedImpl::DomainBase::value_type;
 
-  explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype)
+  explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype,
+                                     bool use_lazy_initialization)
       : prototype_(std::move(prototype)),
+        use_lazy_initialization_(use_lazy_initialization),
         policy_(),
         customized_fields_(),
         always_set_oneofs_(),
@@ -421,7 +423,8 @@ class ProtobufDomainUntypedImpl
         oneof_fields_policies_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
-      : prototype_(other.prototype_) {
+      : prototype_(other.prototype_),
+        use_lazy_initialization_(other.use_lazy_initialization_) {
     absl::MutexLock l(&other.mutex_);
     domains_ = other.domains_;
     policy_ = other.policy_;
@@ -1299,7 +1302,8 @@ class ProtobufDomainUntypedImpl
     } else if constexpr (std::is_same_v<T, ProtoMessageTag>) {
       auto result = ProtobufDomainUntypedImpl(
           prototype_.Get()->GetReflection()->GetMessageFactory()->GetPrototype(
-              field->message_type()));
+              field->message_type()),
+          use_lazy_initialization_);
       result.SetPolicy(policy_);
       return Domain<std::unique_ptr<Message>>(result);
     } else {
@@ -1466,6 +1470,7 @@ class ProtobufDomainUntypedImpl
   }
 
   PrototypePtr<Message> prototype_;
+  bool use_lazy_initialization_;
 
   mutable absl::Mutex mutex_;
   mutable absl::flat_hash_map<int, CopyableAny> domains_
@@ -1930,7 +1935,7 @@ class ProtobufDomainImpl
         std::move(inner_domain));
   }
 
-  UntypedImpl inner_{&T::default_instance()};
+  UntypedImpl inner_{&T::default_instance(), /*use_lazy_initialization=*/true};
 };
 
 template <typename T>
