@@ -647,13 +647,13 @@ void Centipede::FuzzingLoop() {
   fuzz_start_time_ = absl::Now();
   num_runs_ = 0;
 
-  // Dump the initial telemetry files. For a brand-new run, these will be
-  // functionally empty, e.g. the coverage report will list all target functions
-  // as not covered (NONE). For a bootstrapped run (the workdir already has
-  // data), these may or may not coincide with the final "latest" report of the
-  // previous run, depending on how the runs are configured (the same number of
-  // shards, for example).
-  MaybeGenerateTelemetry("initial", /*batch_index=*/0);
+  // If we're going to fuzz, dump the initial telemetry files. For a brand-new
+  // run, these will be functionally empty, e.g. the coverage report will list
+  // all target functions as not covered (NONE). For a bootstrapped run (the
+  // workdir already has data), these may or may not coincide with the final
+  // "latest" report of the previous run, depending on how the runs are
+  // configured (the same number of shards, for example).
+  if (env_.num_runs != 0) MaybeGenerateTelemetry("initial", /*batch_index=*/0);
 
   // num_runs / batch_size, rounded up.
   size_t number_of_batches = env_.num_runs / env_.batch_size;
@@ -712,12 +712,12 @@ void Centipede::FuzzingLoop() {
     }
   }
 
-  // Dump the final telemetry files, possibly overwriting the last intermediate
-  // version dumped inside the loop.
-  MaybeGenerateTelemetry("latest", number_of_batches);
-
   // The tests rely on this stat being logged last.
   UpdateAndMaybeLogStats("end-fuzz", 0);
+
+  // If we've fuzzed anything, dump the final telemetry files, possibly
+  // overwriting the last intermediate version dumped inside the loop.
+  if (env_.num_runs != 0) MaybeGenerateTelemetry("latest", number_of_batches);
 
   // If requested, distill the corpus. Note that with `--num_runs` == 0, this
   // will essentially be the single action this run will carry out, with the
