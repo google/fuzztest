@@ -25,7 +25,6 @@
 #include <optional>
 #include <ostream>
 #include <set>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -411,18 +410,20 @@ TEST(MonostateTest, Printer) {
   EXPECT_THAT(TestPrintValue(UserDefinedEmpty{}), Each("{}"));
 }
 
-struct AggregateStructWithNoStream {
+struct AggregateStructWithNoAbslStringify {
   int i = 1;
   std::pair<std::string, std::string> nested = {"Foo", "Bar"};
 };
 
-struct AggregateStructWithStream {
+struct AggregateStructWithAbslStringify {
   int i = 1;
   std::pair<std::string, std::string> nested = {"Foo", "Bar"};
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const AggregateStructWithStream& s) {
-    return os << "value={" << s.i << ", "
-              << "{" << s.nested.first << ", " << s.nested.second << "}}";
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const AggregateStructWithAbslStringify& s) {
+    absl::Format(&sink, "value={%d, {%s, %s}}", s.i, s.nested.first,
+                 s.nested.second);
   }
 };
 
@@ -432,9 +433,9 @@ TEST(AutodetectAggregateTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::tuple{123}), Each("{123}"));
   EXPECT_THAT(TestPrintValue(std::pair{123, 456}), Each("{123, 456}"));
   EXPECT_THAT(TestPrintValue(std::array{123, 456}), Each("{123, 456}"));
-  EXPECT_THAT(TestPrintValue(AggregateStructWithNoStream{}),
+  EXPECT_THAT(TestPrintValue(AggregateStructWithNoAbslStringify{}),
               Each(R"({1, {"Foo", "Bar"}})"));
-  EXPECT_THAT(TestPrintValue(AggregateStructWithStream{}),
+  EXPECT_THAT(TestPrintValue(AggregateStructWithAbslStringify{}),
               ElementsAre("value={1, {Foo, Bar}}", R"({1, {"Foo", "Bar"}})"));
 }
 
@@ -472,28 +473,36 @@ TEST(TimeTest, Printer) {
                           "absl::UnixEpoch() + absl::Seconds(-1290000)"));
 }
 
-struct NonAggregateStructWithNoStream {
-  NonAggregateStructWithNoStream() : i(1), nested("Foo", "Bar") {}
+struct NonAggregateStructWithNoAbslStringify {
+  NonAggregateStructWithNoAbslStringify() : i(1), nested("Foo", "Bar") {}
   int i;
   std::pair<std::string, std::string> nested;
 };
 
-struct NonAggregateStructWithStream {
-  NonAggregateStructWithStream() : i(1), nested("Foo", "Bar") {}
+struct NonAggregateStructWithAbslStringify {
+  NonAggregateStructWithAbslStringify() : i(1), nested("Foo", "Bar") {}
   int i;
   std::pair<std::string, std::string> nested;
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const NonAggregateStructWithStream& s) {
-    return os << "value={" << s.i << ", "
-              << "{" << s.nested.first << ", " << s.nested.second << "}}";
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink,
+                            const NonAggregateStructWithAbslStringify& s) {
+    absl::Format(&sink, "value={%d, {%s, %s}}", s.i, s.nested.first,
+                 s.nested.second);
   }
 };
 
 TEST(UnprintableTest, Printer) {
-  EXPECT_THAT(TestPrintValue(NonAggregateStructWithNoStream{}),
+  EXPECT_THAT(TestPrintValue(NonAggregateStructWithNoAbslStringify{}),
               Each("<unprintable value>"));
-  EXPECT_THAT(TestPrintValue(NonAggregateStructWithStream{}),
+  EXPECT_THAT(TestPrintValue(NonAggregateStructWithAbslStringify{}),
               ElementsAre("value={1, {Foo, Bar}}", "<unprintable value>"));
+  EXPECT_THAT(
+      TestPrintValue(std::vector<NonAggregateStructWithNoAbslStringify>{}),
+      Each("<unprintable value>"));
+  EXPECT_THAT(
+      TestPrintValue(std::vector<NonAggregateStructWithAbslStringify>{}),
+      Each("<unprintable value>"));
 }
 
 }  // namespace
