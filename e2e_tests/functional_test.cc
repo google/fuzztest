@@ -1152,6 +1152,13 @@ TEST_F(FuzzingModeTest, SeedInputIsUsed) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(FuzzingModeTest, SeedInputIsUsedInProtobufsWithInternalMappings) {
+  auto [status, std_out, std_err] = RunWith(
+      "--fuzz=MySuite.SeedInputIsUsedInProtobufsWithInternalMappings");
+  EXPECT_THAT(std_err, HasSubstr("subproto_i32: 9439518"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 TEST_F(FuzzingModeTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.SeedInputIsUsedForMutation");

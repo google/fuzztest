@@ -621,7 +621,11 @@ void Environment::SetFlagForExperiment(std::string_view name,
   // Handle bool flags.
   absl::flat_hash_map<std::string, bool *> bool_flags{
       {"use_cmp_features", &use_cmp_features},
+      {"use_callstack_features", &use_callstack_features},
       {"use_auto_dictionary", &use_auto_dictionary},
+      {"use_dataflow_features", &use_dataflow_features},
+      {"use_counter_features", &use_counter_features},
+      {"use_pcpair_features", &use_pcpair_features},
       {"use_coverage_frontier", &use_coverage_frontier}};
   auto bool_iter = bool_flags.find(name);
   if (bool_iter != bool_flags.end()) {
@@ -634,6 +638,7 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"path_level", &path_level},
       {"max_corpus_size", &max_corpus_size},
       {"max_len", &max_len},
+      {"path_level", &path_level},
       {"mutate_batch_size", &mutate_batch_size}};
   auto int_iter = int_flags.find(name);
   if (int_iter != int_flags.end()) {
