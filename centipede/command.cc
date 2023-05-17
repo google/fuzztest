@@ -178,9 +178,9 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
 
   // Check if `system()` was able to parse and run the command at all.
   if (exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "Failed to parse or run command to launch fork server; will "
-                  "proceed without it";
-    LogRedirectedStdoutAndStderr();
+    LogProblemInfo(
+        "Failed to parse or run command to launch fork server; will proceed "
+        "without it");
     return false;
   }
 
@@ -200,9 +200,9 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
                                      O_RDWR | O_NONBLOCK)) < 0 ||
       (fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(),
                                      O_RDONLY | O_NONBLOCK)) < 0) {
-    PLOG(ERROR) << "Failed to establish communication with fork server; will "
-                   "proceed without it";
-    LogRedirectedStdoutAndStderr();
+    LogProblemInfo(
+        "Failed to establish communication with fork server; will proceed "
+        "without it");
     return false;
   }
 
@@ -215,9 +215,10 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
   std::string proc_exe = absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
   if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
-    PLOG(ERROR) << "Fork server appears not running; will proceed without it: "
-                << VV(proc_exe);
-    LogRedirectedStdoutAndStderr();
+    LogProblemInfo(
+        absl::StrCat("Fork server appears not running; will proceed without it "
+                     "(failed to stat ",
+                     proc_exe, ")"));
     return false;
   }
 
@@ -267,8 +268,8 @@ int Command::Execute() {
     VLOG(1) << "Sending execution request to fork server: " << VV(timeout_);
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
-      LOG(ERROR) << "Fork server should be running, but isn't: " << status;
-      LogRedirectedStdoutAndStderr();
+      LogProblemInfo(absl::StrCat("Fork server should be running, but isn't: ",
+                                  status.message()));
       return EXIT_FAILURE;
     }
 
@@ -298,8 +299,7 @@ int Command::Execute() {
     if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
-      LOG(ERROR) << "Failed to communicate with fork server:";
-      LogRedirectedStdoutAndStderr();
+      LogProblemInfo("Failed to communicate with fork server");
       if (poll_ret == 0) {
         LOG(FATAL) << "Timeout while waiting for fork server: " << VV(timeout_)
                    << VV(command_line_);
@@ -321,29 +321,28 @@ int Command::Execute() {
 
   if (WIFEXITED(exit_code) && WEXITSTATUS(exit_code) != EXIT_SUCCESS) {
     const auto exit_status = WEXITSTATUS(exit_code);
-    LOG(ERROR) << "Runner or target returned error: " << VV(exit_status)
-               << VV(command_line_);
-    LogRedirectedStdoutAndStderr();
+    VlogProblemInfo(
+        absl::StrCat("Command errored out: exit status=", exit_status),
+        /*vlog_level=*/1);
     exit_code = exit_status;
   } else if (WIFSIGNALED(exit_code)) {
     const auto signal = WTERMSIG(exit_code);
-    LOG(ERROR) << "Runner or target signalled: " << VV(signal)
-               << VV(command_line_);
-    if (WTERMSIG(exit_code) == SIGINT) {
+    if (signal == SIGINT) {
       RequestEarlyExit(EXIT_FAILURE);
       // When the user kills Centipede via ^C, they are unlikely to be
       // interested in any of the subprocesses' outputs. Also, ^C terminates all
       // the subprocesses, including all the runners, so all their outputs would
-      // get printed simultaneously, flooding the log.
-      LOG(WARNING) << "Process likely terminated via Ctrl-C - not printing "
-                      "fork server log (override with --v=10 or higher)";
-      if (VLOG_IS_ON(10)) LogRedirectedStdoutAndStderr();
+      // get printed simultaneously, flooding the log. Hence log at a high
+      // `vlog_level`.
+      VlogProblemInfo("Command killed: signal=SIGINT (likely Ctrl-C)",
+                      /*vlog_level=*/10);
     } else {
-      // The fork server subprocess was killed by something other than ^C: print
-      // the log to help diagnose problems.
-      LogRedirectedStdoutAndStderr();
+      // The fork server subprocess was killed by something other than ^C: log
+      // at a lower `vlog_level` to help diagnose problems.
+      VlogProblemInfo(absl::StrCat("Command killed: signal=", signal),
+                      /*vlog_level=*/1);
     }
-    exit_code = WTERMSIG(exit_code);
+    exit_code = signal;
   }
 
   return exit_code;
@@ -371,15 +370,21 @@ std::string Command::ReadRedirectedStderr() const {
   return ret;
 }
 
-void Command::LogRedirectedStdoutAndStderr() const {
-  LOG(INFO).NoPrefix() << "=== STDOUT ===";
+void Command::LogProblemInfo(std::string_view message) const {
+  PLOG(ERROR) << message;
+  LOG(ERROR).NoPrefix() << VV(command_line_);
+  LOG(ERROR).NoPrefix() << "=== STDOUT ===";
   for (const auto &line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
-    LOG(INFO).NoPrefix() << line;
+    LOG(ERROR).NoPrefix() << line;
   }
-  LOG(INFO).NoPrefix() << "=== STDERR ===";
+  LOG(ERROR).NoPrefix() << "=== STDERR ===";
   for (const auto &line : absl::StrSplit(ReadRedirectedStderr(), '\n')) {
-    LOG(INFO).NoPrefix() << line;
+    LOG(ERROR).NoPrefix() << line;
   }
+}
+
+void Command::VlogProblemInfo(std::string_view message, int vlog_level) const {
+  if (VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
 }
 
 }  // namespace centipede
