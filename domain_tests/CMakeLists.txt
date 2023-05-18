@@ -138,6 +138,34 @@ add_test(
 )
 
 add_executable(
+  fuzztest_in_grammar_domain_test
+  in_grammar_domain_test.cc
+)
+target_link_libraries(
+  fuzztest_in_grammar_domain_test
+  PUBLIC
+  fuzztest_domain_testing
+  fuzztest_domain
+  fuzztest_coverage
+  fuzztest_type_support
+  fuzztest_serialization
+  fuzztest_logging
+  absl::random_random
+  absl::flat_hash_set
+  nlohmann_json
+  json_grammar
+  re2
+  fuzztest_regexp_dfa
+  GTest::gmock_main
+)
+add_test(
+  NAME
+  fuzztest_in_grammar_domain_test
+  COMMAND
+  fuzztest_in_grammar_domain_test
+)
+
+add_executable(
   fuzztest_map_filter_combinator_test
   map_filter_combinator_test.cc
 )

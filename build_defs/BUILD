@@ -12,24 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Tools.
+# Starlark rules.
+
+#load("//tools/build_defs/testing:bzl_library.bzl", "bzl_library")
 
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
-
-sh_binary(
-    name = "minimizer",
-    srcs = ["minimizer.sh"],
-)
-
-cc_binary(
-    name = "grammar_domain_code_generator",
-    srcs = ["grammar_domain_code_generator.cc"],
-    deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_fuzztest//fuzztest:logging",
-        "@com_google_fuzztest//grammar_codegen:code_generation",
-    ],
-)

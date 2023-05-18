@@ -48,6 +48,13 @@ http_archive(
     url = "https://github.com/google/re2/archive/refs/tags/2022-06-01.tar.gz",
 )
 
+http_archive(
+    name = "antlr_cpp",
+    build_file = "//bazel:antlr_cpp_runtime.BUILD",
+    sha256 = "642d59854ddc0cebb5b23b2233ad0a8723eef20e66ef78b5b898d0a67556893b",
+    url = "https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip",
+)
+
 ################################################################################
 # Direct dependencies that are only required for running tests
 ################################################################################
@@ -57,6 +64,14 @@ http_archive(
     sha256 = "81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2",
     strip_prefix = "googletest-release-1.12.1",
     url = "https://github.com/google/googletest/archive/refs/tags/release-1.12.1.tar.gz",
+)
+
+http_archive(
+    name = "com_nlohmann_json",
+    build_file = "//bazel:nlohmann_json.BUILD",
+    sha256 = "d69f9deb6a75e2580465c6c4c5111b89c4dc2fa94e3a85fcd2ffcd9a143d9273",
+    strip_prefix = "json-3.11.2",
+    url = "https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz",
 )
 
 http_archive(

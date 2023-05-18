@@ -35,7 +35,7 @@
 #ifndef ANTLR4_GEN_ANTLRV_LEXER_H
 #define ANTLR4_GEN_ANTLRV_LEXER_H
 
-#include "third_party/antlr/v4/cpp/antlr4-runtime.h"
+#include "antlr4-runtime.h"
 
 namespace antlr4_grammar {
 

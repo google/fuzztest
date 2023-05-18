@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Tools.
-
-package(default_visibility = ["//visibility:public"])
-
-licenses(["notice"])
-
-sh_binary(
-    name = "minimizer",
-    srcs = ["minimizer.sh"],
-)
-
-cc_binary(
-    name = "grammar_domain_code_generator",
-    srcs = ["grammar_domain_code_generator.cc"],
-    deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_fuzztest//fuzztest:logging",
-        "@com_google_fuzztest//grammar_codegen:code_generation",
+cc_library(
+    name = "json",
+    hdrs = [
+        "single_include/nlohmann/json.hpp",
+        "single_include/nlohmann/json_fwd.hpp",
     ],
+    includes = ["single_include"],
+    visibility = ["//visibility:public"],
 )

@@ -36,7 +36,7 @@
 #define ANTLR4_GEN_ANTLRV_PARSERBASELISTENER_H
 
 #include "ANTLRv4ParserListener.h"
-#include "third_party/antlr/v4/cpp/antlr4-runtime.h"
+#include "antlr4-runtime.h"
 
 namespace antlr4_grammar {
 

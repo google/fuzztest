@@ -12,24 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Tools.
+# Commonly used grammars.
+
+load(
+    "//build_defs:cc_fuzztest_grammar_library.bzl",
+    "cc_fuzztest_grammar_library",
+)
 
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
 
-sh_binary(
-    name = "minimizer",
-    srcs = ["minimizer.sh"],
-)
+exports_files(["JSON.g4"])
 
-cc_binary(
-    name = "grammar_domain_code_generator",
-    srcs = ["grammar_domain_code_generator.cc"],
-    deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_fuzztest//fuzztest:logging",
-        "@com_google_fuzztest//grammar_codegen:code_generation",
-    ],
+cc_fuzztest_grammar_library(
+    name = "json_grammar",
+    srcs = ["JSON.g4"],
 )

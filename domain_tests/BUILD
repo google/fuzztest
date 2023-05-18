@@ -94,6 +94,21 @@ cc_test(
 )
 
 cc_test(
+    name = "in_grammar_domain_test",
+    srcs = ["in_grammar_domain_test.cc"],
+    deps = [
+        ":domain_testing",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/random",
+        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:serialization",
+        "@com_google_fuzztest//grammars:json_grammar",
+        "@com_google_googletest//:gtest_main",
+        "@com_nlohmann_json//:json",
+    ],
+)
+
+cc_test(
     name = "in_regexp_domain_test",
     srcs = ["in_regexp_domain_test.cc"],
     deps = [
