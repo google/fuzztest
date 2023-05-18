@@ -27,6 +27,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -313,17 +314,21 @@ void ConstructorWithDomains(const std::string& s) {
 }
 FUZZ_TEST(MySuite, ConstructorWithDomains).WithDomains(RepeatedStringDomain());
 
+constexpr bool IsSafeMul(uint32_t m, uint32_t n) {
+  return n == 0 || m <= std::numeric_limits<uint32_t>::max() / n;
+}
+
 auto SeedInputIsUsedForMutation(const std::vector<uint32_t>& s) {
   // Make it very hard for coverage to find the value.
   // Will only abort() if seed input is mutated, i.e., if element `0xbad` is
   // removed.
-  if (s.size() == 4) {
-    if (s[0] == 0 || s[1] == 0 || s[2] == 0 || s[3] == 0) {
-      return;
-    } else if (s[0] * 19 == 1979 * s[1] && 1234 * s[3] == s[2] * 5678) {
-      std::abort();
-    }
+  if (s.size() != 4) return;
+  if (s[0] == 0 || s[1] == 0 || s[2] == 0 || s[3] == 0) return;
+  if (!(IsSafeMul(s[0], 19) && IsSafeMul(s[1], 1979) && IsSafeMul(s[2], 5678) &&
+        IsSafeMul(s[3], 1234))) {
+    return;
   }
+  if (s[0] * 19 == 1979 * s[1] && 1234 * s[3] == s[2] * 5678) std::abort();
 }
 FUZZ_TEST(MySuite, SeedInputIsUsedForMutation)
     .WithSeeds({{{1979, 19, 1234, 0xbad, 5678}}});
