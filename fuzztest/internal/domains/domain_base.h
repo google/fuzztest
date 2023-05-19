@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -27,7 +28,6 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -232,29 +232,49 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   }
 
   // Stores `seeds` to be occasionally sampled from during value initialization.
+  // When called multiple times, appends to the previously added seeds.
+  //
+  // Note: Beware of the weird corner case when calling `.WithSeeds({0})`. This
+  // will result in an ambiguous call, since `{0}` can be interpreted as
+  // `std::function`. Use `.WithSeeds(std::vector{0})` instead.
   std::enable_if_t<std::is_copy_constructible_v<CorpusType>, Derived&>
-  WithSeeds(absl::Span<const ValueType> seeds) {
-    seeds_.clear();
-    seeds_.reserve(seeds.size());
+  WithSeeds(const std::vector<ValueType>& seeds) {
+    seeds_.reserve(seeds_.size() + seeds.size());
     for (const ValueType& seed : seeds) {
-      std::optional<CorpusType> corpus_seed = derived().FromValue(seed);
-      if (!corpus_seed.has_value()) {
-        // This may run during fuzz test registration (i.e., global variable
-        // initialization), so we can't use `GetStderr()`.
-        absl::FPrintF(stderr, "[!] Invalid seed value:\n\n{");
-        AutodetectTypePrinter<ValueType>().PrintUserValue(
-            seed, &std::cerr, PrintMode::kHumanReadable);
-        absl::FPrintF(stderr, "}\n");
-        std::exit(1);
-      }
-      seeds_.push_back(*std::move(corpus_seed));
+      std::optional<CorpusType> corpus_value = derived().FromValue(seed);
+      if (!corpus_value.has_value()) ReportBadSeedAndExit(seed);
+
+      bool valid = derived().ValidateCorpusValue(*corpus_value);
+      if (!valid) ReportBadSeedAndExit(seed);
+
+      seeds_.push_back(*std::move(corpus_value));
     }
+    return derived();
+  }
+
+  // The type of a function that generates a vector of seeds.
+  using SeedProvider = std::function<std::vector<ValueType>()>;
+
+  // Stores `seed_provider` to be called lazily the first time the seeds are
+  // needed. The generated seeds are appended to any explicitly stored seeds.
+  //
+  // This overload can be used when the seeds need to be initialized
+  // dynamically. For example, if the seeds depend on any global variables, this
+  // is a way to resolve the static initialization order fiasco.
+  std::enable_if_t<std::is_copy_constructible_v<CorpusType>, Derived&>
+  WithSeeds(SeedProvider seed_provider) {
+    seed_provider_ = std::move(seed_provider);
     return derived();
   }
 
  protected:
   // `Derived::Init()` can use this to sample seeds for this domain.
-  std::optional<CorpusType> MaybeGetRandomSeed(absl::BitGenRef prng) const {
+  std::optional<CorpusType> MaybeGetRandomSeed(absl::BitGenRef prng) {
+    if (seed_provider_ != nullptr) {
+      WithSeeds(std::invoke(seed_provider_));
+      seed_provider_ = nullptr;
+    }
+
     static constexpr double kProbabilityToReturnSeed = 0.5;
     if (seeds_.empty() || !absl::Bernoulli(prng, kProbabilityToReturnSeed)) {
       return std::nullopt;
@@ -266,7 +286,18 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
+  static void ReportBadSeedAndExit(const ValueType& seed) {
+    // This may run during fuzz test registration (i.e., global variable
+    // initialization), so we can't use `GetStderr()`.
+    absl::FPrintF(stderr, "[!] Invalid seed value:\n\n{");
+    AutodetectTypePrinter<ValueType>().PrintUserValue(
+        seed, &std::cerr, PrintMode::kHumanReadable);
+    absl::FPrintF(stderr, "}\n");
+    std::exit(1);
+  }
+
   std::vector<CorpusType> seeds_;
+  SeedProvider seed_provider_;
 };
 
 }  //  namespace fuzztest::internal
