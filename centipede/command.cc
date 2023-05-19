@@ -250,11 +250,14 @@ absl::Status Command::VerifyForkServerIsHealthy() {
         "Failed to stat fork server's /proc/<PID>/exe symlink, PID=",
         fork_server_->pid_));
   }
-  if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
-      proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
-    return absl::UnknownError(absl::StrCat(
-        "Fork server's /proc/<PID>/exe symlink changed (new process?), PID=",
-        fork_server_->pid_));
+  // TODO(b/281882892): Disable for now. Find a proper solution later.
+  if constexpr (false) {
+    if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
+        proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
+      return absl::UnknownError(absl::StrCat(
+          "Fork server's /proc/<PID>/exe symlink changed (new process?), PID=",
+          fork_server_->pid_));
+    }
   }
   return absl::OkStatus();
 }
