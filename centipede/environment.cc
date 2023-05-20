@@ -569,7 +569,7 @@ std::string Environment::MakeRUsageReportPath(
 
 bool Environment::DumpCorpusTelemetryInThisShard() const {
   // Corpus stats are global across all shards on all machines.
-  return my_shard_index == 0;
+  return my_shard_index == 0 && telemetry_frequency != 0;
 }
 
 bool Environment::DumpRUsageTelemetryInThisShard() const {
@@ -581,7 +581,7 @@ bool Environment::DumpRUsageTelemetryInThisShard() const {
 
 bool Environment::DumpTelemetryForThisBatch(size_t batch_index) const {
   // Always dump for batch 0 (i.e. at the beginning of execution).
-  if (batch_index == 0) {
+  if (telemetry_frequency != 0 && batch_index == 0) {
     return true;
   }
   // Special mode for negative --telemetry_frequency: dump when batch_index

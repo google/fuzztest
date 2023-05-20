@@ -104,7 +104,8 @@ test_debug_symbols() {
   # TODO(b/282845630): Passing `--num_runs=1` only to trigger telemetry dumping.
   #  Change to `--num_runs=0` after the bug is fixed.
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1 \
-    --symbolizer_path="${LLVM_SYMBOLIZER}" 2>&1 | tee -a "${LOG}"
+    --telemetry_frequency=1 --symbolizer_path="${LLVM_SYMBOLIZER}" 2>&1 \
+    | tee -a "${LOG}"
   centipede::assert_regex_in_file "FUNC: SingleEdgeFunc" "${LOG}"
   centipede::assert_regex_in_file "FUNC: MultiEdgeFunc" "${LOG}"
   centipede::assert_regex_in_file "EDGE: MultiEdgeFunc" "${LOG}"
