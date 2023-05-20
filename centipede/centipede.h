@@ -187,7 +187,7 @@ class Centipede {
   Stats &stats_;
 
   // Counts the number of crashes reported so far.
-  int num_crash_reports_ = 0;
+  int num_crashes_ = 0;
 
   // Scratch object for AddPcPairFeatures.
   std::vector<size_t> add_pc_pair_scratch_;

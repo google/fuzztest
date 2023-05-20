@@ -219,6 +219,7 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   LogIfNotZero(fs_.CountFeatures(feature_domains::kUserDefined), "usr");
   os << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal();
   LogIfNotZero(coverage_frontier_.NumFunctionsInFrontier(), "fr");
+  LogIfNotZero(num_crashes_, "crash");
   os << " max/avg: " << max_corpus_size << "/" << avg_corpus_size << " "
      << corpus_.MemoryUsageString();
   os << " exec/s: " << execs_per_sec;
@@ -742,13 +743,13 @@ void Centipede::ReportCrash(std::string_view binary,
   CHECK_EQ(input_vec.size(), batch_result.results().size());
   if (EarlyExitRequested()) return;
 
-  if (num_crash_reports_ >= env_.max_num_crash_reports) return;
+  if (++num_crashes_ > env_.max_num_crash_reports) return;
 
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
 
   const std::string log_prefix =
-      absl::StrCat("ReportCrash[", num_crash_reports_, "]: ");
+      absl::StrCat("ReportCrash[", num_crashes_, "]: ");
 
   LOG(INFO) << log_prefix << "Batch execution failed:"
             << "\nBinary               : " << binary
@@ -764,7 +765,7 @@ void Centipede::ReportCrash(std::string_view binary,
   }
   LOG(INFO).NoPrefix() << "\n";
 
-  LOG_IF(INFO, ++num_crash_reports_ == env_.max_num_crash_reports)
+  LOG_IF(INFO, num_crashes_ == env_.max_num_crash_reports)
       << log_prefix
       << "Reached --max_num_crash_reports: further reports will be suppressed";
 
