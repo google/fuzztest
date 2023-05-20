@@ -139,10 +139,10 @@ std::string Command::ToString() const {
 bool Command::StartForkServer(std::string_view temp_dir_path,
                               std::string_view prefix) {
   if (absl::StartsWith(path_, kNoForkServerRequestPrefix)) {
-    LOG(INFO) << "Fork server disabled for " << path();
+    VLOG(2) << "Fork server disabled for " << path();
     return false;
   }
-  LOG(INFO) << "Starting fork server for " << path();
+  VLOG(2) << "Starting fork server for " << path();
 
   fork_server_.reset(new ForkServerProps);
   fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
@@ -172,7 +172,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
       fork_server_->fifo_path_[1], command_line_, pid_file_path);
-  LOG(INFO) << "Fork server command:" << fork_server_command;
+  VLOG(2) << "Fork server command:" << fork_server_command;
 
   const int exit_code = system(fork_server_command.c_str());
 
