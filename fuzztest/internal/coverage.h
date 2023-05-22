@@ -191,6 +191,8 @@ class ExecutionCoverage {
   bool is_tracing_ = false;
 };
 
+// Set the singleton ExecutionCoverage object.
+void SetExecutionCoverage(ExecutionCoverage* value);
 // Returns the singleton ExecutionCoverage object.
 ExecutionCoverage* GetExecutionCoverage();
 

@@ -106,6 +106,7 @@ cc_library(
     hdrs = [
         "domain.h",
         "internal/domains/aggregate_of_impl.h",
+        "internal/domains/arbitrary_fundamental_impl.h",
         "internal/domains/arbitrary_impl.h",
         "internal/domains/bit_flag_combination_of_impl.h",
         "internal/domains/container_mutation_helpers.h",
@@ -151,6 +152,36 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+# A subset of domain implementation for containers and fundamental types,
+# mainly used by the Centipede mutation.
+cc_library(
+    name = "fundamental_container_domain",
+    hdrs = [
+        "internal/domains/arbitrary_fundamental_impl.h",
+        "internal/domains/container_mutation_helpers.h",
+        "internal/domains/container_of_impl.h",
+        "internal/domains/domain_base.h",
+        "internal/domains/value_mutation_helpers.h",
+    ],
+    visibility = ["@com_google_fuzztest//centipede:__subpackages__"],
+    deps = [
+        ":any",
+        ":coverage",
+        ":logging",
+        ":meta",
+        ":serialization",
+        ":table_of_recent_compares",
+        ":type_support",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
