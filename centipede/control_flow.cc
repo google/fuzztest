@@ -150,6 +150,8 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
 
     // Record the list of successors
     graph_[curr_pc] = std::move(successors);
+    // TODO(ussuri): Remove after debugging.
+    VLOG(100) << "Added PC: " << curr_pc;
 
     // Iterate over callees.
     while (cf_table[j]) {
@@ -173,7 +175,7 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
 const std::vector<uintptr_t> &ControlFlowGraph::GetSuccessors(
     uintptr_t basic_block) const {
   auto it = graph_.find(basic_block);
-  CHECK(it != graph_.end());
+  CHECK(it != graph_.end()) << VV(basic_block);
   return it->second;
 }
 
