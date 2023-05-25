@@ -100,11 +100,12 @@ cc_test(
     ],
 )
 
+# The core domain library without external dependencies e.g. re2. Mainly used
+# by the default Centipede mutation.
 cc_library(
-    name = "domain",
-    srcs = ["internal/domains/in_grammar_impl.cc"],
+    name = "domain_core",
     hdrs = [
-        "domain.h",
+        "domain_core.h",
         "internal/domains/aggregate_of_impl.h",
         "internal/domains/arbitrary_impl.h",
         "internal/domains/bit_flag_combination_of_impl.h",
@@ -114,32 +115,29 @@ cc_library(
         "internal/domains/element_of_impl.h",
         "internal/domains/filter_impl.h",
         "internal/domains/flat_map_impl.h",
-        "internal/domains/in_grammar_impl.h",
         "internal/domains/in_range_impl.h",
-        "internal/domains/in_regexp_impl.h",
         "internal/domains/map_impl.h",
         "internal/domains/one_of_impl.h",
         "internal/domains/optional_of_impl.h",
-        "internal/domains/protobuf_domain_impl.h",
         "internal/domains/serialization_helpers.h",
         "internal/domains/smart_pointer_of_impl.h",
         "internal/domains/unique_elements_container_of_impl.h",
         "internal/domains/value_mutation_helpers.h",
         "internal/domains/variant_of_impl.h",
     ],
-    # Public for cc_fuzztest_grammar_library rule.
-    visibility = ["//visibility:public"],
+    visibility = [
+        "@com_google_fuzztest//centipede:__subpackages__",
+        "@com_google_fuzztest//domain_tests:__pkg__",
+    ],
     deps = [
         ":absl_helpers",
         ":any",
         ":coverage",
         ":logging",
         ":meta",
-        ":regexp_dfa",
         ":serialization",
         ":table_of_recent_compares",
         ":type_support",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/numeric:bits",
@@ -149,8 +147,38 @@ cc_library(
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "domain",
+    srcs = ["internal/domains/in_grammar_impl.cc"],
+    hdrs = [
+        "domain.h",
+        "internal/domains/in_grammar_impl.h",
+        "internal/domains/in_regexp_impl.h",
+        "internal/domains/protobuf_domain_impl.h",
+    ],
+    # Public for cc_fuzztest_grammar_library rule.
+    visibility = ["//visibility:public"],
+    deps = [
+        ":any",
+        ":domain_core",
+        ":logging",
+        ":meta",
+        ":regexp_dfa",
+        ":serialization",
+        ":type_support",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -162,6 +190,7 @@ cc_library(
     deps = [
         ":any",
         ":domain",
+        ":domain_core",
         ":logging",
         ":registration",
         ":type_support",
@@ -292,6 +321,7 @@ cc_library(
     hdrs = ["internal/registration.h"],
     deps = [
         ":domain",
+        ":domain_core",
         ":meta",
         ":type_support",
         "@com_google_absl//absl/functional:any_invocable",
@@ -321,6 +351,7 @@ cc_library(
     deps = [
         ":coverage",
         ":domain",
+        ":domain_core",
         ":fixture_driver",
         ":io",
         ":logging",

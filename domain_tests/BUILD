@@ -69,6 +69,7 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest:absl_helpers",
         "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@com_google_fuzztest//fuzztest:type_support",

@@ -413,6 +413,7 @@ add_library(
   OBJECT
   internal/domains/in_grammar_impl.cc
   domain.h
+  domain_core.h
   internal/domains/aggregate_of_impl.h
   internal/domains/arbitrary_impl.h
   internal/domains/bit_flag_combination_of_impl.h
