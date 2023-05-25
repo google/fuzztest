@@ -1,0 +1,91 @@
+// Copyright 2023 The Centipede Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "./centipede/fuzztest_mutator.h"
+
+#include "./fuzztest/domain_core.h"
+
+namespace centipede {
+
+namespace {
+
+using MutatorDomainBase =
+    decltype(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>()));
+
+}  // namespace
+
+class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
+ public:
+  MutatorDomain()
+      : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {}
+};
+
+FuzzTestMutator::FuzzTestMutator(uint64_t seed)
+    : prng_(std::seed_seq({seed, seed >> 32})),
+      domain_(std::make_unique<MutatorDomain>()) {
+  domain_->WithMinSize(1).WithMaxSize(max_len_);
+  if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
+    auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
+    execution_coverage->SetIsTracing(true);
+    fuzztest::internal::SetExecutionCoverage(execution_coverage);
+  }
+}
+
+FuzzTestMutator::~FuzzTestMutator() = default;
+
+void FuzzTestMutator::MutateMany(const std::vector<ByteArray>& inputs,
+                                 size_t num_mutants,
+                                 std::vector<ByteArray>& mutants) {
+  mutants.clear();
+  mutants.reserve(num_mutants);
+  for (int i = 0; i < num_mutants; ++i) {
+    auto mutant = inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())];
+    if (mutant.size() > max_len_) mutant.resize(max_len_);
+    domain_->Mutate(mutant, prng_, /*only_shrink=*/false);
+    mutants.push_back(std::move(mutant));
+  }
+}
+
+bool FuzzTestMutator::SetCmpDictionary(ByteSpan cmp_data) {
+  size_t i = 0;
+  while (i < cmp_data.size()) {
+    auto size = cmp_data[i];
+    if (size < kMinCmpEntrySize) return false;
+    if (size > kMaxCmpEntrySize) return false;
+    if (i + 2 * size + 1 > cmp_data.size()) return false;
+    const uint8_t* a = cmp_data.begin() + i + 1;
+    const uint8_t* b = cmp_data.begin() + i + size + 1;
+    // Use the memcmp table to avoid subtlety of the container domain mutation
+    // with integer tables. E.g. it won't insert integer comparison data.
+    fuzztest::internal::GetExecutionCoverage()
+        ->GetTablesOfRecentCompares()
+        .GetMutable<0>()
+        .Insert(a, b, size);
+    i += 1 + 2 * size;
+  }
+  return true;
+}
+
+bool FuzzTestMutator::set_max_len(size_t max_len) {
+  max_len_ = max_len;
+  domain_->WithMaxSize(max_len);
+  return true;
+}
+
+void FuzzTestMutator::AddToDictionary(
+    const std::vector<ByteArray>& dict_entries) {
+  domain_->WithDictionary(dict_entries);
+}
+
+}  // namespace centipede

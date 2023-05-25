@@ -589,6 +589,17 @@ cc_library(
 )
 
 cc_library(
+    name = "fuzztest_mutator",
+    srcs = ["fuzztest_mutator.cc"],
+    hdrs = ["fuzztest_mutator.h"],
+    deps = [
+        ":defs",
+        "@com_google_absl//absl/random",
+        "@com_google_fuzztest//fuzztest:domain_core",
+    ],
+)
+
+cc_library(
     name = "weak_sancov_stubs",
     srcs = ["weak_sancov_stubs.cc"],
     alwayslink = 1,
@@ -907,6 +918,18 @@ cc_test(
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "fuzztest_mutator_test",
+    srcs = ["fuzztest_mutator_test.cc"],
+    deps = [
+        ":defs",
+        ":fuzztest_mutator",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
