@@ -10,7 +10,7 @@ function(fuzztest_grammar_library lib_name)
     add_custom_command(
       OUTPUT ${${lib_name}_output_file}
       COMMAND
-        ${CMAKE_BINARY_DIR}/tools/grammar_domain_code_generator
+        $<TARGET_FILE:grammar_domain_code_generator>
         --input_grammar_files ${all_grammar_files}
         --output_header_file_path
           ${CMAKE_CURRENT_BINARY_DIR}/${${lib_name}_output_file}
@@ -26,7 +26,7 @@ function(fuzztest_grammar_library lib_name)
     target_include_directories(
       ${lib_name}
       INTERFACE
-      ${CMAKE_BINARY_DIR}
+      ${CMAKE_CURRENT_BINARY_DIR}/..
     )
 
     add_dependencies(

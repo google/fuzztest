@@ -13,6 +13,10 @@ if (FUZZTEST_TESTING)
     PUBLIC
     protobuf::libprotobuf
   )
+
+  # The output dir of `test_protobuf` might not be created by `protobuf_generate`.
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/internal)
+
   protobuf_generate(
     TARGET
     test_protobuf
@@ -21,7 +25,11 @@ if (FUZZTEST_TESTING)
     PROTOC_OUT_DIR
     ${CMAKE_CURRENT_BINARY_DIR}/internal
   )
-  include_directories("${CMAKE_BINARY_DIR}")
+  target_include_directories(
+    test_protobuf
+    PUBLIC
+    "${CMAKE_CURRENT_BINARY_DIR}/.."
+  )
 endif ()
 
 # TODO: introduce similar functions to absl_cc_library and absl_cc_test to ease
