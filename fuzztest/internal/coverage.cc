@@ -57,6 +57,10 @@ constexpr uint8_t BitWidth(uint8_t x) {
 
 ExecutionCoverage* execution_coverage_instance = nullptr;
 
+void SetExecutionCoverage(ExecutionCoverage *value) {
+  execution_coverage_instance = value;
+}
+
 ExecutionCoverage* GetExecutionCoverage() {
   return execution_coverage_instance;
 }
