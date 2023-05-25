@@ -65,7 +65,7 @@ $ git clone https://github.com/google/fuzztest.git
 Create a `CMakeLists.txt`.
 
 ```
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.19)
 project(first_fuzz_project)
 
 # GoogleTest requires at least C++17

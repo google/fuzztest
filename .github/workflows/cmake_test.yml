@@ -36,7 +36,10 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            clang libprotobuf-dev protobuf-compiler ninja-build cmake
+            clang libprotobuf-dev protobuf-compiler
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "3.19.0"  # Use exactly 3.19.0. And it also installs the latest ninja
       - name: Run all tests in default mode
         if: matrix.mode == 'default'
         run: |
