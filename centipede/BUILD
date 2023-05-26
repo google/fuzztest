@@ -463,6 +463,7 @@ cc_library(
         ":environment",
         ":execution_request",
         ":execution_result",
+        ":fuzztest_mutator",
         ":knobs",
         ":logging",
         ":shared_memory_blob_sequence",

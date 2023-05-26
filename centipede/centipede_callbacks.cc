@@ -261,7 +261,9 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
   ReadFromLocalFile(dictionary_path, text);
   std::vector<ByteArray> entries;
   if (ParseAFLDictionary(text, entries) && !entries.empty()) {
-    byte_array_mutator_.AddToDictionary(entries);
+    env_.use_legacy_default_mutator
+        ? byte_array_mutator_.AddToDictionary(entries)
+        : fuzztest_mutator_.AddToDictionary(entries);
     LOG(INFO) << "Loaded " << entries.size()
               << " dictionary entries from AFL/libFuzzer dictionary "
               << dictionary_path;
@@ -273,7 +275,9 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
   UnpackBytesFromAppendFile(packed_dictionary, &unpacked_dictionary);
   CHECK(!unpacked_dictionary.empty())
       << "Empty or corrupt dictionary file: " << dictionary_path;
-  byte_array_mutator_.AddToDictionary(unpacked_dictionary);
+  env_.use_legacy_default_mutator
+      ? byte_array_mutator_.AddToDictionary(unpacked_dictionary)
+      : fuzztest_mutator_.AddToDictionary(unpacked_dictionary);
   LOG(INFO) << "Loaded " << unpacked_dictionary.size()
             << " dictionary entries from " << dictionary_path;
   return unpacked_dictionary.size();

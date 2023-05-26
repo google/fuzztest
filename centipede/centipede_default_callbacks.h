@@ -20,6 +20,7 @@
 #define THIRD_PARTY_CENTIPEDE_CENTIPEDE_DEFAULT_CALLBACKS_H_
 
 #include <cstddef>
+#include <memory>
 #include <string_view>
 #include <vector>
 

@@ -64,7 +64,7 @@ void CentipedeDefaultCallbacks::Mutate(const std::vector<ByteArray> &inputs,
     return;
   }
   // No custom mutator.
-  byte_array_mutator_.MutateMany(inputs, num_mutants, mutants);
+  CentipedeCallbacks::Mutate(inputs, num_mutants, mutants);
 }
 
 }  // namespace centipede

@@ -60,6 +60,7 @@ struct Environment {
   size_t max_len;
   size_t batch_size;
   size_t mutate_batch_size;
+  bool use_legacy_default_mutator;
   size_t load_other_shard_frequency;
   bool serialize_shard_loads;
   size_t seed;

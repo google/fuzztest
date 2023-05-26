@@ -85,6 +85,9 @@ ABSL_FLAG(size_t, batch_size, 1000,
     });
 ABSL_FLAG(size_t, mutate_batch_size, 2,
           "Mutate this many inputs to produce batch_size mutants");
+ABSL_FLAG(bool, use_legacy_default_mutator, false,
+          "When set, use the legacy ByteArrayMutator as the default mutator. "
+          "Otherwise, the FuzzTest domain based mutator will be used.");
 ABSL_FLAG(size_t, load_other_shard_frequency, 10,
           "Load a random other shard after processing this many batches. Use 0 "
           "to disable loading other shards.  For now, choose the value of this "
@@ -368,6 +371,8 @@ Environment::Environment(const std::vector<std::string> &argv)
       max_len(absl::GetFlag(FLAGS_max_len)),
       batch_size(absl::GetFlag(FLAGS_batch_size)),
       mutate_batch_size(absl::GetFlag(FLAGS_mutate_batch_size)),
+      use_legacy_default_mutator(
+          absl::GetFlag(FLAGS_use_legacy_default_mutator)),
       load_other_shard_frequency(
           absl::GetFlag(FLAGS_load_other_shard_frequency)),
       serialize_shard_loads(absl::GetFlag(FLAGS_serialize_shard_loads)),
@@ -626,7 +631,9 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"use_dataflow_features", &use_dataflow_features},
       {"use_counter_features", &use_counter_features},
       {"use_pcpair_features", &use_pcpair_features},
-      {"use_coverage_frontier", &use_coverage_frontier}};
+      {"use_coverage_frontier", &use_coverage_frontier},
+      {"use_legacy_default_mutator", &use_legacy_default_mutator},
+  };
   auto bool_iter = bool_flags.find(name);
   if (bool_iter != bool_flags.end()) {
     *bool_iter->second = GetBoolFlag(value);

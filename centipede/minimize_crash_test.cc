@@ -45,12 +45,6 @@ class MinimizerMock : public CentipedeCallbacks {
     return true;
   }
 
-  // Runs simple mutations.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    byte_array_mutator_.MutateMany(inputs, num_mutants, mutants);
-  }
-
  private:
   // Returns true on inputs that look like 'f???u???z', false otherwise.
   // The minimal input on which this function returns true is 'fuz'.
