@@ -143,12 +143,20 @@ ABSL_FLAG(size_t, timeout_per_batch, 0,
 ABSL_FLAG(absl::Time, stop_at, absl::InfiniteFuture(),
           "Stop fuzzing in all shards (--total_shards) at approximately this "
           "time in ISO-8601/RFC-3339 format, e.g. 2023-04-06T23:35:02Z. "
-          "If a given shard is still running all its --num_runs inputs "
-          "at that time, it will gracefully wind down by letting the current "
-          "batch of inputs to finish and then exiting. Tip: use `date` to "
-          "conveniently specify this flag: "
-          "--stop_at=$(date --date='+45 minutes' --utc --iso-8601=seconds). "
-          "A special value 'infinite-future' (the default) is also supported.");
+          "If a given shard is still running at that time, it will gracefully "
+          "wind down by letting the current batch of inputs to finish and then "
+          "exiting. A special value 'infinite-future' (the default) is "
+          "supported. Tip: `date` is useful for conversion of mostly free "
+          "format human readable date/time strings, e.g. "
+          "--stop_at=$(date --date='next Monday 6pm' --utc --iso-8601=seconds) "
+          ". Also see --stop_after. If both are specified, the last one wins.");
+ABSL_FLAG(absl::Duration, stop_after, absl::InfiniteDuration(),
+          "Equivalent to setting --stop_at to the current date/time + this "
+          "duration. If both flags are specified, the last one wins.")
+    .OnUpdate([]() {
+      absl::SetFlag(  //
+          &FLAGS_stop_at, absl::Now() + absl::GetFlag(FLAGS_stop_after));
+    });
 ABSL_FLAG(bool, fork_server, true,
           "If true (default) tries to execute the target(s) via the fork "
           "server, if supported by the target(s). Prepend the binary path with "
