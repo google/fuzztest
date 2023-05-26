@@ -66,12 +66,16 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
               << "\nThe binary should be built with clang 16 and with "
                  "-fsanitize-coverage=control-flow flag.";
   } else {
-    // Construct call-graph and cfg using loaded cf_table.
-    binary_info.control_flow_graph.InitializeControlFlowGraph(
-        binary_info.cf_table, binary_info.pc_table);
-
-    binary_info.call_graph.InitializeCallGraph(binary_info.cf_table,
-                                               binary_info.pc_table);
+    // Construct call-graph and cfg using loaded cf_table and pc_table.
+    // TODO(b/284044008): These two are currently used only inside
+    //  `CoverageFrontier`, so we can mask the bug's failure by conditionally
+    //  initilizing them like this.
+    if (env_.use_coverage_frontier) {
+      binary_info.control_flow_graph.InitializeControlFlowGraph(
+          binary_info.cf_table, binary_info.pc_table);
+      binary_info.call_graph.InitializeCallGraph(binary_info.cf_table,
+                                                 binary_info.pc_table);
+    }
   }
 
   // Load Symbols.
