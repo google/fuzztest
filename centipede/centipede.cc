@@ -174,7 +174,8 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
       CHECK_OK(appender->Write(input));
       ++inputs_added;
     }
-    LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
+    LOG(INFO) << "Exported corpus from local dir: " << VV(local_dir)
+              << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
               << VV(num_shard_bytes) << VV(shard_data.size());
   }
   CHECK_EQ(total_paths, inputs_added + inputs_ignored);
@@ -447,8 +448,8 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
   if (pc_table_.empty()) return;
 
   auto coverage_path = env_.MakeCoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate coverage report: " << description << " "
-            << VV(coverage_path);
+  VLOG(2) << "Generate coverage report: " << description << " "
+          << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
   std::stringstream out;
@@ -460,8 +461,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
   auto stats_path = env_.MakeCorpusStatsPath(filename_annotation);
-  LOG(INFO) << "Generate corpus stats: " << description << " "
-            << VV(stats_path);
+  VLOG(2) << "Generate corpus stats: " << description << " " << VV(stats_path);
   std::ostringstream os;
   os << "# " << description << ":\n\n";
   corpus_.PrintStats(os, fs_);
@@ -475,8 +475,8 @@ void Centipede::GenerateSourceBasedCoverageReport(
 
   auto report_path =
       env_.MakeSourceBasedCoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate source based coverage report: " << description << " "
-            << VV(report_path);
+  VLOG(2) << "Generate source based coverage report: " << description << " "
+          << VV(report_path);
   RemoteMkdir(report_path);
 
   std::vector<std::string> raw_profiles = env_.EnumerateRawCoverageProfiles();
@@ -537,8 +537,8 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
       {__FILE__, __LINE__}, std::string{description});
   VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
   auto path = env_.MakeRUsageReportPath(filename_annotation);
-  LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
-            << description << " " << VV(path);
+  VLOG(2) << "Generate rusage report: " << VV(env_.my_shard_index)
+          << description << " " << VV(path);
   ReportDumper dumper{path};
   rusage_profiler_.GenerateReport(&dumper);
 }
