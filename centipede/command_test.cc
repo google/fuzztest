@@ -126,27 +126,19 @@ TEST(CommandTest, ForkServer) {
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 
-  // TODO(kcc): [impl] test what happens if the child is interrupted.
-}
+  {
+    const std::string input = "hang";
+    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    constexpr auto kTimeout = absl::Seconds(2);
+    Command cmd(helper, {input}, {}, log, log, kTimeout);
+    ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
+    EXPECT_EQ(cmd.Execute(), EXIT_FAILURE);
+    std::string log_contents;
+    ReadFromLocalFile(log, log_contents);
+    EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
+  }
 
-TEST(CommandDeathTest, ForkServerHangingBinary) {
-  GTEST_FLAG_SET(death_test_style, "threadsafe");
-  const std::string test_tmpdir = GetTestTempDir(test_info_->name());
-  const std::string input = "hang";
-  const std::string log = std::filesystem::path{test_tmpdir} / input;
-  EXPECT_DEATH(
-      {
-        const std::string helper =
-            GetDataDependencyFilepath("centipede/command_test_helper");
-        constexpr auto kTimeout = absl::Seconds(2);
-        Command hang(helper, {input}, {}, log, log, kTimeout);
-        ASSERT_TRUE(hang.StartForkServer(test_tmpdir, "ForkServer"));
-        hang.Execute();
-      },
-      "Timeout while waiting for fork server");
-  std::string log_contents;
-  ReadFromLocalFile(log, log_contents);
-  EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
+  // TODO(kcc): [impl] test what happens if the child is interrupted.
 }
 
 }  // namespace

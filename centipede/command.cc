@@ -302,15 +302,15 @@ int Command::Execute() {
     if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
-      LogProblemInfo("Failed to communicate with fork server");
       if (poll_ret == 0) {
-        LOG(FATAL) << "Timeout while waiting for fork server: " << VV(timeout_)
-                   << VV(command_line_);
+        LogProblemInfo(
+            absl::StrCat("Timeout while waiting for fork server: timeout is ",
+                         absl::FormatDuration(timeout_)));
       } else {
-        PLOG(FATAL) << "Error or interrupt while waiting for fork server: "
-                    << VV(poll_ret) << VV(poll_fd.revents) << VV(command_line_);
+        LogProblemInfo(absl::StrCat(
+            "Error while waiting for fork server: poll() returned ", poll_ret));
       }
-      __builtin_unreachable();
+      return EXIT_FAILURE;
     }
 
     // The fork server wrote the execution result to the pipe: read it.
