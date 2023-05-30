@@ -103,7 +103,7 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:serialization",
-        "@com_google_fuzztest//grammars:json_grammar",
+        "@com_google_fuzztest//fuzztest/grammars:json_grammar",
         "@com_google_googletest//:gtest_main",
         "@com_nlohmann_json//:json",
     ],

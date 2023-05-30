@@ -22,7 +22,7 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
-#include "./grammars/json_grammar.h"
+#include "./fuzztest/grammars/json_grammar.h"
 #include "./fuzztest/internal/serialization.h"
 #include "nlohmann/json.hpp"
 

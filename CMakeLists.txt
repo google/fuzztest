@@ -50,7 +50,6 @@ endif ()
 
 add_subdirectory(grammar_codegen)
 add_subdirectory(tools)
-add_subdirectory(grammars)
 add_subdirectory(fuzztest)
 
 if (FUZZTEST_TESTING)
