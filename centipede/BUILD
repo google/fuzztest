@@ -54,6 +54,14 @@ cc_library(
     hdrs = ["int_utils.h"],
 )
 
+cc_library(
+    name = "rolling_hash",
+    hdrs = ["rolling_hash.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",  # exception, ok to depend on here.
+    ],
+)
+
 # This lib must have zero non-trivial dependencies (other than libc). See feature.h.
 cc_library(
     name = "feature",
@@ -751,6 +759,16 @@ cc_test(
     srcs = ["environment_test.cc"],
     deps = [
         ":environment",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "rolling_hash_test",
+    srcs = ["rolling_hash_test.cc"],
+    deps = [
+        ":feature",
+        ":rolling_hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
