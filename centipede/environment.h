@@ -79,7 +79,7 @@ struct Environment {
   bool use_pc_features;
   size_t path_level;
   bool use_cmp_features;
-  bool use_callstack_features;
+  size_t callstack_level;
   bool use_auto_dictionary;
   bool use_dataflow_features;
   bool use_counter_features;

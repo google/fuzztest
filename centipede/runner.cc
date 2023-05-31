@@ -357,7 +357,7 @@ PostProcessCoverage(int target_return_value) {
 
   // Iterate all threads and get features from TLS data.
   state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.use_callstack_features) {
+    if (state.run_time_flags.callstack_level != 0) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
@@ -366,7 +366,7 @@ PostProcessCoverage(int target_return_value) {
     }
   });
 
-  if (state.run_time_flags.use_callstack_features) {
+  if (state.run_time_flags.callstack_level != 0) {
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {
       g_features.push_back(
           centipede::feature_domains::kCallStack.ConvertToMe(idx));
@@ -692,7 +692,7 @@ static void SetLimits() {
   // No-op under ASAN/TSAN/MSAN - those may still rely on rss_limit_mb.
   if (vm_size_in_bytes < one_tb) {
     size_t address_space_limit_mb =
-        state.HasFlag(":address_space_limit_mb=", 0);
+        state.HasIntFlag(":address_space_limit_mb=", 0);
     if (address_space_limit_mb > 0) {
       size_t limit_in_bytes = address_space_limit_mb << 20;
       struct rlimit rlimit_as = {limit_in_bytes, limit_in_bytes};

@@ -188,9 +188,15 @@ ABSL_FLAG(bool, use_pc_features, true,
 ABSL_FLAG(bool, use_cmp_features, true,
           "When available from instrumentation, use features derived from "
           "instrumentation of CMP instructions.");
-ABSL_FLAG(bool, use_callstack_features, false,
+ABSL_FLAG(size_t, callstack_level, 0,
           "When available from instrumentation, use features derived from "
-          "observing the function call stack.");
+          "observing the function call stacks. 0 means no callstack features."
+          "Values between 1 and 100 define how aggressively to use the "
+          "callstacks. Level N roughly corresponds to N call frames.")
+    .OnUpdate([]() {
+      QCHECK_LE(absl::GetFlag(FLAGS_callstack_level), 100)
+          << "--" << FLAGS_callstack_level.Name() << " must be in [0,100]";
+    });
 ABSL_FLAG(bool, use_auto_dictionary, true,
           "If true, use automatically-generated dictionary derived from "
           "intercepting comparison instructions, memcmp, and similar.");
@@ -198,7 +204,11 @@ ABSL_FLAG(size_t, path_level, 0,  // Not ready for wide usage.
           "When available from instrumentation, use features derived from "
           "bounded execution paths. Be careful, may cause exponential feature "
           "explosion. 0 means no path features. Values between 1 and 100 "
-          "define how aggressively to use the paths.");
+          "define how aggressively to use the paths.")
+    .OnUpdate([]() {
+      QCHECK_LE(absl::GetFlag(FLAGS_path_level), 100)
+          << "--" << FLAGS_path_level.Name() << " must be in [0,100]";
+    });
 ABSL_FLAG(bool, use_dataflow_features, true,
           "When available from instrumentation, use features derived from "
           "data flows.");
@@ -403,7 +413,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       use_pc_features(absl::GetFlag(FLAGS_use_pc_features)),
       path_level(absl::GetFlag(FLAGS_path_level)),
       use_cmp_features(absl::GetFlag(FLAGS_use_cmp_features)),
-      use_callstack_features(absl::GetFlag(FLAGS_use_callstack_features)),
+      callstack_level(absl::GetFlag(FLAGS_callstack_level)),
       use_auto_dictionary(absl::GetFlag(FLAGS_use_auto_dictionary)),
       use_dataflow_features(absl::GetFlag(FLAGS_use_dataflow_features)),
       use_counter_features(absl::GetFlag(FLAGS_use_counter_features)),
@@ -634,7 +644,6 @@ void Environment::SetFlagForExperiment(std::string_view name,
   // Handle bool flags.
   absl::flat_hash_map<std::string, bool *> bool_flags{
       {"use_cmp_features", &use_cmp_features},
-      {"use_callstack_features", &use_callstack_features},
       {"use_auto_dictionary", &use_auto_dictionary},
       {"use_dataflow_features", &use_dataflow_features},
       {"use_counter_features", &use_counter_features},
@@ -651,6 +660,7 @@ void Environment::SetFlagForExperiment(std::string_view name,
   // Handle int flags.
   absl::flat_hash_map<std::string, size_t *> int_flags{
       {"path_level", &path_level},
+      {"callstack_level", &callstack_level},
       {"max_corpus_size", &max_corpus_size},
       {"max_len", &max_len},
       {"path_level", &path_level},

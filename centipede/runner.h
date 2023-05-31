@@ -57,7 +57,7 @@ struct RunTimeFlags {
   uint64_t use_pc_features : 1;
   uint64_t use_dataflow_features : 1;
   uint64_t use_cmp_features : 1;
-  uint64_t use_callstack_features : 1;
+  uint64_t callstack_level : 8;
   uint64_t use_counter_features : 1;
   uint64_t use_auto_dictionary : 1;
   uint64_t timeout_per_input;
@@ -135,17 +135,17 @@ struct GlobalRunnerState {
   // Flags.
   RunTimeFlags run_time_flags = {
       .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
-                             HasFlag(":path_level=", 0)),
+                             HasIntFlag(":path_level=", 0)),
       .use_pc_features = HasFlag(":use_pc_features:"),
       .use_dataflow_features = HasFlag(":use_dataflow_features:"),
       .use_cmp_features = HasFlag(":use_cmp_features:"),
-      .use_callstack_features = HasFlag(":use_callstack_features:"),
+      .callstack_level = HasIntFlag(":callstack_level=", 0),
       .use_counter_features = HasFlag(":use_counter_features:"),
       .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
-      .timeout_per_input = HasFlag(":timeout_per_input=", 0),
-      .timeout_per_batch = HasFlag(":timeout_per_batch=", 0),
-      .rss_limit_mb = HasFlag(":rss_limit_mb=", 0),
-      .crossover_level = HasFlag(":crossover_level=", 50)};
+      .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
+      .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
+      .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
+      .crossover_level = HasIntFlag(":crossover_level=", 50)};
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
@@ -157,7 +157,7 @@ struct GlobalRunnerState {
   // If a flag=value pair is present, returns value,
   // otherwise returns `default_value`.
   // Typical usage: pass ":some_flag=".
-  uint64_t HasFlag(const char *flag, uint64_t default_value) const {
+  uint64_t HasIntFlag(const char *flag, uint64_t default_value) const {
     if (!centipede_runner_flags) return default_value;
     const char *beg = strstr(centipede_runner_flags, flag);
     if (!beg) return default_value;

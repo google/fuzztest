@@ -207,8 +207,7 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
 static inline void HandleOnePc(PCGuard pc_guard) {
   state.pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
 
-  if (pc_guard.is_function_entry &&
-      state.run_time_flags.use_callstack_features) {
+  if (pc_guard.is_function_entry && state.run_time_flags.callstack_level != 0) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
     if (sp < tls.lowest_sp) tls.lowest_sp = sp;
     tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
