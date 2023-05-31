@@ -664,7 +664,6 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"max_corpus_size", &max_corpus_size},
       {"max_len", &max_len},
       {"crossover_level", &crossover_level},
-      {"path_level", &path_level},
       {"mutate_batch_size", &mutate_batch_size},
   };
   auto int_iter = int_flags.find(name);
