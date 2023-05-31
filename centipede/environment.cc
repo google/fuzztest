@@ -178,7 +178,7 @@ ABSL_FLAG(bool, use_coverage_frontier, false,
 ABSL_FLAG(size_t, max_corpus_size, 100000,
           "Indicates the number of inputs in the in-memory corpus after which"
           "more aggressive pruning will be applied.");
-ABSL_FLAG(int, crossover_level, 50,
+ABSL_FLAG(size_t, crossover_level, 50,
           "Defines how much crossover is used during mutations. 0 means no "
           "crossover, 100 means the most aggressive crossover. See "
           "https://en.wikipedia.org/wiki/Crossover_(genetic_algorithm).");
@@ -663,8 +663,10 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"callstack_level", &callstack_level},
       {"max_corpus_size", &max_corpus_size},
       {"max_len", &max_len},
+      {"crossover_level", &crossover_level},
       {"path_level", &path_level},
-      {"mutate_batch_size", &mutate_batch_size}};
+      {"mutate_batch_size", &mutate_batch_size},
+  };
   auto int_iter = int_flags.find(name);
   if (int_iter != int_flags.end()) {
     *int_iter->second = GetIntFlag(value);

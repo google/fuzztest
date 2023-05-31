@@ -75,7 +75,7 @@ struct Environment {
   bool use_corpus_weights;
   bool use_coverage_frontier;
   size_t max_corpus_size;
-  int crossover_level;
+  size_t crossover_level;
   bool use_pc_features;
   size_t path_level;
   bool use_cmp_features;
