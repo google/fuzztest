@@ -233,45 +233,6 @@ inline uintptr_t ABToCmpDiffLog(uintptr_t a, uintptr_t b) {
   return __builtin_clzll(a > b ? a - b : b - a);
 }
 
-// Fixed-size ring buffer that maintains a hash of its elements.
-// Create objects of this type as zero-initialized globals or thread-locals.
-// In a zero-initialized object all values and the hash are zero.
-// `kSize` indicates the maximum possible size for the ring-buffer.
-// The actual size is controlled by the `ring_buffer_size` argument of push().
-template <size_t kSize>
-class HashedRingBuffer {
- public:
-  // Adds `new_item` and returns the new hash of the entire collection.
-  // Evicts an old item.
-  // `ring_buffer_size` must be <= kSize and must be the same for all push()
-  // calls for a given object.
-  // We don't enforce these constraints here to avoid overhead.
-  // The hash function used:
-  // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
-  size_t push(size_t new_item, size_t ring_buffer_size) {
-    size_t new_pos = last_added_pos_ + 1;
-    if (new_pos >= ring_buffer_size) new_pos = 0;
-    size_t evicted_item = buffer_[new_pos];
-    new_item = Hash64Bits(new_item);
-    buffer_[new_pos] = new_item;
-    hash_ = RotateLeft(hash_, 1) ^ RotateLeft(evicted_item, ring_buffer_size) ^
-            new_item;
-    last_added_pos_ = new_pos;
-    return hash_;
-  }
-
-  // returns the current hash.
-  size_t hash() const { return hash_; }
-
-  // Zero-initialize the object.
-  void clear() { memset(this, 0, sizeof(*this)); }
-
- private:
-  size_t buffer_[kSize];   // All elements.
-  size_t last_added_pos_;  // Position of the last added element.
-  size_t hash_;            // XOR of all elements in buffer_.
-};
-
 // A simple fixed-capacity array with push_back.
 // Thread-compatible.
 template <size_t kSize>

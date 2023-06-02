@@ -28,6 +28,7 @@
 #include "absl/base/const_init.h"
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/concurrent_byteset.h"
+#include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/logging.h"
 
 namespace centipede {

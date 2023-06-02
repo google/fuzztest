@@ -32,6 +32,7 @@
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
+#include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/knobs.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
