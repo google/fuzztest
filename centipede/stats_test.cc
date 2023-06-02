@@ -35,6 +35,13 @@ TEST(Stats, PrintExperimentStats) {
   stats_vec[2].corpus_size = 3000;
   stats_vec[3].corpus_size = 4000;
 
+  for (size_t i = 0; i < 4; ++i) {
+    auto &stats = stats_vec[i];
+    stats.max_corpus_element_size = 2 * i + 1;
+    stats.avg_corpus_element_size = i + 1;
+    stats.num_executions = i + 100;
+  }
+
   std::vector<Environment> env_vec(4);
   env_vec[0].experiment_name = "Experiment A";
   env_vec[0].experiment_flags = "AAA";
@@ -54,6 +61,15 @@ TEST(Stats, PrintExperimentStats) {
       "Corpus size:\n"
       "Experiment A: min:\t1000\tmax:\t3000\tavg:\t2000\t--\t1000\t3000\n"
       "Experiment B: min:\t2000\tmax:\t4000\tavg:\t3000\t--\t2000\t4000\n"
+      "Max corpus element size:\n"
+      "Experiment A: min:\t1\tmax:\t5\tavg:\t3\t--\t1\t5\n"
+      "Experiment B: min:\t3\tmax:\t7\tavg:\t5\t--\t3\t7\n"
+      "Avg corpus element size:\n"
+      "Experiment A: min:\t1\tmax:\t3\tavg:\t2\t--\t1\t3\n"
+      "Experiment B: min:\t2\tmax:\t4\tavg:\t3\t--\t2\t4\n"
+      "Number of executions:\n"
+      "Experiment A: min:\t100\tmax:\t102\tavg:\t101\t--\t100\t102\n"
+      "Experiment B: min:\t101\tmax:\t103\tavg:\t102\t--\t101\t103\n"
       "Flags:\n"
       "Experiment A: AAA\n"
       "Experiment B: BBB\n";

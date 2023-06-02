@@ -81,6 +81,17 @@ void PrintExperimentStats(absl::Span<const Stats> stats_vec,
   os << "Corpus size:\n";
   PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
                                       &Stats::corpus_size);
+  os << "Max corpus element size:\n";
+  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
+                                      &Stats::max_corpus_element_size);
+
+  os << "Avg corpus element size:\n";
+  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
+                                      &Stats::avg_corpus_element_size);
+  os << "Number of executions:\n";
+  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
+                                      &Stats::num_executions);
+
   os << "Flags:\n";
   absl::flat_hash_set<std::string> printed_names;
   for (const auto &env : env_vec) {

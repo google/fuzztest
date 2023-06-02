@@ -182,8 +182,13 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
 
 void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
+  auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
+
   stats_.corpus_size = corpus_.NumActive();
   stats_.num_covered_pcs = fs_.CountFeatures(feature_domains::kPCs);
+  stats_.max_corpus_element_size = max_corpus_size;
+  stats_.avg_corpus_element_size = avg_corpus_size;
+  stats_.num_executions = num_runs_;
 
   if (env_.log_level < min_log_level) return;
 
@@ -194,7 +199,6 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   double execs_per_sec =
       fuzz_time_secs > 0 ? static_cast<double>(num_runs_) / fuzz_time_secs : 0;
   if (execs_per_sec > 1.) execs_per_sec = std::round(execs_per_sec);
-  auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
   static const auto rusage_scope = perf::RUsageScope::ThisProcess();
   auto num_cmp_features = fs_.CountFeatures(feature_domains::kCMP) +
                           fs_.CountFeatures(feature_domains::kCMPEq) +

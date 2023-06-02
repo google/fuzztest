@@ -33,6 +33,9 @@ namespace centipede {
 struct Stats {
   std::atomic<uint64_t> num_covered_pcs;
   std::atomic<uint64_t> corpus_size;
+  std::atomic<uint64_t> max_corpus_element_size;
+  std::atomic<uint64_t> avg_corpus_element_size;
+  std::atomic<uint64_t> num_executions;
 };
 
 // Takes a span of Stats objects `stats_vec` and the corresponding span of
