@@ -216,7 +216,10 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   LogIfNotZero(fs_.CountFeatures(feature_domains::kBoundedPath), "path");
   LogIfNotZero(fs_.CountFeatures(feature_domains::kPCPair), "pair");
   LogIfNotZero(fs_.CountFeatures(feature_domains::kCallStack), "stk");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kUserDefined), "usr");
+  for (size_t i = 0; i < std::size(feature_domains::kUserDomains); ++i) {
+    LogIfNotZero(fs_.CountFeatures(feature_domains::kUserDomains[i]),
+                 absl::StrCat("usr", i));
+  }
   os << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal();
   LogIfNotZero(coverage_frontier_.NumFunctionsInFrontier(), "fr");
   LogIfNotZero(num_crashes_, "crash");

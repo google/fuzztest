@@ -98,6 +98,32 @@ class Domain {
   const size_t domain_id_;
 };
 
+// Notes on Designing Features and Domains
+//
+// Abstractly, a "feature" signals that there was something interesting about
+// the input that Centipede should keep investigating. After seeing a particular
+// feature occur often enough, Centipede will become less interested.
+//
+// Generally, different types of features should be put in different domains.
+// This is useful for two reasons. First, Centipede can display the feature
+// count for each domain separately. Second, Centipede calculates features
+// weights relative to the size of the domain. If two different types of
+// features are squeezed into the same domain, an overabundance of one type of
+// feature can cause the other type of feature to be undervalued.
+//
+// The number of features can fit inside a particular domain is finite (see
+// kDomainSize). A feature outside that range will be mapped inside that range.
+// If the space of all possible features is larger than kDomainSize, it is
+// recommended that the feature value is hashed as it is calculated. Feature
+// spaces typically have some sort of internal structure and mapping a
+// structured feature space into kDomainSize via a modulus can create
+// predictable aliasing. Hashing the feature value reduces the worst case effect
+// of the feature aliasing. If hashing, it is also recommended that the domain
+// is defined in such a way so that the number of features actually discovered
+// in that domain stays below a fraction of kDomainSize, even if the number of
+// possible features is huge. The more feature aliasing that occurs in practice,
+// the less effective the domain.
+
 // Catch-all domain for unknown features.
 inline constexpr Domain kUnknown = {__COUNTER__};
 static_assert(kUnknown.domain_id() == 0);  // No one used __COUNTER__ before.
@@ -136,7 +162,14 @@ inline constexpr Domain kBoundedPath = {__COUNTER__};
 inline constexpr Domain kPCPair = {__COUNTER__};
 // Features defined by a user via
 // __attribute__((section("__centipede_extra_features"))).
-inline constexpr Domain kUserDefined = {__COUNTER__};
+// There is no hard guarantee how many user domains are available, feel free to
+// add or remove domains as needed.
+inline constexpr Domain kUserDomains[] = {
+    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
+    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
+    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
+    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
+};
 
 // A fake domain, not actually used, must be last.
 inline constexpr Domain kLastDomain = {__COUNTER__};

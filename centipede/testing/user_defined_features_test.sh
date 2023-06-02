@@ -40,6 +40,9 @@ centipede::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --num_runs=10000  2>&1 |tee "${LOG}"
 
-centipede::assert_regex_in_file "usr: [0-9]\{3,\} " "${LOG}"
+centipede::assert_regex_in_file "usr0: [0-9]\{3,\} " "${LOG}"
+centipede::assert_regex_in_file "usr1: [0-9]\{3,\} " "${LOG}"
+centipede::assert_regex_not_in_file "usr2: " "${LOG}"
+centipede::assert_regex_not_in_file "usr3: " "${LOG}"
 
 echo "PASS"

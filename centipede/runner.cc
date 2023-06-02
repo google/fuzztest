@@ -376,9 +376,18 @@ PostProcessCoverage(int target_return_value) {
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
-    if (auto feature = *p) {
+    if (auto user_feature = *p) {
+      // User domain ID is upper 32 bits
+      feature_t user_domain_id = user_feature >> 32;
+      // User feature ID is lower 32 bits.
+      feature_t user_feature_id = user_feature & ((1ULL << 32) - 1);
+      // There is no hard guarantee how many user domains are actually
+      // available. If a user domain ID is out of range, alias it to an existing
+      // domain. This is kinder than silently dropping the feature.
+      user_domain_id %= std::size(centipede::feature_domains::kUserDomains);
       g_features.push_back(
-          centipede::feature_domains::kUserDefined.ConvertToMe(feature));
+          centipede::feature_domains::kUserDomains[user_domain_id].ConvertToMe(
+              user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
   }
