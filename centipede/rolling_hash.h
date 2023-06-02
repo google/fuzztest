@@ -24,16 +24,17 @@ namespace centipede {
 // Computes a rolling hash for a fixed-size window in a sequence of 32-bit ints.
 // Inspired by https://en.wikipedia.org/wiki/Rolling_hash#Rabin_fingerprint.
 //
-// Objects of this type will typically be created as globals or TLS,
-// which is why we pass `window_size` via a separate function.
+// Objects of this class must be created as global or TLS.
+// The typical non-test usage is to create on TLS.
+// Which is why we pass `window_size` via a separate function.
+// There is no CTOR, the objects are zero-initialized.
+// We currently do not use a CTOR with absl::ConstInitType so that the objects
+// can be declared as __thread.
+// TODO(kcc): reconsider once we can use c++20; the current warning is
+// error: constexpr constructor that does not initialize all members is a
+// C++20 extension
 class RollingHash {
  public:
-  // Use this CTOR when creating objects with static lifetime.
-  explicit RollingHash(absl::ConstInitType) {}
-
-  // Use this CTOR for non-static-lifetime objects.
-  RollingHash() : hash_(0), multiplier_power_window_size_(0) {}
-
   // Resets the object to use the specified window size.
   void Reset(size_t window_size) {
     hash_ = 0;
@@ -44,9 +45,13 @@ class RollingHash {
   }
 
   // Updates the hash by adding `add` and removing `remove`.
-  void Update(uint32_t add, uint32_t remove) {
+  uint32_t Update(uint32_t hash, uint32_t add, uint32_t remove) const {
     // Intermediate computations are done in 64-bit.
-    hash_ = hash_ * kMultiplier - remove * multiplier_power_window_size_ + add;
+    return hash * kMultiplier - remove * multiplier_power_window_size_ + add;
+  }
+
+  void Update(uint32_t add, uint32_t remove) {
+    hash_ = Update(hash_, add, remove);
   }
 
   // Returns the hash as a 32-bit int.

@@ -29,6 +29,7 @@ namespace {
 // Simple test, calls OnFunctionEntry with fake sp values.
 TEST(CallStack, SimpleTest) {
   static CallStack<> cs;  // CallStack should be global/tls only.
+  cs.ResetWindowSize(10);
   constexpr uintptr_t pc0 = 100;
   constexpr uintptr_t pc1 = 101;
   constexpr uintptr_t pc2 = 102;
@@ -112,6 +113,7 @@ __attribute__((noinline)) void Func0() {
 // with real sp values (and fake PCs).
 TEST(CallStack, RealCallsTest) {
   g_test_callstacks.clear();
+  g_real_calls_cs.ResetWindowSize(10);
   Func0();
   Func1();
   Func2();
@@ -125,6 +127,7 @@ TEST(CallStack, RealCallsTest) {
 // Tests deep recursion.
 TEST(CallStack, DeepRecursion) {
   static CallStack<100> cs;  // CallStack should be global/tls only.
+  cs.ResetWindowSize(10);
   constexpr size_t kLargeDepth = 200;
   constexpr uintptr_t kStackTop = 100000000;
   // Enter deep recursion.
@@ -144,8 +147,10 @@ TEST(CallStack, DeepRecursion) {
 TEST(CallStack, Hash) {
   constexpr size_t kDepth = 5000;
   constexpr size_t kNumDifferentPCs = 10000;
+  constexpr size_t kNumIterations = 1000;
   constexpr uintptr_t kStackTop = 100000000;
   static CallStack<kDepth> cs;  // CallStack should be global/tls only.
+  cs.ResetWindowSize(10);
   centipede::Rng rng;
 
   // Push the first PC on the stack, remembers it hash.
@@ -154,7 +159,7 @@ TEST(CallStack, Hash) {
 
   absl::flat_hash_set<uintptr_t> hashes;
 
-  for (size_t iter = 0; iter < kNumDifferentPCs; ++iter) {
+  for (size_t iter = 0; iter < kNumIterations; ++iter) {
     // Push many PCs on the stack, collect their hashes.
     hashes.clear();
     for (size_t i = 0; i < kDepth; ++i) {
@@ -169,14 +174,30 @@ TEST(CallStack, Hash) {
     EXPECT_EQ(cs.Depth(), 1);
     EXPECT_EQ(cs.Hash(), initial_hash);
   }
+}
 
-  // Push the same PC on the stack many times, ensure hashes are different.
-  hashes.clear();
-  for (size_t i = 0; i < kDepth; ++i) {
-    cs.OnFunctionEntry(42, kStackTop - i);
-    hashes.insert(cs.Hash());
+TEST(CallStack, WindowSize) {
+  constexpr size_t kDepth = 5000;
+  constexpr uintptr_t kStackTop = 100000000;
+  static CallStack<kDepth> cs;  // CallStack should be global/tls only.
+  absl::flat_hash_set<uintptr_t> hashes;
+  for (size_t num_different_frames = 1; num_different_frames < 100;
+       ++num_different_frames) {
+    for (size_t window_size = 1; window_size < 100; ++window_size) {
+      // Simulate recursive call stack with `num_different_frames` period,
+      // i.e. for `num_different_frames=3`, the call stack is
+      // {42, 43, 44, 42, 43, 44, 42 ...}
+      // Ensure that the hash() function respects the window size.
+      hashes.clear();
+      cs.ResetWindowSize(window_size);
+      cs.OnFunctionEntry(42, kStackTop);
+      for (size_t i = 0; i < kDepth; ++i) {
+        cs.OnFunctionEntry(42 + (i % num_different_frames), kStackTop - i);
+        hashes.insert(cs.Hash());
+      }
+      EXPECT_EQ(hashes.size(), window_size + num_different_frames - 1);
+    }
   }
-  EXPECT_EQ(hashes.size(), kDepth);
 }
 
 }  // namespace

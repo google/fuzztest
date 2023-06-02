@@ -19,7 +19,7 @@
 // The puzzle can be solved if the call sequence is FA->FB->FC->FD->FE.
 
 // clang-format off
-// RUN: Run --callstack_level=1 --use_cmp_features=0 --use_dataflow_features=0 // NOLINT
+// RUN: Run --callstack_level=10 --use_cmp_features=0 --use_dataflow_features=0 // NOLINT
 // RUN: SolutionIs ABCDE
 // clang-format on
 #include <cstddef>

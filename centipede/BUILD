@@ -119,7 +119,9 @@ cc_library(
     name = "callstack",
     hdrs = ["callstack.h"],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = [":int_utils"],
+    deps = [
+        ":rolling_hash",
+    ],
 )
 
 # simple definitions only, no code, no deps other than span.
@@ -657,6 +659,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "knobs.cc",
     "pc_info.h",
     "reverse_pc_table.h",
+    "rolling_hash.h",
     "runner.cc",
     "runner.h",
     "runner_dl_info.h",

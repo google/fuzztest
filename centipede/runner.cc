@@ -91,6 +91,7 @@ static void WriteFailureDescription(const char *description) {
 void ThreadLocalRunnerState::OnThreadStart() {
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
+  tls.call_stack.ResetWindowSize(state.run_time_flags.callstack_level);
   LockGuard lock(state.tls_list_mu);
   // Add myself to state.tls_list.
   auto *old_list = state.tls_list;

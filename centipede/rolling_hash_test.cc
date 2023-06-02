@@ -63,7 +63,7 @@ class TestOnlyRollingHash {
 // Tests RollingHashType, compares the results with TestOnlyRollingHashType.
 template <typename RollingHashType, typename TestOnlyRollingHashType>
 void TestRollingHash() {
-  RollingHashType hasher;
+  static RollingHashType hasher;  // must be static.
   TestOnlyRollingHashType test_hasher;
 
   // Tests on this many ints.
