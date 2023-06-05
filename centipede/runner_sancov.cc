@@ -191,9 +191,8 @@ void __sanitizer_cov_cfs_init(const uintptr_t *beg, const uintptr_t *end) {
 // Updates the state of the paths, `path_level > 0`.
 // Marked noinline so that not to create spills/fills on the fast path
 // of __sanitizer_cov_trace_pc_guard.
-__attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc,
-                                                 uint32_t path_level) {
-  uintptr_t hash = tls.path_ring_buffer.push(normalized_pc, path_level);
+__attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
+  uintptr_t hash = tls.path_ring_buffer.push(normalized_pc);
   state.path_feature_set.set(hash);
 }
 
@@ -215,8 +214,7 @@ static inline void HandleOnePc(PCGuard pc_guard) {
   }
 
   // path features.
-  if (auto path_level = state.run_time_flags.path_level)
-    HandlePath(pc_guard.pc_index, path_level);
+  if (state.run_time_flags.path_level != 0) HandlePath(pc_guard.pc_index);
 }
 
 // Caller PC is the PC of the call instruction.

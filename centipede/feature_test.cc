@@ -37,20 +37,20 @@ namespace {
 TEST(Feature, HashedRingBuffer) {
   HashedRingBuffer<32> rb16;  // used with ring_buffer_size == 16
   HashedRingBuffer<32> rb32;  // used with ring_buffer_size == 32
-  rb16.clear();
-  rb32.clear();
+  rb16.Reset(16);
+  rb32.Reset(32);
   absl::flat_hash_set<size_t> hashes16, hashes32;
-  size_t kNumIter = 1000000;
+  size_t kNumIter = 10000000;
   // push a large number of different numbers into rb, ensure that most of the
   // resulting hashes are different.
   for (size_t i = 0; i < kNumIter; i++) {
-    hashes16.insert(rb16.push(i, 16));
-    hashes32.insert(rb32.push(i, 32));
+    hashes16.insert(rb16.push(i));
+    hashes32.insert(rb32.push(i));
   }
   LOG(INFO) << VV(hashes32.size()) << " " << VV(hashes16.size());
-  // We allow only very few collisions.
-  EXPECT_GT(hashes16.size(), kNumIter - 5);
-  EXPECT_GT(hashes32.size(), kNumIter - 5);
+  // No collisions.
+  EXPECT_EQ(hashes16.size(), kNumIter);
+  EXPECT_EQ(hashes32.size(), kNumIter);
 
   // Try all permutations of {0, 1, 2, ... 9}, ensure we have at least half
   // this many different hashes.
@@ -60,9 +60,9 @@ TEST(Feature, HashedRingBuffer) {
   size_t num_permutations = 0;
   while (std::next_permutation(numbers.begin(), numbers.end())) {
     ++num_permutations;
-    rb32.clear();
+    rb32.Reset(32);
     for (const auto number : numbers) {
-      rb32.push(number, 32);
+      rb32.push(number);
     }
     hashes32.insert(rb32.hash());
   }

@@ -36,47 +36,47 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "./centipede/int_utils.h"
+#include "./centipede/rolling_hash.h"
 
 namespace centipede {
 
-// Fixed-size ring buffer that maintains a hash of its elements.
+// Fixed-size ring buffer that maintains a 32-bit hash of its elements.
 // Create objects of this type as zero-initialized globals or thread-locals.
 // In a zero-initialized object all values and the hash are zero.
 // `kSize` indicates the maximum possible size for the ring-buffer.
-// The actual size is controlled by the `ring_buffer_size` argument of push().
+// The actual size is passed to Reset().
 template <size_t kSize>
 class HashedRingBuffer {
  public:
   // Adds `new_item` and returns the new hash of the entire collection.
   // Evicts an old item.
-  // `ring_buffer_size` must be <= kSize and must be the same for all push()
-  // calls for a given object.
-  // We don't enforce these constraints here to avoid overhead.
-  // The hash function used:
-  // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
-  size_t push(size_t new_item, size_t ring_buffer_size) {
+  // Returns the new hash.
+  uint32_t push(size_t new_item) {
     size_t new_pos = last_added_pos_ + 1;
-    if (new_pos >= ring_buffer_size) new_pos = 0;
+    if (new_pos >= size_) new_pos = 0;
     size_t evicted_item = buffer_[new_pos];
-    new_item = Hash64Bits(new_item);
     buffer_[new_pos] = new_item;
-    hash_ = RotateLeft(hash_, 1) ^ RotateLeft(evicted_item, ring_buffer_size) ^
-            new_item;
+    hash_.Update(new_item, evicted_item);
     last_added_pos_ = new_pos;
-    return hash_;
+    return hash_.Hash();
   }
 
-  // returns the current hash.
-  size_t hash() const { return hash_; }
+  // Returns the current hash.
+  uint32_t hash() const { return hash_.Hash(); }
 
-  // Zero-initialize the object.
-  void clear() { memset(this, 0, sizeof(*this)); }
+  // Resets the current state, sets the ring buffer size to `size_` (<= kSize).
+  void Reset(size_t size) {
+    memset(this, 0, sizeof(*this));
+    if (size > kSize) __builtin_trap();  // can't use CHECK in the runner.
+    size_ = size;
+    hash_.Reset(size);
+  }
 
  private:
   size_t buffer_[kSize];   // All elements.
   size_t last_added_pos_;  // Position of the last added element.
-  size_t hash_;            // XOR of all elements in buffer_.
+  size_t size_;            // Real size of the ring buffer, <= kSize.
+  RollingHash hash_;
 };
 
 }  // namespace centipede

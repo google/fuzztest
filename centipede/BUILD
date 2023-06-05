@@ -75,6 +75,7 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":int_utils",
+        ":rolling_hash",
         "@com_google_absl//absl/base:core_headers",  # exception, ok to depend on here.
     ],
 )
