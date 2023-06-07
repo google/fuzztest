@@ -37,6 +37,9 @@ def _sancov_transition_impl(settings, attr):
     sancov = "-fsanitize-coverage=" + attr.sancov
 
     return {
+        # Do not apply clang coverage to the targets as it would interfere with
+        # sancov and break test expectations.
+        "//command_line_option:collect_code_coverage": False,
         "//command_line_option:copt": settings["//command_line_option:copt"] + [
             "-O1",
             "-fno-builtin",  # prevent memcmp & co from inlining.
@@ -59,6 +62,7 @@ sancov_transition = transition(
         "//command_line_option:features",
     ],
     outputs = [
+        "//command_line_option:collect_code_coverage",
         "//command_line_option:copt",
         "//command_line_option:compilation_mode",
         "//command_line_option:strip",
