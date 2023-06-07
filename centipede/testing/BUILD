@@ -38,6 +38,10 @@ centipede_fuzz_target(
 )
 
 centipede_fuzz_target(
+    name = "expensive_startup_fuzz_target",
+)
+
+centipede_fuzz_target(
     name = "minimize_me_fuzz_target",
 )
 
@@ -229,6 +233,16 @@ sh_test(
     srcs = ["user_defined_features_test.sh"],
     data = [
         ":user_defined_features_target",
+        "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
+    name = "no_startup_features_test",
+    srcs = ["no_startup_features_test.sh"],
+    data = [
+        ":expensive_startup_fuzz_target",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],

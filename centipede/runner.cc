@@ -278,14 +278,35 @@ static void WriteFeaturesToFile(FILE *file,
 // ConcurrentBitSet::ForEachNonZeroBit to clear the bits/bytes after they
 // finish iterating.
 // We still need to clear all the thread-local data updated during execution.
+// If `full_clear==true` clear all coverage anyway - useful to remove the
+// coverage accumulated during startup.
 __attribute__((noinline))  // so that we see it in profile.
 static void
-PrepareCoverage() {
+PrepareCoverage(bool full_clear) {
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
       tls.lowest_sp = tls.top_frame_sp;
     });
+  }
+  // TODO(kcc): do we need to clear tls.cmp_trace2 and others here?
+  if (!full_clear) return;
+  state.pc_counter_set.ForEachNonZeroByte([](size_t idx, uint8_t value) {});
+  if (state.run_time_flags.use_dataflow_features)
+    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
+  if (state.run_time_flags.use_cmp_features) {
+    state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {});
+    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {});
+    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {});
+    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {});
+    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {});
+  }
+  if (state.run_time_flags.path_level != 0)
+    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {});
+  if (state.run_time_flags.callstack_level != 0)
+    state.callstack_set.ForEachNonZeroBit([](size_t idx) {});
+  for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
+    *p = 0;
   }
 }
 
@@ -406,7 +427,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
     return ret_val;
   };
   UsecSinceLast();
-  PrepareCoverage();
+  PrepareCoverage(/*full_clear=*/false);
   state.stats.prep_time_usec = UsecSinceLast();
   state.ResetTimers();
   int target_return_value = test_one_input_cb(data, size);
@@ -521,6 +542,9 @@ static int ExecuteInputsFromShmem(
     return EXIT_FAILURE;
   if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
+
+  PrepareCoverage(/*full_clear=*/true);  // Clear the startup coverage.
+
   for (size_t i = 0; i < num_inputs; i++) {
     auto blob = inputs_blobseq.Read();
     // TODO(kcc): distinguish bad input from end of stream.
