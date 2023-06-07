@@ -41,9 +41,6 @@ centipede::assert_regex_in_file "end-fuzz:.*cov: 1 " "${LOG}"
 centipede::assert_regex_in_file "end-fuzz:.*stk: 2 " "${LOG}"
 centipede::assert_regex_in_file "end-fuzz:.*path: 1 " "${LOG}"
 centipede::assert_regex_not_in_file "end-fuzz:.*cmp" "${LOG}"
-# TODO(kcc): check that 'df' features are not present
-# once we stop building test targets with clang-coverage,
-# which injects extra loads.
-# centipede::assert_regex_not_in_file "end-fuzz:.*df" "${LOG}"
+centipede::assert_regex_not_in_file "end-fuzz:.*df" "${LOG}"
 
 echo "PASS"
