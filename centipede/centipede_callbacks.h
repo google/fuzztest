@@ -56,6 +56,7 @@ class CentipedeCallbacks {
       CHECK(byte_array_mutator_.set_max_len(env.max_len));
     else
       CHECK(fuzztest_mutator_.set_max_len(env.max_len));
+    LOG(INFO) << "temp directory: " << temp_dir_;
   }
   virtual ~CentipedeCallbacks() {}
 
