@@ -862,6 +862,13 @@ extern "C" int CentipedeRunnerMain(
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
     if (execution_request::IsMutationRequest(request_type_blob)) {
+      // Since we are mutating, no need to spend time collecting the coverage.
+      // We still pay for executing the coverage callbacks, but those will
+      // return immediately.
+      // TODO(kcc): do this more consistently, for all coverage types.
+      state.run_time_flags.use_cmp_features = false;
+      state.run_time_flags.use_pc_features = false;
+      state.run_time_flags.use_dataflow_features = false;
       // Mutation request.
       inputs_blobseq.Reset();
       state.byte_array_mutator =
