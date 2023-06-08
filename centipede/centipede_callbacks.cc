@@ -157,6 +157,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::string_view binary, const std::vector<ByteArray> &inputs,
     BatchResult &batch_result) {
+  auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
 
   // Reset the blobseqs.
@@ -222,6 +223,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     // failed execution.
     std::filesystem::remove(failure_description_path_);
   }
+  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
 }
 
@@ -229,6 +231,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 bool CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<ByteArray> &inputs,
     std::vector<ByteArray> &mutants) {
+  auto start_time = absl::Now();
   inputs_blobseq_.Reset();
   outputs_blobseq_.Reset();
 
@@ -252,6 +255,7 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
     mutants[i].assign(blob.data, blob.data + blob.size);
   }
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval == 0;
 }
 
