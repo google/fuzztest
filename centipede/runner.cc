@@ -91,7 +91,7 @@ static void WriteFailureDescription(const char *description) {
 void ThreadLocalRunnerState::OnThreadStart() {
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-  tls.call_stack.ResetWindowSize(state.run_time_flags.callstack_level);
+  tls.call_stack.Reset(state.run_time_flags.callstack_level);
   tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
   LockGuard lock(state.tls_list_mu);
   // Add myself to state.tls_list.
@@ -286,6 +286,7 @@ PrepareCoverage(bool full_clear) {
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
+      tls.call_stack.Reset(state.run_time_flags.callstack_level);
       tls.lowest_sp = tls.top_frame_sp;
     });
   }

@@ -95,9 +95,10 @@ class CallStack {
     ++depth_;
   }
 
-  // Resets the number of stack frames used to compute the hash.
-  // Call this at startup.
-  void ResetWindowSize(size_t window_size) {
+  // Resets the call stack.
+  // `window_size` is the number of stack frames used to compute the hash.
+  void Reset(size_t window_size) {
+    depth_ = 0;
     window_size_ = window_size;
     rolling_hash_.Reset(window_size);
   }

@@ -29,7 +29,7 @@ namespace {
 // Simple test, calls OnFunctionEntry with fake sp values.
 TEST(CallStack, SimpleTest) {
   static CallStack<> cs;  // CallStack should be global/tls only.
-  cs.ResetWindowSize(10);
+  cs.Reset(10);
   constexpr uintptr_t pc0 = 100;
   constexpr uintptr_t pc1 = 101;
   constexpr uintptr_t pc2 = 102;
@@ -113,7 +113,7 @@ __attribute__((noinline)) void Func0() {
 // with real sp values (and fake PCs).
 TEST(CallStack, RealCallsTest) {
   g_test_callstacks.clear();
-  g_real_calls_cs.ResetWindowSize(10);
+  g_real_calls_cs.Reset(10);
   Func0();
   Func1();
   Func2();
@@ -127,7 +127,7 @@ TEST(CallStack, RealCallsTest) {
 // Tests deep recursion.
 TEST(CallStack, DeepRecursion) {
   static CallStack<100> cs;  // CallStack should be global/tls only.
-  cs.ResetWindowSize(10);
+  cs.Reset(10);
   constexpr size_t kLargeDepth = 200;
   constexpr uintptr_t kStackTop = 100000000;
   // Enter deep recursion.
@@ -150,7 +150,7 @@ TEST(CallStack, Hash) {
   constexpr size_t kNumIterations = 1000;
   constexpr uintptr_t kStackTop = 100000000;
   static CallStack<kDepth> cs;  // CallStack should be global/tls only.
-  cs.ResetWindowSize(10);
+  cs.Reset(10);
   centipede::Rng rng;
 
   // Push the first PC on the stack, remembers it hash.
@@ -189,7 +189,7 @@ TEST(CallStack, WindowSize) {
       // {42, 43, 44, 42, 43, 44, 42 ...}
       // Ensure that the hash() function respects the window size.
       hashes.clear();
-      cs.ResetWindowSize(window_size);
+      cs.Reset(window_size);
       cs.OnFunctionEntry(42, kStackTop);
       for (size_t i = 0; i < kDepth; ++i) {
         cs.OnFunctionEntry(42 + (i % num_different_frames), kStackTop - i);
