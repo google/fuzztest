@@ -35,6 +35,9 @@ enum Tags : SharedMemoryBlobSequence::Blob::SizeAndTagT {
 
 bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
                                      SharedMemoryBlobSequence &blobseq) {
+  fprintf(stdout,
+          "Write features to shared memory blob sequence: %zu features \n",
+          size);
   return blobseq.Write({kTagFeatures, size * sizeof(vec[0]),
                         reinterpret_cast<const uint8_t *>(vec)});
 }

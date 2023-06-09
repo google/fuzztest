@@ -629,6 +629,7 @@ void Centipede::FuzzingLoop() {
                             batch_result);
   }
 
+  return;
   UpdateAndMaybeLogStats("begin-fuzz", 0);
 
   if (env_.full_sync) {

@@ -504,6 +504,7 @@ static bool StartSendingOutputsToEngine(
 static bool FinishSendingOutputsToEngine(
     centipede::SharedMemoryBlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
+  fprintf(stdout, "Copy features to the output shared memory blob sequence\n");
   if (!centipede::BatchResult::WriteOneFeatureVec(
           g_features.data(), g_features.size(), outputs_blobseq)) {
     return false;
@@ -801,10 +802,8 @@ GlobalRunnerState::GlobalRunnerState() {
   MaybePopulateReversePcTable();
 
   // initialize the user defined section.
-  user_defined_begin =
-      &__start___centipede_extra_features;
-  user_defined_end =
-      &__stop___centipede_extra_features;
+  user_defined_begin = &__start___centipede_extra_features;
+  user_defined_end = &__stop___centipede_extra_features;
   if (user_defined_begin && user_defined_end) {
     fprintf(
         stderr,
