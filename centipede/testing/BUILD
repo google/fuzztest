@@ -75,6 +75,13 @@ centipede_fuzz_target(
     sancov = "trace-pc",
 )
 
+# Target instrumented with -fsanitize-coverage=inline-8bit-counters.
+centipede_fuzz_target(
+    name = "abort_fuzz_target_inline_8bit_counters",
+    srcs = ["abort_fuzz_target.cc"],
+    sancov = "inline-8bit-counters,pc-table",
+)
+
 # Test fuzz target with lots of threads.
 centipede_fuzz_target(
     name = "threaded_fuzz_target",
@@ -213,6 +220,16 @@ sh_test(
     srcs = ["trace_pc_test.sh"],
     data = [
         ":abort_fuzz_target_trace_pc",
+        "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
+    name = "inline_8bit_counters_test",
+    srcs = ["inline_8bit_counters_test.sh"],
+    data = [
+        ":abort_fuzz_target_inline_8bit_counters",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],

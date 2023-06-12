@@ -150,25 +150,53 @@ void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
 NO_SANITIZE
 void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
 
+// This function is called at startup when
+// -fsanitize-coverage=inline-8bit-counters is used.
+// See https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters
+void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
+  if (state.inline_8bit_counters_start == nullptr) {
+    state.inline_8bit_counters_start = beg;
+    state.inline_8bit_counters_stop = end;
+  } else {
+    RunnerCheck(
+        state.inline_8bit_counters_start == beg &&
+            state.inline_8bit_counters_stop == end,
+        "__sanitizer_cov_8bit_counters_init is called with different "
+        "arguments than previously. This may indicate more than one DSO "
+        "instrumented with sancov. This is currently not supported by the "
+        "Centipede runner. Please let the Centipede developers know if this is "
+        "an important use case.");
+  }
+}
+
 // https://clang.llvm.org/docs/SanitizerCoverage.html#pc-table
 // This function is called at the DSO init time, potentially several times.
 // When called from the same DSO, the arguments will always be the same.
 // If a different DSO calls this function, it will have different arguments.
 // We currently do not support more than one sancov-instrumented DSO.
 void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
-  RunnerCheck(state.pc_guard_start && state.pc_guard_stop,
-              "__sanitizer_cov_pcs_init is called before "
-              "__sanitizer_cov_trace_pc_guard_init");
-  RunnerCheck(state.pc_guard_stop - state.pc_guard_start == end - beg,
-              "__sanitizer_cov_pcs_init: mismatch between guard size and pc "
-              "table size");
+  size_t guard_size = state.pc_guard_stop - state.pc_guard_start;
+  size_t counter_size =
+      state.inline_8bit_counters_stop - state.inline_8bit_counters_start;
+  RunnerCheck(guard_size != 0 || counter_size != 0,
+              "__sanitizer_cov_pcs_init is called before either of"
+              "__sanitizer_cov_trace_pc_guard_init or "
+              "__sanitizer_cov_8bit_counters_init");
+  RunnerCheck(guard_size == 0 || counter_size == 0,
+              "Simulteneously using __sanitizer_cov_trace_pc_guard_init and "
+              "__sanitizer_cov_8bit_counters_init");
+  RunnerCheck(std::max(guard_size, counter_size) == end - beg,
+              "__sanitizer_cov_pcs_init: mismatch between guard/counter size"
+              " and pc table size");
   if (state.pcs_beg == nullptr) {
     state.pcs_beg = beg;
     state.pcs_end = end;
-    // Set is_function_entry for all the guards.
-    for (size_t i = 0, n = end - beg; i < n; ++i) {
-      state.pc_guard_start[i].is_function_entry =
-          beg[i].has_flag(PCInfo::kFuncEntry);
+    if (guard_size != 0) {
+      // Set is_function_entry for all the guards.
+      for (size_t i = 0, n = end - beg; i < n; ++i) {
+        state.pc_guard_start[i].is_function_entry =
+            beg[i].has_flag(PCInfo::kFuncEntry);
+      }
     }
   } else {
     RunnerCheck(

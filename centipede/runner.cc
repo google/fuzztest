@@ -309,6 +309,23 @@ PrepareCoverage(bool full_clear) {
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
     *p = 0;
   }
+  if (state.inline_8bit_counters_start != state.inline_8bit_counters_stop) {
+    memset(state.inline_8bit_counters_start, 0,
+           state.inline_8bit_counters_stop - state.inline_8bit_counters_start);
+  }
+}
+
+// Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
+// `idx` is a pc_index.
+// `counter_value` (non-zero) is a counter value associated with that PC.
+static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
+  if (state.run_time_flags.use_pc_features) {
+    g_features.push_back(centipede::feature_domains::kPCs.ConvertToMe(idx));
+  }
+  if (state.run_time_flags.use_counter_features) {
+    g_features.push_back(centipede::feature_domains::k8bitCounters.ConvertToMe(
+        centipede::Convert8bitCounterToNumber(idx, counter_value)));
+  }
 }
 
 // Post-processes all coverage data, puts it all into `g_features`.
@@ -328,15 +345,7 @@ PostProcessCoverage(int target_return_value) {
   // Convert counters to features.
   state.pc_counter_set.ForEachNonZeroByte(
       [](size_t idx, uint8_t value) {
-        if (state.run_time_flags.use_pc_features) {
-          g_features.push_back(
-              centipede::feature_domains::kPCs.ConvertToMe(idx));
-        }
-        if (state.run_time_flags.use_counter_features) {
-          g_features.push_back(
-              centipede::feature_domains::k8bitCounters.ConvertToMe(
-                  centipede::Convert8bitCounterToNumber(idx, value)));
-        }
+        AddPcIndxedAndCounterToFeatures(idx, value);
       },
       0, state.actual_pc_counter_set_size_aligned);
 
@@ -414,6 +423,20 @@ PostProcessCoverage(int target_return_value) {
               user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
+  }
+
+  // Iterates all non-zero inline 8-bit counters, if they are present.
+  // Calls AddPcIndxedAndCounterToFeatures on non-zero counters and zeroes them.
+  // TODO(kcc): for large binaries this is slow, and needs to be done
+  // in larger chunks (8 bytes or more). Either reinstate (the now deleted)
+  // ForEachNonZeroByte, or implement a new one.
+  for (size_t idx = 0, n = state.inline_8bit_counters_stop -
+                           state.inline_8bit_counters_start;
+       idx < n; ++idx) {
+    uint8_t &counter = state.inline_8bit_counters_start[idx];
+    if (counter == 0) continue;
+    AddPcIndxedAndCounterToFeatures(idx, counter);
+    counter = 0;
   }
 }
 

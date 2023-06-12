@@ -253,6 +253,12 @@ struct GlobalRunnerState {
   PCGuard *pc_guard_start;  // from __sanitizer_cov_trace_pc_guard_init.
   PCGuard *pc_guard_stop;   // from __sanitizer_cov_trace_pc_guard_init.
 
+  // These two fields are initialized in __sanitizer_cov_8bit_counters_init
+  // if the corresponding instrumentation is present in the binary.
+  // https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters
+  uint8_t *inline_8bit_counters_start;
+  uint8_t *inline_8bit_counters_stop;
+
   // kMaxNumPcs is the maximum number of instrumented PCs in the binary.
   // We can be generous here since the unused memory will not cost anything.
   // `pc_counter_set` is a static byte set supporting up to kMaxNumPcs PCs.
