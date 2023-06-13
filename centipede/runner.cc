@@ -32,6 +32,7 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -43,6 +44,7 @@
 #include "./centipede/execution_request.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
+#include "./centipede/foreach_nonzero.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_interface.h"
@@ -430,13 +432,14 @@ PostProcessCoverage(int target_return_value) {
   // TODO(kcc): for large binaries this is slow, and needs to be done
   // in larger chunks (8 bytes or more). Either reinstate (the now deleted)
   // ForEachNonZeroByte, or implement a new one.
-  for (size_t idx = 0, n = state.inline_8bit_counters_stop -
-                           state.inline_8bit_counters_start;
-       idx < n; ++idx) {
-    uint8_t &counter = state.inline_8bit_counters_start[idx];
-    if (counter == 0) continue;
-    AddPcIndxedAndCounterToFeatures(idx, counter);
-    counter = 0;
+  if (state.run_time_flags.use_pc_features ||
+      state.run_time_flags.use_counter_features) {
+    ForEachNonZeroByte(
+        state.inline_8bit_counters_start,
+        state.inline_8bit_counters_stop - state.inline_8bit_counters_start,
+        [](size_t idx, uint8_t counter_value) {
+          AddPcIndxedAndCounterToFeatures(idx, counter_value);
+        });
   }
 }
 
@@ -893,6 +896,7 @@ extern "C" int CentipedeRunnerMain(
       state.run_time_flags.use_cmp_features = false;
       state.run_time_flags.use_pc_features = false;
       state.run_time_flags.use_dataflow_features = false;
+      state.run_time_flags.use_counter_features = false;
       // Mutation request.
       inputs_blobseq.Reset();
       state.byte_array_mutator =

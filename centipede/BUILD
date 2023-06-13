@@ -62,6 +62,11 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "foreach_nonzero",
+    hdrs = ["foreach_nonzero.h"],
+)
+
 # This lib must have zero non-trivial dependencies (other than libc). See feature.h.
 cc_library(
     name = "feature",
@@ -656,6 +661,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "execution_result.h",
     "feature.cc",
     "feature.h",
+    "foreach_nonzero.h",
     "hashed_ring_buffer.h",
     "int_utils.h",
     "knobs.h",
@@ -943,6 +949,15 @@ cc_test(
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "foreach_nonzero_test",
+    srcs = ["foreach_nonzero_test.cc"],
+    deps = [
+        ":foreach_nonzero",
         "@com_google_googletest//:gtest_main",
     ],
 )
