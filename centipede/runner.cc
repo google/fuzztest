@@ -258,12 +258,6 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
 // An arbitrary large size for input data.
 static const size_t kMaxDataSize = 1 << 20;
 
-// TODO(ussuri): Move g_features into GlobalRunnerState.
-// An arbitrary large size.
-static const size_t kMaxFeatures = 1 << 20;
-// FeatureArray used to accumulate features from all sources.
-static centipede::FeatureArray<kMaxFeatures> g_features;
-
 static void WriteFeaturesToFile(FILE *file,
                                 const centipede::feature_t *features,
                                 size_t size) {
@@ -322,11 +316,13 @@ PrepareCoverage(bool full_clear) {
 // `counter_value` (non-zero) is a counter value associated with that PC.
 static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
   if (state.run_time_flags.use_pc_features) {
-    g_features.push_back(centipede::feature_domains::kPCs.ConvertToMe(idx));
+    state.g_features.push_back(
+        centipede::feature_domains::kPCs.ConvertToMe(idx));
   }
   if (state.run_time_flags.use_counter_features) {
-    g_features.push_back(centipede::feature_domains::k8bitCounters.ConvertToMe(
-        centipede::Convert8bitCounterToNumber(idx, counter_value)));
+    state.g_features.push_back(
+        centipede::feature_domains::k8bitCounters.ConvertToMe(
+            centipede::Convert8bitCounterToNumber(idx, counter_value)));
   }
 }
 
@@ -340,7 +336,7 @@ static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PostProcessCoverage(int target_return_value) {
-  g_features.clear();
+  state.g_features.clear();
 
   if (target_return_value == -1) return;
 
@@ -354,7 +350,7 @@ PostProcessCoverage(int target_return_value) {
   // Convert data flow bit set to features.
   if (state.run_time_flags.use_dataflow_features) {
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kDataFlow.ConvertToMe(idx));
     });
   }
@@ -363,21 +359,23 @@ PostProcessCoverage(int target_return_value) {
   if (state.run_time_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(centipede::feature_domains::kCMP.ConvertToMe(idx));
+      state.g_features.push_back(
+          centipede::feature_domains::kCMP.ConvertToMe(idx));
     });
     state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(centipede::feature_domains::kCMPEq.ConvertToMe(idx));
+      state.g_features.push_back(
+          centipede::feature_domains::kCMPEq.ConvertToMe(idx));
     });
     state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kCMPModDiff.ConvertToMe(idx));
     });
     state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kCMPHamming.ConvertToMe(idx));
     });
     state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kCMPDiffLog.ConvertToMe(idx));
     });
   }
@@ -385,7 +383,7 @@ PostProcessCoverage(int target_return_value) {
   // Convert path bit set to features.
   if (state.run_time_flags.path_level != 0) {
     state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
@@ -396,14 +394,14 @@ PostProcessCoverage(int target_return_value) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
   });
 
   if (state.run_time_flags.callstack_level != 0) {
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kCallStack.ConvertToMe(idx));
     });
   }
@@ -420,7 +418,7 @@ PostProcessCoverage(int target_return_value) {
       // available. If a user domain ID is out of range, alias it to an existing
       // domain. This is kinder than silently dropping the feature.
       user_domain_id %= std::size(centipede::feature_domains::kUserDomains);
-      g_features.push_back(
+      state.g_features.push_back(
           centipede::feature_domains::kUserDomains[user_domain_id].ConvertToMe(
               user_feature_id));
       *p = 0;  // cleanup for the next iteration.
@@ -499,7 +497,8 @@ ReadOneInputExecuteItAndDumpCoverage(
            input_path);
   FILE *features_file = fopen(features_file_path, "w");
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
-  WriteFeaturesToFile(features_file, g_features.data(), g_features.size());
+  WriteFeaturesToFile(features_file, state.g_features.data(),
+                      state.g_features.size());
   fclose(features_file);
 }
 
@@ -532,7 +531,7 @@ static bool FinishSendingOutputsToEngine(
     centipede::SharedMemoryBlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
   if (!centipede::BatchResult::WriteOneFeatureVec(
-          g_features.data(), g_features.size(), outputs_blobseq)) {
+          state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
     return false;
   }
 

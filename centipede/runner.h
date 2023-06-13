@@ -305,6 +305,11 @@ struct GlobalRunnerState {
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
+
+  // An arbitrary large size.
+  static const size_t kMaxFeatures = 1 << 20;
+  // FeatureArray used to accumulate features from all sources.
+  FeatureArray<kMaxFeatures> g_features;
 };
 
 extern GlobalRunnerState state;
