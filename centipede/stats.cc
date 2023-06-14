@@ -19,6 +19,7 @@
 #include <numeric>
 #include <string>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
@@ -36,7 +37,7 @@ void PrintExperimentStatsForOneStatValue(absl::Span<const Stats> stats_vec,
   CHECK_EQ(stats_vec.size(), env_vec.size());
   // Maps experiment names to indices in env_vec/stats_vec.
   // We use std::map because we want lexicographic order of experiment names.
-  std::map<std::string_view, std::vector<size_t>> experiment_to_indices;
+  absl::btree_map<std::string_view, std::vector<size_t>> experiment_to_indices;
   for (size_t i = 0; i < env_vec.size(); ++i) {
     experiment_to_indices[env_vec[i].experiment_name].push_back(i);
   }
