@@ -175,13 +175,6 @@ class BidiMapImpl
   std::tuple<Inner...> inner_;
 };
 
-template <int&... ExplicitArgumentBarrier, typename Mapper, typename InvMapper,
-          typename... Inner>
-auto BidiMap(Mapper mapper, InvMapper inv_mapper, Inner... inner) {
-  return BidiMapImpl<Mapper, InvMapper, Inner...>(
-      std::move(mapper), std::move(inv_mapper), std::move(inner)...);
-}
-
 template <int&... ExplicitArgumentBarrier, typename Mapper, typename... Inner>
 auto NamedMap(absl::string_view name, Mapper mapper, Inner... inner) {
   return internal::MapImpl<Mapper, Inner...>(name, std::move(mapper),

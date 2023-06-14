@@ -814,6 +814,22 @@ auto Map(Mapper mapper, Inner... inner) {
                                              std::move(inner)...);
 }
 
+// Similar to `Map`, but it requires an inverse mapper to map values from
+// `inner...` domains. Example usage:
+//
+//   BidiMap([](bool positive, int val) { return positive ? val : -2 * val; },
+//           [](int val) { return std::tuple(val > 0,
+//                                           val > 0 ? val : -val / 2)); },
+//           Arbitrary<int>())
+//
+// The reverse mapper allows to use `.WithSeed` methods.
+template <int&... ExplicitArgumentBarrier, typename Mapper, typename InvMapper,
+          typename... Inner>
+auto BidiMap(Mapper mapper, InvMapper inv_mapper, Inner... inner) {
+  return internal::BidiMapImpl<Mapper, InvMapper, Inner...>(
+      std::move(mapper), std::move(inv_mapper), std::move(inner)...);
+}
+
 // `FlatMap(flat_mapper, inner...)` combinator creates a domain that uses the
 // `flat_mapper` function to map the values created by the `inner...` domains.
 // Unlike `Map`, however, `FlatMap` maps these into a new _domain_, instead of

@@ -96,8 +96,7 @@ TEST(Map, ValidationRejectsInvalidValue) {
 }
 
 TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
-  auto domain =
-      internal::BidiMap([](int a) { return ~a; },
+  auto domain = BidiMap([](int a) { return ~a; },
                         [](int a) { return std::tuple(~a); }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
@@ -107,9 +106,8 @@ TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
 TEST(BidiMap, ValidationRejectsInvalidValue) {
   absl::BitGen bitgen;
 
-  auto domain_a =
-      internal::BidiMap([](int a) { return ~a; },
-                        [](int a) { return std::tuple(~a); }, InRange(0, 9));
+  auto domain_a = BidiMap([](int a) { return ~a; },
+                          [](int a) { return std::tuple(~a); }, InRange(0, 9));
   auto domain_b =
       BidiMap([](int a) { return ~a; }, [](int a) { return std::tuple(~a); },
               InRange(10, 19));
@@ -125,7 +123,7 @@ TEST(BidiMap, ValidationRejectsInvalidValue) {
 }
 
 TEST(BidiMap, AcceptsMultipleInnerDomains) {
-  auto domain = internal::BidiMap(
+  auto domain = BidiMap(
       [](int a, char b) {
         std::string s;
         for (; a > 0; --a) s += b;
@@ -145,10 +143,10 @@ TEST(BidiMap, AcceptsMultipleInnerDomains) {
 TEST(BidiMap, WorksWithSeeds) {
   absl::BitGen bitgen;
 
-  auto domain = internal::BidiMap([](int a) { return a + 1; },
-                                  [](int a) { return std::tuple(a - 1); },
-                                  InRange(0, 1000000))
-                    .WithSeeds({7});
+  auto domain =
+      BidiMap([](int a) { return a + 1; },
+              [](int a) { return std::tuple(a - 1); }, InRange(0, 1000000))
+          .WithSeeds({7});
 
   EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(7));
 }
