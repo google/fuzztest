@@ -707,7 +707,7 @@ static int MutateInputsFromShmem(
     const auto &input = inputs[rand_r(&seed) % num_inputs];
 
     size_t size = std::min(input.size(), kMaxMutantSize);
-    mutant.assign(input.data(), input.data() + size);
+    std::copy(input.cbegin(), input.cbegin() + size, mutant.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb != nullptr) &&
         rand_r(&seed) % 100 < state.run_time_flags.crossover_level) {
