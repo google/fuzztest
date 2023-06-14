@@ -67,4 +67,11 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((weak)) void CentipedeIsPresent();
 extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 
+// Clears all coverage data. If `full_clear` is true, then clear all coverage
+// anyway - useful to remove the coverage accumulated during startup.
+extern "C" void ClearCoverage(bool full_clear);
+
+// Post-processes all coverage data, puts it all into a feature array.
+extern "C" void PostProcessCoverage();
+
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_

@@ -930,3 +930,9 @@ extern "C" int LLVMFuzzerRunDriver(
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
+extern "C" void ClearCoverage(bool full_clear) {
+  centipede::PrepareCoverage(full_clear);
+}
+extern "C" void PostProcessCoverage() {
+  centipede::PostProcessCoverage(/*target_return_value=*/0);
+}
