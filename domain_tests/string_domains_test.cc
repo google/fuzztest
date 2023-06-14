@@ -16,6 +16,7 @@
 
 #include <cctype>
 #include <deque>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,10 +33,14 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::Each;
+using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::Gt;
+using ::testing::IsTrue;
 using ::testing::Lt;
 using ::testing::Matches;
+using ::testing::ResultOf;
 using ::testing::SizeIs;
 
 template <typename T>
@@ -152,6 +157,5 @@ TEST(Domain, PrintableAsciiString) {
     }
   }
 }
-
 }  // namespace
 }  // namespace fuzztest
