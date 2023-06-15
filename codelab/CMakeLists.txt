@@ -2,8 +2,18 @@ cmake_minimum_required(VERSION 3.19)
 project(escaping_test)
 set(CMAKE_CXX_STANDARD 17)
 
-# Remove ../../ in real examples.
-add_subdirectory(../../fuzztest fuzztest)
+include(FetchContent)
+
+set(FUZZTEST_REPO_BRANCH "FuzzTest repository branch." CACHE STRING "main")
+message("Building fuzztest at branch " ${FUZZTEST_REPO_BRANCH})
+
+FetchContent_Declare(
+  fuzztest
+  GIT_REPOSITORY https://github.com/google/fuzztest.git
+  GIT_TAG ${FUZZTEST_REPO_BRANCH}
+)
+
+FetchContent_MakeAvailable(fuzztest)
 
 enable_testing()
 include(GoogleTest)
