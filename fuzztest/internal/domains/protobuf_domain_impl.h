@@ -33,6 +33,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
