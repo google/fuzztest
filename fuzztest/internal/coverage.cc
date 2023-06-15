@@ -350,10 +350,10 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
              absl::Span<uint8_t>(start, map_size)) {
     // Nothing to do.
   } else {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        false,
-        "__sanitizer_cov_8bit_counters_init was called multiple times with "
-        "different arguments. Currently, we support only a single DSO.");
+    fprintf(fuzztest::internal::GetStderr(),
+            "Warning: __sanitizer_cov_8bit_counters_init was called multiple "
+            "times with different arguments. Currently, we only support "
+            "recording coverage metrics for the first DSO encountered.\n");
   }
 }
 
