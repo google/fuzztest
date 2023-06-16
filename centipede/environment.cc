@@ -362,9 +362,9 @@ size_t ComputeTimeoutPerBatch(  //
       timeout_per_batch =
           std::ceil(std::log(estimated_mean_time_per_input + 1.0) * batch_size);
     }
-    LOG(INFO) << "--" << FLAGS_timeout_per_batch.Name()
-              << " default wasn't overridden; auto-computed to be "
-              << timeout_per_batch << " sec (see --help for details)";
+    VLOG(1) << "--" << FLAGS_timeout_per_batch.Name()
+            << " not set on command line: auto-computed " << timeout_per_batch
+            << " sec (see --help for details)";
   }
   return timeout_per_batch;
 }
