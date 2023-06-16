@@ -26,6 +26,6 @@ ABSL_DECLARE_FLAG(int, v);
 #define VLOG(logging_level) LOG_IF(INFO, VLOG_IS_ON(logging_level))
 
 // Easy variable value logging: LOG(INFO) << VV(foo) << VV(bar);
-#define VV(x) #x "=" << (x) << " "
+#define VV(x) #x ": " << (x) << " "
 
 #endif  // THIRD_PARTY_CENTIPEDE_LOGGING_H_
