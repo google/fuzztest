@@ -234,6 +234,22 @@ void VerifyRoundTripThroughConversion(const Container& values,
 template <typename Domain>
 Value(Domain&, absl::BitGenRef) -> Value<Domain>;
 
+// This is for testing of structures that aren't suitable for entry into an
+// absl::flat_hash_set
+template <typename Domain>
+auto GenerateValue(Domain domain) {
+  absl::BitGen bitgen;
+
+  // Make sure we can make some unique seeds.
+  auto ret = Value(domain, bitgen);
+
+  // Make sure we can mutate a value a few times
+  for (int i = 0; i < 32; ++i) {
+    ret.Mutate(domain, bitgen, false);
+  }
+  return ret;
+}
+
 template <typename Domain>
 auto GenerateValues(Domain domain, int num_seeds = 10,
                     int num_mutations = 100) {

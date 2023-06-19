@@ -17,12 +17,58 @@
 
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
 
+#include "absl/strings/cord.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
+
+// This implementation is partially based on knowledge of the current
+// implementation of absl::Cord, but does not directly use this representation.
+// It will sometimes generate a Cord that directly contains bytes, and sometimes
+// generate a Cord that contains an internal tree structure. This implementation
+// will not create all possible Cords, but hopefully represents enough to
+// discover issue.
+inline absl::Cord MakeCord(std::string str, std::string append_str,
+                           size_t target_size, bool set_checksum) {
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      append_str.size() >= 512U,
+      "Append string should be at least 512 bytes long to ensure Cord "
+      "generates a tree");
+
+  if (str.empty() || target_size <= str.size()) return absl::Cord(str);
+
+  std::string* mem = new std::string(append_str);
+  absl::Cord append = absl::MakeCordFromExternal(
+      *mem, [mem](absl::string_view) { delete mem; });
+
+  // If we need a huge cord, a small append string won't be large enough to grow
+  // the tree quickly enough, and we'll spend an enormous amount of time
+  // balancing the tree. In that case, create a large append string that's only
+  // a little smaller than the target size.
+  std::string large_append_str = append_str;
+  while (large_append_str.size() < target_size / (256 * 1024)) {
+    large_append_str += large_append_str;
+  }
+  std::string* large_mem = new std::string(large_append_str);
+  absl::Cord large_append = absl::MakeCordFromExternal(
+      *large_mem, [large_mem](absl::string_view) { delete large_mem; });
+
+  auto c = absl::Cord(str);
+  while (c.size() < target_size) {
+    c.Prepend(append);
+    c.Append(c);
+    c.Append(append);
+    c.Append(large_append);
+    if (set_checksum) c.SetExpectedChecksum(1);
+  }
+  FUZZTEST_INTERNAL_CHECK(c.size() >= target_size,
+                          "Length of generated Cord smaller than expected");
+  return c;
+}
 
 // Note: this implementation is based on knowledge of internal
 // representation of absl::Duration and will not cover all

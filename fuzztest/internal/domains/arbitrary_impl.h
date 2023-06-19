@@ -31,6 +31,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/strings/cord.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -445,6 +446,30 @@ class ArbitraryImpl<std::shared_ptr<T>>
  public:
   ArbitraryImpl()
       : ArbitraryImpl::SmartPointerOfImpl(GetGlobalDomainDefaultInstance) {}
+};
+
+// Arbitrary for absl::Cord.
+template <>
+class ArbitraryImpl<absl::Cord>
+    : public MapImpl<absl::Cord (*)(std::string, std::string, size_t, bool),
+                     ArbitraryImpl<std::string>,
+                     SequenceContainerOfImpl<std::string, ArbitraryImpl<char>>,
+                     InRangeImpl<size_t>, ArbitraryImpl<bool>> {
+ public:
+  ArbitraryImpl()
+      : MapImpl<absl::Cord (*)(std::string, std::string, size_t, bool),
+                ArbitraryImpl<std::string>,
+                SequenceContainerOfImpl<std::string, ArbitraryImpl<char>>,
+                InRangeImpl<size_t>, ArbitraryImpl<bool>>(
+            [](std::string str, std::string append_str, size_t target_size,
+               bool set_checksum) {
+              return MakeCord(str, append_str, target_size, set_checksum);
+            },
+            ArbitraryImpl<std::string>(),
+            ArbitraryImpl<std::string>().WithMinSize(512u),
+            // maximum of 256 gigabytes for now
+            InRangeImpl<size_t>(0U, 1024LLU * 1024LLU * 1024LLU * 256LLU),
+            ArbitraryImpl<bool>()) {}
 };
 
 // Arbitrary for absl::Duration.

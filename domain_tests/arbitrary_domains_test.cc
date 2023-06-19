@@ -846,6 +846,92 @@ TEST(SequenceContainerMutation, InsertPartAccepts) {
   EXPECT_EQ(to, "aabcbcd");
 }
 
+TEST(ArbitraryCordTest, MakeCordTest) {
+  std::string append_str("0123456789ABCDEF");
+  // Make sure the append string is at least large enough to create a tree
+  while (append_str.size() < 512) {
+    append_str += append_str;
+  }
+
+  EXPECT_EQ(absl::Cord(),
+            internal::MakeCord(std::string(""), append_str, 0, 0));
+  EXPECT_EQ(absl::Cord(),
+            internal::MakeCord(std::string(""), append_str, 0, 1));
+
+  EXPECT_EQ(absl::Cord("abcdefgh"),
+            internal::MakeCord(std::string("abcdefgh"), append_str, 0, 0));
+  EXPECT_EQ(absl::Cord("abcdefgh"),
+            internal::MakeCord(std::string("abcdefgh"), append_str, 0, 1));
+
+  // Make sure we can make very large Cords
+  auto huge_cord = internal::MakeCord(std::string("abcdefgh"), append_str,
+                                      1024LLU * 1024LLU * 1024LLU, 0);
+  EXPECT_TRUE(huge_cord.size() >= 1024LLU * 1024LLU * 1024LLU);
+  huge_cord = internal::MakeCord(std::string("abcdefgh"), append_str,
+                                 1024LLU * 1024LLU * 1024LLU, 1);
+  EXPECT_TRUE(huge_cord.size() >= 1024LLU * 1024LLU * 1024LLU);
+
+  huge_cord = internal::MakeCord(std::string("abcdefgh"), append_str,
+                                 1024LLU * 1024LLU * 1024LLU * 256LLU, 0);
+  EXPECT_TRUE(huge_cord.size() >= 1024LLU * 1024LLU * 1024LLU * 256LLU);
+
+  huge_cord = internal::MakeCord(std::string("abcdefgh"), append_str,
+                                 1024LLU * 1024LLU * 1024LLU * 256LLU, 1);
+  EXPECT_TRUE(huge_cord.size() >= 1024LLU * 1024LLU * 1024LLU * 256LLU);
+
+  // If there's no flat representation the Cord is represented by a tree
+  // (although not necessarily the other way around)
+  auto flat = huge_cord.TryFlat();
+  EXPECT_TRUE(flat == absl::nullopt);
+
+  EXPECT_NE(huge_cord, absl::Cord());
+}
+
+TEST(ArbitraryCordTest, BasicCordTest) {
+  auto domain = Arbitrary<absl::Cord>();
+
+  // Only generate one seed and one mutation at a time, because `GenerateValues`
+  // will insert the Cord into an absl::flat_hash_map which can be extremely
+  // slow for some of the Cords we generate
+
+  // Keep track of Cord sizes to ensure we're creating some variety of sizes
+  auto sizes = std::vector<size_t>();
+
+  // Keep track of whether we're creating both large and small Cords
+  // Huge being above 4 GB
+  bool contains_huge_cord = false;
+  // Small being under 4GB
+  bool contains_small_cord = false;
+
+  const int NUM_TO_GENERATE = 1000;
+  for (int i = 0; i < NUM_TO_GENERATE; ++i) {
+    const auto value = GenerateValue(domain);
+    sizes.push_back(value.user_value.size());
+    if (value.user_value.size() > 4LLU * 1024LLU * 1024LLU * 1024LLU) {
+      contains_huge_cord = true;
+    } else if (value.user_value.size() < 4LLU * 1024LLU * 1024LLU * 1024LLU) {
+      contains_small_cord = true;
+    }
+
+    // Skip for Cords larger than a megabyte to avoid high memory consumption
+    if (value.user_value.size() > 1024U * 1024U) continue;
+
+    std::string str(value.user_value);
+    EXPECT_EQ(value.user_value, str);
+    EXPECT_EQ(value.user_value, absl::Cord(str));
+
+    if (!value.user_value.empty()) {
+      absl::Cord subcord(value.user_value.Subcord(0, value.user_value.size()));
+      EXPECT_EQ(subcord.size(),
+                value.user_value.Subcord(0, value.user_value.size()).size());
+    }
+  }
+  // Make sure that at least one in ten of the Cord sizes we generate is unique
+  EXPECT_GE(sizes.size(), NUM_TO_GENERATE / 10);
+  EXPECT_TRUE(contains_huge_cord);
+  EXPECT_TRUE(contains_small_cord);
+}
+
 // Note: this test is based on knowledge of internal representation of
 // absl::Duration and will fail if the internal representation changes.
 TEST(ArbitraryDurationTest, ValidatesAssumptionsAboutAbslDurationInternals) {
