@@ -162,6 +162,11 @@ struct Environment {
   // Non-default `annotation` becomes a part of the returned filename.
   // `annotation` must not start with a '.'.
   std::string MakeCorpusStatsPath(std::string_view annotation = "") const;
+  // Returns the path for the fuzzing progress stats report file for
+  // `my_shard_index`.
+  // Non-default `annotation` becomes a part of the returned filename.
+  // `annotation` must not start with a '.'.
+  std::string MakeFuzzingStatsPath(std::string_view annotation = "") const;
   // Returns the path to the source-based coverage report directory.
   std::string MakeSourceBasedCoverageReportPath(
       std::string_view annotation = "") const;

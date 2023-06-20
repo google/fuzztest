@@ -15,89 +15,204 @@
 #include "./centipede/stats.h"
 
 #include <algorithm>
+#include <cinttypes>
+#include <cstdint>
+#include <limits>
 #include <map>
 #include <numeric>
-#include <string>
+#include <vector>
 
-#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
+#include "./centipede/remote_file.h"
 
 namespace centipede {
 
-namespace {
-// Helper for PrintExperimentStats().
-// Prints the experiment summary for the `field`.
-void PrintExperimentStatsForOneStatValue(absl::Span<const Stats> stats_vec,
-                                         absl::Span<const Environment> env_vec,
-                                         std::ostream &os,
-                                         std::atomic<uint64_t> Stats::*field) {
-  CHECK_EQ(stats_vec.size(), env_vec.size());
-  // Maps experiment names to indices in env_vec/stats_vec.
-  // We use std::map because we want lexicographic order of experiment names.
-  std::map<std::string_view, std::vector<size_t>> experiment_to_indices;
-  for (size_t i = 0; i < env_vec.size(); ++i) {
-    experiment_to_indices[env_vec[i].experiment_name].push_back(i);
-  }
+// -----------------------------------------------------------------------------
+//                               StatsReporter
 
-  // Iterate over every experiment_name.
-  for (const auto &[experiment_name, experiment_indices] :
-       experiment_to_indices) {
-    os << experiment_name << ": ";
-    std::vector<uint64_t> stat_values;
-    CHECK_NE(experiment_indices.size(), 0);
-    // Get the required stat fields into a vector `stat_values`.
-    stat_values.reserve(experiment_indices.size());
-    for (const auto idx : experiment_indices) {
-      // stat_values.push_back(extract_value(stats_vec[idx]));
-      stat_values.push_back((stats_vec[idx].*field));
-    }
-    // Print min/max/avg and the full sorted contents of `stat_values`.
-    std::sort(stat_values.begin(), stat_values.end());
-    os << "min:\t" << stat_values.front() << "\t";
-    os << "max:\t" << stat_values.back() << "\t";
-    os << "avg:\t"
-       << (std::accumulate(stat_values.begin(), stat_values.end(), 0.) /
-           static_cast<double>(stat_values.size()))
-       << "\t";
-    os << "--";
-    for (const auto value : stat_values) {
-      os << "\t" << value;
-    }
-    os << std::endl;
+StatsReporter::StatsReporter(const std::vector<Stats> &stats_vec,
+                             const std::vector<Environment> &env_vec)
+    : stats_vec_{stats_vec}, env_vec_{env_vec} {
+  CHECK_EQ(stats_vec.size(), env_vec.size());
+  for (size_t i = 0; i < env_vec.size(); ++i) {
+    const auto &env = env_vec[i];
+    group_to_indices_[env.experiment_name].push_back(i);
+    // NOTE: This will overwrite repeatedly for all indices of each group,
+    // but the value will be the same by construction in environment.cc.
+    group_to_flags_[env.experiment_name] = env.experiment_flags;
   }
 }
 
-}  // namespace
-
-void PrintExperimentStats(absl::Span<const Stats> stats_vec,
-                          absl::Span<const Environment> env_vec,
-                          std::ostream &os) {
-  os << "Coverage:\n";
-  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
-                                      &Stats::num_covered_pcs);
-
-  os << "Corpus size:\n";
-  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
-                                      &Stats::corpus_size);
-  os << "Max corpus element size:\n";
-  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
-                                      &Stats::max_corpus_element_size);
-
-  os << "Avg corpus element size:\n";
-  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
-                                      &Stats::avg_corpus_element_size);
-  os << "Number of executions:\n";
-  PrintExperimentStatsForOneStatValue(stats_vec, env_vec, os,
-                                      &Stats::num_executions);
-
-  os << "Flags:\n";
-  absl::flat_hash_set<std::string> printed_names;
-  for (const auto &env : env_vec) {
-    if (!printed_names.insert(env.experiment_name).second) continue;
-    os << env.experiment_name << ": " << env.experiment_flags << "\n";
+void StatsReporter::ReportCurrStats() {
+  if (!init_done_) {
+    PreAnnounceFields(Stats::kFieldInfos);
+    std::vector<const Environment *> master_envs;
+    for (const auto &[group_name, group_indices] : group_to_indices_) {
+      master_envs.push_back(&env_vec_[group_indices.at(0)]);
+    }
+    PreAnnounceGroups(master_envs);
+    init_done_ = true;
   }
+
+  StartFieldSamplesBatch(absl::Now());
+  for (const Stats::FieldInfo &field_info : Stats::kFieldInfos) {
+    SetCurrField(field_info);
+    for (const auto &[group_name, group_indices] : group_to_indices_) {
+      SetCurrGroup(env_vec_[group_indices.at(0)]);
+      // Get the required stat fields into a vector `stat_values`.
+      std::vector<uint64_t> stat_values;
+      stat_values.reserve(group_indices.size());
+      for (const auto idx : group_indices) {
+        stat_values.push_back(stats_vec_.at(idx).*(field_info.field));
+      }
+      ReportCurrFieldSample(std::move(stat_values));
+    }
+  }
+  DoneFieldSamplesBatch();
+  ReportFlags(group_to_flags_);
+}
+
+// -----------------------------------------------------------------------------
+//                               StatsLogger
+
+void StatsLogger::PreAnnounceGroups(
+    const std::vector<const Environment *> &master_envs) {
+  // Nothing to do for logging.
+}
+
+void StatsLogger::PreAnnounceFields(
+    std::initializer_list<Stats::FieldInfo> fields) {
+  // Nothing to do: Field names are logged together with every sample values.
+}
+
+void StatsLogger::SetCurrGroup(const Environment &master_env) {
+  if (!master_env.experiment_name.empty())
+    os_ << master_env.experiment_name << ": ";
+}
+
+void StatsLogger::StartFieldSamplesBatch(absl::Time timestamp) {
+  // Ignore the timestamp.
+}
+
+void StatsLogger::SetCurrField(const Stats::FieldInfo &field_info) {
+  os_ << field_info.description << ":\n";
+}
+
+void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
+  // Print min/max/avg and the full sorted contents of `values`.
+  std::sort(values.begin(), values.end());
+  os_ << "min:\t" << values.front() << "\t";
+  os_ << "max:\t" << values.back() << "\t";
+  os_ << "avg:\t"
+      << (std::accumulate(values.begin(), values.end(), 0.) /
+          static_cast<double>(values.size()))
+      << "\t";
+  os_ << "--";
+  for (const auto value : values) {
+    os_ << "\t" << value;
+  }
+  os_ << "\n";
+}
+
+void StatsLogger::DoneFieldSamplesBatch() {
+  LOG(INFO) << "Current stats:\n" << os_.str();
+  os_.clear();
+}
+
+void StatsLogger::ReportFlags(const GroupToFlags &group_to_flags) {
+  os_ << "Flags:\n";
+  for (const auto &[group_name, group_flags] : group_to_flags) {
+    os_ << group_name << ": " << group_flags << "\n";
+  }
+}
+
+// -----------------------------------------------------------------------------
+//                           StatsCsvFileAppender
+
+StatsCsvFileAppender::~StatsCsvFileAppender() {
+  for (const auto &[group_name, file] : files_) {
+    RemoteFileClose(file);
+  }
+}
+
+void StatsCsvFileAppender::PreAnnounceGroups(
+    const std::vector<const Environment *> &master_envs) {
+  for (const auto *master_env : master_envs) {
+    RemoteFile *&file = files_[master_env->experiment_name];
+    CHECK(file == nullptr) << VV(master_env->experiment_name);
+    const std::string filename =
+        master_env->MakeFuzzingStatsPath(master_env->experiment_name);
+    file = RemoteFileOpen(filename, "w");
+    CHECK(file != nullptr) << VV(filename);
+    RemoteFileAppend(file, csv_header_);
+  }
+}
+
+void StatsCsvFileAppender::PreAnnounceFields(
+    std::initializer_list<Stats::FieldInfo> fields) {
+  if (!csv_header_.empty()) return;
+
+  csv_header_ = "ElapsedMillis";
+  for (const auto &field : fields) {
+    const std::string field_col_names =
+        absl::Substitute(",$0_Min,$0_Max,$0_Avg", field.name);
+    absl::StrAppend(&csv_header_, field_col_names);
+  }
+  absl::StrAppend(&csv_header_, "\n");
+}
+
+void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
+  curr_file_ = files_.at(master_env.experiment_name);
+  CHECK(curr_file_ != nullptr) << VV(master_env.experiment_name);
+}
+
+void StatsCsvFileAppender::StartFieldSamplesBatch(absl::Time timestamp) {
+  const auto elapsed_millis =
+      absl::ToInt64Milliseconds(timestamp - start_time_);
+  const auto elapsed_millis_str =
+      absl::StrFormat("%" PRIu64 ",", elapsed_millis);
+  for (const auto &[group_name, file] : files_) {
+    RemoteFileAppend(file, elapsed_millis_str);
+  }
+}
+
+void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
+  // Nothing to do: Field names are printed as the CSV header elsewhere.
+}
+
+void StatsCsvFileAppender::ReportCurrFieldSample(
+    std::vector<uint64_t> &&values) {
+  // Print min/max/avg of `values`.
+  uint64_t min = std::numeric_limits<uint64_t>::max();
+  uint64_t max = std::numeric_limits<uint64_t>::min();
+  long double avg = 0;
+  for (const auto value : values) {
+    min = std::min(min, value);
+    max = std::max(max, value);
+    avg += value;
+  }
+  if (!values.empty()) avg /= values.size();
+  const std::string str =
+      absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
+  RemoteFileAppend(curr_file_, str);
+}
+
+void StatsCsvFileAppender::DoneFieldSamplesBatch() {
+  for (const auto &[group_name, file] : files_) {
+    RemoteFileAppend(file, "\n");
+  }
+}
+
+void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
+  // Do nothing: can't write to CSV, as it has no concept of comments.
+  // TODO(ussuri): Consider writing to a sidecar file.
 }
 
 void PrintRewardValues(absl::Span<const Stats> stats_vec, std::ostream &os) {
