@@ -40,6 +40,9 @@ cc_library(
     ],
 )
 
+# This is also for test.
+# Please ignore me :)
+
 cc_test(
     name = "any_test",
     srcs = ["internal/any_test.cc"],
