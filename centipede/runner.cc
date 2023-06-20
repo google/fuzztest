@@ -236,7 +236,7 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
                                    size_t max_size) {
   // TODO(kcc): [as-needed] fix the interface mismatch.
   // LLVMFuzzerMutate is an array-based interface (for compatibility reasons)
-  // while centipede::ByteArray has a vector-based interface.
+  // while ByteArray has a vector-based interface.
   // This incompatibility causes us to do extra allocate/copy per mutation.
   // It may not cause big problems in practice though.
   if (max_size == 0) return 0;  // just in case, not expected to happen.
@@ -246,7 +246,7 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
     return 1;
   }
 
-  centipede::ByteArray array(data, data + size);
+  ByteArray array(data, data + size);
   state.byte_array_mutator->Mutate(array);
   if (array.size() > max_size) {
     array.resize(max_size);
@@ -258,8 +258,7 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
 // An arbitrary large size for input data.
 static const size_t kMaxDataSize = 1 << 20;
 
-static void WriteFeaturesToFile(FILE *file,
-                                const centipede::feature_t *features,
+static void WriteFeaturesToFile(FILE *file, const feature_t *features,
                                 size_t size) {
   if (!size) return;
   auto bytes_written = fwrite(features, 1, sizeof(features[0]) * size, file);
@@ -280,7 +279,7 @@ __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
   if (state.run_time_flags.path_level != 0) {
-    state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
+    state.ForEachTls([](ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
       tls.call_stack.Reset(state.run_time_flags.callstack_level);
       tls.lowest_sp = tls.top_frame_sp;
@@ -316,13 +315,11 @@ PrepareCoverage(bool full_clear) {
 // `counter_value` (non-zero) is a counter value associated with that PC.
 static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
   if (state.run_time_flags.use_pc_features) {
-    state.g_features.push_back(
-        centipede::feature_domains::kPCs.ConvertToMe(idx));
+    state.g_features.push_back(feature_domains::kPCs.ConvertToMe(idx));
   }
   if (state.run_time_flags.use_counter_features) {
-    state.g_features.push_back(
-        centipede::feature_domains::k8bitCounters.ConvertToMe(
-            centipede::Convert8bitCounterToNumber(idx, counter_value)));
+    state.g_features.push_back(feature_domains::k8bitCounters.ConvertToMe(
+        Convert8bitCounterToNumber(idx, counter_value)));
   }
 }
 
@@ -350,8 +347,7 @@ PostProcessCoverage(int target_return_value) {
   // Convert data flow bit set to features.
   if (state.run_time_flags.use_dataflow_features) {
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kDataFlow.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kDataFlow.ConvertToMe(idx));
     });
   }
 
@@ -359,24 +355,19 @@ PostProcessCoverage(int target_return_value) {
   if (state.run_time_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCMP.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCMP.ConvertToMe(idx));
     });
     state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCMPEq.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCMPEq.ConvertToMe(idx));
     });
     state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCMPModDiff.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCMPModDiff.ConvertToMe(idx));
     });
     state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCMPHamming.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCMPHamming.ConvertToMe(idx));
     });
     state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCMPDiffLog.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCMPDiffLog.ConvertToMe(idx));
     });
   }
 
@@ -384,25 +375,24 @@ PostProcessCoverage(int target_return_value) {
   if (state.run_time_flags.path_level != 0) {
     state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
       state.g_features.push_back(
-          centipede::feature_domains::kBoundedPath.ConvertToMe(idx));
+          feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
 
   // Iterate all threads and get features from TLS data.
-  state.ForEachTls([](centipede::ThreadLocalRunnerState &tls) {
+  state.ForEachTls([](ThreadLocalRunnerState &tls) {
     if (state.run_time_flags.callstack_level != 0) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
       state.g_features.push_back(
-          centipede::feature_domains::kCallStack.ConvertToMe(sp_diff));
+          feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
   });
 
   if (state.run_time_flags.callstack_level != 0) {
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          centipede::feature_domains::kCallStack.ConvertToMe(idx));
+      state.g_features.push_back(feature_domains::kCallStack.ConvertToMe(idx));
     });
   }
 
@@ -417,9 +407,9 @@ PostProcessCoverage(int target_return_value) {
       // There is no hard guarantee how many user domains are actually
       // available. If a user domain ID is out of range, alias it to an existing
       // domain. This is kinder than silently dropping the feature.
-      user_domain_id %= std::size(centipede::feature_domains::kUserDomains);
+      user_domain_id %= std::size(feature_domains::kUserDomains);
       state.g_features.push_back(
-          centipede::feature_domains::kUserDomains[user_domain_id].ConvertToMe(
+          feature_domains::kUserDomains[user_domain_id].ConvertToMe(
               user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
@@ -446,7 +436,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   state.stats = {};
   size_t last_time_usec = 0;
   auto UsecSinceLast = [&last_time_usec]() {
-    uint64_t t = centipede::TimeInUsec();
+    uint64_t t = TimeInUsec();
     uint64_t ret_val = t - last_time_usec;
     last_time_usec = t;
     return ret_val;
@@ -460,7 +450,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   CheckWatchdogLimits();
   PostProcessCoverage(target_return_value);
   state.stats.post_time_usec = UsecSinceLast();
-  state.stats.peak_rss_mb = centipede::GetPeakRSSMb();
+  state.stats.peak_rss_mb = GetPeakRSSMb();
 }
 
 template <typename Type>
@@ -502,17 +492,17 @@ ReadOneInputExecuteItAndDumpCoverage(
   fclose(features_file);
 }
 
-// Calls centipede::BatchResult::WriteCmpArgs for every CMP arg pair
+// Calls BatchResult::WriteCmpArgs for every CMP arg pair
 // found in `cmp_trace`.
 // Returns true if all writes succeeded.
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
-__attribute__((noinline)) bool WriteCmpArgs(
-    CmpTrace &cmp_trace, centipede::SharedMemoryBlobSequence &blobseq) {
+__attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
+                                            SharedMemoryBlobSequence &blobseq) {
   bool write_failed = false;
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
-        if (!centipede::BatchResult::WriteCmpArgs(v0, v1, size, blobseq))
+        if (!BatchResult::WriteCmpArgs(v0, v1, size, blobseq))
           write_failed = true;
       });
   return !write_failed;
@@ -521,16 +511,16 @@ __attribute__((noinline)) bool WriteCmpArgs(
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool StartSendingOutputsToEngine(
-    centipede::SharedMemoryBlobSequence &outputs_blobseq) {
-  return centipede::BatchResult::WriteInputBegin(outputs_blobseq);
+    SharedMemoryBlobSequence &outputs_blobseq) {
+  return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(
-    centipede::SharedMemoryBlobSequence &outputs_blobseq) {
+    SharedMemoryBlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
-  if (!centipede::BatchResult::WriteOneFeatureVec(
+  if (!BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
     return false;
   }
@@ -538,21 +528,24 @@ static bool FinishSendingOutputsToEngine(
   // Copy the CMP traces to shared memory.
   if (state.run_time_flags.use_auto_dictionary) {
     bool write_failed = false;
-    state.ForEachTls([&write_failed, &outputs_blobseq](
-                         centipede::ThreadLocalRunnerState &tls) {
-      if (!WriteCmpArgs(tls.cmp_trace2, outputs_blobseq)) write_failed = true;
-      if (!WriteCmpArgs(tls.cmp_trace4, outputs_blobseq)) write_failed = true;
-      if (!WriteCmpArgs(tls.cmp_trace8, outputs_blobseq)) write_failed = true;
-      if (!WriteCmpArgs(tls.cmp_traceN, outputs_blobseq)) write_failed = true;
-    });
+    state.ForEachTls(
+        [&write_failed, &outputs_blobseq](ThreadLocalRunnerState &tls) {
+          if (!WriteCmpArgs(tls.cmp_trace2, outputs_blobseq))
+            write_failed = true;
+          if (!WriteCmpArgs(tls.cmp_trace4, outputs_blobseq))
+            write_failed = true;
+          if (!WriteCmpArgs(tls.cmp_trace8, outputs_blobseq))
+            write_failed = true;
+          if (!WriteCmpArgs(tls.cmp_traceN, outputs_blobseq))
+            write_failed = true;
+        });
     if (write_failed) return false;
   }
 
   // Write the stats.
-  if (!centipede::BatchResult::WriteStats(state.stats, outputs_blobseq))
-    return false;
+  if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;
   // We are done with this input.
-  if (!centipede::BatchResult::WriteInputEnd(outputs_blobseq)) return false;
+  if (!BatchResult::WriteInputEnd(outputs_blobseq)) return false;
   return true;
 }
 
@@ -560,8 +553,8 @@ static bool FinishSendingOutputsToEngine(
 // `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
 // Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
 static int ExecuteInputsFromShmem(
-    centipede::SharedMemoryBlobSequence &inputs_blobseq,
-    centipede::SharedMemoryBlobSequence &outputs_blobseq,
+    SharedMemoryBlobSequence &inputs_blobseq,
+    SharedMemoryBlobSequence &outputs_blobseq,
     FuzzerTestOneInputCallback test_one_input_cb) {
   size_t num_inputs = 0;
   if (!execution_request::IsExecutionRequest(inputs_blobseq.Read()))
@@ -799,7 +792,7 @@ GlobalRunnerState::GlobalRunnerState() {
   tls.OnThreadStart();
   state.StartWatchdogThread();
 
-  centipede::SetLimits();
+  SetLimits();
 
   // Compute main_object.
   main_object = GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
@@ -813,24 +806,22 @@ GlobalRunnerState::GlobalRunnerState() {
   // Dump the pc table, if instructed.
   if (state.HasFlag(":dump_pc_table:")) {
     if (!state.arg1) _exit(EXIT_FAILURE);
-    centipede::DumpPcTable(state.arg1);
+    DumpPcTable(state.arg1);
     _exit(EXIT_SUCCESS);
   }
 
   // Dump the control-flow table, if instructed.
   if (state.HasFlag(":dump_cf_table:")) {
     if (!state.arg1) _exit(EXIT_FAILURE);
-    centipede::DumpCfTable(state.arg1);
+    DumpCfTable(state.arg1);
     _exit(EXIT_SUCCESS);
   }
 
   MaybePopulateReversePcTable();
 
   // initialize the user defined section.
-  user_defined_begin =
-      &__start___centipede_extra_features;
-  user_defined_end =
-      &__stop___centipede_extra_features;
+  user_defined_begin = &__start___centipede_extra_features;
+  user_defined_end = &__stop___centipede_extra_features;
   if (user_defined_begin && user_defined_end) {
     fprintf(
         stderr,
@@ -846,7 +837,7 @@ GlobalRunnerState::~GlobalRunnerState() {
   if (!state.centipede_runner_main_executed && state.HasFlag(":shmem:")) {
     int exit_status = EXIT_SUCCESS;  // TODO(kcc): do we know our exit status?
     PostProcessCoverage(exit_status);
-    centipede::SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
