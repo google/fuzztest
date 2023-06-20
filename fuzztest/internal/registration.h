@@ -197,10 +197,10 @@ class Registration : private Base {
           // corpus_type object to pass to PrintValue.
           bool first = true;
           const auto print_one_arg = [&](auto I) {
+            if (!first) absl::FPrintF(stderr, ", ");
             using value_type = std::decay_t<std::tuple_element_t<I, SeedT>>;
             AutodetectTypePrinter<value_type>().PrintUserValue(
                 std::get<I>(seed), &std::cerr, PrintMode::kHumanReadable);
-            if (!first) absl::FPrintF(stderr, ", ");
             first = false;
           };
           ApplyIndex<Base::kNumArgs>(
