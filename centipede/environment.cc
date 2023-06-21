@@ -538,6 +538,13 @@ std::string Environment::MakeCorpusStatsPath(
       my_shard_index, NormalizeAnnotation(annotation)));
 }
 
+std::string Environment::MakeFuzzingStatsPath(
+    std::string_view annotation) const {
+  return std::filesystem::path(workdir).append(absl::StrFormat(
+      "fuzzing-stats-%s.%0*d%s.csv", binary_name, kDigitsInShardIndex,
+      my_shard_index, NormalizeAnnotation(annotation)));
+}
+
 std::string Environment::MakeSourceBasedCoverageRawProfilePath() const {
   // Pass %m to enable online merge mode: updates file in place instead of
   // replacing it %m is replaced by lprofGetLoadModuleSignature(void) which
