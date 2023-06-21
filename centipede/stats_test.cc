@@ -15,12 +15,32 @@
 #include "./centipede/stats.h"
 
 #include <sstream>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "./centipede/logging.h"
 
 namespace centipede {
+
+namespace {
+
+class LogCapture : public absl::LogSink {
+ public:
+  LogCapture() { absl::AddLogSink(this); }
+  ~LogCapture() override { absl::RemoveLogSink(this); }
+  void Send(const absl::LogEntry &entry) override {
+    captured_log_ << entry.text_message() << "\n";
+  }
+  std::string CapturedLog() const { return captured_log_.str(); }
+
+ private:
+  std::stringstream captured_log_;
+};
+
+}  // namespace
 
 TEST(Stats, PrintExperimentStats) {
   std::stringstream ss;
@@ -52,29 +72,32 @@ TEST(Stats, PrintExperimentStats) {
   env_vec[3].experiment_name = "Experiment B";
   env_vec[3].experiment_flags = "BBB";
 
-  PrintExperimentStats(stats_vec, env_vec, ss);
-  LOG(INFO) << "\n" << ss.str();
-  const char *expected =
+  const std::string_view kExpectedLogLines =
+      "Current stats:\n"
+      "Number of executions:\n"
+      "Experiment A: min:\t100\tmax:\t102\tavg:\t101\t--\t100\t102\n"
+      "Experiment B: min:\t101\tmax:\t103\tavg:\t102\t--\t101\t103\n"
       "Coverage:\n"
       "Experiment A: min:\t10\tmax:\t25\tavg:\t17.5\t--\t10\t25\n"
       "Experiment B: min:\t15\tmax:\t40\tavg:\t27.5\t--\t15\t40\n"
       "Corpus size:\n"
       "Experiment A: min:\t1000\tmax:\t3000\tavg:\t2000\t--\t1000\t3000\n"
       "Experiment B: min:\t2000\tmax:\t4000\tavg:\t3000\t--\t2000\t4000\n"
-      "Max corpus element size:\n"
+      "Max element size:\n"
       "Experiment A: min:\t1\tmax:\t5\tavg:\t3\t--\t1\t5\n"
       "Experiment B: min:\t3\tmax:\t7\tavg:\t5\t--\t3\t7\n"
-      "Avg corpus element size:\n"
+      "Avg element size:\n"
       "Experiment A: min:\t1\tmax:\t3\tavg:\t2\t--\t1\t3\n"
       "Experiment B: min:\t2\tmax:\t4\tavg:\t3\t--\t2\t4\n"
-      "Number of executions:\n"
-      "Experiment A: min:\t100\tmax:\t102\tavg:\t101\t--\t100\t102\n"
-      "Experiment B: min:\t101\tmax:\t103\tavg:\t102\t--\t101\t103\n"
       "Flags:\n"
       "Experiment A: AAA\n"
       "Experiment B: BBB\n";
 
-  EXPECT_THAT(ss.str(), testing::StrEq(expected));
+  StatsLogger stats_logger{stats_vec, env_vec};
+  LogCapture log_capture;
+  stats_logger.ReportCurrStats();
+
+  EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
 }
 
 TEST(Stats, PrintRewardValues) {
