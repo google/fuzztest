@@ -30,9 +30,11 @@ namespace centipede::execution_request {
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
                         SharedMemoryBlobSequence &blobseq);
 
-// Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
+// Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`
+// with metadata `cmp_data` following the format of ExecutionResult::cmp_args().
 // Returns the number of sent inputs, which would normally be inputs.size().
-size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
+size_t RequestMutation(size_t num_mutants, const ByteArray &cmp_data,
+                       const std::vector<ByteArray> &inputs,
                        SharedMemoryBlobSequence &blobseq);
 
 // Returns whether `blob` indicates an execution request.
@@ -44,6 +46,9 @@ bool IsMutationRequest(SharedMemoryBlobSequence::Blob blob);
 // Returns true and sets `num_inputs`
 // iff the blob indicates the number of inputs.
 bool IsNumInputs(SharedMemoryBlobSequence::Blob blob, size_t &num_inputs);
+
+// Returns whether `blob` indicates a mutation comparison data.
+bool IsMutationCmpData(SharedMemoryBlobSequence::Blob blob);
 
 // Returns true and sets `num_mutants`
 // iff the blob indicates the number of mutants.

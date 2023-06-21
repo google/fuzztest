@@ -89,7 +89,7 @@ class CentipedeCallbacks {
   // Sets the internal CmpDictionary to `cmp_data`.
   // TODO(kcc): this is pretty ugly. Instead we need to pass `cmp_data`
   // to Mutate() alongside with the inputs.
-  bool SetCmpDictionary(ByteSpan cmp_data) {
+  virtual bool SetCmpDictionary(ByteSpan cmp_data) {
     return env_.use_legacy_default_mutator
                ? byte_array_mutator_.SetCmpDictionary(cmp_data)
                : fuzztest_mutator_.SetCmpDictionary(cmp_data);
@@ -110,9 +110,11 @@ class CentipedeCallbacks {
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
 
-  // Uses an external binary `binary` to mutate `inputs`.
-  // The binary should be linked against :centipede_runner and
-  // implement the Structure-Aware Fuzzing interface, as described here:
+  // Uses an external binary `binary` to mutate `inputs`, potentially using the
+  // comparison records in `cmp_data` following the format of
+  // ExecutionResult::cmp_args(). The binary should be linked against
+  // :centipede_runner and implement the Structure-Aware Fuzzing interface, as
+  // described here:
   // github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
   //
   // Produces at most `mutants.size()` non-empty mutants,
@@ -121,6 +123,7 @@ class CentipedeCallbacks {
   //
   // Returns true on success.
   bool MutateViaExternalBinary(std::string_view binary,
+                               const ByteArray &cmp_data,
                                const std::vector<ByteArray> &inputs,
                                std::vector<ByteArray> &mutants);
 

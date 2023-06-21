@@ -646,6 +646,16 @@ static void DumpCfTable(const char *output_path) {
 // TODO(kcc): [as-needed] optionally pass an external seed.
 static unsigned GetRandomSeed() { return time(nullptr); }
 
+static bool TrySetMutatorCmpData(
+    SharedMemoryBlobSequence &inputs_blobseq,
+    CentipedeCustomMutatorSetCmpDataCallback custom_mutator_set_cmp_data_cb) {
+  auto cmp_data_blob = inputs_blobseq.Read();
+  if (!execution_request::IsMutationCmpData(cmp_data_blob)) return false;
+  if (custom_mutator_set_cmp_data_cb == nullptr) return true;
+  return custom_mutator_set_cmp_data_cb(cmp_data_blob.data,
+                                        cmp_data_blob.size) == 0;
+}
+
 // Handles a Mutation Request, see RequestMutation().
 // Mutates inputs read from `inputs_blobseq`,
 // writes the mutants to `outputs_blobseq`
@@ -659,6 +669,7 @@ static int MutateInputsFromShmem(
     SharedMemoryBlobSequence &inputs_blobseq,
     SharedMemoryBlobSequence &outputs_blobseq,
     FuzzerCustomMutatorCallback custom_mutator_cb,
+    CentipedeCustomMutatorSetCmpDataCallback custom_mutator_set_cmp_data_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb) {
   if (custom_mutator_cb == nullptr) return EXIT_FAILURE;
   unsigned int seed = GetRandomSeed();
@@ -668,6 +679,8 @@ static int MutateInputsFromShmem(
   if (!execution_request::IsMutationRequest(inputs_blobseq.Read()))
     return EXIT_FAILURE;
   if (!execution_request::IsNumMutants(inputs_blobseq.Read(), num_mutants))
+    return EXIT_FAILURE;
+  if (!TrySetMutatorCmpData(inputs_blobseq, custom_mutator_set_cmp_data_cb))
     return EXIT_FAILURE;
   if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
@@ -859,7 +872,8 @@ extern "C" int CentipedeRunnerMain(
     int argc, char **argv, FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerInitializeCallback initialize_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb) {
+    FuzzerCustomCrossOverCallback custom_crossover_cb,
+    CentipedeCustomMutatorSetCmpDataCallback custom_mutator_set_cmp_data_cb) {
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
@@ -891,8 +905,9 @@ extern "C" int CentipedeRunnerMain(
       inputs_blobseq.Reset();
       state.byte_array_mutator =
           new ByteArrayMutator(state.knobs, GetRandomSeed());
-      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq,
-                                   custom_mutator_cb, custom_crossover_cb);
+      return MutateInputsFromShmem(
+          inputs_blobseq, outputs_blobseq, custom_mutator_cb,
+          custom_mutator_set_cmp_data_cb, custom_crossover_cb);
     }
     if (execution_request::IsExecutionRequest(request_type_blob)) {
       // Execution request.
@@ -916,7 +931,8 @@ extern "C" int LLVMFuzzerRunDriver(
     int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb) {
   return CentipedeRunnerMain(*argc, *argv, test_one_input_cb,
                              LLVMFuzzerInitialize, LLVMFuzzerCustomMutator,
-                             LLVMFuzzerCustomCrossOver);
+                             LLVMFuzzerCustomCrossOver,
+                             CentipedeCustomMutatorSetCmpData);
 }
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}

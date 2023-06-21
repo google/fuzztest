@@ -27,6 +27,7 @@ enum Tags : SharedMemoryBlobSequence::Blob::SizeAndTagT {
   kTagInvalid,  // 0 is an invalid tag.
   kTagExecution,
   kTagMutation,
+  kTagMutationCmpData,
   kTagNumInputs,
   kTagNumMutants,
   kTagDataInput,
@@ -56,10 +57,13 @@ size_t RequestExecution(const std::vector<ByteArray> &inputs,
   return WriteInputs(inputs, blobseq);
 }
 
-size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
+size_t RequestMutation(size_t num_mutants, const ByteArray &cmp_data,
+                       const std::vector<ByteArray> &inputs,
                        SharedMemoryBlobSequence &blobseq) {
   if (!blobseq.Write({kTagMutation, 0, nullptr})) return 0;
   if (!blobseq.Write(kTagNumMutants, num_mutants)) return 0;
+  if (!blobseq.Write({kTagMutationCmpData, cmp_data.size(), cmp_data.data()}))
+    return 0;
   return WriteInputs(inputs, blobseq);
 }
 
@@ -76,6 +80,10 @@ bool IsNumInputs(SharedMemoryBlobSequence::Blob blob, size_t &num_inputs) {
   if (blob.size != sizeof(num_inputs)) return false;
   memcpy(&num_inputs, blob.data, sizeof(num_inputs));
   return true;
+}
+
+bool IsMutationCmpData(SharedMemoryBlobSequence::Blob blob) {
+  return blob.tag == kTagMutationCmpData;
 }
 
 bool IsNumMutants(SharedMemoryBlobSequence::Blob blob, size_t &num_mutants) {

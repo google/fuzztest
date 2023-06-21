@@ -37,9 +37,13 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
                BatchResult &batch_result) override;
   void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override;
+  bool SetCmpDictionary(ByteSpan cmp_data) override;
 
  private:
   bool custom_mutator_is_usable_ = false;
+  // Used to pass comparison data from SetCmpDictionary to the custom mutator if
+  // needed.
+  ByteArray cmp_data_;
 };
 
 }  // namespace centipede

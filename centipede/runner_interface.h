@@ -28,9 +28,13 @@ using FuzzerCustomCrossOverCallback = size_t (*)(
     const uint8_t *data1, size_t size1, const uint8_t *data2, size_t size2,
     uint8_t *out, size_t max_out_size, unsigned int seed);
 
-// This is the header-less interface of libFuzzer, see
-// https://llvm.org/docs/LibFuzzer.html.
+// Typedefs for the experimental Centipede APIs
+using CentipedeCustomMutatorSetCmpDataCallback = int (*)(const uint8_t *data,
+                                                         size_t size);
+
 extern "C" {
+// Header-less interface of libFuzzer, see
+// https://llvm.org/docs/LibFuzzer.html.
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 __attribute__((weak)) int LLVMFuzzerInitialize(int *argc, char ***argv);
 __attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t *data, size_t size,
@@ -39,6 +43,16 @@ __attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t *data, size_t size,
 __attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
     const uint8_t *data1, size_t size1, const uint8_t *data2, size_t size2,
     uint8_t *out, size_t max_out_size, unsigned int seed);
+
+// Declarations of Centipede callbacks
+
+// If available, it will be called before calling LLVMFuzzerCustomMutator to
+// propagate comparison records in `data` where each record is stored as:
+//  * `size` (1-byte value)
+//  * `value0` (`size` bytes)
+//  * `value1` (`size` bytes)
+__attribute__((weak)) int CentipedeCustomMutatorSetCmpData(const uint8_t *data,
+                                                           size_t size);
 }  // extern "C"
 
 // The main Centipede Runner function.
@@ -53,7 +67,8 @@ extern "C" int CentipedeRunnerMain(
     int argc, char **argv, FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerInitializeCallback initialize_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb);
+    FuzzerCustomCrossOverCallback custom_crossover_cb,
+    CentipedeCustomMutatorSetCmpDataCallback custom_mutator_set_cmp_data_cb);
 
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 extern "C" int LLVMFuzzerRunDriver(

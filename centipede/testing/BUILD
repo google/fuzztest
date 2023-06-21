@@ -49,6 +49,10 @@ centipede_fuzz_target(
     name = "user_defined_features_target",
 )
 
+centipede_fuzz_target(
+    name = "cmp_data_fuzz_target",
+)
+
 # Simple fuzz target used for testing.
 centipede_fuzz_target(
     name = "test_fuzz_target",
@@ -161,6 +165,7 @@ cc_test(
     srcs = ["centipede_test.cc"],
     data = [
         ":abort_fuzz_target",
+        ":cmp_data_fuzz_target",
         ":test_fuzz_target",
         ":test_input_filter",
     ],
