@@ -20,37 +20,37 @@
 #include <cstddef>
 #include <vector>
 
+#include "./centipede/blob_sequence.h"
 #include "./centipede/defs.h"
-#include "./centipede/shared_memory_blob_sequence.h"
 
 namespace centipede::execution_request {
 
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        SharedMemoryBlobSequence &blobseq);
+                        BlobSequence &blobseq);
 
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
-                       SharedMemoryBlobSequence &blobseq);
+                       BlobSequence &blobseq);
 
 // Returns whether `blob` indicates an execution request.
-bool IsExecutionRequest(SharedMemoryBlobSequence::Blob blob);
+bool IsExecutionRequest(Blob blob);
 
 // Returns whether `blob` indicates a mutation request.
-bool IsMutationRequest(SharedMemoryBlobSequence::Blob blob);
+bool IsMutationRequest(Blob blob);
 
 // Returns true and sets `num_inputs`
 // iff the blob indicates the number of inputs.
-bool IsNumInputs(SharedMemoryBlobSequence::Blob blob, size_t &num_inputs);
+bool IsNumInputs(Blob blob, size_t &num_inputs);
 
 // Returns true and sets `num_mutants`
 // iff the blob indicates the number of mutants.
-bool IsNumMutants(SharedMemoryBlobSequence::Blob blob, size_t &num_mutants);
+bool IsNumMutants(Blob blob, size_t &num_mutants);
 
 // Returns true iff `blob` indicates a data input.
-bool IsDataInput(SharedMemoryBlobSequence::Blob blob);
+bool IsDataInput(Blob blob);
 
 }  // namespace centipede::execution_request
 

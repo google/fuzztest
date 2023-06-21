@@ -22,8 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "./centipede/blob_sequence.h"
 #include "./centipede/feature.h"
-#include "./centipede/shared_memory_blob_sequence.h"
 
 namespace centipede {
 
@@ -120,25 +120,25 @@ class BatchResult {
   // Called by the runner.
   // When executing N inputs, the runner will call this at most N times.
   static bool WriteOneFeatureVec(const feature_t* vec, size_t size,
-                                 SharedMemoryBlobSequence& blobseq);
+                                 BlobSequence& blobseq);
   // Writes a special Begin marker before executing an input.
-  static bool WriteInputBegin(SharedMemoryBlobSequence& blobseq);
+  static bool WriteInputBegin(BlobSequence& blobseq);
   // Writes a special End marker after executing an input.
-  static bool WriteInputEnd(SharedMemoryBlobSequence& blobseq);
+  static bool WriteInputEnd(BlobSequence& blobseq);
   // Writes unit execution stats.
   static bool WriteStats(const ExecutionResult::Stats& stats,
-                         SharedMemoryBlobSequence& blobseq);
+                         BlobSequence& blobseq);
   // Writes the data derived from tracing CMP instructions.
   // `v0` and `v1` are both arrays of `size` bytes, representing two arguments
   // of a CMP-like instruction.
   // Returns true iff successful.
   static bool WriteCmpArgs(const uint8_t* v0, const uint8_t* v1, size_t size,
-                           SharedMemoryBlobSequence& blobseq);
+                           BlobSequence& blobseq);
 
   // Reads everything written by the runner to `blobseq` into `this`.
   // Returns true iff successful.
   // When running N inputs, ClearAndResize(N) must be called before Read().
-  bool Read(SharedMemoryBlobSequence& blobseq);
+  bool Read(BlobSequence& blobseq);
 
   // Accessors.
   std::vector<ExecutionResult>& results() { return results_; }

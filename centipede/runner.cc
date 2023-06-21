@@ -39,6 +39,7 @@
 #include <ctime>
 #include <vector>
 
+#include "./centipede/blob_sequence.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_request.h"
@@ -498,7 +499,7 @@ ReadOneInputExecuteItAndDumpCoverage(
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
 __attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
-                                            SharedMemoryBlobSequence &blobseq) {
+                                            BlobSequence &blobseq) {
   bool write_failed = false;
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
@@ -510,15 +511,13 @@ __attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
 
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool StartSendingOutputsToEngine(
-    SharedMemoryBlobSequence &outputs_blobseq) {
+static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool FinishSendingOutputsToEngine(
-    SharedMemoryBlobSequence &outputs_blobseq) {
+static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
   if (!BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
@@ -553,8 +552,7 @@ static bool FinishSendingOutputsToEngine(
 // `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
 // Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
 static int ExecuteInputsFromShmem(
-    SharedMemoryBlobSequence &inputs_blobseq,
-    SharedMemoryBlobSequence &outputs_blobseq,
+    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
     FuzzerTestOneInputCallback test_one_input_cb) {
   size_t num_inputs = 0;
   if (!execution_request::IsExecutionRequest(inputs_blobseq.Read()))
@@ -656,8 +654,7 @@ static unsigned GetRandomSeed() { return time(nullptr); }
 //
 // TODO(kcc): [impl] make use of custom_crossover_cb, if available.
 static int MutateInputsFromShmem(
-    SharedMemoryBlobSequence &inputs_blobseq,
-    SharedMemoryBlobSequence &outputs_blobseq,
+    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
     FuzzerCustomMutatorCallback custom_mutator_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb) {
   if (custom_mutator_cb == nullptr) return EXIT_FAILURE;
@@ -837,7 +834,8 @@ GlobalRunnerState::~GlobalRunnerState() {
   if (!state.centipede_runner_main_executed && state.HasFlag(":shmem:")) {
     int exit_status = EXIT_SUCCESS;  // TODO(kcc): do we know our exit status?
     PostProcessCoverage(exit_status);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+    SharedMemoryBlobSequence shmem_outputs_blobseq(state.arg2);
+    BlobSequence &outputs_blobseq = shmem_outputs_blobseq.blob_seq();
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -874,8 +872,10 @@ extern "C" int CentipedeRunnerMain(
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {
     if (!state.arg1 || !state.arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(state.arg1);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+    SharedMemoryBlobSequence shmem_inputs_blobseq(state.arg1);
+    SharedMemoryBlobSequence shmem_outputs_blobseq(state.arg2);
+    BlobSequence &inputs_blobseq = shmem_inputs_blobseq.blob_seq();
+    BlobSequence &outputs_blobseq = shmem_outputs_blobseq.blob_seq();
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
     if (execution_request::IsMutationRequest(request_type_blob)) {

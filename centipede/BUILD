@@ -67,6 +67,12 @@ cc_library(
 )
 
 cc_library(
+    name = "error_on_failure",
+    srcs = ["error_on_failure.cc"],
+    hdrs = ["error_on_failure.h"],
+)
+
+cc_library(
     name = "foreach_nonzero",
     hdrs = ["foreach_nonzero.h"],
 )
@@ -279,10 +285,21 @@ cc_library(
 )
 
 cc_library(
+    name = "blob_sequence",
+    srcs = ["blob_sequence.cc"],
+    hdrs = ["blob_sequence.h"],
+    deps = [":error_on_failure"],
+)
+
+cc_library(
     name = "shared_memory_blob_sequence",
     srcs = ["shared_memory_blob_sequence.cc"],
     hdrs = ["shared_memory_blob_sequence.h"],
     linkopts = ["-lrt"],  # for shm_open.
+    deps = [
+        ":blob_sequence",
+        ":error_on_failure",
+    ],
     # don't add any dependencies.
 )
 
@@ -294,9 +311,9 @@ cc_library(
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
+        ":blob_sequence",
         ":feature",
         ":runner_cmp_trace",
-        ":shared_memory_blob_sequence",
     ],
 )
 
@@ -307,7 +324,7 @@ cc_library(
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
-        ":shared_memory_blob_sequence",
+        ":blob_sequence",
         ":defs",
     ],
 )
@@ -653,12 +670,16 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
+    "blob_sequence.cc",
+    "blob_sequence.h",
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
     "callstack.h",
     "concurrent_bitset.h",
     "concurrent_byteset.h",
     "defs.h",
+    "error_on_failure.cc",
+    "error_on_failure.h",
     "execution_request.cc",
     "execution_request.h",
     "execution_result.cc",
@@ -668,22 +689,22 @@ RUNNER_SOURCES_NO_MAIN = [
     "foreach_nonzero.h",
     "hashed_ring_buffer.h",
     "int_utils.h",
-    "knobs.h",
     "knobs.cc",
+    "knobs.h",
     "pc_info.h",
     "reverse_pc_table.h",
     "rolling_hash.h",
     "runner.cc",
     "runner.h",
-    "runner_dl_info.h",
-    "runner_dl_info.cc",
-    "runner_utils.h",
-    "runner_utils.cc",
     "runner_cmp_trace.h",
+    "runner_dl_info.cc",
+    "runner_dl_info.h",
     "runner_fork_server.cc",
     "runner_interceptors.cc",
     "runner_interface.h",
     "runner_sancov.cc",
+    "runner_utils.cc",
+    "runner_utils.h",
     "shared_memory_blob_sequence.cc",
     "shared_memory_blob_sequence.h",
 ]
@@ -769,6 +790,15 @@ sh_library(
 ################################################################################
 #                               Unit tests
 ################################################################################
+
+cc_test(
+    name = "blob_sequence_test",
+    srcs = ["blob_sequence_test.cc"],
+    deps = [
+        ":blob_sequence",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
 
 cc_test(
     name = "environment_test",
@@ -918,6 +948,7 @@ cc_test(
     name = "shared_memory_blob_sequence_test",
     srcs = ["shared_memory_blob_sequence_test.cc"],
     deps = [
+        ":blob_sequence",
         ":shared_memory_blob_sequence",
         "@com_google_googletest//:gtest_main",
     ],
@@ -927,9 +958,9 @@ cc_test(
     name = "execution_result_test",
     srcs = ["execution_result_test.cc"],
     deps = [
+        ":blob_sequence",
         ":execution_result",
         ":feature",
-        ":shared_memory_blob_sequence",
         "@com_google_googletest//:gtest_main",
     ],
 )

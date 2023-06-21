@@ -161,8 +161,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   batch_result.ClearAndResize(inputs.size());
 
   // Reset the blobseqs.
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_.blob_seq().Reset();
+  outputs_blobseq_.blob_seq().Reset();
 
   size_t num_inputs_written = 0;
 
@@ -173,7 +173,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   } else {
     // Feed the inputs to inputs_blobseq_.
     num_inputs_written =
-        execution_request::RequestExecution(inputs, inputs_blobseq_);
+        execution_request::RequestExecution(inputs, inputs_blobseq_.blob_seq());
   }
 
   if (num_inputs_written != inputs.size()) {
@@ -189,7 +189,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   // Get results.
   batch_result.exit_code() = retval;
-  CHECK(batch_result.Read(outputs_blobseq_));
+  CHECK(batch_result.Read(outputs_blobseq_.blob_seq()));
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
@@ -232,11 +232,11 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<ByteArray> &inputs,
     std::vector<ByteArray> &mutants) {
   auto start_time = absl::Now();
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_.blob_seq().Reset();
+  outputs_blobseq_.blob_seq().Reset();
 
   size_t num_inputs_written = execution_request::RequestMutation(
-      mutants.size(), inputs, inputs_blobseq_);
+      mutants.size(), inputs, inputs_blobseq_.blob_seq());
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
@@ -247,7 +247,7 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
 
   // Read all mutants.
   for (size_t i = 0; i < mutants.size(); ++i) {
-    auto blob = outputs_blobseq_.Read();
+    auto blob = outputs_blobseq_.blob_seq().Read();
     if (blob.size == 0) {
       mutants.resize(i);
       break;
