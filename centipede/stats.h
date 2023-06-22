@@ -16,14 +16,18 @@
 #define THIRD_PARTY_CENTIPEDE_STATS_H_
 
 #include <atomic>
+#include <cstdint>
 #include <initializer_list>
 #include <ostream>
 #include <sstream>
+#include <string>
 #include <string_view>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
+#include "./centipede/remote_file.h"
 
 namespace centipede {
 
@@ -139,6 +143,25 @@ class StatsLogger : public StatsReporter {
   void ReportFlags(const GroupToFlags &group_to_flags) override;
 
   std::stringstream os_;
+};
+
+class StatsCsvFileAppender : public StatsReporter {
+ public:
+  using StatsReporter::StatsReporter;
+  ~StatsCsvFileAppender() override;
+
+ private:
+  void PreAnnounceFields(
+      std::initializer_list<Stats::FieldInfo> fields) override;
+  void SetCurrGroup(const Environment &master_env) override;
+  void SetCurrField(const Stats::FieldInfo &field_info) override;
+  void ReportCurrFieldSample(std::vector<uint64_t> &&values) override;
+  void DoneFieldSamplesBatch() override;
+  void ReportFlags(const GroupToFlags &group_to_flags) override;
+
+  std::string csv_header_;
+  absl::flat_hash_map<std::string /*group_name*/, RemoteFile *> files_;
+  RemoteFile *curr_file_;
 };
 
 // Takes a span of Stats objects `stats_vec` and prints a summary of the results

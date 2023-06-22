@@ -230,8 +230,12 @@ cc_library(
     deps = [
         ":environment",
         ":logging",
+        ":remote_file",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -877,6 +881,8 @@ cc_test(
     deps = [
         ":logging",
         ":stats",
+        ":test_util",
+        ":util",
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_googletest//:gtest_main",

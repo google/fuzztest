@@ -15,16 +15,25 @@
 #include "./centipede/stats.h"
 
 #include <algorithm>
+#include <cinttypes>
+#include <cstdint>
+#include <limits>
 #include <numeric>
 #include <utility>
 #include <vector>
 
-#include "absl/strings/ascii.h"
+#include "absl/log/check.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
+#include "./centipede/remote_file.h"
 
 namespace centipede {
+
+// -----------------------------------------------------------------------------
+//                               StatsReporter
 
 StatsReporter::StatsReporter(const std::vector<Stats> &stats_vec,
                              const std::vector<Environment> &env_vec)
@@ -57,6 +66,9 @@ void StatsReporter::ReportCurrStats() {
   ReportFlags(group_to_flags_);
   DoneFieldSamplesBatch();
 }
+
+// -----------------------------------------------------------------------------
+//                               StatsLogger
 
 void StatsLogger::PreAnnounceFields(
     std::initializer_list<Stats::FieldInfo> fields) {
@@ -99,6 +111,75 @@ void StatsLogger::DoneFieldSamplesBatch() {
   LOG(INFO) << "Current stats:\n" << absl::StripAsciiWhitespace(os_.str());
   os_.clear();
 }
+
+// -----------------------------------------------------------------------------
+//                           StatsCsvFileAppender
+
+StatsCsvFileAppender::~StatsCsvFileAppender() {
+  for (const auto &[group_name, file] : files_) {
+    RemoteFileClose(file);
+  }
+}
+
+void StatsCsvFileAppender::PreAnnounceFields(
+    std::initializer_list<Stats::FieldInfo> fields) {
+  if (!csv_header_.empty()) return;
+
+  for (const auto &field : fields) {
+    const std::string field_col_names =
+        absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
+    absl::StrAppend(&csv_header_, field_col_names);
+  }
+  absl::StrAppend(&csv_header_, "\n");
+}
+
+void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
+  RemoteFile *&file = files_[master_env.experiment_name];
+  if (file == nullptr) {
+    const std::string filename =
+        master_env.MakeFuzzingStatsPath(master_env.experiment_name);
+    // TODO(ussuri): Append, not overwrite, so restarts keep accumulating.
+    //  This will require writing the CSV header only if the file is brand new.
+    file = RemoteFileOpen(filename, "w");
+    CHECK(file != nullptr) << VV(filename);
+    RemoteFileAppend(file, csv_header_);
+  }
+  curr_file_ = file;
+}
+
+void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
+  // Nothing to do: Field names are printed as the CSV header elsewhere.
+}
+
+void StatsCsvFileAppender::ReportCurrFieldSample(
+    std::vector<uint64_t> &&values) {
+  // Print min/max/avg of `values`.
+  uint64_t min = std::numeric_limits<uint64_t>::max();
+  uint64_t max = std::numeric_limits<uint64_t>::min();
+  long double avg = 0;
+  for (const auto value : values) {
+    min = std::min(min, value);
+    max = std::max(max, value);
+    avg += value;
+  }
+  if (!values.empty()) avg /= values.size();
+  const std::string str =
+      absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
+  RemoteFileAppend(curr_file_, str);
+}
+
+void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
+  // Do nothing: can't write to CSV, as it has no concept of comments.
+  // TODO(ussuri): Consider writing to a sidecar file.
+}
+
+void StatsCsvFileAppender::DoneFieldSamplesBatch() {
+  for (const auto &[group_name, file] : files_) {
+    RemoteFileAppend(file, "\n");
+  }
+}
+
+// -----------------------------------------------------------------------------
 
 void PrintRewardValues(absl::Span<const Stats> stats_vec, std::ostream &os) {
   size_t n = stats_vec.size();

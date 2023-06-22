@@ -123,15 +123,19 @@ int ForEachBlob(const Environment &env) {
 // on `stats_vec` and `envs`.
 // Stops when `continue_running` becomes false.
 // Exits immediately if --experiment flag is not used.
-void PrintExperimentStatsThread(const std::atomic<bool> &continue_running,
-                                const std::vector<Stats> &stats_vec,
-                                const std::vector<Environment> &envs) {
+void ReportStatsThread(const std::atomic<bool> &continue_running,
+                       const std::vector<Stats> &stats_vec,
+                       const std::vector<Environment> &envs) {
   CHECK(!envs.empty());
-  if (envs.front().experiment.empty()) return;
 
   std::vector<std::unique_ptr<StatsReporter>> reporters;
-  reporters.emplace_back(std::make_unique<StatsLogger>(stats_vec, envs));
+  reporters.emplace_back(
+      std::make_unique<StatsCsvFileAppender>(stats_vec, envs));
+  if (!envs.front().experiment.empty() || VLOG_IS_ON(1)) {
+    reporters.emplace_back(std::make_unique<StatsLogger>(stats_vec, envs));
+  }
 
+  // TODO(ussuri): Use constant time increments for CSV generation?
   for (int i = 0; continue_running; ++i) {
     // Sleep at least a few seconds, and at most 600.
     int seconds_to_sleep = std::clamp(i, 5, 600);
@@ -271,7 +275,7 @@ int CentipedeMain(const Environment &env,
                                       std::ref(stats_vec[thread_idx]));
   }
 
-  std::thread stats_thread(PrintExperimentStatsThread,
+  std::thread stats_thread(ReportStatsThread,
                            std::ref(stats_thread_continue_running),
                            std::ref(stats_vec), std::ref(envs));
 

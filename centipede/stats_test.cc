@@ -14,6 +14,7 @@
 
 #include "./centipede/stats.h"
 
+#include <filesystem>  // NOLINT
 #include <sstream>
 #include <vector>
 
@@ -22,6 +23,8 @@
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "./centipede/logging.h"
+#include "./centipede/test_util.h"
+#include "./centipede/util.h"
 
 namespace centipede {
 
@@ -42,8 +45,7 @@ class LogCapture : public absl::LogSink {
 
 }  // namespace
 
-TEST(Stats, PrintExperimentStats) {
-  std::stringstream ss;
+TEST(Stats, PrintStatsToLog) {
   std::vector<Stats> stats_vec(4);
   stats_vec[0].num_covered_pcs = 10;
   stats_vec[1].num_covered_pcs = 15;
@@ -98,6 +100,76 @@ TEST(Stats, PrintExperimentStats) {
   stats_logger.ReportCurrStats();
 
   EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+}
+
+TEST(Stats, DumpStatsToCsvFile) {
+  const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
+
+  std::vector<Stats> stats_vec(4);
+  stats_vec[0].num_covered_pcs = 10;
+  stats_vec[0].corpus_size = 1000;
+  stats_vec[1].num_covered_pcs = 15;
+  stats_vec[1].corpus_size = 2000;
+  stats_vec[2].num_covered_pcs = 25;
+  stats_vec[2].corpus_size = 3000;
+  stats_vec[3].num_covered_pcs = 40;
+  stats_vec[3].corpus_size = 4000;
+  for (size_t i = 0; i < 4; ++i) {
+    auto &stats = stats_vec[i];
+    stats.max_corpus_element_size = 2 * i + 1;
+    stats.avg_corpus_element_size = i + 1;
+    stats.num_executions = i + 100;
+  }
+
+  std::vector<Environment> env_vec(4);
+  env_vec[0].experiment_name = "ExperimentA";
+  env_vec[0].experiment_flags = "AAA";
+  env_vec[1].experiment_name = "ExperimentB";
+  env_vec[1].experiment_flags = "BBB";
+  env_vec[2].experiment_name = "ExperimentA";
+  env_vec[2].experiment_flags = "AAA";
+  env_vec[3].experiment_name = "ExperimentB";
+  env_vec[3].experiment_flags = "BBB";
+  for (auto &env : env_vec) {
+    env.workdir = workdir;
+  }
+
+  {
+    StatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
+    stats_csv_appender.ReportCurrStats();
+
+    for (auto &stats : stats_vec) {
+      stats.num_executions += 1;
+      stats.num_covered_pcs += 1;
+      stats.corpus_size += 1;
+      stats.max_corpus_element_size += 1;
+      stats.avg_corpus_element_size += 1;
+    }
+
+    stats_csv_appender.ReportCurrStats();
+  }
+
+  const std::vector<std::string> kExpectedCsvs = {
+      workdir / "fuzzing-stats-.000000.ExperimentA.csv",
+      workdir / "fuzzing-stats-.000000.ExperimentB.csv",
+  };
+  const std::vector<std::string_view> kExpectedCsvContents = {
+      R"(NumExecs_Min,NumExecs_Max,NumExecs_Avg,NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,
+100,102,101.0,10,25,17.5,1000,3000,2000.0,1,5,3.0,1,3,2.0,
+101,103,102.0,11,26,18.5,1001,3001,2001.0,2,6,4.0,2,4,3.0,
+)",
+      R"(NumExecs_Min,NumExecs_Max,NumExecs_Avg,NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,
+101,103,102.0,15,40,27.5,2000,4000,3000.0,3,7,5.0,2,4,3.0,
+102,104,103.0,16,41,28.5,2001,4001,3001.0,4,8,6.0,3,5,4.0,
+)",
+  };
+
+  for (int i = 0; i < 2; ++i) {
+    ASSERT_TRUE(std::filesystem::exists(kExpectedCsvs[i]));
+    std::string csv_contents;
+    ReadFromLocalFile(kExpectedCsvs[i], csv_contents);
+    EXPECT_EQ(csv_contents, kExpectedCsvContents[i]);
+  }
 }
 
 TEST(Stats, PrintRewardValues) {
