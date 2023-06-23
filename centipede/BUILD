@@ -15,6 +15,8 @@
 # Description:
 #   Centipede: an experimental distributed fuzzing engine.
 
+load(":instrument.bzl", "cc_uninstrumented_binary")
+
 VISIBILITY = ["//visibility:public"]
 
 TEMP_EXTENDED_VISIBILITY = VISIBILITY
@@ -46,6 +48,11 @@ cc_binary(
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:initialize",
     ],
+)
+
+cc_uninstrumented_binary(
+    name = "centipede_uninstrumented",
+    binary = ":centipede",
 )
 
 ################################################################################
