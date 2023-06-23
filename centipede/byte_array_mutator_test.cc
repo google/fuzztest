@@ -124,14 +124,6 @@ TEST(CmpDictionary, CmpDictionary) {
   EXPECT_FALSE(dict.SetFromCmpData({3, 1, 2, 3}));
   // malformed input - not enough bytes.
   EXPECT_FALSE(dict.SetFromCmpData({3, 1, 2, 3, 4, 5}));
-  // malformed input - size is too large.
-  EXPECT_FALSE(dict.SetFromCmpData({
-      16,                                                     // size
-      0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,  // a
-      0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,  // b
-  }));
-  // malformed input - entry size is too small.
-  EXPECT_FALSE(dict.SetFromCmpData({1, 3, 4}));
 
   // Good input.
   EXPECT_TRUE(dict.SetFromCmpData(cmp_data));
@@ -631,6 +623,31 @@ TEST(ByteArrayMutator, OverwriteFromCmpDictionary) {
                 {},
                 /*cmp_data=*/
                 {/*args1*/ 2, 1, 2, 3, 4, /*args2*/ 3, 10, 20, 30, 40, 50, 60});
+}
+
+TEST(ByteArrayMutator, OverwriteFromCmpDictionaryAndSkipLongEntry) {
+  TestMutatorFn(
+      &ByteArrayMutator::OverwriteFromCmpDictionary,
+      {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
+      /*expected_mutants=*/
+      {{100, 101, 102, 103, 4,  5,  6,  7,  8,  9,
+        10,  11,  12,  13,  14, 15, 16, 17, 18, 19}},
+      /*unexpected_mutants=*/
+      {{100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
+        110, 111, 112, 113, 114, 115, 116, 117, 118, 119}},
+      /*size_alignment=*/1,
+      /*max_len=*/std::numeric_limits<size_t>::max(),
+      /*dictionary=*/
+      {},
+      /*cmp_data=*/
+      {/*size*/ 20, /*lhs*/ 0, 1,   2,   3,   4,           5,
+       6,           7,         8,   9,   10,  11,          12,
+       13,          14,        15,  16,  17,  18,          19,
+       /*rhs*/ 100, 101,       102, 103, 104, 105,         106,
+       107,         108,       109, 110, 111, 112,         113,
+       114,         115,       116, 117, 118, 119,
+       /*size*/ 4,  /*lhs*/ 0, 1,   2,   3,   /*rhs*/ 100, 101,
+       102,         103});
 }
 
 TEST(ByteArrayMutator, InsertFromDictionary) {

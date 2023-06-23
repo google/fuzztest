@@ -31,15 +31,15 @@ bool CmpDictionary::SetFromCmpData(ByteSpan cmp_data) {
   dictionary_.clear();
   for (size_t i = 0; i < cmp_data.size();) {
     auto size = cmp_data[i];
-    if (size > DictEntry::kMaxEntrySize) return false;
-    if (size < kMinEntrySize) return false;
     if (i + 2 * size + 1 > cmp_data.size()) return false;
     ByteSpan a(cmp_data.begin() + i + 1, size);
     ByteSpan b(cmp_data.begin() + i + size + 1, size);
+    i += 1 + 2 * size;
+    if (size > DictEntry::kMaxEntrySize) continue;
+    if (size < kMinEntrySize) continue;
     // TODO(kcc): disregard boring CMP pairs, such as e.g. `1 CMP 0`.
     dictionary_.emplace_back(a, b);
     dictionary_.emplace_back(b, a);
-    i += 1 + 2 * size;
   }
   std::sort(dictionary_.begin(), dictionary_.end());
   return true;

@@ -84,9 +84,12 @@ struct MutationStepTestParameter {
   std::vector<ByteArray> dictionary;
   // The comparison data following the format of ExecutionResult::cmp_args().
   ByteArray cmp_data;
-  // The number of iterations to try before all mutants in `expected_mutants`
-  // are found.
-  size_t num_iterations = 100000000;
+  // The minimum number of iterations regardless of whether all mutants in
+  // `expected_mutants` are found or not.
+  size_t min_num_iterations = 1000;
+  // The maximum number of iterations to try before all mutants in
+  // `expected_mutants` are found.
+  size_t max_num_iterations = 100000000;
 };
 
 class MutationStepTest
@@ -94,23 +97,26 @@ class MutationStepTest
 
 TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   FuzzTestMutator mutator(/*seed=*/1);
+  ASSERT_LE(GetParam().min_num_iterations, GetParam().max_num_iterations);
   if (GetParam().max_len.has_value())
     EXPECT_TRUE(mutator.set_max_len(*GetParam().max_len));
   mutator.AddToDictionary(GetParam().dictionary);
-  mutator.SetCmpDictionary(GetParam().cmp_data);
+  EXPECT_TRUE(mutator.SetCmpDictionary(GetParam().cmp_data));
   absl::flat_hash_set<ByteArray> unmatched_expected_mutants =
       GetParam().expected_mutants;
   const auto& unexpected_mutants = GetParam().unexpected_mutants;
   const std::vector<ByteArray> inputs = {GetParam().seed_input};
   std::vector<ByteArray> mutants;
-  for (size_t i = 0; i < GetParam().num_iterations; i++) {
+  for (size_t i = 0; i < GetParam().max_num_iterations; i++) {
     mutator.MutateMany(inputs, 1, mutants);
     ASSERT_EQ(mutants.size(), 1);
     const auto& mutant = mutants[0];
     EXPECT_FALSE(unexpected_mutants.contains(mutant))
         << "Unexpected mutant: {" << absl::StrJoin(mutant, ",") << "}";
     unmatched_expected_mutants.erase(mutant);
-    if (unmatched_expected_mutants.empty()) break;
+    if (unmatched_expected_mutants.empty() &&
+        i >= GetParam().min_num_iterations)
+      break;
   }
   EXPECT_TRUE(unmatched_expected_mutants.empty());
 }
@@ -207,15 +213,32 @@ INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest,
                                      {1, 6, 7, 8, 2, 3},
                                      {6, 7, 8, 1, 2, 3},
                                  },
-                             .dictionary =
-                                 {
-                                     {4, 5},
-                                     {6, 7, 8},
-                                 },
                              .cmp_data = {/*size*/ 2, /*lhs*/ 4, 5, /*rhs*/ 4,
                                           5, /*size*/ 3,
                                           /*lhs*/ 6, 7, 8, /*rhs*/ 6, 7, 8},
                          }));
+
+INSTANTIATE_TEST_SUITE_P(
+    SkipsLongCmpEntry, MutationStepTest,
+    Values(MutationStepTestParameter{
+        .seed_input = {0},
+        .expected_mutants =
+            {
+                {0, 1, 2, 3, 4},
+            },
+        .unexpected_mutants =
+            {
+                {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
+                 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+            },
+        .cmp_data = {/*size*/ 20, /*lhs*/ 1, 2,  3,  4,  5,         6,
+                     7,           8,         9,  10, 11, 12,        13,
+                     14,          15,        16, 17, 18, 19,        20,
+                     /*rhs*/ 1,   2,         3,  4,  5,  6,         7,
+                     8,           9,         10, 11, 12, 13,        14,
+                     15,          16,        17, 18, 19, 20,
+                     /*size*/ 4,  /*lhs*/ 1, 2,  3,  4,  /*rhs*/ 1, 2,
+                     3,           4}}));
 
 }  // namespace
 
