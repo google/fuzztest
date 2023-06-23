@@ -39,10 +39,6 @@ cc_binary(
         ":centipede_interface",
         ":config_file",
         ":environment",
-        # When Centipede is built as a data dependency of the runner target,
-        # there may be residual sancov instrumentation whose symbols must still
-        # be defined.
-        ":weak_sancov_stubs",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:globals",
