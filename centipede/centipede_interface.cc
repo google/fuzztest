@@ -39,6 +39,7 @@
 #include "./centipede/command.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
+#include "./centipede/distill.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
 #include "./centipede/minimize_crash.h"
@@ -218,6 +219,8 @@ int CentipedeMain(const Environment &env,
       Centipede::ExportCorpusFromLocalDir(env, corpus_dir);
     }
   }
+
+  if (env.distill) return Distill(env);
 
   // Create the local temporary dir and remote coverage dirs once, before
   // creating any threads.

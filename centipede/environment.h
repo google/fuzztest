@@ -88,6 +88,7 @@ struct Environment {
   bool require_pc_table;
   int telemetry_frequency;
   bool print_runner_log;
+  bool distill;
   size_t distill_shards;
   size_t log_features_shards;
   std::string knobs_file;

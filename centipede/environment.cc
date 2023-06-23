@@ -266,6 +266,16 @@ ABSL_FLAG(std::string, runner_dl_path_suffix, "",
           "The value could be the full path, like '/path/to/my.so' "
           "or a suffix, like '/my.so' or 'my.so'."
           "This flag is experimental and may be removed in future");
+// TODO(kcc): --distill and several others better be sub-command, not flags.
+// TODO(kcc): deprecate --distill_shards once --distill is ready.
+ABSL_FLAG(bool, distill, false,
+          "Experimental reimplementation of distillation - not ready yet. "
+          "All `total_shards` shards of the corpus in `workdir` are loaded "
+          "together with features for `binary`. "
+          "`num_threads` independent distillation threads work concurrently "
+          "loading the shards in random order. "
+          "Each distillation thread writes a minimized (distilled) "
+          "corpus to workdir/distilled-BINARY.`my_shard_index`.");
 ABSL_FLAG(size_t, distill_shards, 0,
           "The first --distill_shards will write the distilled corpus to "
           "workdir/distilled-BINARY.SHARD files. Also, if --corpus_dir is "
@@ -423,6 +433,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       require_pc_table(absl::GetFlag(FLAGS_require_pc_table)),
       telemetry_frequency(absl::GetFlag(FLAGS_telemetry_frequency)),
       print_runner_log(absl::GetFlag(FLAGS_print_runner_log)),
+      distill(absl::GetFlag(FLAGS_distill)),
       distill_shards(absl::GetFlag(FLAGS_distill_shards)),
       log_features_shards(absl::GetFlag(FLAGS_log_features_shards)),
       knobs_file(absl::GetFlag(FLAGS_knobs_file)),

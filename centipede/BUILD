@@ -569,6 +569,7 @@ cc_library(
         ":command",
         ":coverage",
         ":defs",
+        ":distill",
         ":environment",
         ":logging",
         ":minimize_crash",
@@ -602,6 +603,21 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "distill",
+    srcs = ["distill.cc"],
+    hdrs = ["distill.h"],
+    deps = [
+        ":defs",
+        ":environment",
+        ":feature_set",
+        ":logging",
+        ":shard_reader",
+        ":util",
+        "@com_google_absl//absl/strings",
     ],
 )
 
