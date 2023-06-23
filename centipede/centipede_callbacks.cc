@@ -130,7 +130,8 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
                 binary) != env_.extra_binaries.end();
 
   std::vector<std::string> env = {ConstructRunnerFlags(
-      absl::StrCat(":shmem:arg1=", shmem_name1_, ":arg2=", shmem_name2_,
+      absl::StrCat(":shmem:arg1=", inputs_blobseq_.path(),
+                   ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
                    ":"),
       disable_coverage)};

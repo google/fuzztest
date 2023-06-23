@@ -36,17 +36,22 @@ SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
                                                    size_t size)
     : size_(size) {
   ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
-  fd_ = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-  name_to_unlink_ = strdup(name);  // Using raw C strings to avoid dependencies.
-  ErrorOnFailure(fd_ < 0, "shm_open() failed");
+  fd_ = memfd_create(name, MFD_CLOEXEC);
+  ErrorOnFailure(fd_ < 0, "memfd_create() failed");
+  const size_t path_size =
+      snprintf(path_, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd_);
+  ErrorOnFailure(path_size >= PATH_MAX,
+                 "internal fd path length reaches PATH_MAX.");
   ErrorOnFailure(ftruncate(fd_, static_cast<__off_t>(size_)),
                  "ftruncate() failed)");
   MmapData();
 }
 
-SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name) {
-  fd_ = shm_open(name, O_RDWR, 0);
-  ErrorOnFailure(fd_ < 0, "shm_open() failed");
+SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *path) {
+  fd_ = open(path, O_RDWR, O_CLOEXEC);
+  ErrorOnFailure(fd_ < 0, "open() failed");
+  strncpy(path_, path, PATH_MAX);
+  ErrorOnFailure(path_[PATH_MAX - 1] != 0, "path length reaches PATH_MAX.");
   struct stat statbuf = {};
   ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed");
   size_ = statbuf.st_size;
@@ -61,10 +66,6 @@ void SharedMemoryBlobSequence::MmapData() {
 
 SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
   ErrorOnFailure(munmap(data_, size_), "munmap() failed");
-  if (name_to_unlink_) {
-    ErrorOnFailure(shm_unlink(name_to_unlink_), "shm_unlink() failed");
-    free(name_to_unlink_);
-  }
   ErrorOnFailure(close(fd_), "close() failed");
 }
 

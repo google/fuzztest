@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_SHARED_MEMORY_BLOB_SEQUENCE_H_
 #define THIRD_PARTY_CENTIPEDE_SHARED_MEMORY_BLOB_SEQUENCE_H_
 
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -66,16 +67,15 @@ namespace centipede {
 //
 class SharedMemoryBlobSequence {
  public:
-  // Creates a new shared blob sequence named `name`.
-  // `name` follows the rules for shm_open.
-  // Aborts on any failure.
-  // `size` is the size of the shared memory region in bytes, must be >= 8.
-  // The amount of actual data that can be written is slightly less.
+  // Creates a new shared blob sequence with `name` (for debugging only, not an
+  // actual path). Aborts on any failure. `size` is the size of the shared
+  // memory region in bytes, must be >= 8. The amount of actual data that can be
+  // written is slightly less.
   SharedMemoryBlobSequence(const char *name, size_t size);
 
-  // Opens an existing shared blob sequence named `name`.
+  // Opens an existing shared blob sequence with the file `path`.
   // Aborts on any failure.
-  explicit SharedMemoryBlobSequence(const char *name);
+  explicit SharedMemoryBlobSequence(const char *path);
 
   // Releases all resources.
   ~SharedMemoryBlobSequence();
@@ -134,13 +134,16 @@ class SharedMemoryBlobSequence {
   // ReleaseSharedMemory().
   size_t NumBytesUsed() const;
 
+  // Gets the file path that can be used to create new instances.
+  const char *path() const { return path_; }
+
  private:
   // mmaps `size_` bytes from `fd_`, assigns to `data_`. Crashes on error.
   void MmapData();
 
-  // Copy of `name` passed to CTOR.
-  // If non-null, DTOR calls shm_unlink on it and frees it.
-  char *name_to_unlink_ = nullptr;
+  // Will be initialized as a generated internal path or a copy of `path`
+  // passed in.
+  char path_[PATH_MAX] = {0};
 
   // pointer to the beginning of the shared memory region.
   // *data_ contains a sequence of {size, payload} pairs,

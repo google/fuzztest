@@ -50,18 +50,13 @@ TEST(SharedMemoryBlobSequence, ParentChild) {
   std::vector<uint8_t> kTestData3 = {8, 9};
   std::vector<uint8_t> kTestData4 = {'a', 'b', 'c', 'd', 'e'};
 
-  // Creating a child w/o first creating a parent should crash.
-  EXPECT_DEATH(
-      SharedMemoryBlobSequence child_with_no_parent(ShmemName().c_str()),
-      "shm_open\\(\\) failed");
-
   SharedMemoryBlobSequence parent(ShmemName().c_str(), 1000);
   // Parent writes data.
   EXPECT_TRUE(parent.Write(Blob(kTestData1, 123)));
   EXPECT_TRUE(parent.Write(Blob(kTestData2, 456)));
 
   // Child created.
-  SharedMemoryBlobSequence child(ShmemName().c_str());
+  SharedMemoryBlobSequence child(parent.path());
   // Child reads data.
   auto blob1 = child.Read();
   EXPECT_EQ(kTestData1, Vec(blob1));
@@ -90,14 +85,14 @@ TEST(SharedMemoryBlobSequence, CheckForResourceLeaks) {
   for (int iter = 0; iter < kNumIters; iter++) {
     SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize);
     parent.Write(Blob({1, 2, 3}));
-    SharedMemoryBlobSequence child(ShmemName().c_str());
+    SharedMemoryBlobSequence child(parent.path());
     EXPECT_EQ(child.Read().size, 3);
   }
   // Create a parent blob, then create and destroy lots of child blobs.
   SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize);
   parent.Write(Blob({1, 2, 3, 4}));
   for (int iter = 0; iter < kNumIters; iter++) {
-    SharedMemoryBlobSequence child(ShmemName().c_str());
+    SharedMemoryBlobSequence child(parent.path());
     EXPECT_EQ(child.Read().size, 4);
   }
 }
