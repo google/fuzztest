@@ -23,7 +23,7 @@ namespace centipede {
 
 namespace {
 
-enum Tags : SharedMemoryBlobSequence::Blob::SizeAndTagT {
+enum Tags : Blob::SizeAndTagT {
   kTagInvalid,  // 0 is an invalid tag.
   kTagExecution,
   kTagMutation,
@@ -63,31 +63,25 @@ size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
   return WriteInputs(inputs, blobseq);
 }
 
-bool IsExecutionRequest(SharedMemoryBlobSequence::Blob blob) {
-  return blob.tag == kTagExecution;
-}
+bool IsExecutionRequest(Blob blob) { return blob.tag == kTagExecution; }
 
-bool IsMutationRequest(SharedMemoryBlobSequence::Blob blob) {
-  return blob.tag == kTagMutation;
-}
+bool IsMutationRequest(Blob blob) { return blob.tag == kTagMutation; }
 
-bool IsNumInputs(SharedMemoryBlobSequence::Blob blob, size_t &num_inputs) {
+bool IsNumInputs(Blob blob, size_t &num_inputs) {
   if (blob.tag != kTagNumInputs) return false;
   if (blob.size != sizeof(num_inputs)) return false;
   memcpy(&num_inputs, blob.data, sizeof(num_inputs));
   return true;
 }
 
-bool IsNumMutants(SharedMemoryBlobSequence::Blob blob, size_t &num_mutants) {
+bool IsNumMutants(Blob blob, size_t &num_mutants) {
   if (blob.tag != kTagNumMutants) return false;
   if (blob.size != sizeof(num_mutants)) return false;
   memcpy(&num_mutants, blob.data, sizeof(num_mutants));
   return true;
 }
 
-bool IsDataInput(SharedMemoryBlobSequence::Blob blob) {
-  return blob.tag == kTagDataInput;
-}
+bool IsDataInput(Blob blob) { return blob.tag == kTagDataInput; }
 
 }  // namespace execution_request
 

@@ -28,6 +28,26 @@
 
 namespace centipede {
 
+// Simple TLV (tag-length-value) data structure.
+// Blob does not own the memory in `data`, just references it.
+// `size` is the number of bytes in `data`.
+// A blob with zero tag is considered invalid.
+// A blob with zero size and non-zero tag is valid but this contradicts
+// the current use.
+// TODO(kcc): [impl] replace uses of (blob.size == 0) with (!blob.IsValid()).
+// TODO(kcc): [impl] consider making it a class.
+struct Blob {
+  using SizeAndTagT = size_t;
+  Blob(SizeAndTagT tag, SizeAndTagT size, const uint8_t *data)
+      : tag(tag), size(size), data(data) {}
+  Blob() = default;  // Construct an invalid Blob.
+  bool IsValid() const { return tag != 0; }
+
+  const SizeAndTagT tag = 0;
+  const SizeAndTagT size = 0;
+  const uint8_t *data = nullptr;
+};
+
 // SharedMemoryBlobSequence:
 // enables inter-process communication via shared memory.
 //
@@ -79,26 +99,6 @@ class SharedMemoryBlobSequence {
 
   // Releases all resources.
   ~SharedMemoryBlobSequence();
-
-  // Simple TLV (tag-length-value) data structure.
-  // Blob does not own the memory in `data`, just references it.
-  // `size` is the number of bytes in `data`.
-  // A blob with zero tag is considered invalid.
-  // A blob with zero size and non-zero tag is valid but this contradicts
-  // the current use.
-  // TODO(kcc): [impl] replace uses of (blob.size == 0) with (!blob.IsValid()).
-  // TODO(kcc): [impl] consider making it a class.
-  struct Blob {
-    using SizeAndTagT = size_t;
-    Blob(SizeAndTagT tag, SizeAndTagT size, const uint8_t *data)
-        : tag(tag), size(size), data(data) {}
-    Blob() = default;  // Construct an invalid Blob.
-    bool IsValid() const { return tag != 0; }
-
-    const SizeAndTagT tag = 0;
-    const SizeAndTagT size = 0;
-    const uint8_t *data = nullptr;
-  };
 
   // Writes the contents of `blob` to shared memory.
   // Returns true on success.

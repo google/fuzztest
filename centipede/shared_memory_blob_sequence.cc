@@ -115,7 +115,7 @@ bool SharedMemoryBlobSequence::Write(Blob blob) {
   return true;
 }
 
-SharedMemoryBlobSequence::Blob SharedMemoryBlobSequence::Read() {
+Blob SharedMemoryBlobSequence::Read() {
   ErrorOnFailure(had_writes_after_reset_, "Had writes after reset");
   had_reads_after_reset_ = true;
   if (offset_ + sizeof(Blob::size) + sizeof(Blob::tag) >= size_) return {};

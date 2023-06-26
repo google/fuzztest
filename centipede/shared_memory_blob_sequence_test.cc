@@ -34,13 +34,12 @@ std::string ShmemName() {
 }
 
 // Helper: Blob to std::vector.
-static std::vector<uint8_t> Vec(SharedMemoryBlobSequence::Blob blob) {
+static std::vector<uint8_t> Vec(Blob blob) {
   return {blob.data, blob.data + blob.size};
 }
 
 // Helper: std::vector to Blob.
-static SharedMemoryBlobSequence::Blob Blob(const std::vector<uint8_t> &vec,
-                                           uint64_t tag = 1) {
+static Blob Blob(const std::vector<uint8_t> &vec, uint64_t tag = 1) {
   return {tag, vec.size(), vec.data()};
 }
 

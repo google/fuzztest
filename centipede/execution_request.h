@@ -36,21 +36,21 @@ size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
                        SharedMemoryBlobSequence &blobseq);
 
 // Returns whether `blob` indicates an execution request.
-bool IsExecutionRequest(SharedMemoryBlobSequence::Blob blob);
+bool IsExecutionRequest(Blob blob);
 
 // Returns whether `blob` indicates a mutation request.
-bool IsMutationRequest(SharedMemoryBlobSequence::Blob blob);
+bool IsMutationRequest(Blob blob);
 
 // Returns true and sets `num_inputs`
 // iff the blob indicates the number of inputs.
-bool IsNumInputs(SharedMemoryBlobSequence::Blob blob, size_t &num_inputs);
+bool IsNumInputs(Blob blob, size_t &num_inputs);
 
 // Returns true and sets `num_mutants`
 // iff the blob indicates the number of mutants.
-bool IsNumMutants(SharedMemoryBlobSequence::Blob blob, size_t &num_mutants);
+bool IsNumMutants(Blob blob, size_t &num_mutants);
 
 // Returns true iff `blob` indicates a data input.
-bool IsDataInput(SharedMemoryBlobSequence::Blob blob);
+bool IsDataInput(Blob blob);
 
 }  // namespace centipede::execution_request
 
