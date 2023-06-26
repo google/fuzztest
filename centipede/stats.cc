@@ -101,10 +101,13 @@ void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
 }
 
 void StatsLogger::ReportFlags(const GroupToFlags &group_to_flags) {
-  os_ << "Flags:\n";
+  std::stringstream fos;
   for (const auto &[group_name, group_flags] : group_to_flags) {
-    os_ << group_name << ": " << group_flags << "\n";
+    if (!group_name.empty() || !group_flags.empty()) {
+      fos << group_name << ": " << group_flags << "\n";
+    }
   }
+  if (fos.tellp() != std::streampos{0}) os_ << "Flags:\n" << fos.rdbuf();
 }
 
 void StatsLogger::DoneFieldSamplesBatch() {
