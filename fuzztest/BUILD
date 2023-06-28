@@ -458,6 +458,12 @@ proto_library(
     srcs = ["internal/test_protobuf.proto"],
 )
 
+java_proto_library(
+    name = "test_protobuf_java_proto",
+    visibility = ["//security/fuzzing/blaze:__pkg__"],
+    deps = [":test_protobuf"],
+)
+
 cc_proto_library(
     name = "test_protobuf_cc_proto",
     deps = [":test_protobuf"],
