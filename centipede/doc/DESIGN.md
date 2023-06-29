@@ -4,15 +4,15 @@
 # Centipede Design
 
 We are trying to build Centipede based on our experience with libFuzzer (and to
-less extent, with AFL and others). We keep what worked well, change what didn't.
+a lesser extent with AFL and others). We keep what worked well, and change what didn't.
 
 See [README](../README.md) for user documentation and most of the terminology.
 
 ## Execution Features
 
 Centipede reasons about the execution feedback in terms of *features*. A feature
-is some unique behavior of the target on a given input. So, executing an input
-is a way to compute the input's features.
+is some unique behavior of the target exercised by a given input. So, executing
+an input is a way to compute the input's features.
 
 The currently supported features (see [feature.h](../feature.h) for details)
 are:
@@ -26,29 +26,29 @@ are:
 * Instrumented CMP instructions.
 * ... more coming.
 
-However, the target may generate features of its own type, without having
-Centipede to support it explicitly.
+However, the target may generate features of its own type without Centipede
+having to support it explicitly.
 
 ## Persistent state
 
-Centipede aims at large and slow targets, such that even a minimized corpus may
-consist of 100K-1M inputs, and executing every input takes 1ms-1s. We also aim
-at supporting much more feature types than most other engines, which will in
-turn bloat the corpus further.
+Centipede aims to handle both large and slow targets, so even a minimized corpus
+may consist of 100K-1M inputs and executing every input can take 1ms-1s. We
+also aim to support many more feature types than most other engines, which will
+in turn bloat the corpus further.
 
-At the same time, we aim at executing on cheap ("preemptible") cloud VMs, and so
+At the same time, we aim to execute on cheap ("preemptible") cloud VMs, so
 we need to minimize the startup computations.
 
-So, we try hard to eliminate all redundant executions.
+Therefore, we try hard to eliminate all redundant executions.
 
 Centipede state consists of the following:
 
 * Corpus. A set of inputs. The corpus is a property of a group of fuzz targets
   sharing the same input data format.
 * Feature sets. For every corpus element we preserve the set of its features.
-  Features are a property of a specific target binary. Different binary (e.g.
+  Features are a property of a specific target binary. Different binaries (e.g.
   from a different revision, or different build options, or from different
-  code) will have its own persistent feature set. A feature set is associated
+  code) will have their own persistent feature set. A feature set is associated
   with an input via the input's hash.
 
 On startup, Centipede loads the corpus, and checks which corpus elements have
@@ -112,8 +112,10 @@ TODO(kcc): explain how this works.
 
 ## Related reading
 
+Centipede currently doesn't do all of the following, but aspires to eventually
+do much more.
+
 * [Entropic] Boosting fuzzer efficiency: an information theoretic perspective.
   https://dl.acm.org/doi/abs/10.1145/3368089.3409748
 * [Nezha]: Efficient Domain-Independent Differential Testing
   https://www.cs.columbia.edu/~suman/docs/nezha.pdf
-* Centipede doesn't do most of that, but aspires to do more than that :)
