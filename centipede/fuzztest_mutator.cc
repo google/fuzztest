@@ -57,24 +57,18 @@ void FuzzTestMutator::MutateMany(const std::vector<ByteArray>& inputs,
   }
 }
 
-bool FuzzTestMutator::SetCmpDictionary(ByteSpan cmp_data) {
-  size_t i = 0;
-  while (i < cmp_data.size()) {
-    auto size = cmp_data[i];
-    if (i + 2 * size + 1 > cmp_data.size()) return false;
-    ByteSpan a(cmp_data.begin() + i + 1, size);
-    ByteSpan b(cmp_data.begin() + i + size + 1, size);
-    i += 1 + 2 * size;
-    if (size < kMinCmpEntrySize) continue;
-    if (size > kMaxCmpEntrySize) continue;
+bool FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
+  return metadata.ForEachCmpEntry([](ByteSpan a, ByteSpan b) {
+    size_t size = a.size();
+    if (size < kMinCmpEntrySize) return;
+    if (size > kMaxCmpEntrySize) return;
     // Use the memcmp table to avoid subtlety of the container domain mutation
     // with integer tables. E.g. it won't insert integer comparison data.
     fuzztest::internal::GetExecutionCoverage()
         ->GetTablesOfRecentCompares()
         .GetMutable<0>()
         .Insert(a.data(), b.data(), size);
-  }
-  return true;
+  });
 }
 
 bool FuzzTestMutator::set_max_len(size_t max_len) {

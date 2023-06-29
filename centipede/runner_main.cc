@@ -18,5 +18,6 @@
 int main(int argc, char **argv) {
   return CentipedeRunnerMain(argc, argv, LLVMFuzzerTestOneInput,
                              LLVMFuzzerInitialize, LLVMFuzzerCustomMutator,
-                             LLVMFuzzerCustomCrossOver);
+                             LLVMFuzzerCustomCrossOver,
+                             CentipedeCustomMutatorSetMetadata);
 }

@@ -492,20 +492,20 @@ ReadOneInputExecuteItAndDumpCoverage(
   fclose(features_file);
 }
 
-// Calls BatchResult::WriteCmpArgs for every CMP arg pair
+// Calls ExecutionMetadata::AppendCmpEntries for every CMP arg pair
 // found in `cmp_trace`.
-// Returns true if all writes succeeded.
+// Returns true if all appending succeeded.
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
-__attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
-                                            SharedMemoryBlobSequence &blobseq) {
-  bool write_failed = false;
+__attribute__((noinline)) bool AppendCmpEntries(CmpTrace &cmp_trace,
+                                                ExecutionMetadata &metadata) {
+  bool append_failed = false;
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
-        if (!BatchResult::WriteCmpArgs(v0, v1, size, blobseq))
-          write_failed = true;
+        if (!metadata.AppendCmpEntry({v0, size}, {v1, size}))
+          append_failed = true;
       });
-  return !write_failed;
+  return !append_failed;
 }
 
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
@@ -525,22 +525,19 @@ static bool FinishSendingOutputsToEngine(
     return false;
   }
 
+  ExecutionMetadata metadata;
   // Copy the CMP traces to shared memory.
   if (state.run_time_flags.use_auto_dictionary) {
-    bool write_failed = false;
-    state.ForEachTls(
-        [&write_failed, &outputs_blobseq](ThreadLocalRunnerState &tls) {
-          if (!WriteCmpArgs(tls.cmp_trace2, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_trace4, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_trace8, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_traceN, outputs_blobseq))
-            write_failed = true;
-        });
-    if (write_failed) return false;
+    bool append_failed = false;
+    state.ForEachTls([&metadata, &append_failed](ThreadLocalRunnerState &tls) {
+      if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_trace4, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_trace8, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_traceN, metadata)) append_failed = true;
+    });
+    if (append_failed) return false;
   }
+  if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
 
   // Write the stats.
   if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;
@@ -659,6 +656,7 @@ static int MutateInputsFromShmem(
     SharedMemoryBlobSequence &inputs_blobseq,
     SharedMemoryBlobSequence &outputs_blobseq,
     FuzzerCustomMutatorCallback custom_mutator_cb,
+    CentipedeCustomMutatorSetMetadataCallback custom_mutator_set_metadata_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb) {
   if (custom_mutator_cb == nullptr) return EXIT_FAILURE;
   unsigned int seed = GetRandomSeed();
@@ -668,6 +666,13 @@ static int MutateInputsFromShmem(
   if (!execution_request::IsMutationRequest(inputs_blobseq.Read()))
     return EXIT_FAILURE;
   if (!execution_request::IsNumMutants(inputs_blobseq.Read(), num_mutants))
+    return EXIT_FAILURE;
+  ExecutionMetadata metadata;
+  if (!execution_request::IsExecutionMetadata(inputs_blobseq.Read(), metadata))
+    return EXIT_FAILURE;
+  if (custom_mutator_set_metadata_cb != nullptr &&
+      custom_mutator_set_metadata_cb(metadata.cmp_data.data(),
+                                     metadata.cmp_data.size()) != 0)
     return EXIT_FAILURE;
   if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
@@ -859,7 +864,8 @@ extern "C" int CentipedeRunnerMain(
     int argc, char **argv, FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerInitializeCallback initialize_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb) {
+    FuzzerCustomCrossOverCallback custom_crossover_cb,
+    CentipedeCustomMutatorSetMetadataCallback custom_mutator_set_metadata_cb) {
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
@@ -891,8 +897,9 @@ extern "C" int CentipedeRunnerMain(
       inputs_blobseq.Reset();
       state.byte_array_mutator =
           new ByteArrayMutator(state.knobs, GetRandomSeed());
-      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq,
-                                   custom_mutator_cb, custom_crossover_cb);
+      return MutateInputsFromShmem(
+          inputs_blobseq, outputs_blobseq, custom_mutator_cb,
+          custom_mutator_set_metadata_cb, custom_crossover_cb);
     }
     if (execution_request::IsExecutionRequest(request_type_blob)) {
       // Execution request.
@@ -916,7 +923,8 @@ extern "C" int LLVMFuzzerRunDriver(
     int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb) {
   return CentipedeRunnerMain(*argc, *argv, test_one_input_cb,
                              LLVMFuzzerInitialize, LLVMFuzzerCustomMutator,
-                             LLVMFuzzerCustomCrossOver);
+                             LLVMFuzzerCustomCrossOver,
+                             CentipedeCustomMutatorSetMetadata);
 }
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}

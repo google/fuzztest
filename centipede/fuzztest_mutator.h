@@ -19,6 +19,7 @@
 
 #include "absl/random/random.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 
 namespace centipede {
 
@@ -41,11 +42,10 @@ class FuzzTestMutator {
   // Adds `dict_entries` to the internal mutation dictionary.
   void AddToDictionary(const std::vector<ByteArray>& dict_entries);
 
-  // Store the entries in `cmp_data` to the internal mutation dictionary.
-  // The format of cmp_data is the same as ExecutionResult::cmp_args().
+  // Propagate the execution `metadata` to the internal mutation dictionary.
   //
   // Returns false on failure, true otherwise.
-  bool SetCmpDictionary(ByteSpan cmp_data);
+  bool SetMetadata(const ExecutionMetadata& metadata);
 
   // Sets max length in bytes for mutants with modified sizes.
   //

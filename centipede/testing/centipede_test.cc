@@ -301,11 +301,11 @@ TEST(Centipede, MutateViaExternalBinary) {
     // Expect to fail on the binary w/o a custom mutator.
     mutants.resize(1);
     EXPECT_FALSE(callbacks.MutateViaExternalBinary(
-        binary_without_custom_mutator, inputs, mutants));
+        binary_without_custom_mutator, inputs, /*metadata=*/{}, mutants));
     // Expect to succeed on the binary with a custom mutator.
     mutants.resize(10000);
-    EXPECT_TRUE(callbacks.MutateViaExternalBinary(binary_with_custom_mutator,
-                                                  inputs, mutants));
+    EXPECT_TRUE(callbacks.MutateViaExternalBinary(
+        binary_with_custom_mutator, inputs, /*metadata=*/{}, mutants));
     // Check that we see all expected mutants, and that they are non-empty.
     for (auto &mutant : mutants) {
       EXPECT_FALSE(mutant.empty());
@@ -320,13 +320,60 @@ TEST(Centipede, MutateViaExternalBinary) {
     MutateCallbacks callbacks_no_crossover(env_no_crossover);
     mutants.resize(10000);
     EXPECT_TRUE(callbacks_no_crossover.MutateViaExternalBinary(
-        binary_with_custom_mutator, inputs, mutants));
+        binary_with_custom_mutator, inputs, /*metadata=*/{}, mutants));
     // Must contain normal mutants, but not the ones from crossover.
     EXPECT_THAT(mutants, testing::IsSupersetOf(some_of_expected_mutants));
     for (const auto &crossover_mutant : expected_crossover_mutants) {
       EXPECT_THAT(mutants, testing::Contains(crossover_mutant).Times(0));
     }
   }
+}
+
+TEST(Centipede, MutateViaExternalBinaryWithCmpData) {
+  // This binary contains a custom mutator that copies cmp data to mutants
+  const std::string binary_with_copying_custom_mutator =
+      GetDataDependencyFilepath(
+          "centipede/testing/fuzz_target_mutator_with_metadata");
+  // This binary contains a custom mutator agnostic to cmp data.
+  const std::string binary_with_agnostic_custom_mutator =
+      GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  Environment env;
+  MutateCallbacks callbacks(env);
+  std::vector<ByteArray> mutants;
+  mutants.resize(100);
+  EXPECT_TRUE(
+      callbacks.MutateViaExternalBinary(binary_with_copying_custom_mutator,
+                                        /*inputs=*/{{0}}, /*metadata=*/
+                                        {
+                                            .cmp_data =
+                                                {
+                                                    2,     // size
+                                                    1, 2,  // a
+                                                    3, 4,  // b
+                                                },
+                                        },
+                                        mutants));
+  EXPECT_THAT(mutants, testing::AllOf(
+                           testing::SizeIs(100),
+                           testing::Each(testing::ElementsAre(2, 1, 2, 3, 4))));
+  mutants.resize(100);
+  EXPECT_TRUE(
+      callbacks.MutateViaExternalBinary(binary_with_agnostic_custom_mutator,
+                                        /*inputs=*/{{0}}, /*metadata=*/
+                                        {
+                                            .cmp_data =
+                                                {
+                                                    2,     // size
+                                                    1, 2,  // a
+                                                    3, 4,  // b
+                                                },
+                                        },
+                                        mutants));
+  EXPECT_THAT(
+      mutants,
+      testing::AllOf(
+          testing::SizeIs(100),
+          testing::Each(testing::Not(testing::ElementsAre(2, 1, 2, 3, 4)))));
 }
 
 // A mock for MergeFromOtherCorpus test.

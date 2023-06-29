@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "./centipede/centipede_interface.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/execution_result.h"
 
 namespace centipede {
@@ -37,9 +38,13 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
                BatchResult &batch_result) override;
   void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override;
+  bool SetMetadata(const ExecutionMetadata &metadata) override;
 
  private:
   bool custom_mutator_is_usable_ = false;
+  // Used to pass execution metadata from SetMetadata to the custom mutator if
+  // needed.
+  ExecutionMetadata metadata_;
 };
 
 }  // namespace centipede

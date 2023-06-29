@@ -82,7 +82,7 @@ struct MutationStepTestParameter {
   std::optional<size_t> max_len;
   // The mutation dictionary.
   std::vector<ByteArray> dictionary;
-  // The comparison data following the format of ExecutionResult::cmp_args().
+  // The comparison data following the format of ExecutionMetadata::cmp_data.
   ByteArray cmp_data;
   // The minimum number of iterations regardless of whether all mutants in
   // `expected_mutants` are found or not.
@@ -101,7 +101,7 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   if (GetParam().max_len.has_value())
     EXPECT_TRUE(mutator.set_max_len(*GetParam().max_len));
   mutator.AddToDictionary(GetParam().dictionary);
-  EXPECT_TRUE(mutator.SetCmpDictionary(GetParam().cmp_data));
+  EXPECT_TRUE(mutator.SetMetadata({.cmp_data = GetParam().cmp_data}));
   absl::flat_hash_set<ByteArray> unmatched_expected_mutants =
       GetParam().expected_mutants;
   const auto& unexpected_mutants = GetParam().unexpected_mutants;

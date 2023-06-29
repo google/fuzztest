@@ -295,6 +295,18 @@ cc_library(
 )
 
 cc_library(
+    name = "execution_metadata",
+    srcs = ["execution_metadata.cc"],
+    hdrs = ["execution_metadata.h"],
+    deps = [
+        # This target must have a minimal set of dependencies since it is
+        # used in centipede_runner.
+        ":defs",
+        ":shared_memory_blob_sequence",
+    ],
+)
+
+cc_library(
     name = "execution_result",
     srcs = ["execution_result.cc"],
     hdrs = ["execution_result.h"],
@@ -303,6 +315,7 @@ cc_library(
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
         ":feature",
+        ":execution_metadata",
         ":runner_cmp_trace",
         ":shared_memory_blob_sequence",
     ],
@@ -317,6 +330,7 @@ cc_library(
         # used in centipede_runner.
         ":shared_memory_blob_sequence",
         ":defs",
+        ":execution_metadata",
     ],
 )
 
@@ -328,6 +342,7 @@ cc_library(
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         ":defs",
+        ":execution_metadata",
         ":knobs",
     ],
 )
@@ -438,6 +453,7 @@ cc_library(
         ":control_flow",
         ":coverage",
         ":defs",
+        ":execution_metadata",
         ":feature",
         ":feature_set",
         ":util",
@@ -629,6 +645,7 @@ cc_library(
         ":centipede_interface",
         ":defs",
         ":environment",
+        ":execution_metadata",
         ":execution_result",
         ":logging",
     ],
@@ -640,6 +657,7 @@ cc_library(
     hdrs = ["fuzztest_mutator.h"],
     deps = [
         ":defs",
+        ":execution_metadata",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
     ],
@@ -683,6 +701,8 @@ RUNNER_SOURCES_NO_MAIN = [
     "concurrent_bitset.h",
     "concurrent_byteset.h",
     "defs.h",
+    "execution_metadata.cc",
+    "execution_metadata.h",
     "execution_request.cc",
     "execution_request.h",
     "execution_result.cc",
@@ -947,6 +967,15 @@ cc_test(
     srcs = ["shared_memory_blob_sequence_test.cc"],
     deps = [
         ":shared_memory_blob_sequence",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "execution_metadata_test",
+    srcs = ["execution_metadata_test.cc"],
+    deps = [
+        ":execution_metadata",
         "@com_google_googletest//:gtest_main",
     ],
 )

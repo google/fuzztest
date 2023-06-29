@@ -102,31 +102,24 @@ TEST(DictEntry, DictEntry) {
 
 TEST(CmpDictionary, CmpDictionary) {
   CmpDictionary dict;
-  ByteArray cmp_data = {
-      2,               // size
-      1,  2,           // a
-      3,  4,           // b
-      3,               // size
-      5,  6,  7,       // a
-      8,  9,  10,      // b
-      4,               // size
-      11, 12, 13, 14,  // a
-      15, 16, 17, 18,  // b
-      3,               // size
-      20, 21, 22,      // a
-      15, 16, 17,      // b
-      3,               // size
-      15, 16, 20,      // a
-      30, 40, 50,      // b
-  };
-
-  // malformed input - not enough bytes.
-  EXPECT_FALSE(dict.SetFromCmpData({3, 1, 2, 3}));
-  // malformed input - not enough bytes.
-  EXPECT_FALSE(dict.SetFromCmpData({3, 1, 2, 3, 4, 5}));
-
-  // Good input.
-  EXPECT_TRUE(dict.SetFromCmpData(cmp_data));
+  ExecutionMetadata metadata{.cmp_data = {
+                                 2,               // size
+                                 1,  2,           // a
+                                 3,  4,           // b
+                                 3,               // size
+                                 5,  6,  7,       // a
+                                 8,  9,  10,      // b
+                                 4,               // size
+                                 11, 12, 13, 14,  // a
+                                 15, 16, 17, 18,  // b
+                                 3,               // size
+                                 20, 21, 22,      // a
+                                 15, 16, 17,      // b
+                                 3,               // size
+                                 15, 16, 20,      // a
+                                 30, 40, 50,      // b
+                             }};
+  EXPECT_TRUE(dict.SetFromMetadata(metadata));
 
   using S = ByteSpan;
 
@@ -209,7 +202,7 @@ void TestMutatorFn(ByteArrayMutator::Fn fn, const ByteArray &seed,
   EXPECT_TRUE(mutator.set_size_alignment(size_alignment));
   EXPECT_TRUE(mutator.set_max_len(max_len));
   mutator.AddToDictionary(dictionary);
-  mutator.SetCmpDictionary(cmp_data);
+  mutator.SetMetadata({.cmp_data = {cmp_data.begin(), cmp_data.end()}});
   absl::flat_hash_set<ByteArray> expected(expected_mutants.begin(),
                                           expected_mutants.end());
   absl::flat_hash_set<ByteArray> unexpected(unexpected_mutants.begin(),

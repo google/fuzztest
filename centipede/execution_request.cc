@@ -27,6 +27,7 @@ enum Tags : Blob::SizeAndTagT {
   kTagInvalid,  // 0 is an invalid tag.
   kTagExecution,
   kTagMutation,
+  kTagExecutionMetadata,
   kTagNumInputs,
   kTagNumMutants,
   kTagDataInput,
@@ -57,9 +58,11 @@ size_t RequestExecution(const std::vector<ByteArray> &inputs,
 }
 
 size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
+                       const ExecutionMetadata &metadata,
                        SharedMemoryBlobSequence &blobseq) {
   if (!blobseq.Write({kTagMutation, 0, nullptr})) return 0;
   if (!blobseq.Write(kTagNumMutants, num_mutants)) return 0;
+  if (!metadata.Write(kTagExecutionMetadata, blobseq)) return 0;
   return WriteInputs(inputs, blobseq);
 }
 
@@ -71,6 +74,12 @@ bool IsNumInputs(Blob blob, size_t &num_inputs) {
   if (blob.tag != kTagNumInputs) return false;
   if (blob.size != sizeof(num_inputs)) return false;
   memcpy(&num_inputs, blob.data, sizeof(num_inputs));
+  return true;
+}
+
+bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
+  if (blob.tag != kTagExecutionMetadata) return false;
+  metadata.Read(blob);
   return true;
 }
 

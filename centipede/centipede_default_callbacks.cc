@@ -35,8 +35,8 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
   // Check if a custom mutator is available in the target.
   LOG(INFO) << "Detecting custom mutator in target...";
   std::vector<ByteArray> mutants(1);
-  const bool external_mutator_ran =
-      MutateViaExternalBinary(env_.binary, {{0}}, mutants);
+  const bool external_mutator_ran = MutateViaExternalBinary(
+      env_.binary, /*inputs=*/{{0}}, /*metadata=*/{}, mutants);
   if (external_mutator_ran && mutants.size() == 1 && !mutants.front().empty()) {
     custom_mutator_is_usable_ = true;
     LOG(INFO) << "Custom mutator detected: will use it";
@@ -59,12 +59,20 @@ void CentipedeDefaultCallbacks::Mutate(const std::vector<ByteArray> &inputs,
                                        std::vector<ByteArray> &mutants) {
   mutants.resize(num_mutants);
   if (custom_mutator_is_usable_) {
-    CHECK(MutateViaExternalBinary(env_.binary, inputs, mutants))
+    CHECK(MutateViaExternalBinary(env_.binary, inputs, metadata_, mutants))
         << "Custom mutator in " << env_.binary << " failed, aborting";
     return;
   }
   // No custom mutator.
   CentipedeCallbacks::Mutate(inputs, num_mutants, mutants);
+}
+
+bool CentipedeDefaultCallbacks::SetMetadata(const ExecutionMetadata &metadata) {
+  if (custom_mutator_is_usable_) {
+    metadata_ = metadata;
+    return true;
+  }
+  return CentipedeCallbacks::SetMetadata(metadata);
 }
 
 }  // namespace centipede

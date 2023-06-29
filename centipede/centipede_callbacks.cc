@@ -231,13 +231,13 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 // See also: MutateInputsFromShmem().
 bool CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<ByteArray> &inputs,
-    std::vector<ByteArray> &mutants) {
+    const ExecutionMetadata &metadata, std::vector<ByteArray> &mutants) {
   auto start_time = absl::Now();
   inputs_blobseq_.Reset();
   outputs_blobseq_.Reset();
 
   size_t num_inputs_written = execution_request::RequestMutation(
-      mutants.size(), inputs, inputs_blobseq_);
+      mutants.size(), inputs, metadata, inputs_blobseq_);
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 

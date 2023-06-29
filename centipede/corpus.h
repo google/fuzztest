@@ -25,6 +25,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/util.h"
@@ -85,7 +86,7 @@ class CoverageFrontier;  // Forward decl, used in Corpus.
 struct CorpusRecord {
   ByteArray data;
   FeatureVec features;
-  ByteArray cmp_args;
+  ExecutionMetadata metadata;
 };
 
 // Maintains the corpus of inputs.
@@ -102,11 +103,10 @@ class Corpus {
   // Mutators.
 
   // Adds a corpus element, consisting of 'data' (the input bytes, non-empty),
-  // 'fv' (the features associated with this input),
-  // and `cmp_args` (arguments of CMP instructions).
+  // 'fv' (the features associated with this input), and execution `metadata`.
   // `fs` is used to compute weights of `fv`.
   void Add(const ByteArray &data, const FeatureVec &fv,
-           const ByteArray &cmp_args, const FeatureSet &fs,
+           const ExecutionMetadata &metadata, const FeatureSet &fs,
            const CoverageFrontier &coverage_frontier);
   // Removes elements that contain only frequent features, according to 'fs'.
   // Also, randomly removes elements to reduce the size to <= `max_corpus_size`.
@@ -133,8 +133,10 @@ class Corpus {
   const CorpusRecord &UniformRandom(size_t random) const;
   // Returns the element with index 'idx', where `idx` < NumActive().
   const ByteArray &Get(size_t idx) const { return records_[idx].data; }
-  // Returns the cmp_args for the element `idx`, `idx` < NumActive().
-  ByteSpan GetCmpArgs(size_t idx) const { return records_[idx].cmp_args; }
+  // Returns the execution metadata for the element `idx`, `idx` < NumActive().
+  const ExecutionMetadata &GetMetadata(size_t idx) const {
+    return records_[idx].metadata;
+  }
 
   // Logging.
 

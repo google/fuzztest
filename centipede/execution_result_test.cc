@@ -43,9 +43,8 @@ TEST(ExecutionResult, WriteThenRead) {
   // Imitate execution of two inputs.
   FeatureVec v1{1, 2, 3};
   FeatureVec v2{5, 6, 7, 8};
-  std::vector<uint8_t> cmp0{5, 6, 7};
-  std::vector<uint8_t> cmp1{6, 7, 8};
-  std::vector<uint8_t> cmp2{7, 8, 9};
+  ExecutionMetadata metadata;
+  metadata.AppendCmpEntry({1, 2, 3}, {4, 5, 6});
   ExecutionResult::Stats stats1{.peak_rss_mb = 10};
   ExecutionResult::Stats stats2{.peak_rss_mb = 20};
   // First input.
@@ -62,10 +61,7 @@ TEST(ExecutionResult, WriteThenRead) {
   EXPECT_TRUE(BatchResult::WriteStats(stats2, blobseq));
   EXPECT_TRUE(BatchResult::WriteOneFeatureVec(v2.data(), v2.size(), blobseq));
   // Write CMP traces.
-  EXPECT_TRUE(BatchResult::WriteCmpArgs(cmp0.data(), cmp1.data(), cmp0.size(),
-                                        blobseq));
-  EXPECT_TRUE(BatchResult::WriteCmpArgs(cmp1.data(), cmp2.data(), cmp1.size(),
-                                        blobseq));
+  EXPECT_TRUE(BatchResult::WriteMetadata(metadata, blobseq));
   // Done.
   EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
 
@@ -78,13 +74,10 @@ TEST(ExecutionResult, WriteThenRead) {
   EXPECT_EQ(batch_result.results()[0].stats(), stats1);
   EXPECT_EQ(batch_result.results()[1].features(), v2);
   EXPECT_EQ(batch_result.results()[1].stats(), stats2);
-  EXPECT_THAT(batch_result.results()[1].cmp_args(),
+  EXPECT_THAT(batch_result.results()[1].metadata().cmp_data,
               testing::ElementsAre(3,        // size
-                                   5, 6, 7,  // cmp0
-                                   6, 7, 8,  // cmp1
-                                   3,        // size
-                                   6, 7, 8,  // cmp1
-                                   7, 8, 9   // cmp2
+                                   1, 2, 3,  // cmp0
+                                   4, 5, 6   // cmp1
                                    ));
 
   // If there are fewer ExecutionResult-s than expected everything should work.

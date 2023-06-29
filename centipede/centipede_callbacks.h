@@ -86,13 +86,13 @@ class CentipedeCallbacks {
   // Returns some simple non-empty valid input.
   virtual ByteArray DummyValidInput() { return {0}; }
 
-  // Sets the internal CmpDictionary to `cmp_data`.
-  // TODO(kcc): this is pretty ugly. Instead we need to pass `cmp_data`
+  // Sets the execution metadata to `metadata`.
+  // TODO(kcc): this is pretty ugly. Instead we need to pass `metadata`
   // to Mutate() alongside with the inputs.
-  bool SetCmpDictionary(ByteSpan cmp_data) {
+  virtual bool SetMetadata(const ExecutionMetadata &metadata) {
     return env_.use_legacy_default_mutator
-               ? byte_array_mutator_.SetCmpDictionary(cmp_data)
-               : fuzztest_mutator_.SetCmpDictionary(cmp_data);
+               ? byte_array_mutator_.SetMetadata(metadata)
+               : fuzztest_mutator_.SetMetadata(metadata);
   }
 
  protected:
@@ -110,9 +110,10 @@ class CentipedeCallbacks {
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
 
-  // Uses an external binary `binary` to mutate `inputs`.
-  // The binary should be linked against :centipede_runner and
-  // implement the Structure-Aware Fuzzing interface, as described here:
+  // Uses an external binary `binary` to mutate `inputs` potentially using the
+  // execution `metadata`. The binary should be linked against
+  // :centipede_runner and implement the Structure-Aware Fuzzing interface, as
+  // described here:
   // github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
   //
   // Produces at most `mutants.size()` non-empty mutants,
@@ -122,6 +123,7 @@ class CentipedeCallbacks {
   // Returns true on success.
   bool MutateViaExternalBinary(std::string_view binary,
                                const std::vector<ByteArray> &inputs,
+                               const ExecutionMetadata &metadata,
                                std::vector<ByteArray> &mutants);
 
   // Loads the dictionary from `dictionary_path`,
