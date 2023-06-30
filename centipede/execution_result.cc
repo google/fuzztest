@@ -34,27 +34,27 @@ enum Tags : Blob::SizeAndTagT {
 }  // namespace
 
 bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
-                                     SharedMemoryBlobSequence &blobseq) {
+                                     BlobSequence &blobseq) {
   return blobseq.Write({kTagFeatures, size * sizeof(vec[0]),
                         reinterpret_cast<const uint8_t *>(vec)});
 }
 
-bool BatchResult::WriteInputBegin(SharedMemoryBlobSequence &blobseq) {
+bool BatchResult::WriteInputBegin(BlobSequence &blobseq) {
   return blobseq.Write({kTagInputBegin, 0, nullptr});
 }
 
-bool BatchResult::WriteInputEnd(SharedMemoryBlobSequence &blobseq) {
+bool BatchResult::WriteInputEnd(BlobSequence &blobseq) {
   return blobseq.Write({kTagInputEnd, 0, nullptr});
 }
 
 bool BatchResult::WriteStats(const ExecutionResult::Stats &stats,
-                             SharedMemoryBlobSequence &blobseq) {
+                             BlobSequence &blobseq) {
   return blobseq.Write(
       {kTagStats, sizeof(stats), reinterpret_cast<const uint8_t *>(&stats)});
 }
 
 bool BatchResult::WriteCmpArgs(const uint8_t *v0, const uint8_t *v1,
-                               size_t size, SharedMemoryBlobSequence &blobseq) {
+                               size_t size, BlobSequence &blobseq) {
   constexpr size_t kMaxSize = CmpTrace<0, 1>::kMaxNumBytesPerValue;
   uint8_t data[kMaxSize * 2];
   if (size > kMaxSize) __builtin_trap();
@@ -69,7 +69,7 @@ bool BatchResult::WriteCmpArgs(const uint8_t *v0, const uint8_t *v1,
 // Blobs between InputBegin/InputEnd may go in any order.
 // If the execution failed on some input, we will see InputBegin,
 // but will not see all or some other blobs.
-bool BatchResult::Read(SharedMemoryBlobSequence &blobseq) {
+bool BatchResult::Read(BlobSequence &blobseq) {
   size_t num_begins = 0;
   size_t num_ends = 0;
   const size_t num_expected_tuples = results().size();

@@ -16,9 +16,7 @@
 
 #include <unistd.h>
 
-#include <sstream>
-#include <string>
-#include <thread>  // NOLINT
+#include <memory>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -29,15 +27,9 @@
 namespace centipede {
 namespace {
 
-std::string ShmemName() {
-  std::ostringstream oss;
-  oss << "/shared_memory_execution_result_test-" << getpid() << "-"
-      << std::this_thread::get_id();
-  return oss.str();
-}
-
 TEST(ExecutionResult, WriteThenRead) {
-  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1000);
+  auto buffer = std::make_unique<uint8_t[]>(1000);
+  BlobSequence blobseq(buffer.get(), 1000);
   BatchResult batch_result;
 
   // Imitate execution of two inputs.

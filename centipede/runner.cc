@@ -498,7 +498,7 @@ ReadOneInputExecuteItAndDumpCoverage(
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
 __attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
-                                            SharedMemoryBlobSequence &blobseq) {
+                                            BlobSequence &blobseq) {
   bool write_failed = false;
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
@@ -510,15 +510,13 @@ __attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
 
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool StartSendingOutputsToEngine(
-    SharedMemoryBlobSequence &outputs_blobseq) {
+static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool FinishSendingOutputsToEngine(
-    SharedMemoryBlobSequence &outputs_blobseq) {
+static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
   if (!BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
@@ -553,8 +551,7 @@ static bool FinishSendingOutputsToEngine(
 // `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
 // Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
 static int ExecuteInputsFromShmem(
-    SharedMemoryBlobSequence &inputs_blobseq,
-    SharedMemoryBlobSequence &outputs_blobseq,
+    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
     FuzzerTestOneInputCallback test_one_input_cb) {
   size_t num_inputs = 0;
   if (!execution_request::IsExecutionRequest(inputs_blobseq.Read()))
@@ -656,8 +653,7 @@ static unsigned GetRandomSeed() { return time(nullptr); }
 //
 // TODO(kcc): [impl] make use of custom_crossover_cb, if available.
 static int MutateInputsFromShmem(
-    SharedMemoryBlobSequence &inputs_blobseq,
-    SharedMemoryBlobSequence &outputs_blobseq,
+    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
     FuzzerCustomMutatorCallback custom_mutator_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb) {
   if (custom_mutator_cb == nullptr) return EXIT_FAILURE;

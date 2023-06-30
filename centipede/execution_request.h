@@ -28,12 +28,12 @@ namespace centipede::execution_request {
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        SharedMemoryBlobSequence &blobseq);
+                        BlobSequence &blobseq);
 
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
-                       SharedMemoryBlobSequence &blobseq);
+                       BlobSequence &blobseq);
 
 // Returns whether `blob` indicates an execution request.
 bool IsExecutionRequest(Blob blob);
