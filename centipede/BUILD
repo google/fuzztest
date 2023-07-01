@@ -611,6 +611,7 @@ cc_library(
     srcs = ["distill.cc"],
     hdrs = ["distill.h"],
     deps = [
+        ":blob_file",
         ":defs",
         ":environment",
         ":feature_set",
@@ -875,6 +876,23 @@ cc_test(
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "distill_test",
+    srcs = ["distill_test.cc"],
+    deps = [
+        ":blob_file",
+        ":defs",
+        ":distill",
+        ":environment",
+        ":feature",
+        ":logging",
+        ":test_util",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:reflection",
         "@com_google_googletest//:gtest_main",
     ],
 )

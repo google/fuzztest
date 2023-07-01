@@ -43,6 +43,10 @@ ABSL_FLAG(std::string, binary, "", "The target binary.");
 ABSL_FLAG(std::string, coverage_binary, "",
           "The actual binary from which coverage is collected - if different "
           "from --binary.");
+ABSL_FLAG(std::string, binary_hash, "",
+          "If not-empty, this hash string is used instead of the hash of the "
+          "contents of coverage_binary. Use this flag when the coverage_binary "
+          "is not available nor needed, e.g. when using --distill.");
 ABSL_FLAG(std::string, clang_coverage_binary, "",
           "A clang source-based code coverage binary used to produce "
           "human-readable reports. Do not add this binary to extra_binaries. "
@@ -459,7 +463,9 @@ Environment::Environment(const std::vector<std::string> &argv)
       dry_run(absl::GetFlag(FLAGS_dry_run)),
       cmd(binary),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
-      binary_hash(HashOfFileContents(coverage_binary)) {
+      binary_hash(absl::GetFlag(FLAGS_binary_hash).empty()
+                      ? HashOfFileContents(coverage_binary)
+                      : absl::GetFlag(FLAGS_binary_hash)) {
   if (size_t j = absl::GetFlag(FLAGS_j)) {
     total_shards = j;
     num_threads = j;

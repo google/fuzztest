@@ -15,11 +15,22 @@
 #ifndef THIRD_PARTY_CENTIPEDE_DISTILL_H_
 #define THIRD_PARTY_CENTIPEDE_DISTILL_H_
 
+#include <cstddef>
+#include <vector>
+
 #include "./centipede/environment.h"
 
 namespace centipede {
 
-// TODO(kcc): implement and document.
+// Runs one independent distillation task.
+// Reads shards in the order specified by `shard_indices`,
+// distills inputs from them and writes the result to env.MakeDistilledPath().
+// Every task gets its own `env.my_shard_index`, and so every task creates
+// its own independent distilled corpus file.
+void DistillTask(const Environment &env,
+                 const std::vector<size_t> &shard_indices);
+
+// Runs `env.num_threads` independent distill tasks in separate threads.
 // Returns EXIT_SUCCESS.
 int Distill(const Environment &env);
 

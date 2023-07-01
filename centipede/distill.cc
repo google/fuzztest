@@ -14,11 +14,14 @@
 
 #include "./centipede/distill.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <thread>  // NOLINT(build/c++11)
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
+#include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature_set.h"
@@ -28,25 +31,47 @@
 
 namespace centipede {
 
-void DistillThread(const Environment &env) {
+void DistillTask(const Environment &env,
+                 const std::vector<size_t> &shard_indices) {
   std::string log_line = absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
-  LOG(INFO) << log_line << VV(env.workdir) << VV(env.total_shards)
-            << VV(env.binary_hash);
-  // Shuffle the shards, read them one-by-one.
-  Rng rng(GetRandomSeed(env.seed));
-  std::vector<size_t> shard_idxs(env.total_shards);
-  std::iota(shard_idxs.begin(), shard_idxs.end(), 0);
-  std::shuffle(shard_idxs.begin(), shard_idxs.end(), rng);
-  auto input_features_callback = [&](const ByteArray &input,
-                                     FeatureVec &input_features) {
-    VLOG(1) << log_line << VV(input.size()) << VV(input_features.size());
-    // TODO(kcc): add the inputs to the distilled corpus here.
-  };
+  const auto distill_to_path = env.MakeDistilledPath();
+  LOG(INFO) << log_line << VV(env.total_shards) << VV(distill_to_path);
 
-  for (size_t shard_idx : shard_idxs) {
+  const auto appender = DefaultBlobFileWriterFactory();
+  // NOTE: Overwrite distilled corpus files -- do not append.
+  CHECK_OK(appender->Open(distill_to_path, "w"));
+  FeatureSet feature_set(/*frequency_threshold=*/1);
+  for (size_t shard_idx : shard_indices) {
     LOG(INFO) << log_line << "reading shard " << shard_idx;
+    // Read records from the current shard.
+    std::vector<std::pair<ByteArray, FeatureVec>> records;
     ReadShard(env.MakeCorpusPath(shard_idx), env.MakeFeaturesPath(shard_idx),
-              input_features_callback);
+              [&](const ByteArray &input, FeatureVec &input_features) {
+                records.emplace_back(input, std::move(input_features));
+              });
+    // Reverse the order of inputs read from the current shard.
+    // The intuition is as follows:
+    // * If the shard is the result of fuzzing with Centipede, the inputs that
+    //   are closer to the end are more interesting, so we start there.
+    // * If the shard resulted from somethening else, the reverse order is not
+    //  any better or worse than any other order.
+    std::reverse(records.begin(), records.end());
+    // Iterate the records, add those that have new features.
+    // This is a simple linear greedy set cover algorithm.
+    for (auto &&[input, features] : records) {
+      VLOG(1) << log_line << VV(input.size()) << VV(features.size());
+      if (!feature_set.CountUnseenAndPruneFrequentFeatures(features)) continue;
+      feature_set.IncrementFrequencies(features);
+      // Logging will log names of these variables.
+      auto num_new_features = features.size();
+      CHECK_NE(num_new_features, 0);
+      auto cov = feature_set.CountFeatures(feature_domains::kPCs);
+      auto ft = feature_set.size();
+      LOG(INFO) << log_line << "adding to distilled: " << VV(ft) << VV(cov)
+                << VV(input.size()) << VV(num_new_features);
+      // Append to the distilled corpus.
+      CHECK_OK(appender->Write(input));
+    }
   }
 }
 
@@ -54,11 +79,19 @@ int Distill(const Environment &env) {
   // Run `env.num_threads` independent distillation threads.
   std::vector<std::thread> threads(env.num_threads);
   std::vector<Environment> envs(env.num_threads, env);
+  std::vector<std::vector<size_t>> shard_indices_per_thread(env.num_threads);
   // Start the threads.
   for (size_t thread_idx = 0; thread_idx < env.num_threads; ++thread_idx) {
     envs[thread_idx].my_shard_index += thread_idx;
+    // Shuffle the shards, so that every thread produces different result.
+    Rng rng(GetRandomSeed(env.seed + thread_idx));
+    auto &shard_indices = shard_indices_per_thread[thread_idx];
+    shard_indices.resize(env.total_shards);
+    std::iota(shard_indices.begin(), shard_indices.end(), 0);
+    std::shuffle(shard_indices.begin(), shard_indices.end(), rng);
+    // Run the thread.
     threads[thread_idx] =
-        std::thread(DistillThread, std::ref(envs[thread_idx]));
+        std::thread(DistillTask, std::ref(envs[thread_idx]), shard_indices);
   }
   // Join threads.
   for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
