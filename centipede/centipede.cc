@@ -61,6 +61,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/control_flow.h"
@@ -184,6 +185,7 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
   auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
 
+  stats_.unix_micros = absl::ToUnixMicros(absl::Now());
   stats_.corpus_size = corpus_.NumActive();
   stats_.num_covered_pcs = fs_.CountFeatures(feature_domains::kPCs);
   stats_.max_corpus_element_size = max_corpus_size;

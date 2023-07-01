@@ -82,17 +82,27 @@ void StatsLogger::SetCurrGroup(const Environment &master_env) {
 
 void StatsLogger::SetCurrField(const Stats::FieldInfo &field_info) {
   os_ << field_info.description << ":\n";
+  curr_field_info_ = field_info;
 }
 
 void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
   // Print min/max/avg and the full sorted contents of `values`.
   std::sort(values.begin(), values.end());
-  os_ << "min:\t" << values.front() << "\t";
-  os_ << "max:\t" << values.back() << "\t";
-  os_ << "avg:\t"
-      << (std::accumulate(values.begin(), values.end(), 0.) /
-          static_cast<double>(values.size()))
-      << "\t";
+  const uint64_t min = values.front();
+  const uint64_t max = values.back();
+  const double avg = std::accumulate(values.begin(), values.end(), 0.) /
+                     static_cast<double>(values.size());
+  os_ << std::fixed << std::setprecision(1);
+  switch (curr_field_info_.aggregation) {
+    case Stats::Aggregation::kMinMaxAvg:
+      os_ << "min:\t" << min << "\t"
+          << "max:\t" << max << "\t"
+          << "avg:\t" << avg << "\t";
+      break;
+    case Stats::Aggregation::kRoundedAvg:
+      os_ << "avg:\t" << std::llrint(avg) << "\t";
+      break;
+  }
   os_ << "--";
   for (const auto value : values) {
     os_ << "\t" << value;
@@ -129,9 +139,16 @@ void StatsCsvFileAppender::PreAnnounceFields(
   if (!csv_header_.empty()) return;
 
   for (const auto &field : fields) {
-    const std::string field_col_names =
-        absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
-    absl::StrAppend(&csv_header_, field_col_names);
+    std::string col_names;
+    switch (field.aggregation) {
+      case Stats::Aggregation::kRoundedAvg:
+        col_names = absl::Substitute("$0_Avg,", field.name);
+        break;
+      case Stats::Aggregation::kMinMaxAvg:
+        col_names = absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
+        break;
+    }
+    absl::StrAppend(&csv_header_, col_names);
   }
   absl::StrAppend(&csv_header_, "\n");
 }
@@ -151,7 +168,7 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
 }
 
 void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
-  // Nothing to do: Field names are printed as the CSV header elsewhere.
+  curr_field_info_ = field_info;
 }
 
 void StatsCsvFileAppender::ReportCurrFieldSample(
@@ -166,9 +183,17 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
     avg += value;
   }
   if (!values.empty()) avg /= values.size();
-  const std::string str =
-      absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
-  RemoteFileAppend(curr_file_, str);
+  std::string values_str;
+  switch (curr_field_info_.aggregation) {
+    case Stats::Aggregation::kRoundedAvg:
+      values_str = absl::StrFormat("%" PRIu64 ",", std::llrint(avg));
+      break;
+    case Stats::Aggregation::kMinMaxAvg:
+      values_str =
+          absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
+      break;
+  }
+  RemoteFileAppend(curr_file_, values_str);
 }
 
 void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {

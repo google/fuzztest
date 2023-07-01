@@ -38,24 +38,59 @@ namespace centipede {
 // hence the use of atomics.
 // These objects may also be accessed after all worker threads have joined.
 struct Stats {
+  std::atomic<uint64_t> unix_micros;
   std::atomic<uint64_t> num_executions;
   std::atomic<uint64_t> num_covered_pcs;
   std::atomic<uint64_t> corpus_size;
   std::atomic<uint64_t> max_corpus_element_size;
   std::atomic<uint64_t> avg_corpus_element_size;
 
+  enum class Aggregation { kMinMaxAvg, kRoundedAvg };
+
   struct FieldInfo {
     std::atomic<uint64_t> Stats::*field;
     std::string_view name;
     std::string_view description;
+    Aggregation aggregation;
   };
 
   static constexpr std::initializer_list<FieldInfo> kFieldInfos = {
-      {&Stats::num_executions, "NumExecs", "Number of executions"},
-      {&Stats::num_covered_pcs, "NumCoveredPcs", "Coverage"},
-      {&Stats::corpus_size, "CorpusSize", "Corpus size"},
-      {&Stats::max_corpus_element_size, "MaxEltSize", "Max element size"},
-      {&Stats::avg_corpus_element_size, "AvgEltSize", "Avg element size"},
+      {
+          &Stats::num_covered_pcs,
+          "NumCoveredPcs",
+          "Coverage",
+          Aggregation::kMinMaxAvg,
+      },
+      {
+          &Stats::num_executions,
+          "NumExecs",
+          "Number of executions",
+          Aggregation::kMinMaxAvg,
+      },
+      {
+          &Stats::corpus_size,
+          "CorpusSize",
+          "Corpus size",
+          Aggregation::kMinMaxAvg,
+      },
+      {
+          &Stats::max_corpus_element_size,
+          "MaxEltSize",
+          "Max element size",
+          Aggregation::kMinMaxAvg,
+      },
+      {
+          &Stats::avg_corpus_element_size,
+          "AvgEltSize",
+          "Avg element size",
+          Aggregation::kMinMaxAvg,
+      },
+      {
+          &Stats::unix_micros,
+          "UnixMicros",
+          "Timestamp (UNIX micros)",
+          Aggregation::kRoundedAvg,
+      },
   };
 };
 
@@ -124,10 +159,10 @@ class StatsReporter {
 };
 
 // Takes a set of `Stats` objects and a corresponding set of `Environment`
-// objects `env_vec` and logs the current `Stats` values to LOG(INFO) on each
-// invocation of `ReportCurrStats()`. If the environments indicate the use of
-// the --experiment flag, the stats for each of the experiment are juxtaposed
-// for easy visual comparison.
+// objects and logs the current `Stats` values to LOG(INFO) on each invocation
+// of `ReportCurrStats()`. If the environments indicate the use of the
+// --experiment flag, the stats for each of the experiment are juxtaposed for
+// easy visual comparison.
 class StatsLogger : public StatsReporter {
  public:
   using StatsReporter::StatsReporter;
@@ -143,8 +178,15 @@ class StatsLogger : public StatsReporter {
   void ReportFlags(const GroupToFlags &group_to_flags) override;
 
   std::stringstream os_;
+  Stats::FieldInfo curr_field_info_;
 };
 
+// Takes a set of `Stats` objects and a corresponding set of `Environment`
+// objects `env_vec` and writes aggregate metrics of the current `Stats` values
+// to a CSV file on each invocation of `ReportCurrStats()`. If the environments
+// indicate the use of the --experiment flag, the stats for each of the
+// experiments are written to a separate correspondingly named CSV file. The
+// names of each output field are written to the file(s) as a CSV header.
 class StatsCsvFileAppender : public StatsReporter {
  public:
   using StatsReporter::StatsReporter;
@@ -162,6 +204,7 @@ class StatsCsvFileAppender : public StatsReporter {
   std::string csv_header_;
   absl::flat_hash_map<std::string /*group_name*/, RemoteFile *> files_;
   RemoteFile *curr_file_;
+  Stats::FieldInfo curr_field_info_;
 };
 
 // Takes a span of Stats objects `stats_vec` and prints a summary of the results
