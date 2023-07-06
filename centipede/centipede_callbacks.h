@@ -86,13 +86,13 @@ class CentipedeCallbacks {
   // Returns some simple non-empty valid input.
   virtual ByteArray DummyValidInput() { return {0}; }
 
-  // Sets the internal CmpDictionary to `cmp_data`.
-  // TODO(kcc): this is pretty ugly. Instead we need to pass `cmp_data`
+  // Sets the execution metadata to `metadata`.
+  // TODO(kcc): this is pretty ugly. Instead we need to pass `metadata`
   // to Mutate() alongside with the inputs.
-  bool SetCmpDictionary(ByteSpan cmp_data) {
+  bool SetMetadata(const ExecutionMetadata &metadata) {
     return env_.use_legacy_default_mutator
-               ? byte_array_mutator_.SetCmpDictionary(cmp_data)
-               : fuzztest_mutator_.SetCmpDictionary(cmp_data);
+               ? byte_array_mutator_.SetCmpDictionary(metadata.cmp_data)
+               : fuzztest_mutator_.SetCmpDictionary(metadata.cmp_data);
   }
 
  protected:

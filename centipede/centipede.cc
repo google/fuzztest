@@ -346,8 +346,8 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
       batch_gained_new_coverage = true;
       CHECK_GT(fv.size(), 0UL);
       if (function_filter_passed) {
-        const auto &cmp_args = batch_result.results()[i].cmp_args();
-        corpus_.Add(input_vec[i], fv, cmp_args, fs_, coverage_frontier_);
+        corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(), fs_,
+                    coverage_frontier_);
       }
       if (corpus_file != nullptr) {
         CHECK_OK(corpus_file->Write(input_vec[i]));
@@ -687,9 +687,9 @@ void Centipede::FuzzingLoop() {
                                       ? corpus_.WeightedRandom(rng_())
                                       : corpus_.UniformRandom(rng_());
       inputs[i] = corpus_record.data;
-      // Use the cmp_args of the first input.
-      // See the related TODO around SetCmpDictionary.
-      if (i == 0) user_callbacks_.SetCmpDictionary(corpus_record.cmp_args);
+      // Use the metadata of the first input.
+      // See the related TODO around SetMetadata
+      if (i == 0) user_callbacks_.SetMetadata(corpus_record.metadata);
     }
 
     user_callbacks_.Mutate(inputs, batch_size, mutants);

@@ -92,12 +92,12 @@ bool BatchResult::Read(BlobSequence &blobseq) {
       continue;
     }
     if (blob.tag == kTagCmpArgs) {
-      auto &cmp_args = current_execution_result->cmp_args();
+      auto &cmp_data = current_execution_result->metadata().cmp_data;
       // CMP size must fit into one byte.
       if (blob.size % 2 != 0) return false;
       if (blob.size / 2 >= 256) return false;
-      cmp_args.push_back(blob.size / 2);
-      cmp_args.insert(cmp_args.end(), blob.data, blob.data + blob.size);
+      cmp_data.push_back(blob.size / 2);
+      cmp_data.insert(cmp_data.end(), blob.data, blob.data + blob.size);
       continue;
     }
     if (blob.tag == kTagStats) {

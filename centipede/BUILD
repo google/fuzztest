@@ -295,6 +295,16 @@ cc_library(
 )
 
 cc_library(
+    name = "execution_metadata",
+    hdrs = ["execution_metadata.h"],
+    deps = [
+        # This target must have a minimal set of dependencies since it is
+        # used in centipede_runner.
+        ":defs",
+    ],
+)
+
+cc_library(
     name = "execution_result",
     srcs = ["execution_result.cc"],
     hdrs = ["execution_result.h"],
@@ -303,6 +313,7 @@ cc_library(
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
         ":feature",
+        ":execution_metadata",
         ":runner_cmp_trace",
         ":shared_memory_blob_sequence",
     ],
@@ -438,6 +449,7 @@ cc_library(
         ":control_flow",
         ":coverage",
         ":defs",
+        ":execution_metadata",
         ":feature",
         ":feature_set",
         ":util",
@@ -685,6 +697,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "concurrent_bitset.h",
     "concurrent_byteset.h",
     "defs.h",
+    "execution_metadata.h",
     "execution_request.cc",
     "execution_request.h",
     "execution_result.cc",

@@ -70,7 +70,7 @@ TEST(ExecutionResult, WriteThenRead) {
   EXPECT_EQ(batch_result.results()[0].stats(), stats1);
   EXPECT_EQ(batch_result.results()[1].features(), v2);
   EXPECT_EQ(batch_result.results()[1].stats(), stats2);
-  EXPECT_THAT(batch_result.results()[1].cmp_args(),
+  EXPECT_THAT(batch_result.results()[1].metadata().cmp_data,
               testing::ElementsAre(3,        // size
                                    5, 6, 7,  // cmp0
                                    6, 7, 8,  // cmp1

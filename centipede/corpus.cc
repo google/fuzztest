@@ -102,12 +102,12 @@ size_t Corpus::Prune(const FeatureSet &fs,
 }
 
 void Corpus::Add(const ByteArray &data, const FeatureVec &fv,
-                 const ByteArray &cmp_args, const FeatureSet &fs,
+                 const ExecutionMetadata &metadata, const FeatureSet &fs,
                  const CoverageFrontier &coverage_frontier) {
   // TODO(kcc): use coverage_frontier.
   CHECK(!data.empty());
   CHECK_EQ(records_.size(), weighted_distribution_.size());
-  records_.push_back({data, fv, cmp_args});
+  records_.push_back({data, fv, metadata});
   weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
 }
 
