@@ -69,4 +69,11 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((weak)) void CentipedeIsPresent();
 extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 
+// Clears all the accumulated execution result.
+extern "C" void CentipedeClearExecutionResult();
+
+// Saves the execution result (coverage, etc.) to `data` with given `capacity`
+// in bytes. Returns the size of saved data.
+extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity);
+
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_

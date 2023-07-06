@@ -32,6 +32,7 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -917,3 +918,16 @@ extern "C" int LLVMFuzzerRunDriver(
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
+
+extern "C" void CentipedeClearExecutionResult() {
+  // TODO: full_clear=true is expensive - performance may suffer.
+  centipede::PrepareCoverage(/*full_clear=*/true);
+}
+
+extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
+  centipede::PostProcessCoverage(/*target_return_value=*/0);
+  centipede::BlobSequence outputs_blobseq(data, capacity);
+  if (!centipede::StartSendingOutputsToEngine(outputs_blobseq)) return 0;
+  if (!centipede::FinishSendingOutputsToEngine(outputs_blobseq)) return 0;
+  return outputs_blobseq.offset();
+}
