@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// WARNING: this interface is not yet stable and may change at any point.
 
 #ifndef THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_
 #define THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_
