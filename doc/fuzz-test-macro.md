@@ -145,3 +145,23 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes)
 
 NOTE: You can't use functions like `file::GetTextProto(...)` because the code in
 `WithSeeds(...)` runs prior to `InitGoogle`.
+
+#### Loading seed inputs from a directory for a specific domain
+
+If you want to set seeds for each domain individually, use `Domain::WithSeeds`
+along with `fuzztest::ReadDomainFilesFromDirectory`. See the following example:
+
+```c++
+
+static constexpr absl::string_view kProtoACorpus = "path/to/proto_a_corpus";
+
+void CallingMyProtoApiNeverCrashes(ProtoA proto_a, ProtoB proto_b) {
+...
+}
+
+FUZZ_TEST(MyApiTestSuite, CallingMyProtoApiNeverCrashes)
+    .WithDomains(fuzztest::Arbitrary<ProtoA>().WithSeeds(
+        fuzztest::ReadDomainFilesFromDirectory<ProtoA>(
+            absl::StrCat(std::getenv("TEST_SRCDIR"), kProtoACorpus))),
+        fuzztest::Arbitrary<ProtoB>());
+```
