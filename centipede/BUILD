@@ -334,6 +334,17 @@ cc_library(
 )
 
 cc_library(
+    name = "mutation_input",
+    hdrs = ["mutation_input.h"],
+    deps = [
+        # This target must have a minimal set of dependencies since it is
+        # used in centipede_runner.
+        ":defs",
+        ":execution_metadata",
+    ],
+)
+
+cc_library(
     name = "byte_array_mutator",
     srcs = ["byte_array_mutator.cc"],
     hdrs = ["byte_array_mutator.h"],
@@ -1005,6 +1016,15 @@ cc_test(
         ":execution_result",
         ":feature",
         ":shared_memory_blob_sequence",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "mutation_input_test",
+    srcs = ["mutation_input_test.cc"],
+    deps = [
+        ":mutation_input",
         "@com_google_googletest//:gtest_main",
     ],
 )
