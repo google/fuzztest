@@ -27,13 +27,14 @@
 namespace centipede {
 
 //============= CmpDictionary ===============
-bool CmpDictionary::SetFromCmpData(ByteSpan cmp_data) {
+bool CmpDictionary::SetFromMetadata(const ExecutionMetadata &metadata) {
   dictionary_.clear();
+  const auto &cmp_data = metadata.cmp_data;
   for (size_t i = 0; i < cmp_data.size();) {
     auto size = cmp_data[i];
     if (i + 2 * size + 1 > cmp_data.size()) return false;
-    ByteSpan a(cmp_data.begin() + i + 1, size);
-    ByteSpan b(cmp_data.begin() + i + size + 1, size);
+    ByteSpan a(cmp_data.data() + i + 1, size);
+    ByteSpan b(cmp_data.data() + i + size + 1, size);
     i += 1 + 2 * size;
     if (size > DictEntry::kMaxEntrySize) continue;
     if (size < kMinEntrySize) continue;

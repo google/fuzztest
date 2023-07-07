@@ -91,8 +91,8 @@ class CentipedeCallbacks {
   // to Mutate() alongside with the inputs.
   bool SetMetadata(const ExecutionMetadata &metadata) {
     return env_.use_legacy_default_mutator
-               ? byte_array_mutator_.SetCmpDictionary(metadata.cmp_data)
-               : fuzztest_mutator_.SetCmpDictionary(metadata.cmp_data);
+               ? byte_array_mutator_.SetMetadata(metadata)
+               : fuzztest_mutator_.SetMetadata(metadata);
   }
 
  protected:

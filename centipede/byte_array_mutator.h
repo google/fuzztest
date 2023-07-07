@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 
 namespace centipede {
@@ -61,12 +62,10 @@ class CmpDictionary {
 
   CmpDictionary() = default;
 
-  // Sets the dictionary from raw data containing multiple CMP pairs.
-  // The input format is the same as in ExecutionResult:
-  //   1 byte of size, followed by `size` bytes of `A` and `size` bytes of `B`.
-  // All entries must be between DictEntry::kMaxEntrySize and kMinEntrySize.
-  // Returns false on bad input, true otherwise.
-  bool SetFromCmpData(ByteSpan cmp_data);
+  // Sets the dictionary from execution `metadata`.
+  //
+  // Returns false on bad metadata, true otherwise.
+  bool SetFromMetadata(const ExecutionMetadata &metadata);
 
   // Clears `suggestions` on entry.
   // For every observed `A CMP B` such that `A` is a prefix of `bytes`,
@@ -101,10 +100,10 @@ class ByteArrayMutator {
   // Adds `dict_entries` to an internal dictionary.
   void AddToDictionary(const std::vector<ByteArray> &dict_entries);
 
-  // Calls SetFromCmpData(cmp_data) on the internal CmpDictionary.
+  // Populates the internal CmpDictionary using execution `metadata`.
   // Returns false on failure, true otherwise.
-  bool SetCmpDictionary(ByteSpan cmp_data) {
-    return cmp_dictionary_.SetFromCmpData(cmp_data);
+  bool SetMetadata(const ExecutionMetadata &metadata) {
+    return cmp_dictionary_.SetFromMetadata(metadata);
   }
 
   // Takes non-empty `inputs`, produces `num_mutants` mutations in `mutants`.

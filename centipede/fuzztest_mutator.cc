@@ -57,13 +57,14 @@ void FuzzTestMutator::MutateMany(const std::vector<ByteArray>& inputs,
   }
 }
 
-bool FuzzTestMutator::SetCmpDictionary(ByteSpan cmp_data) {
+bool FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
   size_t i = 0;
+  const auto& cmp_data = metadata.cmp_data;
   while (i < cmp_data.size()) {
     auto size = cmp_data[i];
     if (i + 2 * size + 1 > cmp_data.size()) return false;
-    ByteSpan a(cmp_data.begin() + i + 1, size);
-    ByteSpan b(cmp_data.begin() + i + size + 1, size);
+    ByteSpan a(cmp_data.data() + i + 1, size);
+    ByteSpan b(cmp_data.data() + i + size + 1, size);
     i += 1 + 2 * size;
     if (size < kMinCmpEntrySize) continue;
     if (size > kMaxCmpEntrySize) continue;

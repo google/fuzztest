@@ -339,6 +339,7 @@ cc_library(
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         ":defs",
+        ":execution_metadata",
         ":knobs",
     ],
 )
@@ -654,6 +655,7 @@ cc_library(
     hdrs = ["fuzztest_mutator.h"],
     deps = [
         ":defs",
+        ":execution_metadata",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
     ],
