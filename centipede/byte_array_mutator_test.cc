@@ -119,13 +119,6 @@ TEST(CmpDictionary, CmpDictionary) {
                                  15, 16, 20,      // a
                                  30, 40, 50,      // b
                              }};
-
-  // malformed input - not enough bytes.
-  EXPECT_FALSE(dict.SetFromMetadata({.cmp_data = {3, 1, 2, 3}}));
-  // malformed input - not enough bytes.
-  EXPECT_FALSE(dict.SetFromMetadata({.cmp_data = {3, 1, 2, 3, 4, 5}}));
-
-  // Good input.
   EXPECT_TRUE(dict.SetFromMetadata(metadata));
 
   using S = ByteSpan;

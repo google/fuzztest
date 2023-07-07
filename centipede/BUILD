@@ -296,6 +296,7 @@ cc_library(
 
 cc_library(
     name = "execution_metadata",
+    srcs = ["execution_metadata.cc"],
     hdrs = ["execution_metadata.h"],
     deps = [
         # This target must have a minimal set of dependencies since it is
@@ -699,6 +700,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "concurrent_bitset.h",
     "concurrent_byteset.h",
     "defs.h",
+    "execution_metadata.cc",
     "execution_metadata.h",
     "execution_request.cc",
     "execution_request.h",
@@ -982,6 +984,15 @@ cc_test(
     srcs = ["shared_memory_blob_sequence_test.cc"],
     deps = [
         ":shared_memory_blob_sequence",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "execution_metadata_test",
+    srcs = ["execution_metadata_test.cc"],
+    deps = [
+        ":execution_metadata",
         "@com_google_googletest//:gtest_main",
     ],
 )

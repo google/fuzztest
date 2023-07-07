@@ -20,12 +20,19 @@
 #ifndef THIRD_PARTY_CENTIPEDE_EXECUTION_METADATA_H_
 #define THIRD_PARTY_CENTIPEDE_EXECUTION_METADATA_H_
 
+#include <functional>
+
 #include "./centipede/defs.h"
 
 namespace centipede {
 
 struct ExecutionMetadata {
-  // CMP entires are stored in one large ByteArray to minimize RAM consumption.
+  // Enumerates through all CMP entries in the metadata by calling
+  // `callback` on each of them. Returns false if there are invalid
+  // entries. Returns true otherwise.
+  bool ForEachCmpEntry(std::function<void(ByteSpan, ByteSpan)> callback) const;
+
+  // CMP entries are stored in one large ByteArray to minimize RAM consumption.
   // One CMP arg pair is stored as
   //  * `size` (1-byte value)
   //  * `value0` (`size` bytes)
