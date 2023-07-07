@@ -124,12 +124,10 @@ class BatchResult {
   // Writes unit execution stats.
   static bool WriteStats(const ExecutionResult::Stats& stats,
                          BlobSequence& blobseq);
-  // Writes the data derived from tracing CMP instructions.
-  // `v0` and `v1` are both arrays of `size` bytes, representing two arguments
-  // of a CMP-like instruction.
+  // Writes the execution `metadata` to `blobseq`.
   // Returns true iff successful.
-  static bool WriteCmpArgs(const uint8_t* v0, const uint8_t* v1, size_t size,
-                           BlobSequence& blobseq);
+  static bool WriteMetadata(const ExecutionMetadata& metadata,
+                            BlobSequence& blobseq);
 
   // Reads everything written by the runner to `blobseq` into `this`.
   // Returns true iff successful.

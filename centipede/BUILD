@@ -302,6 +302,7 @@ cc_library(
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
         ":defs",
+        ":shared_memory_blob_sequence",
     ],
 )
 

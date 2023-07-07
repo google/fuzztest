@@ -22,6 +22,9 @@
 namespace centipede {
 namespace {
 
+using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAreArray;
+
 TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesInRawBytes) {
   ExecutionMetadata metadata{.cmp_data = {
                                  2,         // size
@@ -36,13 +39,13 @@ TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesInRawBytes) {
   EXPECT_TRUE(metadata.ForEachCmpEntry(
       [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
 
-  EXPECT_THAT(enumeration_result,
-              testing::UnorderedElementsAreArray(
-                  std::vector<std::pair<ByteSpan, ByteSpan>>{
-                      {{1, 2}, {3, 4}},
-                      {{}, {}},
-                      {{5, 6, 7}, {8, 9, 10}},
-                  }));
+  EXPECT_THAT(
+      enumeration_result,
+      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
+          {{1, 2}, {3, 4}},
+          {{}, {}},
+          {{5, 6, 7}, {8, 9, 10}},
+      }));
 }
 
 TEST(ExecutionMetadata, ForEachCmpEntryHandlesEmptyCmpData) {
@@ -57,6 +60,53 @@ TEST(ExecutionMetadata,
   EXPECT_FALSE(bad_metadata_1.ForEachCmpEntry(noop_callback));
   const auto bad_metadata_2 = ExecutionMetadata{.cmp_data = {3, 1, 2, 3, 4, 5}};
   EXPECT_FALSE(bad_metadata_2.ForEachCmpEntry(noop_callback));
+}
+
+TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesFromAppendCmpEntry) {
+  ExecutionMetadata metadata;
+  ASSERT_TRUE(metadata.AppendCmpEntry({1, 2}, {3, 4}));
+  std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
+  EXPECT_TRUE(metadata.ForEachCmpEntry(
+      [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
+  EXPECT_THAT(
+      enumeration_result,
+      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
+          {{1, 2}, {3, 4}},
+      }));
+}
+
+TEST(ExecutionMetadata, AppendCmpEntryReturnsFalseAndSkipsOnBadArgs) {
+  ExecutionMetadata metadata;
+  // Sizes don't match.
+  EXPECT_FALSE(metadata.AppendCmpEntry({}, {1}));
+  ByteArray long_byte_array;
+  long_byte_array.resize(256);
+  // Args too long.
+  EXPECT_FALSE(metadata.AppendCmpEntry(long_byte_array, long_byte_array));
+  // Should leave no entries and keep metadata well-formed.
+  std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
+  EXPECT_TRUE(metadata.ForEachCmpEntry(
+      [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
+  EXPECT_THAT(enumeration_result, IsEmpty());
+}
+
+TEST(ExecutionMetadata, ReadAndWriteKeepsCmpEntries) {
+  ExecutionMetadata metadata_in;
+  ASSERT_TRUE(metadata_in.AppendCmpEntry({1, 2}, {3, 4}));
+  SharedMemoryBlobSequence blobseq("test", /*size=*/1024);
+  EXPECT_TRUE(metadata_in.Write(/*tag=*/1, blobseq));
+  blobseq.Reset();
+  Blob blob = blobseq.Read();
+  ExecutionMetadata metadata_out;
+  metadata_out.Read(blob);
+  std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
+  EXPECT_TRUE(metadata_out.ForEachCmpEntry(
+      [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
+  EXPECT_THAT(
+      enumeration_result,
+      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
+          {{1, 2}, {3, 4}},
+      }));
 }
 
 }  // namespace

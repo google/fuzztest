@@ -493,20 +493,20 @@ ReadOneInputExecuteItAndDumpCoverage(
   fclose(features_file);
 }
 
-// Calls BatchResult::WriteCmpArgs for every CMP arg pair
+// Calls ExecutionMetadata::AppendCmpEntry for every CMP arg pair
 // found in `cmp_trace`.
-// Returns true if all writes succeeded.
+// Returns true if all appending succeeded.
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
-__attribute__((noinline)) bool WriteCmpArgs(CmpTrace &cmp_trace,
-                                            BlobSequence &blobseq) {
-  bool write_failed = false;
+__attribute__((noinline)) bool AppendCmpEntries(CmpTrace &cmp_trace,
+                                                ExecutionMetadata &metadata) {
+  bool append_failed = false;
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
-        if (!BatchResult::WriteCmpArgs(v0, v1, size, blobseq))
-          write_failed = true;
+        if (!metadata.AppendCmpEntry({v0, size}, {v1, size}))
+          append_failed = true;
       });
-  return !write_failed;
+  return !append_failed;
 }
 
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
@@ -524,22 +524,19 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
     return false;
   }
 
+  ExecutionMetadata metadata;
   // Copy the CMP traces to shared memory.
   if (state.run_time_flags.use_auto_dictionary) {
-    bool write_failed = false;
-    state.ForEachTls(
-        [&write_failed, &outputs_blobseq](ThreadLocalRunnerState &tls) {
-          if (!WriteCmpArgs(tls.cmp_trace2, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_trace4, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_trace8, outputs_blobseq))
-            write_failed = true;
-          if (!WriteCmpArgs(tls.cmp_traceN, outputs_blobseq))
-            write_failed = true;
-        });
-    if (write_failed) return false;
+    bool append_failed = false;
+    state.ForEachTls([&metadata, &append_failed](ThreadLocalRunnerState &tls) {
+      if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_trace4, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_trace8, metadata)) append_failed = true;
+      if (!AppendCmpEntries(tls.cmp_traceN, metadata)) append_failed = true;
+    });
+    if (append_failed) return false;
   }
+  if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
 
   // Write the stats.
   if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;

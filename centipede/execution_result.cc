@@ -29,7 +29,7 @@ enum Tags : Blob::SizeAndTagT {
   kTagInputBegin,
   kTagInputEnd,
   kTagStats,
-  kTagCmpArgs,
+  kTagMetadata,
 };
 }  // namespace
 
@@ -53,14 +53,9 @@ bool BatchResult::WriteStats(const ExecutionResult::Stats &stats,
       {kTagStats, sizeof(stats), reinterpret_cast<const uint8_t *>(&stats)});
 }
 
-bool BatchResult::WriteCmpArgs(const uint8_t *v0, const uint8_t *v1,
-                               size_t size, BlobSequence &blobseq) {
-  constexpr size_t kMaxSize = CmpTrace<0, 1>::kMaxNumBytesPerValue;
-  uint8_t data[kMaxSize * 2];
-  if (size > kMaxSize) __builtin_trap();
-  memcpy(data, v0, size);
-  memcpy(data + size, v1, size);
-  return blobseq.Write({kTagCmpArgs, size * 2, data});
+bool BatchResult::WriteMetadata(const ExecutionMetadata &metadata,
+                                BlobSequence &blobseq) {
+  return metadata.Write(kTagMetadata, blobseq);
 }
 
 // The sequence we expect to receive is
@@ -91,13 +86,8 @@ bool BatchResult::Read(BlobSequence &blobseq) {
       current_execution_result = nullptr;
       continue;
     }
-    if (blob.tag == kTagCmpArgs) {
-      auto &cmp_data = current_execution_result->metadata().cmp_data;
-      // CMP size must fit into one byte.
-      if (blob.size % 2 != 0) return false;
-      if (blob.size / 2 >= 256) return false;
-      cmp_data.push_back(blob.size / 2);
-      cmp_data.insert(cmp_data.end(), blob.data, blob.data + blob.size);
+    if (blob.tag == kTagMetadata) {
+      current_execution_result->metadata().Read(blob);
       continue;
     }
     if (blob.tag == kTagStats) {
