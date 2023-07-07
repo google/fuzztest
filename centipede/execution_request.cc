@@ -29,6 +29,7 @@ enum Tags : Blob::SizeAndTagT {
   kTagMutation,
   kTagNumInputs,
   kTagNumMutants,
+  kTagExecutionMetadata,
   kTagDataInput,
 };
 
@@ -46,6 +47,29 @@ static size_t WriteInputs(const std::vector<ByteArray> &inputs,
   return result;
 }
 
+static bool WriteMetadataFromRefOrDefault(const ExecutionMetadata *metadata,
+                                          BlobSequence &blobseq) {
+  if (metadata != nullptr)
+    return metadata->Write(kTagExecutionMetadata, blobseq);
+  static const ExecutionMetadata *default_metadata = new ExecutionMetadata();
+  return default_metadata->Write(kTagExecutionMetadata, blobseq);
+}
+
+// Similar to above, but for mutation inputs.
+static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
+                          BlobSequence &blobseq) {
+  size_t num_inputs = inputs.size();
+  if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
+  size_t result = 0;
+  for (const auto &input : inputs) {
+    if (!WriteMetadataFromRefOrDefault(input.metadata, blobseq)) return result;
+    if (!blobseq.Write({kTagDataInput, input.data.size(), input.data.data()}))
+      return result;
+    ++result;
+  }
+  return result;
+}
+
 }  // namespace
 
 namespace execution_request {
@@ -56,7 +80,8 @@ size_t RequestExecution(const std::vector<ByteArray> &inputs,
   return WriteInputs(inputs, blobseq);
 }
 
-size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
+size_t RequestMutation(size_t num_mutants,
+                       const std::vector<MutationInputRef> &inputs,
                        BlobSequence &blobseq) {
   if (!blobseq.Write({kTagMutation, 0, nullptr})) return 0;
   if (!blobseq.Write(kTagNumMutants, num_mutants)) return 0;
@@ -78,6 +103,12 @@ bool IsNumMutants(Blob blob, size_t &num_mutants) {
   if (blob.tag != kTagNumMutants) return false;
   if (blob.size != sizeof(num_mutants)) return false;
   memcpy(&num_mutants, blob.data, sizeof(num_mutants));
+  return true;
+}
+
+bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
+  if (blob.tag != kTagExecutionMetadata) return false;
+  metadata.Read(blob);
   return true;
 }
 

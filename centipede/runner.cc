@@ -666,18 +666,29 @@ static int MutateInputsFromShmem(
   if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
 
+  // Mutation input with ownership.
+  struct MutationInput {
+    ByteArray data;
+    ExecutionMetadata metadata;
+  };
   // TODO(kcc): unclear if we can continue using std::vector (or other STL)
   // in the runner. But for now use std::vector.
   // Collect the inputs into a vector. We copy them instead of using pointers
   // into shared memory so that the user code doesn't touch the shared memory.
-  std::vector<std::vector<uint8_t>> inputs;
+  std::vector<MutationInput> inputs;
   inputs.reserve(num_inputs);
   for (size_t i = 0; i < num_inputs; ++i) {
-    auto blob = inputs_blobseq.Read();
     // If inputs_blobseq have overflown in the engine, we still want to
     // handle the first few inputs.
+    ExecutionMetadata metadata;
+    if (!execution_request::IsExecutionMetadata(inputs_blobseq.Read(),
+                                                metadata)) {
+      break;
+    }
+    auto blob = inputs_blobseq.Read();
     if (!execution_request::IsDataInput(blob)) break;
-    inputs.emplace_back(blob.data, blob.data + blob.size);
+    inputs.push_back({.data = {blob.data, blob.data + blob.size},
+                      .metadata = std::move(metadata)});
   }
 
   // Use a fixed-sized vector as a scratch.
@@ -691,18 +702,18 @@ static int MutateInputsFromShmem(
        attempt < num_mutants * kAverageMutationAttempts &&
        num_outputs < num_mutants;
        ++attempt) {
-    const auto &input = inputs[rand_r(&seed) % num_inputs];
+    const auto &input_data = inputs[rand_r(&seed) % num_inputs].data;
 
-    size_t size = std::min(input.size(), kMaxMutantSize);
-    std::copy(input.cbegin(), input.cbegin() + size, mutant.begin());
+    size_t size = std::min(input_data.size(), kMaxMutantSize);
+    std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb != nullptr) &&
         rand_r(&seed) % 100 < state.run_time_flags.crossover_level) {
       // Perform crossover `crossover_level`% of the time.
-      const auto &other = inputs[rand_r(&seed) % num_inputs];
-      new_size = custom_crossover_cb(input.data(), input.size(), other.data(),
-                                     other.size(), mutant.data(),
-                                     kMaxMutantSize, rand_r(&seed));
+      const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
+      new_size = custom_crossover_cb(
+          input_data.data(), input_data.size(), other_data.data(),
+          other_data.size(), mutant.data(), kMaxMutantSize, rand_r(&seed));
     } else {
       new_size =
           custom_mutator_cb(mutant.data(), size, kMaxMutantSize, rand_r(&seed));

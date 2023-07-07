@@ -236,10 +236,8 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
   inputs_blobseq_.Reset();
   outputs_blobseq_.Reset();
 
-  // TODO(xinhaoyuan): Avoid copying data from inputs by letting RequestMutation
-  // accept MutationInputRefs.
   size_t num_inputs_written = execution_request::RequestMutation(
-      mutants.size(), CopyDataFromMutationInputRefs(inputs), inputs_blobseq_);
+      mutants.size(), inputs, inputs_blobseq_);
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 

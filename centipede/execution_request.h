@@ -21,6 +21,8 @@
 #include <vector>
 
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
 namespace centipede::execution_request {
@@ -32,7 +34,8 @@ size_t RequestExecution(const std::vector<ByteArray> &inputs,
 
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
-size_t RequestMutation(size_t num_mutants, const std::vector<ByteArray> &inputs,
+size_t RequestMutation(size_t num_mutants,
+                       const std::vector<MutationInputRef> &inputs,
                        BlobSequence &blobseq);
 
 // Returns whether `blob` indicates an execution request.
@@ -48,6 +51,10 @@ bool IsNumInputs(Blob blob, size_t &num_inputs);
 // Returns true and sets `num_mutants`
 // iff the blob indicates the number of mutants.
 bool IsNumMutants(Blob blob, size_t &num_mutants);
+
+// Returns true and read blob into `metadata` iff the blob indicates an
+// execution metadata.
+bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata);
 
 // Returns true iff `blob` indicates a data input.
 bool IsDataInput(Blob blob);
