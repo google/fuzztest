@@ -28,10 +28,12 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
+#include "./centipede/execution_request.h"
 #include "./centipede/execution_result.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/knobs.h"
 #include "./centipede/logging.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/util.h"
@@ -70,8 +72,8 @@ class CentipedeCallbacks {
 
   // Takes non-empty `inputs`, discards old contents of `mutants`,
   // adds `num_mutants` mutated inputs to `mutants`.
-  virtual void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
-                      std::vector<ByteArray> &mutants) {
+  virtual void Mutate(const std::vector<MutationInputRef> &inputs,
+                      size_t num_mutants, std::vector<ByteArray> &mutants) {
     env_.use_legacy_default_mutator
         ? byte_array_mutator_.MutateMany(inputs, num_mutants, mutants)
         : fuzztest_mutator_.MutateMany(inputs, num_mutants, mutants);
@@ -85,15 +87,6 @@ class CentipedeCallbacks {
 
   // Returns some simple non-empty valid input.
   virtual ByteArray DummyValidInput() { return {0}; }
-
-  // Sets the execution metadata to `metadata`.
-  // TODO(kcc): this is pretty ugly. Instead we need to pass `metadata`
-  // to Mutate() alongside with the inputs.
-  bool SetMetadata(const ExecutionMetadata &metadata) {
-    return env_.use_legacy_default_mutator
-               ? byte_array_mutator_.SetMetadata(metadata)
-               : fuzztest_mutator_.SetMetadata(metadata);
-  }
 
  protected:
   // Helpers that the user-defined class may use if needed.
@@ -110,9 +103,9 @@ class CentipedeCallbacks {
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
 
-  // Uses an external binary `binary` to mutate `inputs`.
-  // The binary should be linked against :centipede_runner and
-  // implement the Structure-Aware Fuzzing interface, as described here:
+  // Uses an external binary `binary` to mutate `inputs`. The binary should be
+  // linked against :centipede_runner and implement the Structure-Aware Fuzzing
+  // interface, as described here:
   // github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
   //
   // Produces at most `mutants.size()` non-empty mutants,
@@ -121,7 +114,7 @@ class CentipedeCallbacks {
   //
   // Returns true on success.
   bool MutateViaExternalBinary(std::string_view binary,
-                               const std::vector<ByteArray> &inputs,
+                               const std::vector<MutationInputRef> &inputs,
                                std::vector<ByteArray> &mutants);
 
   // Loads the dictionary from `dictionary_path`,

@@ -41,11 +41,12 @@ TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
 
   std::vector<ByteArray> res[2];
   for (size_t i = 0; i < 2; i++) {
-    std::vector<ByteArray> inputs = {{0}};
+    ByteArray data = {0};
+    std::vector<MutationInputRef> mutation_inputs = {{.data = data}};
     std::vector<ByteArray> mutants;
     constexpr size_t kMutantSequenceLength = 100;
     for (size_t iter = 0; iter < kMutantSequenceLength; iter++) {
-      mutator[i].MutateMany(inputs, 1, mutants);
+      mutator[i].MutateMany(mutation_inputs, 1, mutants);
       ASSERT_EQ(mutants.size(), 1);
       res[i].push_back(mutants[0]);
     }
@@ -60,10 +61,15 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
   constexpr size_t kNumMutantsToGenerate = 10000;
   std::vector<ByteArray> mutants;
 
-  const std::vector<ByteArray> corpus_with_large_input = {
-      {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {0, 1}, {0, 1, 2}, {0, 1, 2, 3},
-  };
-  mutator.MutateMany(corpus_with_large_input, kNumMutantsToGenerate, mutants);
+  mutator.MutateMany(
+      {
+          {.data = {0, 1, 2, 3, 4, 5, 6, 7}},
+          {.data = {0}},
+          {.data = {0, 1}},
+          {.data = {0, 1, 2}},
+          {.data = {0, 1, 2, 3}},
+      },
+      kNumMutantsToGenerate, mutants);
 
   EXPECT_THAT(mutants,
               AllOf(SizeIs(kNumMutantsToGenerate), Each(SizeIs(Le(kMaxLen)))));
@@ -101,11 +107,12 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   if (GetParam().max_len.has_value())
     EXPECT_TRUE(mutator.set_max_len(*GetParam().max_len));
   mutator.AddToDictionary(GetParam().dictionary);
-  EXPECT_TRUE(mutator.SetMetadata({.cmp_data = GetParam().cmp_data}));
   absl::flat_hash_set<ByteArray> unmatched_expected_mutants =
       GetParam().expected_mutants;
   const auto& unexpected_mutants = GetParam().unexpected_mutants;
-  const std::vector<ByteArray> inputs = {GetParam().seed_input};
+  ExecutionMetadata metadata = {.cmp_data = GetParam().cmp_data};
+  const std::vector<MutationInputRef> inputs = {
+      {.data = GetParam().seed_input, .metadata = &metadata}};
   std::vector<ByteArray> mutants;
   for (size_t i = 0; i < GetParam().max_num_iterations; i++) {
     mutator.MutateMany(inputs, 1, mutants);

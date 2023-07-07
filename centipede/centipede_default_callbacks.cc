@@ -36,7 +36,7 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
   LOG(INFO) << "Detecting custom mutator in target...";
   std::vector<ByteArray> mutants(1);
   const bool external_mutator_ran =
-      MutateViaExternalBinary(env_.binary, {{0}}, mutants);
+      MutateViaExternalBinary(env_.binary, /*inputs=*/{{.data = {0}}}, mutants);
   if (external_mutator_ran && mutants.size() == 1 && !mutants.front().empty()) {
     custom_mutator_is_usable_ = true;
     LOG(INFO) << "Custom mutator detected: will use it";
@@ -54,9 +54,9 @@ bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
          0;
 }
 
-void CentipedeDefaultCallbacks::Mutate(const std::vector<ByteArray> &inputs,
-                                       size_t num_mutants,
-                                       std::vector<ByteArray> &mutants) {
+void CentipedeDefaultCallbacks::Mutate(
+    const std::vector<MutationInputRef> &inputs, size_t num_mutants,
+    std::vector<ByteArray> &mutants) {
   mutants.resize(num_mutants);
   if (custom_mutator_is_usable_) {
     CHECK(MutateViaExternalBinary(env_.binary, inputs, mutants))

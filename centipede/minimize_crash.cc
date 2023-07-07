@@ -102,7 +102,8 @@ static void MinimizeCrash(const Environment &env,
     // TODO(kcc): modify the Mutate() interface such that max_len can be passed.
     //
     std::vector<ByteArray> mutants;
-    callbacks->Mutate(recent_crashers, env.batch_size, mutants);
+    callbacks->Mutate(GetMutationInputRefsFromDataInputs(recent_crashers),
+                      env.batch_size, mutants);
     std::vector<ByteArray> smaller_mutants;
     for (const auto &m : mutants) {
       if (m.size() < min_known_size) smaller_mutants.push_back(m);

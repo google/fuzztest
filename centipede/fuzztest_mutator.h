@@ -20,6 +20,7 @@
 #include "absl/random/random.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
+#include "./centipede/mutation_input.h"
 
 namespace centipede {
 
@@ -36,16 +37,11 @@ class FuzzTestMutator {
 
   // Takes non-empty `inputs`, produces `num_mutants` mutations in `mutants`.
   // Old contents of `mutants` are discarded.
-  void MutateMany(const std::vector<ByteArray>& inputs, size_t num_mutants,
-                  std::vector<ByteArray>& mutants);
+  void MutateMany(const std::vector<MutationInputRef>& inputs,
+                  size_t num_mutants, std::vector<ByteArray>& mutants);
 
   // Adds `dict_entries` to the internal mutation dictionary.
   void AddToDictionary(const std::vector<ByteArray>& dict_entries);
-
-  // Propagates the execution `metadata` to the internal mutation dictionary.
-  //
-  // Returns false on failure, true otherwise.
-  bool SetMetadata(const ExecutionMetadata& metadata);
 
   // Sets max length in bytes for mutants with modified sizes.
   //
@@ -56,6 +52,9 @@ class FuzzTestMutator {
 
  private:
   class MutatorDomain;
+
+  // Propagates the execution `metadata` to the internal mutation dictionary.
+  void SetMetadata(const ExecutionMetadata& metadata);
 
   // Size limits on the cmp entries to be used in mutation.
   static constexpr uint8_t kMaxCmpEntrySize = 15;

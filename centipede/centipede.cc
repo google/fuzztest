@@ -680,19 +680,18 @@ void Centipede::FuzzingLoop() {
     CHECK_LT(new_runs, env_.num_runs);
     auto remaining_runs = env_.num_runs - new_runs;
     auto batch_size = std::min(env_.batch_size, remaining_runs);
-    std::vector<ByteArray> inputs, mutants;
-    inputs.resize(env_.mutate_batch_size);
+    std::vector<MutationInputRef> mutation_inputs;
+    std::vector<ByteArray> mutants;
+    mutation_inputs.reserve(env_.mutate_batch_size);
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
       const auto &corpus_record = env_.use_corpus_weights
                                       ? corpus_.WeightedRandom(rng_())
                                       : corpus_.UniformRandom(rng_());
-      inputs[i] = corpus_record.data;
-      // Use the metadata of the first input.
-      // See the related TODO around SetMetadata
-      if (i == 0) user_callbacks_.SetMetadata(corpus_record.metadata);
+      mutation_inputs.push_back(
+          {.data = corpus_record.data, .metadata = &corpus_record.metadata});
     }
 
-    user_callbacks_.Mutate(inputs, batch_size, mutants);
+    user_callbacks_.Mutate(mutation_inputs, batch_size, mutants);
     bool gained_new_coverage =
         RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
     new_runs += mutants.size();

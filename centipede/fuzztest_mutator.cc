@@ -44,21 +44,26 @@ FuzzTestMutator::FuzzTestMutator(uint64_t seed)
 
 FuzzTestMutator::~FuzzTestMutator() = default;
 
-void FuzzTestMutator::MutateMany(const std::vector<ByteArray>& inputs,
+void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef>& inputs,
                                  size_t num_mutants,
                                  std::vector<ByteArray>& mutants) {
+  if (inputs.empty()) abort();
+  // TODO(xinhaoyuan): Consider metadata in other inputs instead of always the
+  // first one.
+  SetMetadata(inputs[0].metadata != nullptr ? *inputs[0].metadata
+                                            : ExecutionMetadata());
   mutants.clear();
   mutants.reserve(num_mutants);
   for (int i = 0; i < num_mutants; ++i) {
-    auto mutant = inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())];
+    auto mutant = inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
     if (mutant.size() > max_len_) mutant.resize(max_len_);
     domain_->Mutate(mutant, prng_, /*only_shrink=*/false);
     mutants.push_back(std::move(mutant));
   }
 }
 
-bool FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
-  return metadata.ForEachCmpEntry([](ByteSpan a, ByteSpan b) {
+void FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
+  metadata.ForEachCmpEntry([](ByteSpan a, ByteSpan b) {
     size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
     if (size > kMaxCmpEntrySize) return;

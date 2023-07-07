@@ -214,7 +214,7 @@ class TestCallbacks : public CentipedeCallbacks {
     CHECK_EQ(EXIT_SUCCESS, result);
     return true;
   }
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {}
 };
 

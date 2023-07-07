@@ -87,7 +87,7 @@ class CentipedeMock : public CentipedeCallbacks {
   // (the value {0} is produced by DummyValidInput()).
   // Next 65536 mutations are 2-byte sequences {0,0} ... {255, 255}.
   // Then repeat 2-byte sequences.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     mutants.resize(num_mutants);
     for (auto &mutant : mutants) {
@@ -245,7 +245,7 @@ class MutateCallbacks : public CentipedeCallbacks {
   }
 
   // Will not be called.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     CHECK(false);
   }
@@ -301,11 +301,13 @@ TEST(Centipede, MutateViaExternalBinary) {
     // Expect to fail on the binary w/o a custom mutator.
     mutants.resize(1);
     EXPECT_FALSE(callbacks.MutateViaExternalBinary(
-        binary_without_custom_mutator, inputs, mutants));
+        binary_without_custom_mutator,
+        GetMutationInputRefsFromDataInputs(inputs), mutants));
     // Expect to succeed on the binary with a custom mutator.
     mutants.resize(10000);
-    EXPECT_TRUE(callbacks.MutateViaExternalBinary(binary_with_custom_mutator,
-                                                  inputs, mutants));
+    EXPECT_TRUE(callbacks.MutateViaExternalBinary(
+        binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
+        mutants));
     // Check that we see all expected mutants, and that they are non-empty.
     for (auto &mutant : mutants) {
       EXPECT_FALSE(mutant.empty());
@@ -320,7 +322,8 @@ TEST(Centipede, MutateViaExternalBinary) {
     MutateCallbacks callbacks_no_crossover(env_no_crossover);
     mutants.resize(10000);
     EXPECT_TRUE(callbacks_no_crossover.MutateViaExternalBinary(
-        binary_with_custom_mutator, inputs, mutants));
+        binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
+        mutants));
     // Must contain normal mutants, but not the ones from crossover.
     EXPECT_THAT(mutants, testing::IsSupersetOf(some_of_expected_mutants));
     for (const auto &crossover_mutant : expected_crossover_mutants) {
@@ -348,7 +351,7 @@ class MergeMock : public CentipedeCallbacks {
   }
 
   // Every consecutive mutation is {number_of_mutations_}.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     mutants.resize(num_mutants);
     for (auto &mutant : mutants) {
@@ -422,12 +425,12 @@ class FunctionFilterMock : public CentipedeCallbacks {
   }
 
   // Sets the inputs to one of 3 pre-defined values.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     mutants.resize(num_mutants);
     for (auto &input : inputs) {
-      if (input != DummyValidInput()) {
-        observed_inputs_.insert(input);
+      if (input.data != DummyValidInput()) {
+        observed_inputs_.insert(input.data);
       }
     }
     for (auto &mutant : mutants) {
@@ -531,7 +534,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
   }
 
   // Sets the mutants to different 1-byte values.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     mutants.resize(num_mutants);
     for (auto &mutant : mutants) {
@@ -621,7 +624,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   }
 
   // Sets the mutants to different 1-byte values.
-  void Mutate(const std::vector<ByteArray> &inputs, size_t num_mutants,
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override {
     mutants.resize(num_mutants);
     for (auto &mutant : mutants) {

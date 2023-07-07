@@ -354,6 +354,7 @@ cc_library(
         ":defs",
         ":execution_metadata",
         ":knobs",
+        ":mutation_input",
     ],
 )
 
@@ -521,6 +522,7 @@ cc_library(
         ":fuzztest_mutator",
         ":knobs",
         ":logging",
+        ":mutation_input",
         ":shared_memory_blob_sequence",
         ":util",
         "@com_google_absl//absl/strings",
@@ -669,6 +671,7 @@ cc_library(
     deps = [
         ":defs",
         ":execution_metadata",
+        ":mutation_input",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
     ],
@@ -725,6 +728,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "int_utils.h",
     "knobs.h",
     "knobs.cc",
+    "mutation_input.h",
     "pc_info.h",
     "reverse_pc_table.h",
     "rolling_hash.h",
