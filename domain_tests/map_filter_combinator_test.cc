@@ -96,9 +96,9 @@ TEST(Map, ValidationRejectsInvalidValue) {
 }
 
 TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
-  auto domain =
-      internal::BidiMap([](int a) { return ~a; },
-                        [](int a) { return std::tuple(~a); }, Arbitrary<int>());
+  auto domain = internal::BidiMap(
+      [](int a) { return ~a; },
+      [](int a) { return std::optional(std::tuple(~a)); }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   EXPECT_EQ(value.user_value, ~std::get<0>(value.corpus_value));
@@ -107,12 +107,12 @@ TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
 TEST(BidiMap, ValidationRejectsInvalidValue) {
   absl::BitGen bitgen;
 
-  auto domain_a =
-      internal::BidiMap([](int a) { return ~a; },
-                        [](int a) { return std::tuple(~a); }, InRange(0, 9));
-  auto domain_b =
-      BidiMap([](int a) { return ~a; }, [](int a) { return std::tuple(~a); },
-              InRange(10, 19));
+  auto domain_a = internal::BidiMap(
+      [](int a) { return ~a; },
+      [](int a) { return std::optional(std::tuple(~a)); }, InRange(0, 9));
+  auto domain_b = BidiMap([](int a) { return ~a; },
+                          [](int a) { return std::optional(std::tuple(~a)); },
+                          InRange(10, 19));
 
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
@@ -132,7 +132,7 @@ TEST(BidiMap, AcceptsMultipleInnerDomains) {
         return s;
       },
       [](const std::string& s) {
-        return std::tuple<int, char>(s.length(), s[0]);
+        return std::optional(std::tuple<int, char>(s.length(), s[0]));
       },
       InRange(2, 4), ElementOf<char>({'A', 'B'}));
   auto all_values = {"AA", "AAA", "AAAA", "BB", "BBB", "BBBB"};
@@ -145,12 +145,16 @@ TEST(BidiMap, AcceptsMultipleInnerDomains) {
 TEST(BidiMap, WorksWithSeeds) {
   absl::BitGen bitgen;
 
-  auto domain = internal::BidiMap([](int a) { return a + 1; },
-                                  [](int a) { return std::tuple(a - 1); },
+  auto domain = internal::BidiMap([](int a) { return a * 2; },
+                                  [](int a) -> std::optional<std::tuple<int>> {
+                                    if (a % 2 == 1) return std::nullopt;
+                                    return std::optional(std::tuple(a / 2));
+                                  },
                                   InRange(0, 1000000))
-                    .WithSeeds({7});
+                    .WithSeeds({8});
 
-  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(7));
+  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(8));
+  EXPECT_THAT(domain.FromValue(7), Eq(std::nullopt));
 }
 
 TEST(FlatMap, WorksWithSameCorpusType) {

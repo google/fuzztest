@@ -1895,7 +1895,7 @@ class ProtobufDomainImpl
           return {std::make_unique<value_type_t<Inner>>(proto_message)};
         },
         [](const std::unique_ptr<typename T::Message>& proto_message)
-            -> std::tuple<value_type_t<Inner>> {
+            -> std::optional<std::tuple<value_type_t<Inner>>> {
           return *static_cast<std::add_pointer_t<value_type_t<Inner>>>(
               proto_message.get());
         },
@@ -1914,7 +1914,8 @@ class ProtobufDomainImpl
               *proto_message);
         },
         [](const std::optional<std::unique_ptr<typename T::Message>>&
-               proto_message) -> std::tuple<value_type_t<Inner>> {
+               proto_message)
+            -> std::optional<std::tuple<value_type_t<Inner>>> {
           if (!proto_message.has_value()) return std::nullopt;
           return *static_cast<
               std::add_pointer_t<typename value_type_t<Inner>::value_type>>(
@@ -1938,7 +1939,8 @@ class ProtobufDomainImpl
           return result;
         },
         [](const std::vector<std::unique_ptr<typename T::Message>>&
-               proto_message) -> std::tuple<value_type_t<Inner>> {
+               proto_message)
+            -> std::optional<std::tuple<value_type_t<Inner>>> {
           value_type_t<Inner> result;
           for (auto& entry : proto_message) {
             result.push_back(

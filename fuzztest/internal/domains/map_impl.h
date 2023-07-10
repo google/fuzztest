@@ -110,7 +110,7 @@ class BidiMapImpl
   static_assert(
       std::is_invocable_v<InvMapper, const value_type&> &&
       std::is_same_v<std::invoke_result_t<InvMapper, const value_type&>,
-                     std::tuple<value_type_t<Inner>...>>);
+                     std::optional<std::tuple<value_type_t<Inner>...>>>);
 
   explicit BidiMapImpl(Mapper mapper, InvMapper inv_mapper, Inner... inner)
       : mapper_(std::move(mapper)),
@@ -158,10 +158,11 @@ class BidiMapImpl
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     auto inner_v = std::invoke(inv_mapper_, v);
+    if (!inner_v.has_value()) return std::nullopt;
     return ApplyIndex<sizeof...(Inner)>(
         [&](auto... I) -> std::optional<corpus_type> {
           auto inner_corpus_vals = std::tuple{
-              std::get<I>(inner_).FromValue(std::get<I>(inner_v))...};
+              std::get<I>(inner_).FromValue(std::get<I>(*inner_v))...};
           bool has_nullopt =
               (!std::get<I>(inner_corpus_vals).has_value() || ...);
           if (has_nullopt) return std::nullopt;
