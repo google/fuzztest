@@ -62,7 +62,8 @@ set +e
 #  - Remove `--test_filter`.
 #  - Use `testing:all` instead of specific tests under `testing`.
 #  - Use a single `bazel test "${BAZEL_ARGS[@]}" ...`.
-bazel test "${BAZEL_ARGS[@]}" --local_test_jobs=1 centipede:all --test_filter="-CommandDeathTest.Execute" &&
+bazel test "${BAZEL_ARGS[@]}" --local_test_jobs=1 --test_output=streamed \
+  --test_filter="-CommandDeathTest.Execute" centipede:all &&
 bazel test "${BAZEL_ARGS[@]}" centipede/testing:instrumentation_test centipede/testing:runner_test &&
 bazel test "${BAZEL_ARGS[@]}" centipede/puzzles:all
 declare -ri exit_code=$?
