@@ -1283,7 +1283,8 @@ class ProtobufDomainUntypedImpl
     if constexpr (std::is_same_v<T, std::string>) {
       if (field->type() == FieldDescriptor::TYPE_STRING) {
         // Can only use UTF-8. For now, simplify as just ASCII.
-        return Domain<T>(AsciiString());
+        return Domain<T>(ContainerOfImpl<std::string, InRangeImpl<char>>(
+            InRangeImpl<char>(char{0}, char{127})));
       }
     }
 
