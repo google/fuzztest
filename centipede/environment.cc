@@ -311,7 +311,7 @@ ABSL_FLAG(std::string, for_each_blob, "",
           "arguments, copies each blob to a temporary file, and applies this "
           "command to that temporary file. %P is replaced with the temporary "
           "file's path and %H is replaced with the blob's hash. Example:\n"
-          "$ centipede --for_each_blob='ls -l  %P && echo %H' corpus.0");
+          "$ centipede --for_each_blob='ls -l  %P && echo %H' corpus.000000");
 ABSL_FLAG(std::string, experiment, "",
           "A colon-separated list of values, each of which is a flag followed "
           "by = and a comma-separated list of values. Example: "

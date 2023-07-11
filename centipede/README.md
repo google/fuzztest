@@ -257,8 +257,8 @@ tree $WD
 ```
 ...
 ├── <fuzz target name>-d9d90139ee2ccc687f7c9d5821bcc04b8a847df5
-│   └── features.0
-└── corpus.0
+│   └── features.000000
+└── corpus.000000
 ```
 
 ### Run 5 concurrent fuzzing jobs
@@ -279,16 +279,16 @@ tree $WD
 ```
 ...
 ├── <fuzz target name>-d9d90139ee2ccc687f7c9d5821bcc04b8a847df5
-│   ├── features.0
-│   ├── features.1
-│   ├── features.2
-│   ├── features.3
-│   └── features.4
-├── corpus.0
-├── corpus.1
-├── corpus.2
-├── corpus.3
-└── corpus.4
+│   ├── features.000000
+│   ├── features.000001
+│   ├── features.000002
+│   ├── features.000003
+│   └── features.000004
+├── corpus.000000
+├── corpus.000001
+├── corpus.000002
+├── corpus.000003
+└── corpus.000004
 ```
 
 ## Corpus distillation
