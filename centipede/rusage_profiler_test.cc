@@ -109,7 +109,7 @@ TEST(RUsageProfilerTest, ValidateManualSnapshots) {
   // Allocate A LOT of memory to fight the small numbers volatility, in
   // particular in the virtual memory size and peak, which grow in page
   // increments.
-  constexpr int64_t kGobbleBytes = 10'000'000'000;
+  constexpr int64_t kGobbleBytes = 1'000'000'000;
   constexpr absl::Duration kWasteTime = absl::Seconds(2);
   const auto rusage_scope = RUsageScope::ThisProcess();
 
