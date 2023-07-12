@@ -48,11 +48,11 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
       &binary_info.uses_legacy_trace_pc_instrumentation);
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
-      LOG(INFO) << "Could not get PCTable, exiting (override with "
-                   "--require_pc_table=0)";
+      LOG(ERROR) << "Could not get PCTable, exiting (override with "
+                    "--require_pc_table=0)";
       exit(EXIT_FAILURE);
     }
-    LOG(INFO)
+    LOG(WARNING)
         << "Could not get PCTable, CFTable and debug symbols will not be used";
     return;
   }
@@ -62,9 +62,9 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
   binary_info.cf_table =
       GetCfTableFromBinary(env_.coverage_binary, cf_table_path);
   if (binary_info.cf_table.empty()) {
-    LOG(INFO) << "Could not get CFTable from " << env_.coverage_binary
-              << "\nThe binary should be built with clang 16 and with "
-                 "-fsanitize-coverage=control-flow flag.";
+    LOG(WARNING) << "Could not get CFTable from " << env_.coverage_binary
+                 << "\nThe binary should be built with clang 16 and with "
+                    "-fsanitize-coverage=control-flow flag.";
   } else {
     // Construct call-graph and cfg using loaded cf_table and pc_table.
     // TODO(b/284044008): These two are currently used only inside
