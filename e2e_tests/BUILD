@@ -26,6 +26,7 @@ cc_test(
     srcs = ["functional_test.cc"],
     data = [
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
+        "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_rpc_session_functional_testing.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_with_invalid_seeds.stripped",
     ],
     shard_count = 50,

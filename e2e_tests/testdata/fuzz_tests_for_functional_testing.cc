@@ -129,7 +129,10 @@ void CheckProtoExtensions(const TestProtobufWithExtension proto) {
   }
 }
 
-FUZZ_TEST(MySuite, CheckProtoExtensions).WithSeeds(ProtoSeeds());
+FUZZ_TEST(MySuite, CheckProtoExtensions)
+    .WithSeeds([]() -> std::vector<std::tuple<TestProtobufWithExtension>> {
+      return ProtoSeeds();
+    });
 
 void TargetPrintSomethingThenAbrt(int a) {
   absl::FPrintF(stdout, "Hello World from target stdout\n");
