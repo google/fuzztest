@@ -37,8 +37,8 @@ class Command final {
   // `path`: path to the binary.
   // `args`: arguments.
   // `env`: environment variables/values (in the form "KEY=VALUE").
-  // `out`: stdout redirect path (empty means none).
-  // `err`: stderr redirect path (empty means none).
+  // `out`: stdout redirect path (empty means use parent's STDOUT).
+  // `err`: stderr redirect path (empty means use parent's STDERR).
   // `timeout`: terminate a fork server execution attempt after this duration.
   // `temp_file_path`: "@@" in `path` will be replaced with `temp_file_path`.
   // If `out` == `err` and both are non-empty, stdout/stderr are combined.

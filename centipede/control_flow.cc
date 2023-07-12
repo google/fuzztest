@@ -48,13 +48,12 @@ PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
                                         std::string_view tmp_path) {
   Command cmd(binary_path, {},
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_pc_table:arg1=",
-                            tmp_path, ":")},
-              "/dev/null");
+                            tmp_path, ":")});
   int exit_code = cmd.Execute();
   if (exit_code) {
-    LOG(INFO) << __func__
-              << ": Failed to get PC table from binary: " << VV(binary_path)
-              << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
+    LOG(WARNING) << __func__
+                 << ": Failed to get PC table from binary: " << VV(binary_path)
+                 << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
     return {};
   }
   ByteArray pc_infos_as_bytes;
@@ -72,13 +71,12 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
                                         std::string_view objdump_path,
                                         std::string_view tmp_path) {
   // Run objdump -d on the binary. Assumes objdump in PATH.
-  Command cmd(objdump_path, {"-d", std::string(binary_path)}, {}, tmp_path,
-              "/dev/null");
+  Command cmd(objdump_path, {"-d", std::string(binary_path)}, {}, tmp_path);
   int exit_code = cmd.Execute();
   if (exit_code) {
-    LOG(INFO) << __func__
-              << ": Failed to get PC table for binary: " << VV(binary_path)
-              << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
+    LOG(WARNING) << __func__
+                 << ": Failed to get PC table for binary: " << VV(binary_path)
+                 << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
     return {};
   }
   PCTable pc_table;
