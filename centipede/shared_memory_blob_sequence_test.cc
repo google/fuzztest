@@ -43,6 +43,16 @@ static Blob Blob(const std::vector<uint8_t> &vec, uint64_t tag = 1) {
   return {tag, vec.size(), vec.data()};
 }
 
+TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
+  std::vector<uint8_t> buffer(1000);
+  BlobSequence blobseq1(buffer.data(), buffer.size());
+  ASSERT_TRUE(blobseq1.Write(Blob(/*vec=*/{}, /*tag=*/1)));
+  BlobSequence blobseq2(buffer.data(), blobseq1.offset());
+  auto blob = blobseq2.Read();
+  EXPECT_EQ(Vec(blob).size(), 0);
+  EXPECT_EQ(blob.tag, 1);
+}
+
 TEST(SharedMemoryBlobSequence, ParentChild) {
   std::vector<uint8_t> kTestData1 = {1, 2, 3};
   std::vector<uint8_t> kTestData2 = {4, 5, 6, 7};

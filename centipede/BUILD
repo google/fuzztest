@@ -1022,6 +1022,7 @@ cc_test(
         ":execution_result",
         ":feature",
         ":shared_memory_blob_sequence",
+        ":test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )

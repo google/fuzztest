@@ -68,7 +68,7 @@ bool BlobSequence::Write(Blob blob) {
 Blob BlobSequence::Read() {
   ErrorOnFailure(had_writes_after_reset_, "Had writes after reset");
   had_reads_after_reset_ = true;
-  if (offset_ + sizeof(Blob::size) + sizeof(Blob::tag) >= size_) return {};
+  if (offset_ + sizeof(Blob::size) + sizeof(Blob::tag) > size_) return {};
   // Read blob_tag.
   Blob::SizeAndTagT blob_tag = 0;
   memcpy(&blob_tag, data_ + offset_, sizeof(blob_tag));
