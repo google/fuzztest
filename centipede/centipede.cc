@@ -318,11 +318,6 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
         ExecuteAndReportCrash(extra_binary, input_vec, extra_batch_result) &&
         success;
   }
-  if (!success && env_.exit_on_crash) {
-    LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
-    RequestEarlyExit(EXIT_FAILURE);
-    return false;
-  }
   CHECK_EQ(batch_result.results().size(), input_vec.size());
   num_runs_ += input_vec.size();
   bool batch_gained_new_coverage = false;
@@ -833,6 +828,10 @@ void Centipede::ReportCrash(std::string_view binary,
       CHECK(file != nullptr) << log_prefix << "Failed to open " << file_path;
       RemoteFileAppend(file, one_input);
       RemoteFileClose(file);
+      if (env_.exit_on_crash) {
+        LOG(INFO) << "--exit_on_crash is enabled; exiting soon.";
+        RequestEarlyExit(EXIT_FAILURE);
+      }
       return;
     }
   }
