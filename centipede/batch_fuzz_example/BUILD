@@ -27,3 +27,26 @@ cc_binary(
         "@com_google_fuzztest//centipede:centipede_runner_no_main",  # build-cleaner:keep
     ],
 )
+
+cc_binary(
+    name = "customized_centipede",
+    srcs = ["customized_centipede.cc"],
+    deps = [
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//centipede:centipede_callbacks",
+        "@com_google_fuzztest//centipede:centipede_interface",
+        "@com_google_fuzztest//centipede:command",
+        "@com_google_fuzztest//centipede:config_file",
+        "@com_google_fuzztest//centipede:defs",
+        "@com_google_fuzztest//centipede:environment",
+        "@com_google_fuzztest//centipede:execution_result",
+        "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
+        "@com_google_fuzztest//centipede:util",
+    ],
+)
