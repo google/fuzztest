@@ -34,9 +34,15 @@ PCTable GetPcTableFromBinary(std::string_view binary_path,
                              bool *uses_legacy_trace_pc_instrumentation) {
   PCTable res = GetPcTableFromBinaryWithPcTable(binary_path, tmp_path);
   if (res.empty()) {
-    // Fall back to trace-pc.
-    LOG(INFO) << "Fall back to GetPcTableFromBinaryWithTracePC";
+    LOG(WARNING)
+        << "Failed to dump PC table directly from binary using linked-in "
+           "runner; see target execution logs above; falling back to legacy PC "
+           "table extraction using trace-pc and objdump";
     res = GetPcTableFromBinaryWithTracePC(binary_path, objdump_path, tmp_path);
+    if (res.empty()) {
+      LOG(ERROR) << "Failed to extract PC table from binary using objdump; see "
+                    "objdump execution logs above";
+    }
     *uses_legacy_trace_pc_instrumentation = true;
   } else {
     *uses_legacy_trace_pc_instrumentation = false;
@@ -46,15 +52,15 @@ PCTable GetPcTableFromBinary(std::string_view binary_path,
 
 PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
                                         std::string_view tmp_path) {
+  const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
   Command cmd(binary_path, {},
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_pc_table:arg1=",
                             tmp_path, ":")},
-              "/dev/null");
+              stdout_stderr_path);
   int exit_code = cmd.Execute();
+  std::filesystem::remove(stdout_stderr_path);
   if (exit_code) {
-    LOG(INFO) << __func__
-              << ": Failed to get PC table from binary: " << VV(binary_path)
-              << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
+    std::filesystem::remove(tmp_path);
     return {};
   }
   ByteArray pc_infos_as_bytes;
@@ -71,14 +77,13 @@ PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
 PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
                                         std::string_view objdump_path,
                                         std::string_view tmp_path) {
-  // Run objdump -d on the binary. Assumes objdump in PATH.
+  const std::string stderr_path = absl::StrCat(tmp_path, ".log");
   Command cmd(objdump_path, {"-d", std::string(binary_path)}, {}, tmp_path,
-              "/dev/null");
+              stderr_path);
   int exit_code = cmd.Execute();
-  if (exit_code) {
-    LOG(INFO) << __func__
-              << ": Failed to get PC table for binary: " << VV(binary_path)
-              << VV(cmd.ToString()) << VV(exit_code) << "; see logs above";
+  std::filesystem::remove(stderr_path);
+  if (exit_code != EXIT_SUCCESS) {
+    std::filesystem::remove(tmp_path);
     return {};
   }
   PCTable pc_table;
@@ -108,14 +113,18 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
 
 CFTable GetCfTableFromBinary(std::string_view binary_path,
                              std::string_view tmp_path) {
+  const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
   Command cmd(binary_path, {},
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_cf_table:arg1=",
                             tmp_path, ":")},
-              "/dev/null", "/dev/null");
+              stdout_stderr_path);
   int cmd_exit_code = cmd.Execute();
+  std::filesystem::remove(stdout_stderr_path);
   if (cmd_exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "CF table dumping failed: " << VV(cmd.ToString())
-               << VV(cmd_exit_code);
+    LOG(ERROR) << "Failed to dump CF table from binary using linked-in runner; "
+                  "see logs above. Note: binary should be built with at least "
+                  "Clang 16 and with -fsanitize-coverage=control-flow flag";
+    std::filesystem::remove(tmp_path);
     return {};
   }
   ByteArray cf_infos_as_bytes;

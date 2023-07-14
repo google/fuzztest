@@ -40,7 +40,7 @@ centipede::ensure_empty_dir "${WD}"
 centipede::assert_regex_in_file "cov: [3456] " "${LOG}"
 # Check that we fell back to GetPcTableFromBinaryWithTracePC.
 centipede::assert_regex_in_file \
-  "Fall back to GetPcTableFromBinaryWithTracePC" "${LOG}"
+  "falling back to legacy PC table extraction using trace-pc and objdump" "${LOG}"
 # Check that we found the crashy input.
 centipede::assert_regex_in_file "Input bytes.*: AbOrT" "${LOG}"
 
