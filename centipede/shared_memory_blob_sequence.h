@@ -146,7 +146,10 @@ class SharedMemoryBlobSequence : public BlobSequence {
   // actual path). Aborts on any failure. `size` is the size of the shared
   // memory region in bytes, must be >= 8. The amount of actual data that can be
   // written is slightly less.
-  SharedMemoryBlobSequence(const char *name, size_t size);
+  // The `use_posix_shmem` argument specifies which API to use to allocate the
+  // shared memory. When true, shm_open(2) will be used, otherwise
+  // memfd_create(2).
+  SharedMemoryBlobSequence(const char *name, size_t size, bool use_posix_shmem);
 
   // Opens an existing shared blob sequence with the file `path`.
   // Aborts on any failure.
@@ -173,7 +176,10 @@ class SharedMemoryBlobSequence : public BlobSequence {
   // Will be initialized as a generated internal path or a copy of `path`
   // passed in.
   char path_[PATH_MAX] = {0};
-  int fd_ = 0;  // file descriptor used to mmap the shared memory region.
+  int fd_ = -1;  // file descriptor used to mmap the shared memory region.
+  // Whether the file pointed to by path_ is owned by this and needs to be
+  // deallocated on destruction.
+  bool path_is_owned_ = false;
 };
 
 }  // namespace centipede

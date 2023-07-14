@@ -93,7 +93,8 @@ TEST(ExecutionMetadata, AppendCmpEntryReturnsFalseAndSkipsOnBadArgs) {
 TEST(ExecutionMetadata, ReadAndWriteKeepsCmpEntries) {
   ExecutionMetadata metadata_in;
   ASSERT_TRUE(metadata_in.AppendCmpEntry({1, 2}, {3, 4}));
-  SharedMemoryBlobSequence blobseq("test", /*size=*/1024);
+  SharedMemoryBlobSequence blobseq("test", /*size=*/1024,
+                                   /*use_posix_shmem=*/false);
   EXPECT_TRUE(metadata_in.Write(/*tag=*/1, blobseq));
   blobseq.Reset();
   Blob blob = blobseq.Read();

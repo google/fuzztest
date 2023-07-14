@@ -93,25 +93,43 @@ void BlobSequence::Reset() {
 }
 
 SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
-                                                   size_t size) {
+                                                   size_t size,
+                                                   bool use_posix_shmem) {
   ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
   size_ = size;
-  fd_ = memfd_create(name, MFD_CLOEXEC);
-  ErrorOnFailure(fd_ < 0, "memfd_create() failed");
-  const size_t path_size =
-      snprintf(path_, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd_);
-  ErrorOnFailure(path_size >= PATH_MAX,
-                 "internal fd path length reaches PATH_MAX.");
+  if (use_posix_shmem) {
+    fd_ = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    ErrorOnFailure(fd_ < 0, "shm_open() failed");
+    strncpy(path_, name, PATH_MAX);
+    ErrorOnFailure(path_[PATH_MAX - 1] != 0,
+                   "shm_open() path length exceeds PATH_MAX.");
+    path_is_owned_ = true;
+  } else {
+    fd_ = memfd_create(name, MFD_CLOEXEC);
+    ErrorOnFailure(fd_ < 0, "memfd_create() failed");
+    const size_t path_size =
+        snprintf(path_, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd_);
+    ErrorOnFailure(path_size >= PATH_MAX,
+                   "internal fd path length exceeds PATH_MAX.");
+    // memfd_create descriptors are automatically freed on close().
+    path_is_owned_ = false;
+  }
   ErrorOnFailure(ftruncate(fd_, static_cast<__off_t>(size_)),
                  "ftruncate() failed)");
   MmapData();
 }
 
 SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *path) {
-  fd_ = open(path, O_RDWR, O_CLOEXEC);
+  // This is a quick way to tell shm-allocated paths from memfd paths without
+  // requiring the caller to specify.
+  if (strncmp(path, "/proc/", 6) == 0) {
+    fd_ = open(path, O_RDWR, O_CLOEXEC);
+  } else {
+    fd_ = shm_open(path, O_RDWR, 0);
+  }
   ErrorOnFailure(fd_ < 0, "open() failed");
   strncpy(path_, path, PATH_MAX);
-  ErrorOnFailure(path_[PATH_MAX - 1] != 0, "path length reaches PATH_MAX.");
+  ErrorOnFailure(path_[PATH_MAX - 1] != 0, "path length exceeds PATH_MAX.");
   struct stat statbuf = {};
   ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed");
   size_ = statbuf.st_size;
@@ -125,6 +143,9 @@ void SharedMemoryBlobSequence::MmapData() {
 }
 
 SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
+  if (path_is_owned_) {
+    ErrorOnFailure(shm_unlink(path_), "shm_unlink() failed");
+  }
   ErrorOnFailure(munmap(data_, size_), "munmap() failed");
   ErrorOnFailure(close(fd_), "close() failed");
 }

@@ -108,6 +108,7 @@ struct Environment {
   size_t max_num_crash_reports;
   std::string minimize_crash_file_path;
   size_t shmem_size_mb;
+  bool use_posix_shmem = false;
   bool dry_run = false;
 
   // Command line-related fields -----------------------------------------------
