@@ -699,6 +699,16 @@ cc_library(
     hdrs = ["runner_cmp_trace.h"],
 )
 
+# Library for manipulating centipede runner flags. This is not used by the
+# runner itself but by other tools.
+cc_library(
+    name = "runner_flags",
+    srcs = ["runner_flags.cc"],
+    hdrs = ["runner_flags.h"],
+    visibility = PUBLIC_API_VISIBILITY,
+    # This has no dependency and only uses string, pair and vector.
+)
+
 # The runner library is special:
 #   * It must not be instrumented with asan, sancov, etc.
 #   * It must not have heavy dependencies, and ideally not at all.
@@ -1188,6 +1198,15 @@ cc_test(
     deps = [
         ":call_graph",
         ":logging",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "runner_flags_test",
+    srcs = ["runner_flags_test.cc"],
+    deps = [
+        ":runner_flags",
         "@com_google_googletest//:gtest_main",
     ],
 )
