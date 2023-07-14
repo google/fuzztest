@@ -53,13 +53,20 @@ TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
   EXPECT_EQ(blob.tag, 1);
 }
 
-TEST(SharedMemoryBlobSequence, ParentChild) {
+class SharedMemoryBlobSequenceTest
+    : public testing::TestWithParam</* use_shm */ bool> {};
+
+INSTANTIATE_TEST_SUITE_P(SharedMemoryBlobSequenceParametrizedTest,
+                         SharedMemoryBlobSequenceTest,
+                         testing::Values(true, false));
+
+TEST_P(SharedMemoryBlobSequenceTest, ParentChild) {
   std::vector<uint8_t> kTestData1 = {1, 2, 3};
   std::vector<uint8_t> kTestData2 = {4, 5, 6, 7};
   std::vector<uint8_t> kTestData3 = {8, 9};
   std::vector<uint8_t> kTestData4 = {'a', 'b', 'c', 'd', 'e'};
 
-  SharedMemoryBlobSequence parent(ShmemName().c_str(), 1000);
+  SharedMemoryBlobSequence parent(ShmemName().c_str(), 1000, GetParam());
   // Parent writes data.
   EXPECT_TRUE(parent.Write(Blob(kTestData1, 123)));
   EXPECT_TRUE(parent.Write(Blob(kTestData2, 456)));
@@ -87,18 +94,18 @@ TEST(SharedMemoryBlobSequence, ParentChild) {
   EXPECT_FALSE(parent.Read().IsValid());
 }
 
-TEST(SharedMemoryBlobSequence, CheckForResourceLeaks) {
+TEST_P(SharedMemoryBlobSequenceTest, CheckForResourceLeaks) {
   const int kNumIters = 1 << 17;  // Some large number of iterations.
   const int kBlobSize = 1 << 30;  // Some large blob size.
   // Create and destroy lots of parent/child blob pairs.
   for (int iter = 0; iter < kNumIters; iter++) {
-    SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize);
+    SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
     parent.Write(Blob({1, 2, 3}));
     SharedMemoryBlobSequence child(parent.path());
     EXPECT_EQ(child.Read().size, 3);
   }
   // Create a parent blob, then create and destroy lots of child blobs.
-  SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize);
+  SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
   parent.Write(Blob({1, 2, 3, 4}));
   for (int iter = 0; iter < kNumIters; iter++) {
     SharedMemoryBlobSequence child(parent.path());
@@ -107,8 +114,8 @@ TEST(SharedMemoryBlobSequence, CheckForResourceLeaks) {
 }
 
 // Tests that Read-after-Write or Write-after-Read w/o Reset crashes.
-TEST(SharedMemoryBlobSequence, ReadVsWriteWithoutReset) {
-  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1000);
+TEST_P(SharedMemoryBlobSequenceTest, ReadVsWriteWithoutReset) {
+  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1000, GetParam());
   blobseq.Write(Blob({1, 2, 3}));
   EXPECT_DEATH(blobseq.Read(), "Had writes after reset");
   blobseq.Reset();
@@ -119,13 +126,14 @@ TEST(SharedMemoryBlobSequence, ReadVsWriteWithoutReset) {
 }
 
 // Check cases when SharedMemoryBlobSequence is nearly full.
-TEST(SharedMemoryBlobSequence, WriteToFullSequence) {
+TEST_P(SharedMemoryBlobSequenceTest, WriteToFullSequence) {
   // Can't create SharedMemoryBlobSequence with sizes < 8.
-  EXPECT_DEATH(SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 7),
-               "Size too small");
+  EXPECT_DEATH(
+      SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 7, GetParam()),
+      "Size too small");
 
   // Allocate a blob sequence with 28 bytes of storage.
-  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 28);
+  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 28, GetParam());
 
   // 17 bytes: 8 bytes size, 8 bytes tag, 1 byte payload.
   EXPECT_TRUE(blobseq.Write(Blob({1})));
@@ -171,9 +179,9 @@ TEST(SharedMemoryBlobSequence, WriteToFullSequence) {
 }
 
 // Test Write-Reset-Write-Read scenario.
-TEST(SharedMemoryBlobSequence, WriteAfterReset) {
+TEST_P(SharedMemoryBlobSequenceTest, WriteAfterReset) {
   // Allocate a blob sequence with 28 bytes of storage.
-  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 100);
+  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 100, GetParam());
   const std::vector<uint8_t> kFirstWriteData(/*count=*/64, /*value=*/255);
   EXPECT_TRUE(blobseq.Write(Blob(kFirstWriteData)));
   blobseq.Reset();  // The data in shmem is unchanged.
@@ -188,9 +196,9 @@ TEST(SharedMemoryBlobSequence, WriteAfterReset) {
 }
 
 // Test ReleaseSharedMemory and NumBytesUsed.
-TEST(SharedMemoryBlobSequence, ReleaseSharedMemory) {
+TEST_P(SharedMemoryBlobSequenceTest, ReleaseSharedMemory) {
   // Allocate a blob sequence with 1M bytes of storage.
-  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1 << 20);
+  SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1 << 20, GetParam());
   EXPECT_EQ(blobseq.NumBytesUsed(), 0);
   EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4})));
   EXPECT_GT(blobseq.NumBytesUsed(), 5);

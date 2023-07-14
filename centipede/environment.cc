@@ -340,6 +340,12 @@ ABSL_FLAG(std::string, function_filter, "",
 ABSL_FLAG(size_t, shmem_size_mb, 1024,
           "Size of the shared memory regions used to communicate between the "
           "ending and the runner.");
+ABSL_FLAG(
+    bool, use_posix_shmem, false,
+    "[INTERNAL] When true, uses shm_open/shm_unlink instead of memfd_create to "
+    "allocate shared memory. You may want this if your target for doesn't have "
+    "access to /proc/<arbitrary_pid> subdirs or the memfd_create syscall is "
+    "not supported.");
 ABSL_FLAG(bool, dry_run, false,
           "Initializes as much of Centipede as possible without actually "
           "running any fuzzing. Useful to validate the rest of the command "
@@ -460,6 +466,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       max_num_crash_reports(absl::GetFlag(FLAGS_num_crash_reports)),
       minimize_crash_file_path(absl::GetFlag(FLAGS_minimize_crash)),
       shmem_size_mb(absl::GetFlag(FLAGS_shmem_size_mb)),
+      use_posix_shmem(absl::GetFlag(FLAGS_use_posix_shmem)),
       dry_run(absl::GetFlag(FLAGS_dry_run)),
       cmd(binary),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
