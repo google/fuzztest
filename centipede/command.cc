@@ -36,6 +36,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "./centipede/logging.h"
 #include "./centipede/util.h"
@@ -374,8 +375,17 @@ std::string Command::ReadRedirectedStderr() const {
 }
 
 void Command::LogProblemInfo(std::string_view message) const {
-  PLOG(ERROR) << message;
-  LOG(ERROR).NoPrefix() << VV(command_line_);
+  // Prevent confusing interlaced logs when multiple threads experience failures
+  // at the same time.
+  // TODO(ussuri): Non-failure related logs from other threads may still
+  //  interlace with these. Improve further, if possible. Note the printiing
+  //  line-by-line is unavoidable to overcome the single log line length limit.
+  static absl::Mutex mu{absl::kConstInit};
+  absl::MutexLock lock(&mu);
+
+  LOG(ERROR) << message;
+  LOG(ERROR).NoPrefix() << "=== COMMAND ===";
+  LOG(ERROR).NoPrefix() << command_line_;
   LOG(ERROR).NoPrefix() << "=== STDOUT ===";
   for (const auto &line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
     LOG(ERROR).NoPrefix() << line;
