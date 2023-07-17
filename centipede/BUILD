@@ -95,6 +95,7 @@ cc_library(
 cc_library(
     name = "pc_info",
     hdrs = ["pc_info.h"],
+    visibility = PUBLIC_API_VISIBILITY,
 )
 
 cc_library(
