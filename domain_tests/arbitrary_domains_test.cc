@@ -51,18 +51,11 @@
 namespace fuzztest {
 namespace {
 
-using ::fuzztest::internal::ProtoExtender;
-using ::fuzztest::internal::TestProtobuf;
-using ::fuzztest::internal::TestProtobuf_Enum;
-using ::fuzztest::internal::TestProtobufWithExtension;
-using ::fuzztest::internal::TestProtobufWithRequired;
-using ::fuzztest::internal::TestSubProtobuf;
 using ::google::protobuf::FieldDescriptor;
 using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Ge;
-using ::testing::Gt;
 using ::testing::IsEmpty;
 using ::testing::IsTrue;
 using ::testing::ResultOf;
@@ -282,12 +275,12 @@ TEST(Domain, BasicVerify) {
 }
 
 TEST(ArbitraryProtocolBufferTest, InitGeneratesSeeds) {
-  TestProtobuf seed;
+  internal::TestProtobuf seed;
   seed.set_i32(42);
   seed.set_str("Hello");
 
-  EXPECT_THAT(GenerateInitialValues(Arbitrary<TestProtobuf>().WithSeeds({seed}),
-                                    1000),
+  EXPECT_THAT(GenerateInitialValues(
+                  Arbitrary<internal::TestProtobuf>().WithSeeds({seed}), 1000),
               Contains(ResultOf(
                   [&seed](const auto& val) {
                     return google::protobuf::util::MessageDifferencer::Equals(
@@ -299,7 +292,7 @@ TEST(ArbitraryProtocolBufferTest, InitGeneratesSeeds) {
 // TODO(b/246448769): Rewrite the test to decrease the chance of failure.
 TEST(ProtocolBuffer,
      RepeatedMutationEventuallyMutatesAllFieldsOfArbitraryProtobuf) {
-  Domain<TestProtobuf> domain = Arbitrary<TestProtobuf>();
+  Domain<internal::TestProtobuf> domain = Arbitrary<internal::TestProtobuf>();
 
   absl::BitGen bitgen;
   Value val(domain, bitgen);
@@ -346,26 +339,10 @@ TEST(ProtocolBuffer,
   VerifyRoundTripThroughConversion(val, domain);
 }
 
-TEST(ProtocolBuffer, RepeatedMutationEventuallyMutatesExtensionFields) {
-  auto has_ext = ResultOf(
-      [](const auto& val) {
-        return val.user_value.HasExtension(internal::ProtoExtender::ext);
-      },
-      IsTrue());
-  auto has_rep_ext = ResultOf(
-      [](const auto& val) {
-        return val.user_value.ExtensionSize(internal::ProtoExtender::rep_ext);
-      },
-      Gt(0));
-  EXPECT_THAT(
-      GenerateNonUniqueValues(Arbitrary<TestProtobufWithExtension>(), 1, 5000),
-      AllOf(Contains(has_ext), Contains(has_rep_ext)));
-}
-
 // TODO(b/246652379): Re-enable after b/231212420 is fixed.
 TEST(ProtocolBuffer,
      DISABLED_ShrinkingEventuallyUnsetsAndEmptiesAllFieldsOfArbitraryProtobuf) {
-  Domain<TestProtobuf> domain = Arbitrary<TestProtobuf>();
+  Domain<internal::TestProtobuf> domain = Arbitrary<internal::TestProtobuf>();
 
   absl::BitGen bitgen;
   Value val(domain, bitgen);
@@ -391,7 +368,7 @@ TEST(ProtocolBuffer,
 }
 
 TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallySet) {
-  auto domain = Arbitrary<TestProtobufWithRequired>()
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
                     .WithRepeatedFieldsMaxSize(0)
                     .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
@@ -409,7 +386,7 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallySet) {
 }
 
 TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallyUnset) {
-  auto domain = Arbitrary<TestProtobufWithRequired>()
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
                     .WithRepeatedFieldsMaxSize(0)
                     .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
@@ -430,7 +407,7 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallyUnset) {
 }
 
 TEST(ProtocolBufferWithRequiredFields, OptionalFieldInSubprotoIsEventuallySet) {
-  auto domain = Arbitrary<TestProtobufWithRequired>()
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
                     .WithRepeatedFieldsMaxSize(0)
                     .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
@@ -452,7 +429,7 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldInSubprotoIsEventuallySet) {
 
 TEST(ProtocolBufferWithRequiredFields,
      OptionalFieldInSubprotoIsEventuallyUnset) {
-  auto domain = Arbitrary<TestProtobufWithRequired>()
+  auto domain = Arbitrary<internal::TestProtobufWithRequired>()
                     .WithRepeatedFieldsMaxSize(0)
                     .WithProtobufFieldUnset("sub_req");
   absl::BitGen bitgen;
@@ -483,10 +460,10 @@ bool IsTestProtobufWithRequired(const FieldDescriptor* field) {
 TEST(ProtocolBufferWithRequiredFields,
      OptionalFieldWithRequiredFieldsIsEventuallySet) {
   auto domain =
-      Arbitrary<TestProtobufWithRequired>()
+      Arbitrary<internal::TestProtobufWithRequired>()
           .WithRepeatedFieldsMaxSize(0)
           .WithProtobufFields(IsTestProtobufWithRequired,
-                              Arbitrary<TestProtobufWithRequired>()
+                              Arbitrary<internal::TestProtobufWithRequired>()
                                   .WithRepeatedFieldsMaxSize(0)
                                   // Disallow recursive nesting beyond depth 1.
                                   .WithProtobufFieldUnset("sub_req"));
@@ -510,10 +487,10 @@ TEST(ProtocolBufferWithRequiredFields,
 
 TEST(ProtocolBufferWithRequiredFields, MapFieldIsEventuallyPopulated) {
   auto domain =
-      Arbitrary<TestProtobufWithRequired>()
+      Arbitrary<internal::TestProtobufWithRequired>()
           .WithRepeatedFieldsMaxSize(1)
           .WithProtobufFields(IsTestProtobufWithRequired,
-                              Arbitrary<TestProtobufWithRequired>()
+                              Arbitrary<internal::TestProtobufWithRequired>()
                                   .WithRepeatedFieldsMaxSize(0)
                                   // Disallow recursive nesting beyond depth 1.
                                   .WithProtobufFieldUnset("sub_req"));
@@ -537,10 +514,10 @@ TEST(ProtocolBufferWithRequiredFields, MapFieldIsEventuallyPopulated) {
 
 TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
   auto domain =
-      Arbitrary<TestProtobufWithRequired>()
+      Arbitrary<internal::TestProtobufWithRequired>()
           .WithRepeatedFieldsMaxSize(1)
           .WithProtobufFields(IsTestProtobufWithRequired,
-                              Arbitrary<TestProtobufWithRequired>()
+                              Arbitrary<internal::TestProtobufWithRequired>()
                                   .WithRepeatedFieldsMaxSize(0)
                                   // Disallow recursive nesting beyond depth 1.
                                   .WithProtobufFieldUnset("sub_req"));
@@ -567,16 +544,17 @@ TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
 }
 
 TEST(ProtocolBuffer, CanUsePerFieldDomains) {
+  using internal::TestProtobuf;
   Domain<TestProtobuf> domain =
-      Arbitrary<TestProtobuf>()
+      Arbitrary<internal::TestProtobuf>()
           .WithInt32Field("i32", InRange(1, 4))
           .WithStringField("str", PrintableAsciiString().WithSize(4))
           .WithEnumField(
               "e", ElementOf<int>({TestProtobuf::Label2, TestProtobuf::Label4}))
           .WithRepeatedBoolField("rep_b", VectorOf(Just(true)).WithSize(2))
-          .WithProtobufField("subproto",
-                             Arbitrary<TestSubProtobuf>().WithInt32Field(
-                                 "subproto_i32", Just(-1)));
+          .WithProtobufField(
+              "subproto", Arbitrary<internal::TestSubProtobuf>().WithInt32Field(
+                              "subproto_i32", Just(-1)));
 
   absl::BitGen bitgen;
   Value val(domain, bitgen);
@@ -630,12 +608,12 @@ TEST(ProtocolBuffer, CanUsePerFieldDomains) {
 
 TEST(ProtocolBuffer, InvalidInputReportsError) {
   EXPECT_DEATH_IF_SUPPORTED(
-      Arbitrary<TestProtobuf>().WithStringField("i32",
-                                                Arbitrary<std::string>()),
+      Arbitrary<internal::TestProtobuf>().WithStringField(
+          "i32", Arbitrary<std::string>()),
       "Failed precondition.*"
       "does not match field `fuzztest.internal.TestProtobuf.i32`");
   EXPECT_DEATH_IF_SUPPORTED(
-      Arbitrary<TestProtobuf>()
+      Arbitrary<internal::TestProtobuf>()
           .WithInt32Field("i32", Just(0))
           .WithInt32Field("i32", Just(0)),
       "Failed precondition.*"
@@ -643,34 +621,36 @@ TEST(ProtocolBuffer, InvalidInputReportsError) {
 }
 
 TEST(ProtocolBuffer, ValidationRejectsUnexpectedOptionalField) {
-  TestSubProtobuf user_value;
+  internal::TestSubProtobuf user_value;
   auto domain_with_optional_always_set =
-      Arbitrary<TestSubProtobuf>().WithOptionalFieldsAlwaysSet();
+      Arbitrary<internal::TestSubProtobuf>().WithOptionalFieldsAlwaysSet();
   auto corpus_value = domain_with_optional_always_set.FromValue(user_value);
   EXPECT_FALSE(
       domain_with_optional_always_set.ValidateCorpusValue(*corpus_value));
 
   auto domain_with_repeated_always_set =
-      Arbitrary<TestSubProtobuf>().WithRepeatedFieldsAlwaysSet();
+      Arbitrary<internal::TestSubProtobuf>().WithRepeatedFieldsAlwaysSet();
   EXPECT_FALSE(domain_with_repeated_always_set.ValidateCorpusValue(
       *domain_with_optional_always_set.FromValue(user_value)));
 }
 
 TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
-  auto domain = Arbitrary<TestProtobufWithExtension>();
-  TestProtobufWithExtension user_value;
-  user_value.SetExtension(ProtoExtender::ext, "Hello?!?!");
+  auto domain = Arbitrary<internal::TestProtobufWithExtension>();
+  internal::TestProtobufWithExtension user_value;
+  user_value.SetExtension(internal::ProtoExtender::ext, "Hello?!?!");
   auto corpus_value = domain.FromValue(user_value);
   EXPECT_TRUE(corpus_value != std::nullopt);
   auto serialized = domain.SerializeCorpus(corpus_value.value());
   auto parsed = domain.ParseCorpus(serialized);
   EXPECT_TRUE(parsed != std::nullopt);
   auto user_value_after_serialize_parse = domain.GetValue(parsed.value());
-  EXPECT_EQ("Hello?!?!",
-            user_value_after_serialize_parse.GetExtension(ProtoExtender::ext));
+  EXPECT_EQ("Hello?!?!", user_value_after_serialize_parse.GetExtension(
+                             internal::ProtoExtender::ext));
 }
 
 TEST(ProtocolBuffer, ValidationRejectsUnexpectedSingularField) {
+  using internal::TestProtobuf;
+
   absl::BitGen bitgen;
 
   Domain<TestProtobuf> domain_a =
@@ -688,27 +668,9 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedSingularField) {
   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
-TEST(ProtocolBuffer, ValidationRejectsUnexpectedSingularExtensionField) {
-  absl::BitGen bitgen;
-
-  Domain<TestProtobufWithExtension> domain_a =
-      Arbitrary<TestProtobufWithExtension>().WithFieldAlwaysSet(
-          "fuzztest.internal.ProtoExtender.ext");
-  Domain<TestProtobufWithExtension> domain_b =
-      Arbitrary<TestProtobufWithExtension>().WithStringFieldUnset(
-          "fuzztest.internal.ProtoExtender.ext");
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
 TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedField) {
+  using internal::TestProtobuf;
+
   absl::BitGen bitgen;
 
   Domain<TestProtobuf> domain_a =
@@ -728,32 +690,12 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedField) {
   EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
 }
 
-TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedExtensionField) {
-  absl::BitGen bitgen;
-
-  Domain<TestProtobufWithExtension> domain_a =
-      Arbitrary<TestProtobufWithExtension>().WithRepeatedFieldMinSize(
-          "fuzztest.internal.ProtoExtender.rep_ext", 1);
-  Domain<TestProtobufWithExtension> domain_b =
-      Arbitrary<TestProtobufWithExtension>().WithRepeatedFieldMaxSize(
-          "fuzztest.internal.ProtoExtender.rep_ext", 0);
-
-  Value value_a(domain_a, bitgen);
-  Value value_b(domain_b, bitgen);
-
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
-
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
-}
-
 TEST(ProtocolBufferEnum, Arbitrary) {
-  auto domain = Arbitrary<TestProtobuf_Enum>();
+  auto domain = Arbitrary<internal::TestProtobuf_Enum>();
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  Set<TestProtobuf_Enum> s;
+  Set<internal::TestProtobuf_Enum> s;
   while (s.size() < internal::TestProtobuf_Enum_descriptor()->value_count()) {
     s.insert(val.user_value);
     val.Mutate(domain, bitgen, false);
@@ -762,12 +704,13 @@ TEST(ProtocolBufferEnum, Arbitrary) {
 }
 
 TEST(ArbitraryProtocolBufferEnum, InitGeneratesSeeds) {
-  auto domain = Arbitrary<TestProtobuf_Enum>().WithSeeds(
-      {TestProtobuf_Enum::TestProtobuf_Enum_Label5});
+  auto domain = Arbitrary<internal::TestProtobuf_Enum>().WithSeeds(
+      {internal::TestProtobuf_Enum::TestProtobuf_Enum_Label5});
 
   EXPECT_THAT(
       GenerateInitialValues(domain, 1000),
-      Contains(Value(domain, TestProtobuf_Enum::TestProtobuf_Enum_Label5))
+      Contains(
+          Value(domain, internal::TestProtobuf_Enum::TestProtobuf_Enum_Label5))
           // Since there are only 5 enum elements, the seed will surely appear
           // at least once. To make the test meaningful, we expect to see it at
           // least half the time, unlike the other 4 elements.
@@ -775,8 +718,8 @@ TEST(ArbitraryProtocolBufferEnum, InitGeneratesSeeds) {
 }
 
 TEST(ProtocolBuffer, CountNumberOfFieldsCorrect) {
-  using T = TestProtobuf;
-  using SubT = TestSubProtobuf;
+  using T = internal::TestProtobuf;
+  using SubT = internal::TestSubProtobuf;
   auto domain = Arbitrary<T>();
   T v;
   auto corpus_v_uninitialized = domain.FromValue(v);
