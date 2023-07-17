@@ -222,7 +222,12 @@ class ProtoPolicy {
  public:
   ProtoPolicy()
       : optional_policies_({{.filter = IncludeAll<FieldDescriptor>(),
-                             .value = OptionalPolicy::kWithNull}}) {}
+                             .value = OptionalPolicy::kWithNull},
+                            {.filter =
+                                 [](const FieldDescriptor* field) {
+                                   return field->is_extension();
+                                 },
+                             .value = OptionalPolicy::kAlwaysNull}}) {}
 
   void SetOptionalPolicy(OptionalPolicy optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
