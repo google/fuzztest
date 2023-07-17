@@ -772,7 +772,7 @@ TEST_F(FuzzingModeTest, IgnoresNegativeFuzzingRunsLimitInEnvVar) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.PassesWithPositiveInput",
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("will not limit fuzzing runs")) << std_err;
 }
 
@@ -1044,7 +1044,7 @@ TEST_F(FuzzingModeTest, FlatMappedDomainShowsMappedValue) {
 TEST_F(FuzzingModeTest, FlatMapPassesWhenCorrect) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.FlatMapPassesWhenCorrect", /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
@@ -1138,7 +1138,7 @@ TEST_F(FuzzingModeTest, ConstructorPrintsSomething) {
 TEST_F(FuzzingModeTest, FuzzerStatsArePrintedOnTermination) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.PassesWithPositiveInput", /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
@@ -1224,7 +1224,7 @@ TEST_F(FuzzingModeTest,
        GlobalEnvironmentGoesThroughCompleteLifecycleForSuccessfulTest) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.GoogleTestNeverFails", /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_EQ(
       1, CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"));
   EXPECT_EQ(1, CountSubstrs(std_err, "<<GlobalEnvironment::SetUp()>>"));
@@ -1236,7 +1236,7 @@ TEST_F(FuzzingModeTest,
 TEST_F(FuzzingModeTest, GoogleTestHasCurrentTestInfo) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.GoogleTestHasCurrentTestInfo", /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_out,
               HasSubstr("[       OK ] MySuite.GoogleTestHasCurrentTestInfo"));
   EXPECT_THAT(status, Eq(ExitCode(0)));

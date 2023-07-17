@@ -55,6 +55,7 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
+        "@com_google_fuzztest//rpc_fuzzing/testdata:mini_blogger_server_context",
         "@com_google_protobuf//:protobuf",
     ],
 )
