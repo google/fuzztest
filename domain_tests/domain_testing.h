@@ -267,6 +267,31 @@ auto GenerateValues(Domain domain, int num_seeds = 10,
 }
 
 template <typename Domain>
+auto GenerateNonUniqueValues(Domain domain, int num_seeds = 10,
+                             int num_mutations = 100) {
+  absl::BitGen bitgen;
+
+  std::vector<Value<Domain>> seeds;
+  while (seeds.size() < num_seeds) {
+    seeds.push_back(Value(domain, bitgen));
+  }
+
+  auto values = seeds;
+
+  for (const auto& seed : seeds) {
+    auto value = seed;
+    std::vector<Value<Domain>> mutations = {value};
+    while (mutations.size() < num_mutations) {
+      value.Mutate(domain, bitgen, false);
+      mutations.push_back(value);
+    }
+    values.insert(values.end(), mutations.begin(), mutations.end());
+  }
+
+  return values;
+}
+
+template <typename Domain>
 auto GenerateInitialValues(Domain domain, int n) {
   std::vector<Value<Domain>> values;
   absl::BitGen bitgen;

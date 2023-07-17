@@ -433,6 +433,7 @@ FUZZ_TEST(MySuite,
                      .WithOptionalFieldsAlwaysSet()
                      .WithOptionalFieldsUnset(IsInt32)
                      .WithOneofAlwaysSet("type")
+                     .WithFieldUnset("ext")
                      .WithProtobufField(
                          "child",
                          Arbitrary<TestProtobufWithRecursion::ChildProto>()
