@@ -101,6 +101,13 @@ message TestProtobufWithExtension {
 message ProtoExtender {
   extend TestProtobufWithExtension {
     optional string ext = 1001;
+    repeated string rep_ext = 1002;
+  }
+}
+
+message RecursiveExtender {
+  extend TestProtobufWithExtension {
+    optional TestProtobufWithRecursion parent = 2001;
   }
 }
 
@@ -116,4 +123,5 @@ message TestProtobufWithRecursion {
     ChildProto child = 2;
     int32 child_id = 3;
   }
+  optional TestProtobufWithExtension ext = 4;
 }
