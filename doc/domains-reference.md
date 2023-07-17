@@ -314,7 +314,8 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
       .WithProtobufField("address",
                          Arbitrary<Address>()
                              .WithInt32Field("zipcode", InRange(10000, 99999))
-                             .WithStringField("state", String().WithSize(2))));
+                             .WithStringField("state", String().WithSize(2)))
+      .WithInt32Field("my.pkg.PersonExtender.id", InRange(100000, 999999)));
 ```
 
 The inner domain is as follows:
@@ -335,7 +336,7 @@ The inner domain is as follows:
 
 The field domains are indexed by field name and will be verified at startup. A
 mismatch between the field names and the inner domains will cause a runtime
-failure.
+failure. For extension fields, the full name should be used.
 
 IMPORTANT: Note that *optional* fields are not always set by the fuzzer.
 
