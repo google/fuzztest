@@ -184,15 +184,6 @@ auto VisitProtobufField(const FieldDescriptor* field, Visitor visitor) {
   }
 }
 
-template <typename Message>
-auto GetProtobufField(const Message* prototype, int number) {
-  auto* field = prototype->GetDescriptor()->FindFieldByNumber(number);
-  if (field == nullptr) {
-    field = prototype->GetReflection()->FindKnownExtensionByNumber(number);
-  }
-  return field;
-}
-
 template <typename T>
 using Predicate = std::function<bool(const T*)>;
 
@@ -512,8 +503,7 @@ class ProtobufDomainUntypedImpl
     absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
-    for (int i = 0; i < descriptor->field_count(); ++i) {
-      const auto* field = descriptor->field(i);
+    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (auto* oneof = field->containing_oneof()) {
         if (!oneof_to_field.contains(oneof->index())) {
           oneof_to_field[oneof->index()] = SelectAFieldIndexInOneof(
@@ -606,11 +596,10 @@ class ProtobufDomainUntypedImpl
 
   uint64_t CountNumberOfFields(const corpus_type& val) {
     uint64_t total_weight = 0;
-    auto* descriptor = prototype_.Get()->GetDescriptor();
-    if (descriptor->field_count() == 0) return total_weight;
+    auto descriptor = prototype_.Get()->GetDescriptor();
+    if (GetFieldCount(descriptor) == 0) return total_weight;
 
-    for (int i = 0; i < descriptor->field_count(); ++i) {
-      FieldDescriptor* field = descriptor->field(i);
+    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -638,11 +627,10 @@ class ProtobufDomainUntypedImpl
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
-    auto* descriptor = prototype_.Get()->GetDescriptor();
-    if (descriptor->field_count() == 0) return field_counter;
+    auto descriptor = prototype_.Get()->GetDescriptor();
+    if (GetFieldCount(descriptor) == 0) return field_counter;
 
-    for (int i = 0; i < descriptor->field_count(); ++i) {
-      FieldDescriptor* field = descriptor->field(i);
+    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -674,8 +662,7 @@ class ProtobufDomainUntypedImpl
   }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    auto* descriptor = prototype_.Get()->GetDescriptor();
-    if (descriptor->field_count() == 0) return;
+    if (GetFieldCount(prototype_.Get()->GetDescriptor()) == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
     uint64_t total_weight = CountNumberOfFields(val);
     uint64_t selected_weight = absl::Uniform(absl::IntervalClosedClosed, prng,
@@ -695,7 +682,7 @@ class ProtobufDomainUntypedImpl
       if (!value.has_value()) {
         FUZZTEST_INTERNAL_CHECK_PRECONDITION(
             !field->is_required(), "required field '",
-            std::string(field->name()), "' cannot have null values.");
+            std::string(field->full_name()), "' cannot have null values.");
         message.GetReflection()->ClearField(&message, field);
         return;
       }
@@ -733,7 +720,7 @@ class ProtobufDomainUntypedImpl
     value_type out(prototype_.Get()->New());
 
     for (auto& [number, data] : value) {
-      auto* field = GetProtobufField(prototype_.Get(), number);
+      auto* field = GetField(number);
       VisitProtobufField(field, GetValueVisitor{*out, *this, data});
     }
 
@@ -839,7 +826,7 @@ class ProtobufDomainUntypedImpl
       if (!pair_subs || pair_subs->size() != 2) return std::nullopt;
       auto number = (*pair_subs)[0].GetScalar<int>();
       if (!number) return std::nullopt;
-      auto* field = GetProtobufField(prototype_.Get(), *number);
+      auto* field = GetField(*number);
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
       std::optional<GenericDomainCorpusType> inner_parsed;
@@ -848,11 +835,8 @@ class ProtobufDomainUntypedImpl
       if (!inner_parsed) return std::nullopt;
       out[*number] = *std::move(inner_parsed);
     }
-    for (int field_index = 0;
-         field_index < prototype_.Get()->GetDescriptor()->field_count();
-         ++field_index) {
-      const FieldDescriptor* field =
-          prototype_.Get()->GetDescriptor()->field(field_index);
+    for (const FieldDescriptor* field :
+         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
       if (present_fields.contains(field->number())) continue;
       std::optional<GenericDomainCorpusType> inner_parsed;
       IRObject unset_value;
@@ -886,7 +870,7 @@ class ProtobufDomainUntypedImpl
     IRObject out;
     auto& subs = out.MutableSubs();
     for (auto& [number, inner] : v) {
-      auto* field = GetProtobufField(prototype_.Get(), number);
+      auto* field = GetField(number);
       FUZZTEST_INTERNAL_CHECK(field, "Field not found by number: ", number);
       IRObject& pair = subs.emplace_back();
       auto& pair_subs = pair.MutableSubs();
@@ -942,11 +926,8 @@ class ProtobufDomainUntypedImpl
   };
 
   bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    for (int field_index = 0;
-         field_index < prototype_.Get()->GetDescriptor()->field_count();
-         ++field_index) {
-      const FieldDescriptor* field =
-          prototype_.Get()->GetDescriptor()->field(field_index);
+    for (const FieldDescriptor* field :
+         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
       auto field_number_value = corpus_value.find(field->number());
       auto inner_corpus_value = (field_number_value != corpus_value.end())
                                     ? std::optional(field_number_value->second)
@@ -1037,13 +1018,46 @@ class ProtobufDomainUntypedImpl
     customized_fields_.insert(field->index());
   }
 
-  const FieldDescriptor* GetField(absl::string_view field_name) const {
+  auto GetField(absl::string_view field_name) const {
     auto* field = prototype_.Get()->GetDescriptor()->FindFieldByName(
         std::string(field_name));
+    if (field == nullptr) {
+      field = prototype_.Get()->GetReflection()->FindKnownExtensionByName(
+          std::string(field_name));
+    }
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
     return field;
+  }
+
+  auto GetField(int number) const {
+    auto* field = prototype_.Get()->GetDescriptor()->FindFieldByNumber(number);
+    if (field == nullptr) {
+      field =
+          prototype_.Get()->GetReflection()->FindKnownExtensionByNumber(number);
+    }
+    return field;
+  }
+
+  static auto GetFieldCount(const Descriptor* descriptor) {
+    std::vector<const FieldDescriptor*> extensions;
+    descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
+    return descriptor->field_count() + extensions.size();
+  }
+
+  static auto GetProtobufFields(const Descriptor* descriptor) {
+    std::vector<const FieldDescriptor*> fields;
+    fields.reserve(descriptor->field_count());
+    for (int i = 0; i < descriptor->field_count(); ++i) {
+      fields.push_back(descriptor->field(i));
+    }
+    descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
+    return fields;
+  }
+
+  static auto GetFieldName(const FieldDescriptor* field) {
+    return field->is_extension() ? field->full_name() : field->name();
   }
 
   void WithOneofField(absl::string_view field_name, OptionalPolicy policy) {
@@ -1104,7 +1118,7 @@ class ProtobufDomainUntypedImpl
       } else if (policy == OptionalPolicy::kWithoutNull) {
         domain.SetWithoutNull();
       }
-      self.WithField(field->name(), domain);
+      self.WithField(self.GetFieldName(field), domain);
     }
 
     template <typename T>
@@ -1118,7 +1132,7 @@ class ProtobufDomainUntypedImpl
       } else if (policy == OptionalPolicy::kWithoutNull) {
         domain.WithMinSize(1);
       }
-      self.WithField(field->name(), domain);
+      self.WithField(self.GetFieldName(field), domain);
     }
   };
 
@@ -1139,7 +1153,7 @@ class ProtobufDomainUntypedImpl
           false,
           "Customizing repeated field size is not applicable to non-repeated "
           "field ",
-          field->name(), ".");
+          field->full_name(), ".");
     }
 
     template <typename T>
@@ -1154,7 +1168,7 @@ class ProtobufDomainUntypedImpl
       if (max_size.has_value()) {
         domain.WithMaxSize(*max_size);
       }
-      self.WithField(field->name(), domain);
+      self.WithField(self.GetFieldName(field), domain);
     }
   };
 
@@ -1208,7 +1222,7 @@ class ProtobufDomainUntypedImpl
     FUZZTEST_INTERNAL_CHECK(
         field->containing_oneof(),
         "GetOneofFieldPolicy should apply to oneof fields only! ",
-        field->name());
+        field->full_name());
     auto result = oneof_fields_policies_.find(field->index());
     if (result != oneof_fields_policies_.end()) {
       return result->second;
@@ -1422,8 +1436,7 @@ class ProtobufDomainUntypedImpl
         return true;
       }
     }
-    for (int i = 0; i < descriptor->field_count(); ++i) {
-      const auto* field = descriptor->field(i);
+    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (field->containing_oneof()) continue;
       const auto* child = field->message_type();
       if (!child) continue;
