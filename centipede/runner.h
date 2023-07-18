@@ -139,7 +139,7 @@ struct GlobalRunnerState {
                              HasIntFlag(":path_level=", 0)),
       .use_pc_features = HasFlag(":use_pc_features:"),
       .use_dataflow_features = HasFlag(":use_dataflow_features:"),
-      .use_cmp_features = HasFlag(":use_cmp_features:"),
+      .use_cmp_features = HasIntFlag(":use_cmp_features:", 1),
       .callstack_level = HasIntFlag(":callstack_level=", 0),
       .use_counter_features = HasFlag(":use_counter_features:"),
       .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
