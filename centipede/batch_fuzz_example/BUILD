@@ -50,3 +50,18 @@ cc_binary(
         "@com_google_fuzztest//centipede:util",
     ],
 )
+
+################################################################################
+#                                  Tests
+################################################################################
+
+sh_test(
+    name = "customized_centipede_test",
+    srcs = ["customized_centipede_test.sh"],
+    data = [
+        ":batch_fuzz_target",
+        ":customized_centipede",
+        "@com_google_fuzztest//centipede:test_fuzzing_util_sh",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
