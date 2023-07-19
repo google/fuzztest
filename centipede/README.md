@@ -1,11 +1,14 @@
 
 # Centipede - a distributed fuzzing engine. Work-in-progress.
 
-**Important:** Centipede is being merged into
+**Important:** Centipede is merged into
 [FuzzTest](https://github.com/google/fuzztest)
 to consolidate fuzzing development - see documentation
 [here](https://github.com/google/fuzztest/blob/main/centipede/USER_MIGRATION.md)
 for user migration.
+
+See also:
+[Rich coverage signal and consequences for scaling (slides)](https://docs.google.com/presentation/d/16Zov-QmGZjGrEoTr6Qh2fyp-bvgOa4cmqxPrXw4fNeE/)
 
 ## Why Centipede
 
