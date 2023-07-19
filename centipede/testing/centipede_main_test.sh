@@ -18,6 +18,7 @@
 
 set -eu
 
+source "$(dirname "$0")/../test_fuzzing_util.sh"
 source "$(dirname "$0")/../test_util.sh"
 
 CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
@@ -51,30 +52,6 @@ abort_test_fuzz() {
     --print_config \
     "$@" 2>&1
   set +x
-}
-
-# Tests fuzzing with a target that crashes.
-test_crashing_target() {
-  FUNC="${FUNCNAME[0]}"
-  WD="${TEST_TMPDIR}/${FUNC}/WD"
-  TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
-  LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
-
-  # Create a corpus with one crasher and one other input.
-  echo -n "AbOrT" >"${TMPCORPUS}/AbOrT" # induces abort in the target.
-  echo -n "foo" >"${TMPCORPUS}/foo"     # just some input.
-  abort_test_fuzz --workdir="${WD}" --export_corpus_from_local_dir="${TMPCORPUS}"
-
-  # Run fuzzing with num_runs=0, i.e. only run the inputs from the corpus.
-  # Expecting a crash to be observed and reported.
-  abort_test_fuzz --workdir="${WD}" --num_runs=0 | tee "${LOG}"
-  centipede::assert_regex_in_file "2 inputs to rerun" "${LOG}"
-  centipede::assert_regex_in_file "Batch execution failed:" "${LOG}"
-
-  # Comes from test_fuzz_target.cc
-  centipede::assert_regex_in_file "I AM ABOUT TO ABORT" "${LOG}"
 }
 
 # Tests how the debug symbols are shown in the output.
@@ -212,7 +189,7 @@ test_stop_at() {
   centipede::assert_regex_in_file "end-fuzz" "${LOG}"
 }
 
-test_crashing_target
+centipede::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
 test_dictionary
 test_for_each_blob

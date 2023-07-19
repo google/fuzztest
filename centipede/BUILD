@@ -834,6 +834,11 @@ cc_library(
 )
 
 sh_library(
+    name = "test_fuzzing_util_sh",
+    srcs = ["test_fuzzing_util.sh"],
+)
+
+sh_library(
     name = "test_util_sh",
     srcs = ["test_util.sh"],
     data = [

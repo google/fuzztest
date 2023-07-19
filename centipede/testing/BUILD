@@ -192,6 +192,7 @@ sh_test(
         ":abort_fuzz_target",
         ":test_fuzz_target",
         "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_fuzzing_util_sh",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
 )
