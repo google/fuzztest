@@ -235,259 +235,259 @@ auto BindAggregate(T&, std::integral_constant<int, 0>) {
     return std::tie(__VA_ARGS__);                                \
   }
 
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(1, x1);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(2, x1, x2);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(3, x1, x2, x3);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(4, x1, x2, x3, x4);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(5, x1, x2, x3, x4, x5);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(6, x1, x2, x3, x4, x5, x6);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(7, x1, x2, x3, x4, x5, x6, x7);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(8, x1, x2, x3, x4, x5, x6, x7, x8);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(9, x1, x2, x3, x4, x5, x6, x7, x8, x9);
-FUZZTEST_INTERNAL_BIND_AGGREGATE_(10, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10);
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(1, x1)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(2, x1, x2)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(3, x1, x2, x3)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(4, x1, x2, x3, x4)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(5, x1, x2, x3, x4, x5)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(6, x1, x2, x3, x4, x5, x6)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(7, x1, x2, x3, x4, x5, x6, x7)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(8, x1, x2, x3, x4, x5, x6, x7, x8)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(9, x1, x2, x3, x4, x5, x6, x7, x8, x9)
+FUZZTEST_INTERNAL_BIND_AGGREGATE_(10, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(11, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11);
+                                  x11)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(12, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12);
+                                  x11, x12)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(13, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13);
+                                  x11, x12, x13)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(14, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14);
+                                  x11, x12, x13, x14)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(15, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14, x15);
+                                  x11, x12, x13, x14, x15)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(16, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14, x15, x16);
+                                  x11, x12, x13, x14, x15, x16)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(17, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14, x15, x16, x17);
+                                  x11, x12, x13, x14, x15, x16, x17)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(18, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14, x15, x16, x17, x18);
+                                  x11, x12, x13, x14, x15, x16, x17, x18)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(19, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
-                                  x11, x12, x13, x14, x15, x16, x17, x18, x19);
+                                  x11, x12, x13, x14, x15, x16, x17, x18, x19)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(20, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20);
+                                  x20)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(21, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21);
+                                  x20, x21)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(22, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22);
+                                  x20, x21, x22)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(23, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23);
+                                  x20, x21, x22, x23)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(24, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23, x24);
+                                  x20, x21, x22, x23, x24)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(25, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23, x24, x25);
+                                  x20, x21, x22, x23, x24, x25)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(26, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23, x24, x25, x26);
+                                  x20, x21, x22, x23, x24, x25, x26)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(27, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23, x24, x25, x26, x27);
+                                  x20, x21, x22, x23, x24, x25, x26, x27)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(28, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
-                                  x20, x21, x22, x23, x24, x25, x26, x27, x28);
+                                  x20, x21, x22, x23, x24, x25, x26, x27, x28)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(29, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29);
+                                  x29)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(30, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30);
+                                  x29, x30)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(31, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31);
+                                  x29, x30, x31)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(32, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32);
+                                  x29, x30, x31, x32)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(33, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32, x33);
+                                  x29, x30, x31, x32, x33)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(34, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32, x33, x34);
+                                  x29, x30, x31, x32, x33, x34)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(35, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32, x33, x34, x35);
+                                  x29, x30, x31, x32, x33, x34, x35)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(36, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32, x33, x34, x35, x36);
+                                  x29, x30, x31, x32, x33, x34, x35, x36)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(37, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
-                                  x29, x30, x31, x32, x33, x34, x35, x36, x37);
+                                  x29, x30, x31, x32, x33, x34, x35, x36, x37)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(38, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38);
+                                  x38)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(39, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39);
+                                  x38, x39)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(40, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40);
+                                  x38, x39, x40)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(41, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41);
+                                  x38, x39, x40, x41)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(42, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41, x42);
+                                  x38, x39, x40, x41, x42)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(43, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41, x42, x43);
+                                  x38, x39, x40, x41, x42, x43)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(44, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41, x42, x43, x44);
+                                  x38, x39, x40, x41, x42, x43, x44)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(45, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41, x42, x43, x44, x45);
+                                  x38, x39, x40, x41, x42, x43, x44, x45)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(46, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
-                                  x38, x39, x40, x41, x42, x43, x44, x45, x46);
+                                  x38, x39, x40, x41, x42, x43, x44, x45, x46)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(47, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47);
+                                  x47)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(48, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48);
+                                  x47, x48)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(49, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49);
+                                  x47, x48, x49)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(50, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50);
+                                  x47, x48, x49, x50)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(51, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50, x51);
+                                  x47, x48, x49, x50, x51)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(52, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50, x51, x52);
+                                  x47, x48, x49, x50, x51, x52)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(53, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50, x51, x52, x53);
+                                  x47, x48, x49, x50, x51, x52, x53)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(54, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50, x51, x52, x53, x54);
+                                  x47, x48, x49, x50, x51, x52, x53, x54)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(55, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
-                                  x47, x48, x49, x50, x51, x52, x53, x54, x55);
+                                  x47, x48, x49, x50, x51, x52, x53, x54, x55)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(56, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56);
+                                  x56)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(57, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57);
+                                  x56, x57)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(58, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58);
+                                  x56, x57, x58)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(59, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59);
+                                  x56, x57, x58, x59)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(60, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59, x60);
+                                  x56, x57, x58, x59, x60)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(61, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59, x60, x61);
+                                  x56, x57, x58, x59, x60, x61)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(62, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59, x60, x61, x62);
+                                  x56, x57, x58, x59, x60, x61, x62)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(63, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59, x60, x61, x62, x63);
+                                  x56, x57, x58, x59, x60, x61, x62, x63)
 FUZZTEST_INTERNAL_BIND_AGGREGATE_(64, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x11, x12, x13, x14, x15, x16, x17, x18, x19,
                                   x20, x21, x22, x23, x24, x25, x26, x27, x28,
                                   x29, x30, x31, x32, x33, x34, x35, x36, x37,
                                   x38, x39, x40, x41, x42, x43, x44, x45, x46,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
-                                  x56, x57, x58, x59, x60, x61, x62, x63, x64);
+                                  x56, x57, x58, x59, x60, x61, x62, x63, x64)
 #undef FUZZTEST_INTERNAL_BIND_AGGREGATE_
 
 // For N > 64, use std::get<I>.
