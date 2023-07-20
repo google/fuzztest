@@ -139,7 +139,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
       max_stack_recorded_ = this_stack;
     }
 
-    if (static_cast<uint8_t>(this_stack) > MaxAllowedStackUsage()) {
+    if (static_cast<size_t>(this_stack) > MaxAllowedStackUsage()) {
       absl::FPrintF(GetStderr(),
                     "[!] Code under test used %d bytes of stack. Configured "
                     "limit is %d. You can change the limit by specifying "
@@ -245,7 +245,7 @@ FUZZTEST_INTERNAL_NOSANITIZE bool UpdateVectorized(
   merge_data(std::false_type{});
 
   // If any position has a bit on, we updated something.
-  for (int i = 0; i < static_cast<uint8_t>(sizeof(Vector)); ++i) {
+  for (size_t i = 0; i < sizeof(Vector); ++i) {
     if (any_greater[i]) return true;
   }
   return false;
