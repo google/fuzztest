@@ -213,6 +213,10 @@ __attribute__((optnone)) void VectorValue(const std::vector<char>& v) {
 }
 FUZZ_TEST(MySuite, VectorValue);
 
+constexpr auto& FixedSizeVectorValue = VectorValue;
+FUZZ_TEST(MySuite, FixedSizeVectorValue)
+    .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<char>()).WithSize(4));
+
 __attribute__((optnone)) void WithDomainClass(uint8_t a, double d) {
   // This will only crash with a=10, to make it easier to check the results.
   // d can have any value.

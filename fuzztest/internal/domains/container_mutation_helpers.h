@@ -117,7 +117,7 @@ template <bool is_self, typename ContainerT>
 bool CopyFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
                              absl::BitGenRef prng, ContainerT& val,
                              size_t max_size) {
-  if (dict_entry.value.size() >= max_size) return false;
+  if (dict_entry.value.size() > max_size) return false;
   size_t position_hint = GetOrGuessPositionHint(
       dict_entry.position_hint,
       std::min(val.size(), max_size - dict_entry.value.size()), prng);
@@ -132,7 +132,7 @@ bool CopyFromDictionaryEntry(
     const DictionaryEntry<ContainerT>& dict_entry, absl::BitGenRef prng,
     ContainerT& val, size_t max_size,
     std::optional<DictionaryEntry<ContainerT>>& permanent_dict_candidate) {
-  if (dict_entry.value.size() >= max_size) return false;
+  if (dict_entry.value.size() > max_size) return false;
   size_t position_hint = GetOrGuessPositionHint(
       dict_entry.position_hint,
       std::min(val.size(), max_size - dict_entry.value.size()), prng);
@@ -153,7 +153,7 @@ template <bool is_self, typename ContainerT>
 bool InsertFromDictionaryEntry(const DictionaryEntry<ContainerT>& dict_entry,
                                absl::BitGenRef prng, ContainerT& val,
                                size_t max_size) {
-  if (dict_entry.value.size() >= max_size) return false;
+  if (val.size() + dict_entry.value.size() > max_size) return false;
   size_t position_hint =
       GetOrGuessPositionHint(dict_entry.position_hint, val.size(), prng);
   return InsertPart<is_self>(dict_entry.value, val, 0, dict_entry.value.size(),
@@ -167,7 +167,7 @@ bool InsertFromDictionaryEntry(
     const DictionaryEntry<ContainerT>& dict_entry, absl::BitGenRef prng,
     ContainerT& val, size_t max_size,
     std::optional<DictionaryEntry<ContainerT>>& permanent_dict_candidate) {
-  if (dict_entry.value.size() >= max_size) return false;
+  if (val.size() + dict_entry.value.size() > max_size) return false;
   size_t position_hint =
       GetOrGuessPositionHint(dict_entry.position_hint, val.size(), prng);
   bool mutated =

@@ -744,6 +744,13 @@ TEST_F(FuzzingModeTest, VectorValueTestFindsAbortInFuzzingMode) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(FuzzingModeTest, FixedSizeVectorValueTestFindsAbortInFuzzingMode) {
+  auto [status, std_out, std_err] =
+      RunWith("--fuzz=MySuite.FixedSizeVectorValue");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 TEST_F(FuzzingModeTest, GoogleTestExpectationsStopTheFuzzer) {
   auto [status, std_out, std_err] =
       RunWith("--fuzz=MySuite.GoogleTestExpect");
