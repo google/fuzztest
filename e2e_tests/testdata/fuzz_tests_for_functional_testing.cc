@@ -706,6 +706,13 @@ void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
   raise(SIGUSR1);
   // Just make sure the signal handler ran.
   FUZZTEST_INTERNAL_CHECK(dummy_to_trigger_cmp_in_handler != 0, "");
+  // Disable and free the previous signal stack.
+  stack_t sigstk = {};
+  sigstk.ss_flags = SS_DISABLE;
+  stack_t prev_sigstk;
+  FUZZTEST_INTERNAL_CHECK(sigaltstack(&sigstk, &prev_sigstk) == 0, errno);
+  free(prev_sigstk.ss_sp);
+
   if (i == 123456789) {
     std::abort();
   }
