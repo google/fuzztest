@@ -301,6 +301,7 @@ cc_library(
         ":defs",
         ":environment",
         ":logging",
+        ":runner_result",
         ":util",
         "@com_google_absl//absl/synchronization",
     ],
@@ -1096,6 +1097,7 @@ cc_test(
     deps = [
         ":defs",
         ":minimize_crash",
+        ":runner_result",
         ":test_util",
         ":util",
         "@com_google_googletest//:gtest_main",

@@ -26,7 +26,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/test_util.h"
 
-namespace centipede {
+namespace centipede::runner_result {
 namespace {
 
 TEST(ExecutionResult, WriteThenRead) {
@@ -155,4 +155,4 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace centipede::runner_result

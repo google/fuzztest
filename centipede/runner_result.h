@@ -26,7 +26,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
-namespace centipede {
+namespace centipede::runner_result {
 
 inline constexpr std::string_view kExecutionFailurePerInputTimeout =
     "per-input-timeout-exceeded";
@@ -158,6 +158,6 @@ class BatchResult {
   size_t num_outputs_read_ = 0;
 };
 
-}  // namespace centipede
+}  // namespace centipede::runner_result
 
 #endif  // THIRD_PARTY_CENTIPEDE_EXECUTION_RESULT_H_

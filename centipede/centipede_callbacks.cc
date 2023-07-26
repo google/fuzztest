@@ -136,7 +136,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::string_view binary, const std::vector<ByteArray> &inputs,
-    BatchResult &batch_result) {
+    runner_result::BatchResult &batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
 

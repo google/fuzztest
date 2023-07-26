@@ -35,7 +35,7 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
  public:
   explicit CentipedeDefaultCallbacks(const Environment &env);
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override;
+               runner_result::BatchResult &batch_result) override;
   void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::vector<ByteArray> &mutants) override;
 

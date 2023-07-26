@@ -70,7 +70,7 @@ class CentipedeCallbacks {
   // `batch_result` has results for every `input`, even on failure.
   virtual bool Execute(std::string_view binary,
                        const std::vector<ByteArray> &inputs,
-                       BatchResult &batch_result) = 0;
+                       runner_result::BatchResult &batch_result) = 0;
 
   // Takes non-empty `inputs`, discards old contents of `mutants`,
   // adds at least one and at most `num_mutants` mutated inputs to
@@ -102,7 +102,7 @@ class CentipedeCallbacks {
   // Much faster for fast targets since it uses fewer system calls.
   int ExecuteCentipedeSancovBinaryWithShmem(
       std::string_view binary, const std::vector<ByteArray> &inputs,
-      BatchResult &batch_result);
+      runner_result::BatchResult &batch_result);
 
   // Constructs a string CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:...",
   // where the flags are determined by `env` and also include `extra_flags`.

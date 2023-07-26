@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "./centipede/defs.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 
@@ -33,7 +34,7 @@ class MinimizerMock : public CentipedeCallbacks {
 
   // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     batch_result.ClearAndResize(inputs.size());
     for (auto &input : inputs) {
       if (FuzzMe(input)) {

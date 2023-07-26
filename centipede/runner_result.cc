@@ -33,6 +33,8 @@ enum Tags : Blob::SizeAndTagT {
 };
 }  // namespace
 
+namespace runner_result {
+
 bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
                                      BlobSequence &blobseq) {
   return blobseq.Write({kTagFeatures, size * sizeof(vec[0]),
@@ -108,5 +110,7 @@ bool BatchResult::Read(BlobSequence &blobseq) {
   num_outputs_read_ = num_ends;
   return true;
 }
+
+}  // namespace runner_result
 
 }  // namespace centipede

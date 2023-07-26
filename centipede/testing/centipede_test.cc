@@ -50,7 +50,7 @@ class CentipedeMock : public CentipedeCallbacks {
   // Sets `batch_result.results()` based on the values of `inputs`:
   // Collects various stats about the inputs, to be checked in tests.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     batch_result.results().clear();
     // For every input, we create a 256-element array `counters`, where
     // i-th element is the number of bytes with the value 'i' in the input.
@@ -67,7 +67,8 @@ class CentipedeMock : public CentipedeCallbacks {
         features.push_back(feature_domains::k8bitCounters.ConvertToMe(
             Convert8bitCounterToNumber(i, counters[i])));
       }
-      batch_result.results().emplace_back(ExecutionResult{features});
+      batch_result.results().emplace_back(
+          runner_result::ExecutionResult{features});
       if (input.size() == 1) {
         observed_1byte_inputs_.insert(input[0]);
       } else {
@@ -240,7 +241,7 @@ class MutateCallbacks : public CentipedeCallbacks {
   explicit MutateCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
   // Will not be called.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     CHECK(false);
     return false;
   }
@@ -342,7 +343,7 @@ class MergeMock : public CentipedeCallbacks {
   // All inputs are 1-byte long.
   // For an input {X}, the feature output is {X}.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     batch_result.results().resize(inputs.size());
     for (size_t i = 0, n = inputs.size(); i < n; ++i) {
       CHECK_EQ(inputs[i].size(), 1);
@@ -426,7 +427,7 @@ class FunctionFilterMock : public CentipedeCallbacks {
 
   // Executes the target in the normal way.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     return ExecuteCentipedeSancovBinaryWithShmem(env_.binary, inputs,
                                                  batch_result) == EXIT_SUCCESS;
   }
@@ -530,7 +531,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
   // Doesn't execute anything.
   // On certain combinations of {binary,input} returns false.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     bool res = true;
     for (const auto &input : inputs) {
       if (input.size() != 1) continue;
@@ -604,7 +605,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   // Doesn't execute anything.
   // Crash when 0th char of input to binary b1 equals 10, but only on 1st exec.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     batch_result.ClearAndResize(inputs.size());
     bool res = true;
     for (const auto &input : inputs) {

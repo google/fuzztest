@@ -182,21 +182,21 @@ static void CheckWatchdogLimits() {
           .units = "sec",
           .value = curr_time - state.input_start_time,
           .limit = state.run_time_flags.timeout_per_input,
-          .failure = kExecutionFailurePerInputTimeout.data(),
+          .failure = runner_result::kExecutionFailurePerInputTimeout.data(),
       },
       {
           .what = "Per-batch timeout",
           .units = "sec",
           .value = curr_time - state.batch_start_time,
           .limit = state.run_time_flags.timeout_per_batch,
-          .failure = kExecutionFailurePerBatchTimeout.data(),
+          .failure = runner_result::kExecutionFailurePerBatchTimeout.data(),
       },
       {
           .what = "RSS limit",
           .units = "MB",
           .value = GetPeakRSSMb(),
           .limit = state.run_time_flags.rss_limit_mb,
-          .failure = kExecutionFailureRssLimitExceeded.data(),
+          .failure = runner_result::kExecutionFailureRssLimitExceeded.data(),
       },
   };
   for (const auto &resource : resources) {
@@ -578,14 +578,14 @@ __attribute__((noinline)) bool AppendCmpEntries(CmpTrace &cmp_trace,
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
-  return BatchResult::WriteInputBegin(outputs_blobseq);
+  return runner_result::BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(
+  if (!runner_result::BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
     return false;
   }
@@ -602,12 +602,14 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
     });
     if (append_failed) return false;
   }
-  if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteMetadata(metadata, outputs_blobseq))
+    return false;
 
   // Write the stats.
-  if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteStats(state.stats, outputs_blobseq))
+    return false;
   // We are done with this input.
-  if (!BatchResult::WriteInputEnd(outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteInputEnd(outputs_blobseq)) return false;
   return true;
 }
 
