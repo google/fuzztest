@@ -39,7 +39,7 @@ using DFAPath = std::vector<RegexpDFA::Edge>;
 class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
  public:
   explicit InRegexpImpl(std::string_view regex_str)
-      : dfa_(RegexpDFA::Create(regex_str)) {}
+      : regex_str_(regex_str), dfa_(RegexpDFA::Create(regex_str)) {}
 
   DFAPath Init(absl::BitGenRef prng) {
     if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
@@ -139,9 +139,11 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
     return obj;
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Check whether this is a valid path in the DFA.
-    return dfa_.DFAPathToString(corpus_value).has_value();
+    if (dfa_.DFAPathToString(corpus_value).has_value()) return absl::OkStatus();
+    return absl::InvalidArgumentError(
+        absl::StrCat("Invalid value for InRegexp(\"", regex_str_, "\")"));
   }
 
  private:
@@ -230,6 +232,7 @@ class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
     }
     return false;
   }
+  std::string regex_str_;
   RegexpDFA dfa_;
 };
 

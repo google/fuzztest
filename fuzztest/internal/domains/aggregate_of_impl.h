@@ -29,6 +29,7 @@
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -182,12 +183,19 @@ class AggregateOfImpl
     }
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return (
-          std::get<I>(inner_).ValidateCorpusValue(std::get<I>(corpus_value)) &&
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    absl::Status result = absl::OkStatus();
+    ApplyIndex<sizeof...(Inner)>([&](auto... I) {
+      (
+          [&] {
+            if (!result.ok()) return;
+            const absl::Status s = std::get<I>(inner_).ValidateCorpusValue(
+                std::get<I>(corpus_value));
+            result = Prefix(s, "Invalid value in aggregate");
+          }(),
           ...);
     });
+    return result;
   }
 
  private:

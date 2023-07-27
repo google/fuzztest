@@ -196,11 +196,13 @@ TEST(Container, ValidationRejectsInvalidSize) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(domain_a.ValidateCorpusValue(value_b.corpus_value),
+              IsInvalid("Invalid size: 3. Max size: 2"));
+  EXPECT_THAT(domain_b.ValidateCorpusValue(value_a.corpus_value),
+              IsInvalid("Invalid size: 2. Min size: 3"));
 }
 
 TEST(Container, ValidationRejectsInvalidElements) {
@@ -212,11 +214,17 @@ TEST(Container, ValidationRejectsInvalidElements) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in container at index 0 >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in container at index 0 >> The value .+ is not InRange\(10, 12\))")));
 }
 
 TEST(ContainerCombinatorTest, ValueTypeOfListContainerIsInferred) {
@@ -461,11 +469,17 @@ TEST(UniqueElementsVectorOf, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in container at index 0 >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in container at index 0 >> The value .+ is not InRange\(10, 19\))")));
 }
 
 TEST(ContainerCombinatorTest, ArrayOfOne) {

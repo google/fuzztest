@@ -23,6 +23,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/strings/str_cat.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
@@ -155,8 +156,19 @@ class InRangeImpl : public DomainBase<InRangeImpl<T>> {
     } while (val == prev);  // Make sure Mutate really mutates.
   }
 
-  bool ValidateCorpusValue(const value_type& corpus_value) const {
-    return (min_ <= corpus_value && corpus_value <= max_);
+  absl::Status ValidateCorpusValue(const value_type& corpus_value) const {
+    if (min_ <= corpus_value && corpus_value <= max_) return absl::OkStatus();
+    // We cannot just absl::StrCat() the error message, because it doesn't
+    // accept some types (like char).
+    std::string error_message;
+    absl::Format(&error_message, "The value ");
+    PrintValue(*this, corpus_value, &error_message, PrintMode::kSourceCode);
+    absl::Format(&error_message, " is not InRange(");
+    PrintValue(*this, min_, &error_message, PrintMode::kSourceCode);
+    absl::Format(&error_message, ", ");
+    PrintValue(*this, max_, &error_message, PrintMode::kSourceCode);
+    absl::Format(&error_message, ")");
+    return absl::InvalidArgumentError(error_message);
   }
 
   auto GetPrinter() const {

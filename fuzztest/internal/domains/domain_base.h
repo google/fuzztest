@@ -27,6 +27,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
@@ -70,7 +71,7 @@ class UntypedDomainInterface {
       const GenericDomainCorpusType& val) = 0;
   virtual std::optional<GenericDomainCorpusType> UntypedParseCorpus(
       const IRObject& obj) const = 0;
-  virtual bool UntypedValidateCorpusValue(
+  virtual absl::Status UntypedValidateCorpusValue(
       const GenericDomainCorpusType& corpus_value) const = 0;
   virtual IRObject UntypedSerializeCorpus(
       const GenericDomainCorpusType& v) const = 0;
@@ -176,7 +177,7 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     return derived().SerializeCorpus(v.template GetAs<CorpusType>());
   }
 
-  bool UntypedValidateCorpusValue(
+  absl::Status UntypedValidateCorpusValue(
       const GenericDomainCorpusType& corpus_value) const final {
     return derived().ValidateCorpusValue(corpus_value.GetAs<CorpusType>());
   }
@@ -244,8 +245,8 @@ class DomainBase : public TypedDomainInterface<ValueType> {
       std::optional<CorpusType> corpus_value = derived().FromValue(seed);
       if (!corpus_value.has_value()) ReportBadSeedAndExit(seed);
 
-      bool valid = derived().ValidateCorpusValue(*corpus_value);
-      if (!valid) ReportBadSeedAndExit(seed);
+      absl::Status valid = derived().ValidateCorpusValue(*corpus_value);
+      if (!valid.ok()) ReportBadSeedAndExit(seed);
 
       seeds_.push_back(*std::move(corpus_value));
     }

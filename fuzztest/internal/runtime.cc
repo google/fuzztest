@@ -32,6 +32,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -298,8 +299,9 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
   auto corpus_value = params_domain_->UntypedParseCorpus(*ir_value);
   if (!corpus_value) return std::nullopt;
 
-  bool valid = params_domain_->UntypedValidateCorpusValue(*corpus_value);
-  if (!valid) return std::nullopt;
+  absl::Status valid =
+      params_domain_->UntypedValidateCorpusValue(*corpus_value);
+  if (!valid.ok()) return std::nullopt;
 
   return corpus_value;
 }

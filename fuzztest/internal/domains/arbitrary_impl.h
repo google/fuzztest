@@ -47,6 +47,7 @@
 #include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -73,8 +74,8 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
 
   void Mutate(value_type&, absl::BitGenRef, bool) {}
 
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
   auto GetPrinter() const { return MonostatePrinter{}; }
@@ -97,8 +98,8 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
     }
   }
 
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
   auto GetPrinter() const { return IntegralPrinter{}; }
@@ -178,8 +179,8 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     }
   }
 
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
   auto GetPrinter() const { return IntegralPrinter{}; }
@@ -217,8 +218,8 @@ class ArbitraryImpl<std::byte> : public DomainBase<ArbitraryImpl<std::byte>> {
     val = std::byte{u8};
   }
 
-  bool ValidateCorpusValue(const corpus_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
   auto GetPrinter() const { return IntegralPrinter{}; }
@@ -270,8 +271,8 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
     } while (val == prev || (std::isnan(prev) && std::isnan(val)));
   }
 
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
   auto GetPrinter() const { return FloatingPrinter{}; }
@@ -341,8 +342,8 @@ class ArbitraryImpl<std::basic_string_view<Char>>
     return IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type&) const {
-    return true;  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
   }
 
  private:

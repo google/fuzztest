@@ -9,6 +9,7 @@ add_executable(
 target_link_libraries(
   fuzz_tests_for_microbenchmarking
   PUBLIC
+  fuzztest_status
   protobuf::libprotobuf
   test_protobuf
 )
@@ -29,6 +30,7 @@ target_link_libraries(
   absl::str_format
   absl::time
   fuzztest_googletest_fixture_adapter
+  fuzztest_status
 )
 link_fuzztest(fuzz_tests_for_functional_testing.stripped)
 set_target_properties(
@@ -40,6 +42,11 @@ set_target_properties(
 add_executable(
   fuzz_tests_with_invalid_seeds.stripped
   fuzz_tests_with_invalid_seeds.cc
+)
+target_link_libraries(
+  fuzz_tests_with_invalid_seeds.stripped
+  PUBLIC
+  fuzztest_status
 )
 link_fuzztest(fuzz_tests_with_invalid_seeds.stripped)
 set_target_properties(

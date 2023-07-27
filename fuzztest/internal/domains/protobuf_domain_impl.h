@@ -45,6 +45,7 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace google::protobuf {
@@ -901,7 +902,7 @@ class ProtobufDomainUntypedImpl
     const ProtobufDomainUntypedImpl& self;
     // nullopt indicates that the field is not set.
     const std::optional<GenericDomainCorpusType>& corpus_value;
-    bool& out;
+    absl::Status& out;
 
     template <typename T>
     void VisitSingular(const FieldDescriptor* field) {
@@ -909,8 +910,9 @@ class ProtobufDomainUntypedImpl
           corpus_value.has_value()
               ? *corpus_value
               : GetUnsetCorpusValue<T, /*is_repeated=*/false>(field);
-      out = self.GetSubDomain<T, /*is_repeated=*/false>(field)
-                .ValidateCorpusValue(value);
+      absl::Status s = self.GetSubDomain<T, /*is_repeated=*/false>(field)
+                           .ValidateCorpusValue(value);
+      out = Prefix(s, absl::StrCat("Invalid value for field ", field->name()));
     }
 
     template <typename T>
@@ -919,9 +921,10 @@ class ProtobufDomainUntypedImpl
           corpus_value.has_value()
               ? *corpus_value
               : GetUnsetCorpusValue<T, /*is_repeated=*/true>(field);
-      out =
+      absl::Status s =
           self.GetSubDomain<T, /*is_repeated=*/true>(field).ValidateCorpusValue(
               value);
+      out = Prefix(s, absl::StrCat("Invalid value for field ", field->name()));
     }
 
    private:
@@ -941,7 +944,7 @@ class ProtobufDomainUntypedImpl
     }
   };
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     for (int field_index = 0;
          field_index < prototype_.Get()->GetDescriptor()->field_count();
          ++field_index) {
@@ -951,12 +954,12 @@ class ProtobufDomainUntypedImpl
       auto inner_corpus_value = (field_number_value != corpus_value.end())
                                     ? std::optional(field_number_value->second)
                                     : std::nullopt;
-      bool result;
+      absl::Status result;
       VisitProtobufField(field,
                          ValidateVisitor{*this, inner_corpus_value, result});
-      if (!result) return false;
+      if (!result.ok()) return result;
     }
-    return true;
+    return absl::OkStatus();
   }
 
   auto GetPrinter() const { return ProtobufPrinter{}; }
@@ -1531,7 +1534,7 @@ class ProtobufDomainImpl
     return inner_.SerializeCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     return inner_.ValidateCorpusValue(corpus_value);
   }
 
@@ -1996,8 +1999,8 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     return ProtobufEnumPrinter<decltype(descriptor())>{descriptor()};
   }
 
-  bool ValidateCorpusValue(const value_type&) const {
-    return true;  // Any number is fine.
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();  // Any number is fine.
   }
 
  private:

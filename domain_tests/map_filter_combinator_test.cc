@@ -88,11 +88,17 @@ TEST(Map, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for Map\(\)-ed domain >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for Map\(\)-ed domain >> The value .+ is not InRange\(10, 19\))")));
 }
 
 TEST(BidiMap, WorksWhenMapFunctionHasSameDomainAndRange) {
@@ -117,11 +123,17 @@ TEST(BidiMap, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for BidiMap\(\)-ed domain >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for BidiMap\(\)-ed domain >> The value .+ is not InRange\(10, 19\))")));
 }
 
 TEST(BidiMap, AcceptsMultipleInnerDomains) {
@@ -211,11 +223,17 @@ TEST(FlatMap, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for FlatMap\(\)-ed domain >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for FlatMap\(\)-ed domain >> The value .+ is not InRange\(10, 19\))")));
 }
 
 TEST(FlatMap, MutationAcceptsChangingDomains) {
@@ -326,11 +344,13 @@ TEST(Filter, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(domain_a.ValidateCorpusValue(value_b.corpus_value),
+              IsInvalid("Value does not match Filter() predicate."));
+  EXPECT_THAT(domain_b.ValidateCorpusValue(value_a.corpus_value),
+              IsInvalid("Value does not match Filter() predicate."));
 }
 
 }  // namespace

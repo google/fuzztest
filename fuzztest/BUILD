@@ -136,6 +136,7 @@ cc_library(
         ":logging",
         ":meta",
         ":serialization",
+        ":status",
         ":table_of_recent_compares",
         ":type_support",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -145,6 +146,7 @@ cc_library(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
@@ -170,6 +172,7 @@ cc_library(
         ":meta",
         ":regexp_dfa",
         ":serialization",
+        ":status",
         ":type_support",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -365,6 +368,7 @@ cc_library(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
@@ -428,6 +432,16 @@ cc_test(
         ":test_protobuf_cc_proto",
         "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "status",
+    srcs = ["internal/status.cc"],
+    hdrs = ["internal/status.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 

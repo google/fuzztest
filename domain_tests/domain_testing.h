@@ -46,6 +46,28 @@
 
 namespace fuzztest {
 
+// Status matchers.
+
+MATCHER_P(StatusIs, status_code, "") { return arg.code() == status_code; }
+
+MATCHER_P2(StatusIs, status_code, message, "") {
+  return (arg.code() == status_code) &&
+         testing::Matches(message)(std::string(arg.message()));
+}
+
+MATCHER_P(IsInvalid, message, "") {
+  return testing::ExplainMatchResult(
+      StatusIs(absl::StatusCode::kInvalidArgument, message), arg,
+      result_listener);
+}
+
+#ifndef ASSERT_OK
+#define ASSERT_OK(x) ASSERT_THAT(x, StatusIs(absl::StatusCode::kOk))
+#endif  // ASSERT_OK
+#ifndef EXPECT_OK
+#define EXPECT_OK(x) EXPECT_THAT(x, StatusIs(absl::StatusCode::kOk))
+#endif  // EXPECT_OK
+
 // Tests whether arg is in the range [a, b].
 MATCHER_P2(IsInClosedRange, a, b,
            absl::StrCat(negation ? "isn't" : "is", " in the closed range [",
@@ -206,7 +228,7 @@ void VerifyRoundTripThroughConversion(const Value<Domain>& v,
   {
     auto corpus_value = domain.FromValue(v.user_value);
     ASSERT_TRUE(corpus_value) << v;
-    ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
+    ASSERT_OK(domain.ValidateCorpusValue(*corpus_value));
     auto new_v = domain.GetValue(*corpus_value);
     EXPECT_TRUE(Eq{}(v.user_value, new_v))
         << "v=" << v << " new_v=" << testing::PrintToString(new_v);
@@ -218,7 +240,7 @@ void VerifyRoundTripThroughConversion(const Value<Domain>& v,
     auto parsed_corpus = domain.ParseCorpus(*parsed);
     ASSERT_TRUE(parsed_corpus)
         << serialized << " value = " << testing::PrintToString(v.user_value);
-    ASSERT_TRUE(domain.ValidateCorpusValue(*parsed_corpus));
+    ASSERT_OK(domain.ValidateCorpusValue(*parsed_corpus));
     EXPECT_TRUE(Eq{}(v.user_value, domain.GetValue(*parsed_corpus)));
   }
 }

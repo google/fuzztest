@@ -135,6 +135,7 @@ if (FUZZTEST_TESTING)
     fuzztest_registration
     fuzztest_logging
     fuzztest_coverage
+    fuzztest_status
     fuzztest_type_support
     protobuf::libprotobuf
     test_protobuf
@@ -273,6 +274,7 @@ target_link_libraries(
   PUBLIC
   fuzztest_domain
   fuzztest_meta
+  fuzztest_status
   fuzztest_type_support
   absl::any_invocable
   absl::str_format
@@ -294,6 +296,7 @@ target_link_libraries(
   fuzztest_logging
   fuzztest_registration
   fuzztest_type_support
+  fuzztest_status
   absl::memory
   absl::str_format
   absl::span
@@ -313,6 +316,7 @@ if (FUZZTEST_TESTING)
     fuzztest_registration
     fuzztest_logging
     fuzztest_coverage
+    fuzztest_status
     fuzztest_type_support
     absl::span
     GTest::gmock_main
@@ -357,6 +361,7 @@ if (FUZZTEST_TESTING)
     fuzztest_seed_seq
     fuzztest_fixture_driver
     fuzztest_serialization
+    fuzztest_status
     fuzztest_io
     fuzztest_type_support
     protobuf::libprotobuf
@@ -372,6 +377,20 @@ if (FUZZTEST_TESTING)
     fuzztest_serialization_test
   )
 endif ()
+
+add_library(
+  fuzztest_status
+  OBJECT
+  internal/status.cc
+  internal/status.h
+)
+
+target_link_libraries(
+  fuzztest_status
+  PUBLIC
+  absl::status
+  absl::strings
+)
 
 add_library(
   fuzztest_subprocess
@@ -447,18 +466,20 @@ target_link_libraries(
   fuzztest_meta
   fuzztest_regexp_dfa
   fuzztest_serialization
+  fuzztest_status
   fuzztest_table_of_recent_compares
   fuzztest_type_support
   absl::base
+  absl::bits
   absl::flat_hash_map
   absl::flat_hash_set
-  absl::bits
   absl::int128
   absl::random_distributions
-  absl::strings
-  absl::str_format
-  absl::synchronization
   absl::span
+  absl::status
+  absl::str_format
+  absl::strings
+  absl::synchronization
 )
 
 add_library(
@@ -494,6 +515,7 @@ if (FUZZTEST_TESTING)
     fuzztest_io
     fuzztest_type_support
     fuzztest_runtime
+    fuzztest_status
     absl::time
     GTest::gmock_main
   )
@@ -522,12 +544,14 @@ target_link_libraries(
   fuzztest_logging
   fuzztest_meta
   fuzztest_registration
+  fuzztest_status
   fuzztest_serialization
   fuzztest_type_support
   absl::any_invocable
   absl::function_ref
   absl::random_random
   absl::random_seed_sequences
+  absl::status
   absl::strings
   absl::str_format
   absl::time
@@ -551,6 +575,7 @@ if (FUZZTEST_TESTING)
     fuzztest_io
     fuzztest_type_support
     fuzztest_runtime
+    fuzztest_status
     absl::time
     test_protobuf
     GTest::gtest_main
@@ -674,6 +699,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
     fuzztest_runtime
     fuzztest_table_of_recent_compares
     fuzztest_subprocess
+    fuzztest_status
     fuzztest_compatibility_mode
     absl::flags
     absl::flags_parse

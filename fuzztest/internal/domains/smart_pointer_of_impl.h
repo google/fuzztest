@@ -24,6 +24,7 @@
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -98,9 +99,11 @@ class SmartPointerOfImpl
     return SerializeWithDomainOptional(GetOrMakeInnerConst(), v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return (corpus_value.index() == 0) ||
-           GetOrMakeInnerConst().ValidateCorpusValue(std::get<1>(corpus_value));
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    if (corpus_value.index() == 0) return absl::OkStatus();
+    const absl::Status s =
+        GetOrMakeInnerConst().ValidateCorpusValue(std::get<1>(corpus_value));
+    return Prefix(s, "Invalid value for smart pointer domain");
   }
 
  private:

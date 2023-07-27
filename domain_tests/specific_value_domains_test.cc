@@ -106,10 +106,11 @@ TEST(ElementOfTest, ValidationRejectsInvalidValue) {
   auto corpus_value_a = domain_a.FromValue('a');
   auto corpus_value_b = domain_b.FromValue('c');
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(*corpus_value_a));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(*corpus_value_b));
+  ASSERT_OK(domain_a.ValidateCorpusValue(*corpus_value_a));
+  ASSERT_OK(domain_b.ValidateCorpusValue(*corpus_value_b));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(*corpus_value_b));
+  EXPECT_THAT(domain_a.ValidateCorpusValue(*corpus_value_b),
+              IsInvalid("Invalid ElementOf() value"));
 }
 
 TEST(Just, Basic) {

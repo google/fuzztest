@@ -270,11 +270,17 @@ TEST(Variantof, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for variant domain >> The value .+ is not InRange\(.+\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for variant domain >> The value .+ is not InRange\(.+\))")));
 }
 
 TEST(OptionalOf, InitCanMakeValuesOrNull) {
@@ -355,11 +361,13 @@ TEST(OptionalOf, ValidationRejectsInvalidNullness) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(domain_a.ValidateCorpusValue(value_b.corpus_value),
+              IsInvalid("Optional value must be set"));
+  EXPECT_THAT(domain_b.ValidateCorpusValue(value_a.corpus_value),
+              IsInvalid("Optional value must be null"));
 }
 
 TEST(OptionalOf, ValidationRejectsInvalidInnerValue) {
@@ -371,11 +379,15 @@ TEST(OptionalOf, ValidationRejectsInvalidInnerValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
 }
 
 TEST(TupleOf, ValidationRejectsInvalidInnerValue) {
@@ -387,11 +399,17 @@ TEST(TupleOf, ValidationRejectsInvalidInnerValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in aggregate >> The value .+ is not InRange\(.+\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value in aggregate >> The value .+ is not InRange\(.+\))")));
 }
 
 }  // namespace

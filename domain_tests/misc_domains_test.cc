@@ -180,11 +180,17 @@ TEST(OneOf, ValidationRejectsInvalidValue) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for OneOf\(\) domain >> The value .+ is not InRange(.+))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for OneOf\(\) domain >> The value .+ is not InRange(.+))")));
 }
 
 TEST(OneOf, FromValueReturnsValidCorpusValuesWhenPossible) {
@@ -192,7 +198,7 @@ TEST(OneOf, FromValueReturnsValidCorpusValuesWhenPossible) {
   auto corpus_value = domain.FromValue(6);
 
   ASSERT_TRUE(corpus_value.has_value());
-  EXPECT_TRUE(domain.ValidateCorpusValue(*corpus_value));
+  EXPECT_OK(domain.ValidateCorpusValue(*corpus_value));
 }
 
 }  // namespace

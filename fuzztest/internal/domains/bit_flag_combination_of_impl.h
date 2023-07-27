@@ -63,7 +63,9 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  bool ValidateCorpusValue(const value_type&) const { return true; }
+  absl::Status ValidateCorpusValue(const value_type&) const {
+    return absl::OkStatus();
+  }
 
   auto GetPrinter() const { return AutodetectTypePrinter<T>(); }
 

@@ -22,6 +22,7 @@ cc_library(
     name = "domain_testing",
     testonly = 1,
     hdrs = ["domain_testing.h"],
+    visibility = ["@com_google_fuzztest//fuzztest:__subpackages__"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/hash",
@@ -60,13 +61,11 @@ cc_test(
     srcs = ["arbitrary_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest:absl_helpers",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:domain_core",

@@ -147,7 +147,7 @@ class Domain {
 
   // After creating a corpus value, either via ParseCorpus() or via FromValue()
   // this method is used to determine if the corpus value is valid.
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     return inner_->UntypedValidateCorpusValue(corpus_value);
   }
 
@@ -303,7 +303,7 @@ class DomainBuilder {
       return GetInnerDomain().SerializeCorpus(v);
     }
 
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
       return GetInnerDomain().ValidateCorpusValue(corpus_value);
     }
 
@@ -358,7 +358,7 @@ class DomainBuilder {
       return inner_.SerializeCorpus(v);
     }
 
-    bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+    absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
       return inner_.ValidateCorpusValue(corpus_value);
     }
 

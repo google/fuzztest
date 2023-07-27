@@ -26,6 +26,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/coverage.h"
@@ -34,6 +35,7 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -303,18 +305,27 @@ class ContainerOfImplBase
     }
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Check size.
-    if (corpus_value.size() < min_size() || corpus_value.size() > max_size()) {
-      return false;
+    if (corpus_value.size() < min_size()) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Invalid size: ", corpus_value.size(), ". Min size: ", min_size()));
+    }
+    if (corpus_value.size() > max_size()) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Invalid size: ", corpus_value.size(), ". Max size: ", max_size()));
     }
     // Check elements.
+    int i = 0;
     for (const auto& elem : corpus_value) {
-      if (!inner_.ValidateCorpusValue(elem)) {
-        return false;
+      const absl::Status s = inner_.ValidateCorpusValue(elem);
+      if (!s.ok()) {
+        return Prefix(s,
+                      absl::StrCat("Invalid value in container at index ", i));
       }
+      i++;
     }
-    return true;
+    return absl::OkStatus();
   }
 
   InnerDomainT Inner() const { return inner_; }

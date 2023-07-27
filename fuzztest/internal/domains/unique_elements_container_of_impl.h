@@ -85,7 +85,7 @@ class UniqueElementsContainerImpl
     return unique_domain_.SerializeCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     return unique_domain_.ValidateCorpusValue(corpus_value);
   }
 

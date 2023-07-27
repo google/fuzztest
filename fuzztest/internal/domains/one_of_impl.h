@@ -27,6 +27,7 @@
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -93,8 +94,9 @@ class OneOfImpl
       auto corpus_value = std::get<I>(domains_).FromValue(v);
       if (!corpus_value.has_value()) return false;
 
-      bool valid = std::get<I>(domains_).ValidateCorpusValue(*corpus_value);
-      if (!valid) return false;
+      const absl::Status valid =
+          std::get<I>(domains_).ValidateCorpusValue(*corpus_value);
+      if (!valid.ok()) return false;
 
       res.emplace(std::in_place_index<I>, *std::move(corpus_value));
       return true;
@@ -118,10 +120,11 @@ class OneOfImpl
     return SerializeWithDomainVariant(domains_, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     return Switch<kNumDomains>(corpus_value.index(), [&](auto I) {
-      return std::get<I>(domains_).ValidateCorpusValue(
-          std::get<I>(corpus_value));
+      const absl::Status s =
+          std::get<I>(domains_).ValidateCorpusValue(std::get<I>(corpus_value));
+      return Prefix(s, "Invalid value for OneOf() domain");
     });
   }
 

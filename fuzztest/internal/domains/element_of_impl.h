@@ -99,8 +99,11 @@ class ElementOfImpl
     return IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return static_cast<size_t>(corpus_value) < values_.size();
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    if (static_cast<size_t>(corpus_value) < values_.size()) {
+      return absl::OkStatus();
+    }
+    return absl::InvalidArgumentError("Invalid ElementOf() value");
   }
 
  private:

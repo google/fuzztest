@@ -26,6 +26,7 @@
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -138,15 +139,22 @@ class FlatMapImpl
     return SerializeWithDomainTuple(domain, v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Check input values first.
-    bool input_values_valid =
-        ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
-          return (std::get<I>(input_domains_)
-                      .ValidateCorpusValue(std::get<I + 1>(corpus_value)) &&
-                  ...);
-        });
-    if (!input_values_valid) return false;
+    absl::Status input_values_validity = absl::OkStatus();
+    ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
+      (
+          [&] {
+            if (!input_values_validity.ok()) return;
+            const absl::Status s =
+                std::get<I>(input_domains_)
+                    .ValidateCorpusValue(std::get<I + 1>(corpus_value));
+            input_values_validity =
+                Prefix(s, "Invalid value for FlatMap()-ed domain");
+          }(),
+          ...);
+    });
+    if (!input_values_validity.ok()) return input_values_validity;
     // Check the output value.
     return GetOutputDomain(corpus_value)
         .ValidateCorpusValue(std::get<0>(corpus_value));

@@ -40,6 +40,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::optional
@@ -66,6 +67,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   protobuf::libprotobuf
   test_protobuf
@@ -96,6 +98,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_map
   absl::flat_hash_set
@@ -122,6 +125,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random
@@ -149,6 +153,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::random_random
   absl::flat_hash_set
@@ -176,6 +181,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random
@@ -201,6 +207,7 @@ target_link_libraries(
   fuzztest_type_support
   fuzztest_meta
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::int128
@@ -226,6 +233,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::int128
@@ -253,6 +261,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::random_random
   GTest::gmock_main
@@ -275,6 +284,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::random_random
   GTest::gmock_main
@@ -297,6 +307,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random
@@ -320,6 +331,7 @@ target_link_libraries(
   fuzztest_coverage
   fuzztest_type_support
   fuzztest_serialization
+  fuzztest_status
   fuzztest_logging
   absl::flat_hash_set
   absl::random_random

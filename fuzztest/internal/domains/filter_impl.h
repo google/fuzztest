@@ -23,6 +23,7 @@
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -73,8 +74,10 @@ class FilterImpl
     return inner_.SerializeCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return predicate_(GetValue(corpus_value));
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    if (predicate_(GetValue(corpus_value))) return absl::OkStatus();
+    return absl::InvalidArgumentError(
+        "Value does not match Filter() predicate.");
   }
 
  private:

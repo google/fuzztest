@@ -18,7 +18,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,13 +32,11 @@
 #include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -232,7 +229,9 @@ struct StatefulIncrementDomain
     return internal::IRObject::FromCorpus(v);
   }
 
-  bool ValidateCorpusValue(const corpus_type&) const { return true; }
+  absl::Status ValidateCorpusValue(const corpus_type&) const {
+    return absl::OkStatus();
+  }
 
   auto GetPrinter() const { return internal::IntegralPrinter{}; }
 
@@ -625,13 +624,17 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedOptionalField) {
   auto domain_with_optional_always_set =
       Arbitrary<internal::TestSubProtobuf>().WithOptionalFieldsAlwaysSet();
   auto corpus_value = domain_with_optional_always_set.FromValue(user_value);
-  EXPECT_FALSE(
-      domain_with_optional_always_set.ValidateCorpusValue(*corpus_value));
+  EXPECT_THAT(
+      domain_with_optional_always_set.ValidateCorpusValue(*corpus_value),
+      IsInvalid("Invalid value for field subproto_i32 >> Optional value must "
+                "be set"));
 
   auto domain_with_repeated_always_set =
       Arbitrary<internal::TestSubProtobuf>().WithRepeatedFieldsAlwaysSet();
-  EXPECT_FALSE(domain_with_repeated_always_set.ValidateCorpusValue(
-      *domain_with_optional_always_set.FromValue(user_value)));
+  EXPECT_THAT(domain_with_repeated_always_set.ValidateCorpusValue(
+                  *domain_with_optional_always_set.FromValue(user_value)),
+              IsInvalid("Invalid value for field subproto_rep_i32 >> Invalid "
+                        "size: 0. Min size: 1"));
 }
 
 TEST(ProtocolBuffer, SerializeAndParseCanHandleExtensions) {
@@ -661,11 +664,15 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedSingularField) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid("Invalid value for field i32 >> Optional value must be set"));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid("Invalid value for field i32 >> Optional value must be null"));
 }
 
 TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedField) {
@@ -683,11 +690,17 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedField) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for field rep_i32 >> Invalid size: .+. Min size: 1)")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for field rep_i32 >> Invalid size: .+. Max size: 0)")));
 }
 
 TEST(ProtocolBufferEnum, Arbitrary) {

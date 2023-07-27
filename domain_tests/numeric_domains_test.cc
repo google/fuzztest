@@ -206,11 +206,15 @@ TYPED_TEST(NumericTest, InRangeValidationRejectsInvalidRange) {
   Value value_a(domain_a, bitgen);
   Value value_b(domain_b, bitgen);
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(value_a.corpus_value));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(value_b.corpus_value));
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(value_b.corpus_value));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(value_a.corpus_value));
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
 }
 
 TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
@@ -231,7 +235,7 @@ TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
           "FUZZTESTv1 ",
           absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
   ASSERT_TRUE(corpus_value.has_value());
-  EXPECT_TRUE(domain.ValidateCorpusValue(*corpus_value));
+  EXPECT_OK(domain.ValidateCorpusValue(*corpus_value));
 
   corpus_value =
       domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
@@ -239,7 +243,9 @@ TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
           absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
   // Greater than max should be parsed, but rejected by validation.
   ASSERT_TRUE(corpus_value.has_value());
-  EXPECT_FALSE(domain.ValidateCorpusValue(*corpus_value));
+  EXPECT_THAT(
+      domain.ValidateCorpusValue(*corpus_value),
+      IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
 }
 
 TYPED_TEST(NumericTest, NonZero) {

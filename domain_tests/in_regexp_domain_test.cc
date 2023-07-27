@@ -180,11 +180,13 @@ TEST(InRegexp, ValidationRejectsInvalidValue) {
   auto corpus_value_a = domain_a.FromValue("acceeb");
   auto corpus_value_b = domain_b.FromValue("AADD");
 
-  ASSERT_TRUE(domain_a.ValidateCorpusValue(*corpus_value_a));
-  ASSERT_TRUE(domain_b.ValidateCorpusValue(*corpus_value_b));
+  ASSERT_OK(domain_a.ValidateCorpusValue(*corpus_value_a));
+  ASSERT_OK(domain_b.ValidateCorpusValue(*corpus_value_b));
 
-  EXPECT_FALSE(domain_a.ValidateCorpusValue(*corpus_value_b));
-  EXPECT_FALSE(domain_b.ValidateCorpusValue(*corpus_value_a));
+  EXPECT_THAT(domain_a.ValidateCorpusValue(*corpus_value_b),
+              IsInvalid("Invalid value for InRegexp(\"a(c|d)+(e|f)+b\")"));
+  EXPECT_THAT(domain_b.ValidateCorpusValue(*corpus_value_a),
+              IsInvalid("Invalid value for InRegexp(\"A{2,10}D{2,10}\")"));
 }
 
 struct InRegexString {
@@ -198,7 +200,7 @@ TEST_P(InRegexpTest, SerializationWorksCorrectly) {
   auto domain = InRegexp(regexp);
   auto corpus_value = domain.FromValue(string_in_domain);
   ASSERT_TRUE(corpus_value.has_value());
-  ASSERT_TRUE(domain.ValidateCorpusValue(*corpus_value));
+  ASSERT_OK(domain.ValidateCorpusValue(*corpus_value));
 
   EXPECT_THAT(domain.ParseCorpus(domain.SerializeCorpus(*corpus_value)),
               Optional(ResultOf(
