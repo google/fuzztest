@@ -35,6 +35,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/numeric/int128.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
@@ -88,21 +89,30 @@ TEST(CharTest, Printer) {
 template <typename T>
 class IntegralTest : public testing::Test {};
 
-using IntegralTypes = testing::Types<signed char, unsigned char,  //
-                                     short, unsigned short,       //
-                                     int, unsigned int,           //
-                                     long, unsigned long,         //
-                                     long long, unsigned long long>;
+using IntegralTypes = testing::Types<signed char, unsigned char,     //
+                                     short, unsigned short,          //
+                                     int, unsigned int,              //
+                                     long, unsigned long,            //
+                                     long long, unsigned long long,  //
+                                     absl::int128, absl::uint128>;
 
 TYPED_TEST_SUITE(IntegralTest, IntegralTypes);
 
 TYPED_TEST(IntegralTest, Printer) {
   for (auto v : {TypeParam{0}, std::numeric_limits<TypeParam>::min(),
                  std::numeric_limits<TypeParam>::max()}) {
-    EXPECT_THAT(TestPrintValue(v), Each(std::to_string(v)));
+    if constexpr (std::is_integral_v<TypeParam>) {
+      EXPECT_THAT(TestPrintValue(v), Each(std::to_string(v)));
+    } else {
+      // Once the absl stable version supports [u]int128, and also
+      // have same output for chat streamline the implementation and use only
+      // StrFormat for all types.
+      std::stringstream ss;
+      ss << v;
+      EXPECT_THAT(TestPrintValue(v), Each(ss.str()));
+    }
   }
 }
-
 enum Color { kRed, kBlue, kGreen };
 enum ColorChar : char { kRedChar = 'r', kBlueChar = 'b' };
 enum class ColorClass { kRed, kBlue, kGreen };

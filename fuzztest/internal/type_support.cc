@@ -21,6 +21,7 @@
 #include <limits>
 #include <string>
 
+#include "absl/numeric/int128.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -52,11 +53,13 @@ void IntegralPrinter::PrintUserValue(bool v, RawSink out, PrintMode) const {
   absl::Format(out, "%s", v ? "true" : "false");
 }
 
-void IntegralPrinter::PrintUserValue(uint64_t v, RawSink out, PrintMode) const {
+void IntegralPrinter::PrintUserValue(absl::uint128 v, RawSink out,
+                                     PrintMode) const {
   absl::Format(out, "%d", v);
 }
 
-void IntegralPrinter::PrintUserValue(int64_t v, RawSink out, PrintMode) const {
+void IntegralPrinter::PrintUserValue(absl::int128 v, RawSink out,
+                                     PrintMode) const {
   absl::Format(out, "%d", v);
 }
 

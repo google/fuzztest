@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "absl/debugging/symbolize.h"
+#include "absl/numeric/int128.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -143,16 +144,17 @@ struct IntegralPrinter {
           break;
       }
     } else if constexpr (std::is_signed_v<T>) {
-      PrintUserValue(static_cast<int64_t>(v), out, mode);
+      // Cast to [u]int128 to cover all integral types.
+      PrintUserValue(static_cast<absl::int128>(v), out, mode);
     } else {
-      PrintUserValue(static_cast<uint64_t>(v), out, mode);
+      PrintUserValue(static_cast<absl::uint128>(v), out, mode);
     }
   }
 
   void PrintUserValue(bool v, RawSink out, PrintMode mode) const;
   void PrintUserValue(char v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(uint64_t v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(int64_t v, RawSink out, PrintMode mode) const;
+  void PrintUserValue(absl::uint128 v, RawSink out, PrintMode mode) const;
+  void PrintUserValue(absl::int128 v, RawSink out, PrintMode mode) const;
 };
 
 struct FloatingPrinter {
