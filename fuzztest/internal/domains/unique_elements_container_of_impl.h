@@ -42,7 +42,7 @@ template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
     : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
                         corpus_type_t<UniqueDomain<InnerDomain>>> {
-  using UniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
+  using UniqueDomainValue = UniqueDomainValueT<InnerDomain>;
   using UniqueDomain = UniqueDomain<InnerDomain>;
 
  public:
@@ -66,7 +66,7 @@ class UniqueElementsContainerImpl
   }
 
   value_type GetValue(const corpus_type& v) const {
-    UniqueDomainValueT unique_values = unique_domain_.GetValue(v);
+    UniqueDomainValue unique_values = unique_domain_.GetValue(v);
     return value_type(unique_values.begin(), unique_values.end());
   }
 
