@@ -137,6 +137,8 @@ class Domain {
 
   // Parses corpus value _without validating it_. Validation must be done with
   // ValidateCorpusValue().
+  //
+  // TODO(lszekeres): Return StatusOr<corpus_type>.
   std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
     return inner_->UntypedParseCorpus(obj);
   }

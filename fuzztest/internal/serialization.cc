@@ -179,6 +179,7 @@ std::string IRObject::ToString() const {
   return out;
 }
 
+// TODO(lszekeres): Return StatusOr<IRObject>.
 std::optional<IRObject> IRObject::FromString(std::string_view str) {
   IRObject object;
   if (ReadToken(str) != kHeader) return std::nullopt;

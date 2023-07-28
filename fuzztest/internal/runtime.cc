@@ -294,15 +294,23 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
   auto ir_value = IRObject::FromString(data);
-  if (!ir_value) return std::nullopt;
-
+  if (!ir_value) {
+    absl::FPrintF(GetStderr(), "[!] Unexpected file format.\n");
+    return std::nullopt;
+  }
   auto corpus_value = params_domain_->UntypedParseCorpus(*ir_value);
-  if (!corpus_value) return std::nullopt;
+  if (!corpus_value) {
+    absl::FPrintF(GetStderr(), "[!] Unexpected intermediate representation.\n");
+    return std::nullopt;
+  }
 
-  absl::Status valid =
+  absl::Status is_valid =
       params_domain_->UntypedValidateCorpusValue(*corpus_value);
-  if (!valid.ok()) return std::nullopt;
-
+  if (!is_valid.ok()) {
+    absl::FPrintF(GetStderr(), "[!] Invalid corpus value: %s\n",
+                  is_valid.ToString());
+    return std::nullopt;
+  }
   return corpus_value;
 }
 
