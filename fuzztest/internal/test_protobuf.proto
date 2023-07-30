@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// LINT: ALLOW_GROUPS
+
 syntax = "proto2";
 
 package fuzztest.internal;
@@ -124,4 +126,11 @@ message TestProtobufWithRecursion {
     int32 child_id = 3;
   }
   optional TestProtobufWithExtension ext = 4;
+}
+
+message MessageWithGroup {
+  optional group GroupField = 1 {
+    optional int64 field1 = 2;
+    optional int64 field2 = 3;
+  }
 }
