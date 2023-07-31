@@ -30,7 +30,7 @@ template <typename InnerDomain>
 using UniqueDomainValueT = absl::flat_hash_set<value_type_t<InnerDomain>>;
 
 template <typename InnerDomain>
-using UniqueDomain =
+using UniqueDomainT =
     AssociativeContainerOfImpl<UniqueDomainValueT<InnerDomain>, InnerDomain>;
 
 // UniqueElementsContainerImpl supports producing containers of type `T`, with
@@ -41,9 +41,9 @@ using UniqueDomain =
 template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
     : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
-                        corpus_type_t<UniqueDomain<InnerDomain>>> {
-  using UniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
-  using UniqueDomain = UniqueDomain<InnerDomain>;
+                        corpus_type_t<UniqueDomainT<InnerDomain>>> {
+  using UniqueDomainValue = UniqueDomainValueT<InnerDomain>;
+  using UniqueDomain = UniqueDomainT<InnerDomain>;
 
  public:
   using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
@@ -66,7 +66,7 @@ class UniqueElementsContainerImpl
   }
 
   value_type GetValue(const corpus_type& v) const {
-    UniqueDomainValueT unique_values = unique_domain_.GetValue(v);
+    UniqueDomainValue unique_values = unique_domain_.GetValue(v);
     return value_type(unique_values.begin(), unique_values.end());
   }
 
