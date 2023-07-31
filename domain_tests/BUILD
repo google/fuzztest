@@ -57,7 +57,6 @@ cc_test(
 
 cc_test(
     name = "arbitrary_domains_test",
-    size = "small",
     srcs = ["arbitrary_domains_test.cc"],
     deps = [
         ":domain_testing",
