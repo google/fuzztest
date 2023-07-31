@@ -170,6 +170,26 @@ class Registration : private Base {
         TupleOf(std::forward<NewDomains>(domains)...));
   }
 
+  void ReportBadSeed(const SeedT& seed, const absl::Status& status) {
+    absl::FPrintF(stderr,
+                  "\n[!] Skipping WithSeeds() value in %s.%s:\n%s:%d: %s:\n{",
+                  test_info_.suite_name, test_info_.test_name, test_info_.file,
+                  test_info_.line, status.ToString());
+
+    // We use a direct call to PrintUserValue because we don't have a
+    // corpus_type object to pass to PrintValue.
+    bool first = true;
+    const auto print_one_arg = [&](auto I) {
+      using value_type = std::decay_t<std::tuple_element_t<I, SeedT>>;
+      AutodetectTypePrinter<value_type>().PrintUserValue(
+          std::get<I>(seed), &std::cerr, PrintMode::kHumanReadable);
+      if (!first) absl::FPrintF(stderr, ", ");
+      first = false;
+    };
+    ApplyIndex<Base::kNumArgs>([&](auto... I) { (print_one_arg(I), ...); });
+    absl::FPrintF(stderr, "}\n\n");
+  }
+
   auto WithSeeds(absl::Span<const SeedT> seeds) && {
     if constexpr (!Registration::kHasSeeds) {
       return Registration<Fixture, TargetFunction,
@@ -179,38 +199,21 @@ class Registration : private Base {
           .WithSeeds(seeds);
     } else {
       const auto& domains = this->GetDomains();
-      bool found_error = false;
       for (const auto& seed : seeds) {
-        if (auto from_value = domains.FromValue(seed)) {
-          this->seeds_.push_back(*std::move(from_value));
-        } else {
-          // TODO(sbenzaquen): Should we abort the process or make the test fail
-          // when seeds are ignored?
-          absl::FPrintF(
-              stderr,
-              "[!] Error using `WithSeeds()` in %s.%s:\n\n%s:%d: Invalid seed "
-              "value:\n\n{",
-              test_info_.suite_name, test_info_.test_name, test_info_.file,
-              test_info_.line);
-
-          // We use a direct call to PrintUserValue because we don't have a
-          // corpus_type object to pass to PrintValue.
-          bool first = true;
-          const auto print_one_arg = [&](auto I) {
-            if (!first) absl::FPrintF(stderr, ", ");
-            using value_type = std::decay_t<std::tuple_element_t<I, SeedT>>;
-            AutodetectTypePrinter<value_type>().PrintUserValue(
-                std::get<I>(seed), &std::cerr, PrintMode::kHumanReadable);
-            first = false;
-          };
-          ApplyIndex<Base::kNumArgs>(
-              [&](auto... I) { (print_one_arg(I), ...); });
-
-          absl::FPrintF(stderr, "}\n");
-          found_error = true;
+        auto corpus_value = domains.FromValue(seed);
+        if (!corpus_value) {
+          const absl::Status status = absl::InvalidArgumentError(
+              "Could not turn value into corpus type");
+          ReportBadSeed(seed, status);
+          continue;
         }
+        const absl::Status status = domains.ValidateCorpusValue(*corpus_value);
+        if (!status.ok()) {
+          ReportBadSeed(seed, status);
+          continue;
+        };
+        this->seeds_.push_back(*std::move(corpus_value));
       }
-      if (found_error) exit(1);
       return std::move(*this);
     }
   }

@@ -99,12 +99,8 @@ class OptionalOfImpl
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     if (!v) {
-      FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kWithoutNull,
-                              "Value cannot be null!");
       return corpus_type(std::in_place_index<0>);
     }
-    FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kAlwaysNull,
-                            "Value cannot be non-null!");
     if (auto inner_value = inner_.FromValue(*v)) {
       return corpus_type(std::in_place_index<1>, *std::move(inner_value));
     } else {

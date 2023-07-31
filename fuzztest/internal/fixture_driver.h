@@ -123,21 +123,36 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
     std::vector<GenericDomainCorpusType> seeds;
     seeds.reserve(values.size());
     for (const ValueType& val : values) {
-      std::optional<GenericDomainCorpusType> seed =
+      std::optional<GenericDomainCorpusType> corpus_value =
           domain_->TypedFromValue(val);
-      if (!seed.has_value()) {
-        absl::FPrintF(GetStderr(), "[!] Invalid seed value:\n\n{");
-        AutodetectTypePrinter<ValueType>().PrintUserValue(
-            val, &std::cerr, PrintMode::kHumanReadable);
-        absl::FPrintF(GetStderr(), "}\n");
-        std::exit(1);
+      if (!corpus_value.has_value()) {
+        const absl::Status status =
+            absl::InvalidArgumentError("Could not turn value into corpus type");
+        ReportBadSeed(val, status);
+        continue;
       }
-      seeds.push_back(*std::move(seed));
+
+      const absl::Status status =
+          domain_->UntypedValidateCorpusValue(*corpus_value);
+      if (!status.ok()) {
+        ReportBadSeed(val, status);
+        continue;
+      }
+
+      seeds.push_back(*std::move(corpus_value));
     }
     return seeds;
   }
 
  private:
+  void ReportBadSeed(const ValueType& seed, const absl::Status& status) const {
+    absl::FPrintF(GetStderr(), "\n[!] Skipping WithSeeds() value: %s:\n{",
+                  status.ToString());
+    AutodetectTypePrinter<ValueType>().PrintUserValue(
+        seed, &std::cerr, PrintMode::kHumanReadable);
+    absl::FPrintF(GetStderr(), "}\n\n");
+  }
+
   virtual std::vector<GenericDomainCorpusType> GetSeedsFromSeedProvider()
       const = 0;
 

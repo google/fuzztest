@@ -290,7 +290,7 @@ TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnBaseFixture) {
               UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
 }
 
-TEST(FixtureDriverTest, DiesIfConversionOfSeedsFromSeedProviderFails) {
+TEST(FixtureDriverTest, InvalidSeedsFromSeedProviderAreSkipped) {
   FixtureDriverImpl<Domain<std::tuple<int>>, NoFixture, decltype(&TakesInt),
                     decltype(&GetSeeds)>
       fixture_driver(
@@ -299,7 +299,8 @@ TEST(FixtureDriverTest, DiesIfConversionOfSeedsFromSeedProviderFails) {
                  Arbitrary<std::tuple<int>>()),
           {}, &GetSeeds);
 
-  EXPECT_DEATH_IF_SUPPORTED(fixture_driver.GetSeeds(), "Invalid seed value");
+  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+              UnorderedElementsAre(std::tuple{42}));
 }
 
 }  // namespace

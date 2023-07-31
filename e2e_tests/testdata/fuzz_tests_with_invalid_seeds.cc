@@ -20,11 +20,24 @@ namespace {
 
 // TODO(b/203465367): Investigate if we can delay execution of seed parsing
 // until main().
-void InvalidSeed(int) {}
-FUZZ_TEST(MySuite, InvalidSeed)
+void InvalidSeedDueToUserValueNotConvertibleToCorpusValue(int) {}
+FUZZ_TEST(MySuite, InvalidSeedDueToUserValueNotConvertibleToCorpusValue)
     // Map does not support seeds.
     .WithDomains(fuzztest::Map([](int) { return 0; },
                                fuzztest::Arbitrary<int>()))
     .WithSeeds({{17}});
+
+void InvalidSeedDueToCorpusValueOutOfDomain(int) {}
+FUZZ_TEST(MySuite, InvalidSeedDueToCorpusValueOutOfDomain)
+    .WithDomains(fuzztest::InRange(0, 10))
+    .WithSeeds({{2}, {17}, {6}});
+
+struct MyTest {
+  void ShouldNotCrash(int) {}
+  std::vector<std::tuple<int>> GetSeeds() { return {{2}, {17}, {6}}; }
+};
+FUZZ_TEST_F(MyTest, ShouldNotCrash)
+    .WithDomains(fuzztest::InRange(0, 10))
+    .WithSeeds(&MyTest::GetSeeds);
 
 }  // namespace

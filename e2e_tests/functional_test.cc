@@ -164,12 +164,18 @@ TEST(UnitTestModeTest, PassingTestPassesInUnitTestingMode) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST(UnitTestModeTest, InvalidSeedsCauseErrorMessageAndExit) {
+TEST(UnitTestModeTest, InvalidSeedsAreSkippedAndReported) {
   auto [status, std_out, std_err] =
       RunBinaryWith(BinaryPath("testdata/fuzz_tests_with_invalid_seeds"), "");
-  EXPECT_THAT(std_err, HasSubstr("[!] Error using `WithSeeds()` in"));
-  EXPECT_THAT(std_err, HasSubstr("Invalid seed value:\n\n{17}\n"));
-  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT(std_err, HasSubstr("[!] Skipping WithSeeds() value in"));
+  EXPECT_THAT(std_err,
+              HasSubstr("Could not turn value into corpus type:\n{17}"));
+  EXPECT_THAT(std_err, HasSubstr("The value 17 is not InRange(0, 10):\n{17}"));
+  // Valid seeds are not reported.
+  EXPECT_THAT(std_err, Not(HasSubstr("{6}")));
+  // Tests should still run.
+  EXPECT_THAT(std_out, HasSubstr("[  PASSED  ] 3 tests."));
+  EXPECT_THAT(status, ExitCode(0));
 }
 
 TEST(UnitTestModeTest, CorpusIsMutatedInUnitTestMode) {
