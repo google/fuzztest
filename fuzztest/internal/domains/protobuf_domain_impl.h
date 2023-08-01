@@ -830,7 +830,7 @@ class ProtobufDomainUntypedImpl
         field = GetField(*number);
       } else if (auto name = (*pair_subs)[0].GetScalar<std::string>();
                  name.has_value()) {
-        field = GetField(*name);
+        field = GetField(std::string(*name));
       }
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
