@@ -825,20 +825,16 @@ class ProtobufDomainUntypedImpl
     for (const auto& sub : *subs) {
       auto pair_subs = sub.Subs();
       if (!pair_subs || pair_subs->size() != 2) return std::nullopt;
-      FieldDescriptor* field = nullptr;
-      if (auto number = (*pair_subs)[0].GetScalar<int>(); number.has_value()) {
-        field = GetField(*number);
-      } else if (auto name = (*pair_subs)[0].GetScalar<std::string>();
-                 name.has_value()) {
-        field = GetField(*name);
-      }
+      auto number = (*pair_subs)[0].GetScalar<int>();
+      if (!number) return std::nullopt;
+      auto* field = GetField(*number);
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
       std::optional<GenericDomainCorpusType> inner_parsed;
       VisitProtobufField(field,
                          ParseVisitor{*this, (*pair_subs)[1], inner_parsed});
       if (!inner_parsed) return std::nullopt;
-      out[field->number()] = *std::move(inner_parsed);
+      out[*number] = *std::move(inner_parsed);
     }
     for (const FieldDescriptor* field :
          GetProtobufFields(prototype_.Get()->GetDescriptor())) {
@@ -879,7 +875,7 @@ class ProtobufDomainUntypedImpl
       FUZZTEST_INTERNAL_CHECK(field, "Field not found by number: ", number);
       IRObject& pair = subs.emplace_back();
       auto& pair_subs = pair.MutableSubs();
-      pair_subs.emplace_back(GetFieldName(field));
+      pair_subs.emplace_back(number);
       VisitProtobufField(
           field, SerializeVisitor{*this, inner, pair_subs.emplace_back()});
     }
