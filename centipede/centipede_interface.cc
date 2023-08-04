@@ -231,6 +231,11 @@ int CentipedeMain(const Environment &env,
   LOG(INFO) << "Coverage dir: " << coverage_dir
             << "; temporary dir: " << tmpdir;
 
+  {
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    scoped_callbacks.callbacks()->Initialize();
+  }
+
   BinaryInfo binary_info;
   {
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
