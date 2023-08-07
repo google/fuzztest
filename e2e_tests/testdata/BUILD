@@ -59,6 +59,26 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "fuzz_tests_for_rpc_session_grpc_functional_testing",
+    testonly = 1,
+    srcs = [
+        "fuzz_tests_for_rpc_session_grpc_functional_testing.cc",
+    ],
+    deps = [
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@com_google_fuzztest//rpc_fuzzing:grpc_stub",
+        "@com_google_fuzztest//rpc_fuzzing:rpc_session",
+        "@com_google_fuzztest//rpc_fuzzing/testdata:mini_blogger_cc_grpc_proto",
+        "@com_google_fuzztest//rpc_fuzzing/testdata:mini_blogger_cc_proto",
+        "@com_google_fuzztest//rpc_fuzzing/testdata:mini_blogger_grpc_service",
+    ],
+)
+
 # Must be a separate binary, as the invalid seeds make the binary crash at
 # process start time. Used by `functional_test` only.
 cc_binary(

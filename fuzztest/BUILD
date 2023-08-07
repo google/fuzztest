@@ -128,6 +128,7 @@ cc_library(
     visibility = [
         "@com_google_fuzztest//centipede:__subpackages__",
         "@com_google_fuzztest//domain_tests:__pkg__",
+        "@com_google_fuzztest//rpc_fuzzing:__pkg__",
     ],
     deps = [
         ":absl_helpers",

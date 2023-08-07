@@ -1273,6 +1273,28 @@ TEST_F(FuzzingModeTest, FixtureGoesThroughCompleteLifecycle) {
   EXPECT_EQ(1, CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
 }
 
+TEST_F(FuzzingModeTest, RpcSessionFuzzingSupportsFuzzingGrpcService) {
+  auto [status, std_out, std_err] = RunBinaryWith(
+      BinaryPath("testdata/fuzz_tests_for_rpc_session_grpc_functional_testing"),
+      "--fuzz=MiniBloggerGrpcTest."
+      "ServiceDoesNotCrashWithAnyRpcSequence",
+      {}, /*timeout=*/absl::Seconds(60));
+  EXPECT_THAT(std_err, Not(HasSubstr("Failed to execute !")));
+  EXPECT_THAT(std_err, HasSubstr("Using an inactive session id!"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeTest, RpcSessionOfForGrpcFindsStatefulBugInFuzzingMode) {
+  auto [status, std_out, std_err] = RunBinaryWith(
+      BinaryPath("testdata/fuzz_tests_for_rpc_session_grpc_functional_testing"),
+      "--fuzz=MiniBloggerGrpcTest."
+      "TestRpcSessionOfSetup",
+      {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}}, /*timeout=*/absl::Seconds(60));
+  EXPECT_THAT(std_err, Not(HasSubstr("Failed to execute !")));
+  EXPECT_THAT(std_err, HasSubstr("Using an inactive session id!"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 TEST_F(FuzzingModeTest,
        GoogleTestPerIterationFixtureInstantiatedOncePerIteration) {
   auto [status, std_out, std_err] = RunWith(
