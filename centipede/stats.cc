@@ -25,6 +25,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
@@ -85,6 +86,14 @@ void StatsLogger::SetCurrField(const Stats::FieldInfo &field_info) {
   curr_field_info_ = field_info;
 }
 
+namespace {
+std::string FormatTimestamp(uint64_t unix_micros) {
+  return absl::FormatTime("%Y-%m-%d%ET%H:%M:%S",
+                          absl::FromUnixMicros(unix_micros),
+                          absl::LocalTimeZone());
+}
+}  // namespace
+
 void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
   // Print min/max/avg and the full sorted contents of `values`.
   std::sort(values.begin(), values.end());
@@ -94,18 +103,19 @@ void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
                      static_cast<double>(values.size());
   os_ << std::fixed << std::setprecision(1);
   switch (curr_field_info_.aggregation) {
-    case Stats::Aggregation::kMinMaxAvg:
+    case Stats::Aggregation::kMinMaxAvg: {
       os_ << "min:\t" << min << "\t"
           << "max:\t" << max << "\t"
           << "avg:\t" << avg << "\t";
-      break;
-    case Stats::Aggregation::kRoundedAvg:
-      os_ << "avg:\t" << std::llrint(avg) << "\t";
-      break;
-  }
-  os_ << "--";
-  for (const auto value : values) {
-    os_ << "\t" << value;
+      os_ << "--";
+      for (const auto value : values) {
+        os_ << "\t" << value;
+      }
+    } break;
+    case Stats::Aggregation::kMinMax: {
+      os_ << "min:\t" << FormatTimestamp(min) << "\t"
+          << "max:\t" << FormatTimestamp(max);
+    } break;
   }
   os_ << "\n";
 }
@@ -141,8 +151,8 @@ void StatsCsvFileAppender::PreAnnounceFields(
   for (const auto &field : fields) {
     std::string col_names;
     switch (field.aggregation) {
-      case Stats::Aggregation::kRoundedAvg:
-        col_names = absl::Substitute("$0_Avg,", field.name);
+      case Stats::Aggregation::kMinMax:
+        col_names = absl::Substitute("$0_Min,$0_Max,", field.name);
         break;
       case Stats::Aggregation::kMinMaxAvg:
         col_names = absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
@@ -185,8 +195,8 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
   if (!values.empty()) avg /= values.size();
   std::string values_str;
   switch (curr_field_info_.aggregation) {
-    case Stats::Aggregation::kRoundedAvg:
-      values_str = absl::StrFormat("%" PRIu64 ",", std::llrint(avg));
+    case Stats::Aggregation::kMinMax:
+      values_str = absl::StrFormat("%" PRIu64 ",%" PRIu64 ",", min, max);
       break;
     case Stats::Aggregation::kMinMaxAvg:
       values_str =

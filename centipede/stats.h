@@ -45,7 +45,7 @@ struct Stats {
   std::atomic<uint64_t> max_corpus_element_size;
   std::atomic<uint64_t> avg_corpus_element_size;
 
-  enum class Aggregation { kMinMaxAvg, kRoundedAvg };
+  enum class Aggregation { kMinMaxAvg, kMinMax };
 
   struct FieldInfo {
     std::atomic<uint64_t> Stats::*field;
@@ -89,7 +89,7 @@ struct Stats {
           &Stats::unix_micros,
           "UnixMicros",
           "Timestamp (UNIX micros)",
-          Aggregation::kRoundedAvg,
+          Aggregation::kMinMax,
       },
   };
 };

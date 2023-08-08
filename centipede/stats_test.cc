@@ -14,6 +14,7 @@
 
 #include "./centipede/stats.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <sstream>
 #include <vector>
@@ -22,6 +23,8 @@
 #include "gtest/gtest.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
+#include "absl/time/civil_time.h"
+#include "absl/time/time.h"
 #include "./centipede/logging.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
@@ -43,6 +46,12 @@ class LogCapture : public absl::LogSink {
   std::stringstream captured_log_;
 };
 
+uint64_t CivilTimeToUnixMicros(  //
+    int64_t y, int64_t m, int64_t d, int64_t hh, int64_t mm, int64_t ss) {
+  return absl::ToUnixMicros(absl::FromCivil(
+      absl::CivilSecond{y, m, d, hh, mm, ss}, absl::LocalTimeZone()));
+}
+
 }  // namespace
 
 TEST(Stats, PrintStatsToLog) {
@@ -59,7 +68,7 @@ TEST(Stats, PrintStatsToLog) {
 
   for (size_t i = 0; i < 4; ++i) {
     auto &stats = stats_vec[i];
-    stats.unix_micros = i + 1000000;
+    stats.unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i);
     stats.max_corpus_element_size = 2 * i + 1;
     stats.avg_corpus_element_size = i + 1;
     stats.num_executions = i + 100;
@@ -93,8 +102,8 @@ TEST(Stats, PrintStatsToLog) {
       "Experiment A: min:\t1\tmax:\t3\tavg:\t2.0\t--\t1\t3\n"
       "Experiment B: min:\t2\tmax:\t4\tavg:\t3.0\t--\t2\t4\n"
       "Timestamp (UNIX micros):\n"
-      "Experiment A: avg:\t1000001\t--\t1000000\t1000002\n"
-      "Experiment B: avg:\t1000002\t--\t1000001\t1000003\n"
+      "Experiment A: min:\t1970-01-01T00:00:00\tmax:\t1970-01-01T00:00:02\n"
+      "Experiment B: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
       "Flags:\n"
       "Experiment A: AAA\n"
       "Experiment B: BBB\n";
@@ -160,13 +169,13 @@ TEST(Stats, DumpStatsToCsvFile) {
       workdir / "fuzzing-stats-.000000.ExperimentB.csv",
   };
   const std::vector<std::string_view> kExpectedCsvContents = {
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Avg,
-10,25,17.5,100,102,101.0,1000,3000,2000.0,1,5,3.0,1,3,2.0,1000001,
-11,26,18.5,101,103,102.0,1001,3001,2001.0,2,6,4.0,2,4,3.0,1000002,
+      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
+10,25,17.5,100,102,101.0,1000,3000,2000.0,1,5,3.0,1,3,2.0,1000000,1000002,
+11,26,18.5,101,103,102.0,1001,3001,2001.0,2,6,4.0,2,4,3.0,1000001,1000003,
 )",
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Avg,
-15,40,27.5,101,103,102.0,2000,4000,3000.0,3,7,5.0,2,4,3.0,1000002,
-16,41,28.5,102,104,103.0,2001,4001,3001.0,4,8,6.0,3,5,4.0,1000003,
+      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
+15,40,27.5,101,103,102.0,2000,4000,3000.0,3,7,5.0,2,4,3.0,1000001,1000003,
+16,41,28.5,102,104,103.0,2001,4001,3001.0,4,8,6.0,3,5,4.0,1000002,1000004,
 )",
   };
 
