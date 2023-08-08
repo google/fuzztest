@@ -32,7 +32,7 @@ member : STRING ':' element ;
 
 array : '[' ']' | '[' elements ']' ;
 
-elements : element | element ',' elements ;
+elements : element (',' element)* ;
 
 element : value ;
 

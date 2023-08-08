@@ -57,7 +57,7 @@ std::string ConstructCharSetString(std::string_view raw_str,
   FUZZTEST_INTERNAL_CHECK(
       raw_str.size() > 2 && raw_str.front() == '[' && raw_str.back() == ']',
       "Passed argument is not a range string: `" + std::string(raw_str) + "`");
-  std::string result = EscapeString(raw_str);
+  std::string result(raw_str);
   if (is_not_set) {
     result = absl::StrFormat("[^%s]", result.substr(1, result.size() - 2));
   }
@@ -192,6 +192,7 @@ Block GrammarInfoBuilder::ConstructBlock(ANTLRv4Parser::AtomContext* atom_ctx) {
   } else if (atom_ctx->terminal()) {
     auto& terminal_node = constructed_block.element.emplace<kTerminal>();
     terminal_node.type = TerminalType::kStringLiteral;
+    node_name = EscapeString(node_name);
     ChangeStringQuote(node_name);
     terminal_node.content = node_name;
   } else {

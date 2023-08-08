@@ -15,12 +15,13 @@
 #include "./grammar_codegen/backend.h"
 
 #include <cctype>
-#include <random>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "./grammar_codegen/grammar_info.h"
@@ -29,6 +30,11 @@
 namespace fuzztest::internal::grammar {
 
 namespace {
+
+void AppendRules(std::vector<GrammarRule>& rules,
+                 std::vector<GrammarRule> new_rules) {
+  rules.insert(rules.end(), new_rules.begin(), new_rules.end());
+}
 
 std::vector<GrammarRule> SimplifyProductionWithFallbackIndex(
     ProductionWithFallbackIndex& productions, std::string_view symbol_name);
@@ -51,27 +57,40 @@ std::string CreateIRNodeNameForClass(std::string_view symbol_name) {
 // Create a IR node for a vector-like block.
 // For example, A: B | C*, we convert it into A: B | N, N: C*. So that A can be
 // reprensented with a Variant and N can be represented with a Vector.
-GrammarRule SimplifyVectorLikeBlock(Block& block,
-                                    std::string_view parent_symbol_name) {
-  ProductionRule prod_rule{{block}};
+std::vector<GrammarRule> SimplifyVectorLikeBlock(
+    Block& block, std::string_view parent_symbol_name) {
+  Range saved_range = block.range;
+  // Set the range to kNoRange to avoid infinite recursion at
+  // `SimplifyProductionWithFallbackIndex`.
   block.range = Range::kNoRange;
+  ProductionRule prod_rule{{block}};
   std::string new_symbol_name = CreateIRNodeNameForClass(parent_symbol_name);
   SwitchBlockToNewNonTerminal(block, new_symbol_name);
-  return GrammarRule{new_symbol_name,
-                     ProductionWithFallbackIndex{0, {std::move(prod_rule)}}};
+  GrammarRule new_rule = GrammarRule{
+      new_symbol_name, ProductionWithFallbackIndex{0, {std::move(prod_rule)}}};
+  std::vector<GrammarRule> new_grammar_rules =
+      SimplifyProductionWithFallbackIndex(new_rule.productions,
+                                          parent_symbol_name);
+  new_rule.productions.production_rules[0].blocks[0].range = saved_range;
+  std::vector<GrammarRule> result = {new_rule};
+  AppendRules(result, std::move(new_grammar_rules));
+  return result;
 }
 
 // Create a IR node for a tuple-like production.
 // For example, A: B | C D, we convert it into A: B | N, N: C D. So that A can
 // be reprensented with a Variant and N can be represented with a Tuple.
-GrammarRule SimplifyTupleLikeProduction(ProductionRule& production,
-                                        std::string_view parent_symbol_name) {
+std::vector<GrammarRule> SimplifyTupleLikeProduction(
+    ProductionRule& production, std::string_view parent_symbol_name) {
   std::string new_symbol_name = CreateIRNodeNameForClass(parent_symbol_name);
   Block block{Range::kNoRange, NonTerminal{new_symbol_name}};
   GrammarRule result = GrammarRule{
       new_symbol_name, ProductionWithFallbackIndex{0, {production}}};
   production = {{block}};
-  return result;
+  std::vector<GrammarRule> result_vec = {result};
+  AppendRules(result_vec, SimplifyProductionWithFallbackIndex(
+                              result.productions, parent_symbol_name));
+  return result_vec;
 }
 
 // Create a IR node for a variant-like block.
@@ -98,20 +117,18 @@ std::vector<GrammarRule> SimplifyProductionWithFallbackIndex(
   for (ProductionRule& production : productions.production_rules) {
     for (Block& block : production.blocks) {
       if (block.range != Range::kNoRange) {
-        intermediate_grammar_rules.emplace_back(
-            SimplifyVectorLikeBlock(block, symbol_name));
+        AppendRules(intermediate_grammar_rules,
+                    SimplifyVectorLikeBlock(block, symbol_name));
       }
       if (block.element.index() == BlockType::kSubProductions) {
-        auto new_grammar_rules = SimplifyVariantLikeBlock(block, symbol_name);
-        intermediate_grammar_rules.insert(intermediate_grammar_rules.end(),
-                                          new_grammar_rules.begin(),
-                                          new_grammar_rules.end());
+        AppendRules(intermediate_grammar_rules,
+                    SimplifyVariantLikeBlock(block, symbol_name));
       }
     }
     if (productions.production_rules.size() > 1 &&
         production.blocks.size() > 1) {
-      intermediate_grammar_rules.emplace_back(
-          SimplifyTupleLikeProduction(production, symbol_name));
+      AppendRules(intermediate_grammar_rules,
+                  SimplifyTupleLikeProduction(production, symbol_name));
     }
   }
   return intermediate_grammar_rules;
@@ -204,9 +221,11 @@ std::string CodeGenerator::Generate() {
   }
   for (auto& [content, class_name] : charset_node_ids_) {
     absl::StrAppend(&forward_declaration, "class ", class_name, ";");
-    absl::StrAppendFormat(&string_literal_definitions,
-                          "inline constexpr absl::string_view kStr%s = \"%s\";",
-                          class_name, content);
+    // We don't escape the charset so we use raw strings.
+    absl::StrAppendFormat(
+        &string_literal_definitions,
+        "inline constexpr absl::string_view kStr%s = R\"grammar(%s)grammar\";",
+        class_name, content);
     absl::StrAppendFormat(&enum_for_ast_types, "k%s,", class_name);
   }
 

@@ -45,16 +45,17 @@ enum JsonTypes {
   kArraySubNode3,
   kArraySubNode4,
   kElementsSubNode5,
-  kSTRINGSubNode6,
-  kNUMBERSubNode7,
+  kElementsSubNode6,
+  kSTRINGSubNode7,
   kNUMBERSubNode8,
-  kINTEGERSubNode9,
+  kNUMBERSubNode9,
   kINTEGERSubNode10,
   kINTEGERSubNode11,
-  kDIGITSSubNode12,
-  kEXPONENTSubNode13,
+  kINTEGERSubNode12,
+  kDIGITSSubNode13,
   kEXPONENTSubNode14,
-  kWSPACESubNode15,
+  kEXPONENTSubNode15,
+  kWSPACESubNode16,
   kLiteral7,
   kLiteral11,
   kLiteral8,
@@ -99,16 +100,17 @@ class MembersSubNode2;
 class ArraySubNode3;
 class ArraySubNode4;
 class ElementsSubNode5;
-class STRINGSubNode6;
-class NUMBERSubNode7;
+class ElementsSubNode6;
+class STRINGSubNode7;
 class NUMBERSubNode8;
-class INTEGERSubNode9;
+class NUMBERSubNode9;
 class INTEGERSubNode10;
 class INTEGERSubNode11;
-class DIGITSSubNode12;
-class EXPONENTSubNode13;
+class INTEGERSubNode12;
+class DIGITSSubNode13;
 class EXPONENTSubNode14;
-class WSPACESubNode15;
+class EXPONENTSubNode15;
+class WSPACESubNode16;
 class Literal7;
 class Literal11;
 class Literal8;
@@ -142,10 +144,11 @@ inline constexpr absl::string_view kStrLiteral2 = "null";
 inline constexpr absl::string_view kStrLiteral0 = "true";
 inline constexpr absl::string_view kStrLiteral9 = "{";
 inline constexpr absl::string_view kStrLiteral10 = "}";
-inline constexpr absl::string_view kStrCharSet3 = "[ \\t\\n\\r]";
-inline constexpr absl::string_view kStrCharSet1 = "[1-9]";
-inline constexpr absl::string_view kStrCharSet2 = "[Ee]";
-inline constexpr absl::string_view kStrCharSet0 = "[a-zA-Z0-9_]";
+inline constexpr absl::string_view kStrCharSet3 = R"grammar([ \t\n\r])grammar";
+inline constexpr absl::string_view kStrCharSet1 = R"grammar([1-9])grammar";
+inline constexpr absl::string_view kStrCharSet2 = R"grammar([Ee])grammar";
+inline constexpr absl::string_view kStrCharSet0 =
+    R"grammar([a-zA-Z0-9_])grammar";
 
 class JsonNode final : public TupleDomain<kJsonNode, ElementNode> {};
 class ValueNode final
@@ -160,28 +163,28 @@ class MemberNode final
 class ArrayNode final
     : public VariantDomain<kArrayNode, 0, ArraySubNode3, ArraySubNode4> {};
 class ElementsNode final
-    : public VariantDomain<kElementsNode, 0, ElementNode, ElementsSubNode5> {};
+    : public TupleDomain<kElementsNode, ElementNode, ElementsSubNode5> {};
 class ElementNode final : public TupleDomain<kElementNode, ValueNode> {};
 class STRINGNode final
-    : public TupleDomain<kSTRINGNode, Literal4, STRINGSubNode6, Literal4> {};
+    : public TupleDomain<kSTRINGNode, Literal4, STRINGSubNode7, Literal4> {};
 class CHARACTERNode final : public TupleDomain<kCHARACTERNode, CharSet0> {};
 class NUMBERNode final : public TupleDomain<kNUMBERNode, INTEGERNode,
-                                            NUMBERSubNode7, NUMBERSubNode8> {};
+                                            NUMBERSubNode8, NUMBERSubNode9> {};
 class INTEGERNode final
-    : public VariantDomain<kINTEGERNode, 0, DIGITNode, INTEGERSubNode9,
-                           INTEGERSubNode10, INTEGERSubNode11> {};
-class DIGITSNode final : public TupleDomain<kDIGITSNode, DIGITSSubNode12> {};
+    : public VariantDomain<kINTEGERNode, 0, DIGITNode, INTEGERSubNode10,
+                           INTEGERSubNode11, INTEGERSubNode12> {};
+class DIGITSNode final : public TupleDomain<kDIGITSNode, DIGITSSubNode13> {};
 class DIGITNode final
     : public VariantDomain<kDIGITNode, 0, Literal5, ONETONINENode> {};
 class ONETONINENode final : public TupleDomain<kONETONINENode, CharSet1> {};
 class FRACTIONNode final
     : public TupleDomain<kFRACTIONNode, Literal6, DIGITSNode> {};
 class EXPONENTNode final
-    : public TupleDomain<kEXPONENTNode, CharSet2, EXPONENTSubNode13,
-                         ONETONINENode, EXPONENTSubNode14> {};
+    : public TupleDomain<kEXPONENTNode, CharSet2, EXPONENTSubNode14,
+                         ONETONINENode, EXPONENTSubNode15> {};
 class SIGNNode final : public VariantDomain<kSIGNNode, 0, Literal7, Literal8> {
 };
-class WSPACENode final : public TupleDomain<kWSPACENode, WSPACESubNode15> {};
+class WSPACENode final : public TupleDomain<kWSPACENode, WSPACESubNode16> {};
 class ObjectSubNode0 final
     : public TupleDomain<kObjectSubNode0, Literal9, Literal10> {};
 class ObjectSubNode1 final
@@ -194,25 +197,26 @@ class ArraySubNode3 final
 class ArraySubNode4 final
     : public TupleDomain<kArraySubNode4, Literal12, ElementsNode, Literal13> {};
 class ElementsSubNode5 final
-    : public TupleDomain<kElementsSubNode5, ElementNode, Literal11,
-                         ElementsNode> {};
-class STRINGSubNode6 final : public Vector<kSTRINGSubNode6, CHARACTERNode> {};
-class NUMBERSubNode7 final : public Optional<kNUMBERSubNode7, FRACTIONNode> {};
-class NUMBERSubNode8 final : public Optional<kNUMBERSubNode8, EXPONENTNode> {};
-class INTEGERSubNode9 final
-    : public TupleDomain<kINTEGERSubNode9, ONETONINENode, DIGITSNode> {};
+    : public Vector<kElementsSubNode5, ElementsSubNode6> {};
+class ElementsSubNode6 final
+    : public TupleDomain<kElementsSubNode6, Literal11, ElementNode> {};
+class STRINGSubNode7 final : public Vector<kSTRINGSubNode7, CHARACTERNode> {};
+class NUMBERSubNode8 final : public Optional<kNUMBERSubNode8, FRACTIONNode> {};
+class NUMBERSubNode9 final : public Optional<kNUMBERSubNode9, EXPONENTNode> {};
 class INTEGERSubNode10 final
-    : public TupleDomain<kINTEGERSubNode10, Literal8, DIGITNode> {};
-class INTEGERSubNode11 final : public TupleDomain<kINTEGERSubNode11, Literal8,
+    : public TupleDomain<kINTEGERSubNode10, ONETONINENode, DIGITSNode> {};
+class INTEGERSubNode11 final
+    : public TupleDomain<kINTEGERSubNode11, Literal8, DIGITNode> {};
+class INTEGERSubNode12 final : public TupleDomain<kINTEGERSubNode12, Literal8,
                                                   ONETONINENode, DIGITSNode> {};
-class DIGITSSubNode12 final
-    : public NonEmptyVector<kDIGITSSubNode12, DIGITNode> {};
-class EXPONENTSubNode13 final : public Optional<kEXPONENTSubNode13, SIGNNode> {
+class DIGITSSubNode13 final
+    : public NonEmptyVector<kDIGITSSubNode13, DIGITNode> {};
+class EXPONENTSubNode14 final : public Optional<kEXPONENTSubNode14, SIGNNode> {
 };
-class EXPONENTSubNode14 final : public Optional<kEXPONENTSubNode14, DIGITNode> {
+class EXPONENTSubNode15 final : public Optional<kEXPONENTSubNode15, DIGITNode> {
 };
-class WSPACESubNode15 final
-    : public NonEmptyVector<kWSPACESubNode15, CharSet3> {};
+class WSPACESubNode16 final
+    : public NonEmptyVector<kWSPACESubNode16, CharSet3> {};
 class Literal7 final : public StringLiteralDomain<kLiteral7, kStrLiteral7> {};
 class Literal11 final : public StringLiteralDomain<kLiteral11, kStrLiteral11> {
 };
