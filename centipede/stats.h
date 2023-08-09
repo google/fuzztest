@@ -17,11 +17,13 @@
 
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <initializer_list>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"

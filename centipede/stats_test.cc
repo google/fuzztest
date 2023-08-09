@@ -14,18 +14,22 @@
 
 #include "./centipede/stats.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <sstream>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
-#include "./centipede/logging.h"
+#include "./centipede/environment.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 

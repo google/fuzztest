@@ -16,13 +16,25 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <initializer_list>
+#include <iomanip>
+#include <ios>
+#include <iosfwd>
 #include <limits>
 #include <numeric>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
