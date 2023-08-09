@@ -21,7 +21,9 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "./centipede/feature.h"
+#include "./centipede/logging.h"
 
 namespace centipede {
 
@@ -82,14 +84,8 @@ FeatureSet::ComputeWeight(const FeatureVec &features) const {
     // The less frequent is the domain, the more valuable are its features.
     auto domain_id = feature_domains::Domain::FeatureToDomainId(feature);
     auto features_in_domain = features_per_domain_[domain_id];
-    // features_in_domain may be 0. This is an unfortunate consequence of
-    // having a table with collisions. `feature` may have collided with another
-    // feature that was from a different domain, and thus didn't increment
-    // the right features_per_domain_.
-    // TODO(kcc): this class needs a major facelift.
-    // Perhaps even rewriting to not have collisions.
-    auto domain_weight =
-        features_in_domain ? num_features_ / features_in_domain : 1;
+    CHECK(features_in_domain);
+    auto domain_weight = num_features_ / features_in_domain;
     auto feature_frequency = frequencies_[feature];
     CHECK_GT(feature_frequency, 0)
         << VV(feature) << VV(domain_id) << VV(features_in_domain)
