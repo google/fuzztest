@@ -90,7 +90,7 @@ struct Stats {
       {
           &Stats::unix_micros,
           "UnixMicros",
-          "Timestamp (UNIX micros)",
+          "Timestamp",
           Aggregation::kMinMax,
       },
   };

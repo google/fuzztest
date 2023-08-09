@@ -144,7 +144,8 @@ void StatsLogger::ReportFlags(const GroupToFlags &group_to_flags) {
 
 void StatsLogger::DoneFieldSamplesBatch() {
   LOG(INFO) << "Current stats:\n" << absl::StripAsciiWhitespace(os_.str());
-  os_.clear();
+  // Reset the stream for the next round of logging.
+  os_.str("");
 }
 
 // -----------------------------------------------------------------------------

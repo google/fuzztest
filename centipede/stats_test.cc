@@ -88,35 +88,74 @@ TEST(Stats, PrintStatsToLog) {
   env_vec[3].experiment_name = "Experiment B";
   env_vec[3].experiment_flags = "BBB";
 
-  const std::string_view kExpectedLogLines =
-      "Current stats:\n"
-      "Coverage:\n"
-      "Experiment A: min:\t10\tmax:\t25\tavg:\t17.5\t--\t10\t25\n"
-      "Experiment B: min:\t15\tmax:\t40\tavg:\t27.5\t--\t15\t40\n"
-      "Number of executions:\n"
-      "Experiment A: min:\t100\tmax:\t102\tavg:\t101.0\t--\t100\t102\n"
-      "Experiment B: min:\t101\tmax:\t103\tavg:\t102.0\t--\t101\t103\n"
-      "Corpus size:\n"
-      "Experiment A: min:\t1000\tmax:\t3000\tavg:\t2000.0\t--\t1000\t3000\n"
-      "Experiment B: min:\t2000\tmax:\t4000\tavg:\t3000.0\t--\t2000\t4000\n"
-      "Max element size:\n"
-      "Experiment A: min:\t1\tmax:\t5\tavg:\t3.0\t--\t1\t5\n"
-      "Experiment B: min:\t3\tmax:\t7\tavg:\t5.0\t--\t3\t7\n"
-      "Avg element size:\n"
-      "Experiment A: min:\t1\tmax:\t3\tavg:\t2.0\t--\t1\t3\n"
-      "Experiment B: min:\t2\tmax:\t4\tavg:\t3.0\t--\t2\t4\n"
-      "Timestamp (UNIX micros):\n"
-      "Experiment A: min:\t1970-01-01T00:00:00\tmax:\t1970-01-01T00:00:02\n"
-      "Experiment B: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
-      "Flags:\n"
-      "Experiment A: AAA\n"
-      "Experiment B: BBB\n";
-
   StatsLogger stats_logger{stats_vec, env_vec};
-  LogCapture log_capture;
-  stats_logger.ReportCurrStats();
 
-  EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+  {
+    constexpr std::string_view kExpectedLogLines =
+        "Current stats:\n"
+        "Coverage:\n"
+        "Experiment A: min:\t10\tmax:\t25\tavg:\t17.5\t--\t10\t25\n"
+        "Experiment B: min:\t15\tmax:\t40\tavg:\t27.5\t--\t15\t40\n"
+        "Number of executions:\n"
+        "Experiment A: min:\t100\tmax:\t102\tavg:\t101.0\t--\t100\t102\n"
+        "Experiment B: min:\t101\tmax:\t103\tavg:\t102.0\t--\t101\t103\n"
+        "Corpus size:\n"
+        "Experiment A: min:\t1000\tmax:\t3000\tavg:\t2000.0\t--\t1000\t3000\n"
+        "Experiment B: min:\t2000\tmax:\t4000\tavg:\t3000.0\t--\t2000\t4000\n"
+        "Max element size:\n"
+        "Experiment A: min:\t1\tmax:\t5\tavg:\t3.0\t--\t1\t5\n"
+        "Experiment B: min:\t3\tmax:\t7\tavg:\t5.0\t--\t3\t7\n"
+        "Avg element size:\n"
+        "Experiment A: min:\t1\tmax:\t3\tavg:\t2.0\t--\t1\t3\n"
+        "Experiment B: min:\t2\tmax:\t4\tavg:\t3.0\t--\t2\t4\n"
+        "Timestamp:\n"
+        "Experiment A: min:\t1970-01-01T00:00:00\tmax:\t1970-01-01T00:00:02\n"
+        "Experiment B: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
+        "Flags:\n"
+        "Experiment A: AAA\n"
+        "Experiment B: BBB\n";
+    LogCapture log_capture;
+    stats_logger.ReportCurrStats();
+    EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+  }
+
+  {
+    for (auto &stats : stats_vec) {
+      stats.num_covered_pcs += 100;
+      stats.num_executions += 1000;
+      stats.corpus_size += 1;
+      stats.max_corpus_element_size += 10;
+      stats.avg_corpus_element_size += 10;
+      stats.unix_micros += 1000000;
+    }
+
+    constexpr std::string_view kExpectedLogLines =
+        "Current stats:\n"
+        "Coverage:\n"
+        "Experiment A: min:\t110\tmax:\t125\tavg:\t117.5\t--\t110\t125\n"
+        "Experiment B: min:\t115\tmax:\t140\tavg:\t127.5\t--\t115\t140\n"
+        "Number of executions:\n"
+        "Experiment A: min:\t1100\tmax:\t1102\tavg:\t1101.0\t--\t1100\t1102\n"
+        "Experiment B: min:\t1101\tmax:\t1103\tavg:\t1102.0\t--\t1101\t1103\n"
+        "Corpus size:\n"
+        "Experiment A: min:\t1001\tmax:\t3001\tavg:\t2001.0\t--\t1001\t3001\n"
+        "Experiment B: min:\t2001\tmax:\t4001\tavg:\t3001.0\t--\t2001\t4001\n"
+        "Max element size:\n"
+        "Experiment A: min:\t11\tmax:\t15\tavg:\t13.0\t--\t11\t15\n"
+        "Experiment B: min:\t13\tmax:\t17\tavg:\t15.0\t--\t13\t17\n"
+        "Avg element size:\n"
+        "Experiment A: min:\t11\tmax:\t13\tavg:\t12.0\t--\t11\t13\n"
+        "Experiment B: min:\t12\tmax:\t14\tavg:\t13.0\t--\t12\t14\n"
+        "Timestamp:\n"
+        "Experiment A: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
+        "Experiment B: min:\t1970-01-01T00:00:02\tmax:\t1970-01-01T00:00:04\n"
+        "Flags:\n"
+        "Experiment A: AAA\n"
+        "Experiment B: BBB\n";
+    LogCapture log_capture;
+    stats_logger.ReportCurrStats();
+    EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+  }
 }
 
 TEST(Stats, DumpStatsToCsvFile) {
