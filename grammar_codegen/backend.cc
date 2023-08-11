@@ -149,6 +149,33 @@ std::string WrapChildTypeWithRangedVector(std::string_view parent_type,
       return absl::StrFormat("Optional<k%s, %s>", parent_type, child_type);
   }
 }
+
+bool HasEOF(const ProductionWithFallbackIndex& productions) {
+  for (const ProductionRule& production : productions.production_rules) {
+    for (const Block& block : production.blocks) {
+      const auto& element = block.element;
+      if (element.index() == BlockType::kNonTerminal) {
+        if (std::get<NonTerminal>(element).name == "EOF") {
+          return true;
+        }
+      } else if (element.index() == BlockType::kSubProductions) {
+        if (HasEOF(std::get<ProductionWithFallbackIndex>(element))) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+bool HasEOF(const Grammar& grammar) {
+  for (const GrammarRule& rule : grammar.rules) {
+    if (HasEOF(rule.productions)) {
+      return true;
+    }
+  }
+  return false;
+}
 }  // namespace
 
 void CodeGenerator::Preprocess(Grammar& grammar) {
@@ -161,6 +188,13 @@ void CodeGenerator::Preprocess(Grammar& grammar) {
   }
   grammar.rules.insert(grammar.rules.end(), new_grammar_rules.begin(),
                        new_grammar_rules.end());
+  if (HasEOF(grammar)) {
+    ProductionRule prod_rule = {{Block{
+        Range::kNoRange, Terminal{TerminalType::kStringLiteral, "\"\""}}}};
+    GrammarRule eof_rule =
+        GrammarRule{"EOF", ProductionWithFallbackIndex{0, {prod_rule}}};
+    grammar.rules.push_back(eof_rule);
+  }
 }
 
 std::string CodeGenerator::Generate() {
@@ -388,7 +422,9 @@ void CodeGenerator::CalculateFallBackIndex(std::vector<GrammarRule>& rules) {
   } while (has_change);
 
   for (size_t i = 0; i < safe_rule_indexes.size(); ++i) {
-    FUZZTEST_INTERNAL_CHECK(safe_rule_indexes[i], "Some node is not safe!");
+    FUZZTEST_INTERNAL_CHECK(
+        safe_rule_indexes[i],
+        absl::StrCat("Some node is not safe: ", rules[i].symbol_name));
   }
 
   // Ensure that every sub-block is marked safe. For example, a grammar rule
