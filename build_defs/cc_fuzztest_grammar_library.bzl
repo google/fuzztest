@@ -15,7 +15,7 @@
 """Build rules to create cc_library that implements the InGrammar domain for a
 given grammar from an ANTLRv4 grammar specification."""
 
-def cc_fuzztest_grammar_library(name, srcs):
+def cc_fuzztest_grammar_library(name, srcs, grammar_name = None):
     """Generates the C++ library corresponding to an antlr4 grammar specification.
 
     Args:
@@ -24,14 +24,15 @@ def cc_fuzztest_grammar_library(name, srcs):
     """
 
     output_file_name = name + ".h"
+    cmd = "$(location //tools:grammar_domain_code_generator) " + "--output_header_file_path " + "$(@D)/" + output_file_name + " --input_grammar_files " + "`echo $(SRCS) | tr ' ' ','`"
+    if grammar_name:
+        cmd += " --grammar_name " + grammar_name
 
     native.genrule(
         name = name + "_source",
         srcs = srcs,
         outs = [output_file_name],
-        cmd = "$(location //tools:grammar_domain_code_generator) " +
-              "--output_header_file_path " +
-              "$(@D)/" + output_file_name + " --input_grammar_files " + "$(SRCS)",
+        cmd = cmd,
         heuristic_label_expansion = False,
         tools = ["//tools:grammar_domain_code_generator"],
     )

@@ -67,7 +67,7 @@ TEST(CodeGeneration, GenerateValidJsonGrammarHeader) {
   const std::vector<std::string> input_files{
       GetContents(absl::StrCat(src_dir, "fuzztest/grammars/JSON.g4"))};
   const std::string generated_header =
-      fuzztest::internal::grammar::GenerateGrammarHeader(input_files);
+      fuzztest::internal::grammar::GenerateGrammarHeader(input_files, "json");
   const std::string ground_true_header = GetContents(absl::StrCat(
       src_dir, "grammar_codegen/testdata/expected_json_grammar.h"));
 

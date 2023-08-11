@@ -28,4 +28,5 @@ exports_files(["JSON.g4"])
 cc_fuzztest_grammar_library(
     name = "json_grammar",
     srcs = ["JSON.g4"],
+    grammar_name = "json",
 )

@@ -18,7 +18,7 @@
 // - Restricted character set (e.g., no unicode chars).
 // - No escape sequences (e.g., \n, \t, \uff01, etc.)
 
-grammar JSON;
+grammar JSON_GRAMMAR;
 
 json : element ;
 

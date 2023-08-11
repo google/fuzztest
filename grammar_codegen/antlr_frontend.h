@@ -34,7 +34,9 @@ using antlr4_grammar::ANTLRv4Parser;
 // information for every symbol and constructs the IR.
 class GrammarInfoBuilder : public antlr4_grammar::ANTLRv4ParserBaseListener {
  public:
-  Grammar BuildGrammarInfo(const std::vector<std::string>& input_grammar_specs);
+  Grammar BuildGrammarInfo(
+      const std::vector<std::string>& input_grammar_specs,
+      std::optional<std::string> grammar_name = std::nullopt);
 
   // Every symbol in the grammar has a handler function in the listener, which
   // will be called when such a symbol is visited during tree traversal. The
