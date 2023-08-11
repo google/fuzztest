@@ -767,8 +767,11 @@ RUNNER_SOURCES_NO_MAIN = [
 
 RUNNER_SOURCES_WITH_MAIN = RUNNER_SOURCES_NO_MAIN + ["runner_main.cc"]
 
-# TODO(kcc): ensure asan/tsan/msan/ubsan instrumentation is disabled for runner.
-RUNNER_COPTS = ["-fsanitize-coverage=0"]
+# Disable sancov and sanitizer instrumentation
+RUNNER_COPTS = [
+    "-fsanitize-coverage=0",
+    "-fno-sanitize=address,hwaddress,memory,thread,undefined",
+]
 
 RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
