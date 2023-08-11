@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -39,7 +40,7 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
               std::vector<ByteArray> &mutants) override;
 
  private:
-  bool custom_mutator_is_usable_ = false;
+  std::optional<bool> custom_mutator_is_usable_ = std::nullopt;
 };
 
 }  // namespace centipede

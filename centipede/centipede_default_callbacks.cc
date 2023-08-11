@@ -34,18 +34,6 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
   if (env_.has_input_wildcards) {
     LOG(INFO) << "Disabling custom mutator for standalone target";
     custom_mutator_is_usable_ = false;
-    return;
-  }
-
-  LOG(INFO) << "Detecting custom mutator in target...";
-  std::vector<ByteArray> mutants(1);
-  const bool external_mutator_ran =
-      MutateViaExternalBinary(env_.binary, /*inputs=*/{{.data = {0}}}, mutants);
-  if (external_mutator_ran) {
-    custom_mutator_is_usable_ = true;
-    LOG(INFO) << "Custom mutator detected: will use it";
-  } else {
-    LOG(INFO) << "Custom mutator undetected or misbehaving: will use built-in";
   }
 }
 
@@ -60,14 +48,26 @@ void CentipedeDefaultCallbacks::Mutate(
     const std::vector<MutationInputRef> &inputs, size_t num_mutants,
     std::vector<ByteArray> &mutants) {
   mutants.resize(num_mutants);
-  if (custom_mutator_is_usable_) {
-    CHECK(MutateViaExternalBinary(env_.binary, inputs, mutants))
-        << "Custom mutator in " << env_.binary << " failed, aborting";
-    if (!mutants.empty()) return;
-    LOG(WARNING)
-        << "No mutants returned from the custom mutator - falling "
-           "back to the internal mutator. Check the custom mutator if this"
-           "happens frequently";
+  if (num_mutants == 0) return;
+  // Try to use the custom mutator if it hasn't been disabled.
+  if (custom_mutator_is_usable_.value_or(true)) {
+    if (MutateViaExternalBinary(env_.binary, inputs, mutants)) {
+      if (!custom_mutator_is_usable_.has_value()) {
+        LOG(INFO) << "Custom mutator detected: will use it";
+        custom_mutator_is_usable_ = true;
+      }
+      if (!mutants.empty()) return;
+      LOG(WARNING)
+          << "No mutants returned from the custom mutator - falling "
+             "back to the internal mutator. Check the custom mutator if this "
+             "happens frequently";
+    } else {
+      LOG(INFO) << "Custom mutator undetected or misbehaving:";
+      CHECK(!custom_mutator_is_usable_.has_value())
+          << "Custom mutator is unreliable, aborting";
+      LOG(INFO) << "Falling back to the internal default mutator.";
+      custom_mutator_is_usable_ = false;
+    }
   }
   // Fallback of the internal mutator.
   CentipedeCallbacks::Mutate(inputs, num_mutants, mutants);
