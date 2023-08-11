@@ -73,7 +73,8 @@ class CentipedeCallbacks {
                        BatchResult &batch_result) = 0;
 
   // Takes non-empty `inputs`, discards old contents of `mutants`,
-  // adds `num_mutants` mutated inputs to `mutants`.
+  // adds at least one and at most `num_mutants` mutated inputs to
+  // `mutants`.
   virtual void Mutate(const std::vector<MutationInputRef> &inputs,
                       size_t num_mutants, std::vector<ByteArray> &mutants) {
     env_.use_legacy_default_mutator
@@ -114,7 +115,10 @@ class CentipedeCallbacks {
   // replacing the existing elements of `mutants`,
   // and shrinking `mutants` if needed.
   //
-  // Returns true on success.
+  // Returns true if the custom mutator in the binary is found and
+  // used, false otherwise. Note that mutants.size() may be 0 when
+  // returning true, if the mutator exists but refuses to mutate
+  // (hopefully occasionally).
   bool MutateViaExternalBinary(std::string_view binary,
                                const std::vector<MutationInputRef> &inputs,
                                std::vector<ByteArray> &mutants);

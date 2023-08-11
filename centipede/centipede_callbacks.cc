@@ -232,6 +232,9 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 bool CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<MutationInputRef> &inputs,
     std::vector<ByteArray> &mutants) {
+  CHECK(!env_.has_input_wildcards)
+      << "Standalone binary does not support custom mutator";
+
   auto start_time = absl::Now();
   inputs_blobseq_.Reset();
   outputs_blobseq_.Reset();
