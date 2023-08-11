@@ -41,4 +41,5 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "independent_compares",
     "autodictionary_stress",
     "paths",
+    "thread_uint32_cmp_1",
 ]]
