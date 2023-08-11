@@ -28,7 +28,7 @@ jobs:
   run_tests:
     name: Run tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       matrix:
         config: ['default', 'fuzztest']
@@ -62,10 +62,10 @@ jobs:
         if: matrix.config == 'default'
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
+            -c ${{ matrix.compilation_mode }} --//rpc_fuzzing:enable_rpc_fuzzing -- //... -//centipede/...
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
+            -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all --//rpc_fuzzing:enable_rpc_fuzzing
 

@@ -36,9 +36,9 @@ http_archive(
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "3ea49a7d97421b88a8c48a0de16c16048e17725c7ec0f1d3ea2683a2a75adc21",
-    strip_prefix = "abseil-cpp-20230125.0",
-    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.0.tar.gz",
+    sha256 = "5366d7e7fa7ba0d915014d387b66d0d002c03236448e1ba9ef98122c13b35c36",
+    strip_prefix = "abseil-cpp-20230125.3",
+    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.3.tar.gz",
 )
 
 http_archive(
@@ -54,6 +54,18 @@ http_archive(
     sha256 = "642d59854ddc0cebb5b23b2233ad0a8723eef20e66ef78b5b898d0a67556893b",
     url = "https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip",
 )
+
+http_archive(
+    name = "com_github_grpc_grpc",
+    urls = [
+        "https://github.com/grpc/grpc/archive/49dcbce9aba5f5f0959871354df90e38f0c5ed00.tar.gz", # v1.55.3
+    ],
+    strip_prefix = "grpc-49dcbce9aba5f5f0959871354df90e38f0c5ed00",
+)
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+grpc_deps()
+load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+grpc_extra_deps()
 
 ################################################################################
 # Direct dependencies that are only required for running tests

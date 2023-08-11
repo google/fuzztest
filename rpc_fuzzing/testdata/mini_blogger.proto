@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package fuzztest.internal;
+
+service MiniBlogger {
+  // Register a user.
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  // Log in a user and get a session id.
+  rpc LogInUser(LogInUserRequest) returns (LogInUserResponse);
+  // Get a user's posts by session id.
+  rpc GetUserPosts(GetUserPostsRequest) returns (GetUserPostsResponse);
+  // Log out the user (invaliding the session id).
+  rpc LogOutUser(LogOutUserRequest) returns (LogOutUserResponse);
+}
+
+message RegisterUserRequest {
+  string user_name = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message RegisterUserResponse {
+  bool success = 1;
+}
+
+message LogInUserRequest {
+  string name = 1;
+  string password = 2;
+}
+
+message LogInUserResponse {
+  bool success = 1;
+  // A unique id for the user logging in session.
+  int64 session_id = 2;
+}
+
+enum SortingOrder {
+  ASCENDING = 0;
+  DESCENDING = 1;
+}
+
+enum SortedBy {
+  DATE = 0;
+  POPULARITY = 1;
+}
+
+// For testing only.
+message GetUserPostsOptionsWithDifferentFieldNames {
+  SortingOrder ordering = 1;
+}
+
+message GetUserPostsOptions {
+  SortingOrder order = 1;
+  SortedBy sort_by = 2;
+}
+
+message GetUserPostsRequest {
+  int64 session_id = 1;
+  int32 max_posts = 2;  // Maximum number of posts returned.
+  GetUserPostsOptions options = 3;
+}
+
+message GetUserPostsResponse {
+  repeated string posts = 1;
+}
+
+// For testing dependency established at inner fields.
+message LogOutInfo {
+  oneof log_out_info {
+    SessionInfo session_info = 1;
+    int64 session_id = 2;
+  }
+}
+
+message SessionInfo {
+  int64 session_id = 1;
+}
+
+message LogOutUserRequest {
+  LogOutInfo log_out_info = 1;
+}
+
+message LogOutUserResponse {
+  bool success = 1;
+}
+
+// This is only for testing that the util of collecting all fields in a message
+// won't break with recursive messages.
+message RecursiveNode {
+  int64 value = 1;
+  repeated RecursiveNode children = 2;
+}
+
+// For testing only.
+message OneOfMessage {
+  oneof oneof1 {
+    DummyMessage oneof1_field1 = 1;
+    int64 oneof1_field2 = 2;
+  }
+  oneof oneof2 {
+    DummyMessage oneof2_field1 = 3;
+    int64 oneof2_field2 = 4;
+  }
+}
+
+message DummyMessage {
+  int64 v1 = 1;
+  int64 v2 = 2;
+}
+
+message InnerRepeated {
+  int64 field2 = 1;
+}
+
+message MessageWithSingleInnerRepeated {
+  InnerRepeated repeated_msg_field = 1;
+}
+
+message MessageContainingRepeatedFields {
+  repeated int64 field = 1;
+  repeated InnerRepeated repeated_msg_field = 2;
+}
+
+message MessageNotContainingRepeatedFields {
+  int64 field = 1;
+  int64 field2 = 2;
+}
