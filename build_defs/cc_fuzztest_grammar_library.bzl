@@ -15,23 +15,35 @@
 """Build rules to create cc_library that implements the InGrammar domain for a
 given grammar from an ANTLRv4 grammar specification."""
 
-def cc_fuzztest_grammar_library(name, srcs):
+def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None):
     """Generates the C++ library corresponding to an antlr4 grammar specification.
 
     Args:
-      name: The name of the package to use for the cc_library. E.g., `json_grammar`.
-      srcs: The grammar specification files in ANTRLv4 format. E.g., `json.g4`.
+
+      name: The name of the package to use for the cc_library. For example:
+        `"json_grammar"`.
+      srcs: The grammar specification files in ANTRLv4 format. For example:
+        `["json.g4"]`.
+      top_level_rule: The top level rule of the grammar that we use to generate
+        sentences. It will also be used in the generated domain name. For
+        example, if you set `top_level_rule="json"`, the generated domain name
+        will be `InJsonDomain` and it generates strings starting from the rule
+        `json` in your grammar file.
+
     """
 
     output_file_name = name + ".h"
+    cmd = "$(location //tools:grammar_domain_code_generator)" + \
+          " --output_header_file_path " + "$(@D)/" + output_file_name + \
+          " --input_grammar_files " + "`echo $(SRCS) | tr ' ' ','`"
+    if top_level_rule:
+        cmd += " --top_level_rule " + top_level_rule
 
     native.genrule(
         name = name + "_source",
         srcs = srcs,
         outs = [output_file_name],
-        cmd = "$(location //tools:grammar_domain_code_generator) " +
-              "--output_header_file_path " +
-              "$(@D)/" + output_file_name + " --input_grammar_files " + "$(SRCS)",
+        cmd = cmd,
         heuristic_label_expansion = False,
         tools = ["//tools:grammar_domain_code_generator"],
     )

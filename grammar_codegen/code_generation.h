@@ -15,11 +15,12 @@
 #ifndef FUZZTEST_GRAMMAR_CODEGEN_CODE_GENERATION_H_
 #define FUZZTEST_GRAMMAR_CODEGEN_CODE_GENERATION_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "./grammar_codegen/backend.h"
 #include "./grammar_codegen/antlr_frontend.h"
+#include "./grammar_codegen/backend.h"
 
 namespace fuzztest::internal::grammar {
 
@@ -27,7 +28,8 @@ namespace fuzztest::internal::grammar {
 // process of building grammar information from grammar files and generating
 // code from grammar information.
 std::string GenerateGrammarHeader(
-    const std::vector<std::string>& input_grammar_specs);
+    const std::vector<std::string>& input_grammar_specs,
+    std::optional<std::string> grammar_name = std::nullopt);
 
 }  // namespace fuzztest::internal::grammar
 

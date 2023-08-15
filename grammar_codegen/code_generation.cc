@@ -14,12 +14,20 @@
 
 #include "./grammar_codegen/code_generation.h"
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "./grammar_codegen/backend.h"
+
 namespace fuzztest::internal::grammar {
 
 std::string GenerateGrammarHeader(
-    const std::vector<std::string>& input_grammar_specs) {
+    const std::vector<std::string>& input_grammar_specs,
+    std::optional<std::string> grammar_name) {
   GrammarInfoBuilder builder;
-  CodeGenerator backend(builder.BuildGrammarInfo(input_grammar_specs));
+  CodeGenerator backend(
+      builder.BuildGrammarInfo(input_grammar_specs, grammar_name));
   return backend.Generate();
 }
 }  // namespace fuzztest::internal::grammar

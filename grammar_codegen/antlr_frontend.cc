@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "./grammar_codegen/generated_antlr_parser/ANTLRv4Lexer.h"
 #include "./grammar_codegen/grammar_info.h"
@@ -165,10 +166,11 @@ GrammarRule GrammarInfoBuilder::ConstructGrammarRule(
 Range GrammarInfoBuilder::ParseRange(std::string_view s) {
   return (s == "?")   ? Range::kOptional
          : (s == "+") ? Range::kNonEmpty
-         : (s == "*") ? Range::kUnlimited
-                      : (FUZZTEST_INTERNAL_CHECK(
-                             false, absl::StrCat("Unhandled case: ", s)),
-                         Range::kNoRange);
+         : (s == "*" || s == "+?" || s == "*?")
+             ? Range::kUnlimited
+             : (FUZZTEST_INTERNAL_CHECK(false,
+                                        absl::StrCat("Unhandled case: ", s)),
+                Range::kNoRange);
 }
 
 Block GrammarInfoBuilder::ConstructBlock(
@@ -258,7 +260,8 @@ GrammarRule GrammarInfoBuilder::ConstructGrammarRule(
 }
 
 Grammar GrammarInfoBuilder::BuildGrammarInfo(
-    const std::vector<std::string>& input_grammar_specs) {
+    const std::vector<std::string>& input_grammar_specs,
+    std::optional<std::string> grammar_name) {
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(!input_grammar_specs.empty(),
                                        "No input files!");
   for (auto& input_grammar_spec : input_grammar_specs) {
@@ -277,6 +280,9 @@ Grammar GrammarInfoBuilder::BuildGrammarInfo(
       // catch everything here.
       FUZZTEST_INTERNAL_CHECK(false, "Unknown errors!");
     }
+  }
+  if (grammar_name.has_value()) {
+    grammar_name_ = *grammar_name;
   }
   FUZZTEST_INTERNAL_CHECK(!grammar_name_.empty() && !rules_.empty(),
                           "Wrong grammar file!");

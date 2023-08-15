@@ -50,6 +50,17 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "backend_test",
+    srcs = ["backend_test.cc"],
+    deps = [
+        ":antlr_frontend",
+        ":backend",
+        ":grammar_info",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "code_generation",
     srcs = ["code_generation.cc"],

@@ -1,4 +1,4 @@
-function(fuzztest_grammar_library lib_name)
+function(fuzztest_grammar_library lib_name top_level_rule)
   if (ARGN)
     set(${lib_name}_grammar_files "")
     set(${lib_name}_output_file ${lib_name}.h)
@@ -11,6 +11,7 @@ function(fuzztest_grammar_library lib_name)
       OUTPUT ${${lib_name}_output_file}
       COMMAND
         $<TARGET_FILE:grammar_domain_code_generator>
+        --top_level_rule ${top_level_rule}
         --input_grammar_files ${all_grammar_files}
         --output_header_file_path
           ${CMAKE_CURRENT_BINARY_DIR}/${${lib_name}_output_file}
@@ -38,4 +39,4 @@ function(fuzztest_grammar_library lib_name)
   endif()
 endfunction()
 
-fuzztest_grammar_library("json_grammar" ./JSON.g4)
+fuzztest_grammar_library("json_grammar" "json" ./JSON.g4)

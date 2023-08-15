@@ -33,13 +33,13 @@ class CodeGenerator {
   // and contains the definition of the ast nodes for a language.
   std::string Generate();
 
- private:
   // Simplify the grammar so that the elements of Vector/Tuple/Variant are
   // either terminals or non-terminals.
   // For example, A: (C D)* will be converted to: A: N*, N: C D. So that we can
   // say A is a vector of N, and N is a tuple of C, D.
   void Preprocess(Grammar& grammar);
 
+ private:
   std::string BuildClassDefinitionForSymbol(GrammarRule& rule);
   std::string BuilldClassDefinitionForCharSet(std::string_view class_name);
   std::string BuildClassDefinitionForLiteral(std::string_view class_name);
