@@ -14,20 +14,29 @@
 
 #include "./centipede/environment.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>  // NOLINT
+#include <limits>
 #include <string>
+#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "./centipede/defs.h"
+#include "./centipede/knobs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
