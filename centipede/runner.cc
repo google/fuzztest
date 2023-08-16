@@ -14,7 +14,7 @@
 
 // Fuzz target runner (engine) for Centipede.
 // Reads the input files and feeds their contents to
-// the fuzz target (LLVMFuzzerTestOneInput), then dumps the coverage data.
+// the fuzz target (RunnerCallbacks::Execute), then dumps the coverage data.
 // If the input path is "/path/to/foo",
 // the coverage features are dumped to "/path/to/foo-features"
 //
@@ -432,8 +432,43 @@ PostProcessCoverage(int target_return_value) {
   }
 }
 
+class LegacyRunnerCallbacks : public RunnerCallbacks {
+ public:
+  LegacyRunnerCallbacks(FuzzerTestOneInputCallback test_one_input_cb,
+                        FuzzerCustomMutatorCallback custom_mutator_cb,
+                        FuzzerCustomCrossOverCallback custom_crossover_cb)
+      : test_one_input_cb_(test_one_input_cb),
+        custom_mutator_cb_(custom_mutator_cb),
+        custom_crossover_cb_(custom_crossover_cb) {}
+
+  bool Execute(ByteSpan input) override {
+    PrintErrorAndExitIf(test_one_input_cb_ == nullptr,
+                        "missing test_on_input_cb");
+    const int retval = test_one_input_cb_(input.data(), input.size());
+    PrintErrorAndExitIf(
+        retval != -1 && retval != 0,
+        "test_on_input_cb returns invalid value other than -1 and 0");
+    return retval == 0;
+  }
+  bool Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
+              std::function<void(ByteSpan)> new_mutant_callback) override;
+
+ private:
+  FuzzerTestOneInputCallback test_one_input_cb_;
+  FuzzerCustomMutatorCallback custom_mutator_cb_;
+  FuzzerCustomCrossOverCallback custom_crossover_cb_;
+};
+
+std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
+    FuzzerTestOneInputCallback test_one_input_cb,
+    FuzzerCustomMutatorCallback custom_mutator_cb,
+    FuzzerCustomCrossOverCallback custom_crossover_cb) {
+  return std::make_unique<LegacyRunnerCallbacks>(
+      test_one_input_cb, custom_mutator_cb, custom_crossover_cb);
+}
+
 static void RunOneInput(const uint8_t *data, size_t size,
-                        FuzzerTestOneInputCallback test_one_input_cb) {
+                        RunnerCallbacks &callbacks) {
   state.stats = {};
   size_t last_time_usec = 0;
   auto UsecSinceLast = [&last_time_usec]() {
@@ -446,7 +481,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   PrepareCoverage(/*full_clear=*/false);
   state.stats.prep_time_usec = UsecSinceLast();
   state.ResetTimers();
-  int target_return_value = test_one_input_cb(data, size);
+  int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
   PostProcessCoverage(target_return_value);
@@ -475,12 +510,12 @@ static std::vector<Type> ReadBytesFromFilePath(const char *input_path) {
 // Produces coverage data in file `input_path`-features.
 __attribute__((noinline))  // so that we see it in profile.
 static void
-ReadOneInputExecuteItAndDumpCoverage(
-    const char *input_path, FuzzerTestOneInputCallback test_one_input_cb) {
+ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
+                                     RunnerCallbacks &callbacks) {
   // Read the input.
   auto data = ReadBytesFromFilePath<uint8_t>(input_path);
 
-  RunOneInput(data.data(), data.size(), test_one_input_cb);
+  RunOneInput(data.data(), data.size(), callbacks);
 
   // Dump features to a file.
   char features_file_path[PATH_MAX];
@@ -548,9 +583,9 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 // Handles an ExecutionRequest, see RequestExecution(). Reads inputs from
 // `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
 // Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
-static int ExecuteInputsFromShmem(
-    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
-    FuzzerTestOneInputCallback test_one_input_cb) {
+static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
+                                  BlobSequence &outputs_blobseq,
+                                  RunnerCallbacks &callbacks) {
   size_t num_inputs = 0;
   if (!execution_request::IsExecutionRequest(inputs_blobseq.Read()))
     return EXIT_FAILURE;
@@ -573,7 +608,7 @@ static int ExecuteInputsFromShmem(
     // Starting execution of one more input.
     if (!StartSendingOutputsToEngine(outputs_blobseq)) break;
 
-    RunOneInput(data.data(), data.size(), test_one_input_cb);
+    RunOneInput(data.data(), data.size(), callbacks);
 
     if (!FinishSendingOutputsToEngine(outputs_blobseq)) break;
   }
@@ -650,12 +685,9 @@ static unsigned GetRandomSeed() { return time(nullptr); }
 // returns EXIT_FAILURE.
 //
 // TODO(kcc): [impl] make use of custom_crossover_cb, if available.
-static int MutateInputsFromShmem(
-    BlobSequence &inputs_blobseq, BlobSequence &outputs_blobseq,
-    FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb) {
-  if (custom_mutator_cb == nullptr) return EXIT_FAILURE;
-  unsigned int seed = GetRandomSeed();
+static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
+                                 BlobSequence &outputs_blobseq,
+                                 RunnerCallbacks &callbacks) {
   // Read max_num_mutants.
   size_t num_mutants = 0;
   size_t num_inputs = 0;
@@ -677,6 +709,8 @@ static int MutateInputsFromShmem(
   // into shared memory so that the user code doesn't touch the shared memory.
   std::vector<MutationInput> inputs;
   inputs.reserve(num_inputs);
+  std::vector<MutationInputRef> input_refs;
+  input_refs.reserve(num_inputs);
   for (size_t i = 0; i < num_inputs; ++i) {
     // If inputs_blobseq have overflown in the engine, we still want to
     // handle the first few inputs.
@@ -689,15 +723,26 @@ static int MutateInputsFromShmem(
     if (!execution_request::IsDataInput(blob)) break;
     inputs.push_back({.data = {blob.data, blob.data + blob.size},
                       .metadata = std::move(metadata)});
+    input_refs.push_back(
+        {.data = inputs.back().data, .metadata = &inputs.back().metadata});
   }
 
-  // Use a fixed-sized vector as a scratch.
+  if (!callbacks.Mutate(input_refs, num_mutants, [&](ByteSpan mutant) {
+        outputs_blobseq.Write({1 /*unused tag*/, mutant.size(), mutant.data()});
+      }))
+    return EXIT_FAILURE;
+  return EXIT_SUCCESS;
+}
+
+bool LegacyRunnerCallbacks::Mutate(
+    const std::vector<MutationInputRef> &inputs, size_t num_mutants,
+    std::function<void(ByteSpan)> new_mutant_callback) {
+  if (custom_mutator_cb_ == nullptr) return false;
+  unsigned int seed = GetRandomSeed();
+  const size_t num_inputs = inputs.size();
   constexpr size_t kMaxMutantSize = kMaxDataSize;
-  ByteArray mutant(kMaxMutantSize);
-
   constexpr size_t kAverageMutationAttempts = 2;
-
-  // Produce mutants.
+  ByteArray mutant(kMaxMutantSize);
   for (size_t attempt = 0, num_outputs = 0;
        attempt < num_mutants * kAverageMutationAttempts &&
        num_outputs < num_mutants;
@@ -707,23 +752,22 @@ static int MutateInputsFromShmem(
     size_t size = std::min(input_data.size(), kMaxMutantSize);
     std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
     size_t new_size = 0;
-    if ((custom_crossover_cb != nullptr) &&
+    if ((custom_crossover_cb_ != nullptr) &&
         rand_r(&seed) % 100 < state.run_time_flags.crossover_level) {
       // Perform crossover `crossover_level`% of the time.
       const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
-      new_size = custom_crossover_cb(
+      new_size = custom_crossover_cb_(
           input_data.data(), input_data.size(), other_data.data(),
           other_data.size(), mutant.data(), kMaxMutantSize, rand_r(&seed));
     } else {
-      new_size =
-          custom_mutator_cb(mutant.data(), size, kMaxMutantSize, rand_r(&seed));
+      new_size = custom_mutator_cb_(mutant.data(), size, kMaxMutantSize,
+                                    rand_r(&seed));
     }
     if (new_size == 0) continue;
-    if (!outputs_blobseq.Write({1 /*unused tag*/, new_size, mutant.data()}))
-      break;
+    new_mutant_callback({mutant.data(), new_size});
     ++num_outputs;
   }
-  return EXIT_SUCCESS;
+  return true;
 }
 
 // Returns the current process VmSize, in bytes.
@@ -857,24 +901,12 @@ GlobalRunnerState::~GlobalRunnerState() {
 //
 //  Default: Execute ReadOneInputExecuteItAndDumpCoverage() for all inputs.//
 //
-//  Note: argc/argv are used only for two things:
-//    * ReadOneInputExecuteItAndDumpCoverage()
-//    * LLVMFuzzerInitialize()
-extern "C" int CentipedeRunnerMain(
-    int argc, char **argv, FuzzerTestOneInputCallback test_one_input_cb,
-    FuzzerInitializeCallback initialize_cb,
-    FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb) {
+//  Note: argc/argv are used for only ReadOneInputExecuteItAndDumpCoverage().
+int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
           argv[0], state.centipede_runner_flags);
-
-  // All further actions will execute code in the target,
-  // so we need to call LLVMFuzzerInitialize.
-  if (initialize_cb) {
-    initialize_cb(&argc, &argv);
-  }
 
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {
@@ -896,21 +928,19 @@ extern "C" int CentipedeRunnerMain(
       inputs_blobseq.Reset();
       state.byte_array_mutator =
           new ByteArrayMutator(state.knobs, GetRandomSeed());
-      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq,
-                                   custom_mutator_cb, custom_crossover_cb);
+      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
     if (execution_request::IsExecutionRequest(request_type_blob)) {
       // Execution request.
       inputs_blobseq.Reset();
-      return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq,
-                                    test_one_input_cb);
+      return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
     return EXIT_FAILURE;
   }
 
   // By default, run every input file one-by-one.
   for (int i = 1; i < argc; i++) {
-    ReadOneInputExecuteItAndDumpCoverage(argv[i], test_one_input_cb);
+    ReadOneInputExecuteItAndDumpCoverage(argv[i], callbacks);
   }
   return EXIT_SUCCESS;
 }
@@ -919,9 +949,11 @@ extern "C" int CentipedeRunnerMain(
 
 extern "C" int LLVMFuzzerRunDriver(
     int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb) {
-  return CentipedeRunnerMain(*argc, *argv, test_one_input_cb,
-                             LLVMFuzzerInitialize, LLVMFuzzerCustomMutator,
-                             LLVMFuzzerCustomCrossOver);
+  if (LLVMFuzzerInitialize) LLVMFuzzerInitialize(argc, argv);
+  return RunnerMain(*argc, *argv,
+                    *centipede::CreateLegacyRunnerCallbacks(
+                        test_one_input_cb, LLVMFuzzerCustomMutator,
+                        LLVMFuzzerCustomCrossOver));
 }
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}

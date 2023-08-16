@@ -19,6 +19,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+
+#include "./centipede/defs.h"
+#include "./centipede/mutation_input.h"
 
 // Typedefs for the libFuzzer API, https://llvm.org/docs/LibFuzzer.html
 using FuzzerTestOneInputCallback = int (*)(const uint8_t *data, size_t size);
@@ -43,20 +47,6 @@ __attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
     uint8_t *out, size_t max_out_size, unsigned int seed);
 }  // extern "C"
 
-// The main Centipede Runner function.
-// It performs actions prescribed by argc/argv and environment variables
-// and returns EXIT_SUCCESS or EXIT_FAILURE.
-// `test_one_input_cb` must be non-nullptr, the other callbacks may be nullptr.
-// Normally, the runner itself calls this function (runner_main.cc).
-//
-// As an *experiment* we want to allow user code to call CentipedeRunnerMain().
-// This is not a guaranteed public interface (yet) and may disappear w/o notice.
-extern "C" int CentipedeRunnerMain(
-    int argc, char **argv, FuzzerTestOneInputCallback test_one_input_cb,
-    FuzzerInitializeCallback initialize_cb,
-    FuzzerCustomMutatorCallback custom_mutator_cb,
-    FuzzerCustomCrossOverCallback custom_crossover_cb);
-
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 extern "C" int LLVMFuzzerRunDriver(
     int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb);
@@ -75,5 +65,44 @@ extern "C" void CentipedeClearExecutionResult();
 // Saves the execution result (coverage, etc.) to `data` with given `capacity`
 // in bytes. Returns the size of saved data.
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity);
+
+namespace centipede {
+
+// Callbacks interface implemented by the fuzzer and called by the runner.
+//
+// WARNING: This interface is designed for FuzzTest/Centipede integration -
+// no stability is guaranteed for other usages.
+class RunnerCallbacks {
+ public:
+  // Attempts to execute the test logic using `input`, and returns false if the
+  // input should be ignored from the corpus, true otherwise.
+  virtual bool Execute(ByteSpan input) = 0;
+  // Generates at most `num_mutants` mutants by calling `new_mutant_callback`
+  // for each mutant. Returns true on success, false otherwise.
+  //
+  // TODO(xinhaoyuan): Consider supporting only_shrink to speed up
+  // input shrinking.
+  virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
+                      size_t num_mutants,
+                      std::function<void(ByteSpan)> new_mutant_callback) = 0;
+  virtual ~RunnerCallbacks() = default;
+};
+
+// Wraps legacy fuzzer callbacks into a `RunnerCallbacks` instance.
+std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
+    FuzzerTestOneInputCallback test_one_input_cb,
+    FuzzerCustomMutatorCallback custom_mutator_cb,
+    FuzzerCustomCrossOverCallback custom_crossover_cb);
+
+// The main Centipede Runner function.
+// It performs actions prescribed by argc/argv and environment variables
+// and returns EXIT_SUCCESS or EXIT_FAILURE.
+// Normally, the runner itself calls this function (LLVMFuzzerRunDriver).
+//
+// As an *experiment* we want to allow user code to call RunnerMain().
+// This is not a guaranteed public interface (yet) and may disappear w/o notice.
+int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks);
+
+}  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_

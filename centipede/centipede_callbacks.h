@@ -106,9 +106,10 @@ class CentipedeCallbacks {
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
 
-  // Uses an external binary `binary` to mutate `inputs`. The binary should be
-  // linked against :centipede_runner and implement the Structure-Aware Fuzzing
-  // interface, as described here:
+  // Uses an external binary `binary` to mutate `inputs`. The binary
+  // should be linked against :centipede_runner and implement the
+  // RunnerCallbacks interface as described in runner_interface.h,
+  // or implement the legacy Structure-Aware Fuzzing interface described here:
   // github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
   //
   // Produces at most `mutants.size()` non-empty mutants,

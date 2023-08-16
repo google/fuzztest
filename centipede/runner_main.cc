@@ -14,9 +14,6 @@
 
 #include "./centipede/runner_interface.h"
 
-// Returns CentipedeRunnerMain() with the default fuzzer callbacks.
 int main(int argc, char **argv) {
-  return CentipedeRunnerMain(argc, argv, LLVMFuzzerTestOneInput,
-                             LLVMFuzzerInitialize, LLVMFuzzerCustomMutator,
-                             LLVMFuzzerCustomCrossOver);
+  return LLVMFuzzerRunDriver(&argc, &argv, LLVMFuzzerTestOneInput);
 }
