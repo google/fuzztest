@@ -30,6 +30,8 @@ centipede::maybe_set_var_to_executable_path \
 centipede::maybe_set_var_to_executable_path \
   TEST_TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/test_fuzz_target"
 centipede::maybe_set_var_to_executable_path \
+  EMPTY_TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/empty_fuzz_target"
+centipede::maybe_set_var_to_executable_path \
   ABORT_TEST_TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/abort_fuzz_target"
 centipede::maybe_set_var_to_executable_path \
   LLVM_SYMBOLIZER "$(centipede::get_llvm_symbolizer_path)"
@@ -39,6 +41,16 @@ test_fuzz() {
   set -x
   "${CENTIPEDE_BINARY}" \
     --binary="${TEST_TARGET_BINARY}" --symbolizer_path=/dev/null \
+    --print_config \
+    "$@" 2>&1
+  set +x
+}
+
+# Shorthand for centipede --binary=empty_fuzz_target
+empty_fuzz() {
+  set -x
+  "${CENTIPEDE_BINARY}" \
+    --binary="${EMPTY_TARGET_BINARY}" --symbolizer_path=/dev/null \
     --print_config \
     "$@" 2>&1
   set +x
@@ -69,7 +81,6 @@ test_debug_symbols() {
   echo "============ ${FUNC}: run for the first time, with empty seed corpus, with feature logging"
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1000 \
     --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
-  centipede::assert_regex_in_file 'Custom mutator detected: will use it' "${LOG}"
   # Note: the test assumes LLVMFuzzerTestOneInput is defined on a specific line.
   centipede::assert_regex_in_file "FUNC: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc:62" "${LOG}"
   centipede::assert_regex_in_file "EDGE: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc" "${LOG}"
@@ -101,6 +112,25 @@ test_debug_symbols() {
     --symbolizer_path=/dev/null | tee "${LOG}"
   centipede::assert_regex_in_file "Symbolizer unspecified: debug symbols will not be used" "${LOG}"
   centipede::assert_regex_in_file "end-fuzz:" "${LOG}"
+}
+
+test_custom_mutator_detection() {
+  FUNC="${FUNCNAME[0]}"
+  WD="${TEST_TMPDIR}/${FUNC}/WD"
+  TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
+  DICT="${TEST_TMPDIR}/${FUNC}/dict"
+  LOG="${TEST_TMPDIR}/${FUNC}/log"
+  centipede::ensure_empty_dir "${WD}"
+  centipede::ensure_empty_dir "${TMPCORPUS}"
+
+  echo "============ ${FUNC}: testing custom mutator detection for existing mutator"
+  test_fuzz --workdir="${WD}" --num_runs=1 | tee "${LOG}"
+  centipede::assert_regex_in_file 'Custom mutator detected: will use it' "${LOG}"
+
+  echo "============ ${FUNC}: testing custom mutator detection for missing mutator"
+  empty_fuzz --workdir="${WD}" --num_runs=1 | tee "${LOG}"
+  centipede::assert_regex_in_file 'Custom mutator returned error' "${LOG}"
+  centipede::assert_regex_in_file 'Custom mutator undetected or misbehaving' "${LOG}"
 }
 
 # Creates workdir ($1) and tests how dictionaries are loaded.
@@ -191,6 +221,7 @@ test_stop_at() {
 
 centipede::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
+test_custom_mutator_detection
 test_dictionary
 test_for_each_blob
 test_pcpair_features

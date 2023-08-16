@@ -190,6 +190,7 @@ sh_test(
     srcs = ["centipede_main_test.sh"],
     data = [
         ":abort_fuzz_target",
+        ":empty_fuzz_target",
         ":test_fuzz_target",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_fuzzing_util_sh",

@@ -260,6 +260,17 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
   }
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+
+  if (retval != 0) {
+    LOG(INFO) << "Custom mutator returned error";
+    std::string log_text;
+    ReadFromLocalFile(execute_log_path_, log_text);
+    for (const auto &log_line :
+         absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
+      LOG(INFO).NoPrefix() << "LOG: " << log_line;
+    }
+  }
+
   return retval == 0;
 }
 
