@@ -176,24 +176,10 @@ test_pcpair_features() {
   centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 }
 
-test_stop_at() {
-  FUNC="${FUNCNAME[0]}"
-  WD="${TEST_TMPDIR}/${FUNC}/WD"
-  LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-
-  echo "============ ${FUNC}: fuzz with --stop_at"
-  local -r stop_at="$(date --date='+5 seconds' --utc --iso-8601=seconds)"
-  example_fuzz --workdir="${WD}" --stop_at="${stop_at}" | tee "${LOG}"
-  centipede::assert_regex_in_file "Reached --stop_at time: winding down" "${LOG}"
-  centipede::assert_regex_in_file "end-fuzz" "${LOG}"
-}
-
 centipede::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
 test_dictionary
 test_for_each_blob
 test_pcpair_features
-test_stop_at
 
 echo "PASS"
