@@ -1,4 +1,4 @@
-# The `FUZZ_TEST` Macro
+# The `FUZZ_TEST` macro
 
 Fuzz tests are instantiated with the
 FUZZ_TEST
@@ -16,6 +16,27 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes)
                /*s:*/fuzztest::Arbitrary<std::string>())
   .WithSeeds({{5, "Foo"}, {10, "Bar"}});
 ```
+
+The three parts of the instantiation that we discuss in more detail are the
+following:
+
+*   The *property function* (called `CallingMyApiNeverCrashes` in the example).
+*   The *input domains* for the property function's parameters, specified using
+    the `.WithDomains()` clause.
+*   The *initial seed* values for the parameters, specified using the
+    `.WithSeeds()` clause.
+
+The property function is a mandatory part of the instantiation; the input
+domains and the seeds are optional. If you want to specify both the input
+domains and the seeds, you have to specify the input domains first.
+
+WARNING: The `FUZZ_TEST` macro expands into a global variable definition. Thus,
+you should be careful when initializing the input domains or seeds with other
+global objects. Never initialize the input domains or seeds with global objects
+that are initialized in other compilation units! Doing this may lead to the
+[static initialization order fiasco](https://en.cppreference.com/w/cpp/language/siof).
+You may use [seed providers](#seed-providers) to delay the initialization of
+seeds.
 
 ## The property function
 
@@ -53,13 +74,7 @@ Important things to note about the property function:
     one. The simpler the function, the easier it is for the tool to cover it and
     find bugs.
 
-The fuzz test macro can specify two additional aspects of the property
-function's parameters. Both of them are optional:
-
-*   the *input domains* of the parameters (default is "arbitrary value", when
-    not specified), and
-*   the *initial seed* values for the parameters (default is a "random value",
-    when not specified).
+## Input domains
 
 As opposed to
 [value-parameterized tests](https://google.github.io/googletest/advanced.html#value-parameterized-tests),
@@ -72,18 +87,6 @@ integer between 0 and 10"* (closed interval), while the input domain of the
 second parameter is *"an arbitrary string"*. If we don't explicitly specify
 domains, for a parameter of type `T`, the `fuzztest::Arbitrary<T>()` domain will
 be used.
-
-Some initial seed values can also be provided using the `.WithSeeds()` clause.
-Initial seed values are concrete input examples that the test deterministically
-runs and uses as a basis to create other examples from. In the above example, we
-make sure that we run `CallingMyApiNeverCrashes(5, "Foo")`. Providing seed
-examples is rarely necessary, it is only useful in cases when we want to make
-sure the fuzzer covers some specific case.
-
-Note: If you want to specify domains and seeds, the domain has to be specified
-first.
-
-## Input Domains
 
 Input domains are the central concept in FuzzTest. The input domain
 specifies the coverage of the property-based testing inputs. The most commonly
@@ -107,23 +110,63 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes);
 See the [Domains Reference](domains-reference.md) for the descriptions of the
 various built-in domains and also how you can build your own domains.
 
-## Initial Seeds
+## Initial seeds
 
-A corpus of initial input examples, called "seeds", can be specified via the
-`FUZZ_TEST` macro using the `.WithSeeds(...)` function. For example:
+You can use the `.WithSeeds()` clause to provide the initial seed values for the
+property function's parameters. The initial seed values are concrete inputs that
+FuzzTest deterministically runs and uses as a basis for creating other inputs.
+In the above example, the seed `{5, "Foo"}` causes FuzzTest to execute
+`CallingMyApiNeverCrashes(5, "Foo")`. In the subsequent runs, FuzzTest may
+generate similar values, like `{5, "Foooo"}` or `{10, "Foo"}`, and use them as
+inputs to the property function.
 
-```
-void CallingMyApiNeverCrashes(int a, const std::string& b) {
-...
-}
+Providing seeds is not necessary; if you don't provide them, FuzzTest will
+generate them at random. However, in certain cases providing seeds can greatly
+improve fuzzing efficiency.
+
+### Delaying seed initialization with a seed provider {#seed-providers}
+
+As noted earlier, fuzz tests are instantiated as global variables, so
+initializing seeds from other global objects (especially those coming from other
+compilation units) can lead to unexpected consequences or even undefined
+behavior. For cases when such initialization cannot be avoided, the
+`.WithSeeds()` clause also accepts a *seed provider*—a function that returns a
+vector of seeds. FuzzTest will call the seed provider in runtime, thus avoiding
+any static initialization issues.
+
+The seed provider can be any invocable (lambda, function pointer, callable
+object, etc.) that doesn't take inputs and returns
+`std::vector<std::tuple<Args...>>`, where `Args...` are the types of the
+property function's parameters. In the example from earlier, we could use the
+following seed provider:
+
+```c++
 FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes)
-  .WithSeeds({{10, "ABC"}, {15, "DEF"}});
+  .WithSeeds([]() -> std::vector<std::tuple<int, std::string>> {
+    return {{5, "Foo"}, {10, "Bar"}};
+  });
 ```
 
-where the seeds are of type `std::tuple<Args...>`, `Args...` being the argument
-types passed to the property function.
+If you are using a [test fixture](fixtures.md), the seed provider can also be a
+pointer to a member function of the fixture, as in the following example:
 
-If unspecified, the initial seeds will be randomly generated.
+```c++
+class MyFuzzTest {
+ public:
+  void CallingMyApiNeverCrashes(int x, const std::string& s);
+
+  // The seed provider can depend on the fixture's state.
+  std::vector<std::tuple<int, std::string>> seeds() { return seeds_; }
+
+ private:
+  std::vector<std::tuple<int, std::string>> seeds_ = {{5, "Foo"}, {10, "Bar"}};
+};
+
+FUZZ_TEST_F(MyFuzzTest, CallingMyApiNeverCrashes)
+  // The seed provider can be a pointer to the fixture's member function. Note
+  // that the member function can't be const.
+  .WithSeeds(&MyFuzzTest::seeds);
+```
 
 ### Loading seed inputs from a directory
 
@@ -143,5 +186,3 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes)
         absl::StrCat(std::getenv("TEST_SRCDIR"), kMyCorpusPath)));
 ```
 
-NOTE: You can't use functions like `file::GetTextProto(...)` because the code in
-`WithSeeds(...)` runs prior to `InitGoogle`.
