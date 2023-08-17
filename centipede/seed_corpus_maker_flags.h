@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdlib>
+#ifndef THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_FLAGS_H_
+#define THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_FLAGS_H_
 
-#include "absl/flags/flag.h"
-#include "./centipede/config_init.h"
-#include "./centipede/seed_corpus_maker_flags.h"
-#include "./centipede/seed_corpus_maker_lib.h"
+#include <string>
 
-int main(int argc, char** argv) {
-  (void)centipede::config::InitRuntime(argc, argv);
+#include "absl/flags/declare.h"
 
-  centipede::GenerateSeedCorpusFromConfig(  //
-      absl::GetFlag(FLAGS_config), absl::GetFlag(FLAGS_out_dir));
+ABSL_DECLARE_FLAG(std::string, config);
+ABSL_DECLARE_FLAG(std::string, out_dir);
 
-  return EXIT_SUCCESS;
-}
+#endif  // THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_FLAGS_H_
