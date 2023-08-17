@@ -38,6 +38,7 @@
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_sancov_object.h"
 
 namespace centipede {
 
@@ -209,6 +210,8 @@ struct GlobalRunnerState {
 
   // State for SanitizerCoverage.
   // See https://clang.llvm.org/docs/SanitizerCoverage.html.
+  SanCovObjectArray sancov_objects;
+  // TODO(kcc): remove pcs_beg, etc in favour of sancov_objects.
   const PCInfo *pcs_beg, *pcs_end;
   const uintptr_t *cfs_beg, *cfs_end;
   static const size_t kBitSetSize = 1 << 18;  // Arbitrary large size.

@@ -154,6 +154,7 @@ void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
 // -fsanitize-coverage=inline-8bit-counters is used.
 // See https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters
 void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
+  state.sancov_objects.Inline8BitCountersInit(beg, end);
   if (state.inline_8bit_counters_start == nullptr) {
     state.inline_8bit_counters_start = beg;
     state.inline_8bit_counters_stop = end;
@@ -175,6 +176,7 @@ void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
 // If a different DSO calls this function, it will have different arguments.
 // We currently do not support more than one sancov-instrumented DSO.
 void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
+  state.sancov_objects.PCInfoInit(beg, end);
   size_t guard_size = state.pc_guard_stop - state.pc_guard_start;
   size_t counter_size =
       state.inline_8bit_counters_stop - state.inline_8bit_counters_start;
@@ -212,6 +214,7 @@ void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
 // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow
 // This function is called at the DSO init time.
 void __sanitizer_cov_cfs_init(const uintptr_t *beg, const uintptr_t *end) {
+  state.sancov_objects.CFSInit(beg, end);
   state.cfs_beg = beg;
   state.cfs_end = end;
 }
@@ -324,6 +327,7 @@ void __sanitizer_cov_trace_pc() {
 
 // This function is called at the DSO init time.
 void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
+  state.sancov_objects.PCGuardInit(start, stop);
   if (state.pc_guard_start == nullptr) {
     RunnerCheck(state.pcs_beg == nullptr,
                 "__sanitizer_cov_pcs_init was called before "

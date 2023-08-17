@@ -790,6 +790,8 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner.h",
     "runner_dl_info.h",
     "runner_dl_info.cc",
+    "runner_sancov_object.h",
+    "runner_sancov_object.cc",
     "runner_utils.h",
     "runner_utils.cc",
     "runner_cmp_trace.h",
