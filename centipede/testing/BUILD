@@ -101,6 +101,26 @@ centipede_fuzz_target(
     linkopts = ["-fsanitize=address"],
 )
 
+# Helper DSO for :multi_dso_target
+cc_library(
+    name = "multi_dso_target_lib",
+    srcs = ["multi_dso_target_lib.cc"],
+    hdrs = ["multi_dso_target_lib.h"],
+    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table"],
+)
+
+# A fuzz target with an instrumented DSO dependency (:multi_dso_target_lib).
+cc_binary(
+    name = "multi_dso_target",
+    srcs = ["multi_dso_target_main.cc"],
+    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table"],
+    linkstatic = False,
+    deps = [
+        ":multi_dso_target_lib",
+        "@com_google_fuzztest//centipede:centipede_runner",
+    ],
+)
+
 # A standalone binary with main() that is worth fuzzing.
 cc_binary(
     name = "standalone_fuzz_target_with_main",
