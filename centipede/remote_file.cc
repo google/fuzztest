@@ -17,11 +17,18 @@
 
 #include "./centipede/remote_file.h"
 
+#include <glob.h>
+
 #include <cstdio>
 #include <filesystem>  // NOLINT
+#include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
+#include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
 
@@ -35,7 +42,9 @@ static_assert(ABSL_HAVE_ATTRIBUTE(weak));
 
 ABSL_ATTRIBUTE_WEAK void RemoteMkdir(std::string_view path) {
   CHECK(!path.empty());
-  std::filesystem::create_directory(path);
+  std::error_code error;
+  std::filesystem::create_directories(path, error);
+  CHECK(!error) << VV(path) << VV(error);
 }
 
 ABSL_ATTRIBUTE_WEAK RemoteFile *RemoteFileOpen(std::string_view path,
@@ -109,6 +118,33 @@ void RemoteFileGetContents(const std::filesystem::path &path,
   CHECK(file != nullptr) << VV(path);
   RemoteFileRead(file, contents);
   RemoteFileClose(file);
+}
+
+ABSL_ATTRIBUTE_WEAK bool RemotePathExists(std::string_view path) {
+  return std::filesystem::exists(path);
+}
+
+namespace {
+
+int HandleGlobError(const char *epath, int eerrno) {
+  LOG(FATAL) << "Error while globbing path: " << VV(epath) << VV(eerrno);
+  return -1;
+}
+
+}  // namespace
+
+ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
+                                         std::vector<std::string> &matches) {
+  // See `man glob.3`.
+  ::glob_t glob_ret = {};
+  CHECK_EQ(
+      ::glob(std::string{glob}.c_str(), GLOB_TILDE, HandleGlobError, &glob_ret),
+      0)
+      << "Error while globbing glob: " << VV(glob);
+  for (int i = 0; i < glob_ret.gl_pathc; ++i) {
+    matches.emplace_back(glob_ret.gl_pathv[i]);
+  }
+  ::globfree(&glob_ret);
 }
 
 }  // namespace centipede

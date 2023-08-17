@@ -17,11 +17,15 @@
 // streams, or an actual API for dealing with remote files. The abstractions are
 // the same as in the C FILE API.
 
+// TODO(ussuri): Add unit tests (currently tested via .sh integration tests).
+
 #ifndef THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 #define THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 
 #include <filesystem>  // NOLINT
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "./centipede/defs.h"
 
@@ -60,6 +64,12 @@ void RemoteFileSetContents(const std::filesystem::path &path,
 // Reads the contents of the file at 'path' into 'contents'.
 void RemoteFileGetContents(const std::filesystem::path &path,
                            std::string &contents);
+
+// Returns true if `path` exists.
+bool RemotePathExists(std::string_view path);
+
+// Finds all files matching `glob` and appends them to `matches`.
+void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 
 }  // namespace centipede
 
