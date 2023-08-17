@@ -16,6 +16,7 @@
 #   Centipede: an experimental distributed fuzzing engine.
 
 load(":instrument.bzl", "cc_uninstrumented_binary")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 
 VISIBILITY = ["//visibility:public"]
 
@@ -49,6 +50,21 @@ cc_binary(
 cc_uninstrumented_binary(
     name = "centipede_uninstrumented",
     binary = ":centipede",
+)
+
+###############################################################################
+#                              Proto libraries
+###############################################################################
+
+# Configuration for the seed corpus maker.
+proto_library(
+    name = "seed_corpus_config_proto",
+    srcs = ["seed_corpus_config.proto"],
+)
+
+cc_proto_library(
+    name = "seed_corpus_config_cc_proto",
+    deps = [":seed_corpus_config_proto"],
 )
 
 ################################################################################
