@@ -52,6 +52,21 @@ cc_uninstrumented_binary(
     binary = ":centipede",
 )
 
+# A standalone seed corpus generator.
+cc_binary(
+    name = "seed_corpus_maker",
+    srcs = ["seed_corpus_maker.cc"],
+    deps = [
+        ":seed_corpus_maker_lib",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
+    ],
+)
+
 ###############################################################################
 #                              Proto libraries
 ###############################################################################
@@ -842,6 +857,28 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
+)
+
+# Utilities for seed corpus generation.
+cc_library(
+    name = "seed_corpus_maker_lib",
+    srcs = ["seed_corpus_maker_lib.cc"],
+    hdrs = ["seed_corpus_maker_lib.h"],
+    deps = [
+        ":blob_file",
+        ":defs",
+        ":logging",
+        ":remote_file",
+        ":seed_corpus_config_cc_proto",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
+    ],
 )
 
 ################################################################################
