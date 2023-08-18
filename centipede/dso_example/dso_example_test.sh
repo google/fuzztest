@@ -39,14 +39,6 @@ centipede::maybe_set_var_to_executable_path \
 centipede::maybe_set_var_to_executable_path \
   TARGET_DSO "${CENTIPEDE_TEST_SRCDIR}/dso_example/fuzz_me.so"
 
-echo "Running the dso_example binary manually; expecting it to fail"
-
-LOG="${TEST_TMPDIR}/log1"
-"${TARGET_BINARY}" 2>&1 | tee "${LOG}"
-centipede::assert_regex_in_file \
-  "error: DlIteratePhdrCallback: a sample code address is not in bounds" \
-  "${LOG}"
-
 echo "Running the dso_example binary with dl_path_suffix; expecting it to pass"
 CENTIPEDE_RUNNER_FLAGS=":dl_path_suffix=/fuzz_me.so:" "${TARGET_BINARY}"
 

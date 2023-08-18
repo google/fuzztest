@@ -834,6 +834,7 @@ cc_library(
     hdrs = ["runner_interface.h"],
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
+    linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
 )
@@ -857,6 +858,7 @@ cc_library(
     srcs = RUNNER_SOURCES_WITH_MAIN,
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
+    linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
 )
