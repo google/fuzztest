@@ -17,6 +17,7 @@
 // Only simple definitions here. No code, no dependencies.
 // span.h is an exception as it's header-only and very simple.
 
+#include <cstddef>
 #include <cstdint>
 #include <random>
 #include <vector>
@@ -34,6 +35,10 @@ using ByteSpan = absl::Span<const uint8_t>;
 // Macro used to allow tests to access protected or private members of a class.
 #define FRIEND_TEST(test_case_name, test_name) \
   friend class test_case_name##_##test_name##_Test
+
+// We don't want to include <linux/limits.h> or equivalent in any of the .h
+// files. So we define kPathMax, and verify that it is >= PATH_MAX in util.cc.
+constexpr size_t kPathMax = 4096;
 
 }  // namespace centipede
 

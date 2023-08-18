@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "./centipede/pc_info.h"
+#include "./centipede/runner_dl_info.h"
 
 // TODO(kcc): gradually replace the old code in runner_sancov.cc with this code.
 // The difference is that the old code allows only one sancov-instrumented DSO,
@@ -31,6 +32,7 @@ namespace centipede {
 // See https://clang.llvm.org/docs/SanitizerCoverage.html.
 // These structs are created as globals and are linker-initialized to zero.
 struct SanCovObject {
+  DlInfo dl_info;                       // Obtained via GetDlInfo.
   PCGuard *pc_guard_start;              // __sanitizer_cov_trace_pc_guard_init.
   PCGuard *pc_guard_stop;               // __sanitizer_cov_trace_pc_guard_init.
   const PCInfo *pcs_beg;                // __sanitizer_cov_pcs_init

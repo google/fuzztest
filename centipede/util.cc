@@ -53,6 +53,8 @@
 
 namespace centipede {
 
+static_assert(kPathMax >= PATH_MAX, "kPathMax is too small.");
+
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;
   return time(nullptr) + getpid() +

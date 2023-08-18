@@ -22,11 +22,14 @@
 #include <cstdint>
 
 #include "./centipede/pc_info.h"
+#include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_utils.h"
 
 namespace centipede {
 
 void SanCovObjectArray::PCGuardInit(PCGuard *start, PCGuard *stop) {
+  // Ignore repeated calls with the same arguments.
+  if (size_ != 0 && objects_[size_ - 1].pc_guard_start == start) return;
   RunnerCheck(size_ < kMaxSize, "too many sancov objects");
   auto &sancov_object = objects_[size_++];
   sancov_object.pc_guard_start = start;
@@ -35,6 +38,11 @@ void SanCovObjectArray::PCGuardInit(PCGuard *start, PCGuard *stop) {
 
 void SanCovObjectArray::Inline8BitCountersInit(
     uint8_t *inline_8bit_counters_start, uint8_t *inline_8bit_counters_stop) {
+  // Ignore repeated calls with the same arguments.
+  if (size_ != 0 && objects_[size_ - 1].inline_8bit_counters_start ==
+                        inline_8bit_counters_start) {
+    return;
+  }
   RunnerCheck(size_ < kMaxSize, "too many sancov objects");
   auto &sancov_object = objects_[size_++];
   sancov_object.inline_8bit_counters_start = inline_8bit_counters_start;
@@ -61,6 +69,8 @@ void SanCovObjectArray::PCInfoInit(const PCInfo *pcs_beg,
               " and pc table size");
   sancov_object.pcs_beg = pcs_beg;
   sancov_object.pcs_end = pcs_end;
+  sancov_object.dl_info = GetDlInfo(pcs_beg->pc);
+  RunnerCheck(sancov_object.dl_info.IsSet(), "failed to compute dl_info");
 }
 
 void SanCovObjectArray ::CFSInit(const uintptr_t *cfs_beg,
