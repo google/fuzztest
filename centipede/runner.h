@@ -149,6 +149,12 @@ struct GlobalRunnerState {
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
       .crossover_level = HasIntFlag(":crossover_level=", 50)};
 
+  // This is a temporary, non-user-visible flag used only for Centipede
+  // developers while we are implementing multi-DSO support.
+  // We use an env variable in order to not pollute the normal flags.
+  bool temporary_allow_multi_dso =
+      getenv("CENTIPEDE_ALLOW_MULTI_DSO") != nullptr;
+
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
   bool HasFlag(const char *flag) const {

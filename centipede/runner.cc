@@ -852,6 +852,13 @@ GlobalRunnerState::GlobalRunnerState() {
         " e.g. when instrumented code is in a DSO opened later by dlopen()\n");
   }
 
+  if (!temporary_allow_multi_dso) {
+    RunnerCheck(sancov_objects.size() <= 1,
+                "More that one sancov-instrumented object observed which is "
+                "not yet suppported. Come back later or build all of your "
+                "instrumented code as a single DSO.");
+  }
+
   // Dump the pc table, if instructed.
   if (state.HasFlag(":dump_pc_table:")) {
     if (!state.arg1) _exit(EXIT_FAILURE);

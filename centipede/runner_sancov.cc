@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
@@ -200,14 +201,6 @@ void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
             beg[i].has_flag(PCInfo::kFuncEntry);
       }
     }
-  } else {
-    RunnerCheck(
-        state.pcs_beg == beg && state.pcs_end == end,
-        "__sanitizer_cov_pcs_init is called with different "
-        "arguments than previously. This may indicate more than one DSO "
-        "instrumented with sancov. This is currently not supported by the "
-        "Centipede runner. Please let the Centipede developers know if this is "
-        "an important use case.");
   }
 }
 
@@ -342,14 +335,6 @@ void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
       guard->pc_index = idx;
       ++idx;
     }
-  } else {
-    RunnerCheck(
-        state.pc_guard_start == start && state.pc_guard_stop == stop,
-        "__sanitizer_cov_trace_pc_guard_init is called with different "
-        "arguments than previously. This may indicate more than one DSO "
-        "instrumented with sancov. This is currently not supported by the "
-        "Centipede runner. Please let the Centipede developers know if this is "
-        "an important use case.");
   }
 }
 
