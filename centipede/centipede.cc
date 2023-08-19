@@ -745,6 +745,23 @@ void Centipede::FuzzingLoop() {
   }
 }
 
+void Centipede::ReportCrashInput(const ByteArray &input,
+                                 const BatchResult &crash_result) {
+  const auto hash = Hash(input);
+  const auto crash_dir = env_.MakeCrashReproducerDirPath();
+  RemoteMkdir(crash_dir);
+  const std::string file_path = std::filesystem::path(crash_dir).append(hash);
+  LOG(INFO) << "Detected crash-reproducing input:"
+            << "\nInput bytes    : " << AsString(input, /*max_len=*/32)
+            << "\nExit code      : " << crash_result.exit_code()
+            << "\nFailure        : " << crash_result.failure_description()
+            << "\nSaving input to: " << file_path;
+  auto *file = RemoteFileOpen(file_path, "w");  // overwrites existing file.
+  CHECK(file != nullptr) << __FUNCTION__ << ": Failed to open " << file_path;
+  RemoteFileAppend(file, input);
+  RemoteFileClose(file);
+}
+
 void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
                             const BatchResult &batch_result) {
@@ -752,6 +769,10 @@ void Centipede::ReportCrash(std::string_view binary,
   if (EarlyExitRequested()) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
+  if (input_vec.size() == 1) {
+    ReportCrashInput(input_vec[0], batch_result);
+    return;
+  }
 
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
@@ -803,21 +824,8 @@ void Centipede::ReportCrash(std::string_view binary,
     const auto &one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
-      auto hash = Hash(one_input);
-      auto crash_dir = env_.MakeCrashReproducerDirPath();
-      RemoteMkdir(crash_dir);
-      std::string file_path = std::filesystem::path(crash_dir).append(hash);
-      LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
-                << "\nInput index    : " << input_idx
-                << "\nInput bytes    : " << AsString(one_input, /*max_len=*/32)
-                << "\nExit code      : " << one_input_batch_result.exit_code()
-                << "\nFailure        : "
-                << one_input_batch_result.failure_description()
-                << "\nSaving input to: " << file_path;
-      auto *file = RemoteFileOpen(file_path, "w");  // overwrites existing file.
-      CHECK(file != nullptr) << log_prefix << "Failed to open " << file_path;
-      RemoteFileAppend(file, one_input);
-      RemoteFileClose(file);
+      LOG(INFO) << log_prefix << "Found reproducer at index " << input_idx;
+      ReportCrashInput(one_input, one_input_batch_result);
       return;
     }
   }

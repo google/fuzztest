@@ -130,13 +130,16 @@ class Centipede {
   bool ExecuteAndReportCrash(std::string_view binary,
                              const std::vector<ByteArray> &input_vec,
                              BatchResult &batch_result);
-  // Reports a crash and saves the reproducer to workdir/crashes, if possible.
-  // `binary` is the binary causing the crash.
-  // Prints the first `env_.max_num_crash_reports` logs.
-  // `input_vec` is the batch of inputs that caused a crash.
-  // `batch_result` contains the features computed for `input_vec`
-  // (batch_result.results().size() == input_vec.size()). `batch_result` is used
-  // as a hint when choosing which input to try first.
+  // Reports the crash of `input` with `crash_result` and saves the input to
+  // workdir/crashes.
+  void ReportCrashInput(const ByteArray &input,
+                        const BatchResult &crash_result);
+  // Reports a crash from a batch and saves the reproducer to workdir/crashes,
+  // if possible. `binary` is the binary causing the crash. Prints the first
+  // `env_.max_num_crash_reports` logs. `input_vec` is the batch of inputs that
+  // caused a crash. `batch_result` contains the features computed for
+  // `input_vec` (batch_result.results().size() == input_vec.size()).
+  // `batch_result` is used as a hint when choosing which input to try first.
   // Stops early if `EarlyExitRequested()`.
   void ReportCrash(std::string_view binary,
                    const std::vector<ByteArray> &input_vec,
