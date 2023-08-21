@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
@@ -62,6 +63,13 @@ class SanCovObjectArray {
 
   // Returns the number of sancov-instrumented objects observed so far.
   size_t size() const { return size_; }
+
+  // Returns a vector of PCInfo for all instrumented DSOs.
+  // Every PC in the vector has the object's ASLR base (dl_info.start_address)
+  // subtracted. So, unless there is exactly one instrumented DSO, this vector
+  // by itself is not sufficient to map PCs to DSOs or symbols.
+  // This will require additional information. TODO(kcc) implement.
+  std::vector<PCInfo> CreatePCTable() const;
 
  private:
   static constexpr size_t kMaxSize = 1024;

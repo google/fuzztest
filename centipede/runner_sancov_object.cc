@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
@@ -73,8 +74,8 @@ void SanCovObjectArray::PCInfoInit(const PCInfo *pcs_beg,
   RunnerCheck(sancov_object.dl_info.IsSet(), "failed to compute dl_info");
 }
 
-void SanCovObjectArray ::CFSInit(const uintptr_t *cfs_beg,
-                                 const uintptr_t *cfs_end) {
+void SanCovObjectArray::CFSInit(const uintptr_t *cfs_beg,
+                                const uintptr_t *cfs_end) {
   // Assumes __sanitizer_cov_pcs_init has been called.
   const char *called_early =
       "__sanitizer_cov_cfs_init is called before __sanitizer_cov_pcs_init";
@@ -83,6 +84,28 @@ void SanCovObjectArray ::CFSInit(const uintptr_t *cfs_beg,
   RunnerCheck(sancov_object.pcs_beg != nullptr, called_early);
   sancov_object.cfs_beg = cfs_beg;
   sancov_object.cfs_end = cfs_end;
+}
+
+std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
+  // Compute the total number of PCs in all objects.
+  size_t num_pcs = 0;
+  for (const auto &object : objects_) {
+    num_pcs += object.pcs_end - object.pcs_beg;
+  }
+  // Populate the result.
+  std::vector<PCInfo> result(num_pcs);
+  size_t idx = 0;
+  for (const auto &object : objects_) {
+    for (const auto *pc_info = object.pcs_beg; pc_info != object.pcs_end;
+         ++pc_info) {
+      result[idx] = *pc_info;
+      // Subtract the ASRL base.
+      result[idx].pc -= object.dl_info.start_address;
+      ++idx;
+    }
+  }
+  RunnerCheck(idx == num_pcs, "error while computing pc table");
+  return result;
 }
 
 }  // namespace centipede

@@ -621,20 +621,11 @@ static void DumpPcTable(const char *output_path) {
   PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  // Make a local copy of the pc table, and subtract the ASLR base
-  // (i.e. main_object_start_address) from every PC before dumping the table.
-  // Otherwise, we need to pass this ASLR offset at the symbolization time,
-  // e.g. via `llvm-symbolizer --adjust-vma=<ASLR offset>`.
-  // Another alternative is to build the binary w/o -fPIE or with -static.
-  std::vector<PCInfo> modified_pcs(state.pcs_end - state.pcs_beg);
-  for (size_t i = 0; i < modified_pcs.size(); ++i) {
-    modified_pcs[i].pc = state.pcs_beg[i].pc - state.main_object.start_address;
-    modified_pcs[i].flags = state.pcs_beg[i].flags;
-  }
-  // Dump the modified pc table.
-  const auto data_size_in_bytes = modified_pcs.size() * sizeof(PCInfo);
+  std::vector<PCInfo> pcs = state.sancov_objects.CreatePCTable();
+  // Dump the pc table.
+  const auto data_size_in_bytes = pcs.size() * sizeof(PCInfo);
   auto num_bytes_written =
-      fwrite(modified_pcs.data(), 1, data_size_in_bytes, output_file);
+      fwrite(pcs.data(), 1, data_size_in_bytes, output_file);
   PrintErrorAndExitIf(num_bytes_written != data_size_in_bytes,
                       "wrong number of bytes written for pc table");
   fclose(output_file);
