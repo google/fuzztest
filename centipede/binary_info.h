@@ -15,8 +15,11 @@
 #ifndef THIRD_PARTY_CENTIPEDE_BINARY_INFO_H_
 #define THIRD_PARTY_CENTIPEDE_BINARY_INFO_H_
 
+#include <string_view>
+
 #include "./centipede/call_graph.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 
 namespace centipede {
@@ -30,6 +33,17 @@ struct BinaryInfo {
   ControlFlowGraph control_flow_graph;
   CallGraph call_graph;
   bool uses_legacy_trace_pc_instrumentation = false;
+
+  // Initializes `pc_table`, `symbols`, `cf_table` and
+  // `uses_legacy_trace_pc_instrumentation` based on `binary_path_with_args`.
+  // * `binary_path_with_args` is the path to the instrumented binary,
+  // possibly with space-separated arguments.
+  // * `objdump_path` and `symbolizer_path` are paths to respective tools.
+  // * `tmp_dir_path` is a path to a temp dir, that must exist.
+  void InitializeFromSanCovBinary(std::string_view binary_path_with_args,
+                                  std::string_view objdump_path,
+                                  std::string_view symbolizer_path,
+                                  std::string_view tmp_dir_path);
 };
 
 }  // namespace centipede

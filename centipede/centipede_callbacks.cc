@@ -24,6 +24,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
@@ -35,17 +36,9 @@
 namespace centipede {
 
 void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
-  // Running in main thread, create our own temp dir.
-  if (!std::filesystem::exists(temp_dir_)) {
-    CreateLocalDirRemovedAtExit(temp_dir_);
-  }
-
-  // Load PC table.
-  std::string pc_table_path =
-      std::filesystem::path(temp_dir_).append("pc_table");
-  binary_info.pc_table = GetPcTableFromBinary(
-      env_.coverage_binary, env_.objdump_path, pc_table_path,
-      &binary_info.uses_legacy_trace_pc_instrumentation);
+  binary_info.InitializeFromSanCovBinary(
+      env_.coverage_binary, env_.objdump_path, env_.symbolizer_path, temp_dir_);
+  // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
       LOG(ERROR) << "Could not get PC table; exiting (override with "
@@ -56,11 +49,7 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
                     "not be used";
     return;
   }
-  // Load CF table.
-  std::string cf_table_path =
-      std::filesystem::path(temp_dir_).append("cf_table");
-  binary_info.cf_table =
-      GetCfTableFromBinary(env_.coverage_binary, cf_table_path);
+  // Check CF table.
   if (binary_info.cf_table.empty()) {
     LOG(WARNING)
         << "Could not get CF table; binary should be built with Clang 16 (or "
@@ -77,16 +66,6 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
                                                  binary_info.pc_table);
     }
   }
-
-  // Load Symbols.
-  std::vector<std::string> coverage_binary_argv = absl::StrSplit(
-      env_.coverage_binary, absl::ByAnyChar{" \t\n"}, absl::SkipWhitespace{});
-  CHECK(!coverage_binary_argv.empty());
-  std::string binary_name = coverage_binary_argv[0];
-  std::string tmp1 = std::filesystem::path(temp_dir_).append("sym-tmp1");
-  std::string tmp2 = std::filesystem::path(temp_dir_).append("sym-tmp2");
-  binary_info.symbols.GetSymbolsFromBinary(binary_info.pc_table, binary_name,
-                                           env_.symbolizer_path, tmp1, tmp2);
 }
 
 std::string CentipedeCallbacks::ConstructRunnerFlags(

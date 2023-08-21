@@ -531,6 +531,7 @@ cc_library(
 
 cc_library(
     name = "binary_info",
+    srcs = ["binary_info.cc"],
     hdrs = [
         "binary_info.h",
     ],
@@ -538,6 +539,10 @@ cc_library(
     deps = [
         ":call_graph",
         ":control_flow",
+        ":pc_info",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
     ],
 )
 
