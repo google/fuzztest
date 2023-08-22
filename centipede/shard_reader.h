@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_SHARD_READER_H_
 #define THIRD_PARTY_CENTIPEDE_SHARD_READER_H_
 
+#include <functional>
 #include <string_view>
 
 #include "./centipede/defs.h"
