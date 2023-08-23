@@ -15,13 +15,16 @@
 #include "./centipede/config_init.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
 #include "absl/flags/parse.h"
+#include "absl/flags/usage_config.h"
 #include "absl/log/globals.h"
 #include "absl/log/initialize.h"
+#include "absl/strings/match.h"
 #include "./centipede/config_util.h"
 
 namespace centipede::config {
@@ -32,6 +35,13 @@ ABSL_ATTRIBUTE_WEAK std::vector<std::string> /*leftover_argv*/ InitRuntime(
   // Make `LOG(INFO)` to go to stderr by default. Note that an explicit
   // `--stderrthreshold=N` on the command line will override this.
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+  // Make --help print any flags defined by any Centipede source.
+  absl::SetFlagsUsageConfig({
+      .contains_help_flags =
+          [](std::string_view filename) {
+            return absl::StrContains(filename, "centipede");
+          },
+  });
   // Parse the known flags from the command line.
   std::vector<std::string> leftover_argv =
       CastArgv(absl::ParseCommandLine(argc, argv));
