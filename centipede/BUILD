@@ -215,6 +215,21 @@ cc_library(
 )
 
 cc_library(
+    name = "config_init",
+    srcs = ["config_init.cc"],
+    hdrs = ["config_init.h"],
+    visibility = TEMP_EXTENDED_VISIBILITY,
+    deps = [
+        ":config_util",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:initialize",
+    ],
+)
+
+cc_library(
     name = "config_file",
     srcs = ["config_file.cc"],
     hdrs = ["config_file.h"],
