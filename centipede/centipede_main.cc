@@ -16,12 +16,10 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/config_file.h"
-#include "./centipede/config_init.h"
 #include "./centipede/environment.h"
 
 int main(int argc, char** argv) {
-  const auto leftover_argv = centipede::config::InitCentipede(
-      argc, argv, centipede::config::InitRuntime);
+  const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
 
   centipede::Environment env{leftover_argv};
   centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>

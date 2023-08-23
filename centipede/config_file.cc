@@ -32,6 +32,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
+#include "./centipede/config_init.h"
 #include "./centipede/config_util.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
@@ -229,16 +230,15 @@ $2 "$${flags[@]}"
   return path;
 }
 
-std::vector<std::string> InitCentipede(
-    int argc, char** argv, const MainRuntimeInit& main_runtime_init) {
+std::vector<std::string> InitCentipede(int argc, char** argv) {
   std::vector<std::string> leftover_argv;
 
   // main_runtime_init() is allowed to remove recognized flags from `argv`, so
   // we need a copy.
   const std::vector<std::string> saved_argv = CastArgv(argc, argv);
 
-  // Among other things, this should perform the initial command line parsing.
-  leftover_argv = main_runtime_init(argc, argv);
+  // Among other things, this performs the initial command line parsing.
+  leftover_argv = InitRuntime(argc, argv);
 
   // If --config=<path> was passed, replace it with the Abseil Flags' built-in
   // --flagfile=<localized_path> and reparse the command line. NOTE: It would be

@@ -91,21 +91,14 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
 std::filesystem::path MaybeSaveConfigToFile(
     const std::vector<std::string>& leftover_argv);
 
-// The main runtime initialization sequence of steps. Should parse the command
-// line, e.g. by calling absl::ParseCommandLine(), and return the leftover
-// positional arguments.
-using MainRuntimeInit =
-    std::function<std::vector<std::string>(int argc, char** argv)>;
-
 // Initializes Centipede:
-// - Calls `main_runtime_init` at the right time to initialize the runtime
+// - Calls `InitRuntime()` at the right time to initialize the runtime
 //   subsystems and perform the initial flag parsing.
 // - Handles config-related flags: loads the config from --config, if any,
 //   and saves it to --save_config (or --update_config), if any.
 // - Logs the final resolved config.
 // - Returns the leftover positional command line arguments in
-[[nodiscard]] std::vector<std::string> InitCentipede(
-    int argc, char** argv, const MainRuntimeInit& main_runtime_init);
+[[nodiscard]] std::vector<std::string> InitCentipede(int argc, char** argv);
 
 }  // namespace centipede::config
 

@@ -26,7 +26,6 @@
 #include "./centipede/centipede_interface.h"
 #include "./centipede/command.h"
 #include "./centipede/config_file.h"
-#include "./centipede/config_init.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/execution_result.h"
@@ -110,8 +109,7 @@ class CustomizedCallbacks : public CentipedeCallbacks {
 }  // namespace centipede
 
 int main(int argc, char** argv) {
-  const auto leftover_argv = centipede::config::InitCentipede(
-      argc, argv, centipede::config::InitRuntime);
+  const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
 
   // Reads flags; must happen after ParseCommandLine().
   centipede::Environment env{leftover_argv};

@@ -40,7 +40,6 @@ cc_binary(
         ":centipede_default_callbacks",
         ":centipede_interface",
         ":config_file",
-        ":config_init",
         ":environment",
         "@com_google_absl//absl/log:flags",
     ],
@@ -230,6 +229,7 @@ cc_library(
     hdrs = ["config_file.h"],
     visibility = TEMP_EXTENDED_VISIBILITY,
     deps = [
+        ":config_init",
         ":config_util",
         ":logging",
         ":remote_file",
