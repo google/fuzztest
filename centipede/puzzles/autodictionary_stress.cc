@@ -26,10 +26,10 @@
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   auto beg = data;
-  auto end = data + size;
+  const auto end = data + size;
 
-  auto cmp_and_forward = [&](const char *str) {
-    auto len = strlen(str);
+  auto memcmp_and_forward = [&](const char *str) {
+    const auto len = strlen(str);
     if (end - beg >= len && memcmp(beg, str, len) == 0) {
       beg += len;
       return true;
@@ -37,8 +37,23 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     return false;
   };
 
-  if (cmp_and_forward("abcd") && cmp_and_forward("xyz") &&
-      cmp_and_forward("VeryLongString")) {
+  constexpr size_t kBufSize = 32;
+  char buf[kBufSize];
+
+  auto strcmp_and_forward = [&](const char *str) {
+    const auto len = strlen(str);
+    if (len >= kBufSize || end - beg < len) return false;
+    memcpy(buf, beg, len);
+    buf[len] = 0;
+    if (strcmp(buf, str) == 0) {
+      beg += len;
+      return true;
+    }
+    return false;
+  };
+
+  if (memcmp_and_forward("abcd") && memcmp_and_forward("xyz") &&
+      strcmp_and_forward("VeryLongString")) {
     abort();
   }
 
