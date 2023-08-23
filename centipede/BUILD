@@ -57,6 +57,7 @@ cc_binary(
     srcs = ["seed_corpus_maker.cc"],
     deps = [
         ":config_init",
+        ":seed_corpus_maker_flags",
         ":seed_corpus_maker_lib",
         "@com_google_absl//absl/flags:flag",
     ],
@@ -901,6 +902,14 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf",
     ],
+)
+
+# Flags for :seed_corpus_maker.
+cc_library(
+    name = "seed_corpus_maker_flags",
+    srcs = ["seed_corpus_maker_flags.cc"],
+    hdrs = ["seed_corpus_maker_flags.h"],
+    deps = ["@com_google_absl//absl/flags:flag"],
 )
 
 ################################################################################
