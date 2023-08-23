@@ -14,12 +14,35 @@
 
 #include "./centipede/config_util.h"
 
+#include <set>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 
 namespace centipede::config {
+
+std::vector<char*> CastArgv(const std::vector<std::string>& argv) {
+  std::vector<char*> ret_argv;
+  ret_argv.reserve(argv.size());
+  for (const auto& arg : argv) {
+    ret_argv.push_back(const_cast<char*>(arg.c_str()));
+  }
+  return ret_argv;
+}
+
+std::vector<std::string> CastArgv(const std::vector<char*>& argv) {
+  return {argv.cbegin(), argv.cend()};
+}
+
+std::vector<std::string> CastArgv(int argc, char** argv) {
+  return {argv, argv + argc};
+}
 
 FlagInfosPerSource GetFlagsPerSource(
     std::string_view source_prefix,

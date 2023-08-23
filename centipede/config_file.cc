@@ -14,9 +14,11 @@
 
 #include "./centipede/config_file.h"
 
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -25,10 +27,10 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"
 #include "absl/log/check.h"
-#include "absl/strings/match.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/substitute.h"
 #include "./centipede/config_util.h"
 #include "./centipede/logging.h"
@@ -82,23 +84,6 @@ ABSL_DECLARE_FLAG(std::vector<std::string>, flagfile);
 #define DASHED_FLAG_NAME(name) "--" << FLAGS_##name.Name()
 
 namespace centipede::config {
-
-std::vector<char*> CastArgv(const std::vector<std::string>& argv) {
-  std::vector<char*> ret_argv;
-  ret_argv.reserve(argv.size());
-  for (const auto& arg : argv) {
-    ret_argv.push_back(const_cast<char*>(arg.c_str()));
-  }
-  return ret_argv;
-}
-
-std::vector<std::string> CastArgv(const std::vector<char*>& argv) {
-  return {argv.cbegin(), argv.cend()};
-}
-
-std::vector<std::string> CastArgv(int argc, char** argv) {
-  return {argv, argv + argc};
-}
 
 AugmentedArgvWithCleanup::AugmentedArgvWithCleanup(
     const std::vector<std::string>& orig_argv, const Replacements& replacements,

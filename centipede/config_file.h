@@ -25,19 +25,6 @@
 
 namespace centipede::config {
 
-// A set of overloads to cast argv between vector<string> and main()-compatible
-// vector<char*> or argc/argv pair in both directions. The result can be used
-// like this:
-//   AugmentedArgvWithCleanup new_argv{CastArgv(argc, argv), ...};
-//   std::vector<std::string> leftover_argv =
-//       CastArgv(absl::ParseCommandLine(
-//           new_argv.argc(), CastArgv(new_argv.argv()).data());
-std::vector<std::string> CastArgv(int argc, char** argv);
-std::vector<std::string> CastArgv(const std::vector<char*>& argv);
-// WARNING: Beware of the lifetimes. The returned vector<char*> referenced the
-// passed `argv`, so `argv` must outlive it.
-std::vector<char*> CastArgv(const std::vector<std::string>& argv);
-
 // Constructs an augmented copy of `argv` with any substrings appearing in the
 // original elements replaced according to a list replacements.
 // TODO(ussuri): Make more robust. What we really want is replace any possible

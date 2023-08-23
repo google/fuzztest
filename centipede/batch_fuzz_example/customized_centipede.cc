@@ -29,6 +29,7 @@
 #include "./centipede/centipede_interface.h"
 #include "./centipede/command.h"
 #include "./centipede/config_file.h"
+#include "./centipede/config_util.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/execution_result.h"

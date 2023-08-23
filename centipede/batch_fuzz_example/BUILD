@@ -43,6 +43,7 @@ cc_binary(
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:command",
         "@com_google_fuzztest//centipede:config_file",
+        "@com_google_fuzztest//centipede:config_util",
         "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:execution_result",
