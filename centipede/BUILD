@@ -40,13 +40,9 @@ cc_binary(
         ":centipede_default_callbacks",
         ":centipede_interface",
         ":config_file",
-        ":config_util",
+        ":config_init",
         ":environment",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:flags",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
     ],
 )
 
@@ -60,13 +56,9 @@ cc_binary(
     name = "seed_corpus_maker",
     srcs = ["seed_corpus_maker.cc"],
     deps = [
+        ":config_init",
         ":seed_corpus_maker_lib",
-        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/log:initialize",
     ],
 )
 

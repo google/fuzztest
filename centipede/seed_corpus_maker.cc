@@ -15,12 +15,8 @@
 #include <cstdlib>
 #include <string>
 
-#include "absl/base/log_severity.h"
 #include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
-#include "absl/log/check.h"
-#include "absl/log/globals.h"
-#include "absl/log/initialize.h"
+#include "./centipede/config_init.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 
 ABSL_FLAG(
@@ -37,19 +33,11 @@ ABSL_FLAG(
     std::string, out_dir, "",
     "If non-empty, overrides the `destination.dir_path` field in the resolved "
     "--config protobuf.");
-
 int main(int argc, char** argv) {
-  // NB: The invocation order below is important.
-  // By default, log everything to stderr. Overridable by --stderrthreshold=N.
-  absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
-  absl::ParseCommandLine(argc, argv);
-  absl::InitializeLog();
+  (void)centipede::config::InitRuntime(argc, argv);
 
-  const std::string config_spec = absl::GetFlag(FLAGS_config);
-  QCHECK(!config_spec.empty());
-  const std::string out_dir = absl::GetFlag(FLAGS_out_dir);
-
-  centipede::GenerateSeedCorpusFromConfig(config_spec, out_dir);
+  centipede::GenerateSeedCorpusFromConfig(  //
+      absl::GetFlag(FLAGS_config), absl::GetFlag(FLAGS_out_dir));
 
   return EXIT_SUCCESS;
 }
