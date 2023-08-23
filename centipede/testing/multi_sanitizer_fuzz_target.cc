@@ -21,29 +21,47 @@
 
 [[maybe_unused]] static volatile void *sink;
 
+__attribute__((optnone)) void asan_uaf() {
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+  int *x = new int;
+  fprintf(stderr, "uaf %p\n", x);
+  sink = x;
+  delete x;
+  *x = 0;
+#endif
+#endif
+}
+
+__attribute__((optnone)) void msan_uum() {
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+  int *x = new int[10];
+  fprintf(stderr, "uum %p\n", x);
+  if (x[5]) fprintf(stderr, "inside uum-controlled condition\n");
+  delete[] x;
+#endif
+#endif
+}
+
+__attribute__((optnone)) void tsan_rac() {
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+  int racy_var = 0;
+  std::thread t([&racy_var]() { ++racy_var; });
+  ++racy_var;
+  t.join();
+#endif
+#endif
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if (size != 3) return 0;  // Make bugs easy to discover.
   // "uaf" => heap-use-after-free
-  if (data[0] == 'u' && data[1] == 'a' && data[2] == 'f') {
-    int *x = new int;
-    fprintf(stderr, "uaf %p\n", x);
-    sink = x;
-    delete x;
-    *x = 0;
-  }
+  if (data[0] == 'u' && data[1] == 'a' && data[2] == 'f') asan_uaf();
   // "uum" => use of uninitialized memory
-  if (data[0] == 'u' && data[1] == 'u' && data[2] == 'm') {
-    int *x = new int[10];
-    fprintf(stderr, "uum %p\n", x);
-    if (x[5]) fprintf(stderr, "inside uum-controlled condition\n");
-    delete[] x;
-  }
+  if (data[0] == 'u' && data[1] == 'u' && data[2] == 'm') msan_uum();
   // "rac" => data race
-  if (data[0] == 'r' && data[1] == 'a' && data[2] == 'c') {
-    int racy_var = 0;
-    std::thread t([&racy_var]() { ++racy_var; });
-    ++racy_var;
-    t.join();
-  }
+  if (data[0] == 'r' && data[1] == 'a' && data[2] == 'c') tsan_rac();
   return 0;
 }
