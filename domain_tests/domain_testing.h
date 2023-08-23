@@ -27,9 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "google/protobuf/repeated_field.h"
-#include "google/protobuf/util/field_comparator.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -43,6 +40,8 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
+#include "google/protobuf/util/field_comparator.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace fuzztest {
 
