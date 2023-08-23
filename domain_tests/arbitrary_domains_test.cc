@@ -16,6 +16,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -28,8 +29,6 @@
 #include <variant>
 #include <vector>
 
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -37,13 +36,15 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace fuzztest {
 namespace {

@@ -26,7 +26,6 @@
 #include <string_view>
 #include <vector>
 
-#include "google/protobuf/text_format.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -40,6 +39,7 @@
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/seed_corpus_config.pb.h"
+#include "google/protobuf/text_format.h"
 
 // TODO(ussuri): Add unit tests.
 // TODO(ussuri): Parallelize I/O where possible.
