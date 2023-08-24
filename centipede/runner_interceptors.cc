@@ -64,37 +64,6 @@ void *MyThreadStart(void *arg) {
   return retval;
 }
 
-// Returns the length of the common prefix of `s1` and `s2`, but not more
-// than 63. I.e. the returned value is in [0, 64).
-size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
-  const auto *p1 = static_cast<const uint8_t *>(s1);
-  const auto *p2 = static_cast<const uint8_t *>(s2);
-  static constexpr size_t kMaxLen = 63;
-  if (n > kMaxLen) n = kMaxLen;
-  for (size_t i = 0; i < n; ++i) {
-    if (p1[i] != p2[i]) return i;
-  }
-  return n;
-}
-
-// Traces the memory comparison of `n` bytes at `s1` and `s2` called at
-// `caller_pc` with `is_equal` indicating whether the two memory regions have
-// equal contents. May add cmp features and auto-dictionary entries if enabled.
-void TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1, const uint8_t *s2,
-                 size_t n, bool is_equal) {
-  if (state.run_time_flags.use_cmp_features) {
-    const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
-    const uintptr_t hash =
-        centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
-    const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
-    // lcp is a 6-bit number.
-    state.cmp_feature_set.set((hash << 6) | lcp);
-  }
-  if (!is_equal && state.run_time_flags.use_auto_dictionary) {
-    tls.cmp_traceN.Capture(n, s1, s2);
-  }
-}
-
 // Normalize the *cmp result value to be one of {1, -1, 0}.
 // According to the spec, *cmp can return any positive or negative value,
 // and in fact it does return various different positive and negative values
@@ -138,9 +107,9 @@ static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
 extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
   const int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
-  TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
-              reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result == 0);
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t *>(s1),
+                  reinterpret_cast<const uint8_t *>(s2), n, result == 0);
   return NormalizeCmpResult(result);
 }
 
@@ -153,9 +122,9 @@ extern "C" int strcmp(const char *s1, const char *s2) {
       // Need to include one more byte than the shorter string length
       // when falling back to memcmp e.g. "foo" < "foobar".
       strcmp_orig ? strcmp_orig(s1, s2) : memcmp_fallback(s1, s2, len + 1);
-  TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
-              reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), len, result == 0);
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t *>(s1),
+                  reinterpret_cast<const uint8_t *>(s2), len, result == 0);
   return NormalizeCmpResult(result);
 }
 

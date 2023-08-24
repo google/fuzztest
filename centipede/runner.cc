@@ -58,6 +58,22 @@ __attribute__((
     weak)) extern centipede::feature_t __stop___centipede_extra_features;
 
 namespace centipede {
+namespace {
+
+// Returns the length of the common prefix of `s1` and `s2`, but not more
+// than 63. I.e. the returned value is in [0, 64).
+size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
+  const auto *p1 = static_cast<const uint8_t *>(s1);
+  const auto *p2 = static_cast<const uint8_t *>(s2);
+  static constexpr size_t kMaxLen = 63;
+  if (n > kMaxLen) n = kMaxLen;
+  for (size_t i = 0; i < n; ++i) {
+    if (p1[i] != p2[i]) return i;
+  }
+  return n;
+}
+
+}  // namespace
 
 // Use of the fixed init priority allows to call CentipedeRunnerMain
 // from constructor functions (CentipedeRunnerMain needs to run after
@@ -88,6 +104,22 @@ static void WriteFailureDescription(const char *description) {
   }
   if (fclose(f) != 0) {
     perror("FAILURE: fclose()");
+  }
+}
+
+void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
+                                         const uint8_t *s2, size_t n,
+                                         bool is_equal) {
+  if (state.run_time_flags.use_cmp_features) {
+    const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
+    const uintptr_t hash =
+        centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
+    const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
+    // lcp is a 6-bit number.
+    state.cmp_feature_set.set((hash << 6) | lcp);
+  }
+  if (!is_equal && state.run_time_flags.use_auto_dictionary) {
+    cmp_traceN.Capture(n, s1, s2);
   }
 }
 
@@ -825,6 +857,9 @@ extern void ForkServerCallMeVeryEarly();
 // * linker sees them and decides to drop runner_sancov.o.
 extern void RunnerSancov();
 [[maybe_unused]] auto fake_reference_for_runner_sancov = &RunnerSancov;
+// Same for runner_sanitizer.cc.
+extern void RunnerSanitizer();
+[[maybe_unused]] auto fake_reference_for_runner_sanitizer = &RunnerSanitizer;
 
 GlobalRunnerState::GlobalRunnerState() {
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works

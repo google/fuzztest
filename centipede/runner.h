@@ -72,6 +72,13 @@ struct RunTimeFlags {
 // There is no CTOR, since we don't want to use the brittle and lazy TLS CTORs.
 // All data members are zero-initialized during thread creation.
 struct ThreadLocalRunnerState {
+  // Traces the memory comparison of `n` bytes at `s1` and `s2` called at
+  // `caller_pc` with `is_equal` indicating whether the two memory regions have
+  // equal contents. May add cmp features and auto-dictionary entries if
+  // enabled.
+  void TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1, const uint8_t *s2,
+                   size_t n, bool is_equal);
+
   // Intrusive doubly-linked list of TLS objects.
   // Guarded by state.tls_list_mu.
   ThreadLocalRunnerState *next, *prev;
