@@ -66,6 +66,20 @@ cc_library(
 )
 
 cc_library(
+    name = "centipede_adaptor",
+    srcs = ["internal/centipede_adaptor.cc"],
+    hdrs = ["internal/centipede_adaptor.h"],
+    deps = [
+        ":domain_core",
+        ":fixture_driver",
+        ":logging",
+        ":runtime",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_fuzztest//centipede:centipede_runner_no_main",
+    ],
+)
+
+cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
     hdrs = ["internal/coverage.h"],
@@ -344,7 +358,9 @@ cc_library(
         ":runtime",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:function_ref",
-    ],
+    ] + select({
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(

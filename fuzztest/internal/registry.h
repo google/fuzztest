@@ -22,6 +22,9 @@
 
 #include "absl/functional/function_ref.h"
 
+#ifdef FUZZTEST_USE_CENTIPEDE
+#include "./fuzztest/internal/centipede_adaptor.h"
+#endif
 #ifdef FUZZTEST_COMPATIBILITY_MODE
 #include "./fuzztest/internal/compatibility_mode.h"
 #endif
@@ -66,11 +69,16 @@ struct RegistrationToken {
             typename SeedProvider>
   FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
       Registration<Fixture, TargetFunction, RegBase, SeedProvider>&& reg) {
-#ifdef FUZZTEST_COMPATIBILITY_MODE
+#if defined(FUZZTEST_COMPATIBILITY_MODE) && defined(FUZZTEST_USE_CENTIPEDE)
+#error FuzzTest compatibility mode cannot work together with Centipede.
+#endif
+#if defined(FUZZTEST_COMPATIBILITY_MODE)
     using FuzzerImpl = FuzzTestExternalEngineAdaptor;
+#elif defined(FUZZTEST_USE_CENTIPEDE)
+    using FuzzerImpl = CentipedeFuzzerAdaptor;
 #else
     using FuzzerImpl = FuzzTestFuzzerImpl;
-#endif  // FUZZTEST_COMPATIBILITY_MODE
+#endif
 
     return
         [target_function = reg.target_function_, domain = reg.GetDomains(),

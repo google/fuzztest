@@ -319,6 +319,9 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 #ifdef FUZZTEST_COMPATIBILITY_MODE
   friend class FuzzTestExternalEngineAdaptor;
 #endif  // FUZZTEST_COMPATIBILITY_MODE
+  // Defined in centipede_adaptor.cc
+  friend class CentipedeFuzzerAdaptor;
+  friend class CentipedeAdaptorRunnerCallbacks;
 };
 
 }  // namespace internal

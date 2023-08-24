@@ -321,7 +321,7 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
 
 }  // namespace fuzztest::internal
 
-#ifndef FUZZTEST_COMPATIBILITY_MODE
+#if !defined(FUZZTEST_COMPATIBILITY_MODE) && !defined(FUZZTEST_USE_CENTIPEDE)
 // Sanitizer Coverage hooks.
 
 // The instrumentation runtime calls back the following function at startup,
@@ -512,4 +512,5 @@ void __sanitizer_weak_hook_strncasecmp(void *caller_pc, const char *s1,
 }
 }
 
-#endif  // FUZZTEST_COMPATIBILITY_MODE
+#endif  // !defined(FUZZTEST_COMPATIBILITY_MODE) &&
+        // !defined(FUZZTEST_USE_CENTIPEDE)
