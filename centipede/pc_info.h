@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace centipede {
@@ -67,6 +68,18 @@ struct PCGuard {
   // Returns true if `*this` is valid.
   bool IsValid() const { return pc_index != kInvalidPcIndex; }
 };
+
+// DsoInfo represents a single SanCov-instrumented DSO (library or main binary).
+struct DsoInfo {
+  // Path to the file on disk, which can be used for symbolization.
+  std::string path;
+
+  // Number of SanCov-instrumented PCs in this DSO.
+  size_t num_instrumented_pcs = 0;
+};
+
+// Array of DsoInfo.
+using DsoTable = std::vector<DsoInfo>;
 
 }  // namespace centipede
 

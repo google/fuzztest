@@ -71,6 +71,15 @@ class SanCovObjectArray {
   // This will require additional information. TODO(kcc) implement.
   std::vector<PCInfo> CreatePCTable() const;
 
+  // Returns a vector of uintptr_t corresponding to a control flow table:
+  // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow.
+  // Similar to CreatePCTable(), subtracts the ASLR base from every PC before
+  // returning.
+  std::vector<uintptr_t> CreateCfTable() const;
+
+  // Returns a DsoTable computed from all SanCovObjects.
+  DsoTable CreateDsoTable() const;
+
  private:
   static constexpr size_t kMaxSize = 1024;
   size_t size_;

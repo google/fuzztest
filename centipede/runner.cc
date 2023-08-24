@@ -669,29 +669,26 @@ static void DumpCfTable(const char *output_path) {
   PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  // Make a local copy of the cf table, and subtract the ASLR base
-  // (i.e. main_object.start_address) from every PC before dumping the table.
-  // Otherwise, we need to pass this ASLR offset at the symbolization time,
-  // e.g. via `llvm-symbolizer --adjust-vma=<ASLR offset>`.
-  // Another alternative is to build the binary w/o -fPIE or with -static.
-  const uintptr_t *data = state.cfs_beg;
-  const size_t data_size_in_words = state.cfs_end - state.cfs_beg;
-  PrintErrorAndExitIf(data_size_in_words == 0, "No data in control-flow table");
-  const size_t data_size_in_bytes = data_size_in_words * sizeof(*state.cfs_beg);
-  std::vector<intptr_t> data_copy(data_size_in_words);
-  for (size_t i = 0; i < data_size_in_words; ++i) {
-    // data_copy is an array of PCs, except for delimiter (Null) and indirect
-    // call indicator (-1).
-    if (data[i] != 0 && data[i] != -1ULL)
-      data_copy[i] = data[i] - state.main_object.start_address;
-    else
-      data_copy[i] = data[i];
-  }
-  // Dump the modified table.
+  std::vector<uintptr_t> data = state.sancov_objects.CreateCfTable();
+  size_t data_size_in_bytes = data.size() * sizeof(data[0]);
+  // Dump the table.
   auto num_bytes_written =
-      fwrite(data_copy.data(), 1, data_size_in_bytes, output_file);
+      fwrite(data.data(), 1, data_size_in_bytes, output_file);
   PrintErrorAndExitIf(num_bytes_written != data_size_in_bytes,
                       "wrong number of bytes written for cf table");
+  fclose(output_file);
+}
+
+// Dumps a DsoTable as a text file. Each line contains the file path and the
+// number of instrumented PCs.
+static void DumpDsoTable(const char *output_path) {
+  FILE *output_file = fopen(output_path, "w");
+  RunnerCheck(output_file != nullptr, "DumpDsoTable: can't open output file");
+  DsoTable dso_table = state.sancov_objects.CreateDsoTable();
+  for (const auto &entry : dso_table) {
+    fprintf(output_file, "%s %zd\n", entry.path.c_str(),
+            entry.num_instrumented_pcs);
+  }
   fclose(output_file);
 }
 
@@ -885,17 +882,28 @@ GlobalRunnerState::GlobalRunnerState() {
                 "instrumented code as a single DSO.");
   }
 
-  // Dump the pc table, if instructed.
+  // Dump the pc table, if instructed. TODO(b/295881936) remove.
   if (state.HasFlag(":dump_pc_table:")) {
     if (!state.arg1) _exit(EXIT_FAILURE);
     DumpPcTable(state.arg1);
     _exit(EXIT_SUCCESS);
   }
 
-  // Dump the control-flow table, if instructed.
+  // Dump the control-flow table, if instructed. TODO(b/295881936) remove.
   if (state.HasFlag(":dump_cf_table:")) {
     if (!state.arg1) _exit(EXIT_FAILURE);
     DumpCfTable(state.arg1);
+    _exit(EXIT_SUCCESS);
+  }
+
+  // Dump the binary info tables.
+  if (state.HasFlag(":dump_binary_info:")) {
+    RunnerCheck(state.arg1 && state.arg2 && state.arg3,
+                "dump_binary_info requires 3 arguments");
+    if (!state.arg1 || !state.arg2 || !state.arg3) _exit(EXIT_FAILURE);
+    DumpPcTable(state.arg1);
+    DumpCfTable(state.arg2);
+    DumpDsoTable(state.arg3);
     _exit(EXIT_SUCCESS);
   }
 

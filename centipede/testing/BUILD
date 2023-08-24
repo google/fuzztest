@@ -106,14 +106,14 @@ cc_library(
     name = "multi_dso_target_lib",
     srcs = ["multi_dso_target_lib.cc"],
     hdrs = ["multi_dso_target_lib.h"],
-    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table"],
+    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table,control-flow"],
 )
 
 # A fuzz target with an instrumented DSO dependency (:multi_dso_target_lib).
 cc_binary(
     name = "multi_dso_target",
     srcs = ["multi_dso_target_main.cc"],
-    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table"],
+    copts = ["-fsanitize-coverage=trace-pc-guard,pc-table,control-flow"],
     linkstatic = False,
     deps = [
         ":multi_dso_target_lib",
@@ -232,6 +232,15 @@ sh_test(
     srcs = ["instrumentation_test.sh"],
     data = [
         ":empty_fuzz_target",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
+    name = "dump_binary_info_test",
+    srcs = ["dump_binary_info_test.sh"],
+    data = [
+        ":multi_dso_target",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
 )

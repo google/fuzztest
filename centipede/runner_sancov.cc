@@ -188,9 +188,6 @@ void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
   RunnerCheck(guard_size == 0 || counter_size == 0,
               "Simulteneously using __sanitizer_cov_trace_pc_guard_init and "
               "__sanitizer_cov_8bit_counters_init");
-  RunnerCheck(std::max(guard_size, counter_size) == end - beg,
-              "__sanitizer_cov_pcs_init: mismatch between guard/counter size"
-              " and pc table size");
   if (state.pcs_beg == nullptr) {
     state.pcs_beg = beg;
     state.pcs_end = end;

@@ -137,6 +137,7 @@ struct GlobalRunnerState {
   const char *centipede_runner_flags = getenv("CENTIPEDE_RUNNER_FLAGS");
   const char *arg1 = GetStringFlag(":arg1=");
   const char *arg2 = GetStringFlag(":arg2=");
+  const char *arg3 = GetStringFlag(":arg3=");
   // The path to a file where the runner may write the description of failure.
   const char *failure_description_path =
       GetStringFlag(":failure_description_path=");

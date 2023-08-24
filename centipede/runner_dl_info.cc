@@ -16,6 +16,7 @@
 
 #include <elf.h>
 #include <link.h>  // dl_iterate_phdr
+#include <unistd.h>
 
 #include <cinttypes>
 #include <cstddef>
@@ -146,8 +147,13 @@ int DlIteratePhdrPCCallback(struct dl_phdr_info *info, size_t unused,
   if (param->pc >= info->dlpi_addr + size) return 0;  // wrong DSO.
   result.start_address = info->dlpi_addr;
   result.size = size;
-  // copy dlpi_name to result.path.
-  strncpy(result.path, info->dlpi_name, sizeof(result.path));
+  if (strlen(info->dlpi_name) != 0) {
+    // copy dlpi_name to result.path.
+    strncpy(result.path, info->dlpi_name, sizeof(result.path));
+  } else {
+    // dlpi_name is empty, this is the main binary, get path via /proc/self/exe.
+    readlink("/proc/self/exe", result.path, sizeof(result.path));
+  }
   result.path[sizeof(result.path) - 1] = 0;
   return 0;  // Found what we are looking for.
 }

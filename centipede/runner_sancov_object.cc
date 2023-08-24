@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "./centipede/pc_info.h"
@@ -87,24 +88,47 @@ void SanCovObjectArray::CFSInit(const uintptr_t *cfs_beg,
 }
 
 std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
-  // Compute the total number of PCs in all objects.
-  size_t num_pcs = 0;
-  for (const auto &object : objects_) {
-    num_pcs += object.pcs_end - object.pcs_beg;
-  }
   // Populate the result.
-  std::vector<PCInfo> result(num_pcs);
+  std::vector<PCInfo> result;
   size_t idx = 0;
-  for (const auto &object : objects_) {
-    for (const auto *pc_info = object.pcs_beg; pc_info != object.pcs_end;
-         ++pc_info) {
-      result[idx] = *pc_info;
-      // Subtract the ASRL base.
-      result[idx].pc -= object.dl_info.start_address;
+  for (size_t i = 0; i < size(); ++i) {
+    const auto &object = objects_[i];
+    for (const auto *ptr = object.pcs_beg; ptr != object.pcs_end; ++ptr) {
+      auto pc_info = *ptr;
+      // Subtract the ASLR base.
+      pc_info.pc -= object.dl_info.start_address;
+      result.push_back(pc_info);
+
       ++idx;
     }
   }
-  RunnerCheck(idx == num_pcs, "error while computing pc table");
+  return result;
+}
+
+std::vector<uintptr_t> SanCovObjectArray::CreateCfTable() const {
+  // Compute the CF table.
+  std::vector<uintptr_t> result;
+  for (size_t i = 0; i < size(); ++i) {
+    const auto &object = objects_[i];
+    for (const auto *ptr = object.cfs_beg; ptr != object.cfs_end; ++ptr) {
+      uintptr_t data = *ptr;
+      // CF table is an array of PCs, except for delimiter (Null) and indirect
+      // call indicator (-1). Subtract the ASLR base only from PCs.
+      if (data != 0 && data != -1ULL) data -= object.dl_info.start_address;
+      result.push_back(data);
+    }
+  }
+  return result;
+}
+
+DsoTable SanCovObjectArray::CreateDsoTable() const {
+  DsoTable result;
+  result.reserve(size());
+  for (size_t i = 0; i < size(); ++i) {
+    const auto &object = objects_[i];
+    size_t num_instrumented_pcs = object.pcs_end - object.pcs_beg;
+    result.push_back({object.dl_info.path, num_instrumented_pcs});
+  }
   return result;
 }
 
