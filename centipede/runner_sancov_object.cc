@@ -36,6 +36,10 @@ void SanCovObjectArray::PCGuardInit(PCGuard *start, PCGuard *stop) {
   auto &sancov_object = objects_[size_++];
   sancov_object.pc_guard_start = start;
   sancov_object.pc_guard_stop = stop;
+  for (PCGuard *guard = start; guard != stop; ++guard) {
+    guard->pc_index = num_instrumented_pcs_;
+    ++num_instrumented_pcs_;
+  }
 }
 
 void SanCovObjectArray::Inline8BitCountersInit(
@@ -73,6 +77,13 @@ void SanCovObjectArray::PCInfoInit(const PCInfo *pcs_beg,
   sancov_object.pcs_end = pcs_end;
   sancov_object.dl_info = GetDlInfo(pcs_beg->pc);
   RunnerCheck(sancov_object.dl_info.IsSet(), "failed to compute dl_info");
+  if (sancov_object.pc_guard_start != nullptr) {
+    // Set is_function_entry for all the guards.
+    for (size_t i = 0, n = pcs_end - pcs_beg; i < n; ++i) {
+      sancov_object.pc_guard_start[i].is_function_entry =
+          pcs_beg[i].has_flag(PCInfo::kFuncEntry);
+    }
+  }
 }
 
 void SanCovObjectArray::CFSInit(const uintptr_t *cfs_beg,

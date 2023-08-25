@@ -191,13 +191,6 @@ void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
   if (state.pcs_beg == nullptr) {
     state.pcs_beg = beg;
     state.pcs_end = end;
-    if (guard_size != 0) {
-      // Set is_function_entry for all the guards.
-      for (size_t i = 0, n = end - beg; i < n; ++i) {
-        state.pc_guard_start[i].is_function_entry =
-            beg[i].has_flag(PCInfo::kFuncEntry);
-      }
-    }
   }
 }
 
@@ -205,8 +198,6 @@ void __sanitizer_cov_pcs_init(const PCInfo *beg, const PCInfo *end) {
 // This function is called at the DSO init time.
 void __sanitizer_cov_cfs_init(const uintptr_t *beg, const uintptr_t *end) {
   state.sancov_objects.CFSInit(beg, end);
-  state.cfs_beg = beg;
-  state.cfs_end = end;
 }
 
 // Updates the state of the paths, `path_level > 0`.
@@ -327,11 +318,6 @@ void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
     state.pc_guard_start = start;
     state.pc_guard_stop = stop;
     LazyAllocatePcCounters(stop - start);
-    size_t idx = 0;
-    for (PCGuard *guard = start; guard != stop; ++guard) {
-      guard->pc_index = idx;
-      ++idx;
-    }
   }
 }
 

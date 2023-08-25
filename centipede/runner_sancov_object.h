@@ -84,6 +84,7 @@ class SanCovObjectArray {
   static constexpr size_t kMaxSize = 1024;
   size_t size_;
   SanCovObject objects_[kMaxSize];
+  size_t num_instrumented_pcs_;  // Total number of instrumented PCs.
 };
 
 }  // namespace centipede
