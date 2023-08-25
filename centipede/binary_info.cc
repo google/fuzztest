@@ -14,6 +14,7 @@
 
 #include "./centipede/binary_info.h"
 
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
@@ -21,8 +22,11 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "./centipede/command.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/util.h"
 
 namespace centipede {
 
@@ -33,17 +37,49 @@ void BinaryInfo::InitializeFromSanCovBinary(
   const std::filesystem::path tmp_dir = tmp_dir_path;
   CHECK(std::filesystem::exists(tmp_dir) &&
         std::filesystem::is_directory(tmp_dir));
-  const std::string tmp_file_path1 = tmp_dir / "binary_info_tmp1";
-  const std::string tmp_file_path2 = tmp_dir / "binary_info_tmp2";
+  ScopedFile pc_table_path(tmp_dir_path, "pc_table_tmp");
+  ScopedFile cf_table_path(tmp_dir_path, "cf_table_tmp");
+  ScopedFile dso_table_path(tmp_dir_path, "dso_table_tmp");
+  ScopedFile log_path(tmp_dir_path, "binary_info_log_tmp");
   LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
+  Command cmd(
+      binary_path_with_args, {},
+      {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=",
+                    pc_table_path.path(), ":arg2=", cf_table_path.path(),
+                    ":arg3=", dso_table_path.path(), ":")},
+      log_path.path());
+  int exit_code = cmd.Execute();
+  if (exit_code != EXIT_SUCCESS) {
+    LOG(INFO) << __func__ << ": exit_code: " << exit_code;
+  }
+
   // Load PC Table.
-  pc_table =
-      GetPcTableFromBinary(binary_path_with_args, objdump_path, tmp_file_path1,
-                           &uses_legacy_trace_pc_instrumentation);
+  pc_table = ReadPcTableFromFile(pc_table_path.path());
+  if (pc_table.empty()) {
+    // Fallback to GetPcTableFromBinaryWithTracePC().
+    LOG(WARNING)
+        << "Failed to dump PC table directly from binary using linked-in "
+           "runner; see target execution logs above; falling back to legacy PC "
+           "table extraction using trace-pc and objdump";
+    pc_table = GetPcTableFromBinaryWithTracePC(
+        binary_path_with_args, objdump_path, pc_table_path.path());
+    if (pc_table.empty()) {
+      LOG(ERROR) << "Failed to extract PC table from binary using objdump; see "
+                    "objdump execution logs above";
+    }
+    uses_legacy_trace_pc_instrumentation = true;
+  } else {
+    uses_legacy_trace_pc_instrumentation = false;
+  }
 
   // Load CF Table.
-  cf_table = GetCfTableFromBinary(binary_path_with_args, tmp_file_path1);
+  if (std::filesystem::exists(cf_table_path.path())) {
+    cf_table =
+        GetCfTableFromBinary(binary_path_with_args, cf_table_path.path());
+  }
+
+  // TODO(b/295881936): load the DSO Table.
 
   // Load symbols, if there is a PC table.
   if (!pc_table.empty()) {
@@ -51,14 +87,12 @@ void BinaryInfo::InitializeFromSanCovBinary(
         absl::StrSplit(binary_path_with_args, absl::ByAnyChar{" \t\n"},
                        absl::SkipWhitespace{});
     CHECK(!args.empty());
+    ScopedFile sym_tmp1_path(tmp_dir_path, "symbols_tmp1");
+    ScopedFile sym_tmp2_path(tmp_dir_path, "symbols_tmp2");
     symbols.GetSymbolsFromBinary(pc_table, /*binary_path=*/args[0],
-                                 symbolizer_path, tmp_file_path1,
-                                 tmp_file_path2);
+                                 symbolizer_path, sym_tmp1_path.path(),
+                                 sym_tmp2_path.path());
   }
-
-  // Remove temp files.
-  std::filesystem::remove(tmp_file_path1);
-  std::filesystem::remove(tmp_file_path2);
 }
 
 }  // namespace centipede

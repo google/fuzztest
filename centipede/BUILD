@@ -553,8 +553,10 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":call_graph",
+        ":command",
         ":control_flow",
         ":pc_info",
+        ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",

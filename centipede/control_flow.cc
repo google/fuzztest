@@ -30,6 +30,7 @@
 
 namespace centipede {
 
+// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
 PCTable GetPcTableFromBinary(std::string_view binary_path,
                              std::string_view objdump_path,
                              std::string_view tmp_path,
@@ -52,6 +53,7 @@ PCTable GetPcTableFromBinary(std::string_view binary_path,
   return res;
 }
 
+// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
 PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
                                         std::string_view tmp_path) {
   const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
@@ -118,6 +120,7 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
   return pc_table;
 }
 
+// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
 CFTable GetCfTableFromBinary(std::string_view binary_path,
                              std::string_view tmp_path) {
   const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
