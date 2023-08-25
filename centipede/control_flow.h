@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>  //NOLINT
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -49,6 +50,9 @@ PCTable GetPcTableFromBinary(std::string_view binary_path,
 PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
                                         std::string_view tmp_path);
 
+// Reads a PCTable from `file_path`, returns it. Returns empty table on error.
+PCTable ReadPcTableFromFile(std::string_view file_path);
+
 // Helper for GetPcTableFromBinary, for binaries built with
 // -fsanitize-coverage=trace-pc. Returns the PCTable reconstructed from
 // `binary_path` with `<objdump_path> -d`. May create a file `tmp_path`, but
@@ -75,6 +79,9 @@ using CFTable = std::vector<intptr_t>;
 //     and built with -fsanitize-coverage=control-flow.
 CFTable GetCfTableFromBinary(std::string_view binary_path,
                              std::string_view tmp_path);
+
+// Reads a CFTable from `file_path`, returns it. Returns empty table on error.
+CFTable ReadCfTableFromFile(std::string_view file_path);
 
 class ControlFlowGraph {
  public:

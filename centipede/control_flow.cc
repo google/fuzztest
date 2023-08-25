@@ -14,10 +14,12 @@
 
 #include "./centipede/control_flow.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <queue>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/strings/match.h"
@@ -63,9 +65,14 @@ PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
     std::filesystem::remove(tmp_path);
     return {};
   }
-  ByteArray pc_infos_as_bytes;
-  ReadFromLocalFile(tmp_path, pc_infos_as_bytes);
+  PCTable result = ReadPcTableFromFile(tmp_path);
   std::filesystem::remove(tmp_path);
+  return result;
+}
+
+PCTable ReadPcTableFromFile(std::string_view file_path) {
+  ByteArray pc_infos_as_bytes;
+  ReadFromLocalFile(file_path, pc_infos_as_bytes);
   CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
   size_t pc_table_size = pc_infos_as_bytes.size() / sizeof(PCInfo);
   const auto *pc_infos = reinterpret_cast<PCInfo *>(pc_infos_as_bytes.data());
@@ -127,10 +134,14 @@ CFTable GetCfTableFromBinary(std::string_view binary_path,
     std::filesystem::remove(tmp_path);
     return {};
   }
-  ByteArray cf_infos_as_bytes;
-  ReadFromLocalFile(tmp_path, cf_infos_as_bytes);
+  CFTable result = ReadCfTableFromFile(tmp_path);
   std::filesystem::remove(tmp_path);
+  return result;
+}
 
+CFTable ReadCfTableFromFile(std::string_view file_path) {
+  ByteArray cf_infos_as_bytes;
+  ReadFromLocalFile(file_path, cf_infos_as_bytes);
   size_t cf_table_size = cf_infos_as_bytes.size() / sizeof(CFTable::value_type);
   const auto *cf_infos =
       reinterpret_cast<CFTable::value_type *>(cf_infos_as_bytes.data());
