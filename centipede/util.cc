@@ -186,6 +186,11 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
   dirs_to_delete_at_exit->emplace_back(path);
 }
 
+ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
+    : my_path_(std::filesystem::path(dir_path) / name) {}
+
+ScopedFile::~ScopedFile() { std::filesystem::remove_all(my_path_); }
+
 static const size_t kMagicLen = 11;
 static const uint8_t kPackBegMagic[] = "-Centipede-";
 static const uint8_t kPackEndMagic[] = "-edepitneC-";

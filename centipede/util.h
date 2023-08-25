@@ -71,6 +71,20 @@ std::string TemporaryLocalDirPath();
 // TemporaryLocalDirPath().
 void CreateLocalDirRemovedAtExit(std::string_view path);
 
+// In CTOR, creates a file path inside `dir_path`.
+// In DTOR, removes this file if it was created.
+class ScopedFile {
+ public:
+  ScopedFile(std::string_view dir_path, std::string_view name);
+  ~ScopedFile();
+
+  // Returns the path.
+  std::string_view path() const { return my_path_; }
+
+ private:
+  std::string my_path_;
+};
+
 // Requests that the process exits soon, with `exit_code`.
 // `exit_code` must be non-zero (!= EXIT_SUCCESS).
 // Async-signal-safe.
