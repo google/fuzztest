@@ -42,6 +42,7 @@ using ::fuzztest::StringOf;
 using ::fuzztest::StructOf;
 using ::fuzztest::TupleOf;
 using ::fuzztest::VectorOf;
+using ::fuzztest::internal::IRObjectTestProto;
 using ::fuzztest::internal::ProtoExtender;
 using ::fuzztest::internal::TestProtobuf;
 using ::fuzztest::internal::TestProtobufWithExtension;
@@ -416,6 +417,15 @@ bool IsChildId(const FieldDescriptor* field) {
 bool IsParent(const FieldDescriptor* field) {
   return absl::StrContains(field->name(), "parent");
 }
+
+// TODO(b/297064918): The runtime will claim that the domain below is recursive,
+// even though the recursive chain has been capped with an arbitrary proto.
+void FailsIfProtoIsDetectedAsRecursive(const IRObjectTestProto& proto) {}
+FUZZ_TEST(MySuite, FailsIfProtoIsDetectedAsRecursive)
+    .WithDomains(
+        Arbitrary<IRObjectTestProto>()
+            .WithFieldsAlwaysSet()
+            .WithRepeatedProtobufFields(Arbitrary<IRObjectTestProto>()));
 
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
