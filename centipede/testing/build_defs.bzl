@@ -148,7 +148,8 @@ def centipede_fuzz_target(
             name = fuzz_target,
             srcs = srcs or [name + ".cc"],
             deps = deps + ["@com_google_fuzztest//centipede:centipede_runner"],
-            linkopts = [
+            copts = copts,
+            linkopts = linkopts + [
                 "-ldl",
                 "-lrt",
                 "-lpthread"
