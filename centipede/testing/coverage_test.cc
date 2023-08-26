@@ -32,6 +32,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
+#include "./centipede/binary_info.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
@@ -253,9 +254,11 @@ TEST(Coverage, CoverageFeatures) {
   EXPECT_NE(features[0], features[1]);
   // Get pc_table and symbols.
   bool uses_legacy_trace_pc_instrumentation = {};
-  auto pc_table = GetPcTableFromBinary(GetTargetPath(), GetObjDumpPath(),
-                                       GetTempFilePath(0),
-                                       &uses_legacy_trace_pc_instrumentation);
+  BinaryInfo binary_info;
+  binary_info.InitializeFromSanCovBinary(GetTargetPath(), GetObjDumpPath(),
+                                         GetLLVMSymbolizerPath(),
+                                         GetTestTempDir());
+  const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
   SymbolTable symbols;
   symbols.GetSymbolsFromBinary(pc_table, GetTargetPath(),
@@ -438,11 +441,13 @@ TEST(Coverage, PathFeatures) {
 
 TEST(Coverage, FunctionFilter) {
   // Initialize coverage data.
-  bool uses_legacy_trace_pc_instrumentation = false;
-  PCTable pc_table = GetPcTableFromBinary(
-      GetTargetPath(), GetObjDumpPath(), GetTempFilePath(0),
-      &uses_legacy_trace_pc_instrumentation);
-  EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
+  BinaryInfo binary_info;
+  binary_info.InitializeFromSanCovBinary(GetTargetPath(), GetObjDumpPath(),
+                                         GetLLVMSymbolizerPath(),
+                                         GetTestTempDir());
+
+  const PCTable &pc_table = binary_info.pc_table;
+  EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);
   SymbolTable symbols;
   symbols.GetSymbolsFromBinary(pc_table, GetTargetPath(),
                                GetLLVMSymbolizerPath(), GetTempFilePath(0),

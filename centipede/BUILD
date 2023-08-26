@@ -1293,6 +1293,7 @@ cc_test(
     ],
     tags = ["not_run:arm"],
     deps = [
+        ":binary_info",
         ":control_flow",
         ":defs",
         ":logging",

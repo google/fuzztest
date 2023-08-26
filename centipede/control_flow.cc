@@ -30,48 +30,6 @@
 
 namespace centipede {
 
-// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
-PCTable GetPcTableFromBinary(std::string_view binary_path,
-                             std::string_view objdump_path,
-                             std::string_view tmp_path,
-                             bool *uses_legacy_trace_pc_instrumentation) {
-  PCTable res = GetPcTableFromBinaryWithPcTable(binary_path, tmp_path);
-  if (res.empty()) {
-    LOG(WARNING)
-        << "Failed to dump PC table directly from binary using linked-in "
-           "runner; see target execution logs above; falling back to legacy PC "
-           "table extraction using trace-pc and objdump";
-    res = GetPcTableFromBinaryWithTracePC(binary_path, objdump_path, tmp_path);
-    if (res.empty()) {
-      LOG(ERROR) << "Failed to extract PC table from binary using objdump; see "
-                    "objdump execution logs above";
-    }
-    *uses_legacy_trace_pc_instrumentation = true;
-  } else {
-    *uses_legacy_trace_pc_instrumentation = false;
-  }
-  return res;
-}
-
-// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
-PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
-                                        std::string_view tmp_path) {
-  const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
-  Command cmd(binary_path, {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_pc_table:arg1=",
-                            tmp_path, ":")},
-              stdout_stderr_path);
-  int exit_code = cmd.Execute();
-  std::filesystem::remove(stdout_stderr_path);
-  if (exit_code) {
-    std::filesystem::remove(tmp_path);
-    return {};
-  }
-  PCTable result = ReadPcTableFromFile(tmp_path);
-  std::filesystem::remove(tmp_path);
-  return result;
-}
-
 PCTable ReadPcTableFromFile(std::string_view file_path) {
   ByteArray pc_infos_as_bytes;
   ReadFromLocalFile(file_path, pc_infos_as_bytes);
@@ -118,28 +76,6 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
   }
   std::filesystem::remove(tmp_path);
   return pc_table;
-}
-
-// TODO(b/295881936) remove in favour of BinaryInfo::InitializeFromSanCovBinary.
-CFTable GetCfTableFromBinary(std::string_view binary_path,
-                             std::string_view tmp_path) {
-  const std::string stdout_stderr_path = absl::StrCat(tmp_path, ".log");
-  Command cmd(binary_path, {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_cf_table:arg1=",
-                            tmp_path, ":")},
-              stdout_stderr_path);
-  int cmd_exit_code = cmd.Execute();
-  std::filesystem::remove(stdout_stderr_path);
-  if (cmd_exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "Failed to dump CF table from binary using linked-in runner; "
-                  "see logs above. Note: binary should be built with at least "
-                  "Clang 16 and with -fsanitize-coverage=control-flow flag";
-    std::filesystem::remove(tmp_path);
-    return {};
-  }
-  CFTable result = ReadCfTableFromFile(tmp_path);
-  std::filesystem::remove(tmp_path);
-  return result;
 }
 
 CFTable ReadCfTableFromFile(std::string_view file_path) {

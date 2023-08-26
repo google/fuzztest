@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/binary_info.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/symbol_table.h"
@@ -197,7 +198,11 @@ TEST(CFTable, GetCfTable) {
   std::string tmp_path2 = GetTempFilePath(2);
 
   // Load the cf table.
-  auto cf_table = GetCfTableFromBinary(target_path, tmp_path1);
+  BinaryInfo binary_info;
+  binary_info.InitializeFromSanCovBinary(target_path, GetObjDumpPath(),
+                                         /*symbolizer_path=*/"unused",
+                                         GetTestTempDir());
+  const auto &cf_table = binary_info.cf_table;
   LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
   if (cf_table.empty()) {
     LOG(INFO) << "__sancov_cfs is empty.";
@@ -210,13 +215,8 @@ TEST(CFTable, GetCfTable) {
       std::filesystem::exists(tmp_path1.c_str()));  // tmp_path1 was deleted.
   LOG(INFO) << VV(cf_table.size());
 
-  // Load the pc table.
-  bool uses_legacy_trace_pc_instrumentation = {};
-  auto pc_table = GetPcTableFromBinary(target_path, GetObjDumpPath(), tmp_path1,
-                                       &uses_legacy_trace_pc_instrumentation);
-  EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
-  ASSERT_FALSE(
-      std::filesystem::exists(tmp_path1.c_str()));  // tmp_path1 was deleted.
+  const auto &pc_table = binary_info.pc_table;
+  EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);
   EXPECT_THAT(pc_table.empty(), false);
 
   // Symbolize pc_table.

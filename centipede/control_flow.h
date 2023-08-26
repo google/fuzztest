@@ -31,25 +31,6 @@ namespace centipede {
 
 class SymbolTable;  // To avoid mutual inclusion with symbol_table.h.
 
-// Reads the pc table from the binary file at `binary_path`. May create a file
-// `tmp_path`, but will delete it afterwards. Currently works for:
-// * binaries linked with :centipede_runner and built with
-//   -fsanitize-coverage=pc-table,
-// * binaries built with -fsanitize-coverage=trace-pc
-// Sets `*uses_legacy_trace_pc_instrumentation` to true or false, depending
-// on the type of instrumentation detected.
-PCTable GetPcTableFromBinary(std::string_view binary_path,
-                             std::string_view objdump_path,
-                             std::string_view tmp_path,
-                             bool *uses_legacy_trace_pc_instrumentation);
-
-// Helper for GetPcTableFromBinary, for binaries linked with :centipede_runner
-// and built with -fsanitize-coverage=pc-table. Returns the PCTable that the
-// binary itself reported. May create a file `tmp_path`, but will delete it
-// afterwards.
-PCTable GetPcTableFromBinaryWithPcTable(std::string_view binary_path,
-                                        std::string_view tmp_path);
-
 // Reads a PCTable from `file_path`, returns it. Returns empty table on error.
 PCTable ReadPcTableFromFile(std::string_view file_path);
 
@@ -71,14 +52,6 @@ using PCIndexVec = std::vector<PCIndex>;
 // CFTable is created by the compiler/linker in the instrumented binary.
 // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow.
 using CFTable = std::vector<intptr_t>;
-
-// Reads the control-flow table from the binary file at `binary_path`.
-// May create a file `tmp_path`, but will delete it afterwards.
-// Currently works for
-// * binaries linked with :fuzz_target_runner
-//     and built with -fsanitize-coverage=control-flow.
-CFTable GetCfTableFromBinary(std::string_view binary_path,
-                             std::string_view tmp_path);
 
 // Reads a CFTable from `file_path`, returns it. Returns empty table on error.
 CFTable ReadCfTableFromFile(std::string_view file_path);

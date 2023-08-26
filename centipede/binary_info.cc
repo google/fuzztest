@@ -74,10 +74,8 @@ void BinaryInfo::InitializeFromSanCovBinary(
   }
 
   // Load CF Table.
-  if (std::filesystem::exists(cf_table_path.path())) {
-    cf_table =
-        GetCfTableFromBinary(binary_path_with_args, cf_table_path.path());
-  }
+  if (std::filesystem::exists(cf_table_path.path()))
+    cf_table = ReadCfTableFromFile(cf_table_path.path());
 
   // TODO(b/295881936): load the DSO Table.
 

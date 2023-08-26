@@ -161,6 +161,7 @@ cc_test(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//centipede:binary_info",
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:control_flow",
         "@com_google_fuzztest//centipede:coverage",
