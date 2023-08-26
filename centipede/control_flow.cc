@@ -14,6 +14,7 @@
 
 #include "./centipede/control_flow.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
@@ -22,10 +23,14 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_split.h"
 #include "./centipede/command.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -87,6 +92,21 @@ CFTable ReadCfTableFromFile(std::string_view file_path) {
   CFTable cf_table{cf_infos, cf_infos + cf_table_size};
   CHECK_EQ(cf_table.size(), cf_table_size);
   return cf_table;
+}
+
+DsoTable ReadDsoTableFromFile(std::string_view file_path) {
+  DsoTable result;
+  std::string data;
+  ReadFromLocalFile(file_path, data);
+  for (const auto &line : absl::StrSplit(data, '\n', absl::SkipEmpty())) {
+    // Use std::string; there is no std::stoul for std::string_view.
+    const std::vector<std::string> tokens =
+        absl::StrSplit(line, ' ', absl::SkipEmpty());
+    CHECK_EQ(tokens.size(), 2) << VV(line);
+    result.push_back(
+        {.path = tokens[0], .num_instrumented_pcs = std::stoul(tokens[1])});
+  }
+  return result;
 }
 
 void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,

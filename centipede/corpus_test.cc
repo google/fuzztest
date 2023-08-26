@@ -32,7 +32,7 @@ namespace {
 TEST(Corpus, GetCmpData) {
   PCTable pc_table(100);
   CFTable cf_table(100);
-  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}};
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
   CoverageFrontier coverage_frontier(bin_info);
   FeatureSet fs(3);
   Corpus corpus;
@@ -48,7 +48,7 @@ TEST(Corpus, GetCmpData) {
 TEST(Corpus, PrintStats) {
   PCTable pc_table(100);
   CFTable cf_table(100);
-  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}};
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
   CoverageFrontier coverage_frontier(bin_info);
   FeatureSet fs(3);
   Corpus corpus;
@@ -75,7 +75,7 @@ TEST(Corpus, Prune) {
   // Prune will remove an input if all of its features appear at least 3 times.
   PCTable pc_table(100);
   CFTable cf_table(100);
-  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}};
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
   CoverageFrontier coverage_frontier(bin_info);
   FeatureSet fs(3);
   Corpus corpus;
@@ -134,7 +134,7 @@ TEST(Corpus, Prune) {
 TEST(Corpus, PruneRegressionTest1) {
   PCTable pc_table(100);
   CFTable cf_table(100);
-  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}};
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
   CoverageFrontier coverage_frontier(bin_info);
   FeatureSet fs(2);
   Corpus corpus;
@@ -300,8 +300,8 @@ TEST(CoverageFrontier, Compute) {
       16, 13, 0, 0, 17, 0, 0, 18, 0, 4, 0,  // This bb calls 4.
       19, 0, 0};
 
-  BinaryInfo bin_info = {
-      pc_table, {}, cf_table, ControlFlowGraph(), CallGraph()};
+  BinaryInfo bin_info = {pc_table,           {},         cf_table, {},
+                         ControlFlowGraph(), CallGraph()};
   bin_info.control_flow_graph.InitializeControlFlowGraph(cf_table, pc_table);
   bin_info.call_graph.InitializeCallGraph(cf_table, pc_table);
   CoverageFrontier frontier(bin_info);
@@ -379,8 +379,8 @@ TEST(CoverageFrontierDeath, InvalidIndexToFrontier) {
       0, 1, 0, 0, 1, 0, 0,
   };
 
-  BinaryInfo bin_info = {
-      pc_table, {}, cf_table, ControlFlowGraph(), CallGraph()};
+  BinaryInfo bin_info = {pc_table,           {},         cf_table, {},
+                         ControlFlowGraph(), CallGraph()};
   bin_info.control_flow_graph.InitializeControlFlowGraph(cf_table, pc_table);
   bin_info.call_graph.InitializeCallGraph(cf_table, pc_table);
   CoverageFrontier frontier(bin_info);

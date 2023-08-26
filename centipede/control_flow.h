@@ -56,6 +56,9 @@ using CFTable = std::vector<intptr_t>;
 // Reads a CFTable from `file_path`, returns it. Returns empty table on error.
 CFTable ReadCfTableFromFile(std::string_view file_path);
 
+// Reads a DsoTable from `file_path`, returns it. Returns empty table on error.
+DsoTable ReadDsoTableFromFile(std::string_view file_path);
+
 class ControlFlowGraph {
  public:
   // Reads form __sancov_cfs section. On error it crashes, if the section is not

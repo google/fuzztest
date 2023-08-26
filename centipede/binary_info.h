@@ -30,6 +30,7 @@ struct BinaryInfo {
   PCTable pc_table;
   SymbolTable symbols;
   CFTable cf_table;
+  DsoTable dso_table;
   ControlFlowGraph control_flow_graph;
   CallGraph call_graph;
   bool uses_legacy_trace_pc_instrumentation = false;

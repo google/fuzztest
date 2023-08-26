@@ -77,7 +77,17 @@ void BinaryInfo::InitializeFromSanCovBinary(
   if (std::filesystem::exists(cf_table_path.path()))
     cf_table = ReadCfTableFromFile(cf_table_path.path());
 
-  // TODO(b/295881936): load the DSO Table.
+  // Load the DSO Table.
+  dso_table = ReadDsoTableFromFile(dso_table_path.path());
+
+  if (!uses_legacy_trace_pc_instrumentation) {
+    // The number of instrumented PCs in the DSO table should match pc_table.
+    size_t num_instrumened_pcs_in_all_dsos = 0;
+    for (const auto& dso : dso_table) {
+      num_instrumened_pcs_in_all_dsos += dso.num_instrumented_pcs;
+    }
+    CHECK_EQ(num_instrumened_pcs_in_all_dsos, pc_table.size());
+  }
 
   // Load symbols, if there is a PC table.
   if (!pc_table.empty()) {
