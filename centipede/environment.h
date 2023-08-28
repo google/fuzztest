@@ -116,8 +116,6 @@ struct Environment {
 
   std::string exec_name;          // copied from argv[0]
   std::vector<std::string> args;  // copied from argv[1:].
-  // The command to execute the binary (may contain arguments).
-  const std::string cmd;
   const std::string binary_name;  // Name of `coverage_binary`, w/o directories.
   const std::string binary_hash;  // Hash of the `coverage_binary` file.
   bool has_input_wildcards = false;  // Set to true iff `binary` contains "@@".

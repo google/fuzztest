@@ -34,6 +34,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/defs.h"
 #include "./centipede/knobs.h"
@@ -477,7 +478,6 @@ Environment::Environment(const std::vector<std::string> &argv)
       shmem_size_mb(absl::GetFlag(FLAGS_shmem_size_mb)),
       use_posix_shmem(absl::GetFlag(FLAGS_use_posix_shmem)),
       dry_run(absl::GetFlag(FLAGS_dry_run)),
-      cmd(binary),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
       binary_hash(absl::GetFlag(FLAGS_binary_hash).empty()
                       ? HashOfFileContents(coverage_binary)
