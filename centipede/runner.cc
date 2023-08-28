@@ -882,20 +882,6 @@ GlobalRunnerState::GlobalRunnerState() {
                 "instrumented code as a single DSO.");
   }
 
-  // Dump the pc table, if instructed. TODO(b/295881936) remove.
-  if (state.HasFlag(":dump_pc_table:")) {
-    if (!state.arg1) _exit(EXIT_FAILURE);
-    DumpPcTable(state.arg1);
-    _exit(EXIT_SUCCESS);
-  }
-
-  // Dump the control-flow table, if instructed. TODO(b/295881936) remove.
-  if (state.HasFlag(":dump_cf_table:")) {
-    if (!state.arg1) _exit(EXIT_FAILURE);
-    DumpCfTable(state.arg1);
-    _exit(EXIT_SUCCESS);
-  }
-
   // Dump the binary info tables.
   if (state.HasFlag(":dump_binary_info:")) {
     RunnerCheck(state.arg1 && state.arg2 && state.arg3,
@@ -933,9 +919,6 @@ GlobalRunnerState::~GlobalRunnerState() {
   }
 }
 
-// If HasFlag(:dump_pc_table:), dump the pc table to state.arg1.
-//   Used to import the pc table into the caller process.
-//
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
 //  of in/out shared memory locations.
 //  Read inputs and write outputs via shared memory.

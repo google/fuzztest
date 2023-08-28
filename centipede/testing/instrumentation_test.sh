@@ -29,9 +29,12 @@ echo "pc table allowed size: ${ALLOWED_SIZE}"
 
 target="$(centipede::get_centipede_test_srcdir)/testing/empty_fuzz_target"
 pc_table="${TEST_TMPDIR}/pc_table"
+unused1="${TEST_TMPDIR}/unused1"
+unused2="${TEST_TMPDIR}/unused2"
 
 # Dump the pc table on disk.
-CENTIPEDE_RUNNER_FLAGS=":dump_pc_table:arg1=${pc_table}:" "${target}"
+CENTIPEDE_RUNNER_FLAGS=":dump_binary_info:arg1=${pc_table}:arg2=${unused1}:arg3=${unused2}:" \
+  "${target}"
 
 # Check the pc table size.
 size=$(stat -c %s "${pc_table}")
