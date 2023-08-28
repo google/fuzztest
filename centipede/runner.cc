@@ -182,21 +182,21 @@ static void CheckWatchdogLimits() {
           .units = "sec",
           .value = curr_time - state.input_start_time,
           .limit = state.run_time_flags.timeout_per_input,
-          .failure = kExecutionFailurePerInputTimeout.data(),
+          .failure = runner_result::kExecutionFailurePerInputTimeout.data(),
       },
       {
           .what = "Per-batch timeout",
           .units = "sec",
           .value = curr_time - state.batch_start_time,
           .limit = state.run_time_flags.timeout_per_batch,
-          .failure = kExecutionFailurePerBatchTimeout.data(),
+          .failure = runner_result::kExecutionFailurePerBatchTimeout.data(),
       },
       {
           .what = "RSS limit",
           .units = "MB",
           .value = GetPeakRSSMb(),
           .limit = state.run_time_flags.rss_limit_mb,
-          .failure = kExecutionFailureRssLimitExceeded.data(),
+          .failure = runner_result::kExecutionFailureRssLimitExceeded.data(),
       },
   };
   for (const auto &resource : resources) {
@@ -578,14 +578,14 @@ __attribute__((noinline)) bool AppendCmpEntries(CmpTrace &cmp_trace,
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
-  return BatchResult::WriteInputBegin(outputs_blobseq);
+  return runner_result::BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(
+  if (!runner_result::BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
     return false;
   }
@@ -602,12 +602,14 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
     });
     if (append_failed) return false;
   }
-  if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteMetadata(metadata, outputs_blobseq))
+    return false;
 
   // Write the stats.
-  if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteStats(state.stats, outputs_blobseq))
+    return false;
   // We are done with this input.
-  if (!BatchResult::WriteInputEnd(outputs_blobseq)) return false;
+  if (!runner_result::BatchResult::WriteInputEnd(outputs_blobseq)) return false;
   return true;
 }
 
@@ -689,6 +691,28 @@ static void DumpDsoTable(const char *output_path) {
             entry.num_instrumented_pcs);
   }
   fclose(output_file);
+}
+
+// Handles a seed request, see RequestSeeds().
+// Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
+static int GenerateSeedsToShmem(BlobSequence &inputs_blobseq,
+                                BlobSequence &outputs_blobseq,
+                                RunnerCallbacks &callbacks) {
+  size_t num_seeds = 0;
+  if (!runner_request::IsSeedRequest(inputs_blobseq.Read()))
+    return EXIT_FAILURE;
+  if (!runner_request::IsNumSeeds(inputs_blobseq.Read(), num_seeds))
+    return EXIT_FAILURE;
+
+  bool success = true;
+  const size_t num_avail_seeds =
+      callbacks.GetSeeds(num_seeds, [&](ByteSpan seed) {
+        success =
+            success && runner_result::WriteInputData(seed, outputs_blobseq);
+      });
+  success = success &&
+            runner_result::WriteNumAvailSeeds(num_avail_seeds, outputs_blobseq);
+  return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 // Returns a random seed. No need for a more sophisticated seed.
@@ -951,6 +975,11 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
       state.byte_array_mutator =
           new ByteArrayMutator(state.knobs, GetRandomSeed());
       return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    }
+    if (runner_request::IsSeedRequest(request_type_blob)) {
+      // Seed request.
+      inputs_blobseq.Reset();
+      return GenerateSeedsToShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
     if (runner_request::IsExecutionRequest(request_type_blob)) {
       // Execution request.

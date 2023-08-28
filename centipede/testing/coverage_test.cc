@@ -210,7 +210,7 @@ class TestCallbacks : public CentipedeCallbacks {
  public:
   explicit TestCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+               runner_result::BatchResult &batch_result) override {
     int result =
         ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result);
     CHECK_EQ(EXIT_SUCCESS, result);
@@ -232,7 +232,7 @@ static std::vector<FeatureVec> RunInputsAndCollectCoverage(
   for (auto &string_input : inputs) {
     byte_array_inputs.emplace_back(string_input.begin(), string_input.end());
   }
-  BatchResult batch_result;
+  runner_result::BatchResult batch_result;
   // Run.
   CBs.Execute(env.binary, byte_array_inputs, batch_result);
 

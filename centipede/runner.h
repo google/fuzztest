@@ -278,7 +278,7 @@ struct GlobalRunnerState {
   ConcurrentBitSet<kPathBitSetSize> path_feature_set{absl::kConstInit};
 
   // Execution stats for the currently executed input.
-  ExecutionResult::Stats stats;
+  runner_result::ExecutionResult::Stats stats;
 
   // Used by trace_pc instrumentation. Populated if `pcs_file_path` flag is set.
   ReversePCTable reverse_pc_table;

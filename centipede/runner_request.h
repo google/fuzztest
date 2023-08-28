@@ -32,6 +32,10 @@ namespace centipede::runner_request {
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
                         BlobSequence &blobseq);
 
+// Sends a request (via `blobseq`) to retrieve at most `num_seeds` seed inputs
+// Returns true if the request is sent successfully, false otherwise.
+bool RequestSeeds(size_t num_seeds, BlobSequence &blobseq);
+
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants,
@@ -41,12 +45,19 @@ size_t RequestMutation(size_t num_mutants,
 // Returns whether `blob` indicates an execution request.
 bool IsExecutionRequest(Blob blob);
 
+// Returns whether `blob` indicates a seed request.
+bool IsSeedRequest(Blob blob);
+
 // Returns whether `blob` indicates a mutation request.
 bool IsMutationRequest(Blob blob);
 
 // Returns true and sets `num_inputs`
 // iff the blob indicates the number of inputs.
 bool IsNumInputs(Blob blob, size_t &num_inputs);
+
+// Returns true and sets `num_seeds`
+// iff the blob indicates the number of seeds.
+bool IsNumSeeds(Blob blob, size_t &num_seeds);
 
 // Returns true and sets `num_mutants`
 // iff the blob indicates the number of mutants.

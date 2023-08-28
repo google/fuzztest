@@ -301,6 +301,7 @@ cc_library(
         ":defs",
         ":environment",
         ":logging",
+        ":runner_result",
         ":util",
         "@com_google_absl//absl/synchronization",
     ],
@@ -363,6 +364,7 @@ cc_library(
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
+        ":defs",
         ":feature",
         ":execution_metadata",
         ":runner_cmp_trace",
@@ -1096,6 +1098,7 @@ cc_test(
     deps = [
         ":defs",
         ":minimize_crash",
+        ":runner_result",
         ":test_util",
         ":util",
         "@com_google_googletest//:gtest_main",

@@ -22,6 +22,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -78,7 +79,7 @@ static void MinimizeCrash(const Environment &env,
                           MinimizerWorkQueue &queue) {
   ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env);
   auto callbacks = scoped_callback.callbacks();
-  BatchResult batch_result;
+  runner_result::BatchResult batch_result;
 
   size_t num_batches = env.num_runs / env.batch_size;
   for (size_t i = 0; i < num_batches; ++i) {
@@ -128,7 +129,7 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
 
   LOG(INFO) << "MinimizeCrash: trying the original crashy input";
 
-  BatchResult batch_result;
+  runner_result::BatchResult batch_result;
   ByteArray original_crashy_input(crashy_input.begin(), crashy_input.end());
   if (callbacks->Execute(env.binary, {original_crashy_input}, batch_result)) {
     LOG(INFO) << "The original crashy input did not crash; exiting";

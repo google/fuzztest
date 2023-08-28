@@ -131,7 +131,7 @@ class Centipede {
   // Returns true iff there were no crashes.
   bool ExecuteAndReportCrash(std::string_view binary,
                              const std::vector<ByteArray> &input_vec,
-                             BatchResult &batch_result);
+                             runner_result::BatchResult &batch_result);
   // Reports a crash and saves the reproducer to workdir/crashes, if possible.
   // `binary` is the binary causing the crash.
   // Prints the first `env_.max_num_crash_reports` logs.
@@ -142,7 +142,7 @@ class Centipede {
   // Stops early if `EarlyExitRequested()`.
   void ReportCrash(std::string_view binary,
                    const std::vector<ByteArray> &input_vec,
-                   const BatchResult &batch_result);
+                   const runner_result::BatchResult &batch_result);
   // Merges shard `shard_index_to_merge` of the corpus in `merge_from_dir`
   // into the current corpus.
   // Writes added inputs to the current shard.
