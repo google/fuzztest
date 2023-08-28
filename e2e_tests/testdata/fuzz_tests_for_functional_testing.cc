@@ -485,6 +485,13 @@ FUZZ_TEST(MySuite, FailsIfRepeatedFieldsDontHaveTheMaximumSize)
                      .WithRepeatedFieldsMaxSize(10)
                      .WithRepeatedFieldMaxSize("rep_b", 5));
 
+void FailsToInitializeIfRepeatedFieldsSizeRangeIsInvalid(
+    const TestProtobuf& proto) {}
+FUZZ_TEST(MySuite, FailsToInitializeIfRepeatedFieldsSizeRangeIsInvalid)
+    .WithDomains(Arbitrary<TestProtobuf>()
+                     .WithRepeatedFieldsMaxSize(10)
+                     .WithRepeatedFieldsMinSize(IsInt32, 11));
+
 fuzztest::Domain<int> IgnoreZero(fuzztest::Domain<int> d) {
   return fuzztest::Filter([](int x) { return x != 0; }, std::move(d));
 }

@@ -560,6 +560,13 @@ TEST(UnitTestModeTest, DefaultRepeatedFieldsMaxSizeAppliesToAllRepeatedFields) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST(UnitTestModeTest, FailsWhenRepeatedFieldsSizeRangeIsInvalid) {
+  auto [status, std_out, std_err] = RunWith(GetGTestFilterFlag(
+      "MySuite.FailsToInitializeIfRepeatedFieldsSizeRangeIsInvalid"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  EXPECT_THAT(std_err, HasSubstr("size range is not valid"));
+}
+
 TEST(UnitTestModeTest, UsesPolicyProvidedDefaultDomainForProtos) {
   auto [status, std_out, std_err] = RunWith(
       GetGTestFilterFlag("MySuite.FailsWhenSubprotosDontSetOptionalI32"));
