@@ -75,6 +75,10 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                   std::string(pcs_path),
               },
               /*env=*/{}, symbols_path);
+
+  LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
+            << std::filesystem::path(dso_path).filename();
+
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     LOG(ERROR) << "system() failed: " << VV(cmd.ToString()) << VV(exit_code);
@@ -104,6 +108,8 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
     SetAllToUnknown(pc_table.size());
     return;
   }
+
+  LOG(INFO) << "Symbolizing " << dso_table.size() << " instrumented DSOs";
 
   // Iterate all DSOs, symbolize their respective PCs.
   size_t pc_idx_begin = 0;

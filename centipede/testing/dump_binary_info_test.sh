@@ -23,9 +23,6 @@ pc_table="${TEST_TMPDIR}/pc_table"
 cf_table="${TEST_TMPDIR}/cf_table"
 dso_table="${TEST_TMPDIR}/dso_table"
 
-# Temporary. TODO(b/295881936) remove this once multi-dso is fully implemented.
-export CENTIPEDE_ALLOW_MULTI_DSO=1
-
 # Dump the binary info tables on disk
 CENTIPEDE_RUNNER_FLAGS=":dump_binary_info:arg1=${pc_table}:arg2=${cf_table}:arg3=${dso_table}:" \
   "${binary}"

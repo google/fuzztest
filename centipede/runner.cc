@@ -873,13 +873,6 @@ GlobalRunnerState::GlobalRunnerState() {
         " e.g. when instrumented code is in a DSO opened later by dlopen()\n");
   }
 
-  if (!temporary_allow_multi_dso) {
-    RunnerCheck(sancov_objects.size() <= 1,
-                "More that one sancov-instrumented object observed which is "
-                "not yet suppported. Come back later or build all of your "
-                "instrumented code as a single DSO.");
-  }
-
   // Dump the binary info tables.
   if (state.HasFlag(":dump_binary_info:")) {
     RunnerCheck(state.arg1 && state.arg2 && state.arg3,
