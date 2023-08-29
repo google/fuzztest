@@ -508,9 +508,9 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
 
 Notice that `With[Optional|Repeated]Fields[Unset|AlwaysSet]` and
 `WithRepeatedFields[Min|Max]?Size` work recursively and apply to subprotos as
-well, but calling `With[Optional|Repeated]FieldsAlwaysSet` or
-`WithRepeatedFields[Min]?Size(X)` with `X > 0` on recursively defined protos
-causes a failure.
+well, unless subproto domains are explicitly defined. Also, calling
+`With[Optional|Repeated]FieldsAlwaysSet` or `WithRepeatedFields[Min]?Size(X)`
+with `X > 0` on recursively defined protos causes a failure.
 
 #### Customizing Oneof Fields
 

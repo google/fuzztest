@@ -418,15 +418,6 @@ bool IsParent(const FieldDescriptor* field) {
   return absl::StrContains(field->name(), "parent");
 }
 
-// TODO(b/297064918): The runtime will claim that the domain below is recursive,
-// even though the recursive chain has been capped with an arbitrary proto.
-void FailsIfProtoIsDetectedAsRecursive(const IRObjectTestProto& proto) {}
-FUZZ_TEST(MySuite, FailsIfProtoIsDetectedAsRecursive)
-    .WithDomains(
-        Arbitrary<IRObjectTestProto>()
-            .WithFieldsAlwaysSet()
-            .WithRepeatedProtobufFields(Arbitrary<IRObjectTestProto>()));
-
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
     .WithDomains(Arbitrary<TestProtobufWithRecursion>()
@@ -446,8 +437,10 @@ FUZZ_TEST(MySuite,
                      .WithProtobufField(
                          "child",
                          Arbitrary<TestProtobufWithRecursion::ChildProto>()
-                             .WithOptionalFieldsUnset(IsInt32)
-                             .WithOptionalFieldsAlwaysSet(IsParent)));
+                             .WithFieldsAlwaysSet()
+                             .WithProtobufFields(
+                                 IsParent,
+                                 Arbitrary<TestProtobufWithRecursion>())));
 
 bool AreRepeatedFieldsSizesCorrect(absl::FunctionRef<bool(int)> is_size_correct,
                                    const TestProtobuf& proto) {

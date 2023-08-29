@@ -1433,6 +1433,11 @@ class ProtobufDomainUntypedImpl
       if (field->containing_oneof()) continue;
       const auto* child = field->message_type();
       if (!child) continue;
+      if (policy_.GetDefaultDomainForProtobufs(field) != std::nullopt) {
+        // If this field is recursive, it will be detected when initializing
+        // its default domain. Otherwise, this field can always be set safely.
+        continue;
+      }
       if (consider_non_terminating_recursions) {
         const bool should_be_set =
             IsRequired(field) ||

@@ -533,16 +533,6 @@ TEST(UnitTestModeTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST(UnitTestModeTest,
-     FailsWithFalsePositiveRecursiveCheckIfRequiredSubDomainsAreEmpty) {
-  auto [status, std_out, std_err] =
-      RunWith(GetGTestFilterFlag("MySuite.FailsIfProtoIsDetectedAsRecursive"));
-  // TODO(b/297064918): FailsIfProtoIsDetectedAsRecursive should pass, and we
-  // should assert ExitCode(0).
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("recursive fields"));
-}
-
 TEST(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
   auto [status, std_out, std_err] =
       RunWith(GetGTestFilterFlag("MySuite.FailsIfCantInitializeProto"));
