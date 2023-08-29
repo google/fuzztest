@@ -505,8 +505,14 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
     .WithInt32Field("additional_info", VectorOf(String()))
   );
 ```
+Warning: `With[Repeated]Fields[Unset|AlwaysSet]` will overwrite previous
+`WithRepeatedFields[Min|Max]?Size` for a given field. For example, in the following code, the repeated fields size can be  `1`, `2`, `3` or more:
+```
+Arbitrary<MyProto>().WithRepeatedFieldsMinSize(2).WithRepeatedFieldsSize(2).WithFieldsAlwaysSet()
+```
 
-Notice that `With[Optional|Repeated]Fields[Unset|AlwaysSet]` and
+Notice that
+`With[Optional|Repeated]Fields[Unset|AlwaysSet]` and
 `WithRepeatedFields[Min|Max]?Size` work recursively and apply to subprotos as
 well, unless subproto domains are explicitly defined. Also, calling
 `With[Optional|Repeated]FieldsAlwaysSet` or `WithRepeatedFields[Min]?Size(X)`

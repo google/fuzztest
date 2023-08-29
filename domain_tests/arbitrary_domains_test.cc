@@ -770,6 +770,27 @@ TEST(ProtocolBuffer, ValidationRejectsUnexpectedRepeatedExtensionField) {
                   R"(.* field rep_ext .* Invalid size: .+. Max size: 0)")));
 }
 
+TEST(ProtocolBuffer, WithFieldsAlwaysSetResetsWithMaxRepeatedFieldsSize) {
+  absl::BitGen bitgen;
+
+  Domain<TestProtobuf> domain =
+      Arbitrary<TestProtobuf>()
+          .WithFieldsUnset()
+          .WithRepeatedFieldsMaxSize(
+              [](const google::protobuf::FieldDescriptor* field) {
+                return field->name() == "rep_i32";
+              },
+              1)
+          .WithFieldsAlwaysSet();
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(ResultOf(
+                  [](const Value<Domain<TestProtobuf>>& val) {
+                    return val.user_value.rep_i32_size();
+                  },
+                  Gt(1))));
+}
+
 TEST(ProtocolBufferEnum, Arbitrary) {
   auto domain = Arbitrary<TestProtobuf_Enum>();
   absl::BitGen bitgen;

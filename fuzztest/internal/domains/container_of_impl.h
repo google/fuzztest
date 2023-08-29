@@ -44,6 +44,9 @@ namespace fuzztest::internal {
 // Used for ChoosePosition();
 enum class IncludeEnd { kYes, kNo };
 
+// Default maximum size for FuzzTest containers/lists.
+static inline constexpr size_t kDefaultContainerMaxSize = 1000;
+
 // For cases where the type is a container, choose one of the elements in the
 // container.
 template <typename Container>
@@ -359,8 +362,7 @@ class ContainerOfImplBase
 
   size_t min_size() const { return min_size_; }
   size_t max_size() const {
-    static constexpr size_t kDefaultMaxSize = 1000;
-    return max_size_.value_or(std::max(min_size_, kDefaultMaxSize));
+    return max_size_.value_or(std::max(min_size_, kDefaultContainerMaxSize));
   }
 
  private:
