@@ -24,6 +24,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
+#include "absl/types/span.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/logging.h"
@@ -51,51 +52,70 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   }
 }
 
+void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
+                                       std::string_view dso_path,
+                                       std::string_view symbolizer_path,
+                                       std::string_view tmp_path1,
+                                       std::string_view tmp_path2) {
+  auto pcs_path(tmp_path1);
+  auto symbols_path(tmp_path2);
+  // Create the input file (one PC per line).
+  std::string pcs_string;
+  for (const auto &pc_info : pc_infos) {
+    absl::StrAppend(&pcs_string, "0x", absl::Hex(pc_info.pc), "\n");
+  }
+  WriteToLocalFile(pcs_path, pcs_string);
+  // Run the symbolizer.
+  Command cmd(symbolizer_path,
+              {
+                  "--no-inlines",
+                  "-e",
+                  std::string(dso_path),
+                  "<",
+                  std::string(pcs_path),
+              },
+              /*env=*/{}, symbols_path);
+  int exit_code = cmd.Execute();
+  if (exit_code != EXIT_SUCCESS) {
+    LOG(ERROR) << "system() failed: " << VV(cmd.ToString()) << VV(exit_code);
+    return;
+  }
+  // Get and process the symbolizer output.
+  std::ifstream symbolizer_output(std::string{symbols_path});
+  size_t old_size = size();
+  ReadFromLLVMSymbolizer(symbolizer_output);
+  std::filesystem::remove(pcs_path);
+  std::filesystem::remove(symbols_path);
+  size_t new_size = size();
+  size_t added_size = new_size - old_size;
+  if (added_size != pc_infos.size())
+    LOG(ERROR) << "Symbolization failed: debug symbols will not be used";
+}
+
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
                                        const DsoTable &dso_table,
                                        std::string_view symbolizer_path,
                                        std::string_view tmp_path1,
                                        std::string_view tmp_path2) {
-  CHECK_EQ(dso_table.size(), 1) << "Multi-DSO not supported yet";
-  // TODO(b/295881936): implement multi-DSO case.
-  std::string_view binary_path = dso_table[0].path;
-  // NOTE: --symbolizer_path=/dev/null is a somewhat expected alternative to ""
-  // that users might pass.
+  // NOTE: --symbolizer_path=/dev/null is a somewhat expected alternative to
+  // "" that users might pass.
   if (symbolizer_path.empty() || symbolizer_path == "/dev/null") {
     LOG(WARNING) << "Symbolizer unspecified: debug symbols will not be used";
-  } else {
-    auto pcs_path(tmp_path1);
-    auto symbols_path(tmp_path2);
-    // Create the input file (one PC per line).
-    std::string pcs_string;
-    for (auto &pc_info : pc_table) {
-      absl::StrAppend(&pcs_string, "0x", absl::Hex(pc_info.pc), "\n");
-    }
-    WriteToLocalFile(pcs_path, pcs_string);
-    // Run the symbolizer.
-    Command cmd(symbolizer_path,
-                {
-                    "--no-inlines",
-                    "-e",
-                    std::string(binary_path),
-                    "<",
-                    std::string(pcs_path),
-                },
-                /*env=*/{}, symbols_path);
-    int exit_code = cmd.Execute();
-    if (exit_code != EXIT_SUCCESS) {
-      LOG(ERROR) << "system() failed: " << VV(cmd.ToString()) << VV(exit_code);
-    } else {
-      // Get and process the symbolizer output.
-      std::ifstream symbolizer_output(std::string{symbols_path});
-      ReadFromLLVMSymbolizer(symbolizer_output);
-      std::filesystem::remove(pcs_path);
-      std::filesystem::remove(symbols_path);
-      if (size() != pc_table.size()) {
-        LOG(ERROR) << "Symbolization failed: debug symbols will not be used";
-      }
-    }
+    SetAllToUnknown(pc_table.size());
+    return;
   }
+
+  // Iterate all DSOs, symbolize their respective PCs.
+  size_t pc_idx_begin = 0;
+  for (const auto &dso_info : dso_table) {
+    CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size());
+    const absl::Span<const PCInfo> pc_infos = {pc_table.data() + pc_idx_begin,
+                                               dso_info.num_instrumented_pcs};
+    GetSymbolsFromOneDso(pc_infos, dso_info.path, symbolizer_path, tmp_path1,
+                         tmp_path2);
+    pc_idx_begin += dso_info.num_instrumented_pcs;
+  }
+  CHECK_EQ(pc_idx_begin, pc_table.size());
 
   if (size() != pc_table.size()) {
     // Something went wrong. Set symbols to unknown so the sizes of pc_table and
