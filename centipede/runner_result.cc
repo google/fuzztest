@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "./centipede/defs.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
@@ -30,8 +31,12 @@ enum Tags : Blob::SizeAndTagT {
   kTagInputEnd,
   kTagStats,
   kTagMetadata,
+  kTagInputData,
+  kTagNumAvailSeeds,
 };
 }  // namespace
+
+namespace runner_result {
 
 bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
                                      BlobSequence &blobseq) {
@@ -108,5 +113,24 @@ bool BatchResult::Read(BlobSequence &blobseq) {
   num_outputs_read_ = num_ends;
   return true;
 }
+
+bool WriteInputData(ByteSpan data, BlobSequence &blobseq) {
+  return blobseq.Write({kTagInputData, data.size(), data.data()});
+}
+
+bool WriteNumAvailSeeds(size_t num_avail_seeds, BlobSequence &blobseq) {
+  return blobseq.Write(kTagNumAvailSeeds, num_avail_seeds);
+}
+
+bool IsInputData(Blob blob) { return blob.tag == kTagInputData; }
+
+bool IsNumAvailSeeds(Blob blob, size_t &num_avail_seeds) {
+  if (blob.tag != kTagNumAvailSeeds) return false;
+  if (blob.size != sizeof(num_avail_seeds)) return false;
+  memcpy(&num_avail_seeds, blob.data, sizeof(num_avail_seeds));
+  return true;
+}
+
+}  // namespace runner_result
 
 }  // namespace centipede

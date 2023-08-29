@@ -26,7 +26,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
-namespace centipede {
+namespace centipede::runner_result {
 
 inline constexpr std::string_view kExecutionFailurePerInputTimeout =
     "per-input-timeout-exceeded";
@@ -158,6 +158,22 @@ class BatchResult {
   size_t num_outputs_read_ = 0;
 };
 
-}  // namespace centipede
+// Write a generated (either a mutant or seed) input data to `blobseq`. Returns
+// true on success, false otherwise.
+bool WriteInputData(ByteSpan data, BlobSequence& blobseq);
+
+// Write the number of available seeds to `blobseq`. Returns true on success,
+// false otherwise.
+bool WriteNumAvailSeeds(size_t num_avail_seeds, BlobSequence& blobseq);
+
+// Returns true iff `blob` indicates an input data written from
+// `WriteInputData`.
+bool IsInputData(Blob blob);
+
+// Returns true and sets `num_avail_seeds`
+// iff the blob indicates the number of seeds written from `WriteNumAvailSeeds`.
+bool IsNumAvailSeeds(Blob blob, size_t& num_avail_seeds);
+
+}  // namespace centipede::runner_result
 
 #endif  // THIRD_PARTY_CENTIPEDE_EXECUTION_RESULT_H_

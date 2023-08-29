@@ -22,6 +22,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
+#include "./centipede/runner_result.h"
 
 namespace centipede {
 
@@ -37,11 +38,20 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
   }
 }
 
-bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
-                                        const std::vector<ByteArray> &inputs,
-                                        BatchResult &batch_result) {
+bool CentipedeDefaultCallbacks::Execute(
+    std::string_view binary, const std::vector<ByteArray> &inputs,
+    runner_result::BatchResult &batch_result) {
   return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result) ==
          0;
+}
+
+size_t CentipedeDefaultCallbacks::GetSeeds(size_t num_seeds,
+                                           std::vector<ByteArray> &seeds) {
+  seeds.resize(num_seeds);
+  if (GetSeedsViaExternalBinary(env_.binary, num_seeds, seeds))
+    return num_seeds;
+  else
+    return CentipedeCallbacks::GetSeeds(num_seeds, seeds);
 }
 
 void CentipedeDefaultCallbacks::Mutate(

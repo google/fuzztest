@@ -255,9 +255,9 @@ bool Centipede::InputPassesFilter(const ByteArray &input) {
   return result;
 }
 
-bool Centipede::ExecuteAndReportCrash(std::string_view binary,
-                                      const std::vector<ByteArray> &input_vec,
-                                      BatchResult &batch_result) {
+bool Centipede::ExecuteAndReportCrash(
+    std::string_view binary, const std::vector<ByteArray> &input_vec,
+    runner_result::BatchResult &batch_result) {
   bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
   if (!success) ReportCrash(binary, input_vec, batch_result);
   return success;
@@ -308,12 +308,12 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
                          BlobFileWriter *corpus_file,
                          BlobFileWriter *features_file,
                          BlobFileWriter *unconditional_features_file) {
-  BatchResult batch_result;
+  runner_result::BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   for (const auto &extra_binary : env_.extra_binaries) {
-    BatchResult extra_batch_result;
+    runner_result::BatchResult extra_batch_result;
     success =
         ExecuteAndReportCrash(extra_binary, input_vec, extra_batch_result) &&
         success;
@@ -763,7 +763,7 @@ void Centipede::FuzzingLoop() {
 
 void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
-                            const BatchResult &batch_result) {
+                            const runner_result::BatchResult &batch_result) {
   CHECK_EQ(input_vec.size(), batch_result.results().size());
   if (EarlyExitRequested()) return;
 
@@ -804,7 +804,8 @@ void Centipede::ReportCrash(std::string_view binary,
   // else. However, do keep it at the old location, too, in case the target was
   // primed for a crash by the sequence of inputs that preceded the crasher.
 
-  if (batch_result.failure_description() == kExecutionFailurePerBatchTimeout) {
+  if (batch_result.failure_description() ==
+      runner_result::kExecutionFailurePerBatchTimeout) {
     LOG(INFO) << log_prefix
               << "Failure applies to entire batch: not executing inputs "
                  "one-by-one, trying to find the reproducer";
@@ -817,7 +818,7 @@ void Centipede::ReportCrash(std::string_view binary,
   for (auto input_idx : input_idxs_to_try) {
     if (EarlyExitRequested()) return;
     const auto &one_input = input_vec[input_idx];
-    BatchResult one_input_batch_result;
+    runner_result::BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
       auto hash = Hash(one_input);
       auto crash_dir = env_.MakeCrashReproducerDirPath();

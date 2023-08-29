@@ -36,7 +36,7 @@ namespace centipede {
 namespace {
 
 bool UpdateBatchResult(absl::string_view output_file,
-                       BatchResult& batch_result) {
+                       runner_result::BatchResult& batch_result) {
   ByteArray content;
   ReadFromLocalFile(output_file, content);
   if (content.empty()) {
@@ -63,7 +63,7 @@ class CustomizedCallbacks : public CentipedeCallbacks {
       : CentipedeCallbacks(env) {}
 
   bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
-               BatchResult& batch_result) override {
+               runner_result::BatchResult& batch_result) override {
     const std::string temp_dir = TemporaryLocalDirPath();
     CHECK(!temp_dir.empty());
     std::filesystem::create_directory(temp_dir);

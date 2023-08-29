@@ -136,7 +136,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::string_view binary, const std::vector<ByteArray> &inputs,
-    BatchResult &batch_result) {
+    runner_result::BatchResult &batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
 
@@ -205,6 +205,43 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
+}
+
+// See also: GenerateSeedsToShmem().
+bool CentipedeCallbacks::GetSeedsViaExternalBinary(
+    std::string_view binary, size_t &num_avail_seeds,
+    std::vector<ByteArray> &seeds) {
+  auto start_time = absl::Now();
+  inputs_blobseq_.Reset();
+  outputs_blobseq_.Reset();
+
+  if (!runner_request::RequestSeeds(seeds.size(), inputs_blobseq_))
+    return false;
+
+  // Execute.
+  Command &cmd = GetOrCreateCommandForBinary(binary);
+  int retval = cmd.Execute();
+  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+
+  // Read all seeds.
+  size_t num_seeds_read;
+  for (num_seeds_read = 0; num_seeds_read < seeds.size(); ++num_seeds_read) {
+    auto blob = outputs_blobseq_.Read();
+    if (!runner_result::IsInputData(blob)) break;
+    seeds[num_seeds_read].assign(blob.data, blob.data + blob.size);
+  }
+  if (!runner_result::IsNumAvailSeeds(outputs_blobseq_.Read(),
+                                      num_avail_seeds)) {
+    LOG(WARNING) << "Unexpected end of GetSeeds response. "
+                 << "Setting num_avail_seeds to the number of seeds read"
+                 << num_seeds_read;
+    num_avail_seeds = num_seeds_read;
+  }
+  seeds.resize(num_seeds_read);
+
+  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+  return retval == 0;
 }
 
 // See also: MutateInputsFromShmem().

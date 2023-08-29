@@ -70,7 +70,7 @@ class CentipedeCallbacks {
   // `batch_result` has results for every `input`, even on failure.
   virtual bool Execute(std::string_view binary,
                        const std::vector<ByteArray> &inputs,
-                       BatchResult &batch_result) = 0;
+                       runner_result::BatchResult &batch_result) = 0;
 
   // Takes non-empty `inputs`, discards old contents of `mutants`,
   // adds at least one and at most `num_mutants` mutated inputs to
@@ -102,13 +102,26 @@ class CentipedeCallbacks {
   // Much faster for fast targets since it uses fewer system calls.
   int ExecuteCentipedeSancovBinaryWithShmem(
       std::string_view binary, const std::vector<ByteArray> &inputs,
-      BatchResult &batch_result);
+      runner_result::BatchResult &batch_result);
 
   // Constructs a string CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:...",
   // where the flags are determined by `env` and also include `extra_flags`.
   // If `disable_coverage`, coverage options are not added.
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
+
+  // Uses an external binary `binary` to generate seed inputs. The binary should
+  // be linked against :centipede_runner and implement the RunnerCallbacks
+  // interface as described in runner_interface.h.
+  //
+  // Produces at most `seeds.size()` inputs, replacing the existing elements of
+  // `seeds`, and shrinking `seeds` if needed. Sets `num_avail_seeds` to the
+  // number of available seeds if `seeds.size()` had been large enough.
+  //
+  // Returns true on success.
+  bool GetSeedsViaExternalBinary(std::string_view binary,
+                                 size_t &num_avail_seeds,
+                                 std::vector<ByteArray> &seeds);
 
   // Uses an external binary `binary` to mutate `inputs`. The binary
   // should be linked against :centipede_runner and implement the

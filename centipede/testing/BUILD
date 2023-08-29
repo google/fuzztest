@@ -54,6 +54,24 @@ centipede_fuzz_target(
     name = "test_fuzz_target",
 )
 
+# Dummy fuzz target that uses the C++ RunnerCallbacks API to return seed inputs.
+cc_binary(
+    name = "_seeded_fuzz_target",
+    srcs = ["seeded_fuzz_target.cc"],
+    # Cannot be built directly - build :seeded_fuzz_target instead.
+    tags = [
+        "local",
+        "manual",
+        "notap",
+    ],
+    deps = ["@com_google_fuzztest//centipede:centipede_runner_no_main"],
+)
+
+centipede_fuzz_target(
+    name = "seeded_fuzz_target",
+    fuzz_target = "_seeded_fuzz_target",
+)
+
 # Target instrumented with -fsanitize-coverage=trace-pc.
 centipede_fuzz_target(
     name = "test_fuzz_target_trace_pc",
@@ -183,6 +201,7 @@ cc_test(
     srcs = ["centipede_test.cc"],
     data = [
         ":abort_fuzz_target",
+        ":seeded_fuzz_target",
         ":test_fuzz_target",
         ":test_input_filter",
     ],
@@ -191,6 +210,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_fuzztest//centipede:blob_file",
         "@com_google_fuzztest//centipede:centipede_callbacks",
+        "@com_google_fuzztest//centipede:centipede_default_callbacks",
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:corpus",
         "@com_google_fuzztest//centipede:defs",
