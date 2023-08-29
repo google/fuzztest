@@ -28,7 +28,7 @@
 #include "./centipede/config_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_result.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
 

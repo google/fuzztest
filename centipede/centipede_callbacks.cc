@@ -28,9 +28,9 @@
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
-#include "./centipede/execution_request.h"
-#include "./centipede/execution_result.h"
 #include "./centipede/logging.h"
+#include "./centipede/runner_request.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -153,7 +153,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   } else {
     // Feed the inputs to inputs_blobseq_.
     num_inputs_written =
-        execution_request::RequestExecution(inputs, inputs_blobseq_);
+        runner_request::RequestExecution(inputs, inputs_blobseq_);
   }
 
   if (num_inputs_written != inputs.size()) {
@@ -218,8 +218,8 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
   inputs_blobseq_.Reset();
   outputs_blobseq_.Reset();
 
-  size_t num_inputs_written = execution_request::RequestMutation(
-      mutants.size(), inputs, inputs_blobseq_);
+  size_t num_inputs_written =
+      runner_request::RequestMutation(mutants.size(), inputs, inputs_blobseq_);
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/execution_result.h"
+#include "./centipede/runner_result.h"
 
 #include <cstdint>
 #include <fstream>

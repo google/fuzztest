@@ -43,13 +43,13 @@
 
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
-#include "./centipede/execution_request.h"
-#include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
 #include "./centipede/foreach_nonzero.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_interface.h"
+#include "./centipede/runner_request.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
@@ -618,9 +618,9 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
                                   BlobSequence &outputs_blobseq,
                                   RunnerCallbacks &callbacks) {
   size_t num_inputs = 0;
-  if (!execution_request::IsExecutionRequest(inputs_blobseq.Read()))
+  if (!runner_request::IsExecutionRequest(inputs_blobseq.Read()))
     return EXIT_FAILURE;
-  if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
+  if (!runner_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
 
   PrepareCoverage(/*full_clear=*/true);  // Clear the startup coverage.
@@ -629,7 +629,7 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
     auto blob = inputs_blobseq.Read();
     // TODO(kcc): distinguish bad input from end of stream.
     if (!blob.IsValid()) return EXIT_SUCCESS;  // no more blobs to read.
-    if (!execution_request::IsDataInput(blob)) return EXIT_FAILURE;
+    if (!runner_request::IsDataInput(blob)) return EXIT_FAILURE;
 
     // TODO(kcc): [impl] handle sizes larger than kMaxDataSize.
     size_t size = std::min(kMaxDataSize, blob.size);
@@ -710,11 +710,11 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
   // Read max_num_mutants.
   size_t num_mutants = 0;
   size_t num_inputs = 0;
-  if (!execution_request::IsMutationRequest(inputs_blobseq.Read()))
+  if (!runner_request::IsMutationRequest(inputs_blobseq.Read()))
     return EXIT_FAILURE;
-  if (!execution_request::IsNumMutants(inputs_blobseq.Read(), num_mutants))
+  if (!runner_request::IsNumMutants(inputs_blobseq.Read(), num_mutants))
     return EXIT_FAILURE;
-  if (!execution_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
+  if (!runner_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
 
   // Mutation input with ownership.
@@ -734,12 +734,11 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
     // If inputs_blobseq have overflown in the engine, we still want to
     // handle the first few inputs.
     ExecutionMetadata metadata;
-    if (!execution_request::IsExecutionMetadata(inputs_blobseq.Read(),
-                                                metadata)) {
+    if (!runner_request::IsExecutionMetadata(inputs_blobseq.Read(), metadata)) {
       break;
     }
     auto blob = inputs_blobseq.Read();
-    if (!execution_request::IsDataInput(blob)) break;
+    if (!runner_request::IsDataInput(blob)) break;
     inputs.push_back({.data = {blob.data, blob.data + blob.size},
                       .metadata = std::move(metadata)});
     input_refs.push_back(
@@ -938,7 +937,7 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     SharedMemoryBlobSequence outputs_blobseq(state.arg2);
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
-    if (execution_request::IsMutationRequest(request_type_blob)) {
+    if (runner_request::IsMutationRequest(request_type_blob)) {
       // Since we are mutating, no need to spend time collecting the coverage.
       // We still pay for executing the coverage callbacks, but those will
       // return immediately.
@@ -953,7 +952,7 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
           new ByteArrayMutator(state.knobs, GetRandomSeed());
       return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
-    if (execution_request::IsExecutionRequest(request_type_blob)) {
+    if (runner_request::IsExecutionRequest(request_type_blob)) {
       // Execution request.
       inputs_blobseq.Reset();
       return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);

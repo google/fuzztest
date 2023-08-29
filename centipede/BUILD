@@ -356,9 +356,9 @@ cc_library(
 )
 
 cc_library(
-    name = "execution_result",
-    srcs = ["execution_result.cc"],
-    hdrs = ["execution_result.h"],
+    name = "runner_result",
+    srcs = ["runner_result.cc"],
+    hdrs = ["runner_result.h"],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
@@ -371,9 +371,9 @@ cc_library(
 )
 
 cc_library(
-    name = "execution_request",
-    srcs = ["execution_request.cc"],
-    hdrs = ["execution_request.h"],
+    name = "runner_request",
+    srcs = ["runner_request.cc"],
+    hdrs = ["runner_request.h"],
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -587,12 +587,12 @@ cc_library(
         ":control_flow",
         ":defs",
         ":environment",
-        ":execution_request",
-        ":execution_result",
         ":fuzztest_mutator",
         ":knobs",
         ":logging",
         ":mutation_input",
+        ":runner_request",
+        ":runner_result",
         ":shared_memory_blob_sequence",
         ":util",
         "@com_google_absl//absl/strings",
@@ -631,11 +631,11 @@ cc_library(
         ":coverage",
         ":defs",
         ":environment",
-        ":execution_result",
         ":feature",
         ":feature_set",
         ":logging",
         ":remote_file",
+        ":runner_result",
         ":rusage_profiler",
         ":rusage_stats",
         ":shard_reader",
@@ -733,8 +733,8 @@ cc_library(
         ":centipede_interface",
         ":defs",
         ":environment",
-        ":execution_result",
         ":logging",
+        ":runner_result",
     ],
 )
 
@@ -801,10 +801,10 @@ RUNNER_SOURCES_NO_MAIN = [
     "defs.h",
     "execution_metadata.cc",
     "execution_metadata.h",
-    "execution_request.cc",
-    "execution_request.h",
-    "execution_result.cc",
-    "execution_result.h",
+    "runner_request.cc",
+    "runner_request.h",
+    "runner_result.cc",
+    "runner_result.h",
     "feature.cc",
     "feature.h",
     "foreach_nonzero.h",
@@ -1143,11 +1143,11 @@ cc_test(
 )
 
 cc_test(
-    name = "execution_result_test",
-    srcs = ["execution_result_test.cc"],
+    name = "runner_result_test",
+    srcs = ["runner_result_test.cc"],
     deps = [
-        ":execution_result",
         ":feature",
+        ":runner_result",
         ":shared_memory_blob_sequence",
         ":test_util",
         "@com_google_googletest//:gtest_main",

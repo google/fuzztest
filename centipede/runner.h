@@ -30,7 +30,6 @@
 #include "./centipede/callstack.h"
 #include "./centipede/concurrent_bitset.h"
 #include "./centipede/concurrent_byteset.h"
-#include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
 #include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/knobs.h"
@@ -38,6 +37,7 @@
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/runner_sancov_object.h"
 
 namespace centipede {

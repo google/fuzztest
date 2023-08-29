@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "./centipede/centipede_interface.h"
-#include "./centipede/execution_result.h"
+#include "./centipede/runner_result.h"
 
 namespace centipede {
 

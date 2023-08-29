@@ -28,7 +28,7 @@
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_result.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/stats.h"
 #include "./centipede/symbol_table.h"

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/execution_request.h"
+#include "./centipede/runner_request.h"
 
 #include <cstring>
 #include <vector>
@@ -72,7 +72,7 @@ static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
 
 }  // namespace
 
-namespace execution_request {
+namespace runner_request {
 
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
                         BlobSequence &blobseq) {
@@ -114,6 +114,6 @@ bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
 
 bool IsDataInput(Blob blob) { return blob.tag == kTagDataInput; }
 
-}  // namespace execution_request
+}  // namespace runner_request
 
 }  // namespace centipede
