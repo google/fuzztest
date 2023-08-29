@@ -717,10 +717,13 @@ cc_library(
         ":blob_file",
         ":defs",
         ":environment",
+        ":feature",
         ":feature_set",
         ":logging",
         ":shard_reader",
         ":util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
     ],
 )

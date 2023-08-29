@@ -16,14 +16,20 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <functional>
+#include <numeric>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
+#include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
 #include "./centipede/shard_reader.h"
