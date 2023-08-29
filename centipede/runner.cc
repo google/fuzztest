@@ -338,10 +338,7 @@ PrepareCoverage(bool full_clear) {
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
     *p = 0;
   }
-  if (state.inline_8bit_counters_start != state.inline_8bit_counters_stop) {
-    memset(state.inline_8bit_counters_start, 0,
-           state.inline_8bit_counters_stop - state.inline_8bit_counters_start);
-  }
+  state.sancov_objects.ClearInlineCounters();
 }
 
 // Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
@@ -451,14 +448,9 @@ PostProcessCoverage(int target_return_value) {
 
   // Iterates all non-zero inline 8-bit counters, if they are present.
   // Calls AddPcIndxedAndCounterToFeatures on non-zero counters and zeroes them.
-  // TODO(kcc): for large binaries this is slow, and needs to be done
-  // in larger chunks (8 bytes or more). Either reinstate (the now deleted)
-  // ForEachNonZeroByte, or implement a new one.
   if (state.run_time_flags.use_pc_features ||
       state.run_time_flags.use_counter_features) {
-    ForEachNonZeroByte(
-        state.inline_8bit_counters_start,
-        state.inline_8bit_counters_stop - state.inline_8bit_counters_start,
+    state.sancov_objects.ForEachNonZeroInlineCounter(
         [](size_t idx, uint8_t counter_value) {
           AddPcIndxedAndCounterToFeatures(idx, counter_value);
         });

@@ -225,8 +225,6 @@ struct GlobalRunnerState {
   // State for SanitizerCoverage.
   // See https://clang.llvm.org/docs/SanitizerCoverage.html.
   SanCovObjectArray sancov_objects;
-  // TODO(kcc): remove pcs_beg, etc in favour of sancov_objects.
-  const PCInfo *pcs_beg, *pcs_end;
   static const size_t kBitSetSize = 1 << 18;  // Arbitrary large size.
   ConcurrentBitSet<kBitSetSize> data_flow_feature_set{absl::kConstInit};
 
@@ -245,9 +243,19 @@ struct GlobalRunnerState {
   static const size_t kCallStackFeatureSetSize = 1 << 24;
   ConcurrentBitSet<kCallStackFeatureSetSize> callstack_set{absl::kConstInit};
 
-  // trace-pc-guard callbacks (edge instrumentation).
-  // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-pcs-with-guards
-  //
+  // kMaxNumPcs is the maximum number of instrumented PCs in the binary.
+  // We can be generous here since the unused memory will not cost anything.
+  // `pc_counter_set` is a static byte set supporting up to kMaxNumPcs PCs.
+  static constexpr size_t kMaxNumPcs = 1 << 28;
+  TwoLayerConcurrentByteSet<kMaxNumPcs> pc_counter_set{absl::kConstInit};
+  // This is the actual number of PCs, aligned up to
+  // pc_counter_set::kSizeMultiple, computed at startup.
+  size_t actual_pc_counter_set_size_aligned;
+
+  // Initialized in CTOR from the __centipede_extra_features section.
+  feature_t *user_defined_begin;
+  feature_t *user_defined_end;
+
   // We use edge instrumentation w/ callbacks to implement bounded-path
   // coverage.
   // * The current PC is converted to an offset (a PC index).
@@ -262,31 +270,6 @@ struct GlobalRunnerState {
   // * Play with the length of the path (kBoundedPathLength)
   // * Use call stacks instead of paths (via unwinding or other
   // instrumentation).
-
-  // These fields must not be initialized in CTOR.
-  // The global state object will have them initialized to zero anyway.
-  // The actual initialization may happen before the CTOR is called.
-  PCGuard *pc_guard_start;  // from __sanitizer_cov_trace_pc_guard_init.
-  PCGuard *pc_guard_stop;   // from __sanitizer_cov_trace_pc_guard_init.
-
-  // These two fields are initialized in __sanitizer_cov_8bit_counters_init
-  // if the corresponding instrumentation is present in the binary.
-  // https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters
-  uint8_t *inline_8bit_counters_start;
-  uint8_t *inline_8bit_counters_stop;
-
-  // kMaxNumPcs is the maximum number of instrumented PCs in the binary.
-  // We can be generous here since the unused memory will not cost anything.
-  // `pc_counter_set` is a static byte set supporting up to kMaxNumPcs PCs.
-  static constexpr size_t kMaxNumPcs = 1 << 28;
-  TwoLayerConcurrentByteSet<kMaxNumPcs> pc_counter_set{absl::kConstInit};
-  // This is the actual number of PCs, aligned up to
-  // pc_counter_set::kSizeMultiple, computed at startup.
-  size_t actual_pc_counter_set_size_aligned;
-
-  // Initialized in CTOR from the __centipede_extra_features section.
-  feature_t *user_defined_begin;
-  feature_t *user_defined_end;
 
   static const size_t kPathBitSetSize = 1 << 25;  // Arbitrary very large size.
   // Observed paths. The total number of observed paths for --path_level=N

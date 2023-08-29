@@ -20,9 +20,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <utility>
+#include <cstring>
+#include <functional>
 #include <vector>
 
+#include "./centipede/foreach_nonzero.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_utils.h"
@@ -141,6 +143,33 @@ DsoTable SanCovObjectArray::CreateDsoTable() const {
     result.push_back({object.dl_info.path, num_instrumented_pcs});
   }
   return result;
+}
+
+void SanCovObjectArray::ClearInlineCounters() {
+  for (size_t i = 0; i < size(); ++i) {
+    const auto &object = objects_[i];
+    if (object.inline_8bit_counters_start == nullptr) continue;
+    const size_t num_counters =
+        object.inline_8bit_counters_stop - object.inline_8bit_counters_start;
+    memset(object.inline_8bit_counters_start, 0, num_counters);
+  }
+}
+
+void SanCovObjectArray::ForEachNonZeroInlineCounter(
+    const std::function<void(size_t idx, uint8_t counter_value)> &callback)
+    const {
+  size_t process_wide_idx = 0;
+  for (size_t i = 0; i < size(); ++i) {
+    const auto &object = objects_[i];
+    if (object.inline_8bit_counters_start == nullptr) continue;
+    const size_t num_counters =
+        object.inline_8bit_counters_stop - object.inline_8bit_counters_start;
+    ForEachNonZeroByte(object.inline_8bit_counters_start, num_counters,
+                       [&](size_t idx, uint8_t counter_value) {
+                         callback(idx + process_wide_idx, counter_value);
+                       });
+    process_wide_idx += num_counters;
+  }
 }
 
 }  // namespace centipede

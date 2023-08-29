@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "./centipede/pc_info.h"
@@ -60,6 +61,17 @@ class SanCovObjectArray {
   // To be called in __sanitizer_cov_8bit_counters_init.
   void Inline8BitCountersInit(uint8_t *inline_8bit_counters_start,
                               uint8_t *inline_8bit_counters_stop);
+
+  // Sets all inline counters to zero.
+  void ClearInlineCounters();
+
+  // Calls `callback` for every non-zero inline counter of every object.
+  // The `idx` passed to `callback` is the zero-based index of the counter
+  // in the entire process, not just in the object.
+  // `counter_value` is the non-zero value of the counter.
+  void ForEachNonZeroInlineCounter(
+      const std::function<void(size_t idx, uint8_t counter_value)> &callback)
+      const;
 
   // Returns the number of sancov-instrumented objects observed so far.
   size_t size() const { return size_; }
