@@ -20,11 +20,14 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -49,10 +52,13 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
 }
 
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
-                                       std::string_view binary_path,
+                                       const DsoTable &dso_table,
                                        std::string_view symbolizer_path,
                                        std::string_view tmp_path1,
                                        std::string_view tmp_path2) {
+  CHECK_EQ(dso_table.size(), 1) << "Multi-DSO not supported yet";
+  // TODO(b/295881936): implement multi-DSO case.
+  std::string_view binary_path = dso_table[0].path;
   // NOTE: --symbolizer_path=/dev/null is a somewhat expected alternative to ""
   // that users might pass.
   if (symbolizer_path.empty() || symbolizer_path == "/dev/null") {

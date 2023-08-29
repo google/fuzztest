@@ -199,9 +199,8 @@ TEST(CFTable, GetCfTable) {
 
   // Load the cf table.
   BinaryInfo binary_info;
-  binary_info.InitializeFromSanCovBinary(target_path, GetObjDumpPath(),
-                                         /*symbolizer_path=*/"unused",
-                                         GetTestTempDir());
+  binary_info.InitializeFromSanCovBinary(
+      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(), GetTestTempDir());
   const auto &cf_table = binary_info.cf_table;
   LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
   if (cf_table.empty()) {
@@ -219,11 +218,7 @@ TEST(CFTable, GetCfTable) {
   EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);
   EXPECT_THAT(pc_table.empty(), false);
 
-  // Symbolize pc_table.
-  SymbolTable symbols;
-  symbols.GetSymbolsFromBinary(pc_table, target_path, GetLLVMSymbolizerPath(),
-                               tmp_path1, tmp_path2);
-  ASSERT_EQ(symbols.size(), pc_table.size());
+  const SymbolTable &symbols = binary_info.symbols;
 
   absl::flat_hash_map<uintptr_t, size_t> pc_table_index;
   for (size_t i = 0; i < pc_table.size(); i++) {

@@ -40,6 +40,7 @@
 #include "./centipede/execution_result.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
@@ -260,10 +261,7 @@ TEST(Coverage, CoverageFeatures) {
                                          GetTestTempDir());
   const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
-  SymbolTable symbols;
-  symbols.GetSymbolsFromBinary(pc_table, GetTargetPath(),
-                               GetLLVMSymbolizerPath(), GetTempFilePath(0),
-                               GetTempFilePath(1));
+  const SymbolTable &symbols = binary_info.symbols;
   // pc_table and symbols should have the same size.
   EXPECT_EQ(pc_table.size(), symbols.size());
   // Check what's covered.
@@ -448,10 +446,10 @@ TEST(Coverage, FunctionFilter) {
 
   const PCTable &pc_table = binary_info.pc_table;
   EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);
+  const DsoTable dso_table = {{GetTargetPath(), pc_table.size()}};
   SymbolTable symbols;
-  symbols.GetSymbolsFromBinary(pc_table, GetTargetPath(),
-                               GetLLVMSymbolizerPath(), GetTempFilePath(0),
-                               GetTempFilePath(1));
+  symbols.GetSymbolsFromBinary(pc_table, dso_table, GetLLVMSymbolizerPath(),
+                               GetTempFilePath(0), GetTempFilePath(1));
   // Empty filter.
   FunctionFilter empty_filter("", symbols);
   EXPECT_EQ(empty_filter.count(), 0);

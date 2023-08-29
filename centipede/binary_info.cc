@@ -33,6 +33,11 @@ namespace centipede {
 void BinaryInfo::InitializeFromSanCovBinary(
     std::string_view binary_path_with_args, std::string_view objdump_path,
     std::string_view symbolizer_path, std::string_view tmp_dir_path) {
+  if (binary_path_with_args.empty()) {
+    // This usually happens in tests.
+    LOG(INFO) << __func__ << ": binary_path_with_args is empty";
+    return;
+  }
   // Compute names for temp files.
   const std::filesystem::path tmp_dir = tmp_dir_path;
   CHECK(std::filesystem::exists(tmp_dir) &&
@@ -56,7 +61,16 @@ void BinaryInfo::InitializeFromSanCovBinary(
 
   // Load PC Table.
   pc_table = ReadPcTableFromFile(pc_table_path.path());
+
+  // Load CF Table.
+  if (std::filesystem::exists(cf_table_path.path()))
+    cf_table = ReadCfTableFromFile(cf_table_path.path());
+
+  // Load the DSO Table.
+  dso_table = ReadDsoTableFromFile(dso_table_path.path());
+
   if (pc_table.empty()) {
+    CHECK(dso_table.empty());
     // Fallback to GetPcTableFromBinaryWithTracePC().
     LOG(WARNING)
         << "Failed to dump PC table directly from binary using linked-in "
@@ -68,17 +82,17 @@ void BinaryInfo::InitializeFromSanCovBinary(
       LOG(ERROR) << "Failed to extract PC table from binary using objdump; see "
                     "objdump execution logs above";
     }
+    // For the legacy trace-pc instrumentation, set the dso_table
+    // to 1-element array consisting of the binary name
+    const std::vector<std::string> args =
+        absl::StrSplit(binary_path_with_args, absl::ByAnyChar{" \t\n"},
+                       absl::SkipWhitespace{});
+    CHECK(!args.empty());
+    dso_table.push_back({args[0], pc_table.size()});
     uses_legacy_trace_pc_instrumentation = true;
   } else {
     uses_legacy_trace_pc_instrumentation = false;
   }
-
-  // Load CF Table.
-  if (std::filesystem::exists(cf_table_path.path()))
-    cf_table = ReadCfTableFromFile(cf_table_path.path());
-
-  // Load the DSO Table.
-  dso_table = ReadDsoTableFromFile(dso_table_path.path());
 
   if (!uses_legacy_trace_pc_instrumentation) {
     // The number of instrumented PCs in the DSO table should match pc_table.
@@ -91,15 +105,10 @@ void BinaryInfo::InitializeFromSanCovBinary(
 
   // Load symbols, if there is a PC table.
   if (!pc_table.empty()) {
-    const std::vector<std::string> args =
-        absl::StrSplit(binary_path_with_args, absl::ByAnyChar{" \t\n"},
-                       absl::SkipWhitespace{});
-    CHECK(!args.empty());
     ScopedFile sym_tmp1_path(tmp_dir_path, "symbols_tmp1");
     ScopedFile sym_tmp2_path(tmp_dir_path, "symbols_tmp2");
-    symbols.GetSymbolsFromBinary(pc_table, /*binary_path=*/args[0],
-                                 symbolizer_path, sym_tmp1_path.path(),
-                                 sym_tmp2_path.path());
+    symbols.GetSymbolsFromBinary(pc_table, dso_table, symbolizer_path,
+                                 sym_tmp1_path.path(), sym_tmp2_path.path());
   }
 }
 
