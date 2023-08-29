@@ -23,7 +23,8 @@ namespace centipede {
 // Analyzes two corpora, `a` and `b`, reports the differences.
 void AnalyzeCorpora(const BinaryInfo &binary_info,
                     const std::vector<CorpusRecord> &a,
-                    const std::vector<CorpusRecord> &b);
+                    const std::vector<CorpusRecord> &b,
+                    std::string_view analyze_report_path);
 
 }  // namespace centipede
 
