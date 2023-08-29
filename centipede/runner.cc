@@ -38,6 +38,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <functional>
 #include <vector>
 
 #include "./centipede/byte_array_mutator.h"
@@ -462,6 +463,12 @@ PostProcessCoverage(int target_return_value) {
           AddPcIndxedAndCounterToFeatures(idx, counter_value);
         });
   }
+}
+
+size_t RunnerCallbacks::GetSeeds(size_t num_seeds,
+                                 std::function<void(ByteSpan)> seed_callback) {
+  if (num_seeds >= 1) seed_callback({0});
+  return 1;
 }
 
 class LegacyRunnerCallbacks : public RunnerCallbacks {

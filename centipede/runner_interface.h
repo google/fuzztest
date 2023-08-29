@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include "./centipede/defs.h"
@@ -77,6 +78,14 @@ class RunnerCallbacks {
   // Attempts to execute the test logic using `input`, and returns false if the
   // input should be ignored from the corpus, true otherwise.
   virtual bool Execute(ByteSpan input) = 0;
+  // Generates at most `num_seeds` seed inputs by calling `seed_callback`
+  // for each input. Returns the number of inputs that would have
+  // been returned if `num_seeds` had been large enough.
+  //
+  // Ths default implementation generates a single-byte input {0} if
+  // `num_seeds` > 0.
+  virtual size_t GetSeeds(size_t num_seeds,
+                          std::function<void(ByteSpan)> seed_callback);
   // Generates at most `num_mutants` mutants by calling `new_mutant_callback`
   // for each mutant. Returns true on success, false otherwise.
   //
