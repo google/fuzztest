@@ -619,17 +619,35 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   }
 }
 
+void Centipede::LoadSeedInputs() {
+  std::vector<ByteArray> seed_inputs;
+  const size_t num_seeds_available =
+      user_callbacks_.GetSeeds(env_.batch_size, seed_inputs);
+  if (num_seeds_available > env_.batch_size) {
+    LOG(WARNING) << "More seeds available than requested: "
+                 << num_seeds_available << " > " << env_.batch_size;
+  }
+  if (seed_inputs.empty()) {
+    LOG(WARNING)
+        << "No seeds returned - will use the default seed of single byte {0}";
+    seed_inputs.push_back({0});
+  }
+
+  RunBatch(seed_inputs, /*corpus_file=*/nullptr, /*features_file=*/nullptr,
+           /*unconditional_features_file=*/nullptr);
+
+  // Forcely add all seed inputs to avoid empty corpus if none of them increased
+  // coverage and passed the filters.
+  if (corpus_.NumTotal() == 0) {
+    for (const auto &seed_input : seed_inputs)
+      corpus_.Add(seed_input, {}, {}, fs_, coverage_frontier_);
+  }
+}
+
 void Centipede::FuzzingLoop() {
   LOG(INFO) << "Shard: " << env_.my_shard_index << "/" << env_.total_shards
             << " " << TemporaryLocalDirPath() << " "
             << "seed: " << env_.seed << "\n\n\n";
-
-  {
-    // Execute a dummy input.
-    BatchResult batch_result;
-    user_callbacks_.Execute(env_.binary, {user_callbacks_.DummyValidInput()},
-                            batch_result);
-  }
 
   UpdateAndMaybeLogStats("begin-fuzz", 0);
 
@@ -650,10 +668,8 @@ void Centipede::FuzzingLoop() {
   CHECK_OK(
       features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
 
-  if (corpus_.NumTotal() == 0) {
-    corpus_.Add(user_callbacks_.DummyValidInput(), {}, {}, fs_,
-                coverage_frontier_);
-  }
+  // Load seed corpus when there is no external corpus loaded.
+  if (corpus_.NumTotal() == 0) LoadSeedInputs();
 
   UpdateAndMaybeLogStats("init-done", 0);
 

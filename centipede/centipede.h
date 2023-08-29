@@ -75,6 +75,8 @@ class Centipede {
   bool RunBatch(const std::vector<ByteArray> &input_vec,
                 BlobFileWriter *corpus_file, BlobFileWriter *features_file,
                 BlobFileWriter *unconditional_features_file);
+  // Loads seed inputs from the user callbacks.
+  void LoadSeedInputs();
   // Loads a shard `shard_index` from `load_env.workdir`.
   // Note: `load_env_` may be different from `env_`.
   // If `rerun` is true, then also re-runs any inputs

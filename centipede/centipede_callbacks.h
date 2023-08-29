@@ -88,8 +88,12 @@ class CentipedeCallbacks {
   // PC table was not populated and `env_.require_pc_table` is set.
   virtual void PopulateBinaryInfo(BinaryInfo &binary_info);
 
-  // Returns some simple non-empty valid input.
-  virtual ByteArray DummyValidInput() { return {0}; }
+  // Retrieves at most `num_seeds` seed inputs. Returns the number of seeds
+  // available if `num_seeds` had been large enough.
+  virtual size_t GetSeeds(size_t num_seeds, std::vector<ByteArray> &seeds) {
+    if (num_seeds > 0) seeds = {{0}};
+    return 1;
+  }
 
  protected:
   // Helpers that the user-defined class may use if needed.
