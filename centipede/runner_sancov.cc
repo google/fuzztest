@@ -290,10 +290,11 @@ void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
 // This function is called on every instrumented edge.
 NO_SANITIZE
 void __sanitizer_cov_trace_pc_guard(PCGuard *guard) {
-  // Very early at process startup, the `*guard` may still be not initialized.
-  // But in this case it's just going to be zero.
-  // TODO(kcc): the check below seems almost reduntant. See if we can remove it.
-  if (!state.sancov_objects.size()) return;
+  // This function may be called very early during the DSO initialization,
+  // before the values of `*guard` are initialized to non-zero.
+  // But it will immidiately return bacause state.run_time_flags.use_pc_features
+  // is false. Once state.run_time_flags.use_pc_features becomes true, it is
+  // already ok to call this function.
   HandleOnePc(*guard);
 }
 
