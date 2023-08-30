@@ -48,6 +48,7 @@ cc_binary(
 cc_uninstrumented_binary(
     name = "centipede_uninstrumented",
     binary = ":centipede",
+    visibility = PUBLIC_API_VISIBILITY,
 )
 
 # A standalone seed corpus generator.
@@ -757,6 +758,7 @@ cc_library(
 cc_library(
     name = "weak_sancov_stubs",
     srcs = ["weak_sancov_stubs.cc"],
+    visibility = PUBLIC_API_VISIBILITY,
     alwayslink = 1,
 )
 
