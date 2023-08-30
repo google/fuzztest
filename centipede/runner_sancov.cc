@@ -217,9 +217,8 @@ static uintptr_t ReturnAddressToCallerPc(uintptr_t return_address) {
 #endif
 }
 
-// Lazily initializes actual_pc_counter_set_size_aligned.
-static void LazyAllocatePcCounters(size_t size) {
-  if (state.actual_pc_counter_set_size_aligned) return;
+// Sets `actual_pc_counter_set_size_aligned` to `size`, properly aligned up.
+static void UpdatePcCounterSetSizeAligned(size_t size) {
   constexpr size_t kAlignment = state.pc_counter_set.kSizeMultiple;
   constexpr size_t kMask = kAlignment - 1;
   state.actual_pc_counter_set_size_aligned = (size + kMask) & ~kMask;
@@ -249,7 +248,7 @@ static void MainObjectLazyInitOnceCallback() {
       centipede::GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
   fprintf(stderr, "MainObjectLazyInitOnceCallback %zx\n",
           state.main_object.start_address);
-  LazyAllocatePcCounters(state.reverse_pc_table.NumPcs());
+  UpdatePcCounterSetSizeAligned(state.reverse_pc_table.NumPcs());
 }
 
 __attribute__((noinline)) static void MainObjectLazyInit() {
@@ -282,9 +281,7 @@ void __sanitizer_cov_trace_pc() {
 // This function is called at the DSO init time.
 void __sanitizer_cov_trace_pc_guard_init(PCGuard *start, PCGuard *stop) {
   state.sancov_objects.PCGuardInit(start, stop);
-  // TODO(b/295881936): handle multi-dso case.
-  // Probably just remove this call from here.
-  LazyAllocatePcCounters(stop - start);
+  UpdatePcCounterSetSizeAligned(state.sancov_objects.NumInstrumentedPCs());
 }
 
 // This function is called on every instrumented edge.

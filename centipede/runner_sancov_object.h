@@ -76,6 +76,9 @@ class SanCovObjectArray {
   // Returns the number of sancov-instrumented objects observed so far.
   size_t size() const { return size_; }
 
+  // Returns the number of sancov-instrumented PCs across all DSOs.
+  size_t NumInstrumentedPCs() const { return num_instrumented_pcs_; }
+
   // Returns a vector of PCInfo for all instrumented DSOs.
   // Every PC in the vector has the object's ASLR base (dl_info.start_address)
   // subtracted. So, unless there is exactly one instrumented DSO, this vector
