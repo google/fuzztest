@@ -32,7 +32,7 @@ namespace centipede {
 // the resolved config.
 SeedCorpusConfig ResolveSeedCorpusConfig(  //
     std::string_view config_spec,          //
-    std::string_view override_out_dir);
+    std::string_view override_out_dir = "");
 
 // Extracts a sample of corpus elements from `source` and appends the results to
 // `elements`. `source` defines the locations of the corpus shards and the size

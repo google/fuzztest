@@ -20,6 +20,6 @@
 #include "absl/flags/declare.h"
 
 ABSL_DECLARE_FLAG(std::string, config);
-ABSL_DECLARE_FLAG(std::string, out_dir);
+ABSL_DECLARE_FLAG(std::string, override_out_dir);
 
 #endif  // THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_FLAGS_H_

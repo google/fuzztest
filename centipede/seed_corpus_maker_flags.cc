@@ -27,6 +27,6 @@ ABSL_FLAG(
     "Furthermore, `destination.dir_path` can be overridden by passing a "
     "non-empty --out_dir.");
 ABSL_FLAG(
-    std::string, out_dir, "",
+    std::string, override_out_dir, "",
     "If non-empty, overrides the `destination.dir_path` field in the resolved "
     "--config protobuf.");

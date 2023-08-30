@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   (void)centipede::config::InitRuntime(argc, argv);
 
   centipede::GenerateSeedCorpusFromConfig(  //
-      absl::GetFlag(FLAGS_config), absl::GetFlag(FLAGS_out_dir));
+      absl::GetFlag(FLAGS_config), absl::GetFlag(FLAGS_override_out_dir));
 
   return EXIT_SUCCESS;
 }
