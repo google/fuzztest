@@ -972,6 +972,14 @@ TEST(ArbitraryDurationTest, ValidatesGetTicksResults) {
             3'999'999'999u);
 }
 
+TEST(ArbitraryDurationTest, InitGeneratesSeeds) {
+  Domain<absl::Duration> domain =
+      Arbitrary<absl::Duration>().WithSeeds({absl::Seconds(42)});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, absl::Seconds(42))));
+}
+
 enum class DurationType {
   kInfinity,
   kMinusInfinity,
@@ -1066,6 +1074,14 @@ TEST(ArbitraryDurationTest, ArbitraryVectorHasAllTypesOfValues) {
     }
   }
   EXPECT_THAT(to_find, IsEmpty());
+}
+
+TEST(ArbitraryTimeTest, InitGeneratesSeeds) {
+  Domain<absl::Time> domain = Arbitrary<absl::Time>().WithSeeds(
+      {absl::UnixEpoch() + absl::Seconds(42)});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, absl::UnixEpoch() + absl::Seconds(42))));
 }
 
 enum class TimeType {

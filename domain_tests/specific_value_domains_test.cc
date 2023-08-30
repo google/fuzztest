@@ -15,12 +15,14 @@
 // Tests of ElementOf and Just, which are domains that yield values from an
 // explicitly specified set of values.
 
+#include <optional>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
@@ -29,7 +31,9 @@ namespace fuzztest {
 namespace {
 
 using ::testing::Contains;
+using ::testing::Eq;
 using ::testing::Ge;
+using ::testing::Ne;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
 
@@ -111,6 +115,24 @@ TEST(ElementOfTest, ValidationRejectsInvalidValue) {
 
   EXPECT_THAT(domain_a.ValidateCorpusValue(*corpus_value_b),
               IsInvalid("Invalid ElementOf() value"));
+}
+
+TEST(ElementOfTest, FromValueSupportsAbslDuration) {
+  Domain<absl::Duration> domain =
+      ElementOf({absl::ZeroDuration(), absl::Seconds(1)});
+
+  EXPECT_THAT(domain.FromValue(absl::ZeroDuration()), Ne(std::nullopt));
+  EXPECT_THAT(domain.FromValue(absl::Seconds(1)), Ne(std::nullopt));
+  EXPECT_THAT(domain.FromValue(absl::Seconds(2)), Eq(std::nullopt));
+}
+
+TEST(ElementOfTest, FromValueSupportsAbslTime) {
+  Domain<absl::Time> domain =
+      ElementOf({absl::UnixEpoch(), absl::InfiniteFuture()});
+
+  EXPECT_THAT(domain.FromValue(absl::UnixEpoch()), Ne(std::nullopt));
+  EXPECT_THAT(domain.FromValue(absl::InfiniteFuture()), Ne(std::nullopt));
+  EXPECT_THAT(domain.FromValue(absl::InfinitePast()), Eq(std::nullopt));
 }
 
 TEST(Just, Basic) {

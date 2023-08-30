@@ -211,6 +211,7 @@ cc_test(
         ":domain_testing",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_googletest//:gtest_main",

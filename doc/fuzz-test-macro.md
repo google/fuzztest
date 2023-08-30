@@ -125,8 +125,9 @@ generate them at random. However, in certain cases providing seeds can greatly
 improve fuzzing efficiency.
 
 Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
-only for arithmetic types, enums, and strings. Complex domains constructed using
-combinators `ConstructorOf`, `Map`, and `FlatMap` don't support seeds.
+only for certain types (see [`ElementOf`](domains-reference.md#element-of)).
+Complex domains constructed using combinators `ConstructorOf`, `Map`, and
+`FlatMap` don't support seeds.
 
 ### Delaying seed initialization with a seed provider {#seed-providers}
 

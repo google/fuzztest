@@ -166,7 +166,7 @@ FUZZ_TEST(EnglishLocaleTest, ParseFirstDateInStringAlwaysSucceedsForDates)
         "^(0[1-9]|1[012])/(0[1-9]|[12][0-9])/[1-9][0-9]{3}$"));
 ```
 
-### `ElementOf` Domains
+### `ElementOf` Domains {#element-of}
 
 We can also define a domain by explicitly enumerating the set of values in it.
 You can do this with the `ElementOf` domain, that can be instantiated with a
@@ -194,10 +194,9 @@ auto AnyStatus() {
 
 The `ElementOf` domain is often used in combination with other domains, for
 instance to provide some concrete examples while fuzzing with arbitrary inputs,
-e.g.: `OneOf(MagicNumber(), Arbitrary<uint32>())`. TODO reference combinations
+e.g.: `OneOf(MagicNumber(), Arbitrary<uint32>())`.
 
 Or it can also be used for a
-
 [regular value-parameterized unit tests](https://google.github.io/googletest/advanced.html#value-parameterized-tests):
 
 ```c++
@@ -206,6 +205,11 @@ void WorksWithAnyPig(const std::string& pig) {
 }
 FUZZ_TEST(IsLittlePigTest, WorksWithAnyPig).WithDomains(AnyLittlePig());
 ```
+
+Note: `ElementOf` supports [initial seeds](fuzz-test-macro.md#initial-seeds)
+only for arithmetic types, enums, strings (`std::string` and
+`std::string_view`), and Abseil time library types (`absl::Duration` and
+`absl::Time`).
 
 ### `BitFlagCombinationOf` Domains
 
@@ -1112,5 +1116,6 @@ This is useful for avoiding static initialization issues: FuzzTest invokes the
 seed provider the first time it needs to get an initial value from the domain.
 
 Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
-only for arithmetic types, enums, and strings. Complex domains constructed using
-combinators `ConstructorOf`, `Map`, and `FlatMap` don't support seeds.
+only for certain types (see [`ElementOf`](#element-of)). Complex domains
+constructed using combinators `ConstructorOf`, `Map`, and `FlatMap` don't
+support seeds.
