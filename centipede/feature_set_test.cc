@@ -68,6 +68,28 @@ TEST(FeatureSet, ComputeWeightWithDifferentDomains) {
   EXPECT_GT(weight({f2}), weight({f3}));
 }
 
+TEST(FeatureSet, HasUnseenFeatures_IncrementFrequencies) {
+  size_t frequency_threshold = 2;
+  FeatureSet feature_set(frequency_threshold);
+  FeatureVec features = {10};
+  EXPECT_TRUE(feature_set.HasUnseenFeatures(features));
+
+  feature_set.IncrementFrequencies(features);
+  EXPECT_FALSE(feature_set.HasUnseenFeatures(features));
+
+  features = {10, 20};
+  EXPECT_TRUE(feature_set.HasUnseenFeatures(features));
+  feature_set.IncrementFrequencies(features);
+  EXPECT_FALSE(feature_set.HasUnseenFeatures(features));
+
+  features = {50};
+  EXPECT_TRUE(feature_set.HasUnseenFeatures(features));
+  feature_set.IncrementFrequencies(features);
+
+  features = {10, 20};
+  EXPECT_FALSE(feature_set.HasUnseenFeatures(features));
+}
+
 TEST(FeatureSet, CountUnseenAndPruneFrequentFeatures_IncrementFrequencies) {
   size_t frequency_threshold = 3;
   FeatureSet feature_set(frequency_threshold);

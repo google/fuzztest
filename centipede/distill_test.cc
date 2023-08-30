@@ -25,6 +25,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
+#include "./centipede/shard_reader.h"
 #include "./centipede/test_util.h"
 
 ABSL_DECLARE_FLAG(std::string, binary_hash);
@@ -38,6 +39,19 @@ struct TestCorpusRecord {
   ByteArray input;
   FeatureVec feature_vec;
 };
+
+// Custom matcher for TestCorpusRecord. Compares `expected_input` with
+// actual TestCorpusRecord::input and compares `expected_features` with
+// actual TestCorpusRecord::feature_vec.
+MATCHER_P2(EqualsTestCorpusRecord, expected_input, expected_features, "") {
+  return testing::ExplainMatchResult(
+             testing::Field(&TestCorpusRecord::input, expected_input), arg,
+             result_listener) &&
+         testing::ExplainMatchResult(
+             testing::Field(&TestCorpusRecord::feature_vec,
+                            testing::ElementsAreArray(expected_features)),
+             arg, result_listener);
+}
 
 using Shard = std::vector<TestCorpusRecord>;
 using ShardVec = std::vector<Shard>;
@@ -57,24 +71,27 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
       PackFeaturesAndHash(record.input, record.feature_vec)));
 }
 
-// Reads and returns the distilled corpus from `env.MakeDistilledPath()`.
-std::vector<ByteArray> ReadFromDistilled(const Environment &env) {
-  auto distilled_path = env.MakeDistilledPath();
-  auto reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(reader->Open(distilled_path));
-  absl::Span<uint8_t> blob;
-  std::vector<ByteArray> result;
-  while (reader->Read(blob).ok()) {
-    result.emplace_back(blob.begin(), blob.end());
-  }
+// Reads and returns the distilled corpus record from
+// `env.MakeDistilledCorpusPath()` and `env.MakeDistilledFeaturesPath()`.
+std::vector<TestCorpusRecord> ReadFromDistilled(const Environment &env) {
+  auto distilled_corpus_path = env.MakeDistilledCorpusPath();
+  auto distilled_features_path = env.MakeDistilledFeaturesPath();
+
+  std::vector<TestCorpusRecord> result;
+  auto shard_reader_callback = [&result](const ByteArray &input,
+                                         FeatureVec &features) {
+    result.push_back({input, features});
+  };
+  ReadShard(env.MakeDistilledCorpusPath(), env.MakeDistilledFeaturesPath(),
+            shard_reader_callback);
   return result;
 }
 
 // Distills `shards` in the order specified by `shard_indices`,
 // returns the distilled corpus as a vector of inputs.
-InputVec TestDistill(const ShardVec &shards,
-                     const std::vector<size_t> &shard_indices,
-                     std::string_view test_name) {
+std::vector<TestCorpusRecord> TestDistill(
+    const ShardVec &shards, const std::vector<size_t> &shard_indices,
+    std::string_view test_name) {
   // Set up the environment.
   // We need to set at least --binary_hash before `env` is constructed,
   // so we do this by overriding the flags.
@@ -117,11 +134,22 @@ TEST(Distill, BasicDistill) {
   };
   // Distill these 3 shards in different orders, observe different results.
   EXPECT_THAT(TestDistill(shards, {0, 1, 2}, test_info_->name()),
-              testing::ElementsAreArray({in0, in1, in2}));
+              testing::ElementsAreArray({
+                  EqualsTestCorpusRecord(in0, FeatureVec{10, 20}),
+                  EqualsTestCorpusRecord(in1, FeatureVec{20, 30}),
+                  EqualsTestCorpusRecord(in2, FeatureVec{30, 40}),
+              }));
   EXPECT_THAT(TestDistill(shards, {2, 0, 1}, test_info_->name()),
-              testing::ElementsAreArray({in2, in0}));
+              testing::ElementsAreArray({
+                  EqualsTestCorpusRecord(in2, FeatureVec{30, 40}),
+                  EqualsTestCorpusRecord(in0, FeatureVec{10, 20}),
+              }));
   EXPECT_THAT(TestDistill(shards, {1, 0, 2}, test_info_->name()),
-              testing::ElementsAreArray({in1, in0, in2}));
+              testing::ElementsAreArray({
+                  EqualsTestCorpusRecord(in1, FeatureVec{20, 30}),
+                  EqualsTestCorpusRecord(in0, FeatureVec{10, 20}),
+                  EqualsTestCorpusRecord(in2, FeatureVec{30, 40}),
+              }));
 }
 
 // TODO(kcc): add more tests once we settle on the testing code above.

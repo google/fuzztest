@@ -552,9 +552,15 @@ std::string Environment::MakeFeaturesPath(size_t shard_index) const {
           absl::StrFormat("features.%0*d", kDigitsInShardIndex, shard_index));
 }
 
-std::string Environment::MakeDistilledPath() const {
+std::string Environment::MakeDistilledCorpusPath() const {
   return std::filesystem::path(workdir).append(absl::StrFormat(
       "distilled-%s.%0*d", binary_name, kDigitsInShardIndex, my_shard_index));
+}
+
+std::string Environment::MakeDistilledFeaturesPath() const {
+  return std::filesystem::path(workdir).append(
+      absl::StrFormat("distilled-features-%s.%0*d", binary_name,
+                      kDigitsInShardIndex, my_shard_index));
 }
 
 std::string Environment::MakeCoverageReportPath(

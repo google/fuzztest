@@ -40,12 +40,17 @@ namespace centipede {
 void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
   std::string log_line = absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
-  const auto distill_to_path = env.MakeDistilledPath();
-  LOG(INFO) << log_line << VV(env.total_shards) << VV(distill_to_path);
+  const auto corpus_path = env.MakeDistilledCorpusPath();
+  const auto features_path = env.MakeDistilledFeaturesPath();
+  LOG(INFO) << log_line << VV(env.total_shards) << VV(corpus_path)
+            << VV(features_path);
 
-  const auto appender = DefaultBlobFileWriterFactory();
-  // NOTE: Overwrite distilled corpus files -- do not append.
-  CHECK_OK(appender->Open(distill_to_path, "w"));
+  const auto corpus_writer = DefaultBlobFileWriterFactory();
+  const auto features_writer = DefaultBlobFileWriterFactory();
+  // NOTE: Overwrite distilled corpus and features files -- do not append.
+  CHECK_OK(corpus_writer->Open(corpus_path, "w"));
+  CHECK_OK(features_writer->Open(features_path, "w"));
+
   FeatureSet feature_set(/*frequency_threshold=*/1);
   for (size_t shard_idx : shard_indices) {
     LOG(INFO) << log_line << "reading shard " << shard_idx;
@@ -66,7 +71,7 @@ void DistillTask(const Environment &env,
     // This is a simple linear greedy set cover algorithm.
     for (auto &&[input, features] : records) {
       VLOG(1) << log_line << VV(input.size()) << VV(features.size());
-      if (!feature_set.CountUnseenAndPruneFrequentFeatures(features)) continue;
+      if (!feature_set.HasUnseenFeatures(features)) continue;
       feature_set.IncrementFrequencies(features);
       // Logging will log names of these variables.
       auto num_new_features = features.size();
@@ -75,8 +80,9 @@ void DistillTask(const Environment &env,
       auto ft = feature_set.size();
       LOG(INFO) << log_line << "adding to distilled: " << VV(ft) << VV(cov)
                 << VV(input.size()) << VV(num_new_features);
-      // Append to the distilled corpus.
-      CHECK_OK(appender->Write(input));
+      // Append to the distilled corpus and features files.
+      CHECK_OK(corpus_writer->Write(input));
+      CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));
     }
   }
 }

@@ -154,7 +154,9 @@ struct Environment {
   // Returns the path to the indexed code coverage file.
   std::string MakeSourceBasedCoverageIndexedProfilePath() const;
   // Returns the path for the distilled corpus file for my_shard_index.
-  std::string MakeDistilledPath() const;
+  std::string MakeDistilledCorpusPath() const;
+  // Returns the path for the distilled features file for my_shard_index.
+  std::string MakeDistilledFeaturesPath() const;
   // Returns the path for the coverage report file for my_shard_index.
   // Non-default `annotation` becomes a part of the returned filename.
   // `annotation` must not start with a '.'.

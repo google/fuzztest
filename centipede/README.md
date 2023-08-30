@@ -306,10 +306,10 @@ sets computed. Stop fuzzing.
 
 Then, run the same command line, but with `--distill --total_shards=N
 --num_threads=K`. This will read `N` corpus shards and produce `K` independent
-distilled corpus files. Each of the distilled corpora should have the same
-features as the `N` shards combined, but the inputs might be different between
-the `K` distilled corpora. In most cases `K==1` is sufficient, i.e. you simply
-omit `--num_threads=K`.
+distilled corpus files and `K` corresponding feature files. Each of the
+distilled corpora should have the same features as the `N` shards combined, but
+the inputs might be different between the `K` distilled corpora. In most cases
+`K==1` is sufficient, i.e. you simply omit `--num_threads=K`.
 
 The `--distill` flag requires that you pass the `--binary` or
 `--coverage_binary` so that it knows where to look for the `features` files, but
@@ -345,6 +345,9 @@ tree $WD
 
 ```
 ...
+├── distilled-features-byte_cmp_4.000000
+├── distilled-features-byte_cmp_4.000001
+├── distilled-features-byte_cmp_4.000002
 ├── distilled-byte_cmp_4.000000
 ├── distilled-byte_cmp_4.000001
 ├── distilled-byte_cmp_4.000002

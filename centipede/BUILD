@@ -1056,7 +1056,7 @@ cc_test(
         ":distill",
         ":environment",
         ":feature",
-        ":logging",
+        ":shard_reader",
         ":test_util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:reflection",

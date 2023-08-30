@@ -602,7 +602,7 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
 
   // Save the distilled corpus to a file in workdir and possibly to a hashed
   // file in the first corpus dir passed in `--corpus_dir`.
-  const auto distill_to_path = env_.MakeDistilledPath();
+  const auto distill_to_path = env_.MakeDistilledCorpusPath();
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();

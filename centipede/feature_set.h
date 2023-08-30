@@ -37,6 +37,9 @@ class FeatureSet {
   explicit FeatureSet(uint8_t frequency_threshold)
       : frequency_threshold_(frequency_threshold) {}
 
+  // Returns true if there are features in `features` not present in `this`.
+  bool HasUnseenFeatures(const FeatureVec &features) const;
+
   // Returns the number of features in `features` not present in `this`.
   // Removes all features from `features` that are too frequent.
   size_t CountUnseenAndPruneFrequentFeatures(FeatureVec &features) const;

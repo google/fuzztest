@@ -49,6 +49,13 @@ TEST(Environment, UpdateForExperiment) {
   Experiment(11, true, 30, "E12", "use_cmp_features=true:path_level=30:");
 }
 
+TEST(Environment, MakeDistilledCorpusAndFeaturesPaths) {
+  Environment env;
+  env.my_shard_index = 3;
+  EXPECT_EQ(env.MakeDistilledCorpusPath(), "distilled-.000003");
+  EXPECT_EQ(env.MakeDistilledFeaturesPath(), "distilled-features-.000003");
+}
+
 TEST(Environment, MakeCoverageReportPath) {
   // TODO(ussuri): Environment is not test-friendly (initialized through
   //  flags, which are hidden in the .cc). Fix.

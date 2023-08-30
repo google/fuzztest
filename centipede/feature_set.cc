@@ -40,13 +40,19 @@ size_t FeatureSet::CountFeatures(feature_domains::Domain domain) {
   return features_per_domain_[domain.domain_id()];
 }
 
+bool FeatureSet::HasUnseenFeatures(const FeatureVec &features) const {
+  for (auto feature : features) {
+    if (frequencies_[feature] == 0) return true;
+  }
+  return false;
+}
+
 __attribute__((noinline))  // to see it in profile.
 size_t
 FeatureSet::CountUnseenAndPruneFrequentFeatures(FeatureVec &features) const {
   size_t number_of_unseen_features = 0;
   size_t num_kept = 0;
-  for (size_t i = 0, n = features.size(); i < n; i++) {
-    auto feature = features[i];
+  for (auto feature : features) {
     auto freq = frequencies_[feature];
     if (freq == 0) {
       ++number_of_unseen_features;
