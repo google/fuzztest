@@ -1034,3 +1034,83 @@ domain.
 
 When you have finished, call `Finalize` to get the domain ready for use. After
 calling `Finalize`, the builder will be invalidated.
+
+## Seeded domains
+
+When asked to produce an initial value, a domain typically returns a random
+value, sometimes with a strong bias toward special cases. For example, initial
+values for `Arbitrary<int>()` are biased toward values such as 0, 1, the
+maximum, etc., and an unconstrained protocol buffer domain initially produces an
+empty protocol buffer.
+
+You can skew most built-in domains toward your own special values by specifying
+*initial seeds*. Use the `.WithSeeds()` function to do this. For example:
+
+```c++
+auto HttpResponseCode() {
+  return Arbitrary<int>().WithSeeds({200, 404, 500});
+}
+```
+
+In addition to the default special-case integers, `HttpResponseCode()` also
+produces `200`, `404`, and `500` with high probability.
+
+Note that the [`FUZZ_TEST` macro](fuzz-test-macro.md) also has a `.WithSeeds()`
+function, which serves for specifying
+[initial seeds](fuzz-test-macro.md#initial-seeds) at the fuzz test
+instantiation. FuzzTest calls the test's property function on those seeds when
+it starts executing the test. In contrast, the domain seeds are not directly
+passed to the property function. Instead, they are picked with high probability
+when the domain needs to produce an initial value. The difference can sometimes
+be subtle, like in the following example:
+
+```c++
+void TestOne(std::string) {}
+FUZZ_TEST(MySuite, TestOne)
+  .WithDomains(Arbitrary<std::string>())
+  .WithSeeds({"foo", "bar"});
+
+void TestTwo(std::string) {}
+FUZZ_TEST(MySuite, TestTwo)
+  .WithDomains(Arbitrary<std::string>().WithSeeds({"foo", "bar"}));
+```
+
+In `TestOne`, FuzzTest initially calls `TestOne("foo")` and `TestOne("bar")`,
+and it continues fuzzing `TestOne` with arbitrary strings. In `TestTwo`,
+FuzzTest immediately starts fuzzing `TestTwo`, but this time with strings coming
+from a seeded domain: occasionally, as FuzzTest asks the domain for an initial
+value, the domain is likely to produce `foo` and `bar`. (In a more typical
+iteration, FuzzTest asks the domain to mutate an existing value, and then the
+initial seeds don't play a role.)
+
+Seeded domains occur more commonly as part of complex domains constructed using
+domain combinators. In complex domains, seeded domains can appear at any level.
+For example:
+
+```c++
+auto BiasedPairs() {
+  return PairOf(InRange(0, 100).WithSeeds({7}), Arbitrary<std::string>)
+      .WithSeeds({{42, "Foo"}});
+}
+```
+
+The domain `BiasedPairs()` is likely to produce pairs where the first component
+is `7`, as well as the specific pair `(42, "Foo")`.
+
+Finally, just like with the
+[`FUZZ_TEST` macro](fuzz-test-macro.md#seed-providers), seed initialization for
+a domain can be delayed using a seed provider. For a domain over a type `T`, a
+seed provider is any invocable (e.g., a lambda, function pointer, callable
+object, etc.) that doesn't take inputs and returns `std::vector<T>`. For
+example:
+
+```c++
+Arbitrary<int>().WithSeeds([]() -> std::vector<int> { return {7, 42}; });
+```
+
+This is useful for avoiding static initialization issues: FuzzTest invokes the
+seed provider the first time it needs to get an initial value from the domain.
+
+Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
+only for arithmetic types, enums, and strings. Complex domains constructed using
+combinators `ConstructorOf`, `Map`, and `FlatMap` don't support seeds.

@@ -110,7 +110,7 @@ FUZZ_TEST(MyApiTestSuite, CallingMyApiNeverCrashes);
 See the [Domains Reference](domains-reference.md) for the descriptions of the
 various built-in domains and also how you can build your own domains.
 
-## Initial seeds
+## Initial seeds {#initial-seeds}
 
 You can use the `.WithSeeds()` clause to provide the initial seed values for the
 property function's parameters. The initial seed values are concrete inputs that
@@ -123,6 +123,10 @@ inputs to the property function.
 Providing seeds is not necessary; if you don't provide them, FuzzTest will
 generate them at random. However, in certain cases providing seeds can greatly
 improve fuzzing efficiency.
+
+Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
+only for arithmetic types, enums, and strings. Complex domains constructed using
+combinators `ConstructorOf`, `Map`, and `FlatMap` don't support seeds.
 
 ### Delaying seed initialization with a seed provider {#seed-providers}
 
