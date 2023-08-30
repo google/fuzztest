@@ -74,7 +74,7 @@ void SetSignalHandlers(absl::Time stop_at) {
 
   if (stop_at != absl::InfiniteFuture()) {
     const absl::Duration stop_in = stop_at - absl::Now();
-    if (stop_in > absl::ZeroDuration()) {
+    if (stop_in >= absl::Seconds(1)) {
       LOG(INFO) << "Setting alarm for --stop_at time " << stop_at << " (in "
                 << stop_in << ")";
       PCHECK(alarm(absl::ToInt64Seconds(stop_in)) == 0) << "Alarm already set";
