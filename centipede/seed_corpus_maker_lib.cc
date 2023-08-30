@@ -67,7 +67,6 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
                  "textproto config from it: "
               << VV(config_spec);
     RemoteFileGetContents(config_spec, config_str);
-    CHECK(!config_str.empty()) << "File is empty: " << VV(config_spec);
     LOG(INFO) << "Raw config read from file:\n" << config_str;
     base_dir = std::filesystem::path{config_spec}.parent_path();
   } else {
@@ -81,9 +80,8 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   SeedCorpusConfig config;
   CHECK(google::protobuf::TextFormat::ParseFromString(config_str, &config))
       << "Couldn't parse config: " << VV(config_str);
-  CHECK(config.sources_size() > 0)
-      << VV(config_spec) << VV(config.DebugString());
-  CHECK(config.has_destination())
+  CHECK_EQ(config.sources_size() > 0, config.has_destination())
+      << "Non-empty config must have both source(s) and destination: "
       << VV(config_spec) << VV(config.DebugString());
 
   LOG(INFO) << "Parsed config:\n" << config.DebugString();
@@ -98,7 +96,7 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
 
   // Set `destination.dir_path` to `override_out_dir`, if the latter is
   // non-empty, or resolve a relative `destination.dir_path` to an absolute one.
-  {
+  if (config.has_destination()) {
     auto* dir = config.mutable_destination()->mutable_dir_path();
     if (!override_out_dir.empty()) {
       *dir = override_out_dir;
@@ -273,6 +271,11 @@ void GenerateSeedCorpusFromConfig(  //
     std::string_view override_out_dir) {
   const SeedCorpusConfig config =
       ResolveSeedCorpusConfig(config_spec, override_out_dir);
+
+  if (config.sources_size() == 0 || !config.has_destination()) {
+    LOG(WARNING) << "Config is empty: skipping seed corpus generation";
+    return;
+  }
 
   // Pre-create the destination dir early to catch possible misspellings etc.
   RemoteMkdir(config.destination().dir_path());
