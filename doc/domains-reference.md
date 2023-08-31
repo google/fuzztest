@@ -510,6 +510,11 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   );
 ```
 
+Warning: `With[Repeated]Fields[Unset|AlwaysSet]` will overwrite previous
+`WithRepeatedFields[Min|Max]?Size` for a given field. For example, in the
+following code, the repeated fields can have any size other than zero:
+`Arbitrary<MyProto>().WithRepeatedFieldsMinSize(2).WithRepeatedFieldsSize(2).WithFieldsAlwaysSet()`
+
 Notice that `With[Optional|Repeated]Fields[Unset|AlwaysSet]` and
 `WithRepeatedFields[Min|Max]?Size` work recursively and apply to subprotos as
 well, unless subproto domains are explicitly defined. Also, calling

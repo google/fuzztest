@@ -233,9 +233,16 @@ class ProtoPolicy {
     if (optional_policy == OptionalPolicy::kAlwaysNull) {
       max_repeated_fields_sizes_.push_back(
           {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
+      min_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
     } else if (optional_policy == OptionalPolicy::kWithoutNull) {
+      // TODO(b/298168054): Ideally, min/max should get updated only if the
+      // fields are not already always set.
       min_repeated_fields_sizes_.push_back(
           {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 1});
+      max_repeated_fields_sizes_.push_back(
+          {.filter = And(IsRepeated<FieldDescriptor>(), filter),
+           .value = fuzztest::internal::kDefaultContainerMaxSize});
     }
     optional_policies_.push_back(
         {.filter = std::move(filter), .value = optional_policy});
