@@ -274,7 +274,13 @@ class ProtoPolicy {
     FUZZTEST_INTERNAL_CHECK(
         field->is_repeated(),
         "GetMinRepeatedFieldSize should apply to repeated fields only!");
-    return GetPolicyValue(min_repeated_fields_sizes_, field);
+    auto min = GetPolicyValue(min_repeated_fields_sizes_, field);
+    auto max = GetPolicyValue(max_repeated_fields_sizes_, field);
+    if (min.has_value() && max.has_value()) {
+      FUZZTEST_INTERNAL_CHECK(*min <= *max, "Repeated field ",
+                              field->full_name(), " size range is not valid!");
+    }
+    return min;
   }
 
   std::optional<int64_t> GetMaxRepeatedFieldSize(
@@ -282,7 +288,13 @@ class ProtoPolicy {
     FUZZTEST_INTERNAL_CHECK(
         field->is_repeated(),
         "GetMaxRepeatedFieldSize should apply to repeated fields only!");
-    return GetPolicyValue(max_repeated_fields_sizes_, field);
+    auto min = GetPolicyValue(min_repeated_fields_sizes_, field);
+    auto max = GetPolicyValue(max_repeated_fields_sizes_, field);
+    if (min.has_value() && max.has_value()) {
+      FUZZTEST_INTERNAL_CHECK(*min <= *max, "Repeated field ",
+                              field->full_name(), " size range is not valid!");
+    }
+    return max;
   }
 
  private:
