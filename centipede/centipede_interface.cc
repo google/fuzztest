@@ -19,12 +19,15 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
+#include "absl/base/optimization.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
@@ -41,7 +44,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/distill.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/minimize_crash.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/shard_reader.h"
@@ -74,14 +77,15 @@ void SetSignalHandlers(absl::Time stop_at) {
 
   if (stop_at != absl::InfiniteFuture()) {
     const absl::Duration stop_in = stop_at - absl::Now();
+    // Setting an alarm works only if the delay is longer than 1 second.
     if (stop_in >= absl::Seconds(1)) {
       LOG(INFO) << "Setting alarm for --stop_at time " << stop_at << " (in "
                 << stop_in << ")";
       PCHECK(alarm(absl::ToInt64Seconds(stop_in)) == 0) << "Alarm already set";
     } else {
       LOG(WARNING) << "Already reached --stop_at time " << stop_at
-                   << ": triggering alarm now";
-      PCHECK(kill(0, SIGALRM) == 0) << "Alarm triggering failed";
+                   << " upon starting: winding down immediately";
+      RequestEarlyExit(EXIT_SUCCESS);  // => expected outcome
     }
   }
 }
