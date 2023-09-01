@@ -103,7 +103,6 @@ void SanCovObjectArray::CFSInit(const uintptr_t *cfs_beg,
 std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
   // Populate the result.
   std::vector<PCInfo> result;
-  size_t idx = 0;
   for (size_t i = 0; i < size(); ++i) {
     const auto &object = objects_[i];
     for (const auto *ptr = object.pcs_beg; ptr != object.pcs_end; ++ptr) {
@@ -111,8 +110,6 @@ std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
       // Subtract the ASLR base.
       pc_info.pc -= object.dl_info.start_address;
       result.push_back(pc_info);
-
-      ++idx;
     }
   }
   return result;

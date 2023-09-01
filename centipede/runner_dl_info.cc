@@ -152,7 +152,8 @@ int DlIteratePhdrPCCallback(struct dl_phdr_info *info, size_t unused,
     strncpy(result.path, info->dlpi_name, sizeof(result.path));
   } else {
     // dlpi_name is empty, this is the main binary, get path via /proc/self/exe.
-    readlink("/proc/self/exe", result.path, sizeof(result.path));
+    int res = readlink("/proc/self/exe", result.path, sizeof(result.path));
+    RunnerCheck(res > 0, "readlink(\"/proc/self/exe\") failed");
   }
   result.path[sizeof(result.path) - 1] = 0;
   return 0;  // Found what we are looking for.
