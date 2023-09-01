@@ -1918,7 +1918,7 @@ class ProtobufDomainImpl
   template <typename Inner>
   Domain<std::unique_ptr<typename T::Message>> ToUntypedProtoDomain(
       Inner inner_domain) {
-    return BidiMap(
+    return ReversibleMap(
         [](value_type_t<Inner> proto_message)
             -> std::unique_ptr<typename T::Message> {
           return {std::make_unique<value_type_t<Inner>>(proto_message)};
@@ -1934,7 +1934,7 @@ class ProtobufDomainImpl
   template <typename Inner>
   Domain<std::optional<std::unique_ptr<typename T::Message>>>
   ToOptionalUntypedProtoDomain(Inner inner_domain) {
-    return BidiMap(
+    return ReversibleMap(
         [](value_type_t<Inner> proto_message)
             -> std::optional<std::unique_ptr<typename T::Message>> {
           if (!proto_message.has_value()) return std::nullopt;
@@ -1956,7 +1956,7 @@ class ProtobufDomainImpl
   template <typename Inner>
   Domain<std::vector<std::unique_ptr<typename T::Message>>>
   ToRepeatedUntypedProtoDomain(Inner inner_domain) {
-    return BidiMap(
+    return ReversibleMap(
         [](value_type_t<Inner> proto_message)
             -> std::vector<std::unique_ptr<typename T::Message>> {
           std::vector<std::unique_ptr<typename T::Message>> result;

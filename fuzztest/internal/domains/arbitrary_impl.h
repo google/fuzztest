@@ -453,19 +453,19 @@ template <>
 class ArbitraryImpl<absl::Duration>
     : public OneOfImpl<
           ElementOfImpl<absl::Duration>,
-          BidiMapImpl<absl::Duration (*)(int64_t, uint32_t),
-                      std::optional<std::tuple<int64_t, uint32_t>> (*)(
-                          absl::Duration),
-                      ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>> {
+          ReversibleMapImpl<absl::Duration (*)(int64_t, uint32_t),
+                            std::optional<std::tuple<int64_t, uint32_t>> (*)(
+                                absl::Duration),
+                            ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>> {
  public:
   ArbitraryImpl()
       : OneOfImpl(
             ElementOfImpl<absl::Duration>(
                 {absl::InfiniteDuration(), -absl::InfiniteDuration()}),
-            BidiMapImpl<absl::Duration (*)(int64_t, uint32_t),
-                        std::optional<std::tuple<int64_t, uint32_t>> (*)(
-                            absl::Duration),
-                        ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>(
+            ReversibleMapImpl<absl::Duration (*)(int64_t, uint32_t),
+                              std::optional<std::tuple<int64_t, uint32_t>> (*)(
+                                  absl::Duration),
+                              ArbitraryImpl<int64_t>, InRangeImpl<uint32_t>>(
                 [](int64_t secs, uint32_t ticks) {
                   return MakeDuration(secs, ticks);
                 },
@@ -481,15 +481,16 @@ class ArbitraryImpl<absl::Duration>
 // Arbitrary for absl::Time.
 template <>
 class ArbitraryImpl<absl::Time>
-    : public BidiMapImpl<absl::Time (*)(absl::Duration),
-                         std::optional<std::tuple<absl::Duration>> (*)(
-                             absl::Time),
-                         ArbitraryImpl<absl::Duration>> {
+    : public ReversibleMapImpl<absl::Time (*)(absl::Duration),
+                               std::optional<std::tuple<absl::Duration>> (*)(
+                                   absl::Time),
+                               ArbitraryImpl<absl::Duration>> {
  public:
   ArbitraryImpl()
-      : BidiMapImpl<absl::Time (*)(absl::Duration),
-                    std::optional<std::tuple<absl::Duration>> (*)(absl::Time),
-                    ArbitraryImpl<absl::Duration>>(
+      : ReversibleMapImpl<absl::Time (*)(absl::Duration),
+                          std::optional<std::tuple<absl::Duration>> (*)(
+                              absl::Time),
+                          ArbitraryImpl<absl::Duration>>(
             [](absl::Duration duration) {
               return absl::UnixEpoch() + duration;
             },

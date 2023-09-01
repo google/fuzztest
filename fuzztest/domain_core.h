@@ -810,10 +810,76 @@ auto SharedPtrOf(Inner inner) {
 //
 //   Map([](int i) { return 2 * i; }, Arbitrary<int>())
 //
+// Note: `Map` doesn't support seeds. See `ReversibleMap` if you needs seeds.
 template <int&... ExplicitArgumentBarrier, typename Mapper, typename... Inner>
 auto Map(Mapper mapper, Inner... inner) {
   return internal::MapImpl<Mapper, Inner...>(std::move(mapper),
                                              std::move(inner)...);
+}
+
+// ReversibleMap(mapper, inv_mapper, inner...) combinator creates a domain that
+// uses the `mapper` function to map the values created by the `inner...`
+// domains, and it uses the `inv_mapper` function to map the domain values back
+// into the `inner...` domains. This enables seed support via the `.WithSeeds()`
+// methods.
+//
+// The return type of `inv_mapper` should be `std::optional<std::tuple<T...>>`,
+// where `T...` are the input types of `mapper`. Note that `std::tuple` is
+// necessary even if `mapper` has a single parameter.
+//
+// Example:
+//
+//   ReversibleMap(
+//       [](double real, double imag) {
+//         return std::complex<double>{real, imag};
+//       },
+//       [](std::complex<double> z) {
+//         return std::optional{std::tuple{z.real(), z.imag()}};
+//       },
+//       Arbitrary<double>(), Arbitrary<double>())
+//
+// The function `mapper` doesn't necessarily need to be one-to-one. If it isn't
+// and it maps several inner domain tuples to the same value `y`, then
+// `inv_mapper` can map `y` back to any of these inner domain tuples.
+//
+// Example:
+//
+//   ReversibleMap([](int a, int b) { return std::max(a, b); },
+//                 [](int c) {
+//                   return std::optional{std::tuple{c, c}};
+//                 },
+//                 Arbitrary<int>(), Arbitrary<int>())
+//
+// Importantly, if `inv_mapper` maps `y` to `std::tuple{x...}` and all values
+// `x...` are in the respective inner domains, then `mapper` must map `x...` to
+// `y`. By slightly abusing the notation, we can write this as
+// `mapper(inv_mapper(y)) == y`.
+//
+// To ensure this property, `inv_mapper` may need to return `std::nullopt`.
+//
+// Example:
+//
+//   ReversibleMap(
+//       [](int a, int b) {
+//         return a > b ? std::pair{a, b} : std::pair{b, a};
+//       },
+//       [](std::pair<int, int> p) {
+//         auto [a, b] = p;
+//         return a >= b ? std::optional{std::tuple{a, b}} : std::nullopt;
+//       },
+//       Arbitrary<int>(), Arbitrary<int>())
+//
+// In this example, `mapper` always returns a pair `(a, b)` such that `a >= b`.
+// Thus, when `a < b`, `inv_mapper` must return `std::nullopt` because there is
+// no possible value it could return so that
+//
+//   `mapper(inv_mapper(std::pair{a, b})) == std::pair{a, b}`.
+//
+template <int&... ExplicitArgumentBarrier, typename Mapper, typename InvMapper,
+          typename... Inner>
+auto ReversibleMap(Mapper mapper, InvMapper inv_mapper, Inner... inner) {
+  return internal::ReversibleMapImpl<Mapper, InvMapper, Inner...>(
+      std::move(mapper), std::move(inv_mapper), std::move(inner)...);
 }
 
 // `FlatMap(flat_mapper, inner...)` combinator creates a domain that uses the
@@ -830,6 +896,7 @@ auto Map(Mapper mapper, Inner... inner) {
 //                     Arbitrary<std::string>().WithSize(size)); },
 //     InRange(0, 10));
 //
+// Note: `FlatMap` doesn't support seeds.
 template <int&... ExplicitArgumentBarrier, typename FlatMapper,
           typename... Inner>
 auto FlatMap(FlatMapper flat_mapper, Inner... inner) {

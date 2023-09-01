@@ -177,15 +177,15 @@ add_executable(
 target_link_libraries(
   fuzztest_map_filter_combinator_test
   PUBLIC
-  fuzztest_domain_testing
   fuzztest_coverage
-  fuzztest_type_support
+  fuzztest_domain
+  fuzztest_domain_testing
+  fuzztest_logging
   fuzztest_serialization
   fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
+  fuzztest_type_support
+  absl::algorithm_container
   absl::random_random
-  absl::span
   GTest::gmock_main
 )
 add_test(

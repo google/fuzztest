@@ -106,21 +106,22 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
 };
 
 template <typename Mapper, typename InvMapper, typename... Inner>
-class BidiMapImpl
-    : public DomainBase<BidiMapImpl<Mapper, InvMapper, Inner...>,
+class ReversibleMapImpl
+    : public DomainBase<ReversibleMapImpl<Mapper, InvMapper, Inner...>,
                         std::decay_t<std::invoke_result_t<
                             Mapper, const value_type_t<Inner>&...>>,
                         std::tuple<corpus_type_t<Inner>...>> {
  public:
-  using typename BidiMapImpl::DomainBase::corpus_type;
-  using typename BidiMapImpl::DomainBase::value_type;
+  using typename ReversibleMapImpl::DomainBase::corpus_type;
+  using typename ReversibleMapImpl::DomainBase::value_type;
 
   static_assert(
       std::is_invocable_v<InvMapper, const value_type&> &&
       std::is_same_v<std::invoke_result_t<InvMapper, const value_type&>,
                      std::optional<std::tuple<value_type_t<Inner>...>>>);
 
-  explicit BidiMapImpl(Mapper mapper, InvMapper inv_mapper, Inner... inner)
+  explicit ReversibleMapImpl(Mapper mapper, InvMapper inv_mapper,
+                             Inner... inner)
       : mapper_(std::move(mapper)),
         inv_mapper_(std::move(inv_mapper)),
         inner_(std::move(inner)...) {}
@@ -165,7 +166,7 @@ class BidiMapImpl
             const absl::Status s = std::get<I>(inner_).ValidateCorpusValue(
                 std::get<I>(corpus_value));
             if (!s.ok()) {
-              result = Prefix(s, "Invalid value for BidiMap()-ed domain");
+              result = Prefix(s, "Invalid value for ReversibleMap()-ed domain");
             }
           }(),
           ...);
@@ -192,13 +193,6 @@ class BidiMapImpl
   InvMapper inv_mapper_;
   std::tuple<Inner...> inner_;
 };
-
-template <int&... ExplicitArgumentBarrier, typename Mapper, typename InvMapper,
-          typename... Inner>
-auto BidiMap(Mapper mapper, InvMapper inv_mapper, Inner... inner) {
-  return BidiMapImpl<Mapper, InvMapper, Inner...>(
-      std::move(mapper), std::move(inv_mapper), std::move(inner)...);
-}
 
 template <int&... ExplicitArgumentBarrier, typename Mapper, typename... Inner>
 auto NamedMap(absl::string_view name, Mapper mapper, Inner... inner) {
