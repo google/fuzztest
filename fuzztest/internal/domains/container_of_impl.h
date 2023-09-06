@@ -45,7 +45,7 @@ namespace fuzztest::internal {
 enum class IncludeEnd { kYes, kNo };
 
 // Default maximum size for FuzzTest containers/lists.
-inline constexpr size_t kDefaultContainerMaxSize = 1000;
+inline constexpr size_t kDefaultContainerMaxSize = 5000;
 
 // For cases where the type is a container, choose one of the elements in the
 // container.
