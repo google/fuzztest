@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "./centipede/defs.h"
+#include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/test_util.h"
 
@@ -89,6 +90,29 @@ TEST(UtilTest, ExtractHashFromArray) {
 
   EXPECT_EQ(ExtractHashFromArray(a1), hash1);
   EXPECT_EQ(a1, a);
+}
+
+TEST(UtilTest, PackAndUnpackFeatures) {
+  const ByteArray kData{1, 2, 3, 4};
+  const FeatureVec kFeatures = {102, 30, 7, 15};
+  std::string hash = Hash(kData);
+  ByteArray packed = PackFeaturesAndHash(kData, kFeatures);
+
+  FeatureVec unpacked_features;
+  std::string unpacked_hash = UnpackFeaturesAndHash(packed, &unpacked_features);
+  EXPECT_EQ(kFeatures, unpacked_features);
+  EXPECT_EQ(hash, unpacked_hash);
+}
+
+TEST(UtilTest, PackAndUnpackEmptyFeatures) {
+  const ByteArray kData{1, 2, 3, 4};
+  std::string hash = Hash(kData);
+  ByteArray packed = PackFeaturesAndHash(kData, {});
+
+  FeatureVec unpacked_features;
+  std::string unpacked_hash = UnpackFeaturesAndHash(packed, &unpacked_features);
+  EXPECT_TRUE(unpacked_features.empty());
+  EXPECT_EQ(hash, unpacked_hash);
 }
 
 // Tests TemporaryLocalDirPath from several threads.

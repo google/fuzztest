@@ -50,20 +50,14 @@ void ReadShard(
       // Every valid feature record must contain the hash at the end.
       // Ignore this record if it is too short.
       if (hash_and_features.size() < kHashLen) continue;
-      // Extract the hash.
-      std::string hash;
-      hash.insert(hash.end(), hash_and_features.end() - kHashLen,
-                  hash_and_features.end());
-      // Extract the features, put them into hash_to_features.
-      size_t num_feature_bytes = hash_and_features.size() - kHashLen;
-      if (num_feature_bytes == 0) {
+
+      FeatureVec features;
+      std::string hash = UnpackFeaturesAndHash(hash_and_features, &features);
+      if (features.empty()) {
         // Special case: zero features.
         hash_to_features[hash] = {feature_domains::kNoFeature};
         continue;
       }
-      FeatureVec features(num_feature_bytes / sizeof(feature_t));
-      memcpy(features.data(), hash_and_features.data(),
-             features.size() * sizeof(feature_t));
       hash_to_features[hash] = features;
     }
   }

@@ -167,6 +167,10 @@ std::string ExtractHashFromArray(ByteArray &ba);
 ByteArray PackFeaturesAndHash(const ByteArray &data,
                               const FeatureVec &features);
 
+// Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
+// `features` and return the hash.
+std::string UnpackFeaturesAndHash(const ByteSpan &blob, FeatureVec *features);
+
 // Parses `dictionary_text` representing an AFL/libFuzzer dictionary.
 // https://github.com/google/AFL/blob/master/dictionaries/README.dictionaries
 // https://llvm.org/docs/LibFuzzer.html#dictionaries

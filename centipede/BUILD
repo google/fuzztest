@@ -1001,6 +1001,7 @@ cc_test(
     copts = ["-fno-signed-char"],
     deps = [
         ":defs",
+        ":feature",
         ":logging",
         ":test_util",
         ":util",

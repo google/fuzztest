@@ -279,6 +279,16 @@ ByteArray PackFeaturesAndHash(const ByteArray &data,
   return feature_bytes_with_hash;
 }
 
+std::string UnpackFeaturesAndHash(const ByteSpan &blob, FeatureVec *features) {
+  size_t features_len_in_bytes = blob.size() - kHashLen;
+  features->resize(features_len_in_bytes / sizeof(feature_t));
+  memcpy(features->data(), blob.data(), features_len_in_bytes);
+
+  std::string hash;
+  hash.insert(hash.end(), blob.end() - kHashLen, blob.end());
+  return hash;
+}
+
 // Returns a vector of string pairs that are used to replace special characters
 // and hex values in ParseAFLDictionary.
 static std::vector<std::pair<std::string, std::string>>
