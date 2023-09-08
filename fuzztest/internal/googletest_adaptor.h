@@ -23,30 +23,6 @@
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
-#define GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(selected_run_mode, argc, argv) \
-  (::fuzztest::internal::ForEachTest([&](auto& test) {                        \
-     auto fixture_factory =                                                   \
-         [argc, argv, &test]() -> ::fuzztest::internal::GTest_TestAdaptor* {  \
-       return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);  \
-     };                                                                       \
-     auto test_factory = [argc, argv, &test]() -> ::testing::Test* {          \
-       return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);  \
-     };                                                                       \
-     if (test.uses_fixture()) {                                               \
-       ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,  \
-                               nullptr, test.file(), test.line(),             \
-                               std::move(fixture_factory));                   \
-     } else {                                                                 \
-       ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,  \
-                               nullptr, test.file(), test.line(),             \
-                               std::move(test_factory));                      \
-     }                                                                        \
-   }),                                                                        \
-   ::testing::UnitTest::GetInstance()->listeners().Append(                    \
-       new ::fuzztest::internal::GTest_EventListener<                         \
-           ::testing::EmptyTestEventListener, ::testing::TestPartResult>()),  \
-   ::fuzztest::internal::Runtime::instance().SetRunMode(selected_run_mode))
-
 namespace fuzztest::internal {
 
 class GTest_TestAdaptor : public ::testing::Test {
@@ -99,6 +75,9 @@ class GTest_EventListener : public Base {
     runtime.SetExternalFailureDetected(true);
   }
 };
+
+// Registers FUZZ_TEST as GoogleTest TEST-s.
+void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv);
 
 }  // namespace fuzztest::internal
 

@@ -265,7 +265,8 @@ cc_library(
 cc_library(
     name = "googletest_adaptor",
     testonly = True,
-    hdrs = ["googletest_adaptor.h"],
+    srcs = ["internal/googletest_adaptor.cc"],
+    hdrs = ["internal/googletest_adaptor.h"],
     deps = [
         ":registry",
         ":runtime",

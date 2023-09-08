@@ -652,7 +652,8 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
   add_library(
     fuzztest_googletest_adaptor
     OBJECT
-    googletest_adaptor.h
+    internal/googletest_adaptor.cc
+    internal/googletest_adaptor.h
   )
 
   target_link_libraries(

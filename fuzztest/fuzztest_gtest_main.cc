@@ -21,7 +21,7 @@
 #include "absl/flags/parse.h"
 #include "absl/time/time.h"
 #include "./fuzztest/fuzztest.h"
-#include "./fuzztest/googletest_adaptor.h"
+#include "./fuzztest/internal/googletest_adaptor.h"
 #include "./fuzztest/internal/runtime.h"
 
 ABSL_FLAG(bool, list_fuzz_tests, false,
@@ -66,12 +66,13 @@ int main(int argc, char** argv) {
   if (is_duration_specified) {
     fuzztest::internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
-  if (is_fuzz_specified || is_duration_specified) {
-    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kFuzz, &argc,
-                                           &argv);
-  } else {
-    GOOGLEFUZZTEST_REGISTER_FOR_GOOGLETEST(fuzztest::RunMode::kUnitTest, &argc,
-                                           &argv);
-  }
+
+  fuzztest::internal::RegisterFuzzTestsAsGoogleTests(&argc, &argv);
+
+  fuzztest::RunMode run_mode = is_fuzz_specified || is_duration_specified
+                                   ? fuzztest::RunMode::kFuzz
+                                   : fuzztest::RunMode::kUnitTest;
+  fuzztest::internal::Runtime::instance().SetRunMode(run_mode);
+
   return RUN_ALL_TESTS();
 }
