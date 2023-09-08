@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
+#include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/corpus.h"
 #include "./centipede/defs.h"
@@ -755,6 +756,23 @@ TEST(Centipede, ShardReader) {
   EXPECT_EQ(res[2].features, fv3);
   EXPECT_EQ(res[3].features, FeatureVec{feature_domains::kNoFeature});
   EXPECT_EQ(res[4].features, FeatureVec());
+}
+
+TEST(Centipede, GetsSeedInputs) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  std::vector<ByteArray> seeds;
+  EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
+  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
+                         {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
+  EXPECT_EQ(callbacks.GetSeeds(5, seeds), 10);
+  EXPECT_THAT(seeds, testing::ContainerEq(
+                         std::vector<ByteArray>{{0}, {1}, {2}, {3}, {4}}));
+  EXPECT_EQ(callbacks.GetSeeds(100, seeds), 10);
+  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
+                         {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
 }  // namespace centipede
