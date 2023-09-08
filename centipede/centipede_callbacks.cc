@@ -14,16 +14,19 @@
 
 #include "./centipede/centipede_callbacks.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
@@ -205,6 +208,45 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
+}
+
+// See also: DumpSeedsToDir().
+bool CentipedeCallbacks::GetSeedsViaExternalBinary(
+    std::string_view binary, size_t &num_avail_seeds,
+    std::vector<ByteArray> &seeds) {
+  const auto output_dir = std::filesystem::path(temp_dir_) / "seed_inputs";
+  std::error_code error;
+  CHECK(std::filesystem::create_directories(output_dir, error));
+  CHECK(!error);
+
+  Command cmd(binary, {},
+              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
+                            output_dir.string(), ":")},
+              /*out=*/execute_log_path_,
+              /*err=*/execute_log_path_,
+              /*timeout=*/absl::InfiniteDuration(),
+              /*temp_file_path=*/temp_input_file_path_);
+  const int retval = cmd.Execute();
+
+  std::vector<std::string> seed_input_filenames;
+  for (const auto &dir_ent : std::filesystem::directory_iterator(output_dir)) {
+    seed_input_filenames.push_back(dir_ent.path().filename());
+  }
+  std::sort(seed_input_filenames.begin(), seed_input_filenames.end());
+  num_avail_seeds = seed_input_filenames.size();
+
+  size_t num_seeds_read;
+  for (num_seeds_read = 0; num_seeds_read < seeds.size() &&
+                           num_seeds_read < seed_input_filenames.size();
+       ++num_seeds_read) {
+    ReadFromLocalFile(
+        (output_dir / seed_input_filenames[num_seeds_read]).string(),
+        seeds[num_seeds_read]);
+  }
+  seeds.resize(num_seeds_read);
+  std::filesystem::remove_all(output_dir);
+
+  return retval == 0;
 }
 
 // See also: MutateInputsFromShmem().

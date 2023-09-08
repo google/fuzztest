@@ -110,6 +110,20 @@ class CentipedeCallbacks {
   std::string ConstructRunnerFlags(std::string_view extra_flags = "",
                                    bool disable_coverage = false);
 
+  // Uses an external binary `binary` to generate seed inputs. The binary should
+  // be linked against :centipede_runner and implement the RunnerCallbacks
+  // interface as described in runner_interface.h.
+  //
+  // Retrieves the first `seeds.size()` inputs (if exist) from `binary`,
+  // replacing the existing elements of `seeds`, and shrinking `seeds` if
+  // needed. Sets `num_avail_seeds` to the number of available seeds, which may
+  // be more than `seeds.size()`.
+  //
+  // Returns true on success.
+  bool GetSeedsViaExternalBinary(std::string_view binary,
+                                 size_t &num_avail_seeds,
+                                 std::vector<ByteArray> &seeds);
+
   // Uses an external binary `binary` to mutate `inputs`. The binary
   // should be linked against :centipede_runner and implement the
   // RunnerCallbacks interface as described in runner_interface.h,

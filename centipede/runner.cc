@@ -39,6 +39,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <string_view>
 #include <vector>
 
 #include "./centipede/byte_array_mutator.h"
@@ -689,6 +690,28 @@ static void DumpDsoTable(const char *output_path) {
   fclose(output_file);
 }
 
+// Dumps seed inputs to `output_dir`. Also see GetSeedsViaExternalBinary().
+static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
+  size_t seed_index = 0;
+  callbacks.GetSeeds([&](ByteSpan seed) {
+    // Cap seed index within 9 digits. If this was triggered, the dumping would
+    // take forever..
+    if (seed_index >= 1000000000) return;
+    char seed_path_buf[PATH_MAX];
+    const size_t num_path_chars =
+        snprintf(seed_path_buf, PATH_MAX, "%s/%09lu", output_dir, seed_index);
+    PrintErrorAndExitIf(num_path_chars >= PATH_MAX,
+                        "seed path reaches PATH_MAX");
+    FILE *output_file = fopen(seed_path_buf, "w");
+    const size_t num_bytes_written =
+        fwrite(seed.data(), 1, seed.size(), output_file);
+    PrintErrorAndExitIf(num_bytes_written != seed.size(),
+                        "wrong number of bytes written for cf table");
+    fclose(output_file);
+    ++seed_index;
+  });
+}
+
 // Returns a random seed. No need for a more sophisticated seed.
 // TODO(kcc): [as-needed] optionally pass an external seed.
 static unsigned GetRandomSeed() { return time(nullptr); }
@@ -920,6 +943,12 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
           argv[0], state.centipede_runner_flags);
+
+  if (state.HasFlag(":dump_seed_inputs:")) {
+    // Seed request.
+    DumpSeedsToDir(callbacks, /*output_dir=*/state.arg1);
+    return EXIT_SUCCESS;
+  }
 
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {

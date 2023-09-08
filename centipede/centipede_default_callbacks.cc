@@ -44,6 +44,15 @@ bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
          0;
 }
 
+size_t CentipedeDefaultCallbacks::GetSeeds(size_t num_seeds,
+                                           std::vector<ByteArray> &seeds) {
+  seeds.resize(num_seeds);
+  if (GetSeedsViaExternalBinary(env_.binary, num_seeds, seeds))
+    return num_seeds;
+  else
+    return CentipedeCallbacks::GetSeeds(num_seeds, seeds);
+}
+
 void CentipedeDefaultCallbacks::Mutate(
     const std::vector<MutationInputRef> &inputs, size_t num_mutants,
     std::vector<ByteArray> &mutants) {

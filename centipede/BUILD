@@ -597,6 +597,7 @@ cc_library(
         ":shared_memory_blob_sequence",
         ":util",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
     ],
 )
 
