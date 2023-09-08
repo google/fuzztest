@@ -177,6 +177,8 @@ inline constexpr Domain kLastDomain = {__COUNTER__};
 // into 32 bits.
 static_assert(kLastDomain.begin() <= (1ULL << 32));
 
+inline constexpr size_t kNumDomains = kLastDomain.domain_id();
+
 // Special feature used to indicate an absence of features. Typically used where
 // a feature array must not be empty, but doesn't have any other features.
 inline constexpr feature_t kNoFeature = kUnknown.begin();

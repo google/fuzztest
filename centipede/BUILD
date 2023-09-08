@@ -699,6 +699,7 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":defs",
+        ":feature",
         ":knobs",
         ":logging",
         ":remote_file",
@@ -1266,6 +1267,7 @@ cc_test(
         ":corpus",
         ":defs",
         ":feature",
+        ":feature_set",
         "@com_google_googletest//:gtest_main",
     ],
 )

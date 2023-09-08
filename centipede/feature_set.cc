@@ -49,20 +49,26 @@ bool FeatureSet::HasUnseenFeatures(const FeatureVec &features) const {
 
 __attribute__((noinline))  // to see it in profile.
 size_t
-FeatureSet::CountUnseenAndPruneFrequentFeatures(FeatureVec &features) const {
+FeatureSet::PruneFeaturesAndCountUnseen(FeatureVec &features) const {
   size_t number_of_unseen_features = 0;
   size_t num_kept = 0;
   for (auto feature : features) {
+    if (ShouldDiscardFeature(feature)) continue;
     auto freq = frequencies_[feature];
-    if (freq == 0) {
-      ++number_of_unseen_features;
-    }
-    if (freq < FrequencyThreshold(feature)) {
-      features[num_kept++] = feature;
-    }
+    if (freq == 0) ++number_of_unseen_features;
+    if (freq < FrequencyThreshold(feature)) features[num_kept++] = feature;
   }
   features.resize(num_kept);
   return number_of_unseen_features;
+}
+
+void FeatureSet::PruneDiscardedDomains(FeatureVec &features) const {
+  size_t num_kept = 0;
+  for (auto feature : features) {
+    if (ShouldDiscardFeature(feature)) continue;
+    features[num_kept++] = feature;
+  }
+  features.resize(num_kept);
 }
 
 void FeatureSet::IncrementFrequencies(const FeatureVec &features) {
@@ -105,8 +111,7 @@ std::string FeatureSet::DebugString() const {
   std::ostringstream os;
   os << VV((int)frequency_threshold_);
   os << VV(num_features_);
-  for (size_t domain = 0; domain < feature_domains::kLastDomain.domain_id();
-       ++domain) {
+  for (size_t domain = 0; domain < feature_domains::kNumDomains; ++domain) {
     if (features_per_domain_[domain] == 0) continue;
     os << " dom" << domain << ": " << features_per_domain_[domain];
   }

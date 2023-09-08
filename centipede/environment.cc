@@ -15,6 +15,7 @@
 #include "./centipede/environment.h"
 
 #include <algorithm>
+#include <bitset>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
@@ -37,6 +38,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/defs.h"
+#include "./centipede/feature.h"
 #include "./centipede/knobs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
@@ -233,6 +235,9 @@ ABSL_FLAG(bool, use_counter_features, false,
 ABSL_FLAG(bool, use_pcpair_features, false,
           "If true, PC pairs are used as additional synthetic features. "
           "Experimental, use with care - it may explode the corpus.");
+ABSL_FLAG(uint64_t, user_feature_domain_mask, ~0UL,
+          "A bitmask indicating which user feature domains should be enabled. "
+          "A value of zero will disable all user features.");
 ABSL_FLAG(size_t, feature_frequency_threshold, 100,
           "Internal flag. When a given feature is present in the corpus this "
           "many times Centipede will stop recording it for future corpus "
@@ -448,6 +453,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       use_dataflow_features(absl::GetFlag(FLAGS_use_dataflow_features)),
       use_counter_features(absl::GetFlag(FLAGS_use_counter_features)),
       use_pcpair_features(absl::GetFlag(FLAGS_use_pcpair_features)),
+      user_feature_domain_mask(absl::GetFlag(FLAGS_user_feature_domain_mask)),
       feature_frequency_threshold(
           absl::GetFlag(FLAGS_feature_frequency_threshold)),
       require_pc_table(absl::GetFlag(FLAGS_require_pc_table)),
@@ -664,6 +670,20 @@ bool Environment::DumpTelemetryForThisBatch(size_t batch_index) const {
     return true;
   }
   return false;
+}
+
+std::bitset<feature_domains::kNumDomains> Environment::MakeDomainDiscardMask()
+    const {
+  constexpr size_t kNumUserDomains = std::size(feature_domains::kUserDomains);
+  std::bitset<kNumUserDomains> user_feature_domain_enabled(
+      user_feature_domain_mask);
+  std::bitset<feature_domains::kNumDomains> discard;
+  for (size_t i = 0; i < kNumUserDomains; ++i) {
+    if (!user_feature_domain_enabled.test(i)) {
+      discard.set(feature_domains::kUserDomains[i].domain_id());
+    }
+  }
+  return discard;
 }
 
 // Returns true if `value` is one of "1", "true".

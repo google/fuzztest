@@ -15,12 +15,15 @@
 #ifndef THIRD_PARTY_CENTIPEDE_ENVIRONMENT_H_
 #define THIRD_PARTY_CENTIPEDE_ENVIRONMENT_H_
 
+#include <bitset>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/time/time.h"
+#include "./centipede/feature.h"
 #include "./centipede/knobs.h"
 
 namespace centipede {
@@ -85,6 +88,7 @@ struct Environment {
   bool use_dataflow_features;
   bool use_counter_features;
   bool use_pcpair_features;
+  uint64_t user_feature_domain_mask;
   size_t feature_frequency_threshold;
   bool require_pc_table;
   int telemetry_frequency;
@@ -197,6 +201,8 @@ struct Environment {
   // Returns true if we want to generate the telemetry files (coverage report,
   // the corpus stats, etc.) after processing `batch_index`-th batch.
   bool DumpTelemetryForThisBatch(size_t batch_index) const;
+  // Returns a bitmask indicating which domains Centipede should discard.
+  std::bitset<feature_domains::kNumDomains> MakeDomainDiscardMask() const;
 
   // Experiment-related functions ----------------------------------------------
 

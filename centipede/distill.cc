@@ -51,7 +51,8 @@ void DistillTask(const Environment &env,
   CHECK_OK(corpus_writer->Open(corpus_path, "w"));
   CHECK_OK(features_writer->Open(features_path, "w"));
 
-  FeatureSet feature_set(/*frequency_threshold=*/1);
+  FeatureSet feature_set(/*frequency_threshold=*/1,
+                         env.MakeDomainDiscardMask());
   for (size_t shard_idx : shard_indices) {
     LOG(INFO) << log_line << "reading shard " << shard_idx;
     // Read records from the current shard.
@@ -71,6 +72,7 @@ void DistillTask(const Environment &env,
     // This is a simple linear greedy set cover algorithm.
     for (auto &&[input, features] : records) {
       VLOG(1) << log_line << VV(input.size()) << VV(features.size());
+      feature_set.PruneDiscardedDomains(features);
       if (!feature_set.HasUnseenFeatures(features)) continue;
       feature_set.IncrementFrequencies(features);
       // Logging will log names of these variables.

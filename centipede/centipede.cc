@@ -89,7 +89,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
       user_callbacks_(user_callbacks),
       rng_(env_.seed),
       // TODO(kcc): [impl] find a better way to compute frequency_threshold.
-      fs_(env_.feature_frequency_threshold),
+      fs_(env_.feature_frequency_threshold, env_.MakeDomainDiscardMask()),
       coverage_frontier_(binary_info),
       binary_info_(binary_info),
       pc_table_(binary_info_.pc_table),
@@ -330,8 +330,7 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
     if (EarlyExitRequested()) break;
     FeatureVec &fv = batch_result.results()[i].mutable_features();
     bool function_filter_passed = function_filter_.filter(fv);
-    bool input_gained_new_coverage =
-        fs_.CountUnseenAndPruneFrequentFeatures(fv) != 0;
+    bool input_gained_new_coverage = fs_.PruneFeaturesAndCountUnseen(fv) != 0;
     if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
       input_gained_new_coverage = true;
     if (unconditional_features_file != nullptr) {
@@ -381,7 +380,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
     } else {
       LogFeaturesAsSymbols(input_features);
       const auto num_new_features =
-          fs_.CountUnseenAndPruneFrequentFeatures(input_features);
+          fs_.PruneFeaturesAndCountUnseen(input_features);
       if (num_new_features != 0) {
         VLOG(10) << "Adding input " << Hash(input)
                  << "; new features: " << num_new_features;

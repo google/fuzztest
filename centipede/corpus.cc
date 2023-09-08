@@ -71,7 +71,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
   // Recompute the weights.
   size_t num_zero_weights = 0;
   for (size_t i = 0, n = records_.size(); i < n; ++i) {
-    fs.CountUnseenAndPruneFrequentFeatures(records_[i].features);
+    fs.PruneFeaturesAndCountUnseen(records_[i].features);
     auto new_weight =
         ComputeWeight(records_[i].features, fs, coverage_frontier);
     weighted_distribution_.ChangeWeight(i, new_weight);
