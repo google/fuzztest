@@ -9,7 +9,7 @@
 #
 #    FUZZTEST_REPRODUCERS_OUT_DIR=/tmp/reproducers \
 #    bazel run --config=fuzztest :escaping_test \
-#      -- --gunit_fuzz=UnescapingAStringNeverTriggersUndefinedBehavior
+#      -- --fuzz=UnescapingAStringNeverTriggersUndefinedBehavior
 #
 #  Then when a crash is found, the crashing input is saved to a file and you
 #  will see something like this on the terminal:
@@ -21,7 +21,7 @@
 #    FUZZTEST_MINIMIZE_REPRODUCER=/tmp/reproducers/r3pr0dUc3r \
 #    bazel run --config=fuzztest :escaping_test \
 #      --run_under=@com_google_fuzztest//tools:minimizer \
-#      -- --gunit_fuzz=UnescapingAStringNeverTriggersUndefinedBehavior
+#      -- --fuzz=UnescapingAStringNeverTriggersUndefinedBehavior
 #
 #  This will try to find smaller and smaller inputs until you manually stop the
 #  process with Ctrl-C. When you do, you'll get a message like:

@@ -111,7 +111,7 @@ RunResults RunBinaryWith(
   // themselves to our shards.
   // These are set by the testing environment to run us (ie functional_test.cc)
   // in sharded mode, but we don't want to run our child process in sharding
-  // mode when using --gunit_filter. If we do, the test we are looking for might
+  // mode when using --gtest_filter. If we do, the test we are looking for might
   // be in a different shard that the one specified by TEST_SHARD_INDEX.
   unsetenv("TEST_TOTAL_SHARDS");
   unsetenv("TEST_SHARD_INDEX");
