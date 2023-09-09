@@ -19,7 +19,6 @@
 #include <ostream>
 #include <sstream>
 #include <string>
-#include <vector>
 
 #include "absl/log/check.h"
 #include "./centipede/feature.h"
@@ -31,9 +30,15 @@ namespace centipede {
 //                                FeatureSet
 //------------------------------------------------------------------------------
 
-// TODO(kcc): [impl] add tests.
+// This implementation is slow (needs to iterate over the entire domain),
+// but there is no need for it to be fast.
 PCIndexVec FeatureSet::ToCoveragePCs() const {
-  return {pc_index_set_.begin(), pc_index_set_.end()};
+  PCIndexVec pcs;
+  for (size_t idx = 0; idx < feature_domains::Domain::kDomainSize; ++idx) {
+    if (frequencies_[feature_domains::kPCs.ConvertToMe(idx)])
+      pcs.push_back(idx);
+  }
+  return pcs;
 }
 
 size_t FeatureSet::CountFeatures(feature_domains::Domain domain) {
@@ -77,8 +82,6 @@ void FeatureSet::IncrementFrequencies(const FeatureVec &features) {
     if (freq == 0) {
       ++num_features_;
       ++features_per_domain_[feature_domains::Domain::FeatureToDomainId(f)];
-      if (feature_domains::kPCs.Contains(f))
-        pc_index_set_.insert(ConvertPCFeatureToPcIndex(f));
     }
     if (freq < FrequencyThreshold(f)) ++freq;
   }

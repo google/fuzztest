@@ -114,9 +114,6 @@ class FeatureSet {
   size_t features_per_domain_[feature_domains::kNumDomains] = {};
 
   FeatureDomainSet should_discard_domain_;
-
-  // Maintains the set of PC indices that correspond to added features.
-  absl::flat_hash_set<PCIndex> pc_index_set_;
 };
 
 }  // namespace centipede
