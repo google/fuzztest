@@ -14,74 +14,14 @@
 
 #include "./fuzztest/fuzztest.h"
 
-#include <cstdio>
-#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <utility>
 #include <vector>
 
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
 #include "./fuzztest/internal/io.h"
-#include "./fuzztest/internal/registry.h"
-#include "./fuzztest/internal/runtime.h"
 
 namespace fuzztest {
-
-std::vector<std::string> ListRegisteredTests() {
-  std::vector<std::string> result;
-  internal::ForEachTest(
-      [&](const auto& test) { result.push_back(test.full_name()); });
-  return result;
-}
-
-std::string GetMatchingFuzzTestOrExit(std::string_view name) {
-  const std::string partial_name(name);
-  const std::vector<std::string> full_names = ListRegisteredTests();
-  std::vector<const std::string*> matches;
-  for (const std::string& full_name : full_names) {
-    if (absl::StrContains(full_name, partial_name)) {
-      if (full_name == partial_name) {
-        // In case of an exact match, we end the search and use it. This is to
-        // handle the case when we want to select `MySuite.MyTest`, but the
-        // binary has both `MySuite.MyTest` and `MySuite.MyTestX`.
-        return full_name;
-      } else {
-        matches.push_back(&full_name);
-      }
-    }
-  }
-
-  if (matches.empty()) {
-    absl::FPrintF(stderr, "\n\nNo FUZZ_TEST matches the name: %s\n\n", name);
-    absl::FPrintF(stderr, "Valid tests:\n");
-    for (const std::string& full_name : full_names) {
-      absl::FPrintF(stderr, " %s\n", full_name);
-    }
-    exit(1);
-  } else if (matches.size() > 1) {
-    absl::FPrintF(stderr, "\n\nMultiple FUZZ_TESTs match the name: %s\n\n",
-                  name);
-    absl::FPrintF(stderr, "Please select one. Matching tests:\n");
-    for (const std::string* full_name : matches) {
-      absl::FPrintF(stderr, " %s\n", *full_name);
-    }
-    exit(1);
-  }
-  return *matches[0];
-}
-
-void RunSpecifiedFuzzTest(std::string_view name) {
-  const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
-  internal::ForEachTest([&](auto& test) {
-    if (test.full_name() == matching_fuzz_test) {
-      exit(std::move(test).make()->RunInFuzzingMode(/*argc=*/nullptr,
-                                                    /*argv=*/nullptr));
-    }
-  });
-}
 
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {

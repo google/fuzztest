@@ -650,6 +650,24 @@ target_include_directories(
 
 if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
   add_library(
+    fuzztest_init_fuzztest
+    OBJECT
+    init_fuzztest.cc
+    init_fuzztest.h
+  )
+
+  target_link_libraries(
+    fuzztest_init_fuzztest
+    PUBLIC
+    absl::flags
+    absl::strings
+    absl::time
+    fuzztest_googletest_adaptor
+    fuzztest_runtime
+    GTest::gtest
+  )
+
+  add_library(
     fuzztest_googletest_adaptor
     OBJECT
     internal/googletest_adaptor.cc
@@ -687,6 +705,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
     fuzztest_gtest_main
     PUBLIC
     fuzztest_serialization
+    fuzztest_init_fuzztest
     fuzztest_io
     fuzztest_coverage
     fuzztest_logging
@@ -702,11 +721,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
     fuzztest_subprocess
     fuzztest_status
     fuzztest_compatibility_mode
-    absl::flags
     absl::flags_parse
-    absl::str_format
-    absl::strings
-    absl::time
     GTest::gtest
     GTest::gmock
   )
