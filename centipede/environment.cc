@@ -731,6 +731,7 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"max_len", &max_len},
       {"crossover_level", &crossover_level},
       {"mutate_batch_size", &mutate_batch_size},
+      {"feature_frequency_threshold", &feature_frequency_threshold},
   };
   auto int_iter = int_flags.find(name);
   if (int_iter != int_flags.end()) {
