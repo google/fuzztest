@@ -992,10 +992,12 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
 extern "C" int LLVMFuzzerRunDriver(
     int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb) {
   if (LLVMFuzzerInitialize) LLVMFuzzerInitialize(argc, argv);
-  return RunnerMain(*argc, *argv,
-                    *centipede::CreateLegacyRunnerCallbacks(
-                        test_one_input_cb, LLVMFuzzerCustomMutator,
-                        LLVMFuzzerCustomCrossOver));
+  const int ret = RunnerMain(*argc, *argv,
+                             *centipede::CreateLegacyRunnerCallbacks(
+                                 test_one_input_cb, LLVMFuzzerCustomMutator,
+                                 LLVMFuzzerCustomCrossOver));
+  if (ret != EXIT_SUCCESS) exit(ret);
+  return ret;
 }
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
