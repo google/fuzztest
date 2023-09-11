@@ -248,16 +248,29 @@ cc_library(
 )
 
 cc_library(
-    name = "fuzztest_gtest_main",
+    name = "init_fuzztest",
     testonly = 1,
-    srcs = ["fuzztest_gtest_main.cc"],
+    srcs = ["init_fuzztest.cc"],
+    hdrs = ["init_fuzztest.h"],
     deps = [
         ":fuzztest",
         ":googletest_adaptor",
         ":runtime",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
+    name = "fuzztest_gtest_main",
+    testonly = 1,
+    srcs = ["fuzztest_gtest_main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
