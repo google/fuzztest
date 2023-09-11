@@ -108,41 +108,16 @@ namespace fuzztest {
 #define FUZZ_TEST_F(fixture, func) \
   INTERNAL_FUZZ_TEST_F(fixture, func, fixture, func)
 
-// Returns a list of all registered fuzz test names in the form of
-// "<suite_name>.<property_function_name>", e.g., `MySuite.MyFuzzTest".
-//
-// REQUIRES: `main()` has started before calling this function.
-std::vector<std::string> ListRegisteredTests();
-
-// Returns the full name of the single registered fuzz test that matches `name`.
-// If there are zero or multiple tests that match `name`, exits with an error
-// message.
-//
-// A test matches `name` if its full name (e.g., "MySuite.MyFuzzTest") contains
-// `name` (e.g., "MyFuzz") as a substring. If there is a test whose full name
-// exactly matches `name`, then this will be the returned name.
-//
-// REQUIRES: `main()` has started before calling this function.
-std::string GetMatchingFuzzTestOrExit(std::string_view name);
-
-// Runs the FUZZ_TEST specified by `name` in fuzzing mode.
-//
-// The `name` can be a full name, e.g., "MySuite.MyFuzzTest". It can also be a
-// part of the full name, e.g., "MyFuzz", if it matches only a single fuzz test
-// in the binary. If there is only one fuzz test in binary, name can also be
-// empty string. If `name` matches exactly one FUZZ_TEST, it runs the selected
-// test in fuzzing mode, until a bug is found or until manually stopped.
-// Otherwise, it exits.
-//
-// REQUIRES: `main()` has started before calling this function.
-// REQUIRES: Binary must be built with SanCov instrumentation on.
-void RunSpecifiedFuzzTest(std::string_view name);
-
 // Reads files as strings from the directory `dir` and returns a vector usable
 // by .WithSeeds().
-// Example usage:
-// FUZZ_TEST(SuiteName, TestName)
-//   .WithSeeds(ReadFilesFromDirectory(kCorpusPath));
+//
+// Example:
+//
+//   void MyThingNeverCrashes(const std::string& s) {
+//     DoThingsWith(s);
+//   }
+//   FUZZ_TEST(MySuite, MyThingNeverCrashes)
+//     .WithSeeds(ReadFilesFromDirectory(kCorpusPath));
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir);
 

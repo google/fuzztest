@@ -241,9 +241,6 @@ cc_library(
         ":domain",
         ":io",
         ":registry",
-        ":runtime",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -253,11 +250,12 @@ cc_library(
     srcs = ["init_fuzztest.cc"],
     hdrs = ["init_fuzztest.h"],
     deps = [
-        ":fuzztest",
         ":googletest_adaptor",
+        ":registry",
         ":runtime",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
     ],
