@@ -44,6 +44,9 @@ static size_t ComputeWeight(const FeatureVec &fv, const FeatureSet &fs,
   for (const auto feature : fv) {
     if (!feature_domains::kPCs.Contains(feature)) continue;
     const auto pc_index = ConvertPCFeatureToPcIndex(feature);
+    // Avoid checking frontier for out-of-bounds indices.
+    // TODO(b/299624088): revisit once dlopen is supported.
+    if (pc_index >= coverage_frontier.MaxPcIndex()) continue;
     if (coverage_frontier.PcIndexIsFrontier(pc_index)) {
       frontier_weights_sum += coverage_frontier.FrontierWeight(pc_index);
     }
