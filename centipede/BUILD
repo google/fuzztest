@@ -82,6 +82,20 @@ cc_proto_library(
 #                             C++ libraries
 ################################################################################
 
+cc_library(
+    name = "coverage_symbolizer",
+    srcs = ["coverage_symbolizer.cc"],
+    hdrs = ["coverage_symbolizer.h"],
+    deps = [
+        ":coverage",
+        ":feature",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 # This lib must have zero non-trivial dependencies (other than libc).
 cc_library(
     name = "int_utils",
@@ -1288,6 +1302,18 @@ cc_test(
         ":logging",
         ":test_util",
         ":util",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "coverage_symbolizer_test",
+    srcs = ["coverage_symbolizer_test.cc"],
+    deps = [
+        ":coverage_symbolizer",
+        ":feature",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],

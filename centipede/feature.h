@@ -94,6 +94,11 @@ class Domain {
     return feature / kDomainSize;
   }
 
+  // Returns the index into the domain of a feature.
+  static size_t FeatureToDomainIndex(feature_t feature) {
+    return feature % kDomainSize;
+  }
+
  private:
   const size_t domain_id_;
 };
