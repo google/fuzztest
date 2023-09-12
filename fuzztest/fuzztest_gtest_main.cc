@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "absl/flags/parse.h"
+#include "absl/strings/match.h"
 #include "./fuzztest/init_fuzztest.h"
 
 int main(int argc, char** argv) {
