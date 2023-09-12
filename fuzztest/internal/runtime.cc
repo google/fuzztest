@@ -334,6 +334,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
                       path, *content);
         continue;
       }
+      absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
       RunOneInput({*corpus_value});
     }
     return true;
