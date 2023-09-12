@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "./centipede/runner_interface.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
@@ -64,6 +65,21 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       return true;
     }
     return false;
+  }
+
+  void GetSeeds(
+      std::function<void(centipede::ByteSpan)> seed_callback) override {
+    std::vector<GenericDomainCorpusType> seeds =
+        fuzzer_impl_.fixture_driver_->GetSeeds();
+    absl::c_shuffle(seeds, prng_);
+    if (seeds.empty())
+      seeds.push_back(fuzzer_impl_.params_domain_->UntypedInit(prng_));
+    for (const auto& seed : seeds) {
+      const auto seed_serialized =
+          fuzzer_impl_.params_domain_->UntypedSerializeCorpus(seed).ToString();
+      seed_callback(
+          {(unsigned char*)seed_serialized.data(), seed_serialized.size()});
+    }
   }
 
   bool Mutate(
