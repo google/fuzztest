@@ -104,7 +104,7 @@ cc_library(
         ":fixture_driver",
         ":logging",
         ":runtime",
-        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
     ],
 )
