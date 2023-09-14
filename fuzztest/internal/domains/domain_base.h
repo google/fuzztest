@@ -22,12 +22,14 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
@@ -246,7 +248,7 @@ class DomainBase : public TypedDomainInterface<ValueType> {
       if (!corpus_value.has_value()) ReportBadSeedAndExit(seed);
 
       absl::Status valid = derived().ValidateCorpusValue(*corpus_value);
-      if (!valid.ok()) ReportBadSeedAndExit(seed);
+      if (!valid.ok()) ReportBadSeedAndExit(seed, valid);
 
       seeds_.push_back(*std::move(corpus_value));
     }
@@ -287,10 +289,13 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  static void ReportBadSeedAndExit(const ValueType& seed) {
+  static void ReportBadSeedAndExit(const ValueType& seed,
+                                   std::optional<absl::Status> status = {}) {
     // This may run during fuzz test registration (i.e., global variable
     // initialization), so we can't use `GetStderr()`.
-    absl::FPrintF(stderr, "[!] Invalid seed value:\n\n{");
+    const std::string status_message =
+        status.has_value() ? absl::StrCat(" (", status->ToString(), ")") : "";
+    absl::FPrintF(stderr, "[!] Invalid seed value%s:\n\n{", status_message);
     AutodetectTypePrinter<ValueType>().PrintUserValue(
         seed, &std::cerr, PrintMode::kHumanReadable);
     absl::FPrintF(stderr, "}\n");
