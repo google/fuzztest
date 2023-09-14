@@ -33,7 +33,6 @@ void RunnerSancov() {}  // to be referenced in runner.cc
 
 using centipede::PCGuard;
 using centipede::PCInfo;
-using centipede::RunnerCheck;
 using centipede::state;
 using centipede::tls;
 

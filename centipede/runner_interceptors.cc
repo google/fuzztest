@@ -28,7 +28,6 @@
 
 #include "./centipede/runner.h"
 
-using centipede::state;
 using centipede::tls;
 
 namespace {
