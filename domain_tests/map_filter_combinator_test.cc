@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests of domains Map, FlatMap, and Filter.
+// Tests of domains Map, ReversibleMap, FlatMap, and Filter.
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -98,6 +99,13 @@ TEST(Map, ValidationRejectsInvalidValue) {
           R"(Invalid value for Map\(\)-ed domain >> The value .+ is not InRange\(10, 19\))")));
 }
 
+TEST(Map, MapperWorksWithMoveOnlyTypes) {
+  auto domain =
+      Map([](std::unique_ptr<int> n) -> int { return n == nullptr ? 0 : *n; },
+          UniquePtrOf(Just(1)));
+  EXPECT_THAT(MutateUntilFoundN(domain, /*n=*/2), UnorderedElementsAre(0, 1));
+}
+
 TEST(ReversibleMap, WorksWhenMapFunctionHasSameDomainAndRange) {
   auto domain = ReversibleMap(
       [](int a) { return ~a; },
@@ -164,6 +172,16 @@ TEST(ReversibleMap, WorksWithSeeds) {
 
   EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(8));
   EXPECT_THAT(domain.FromValue(7), Eq(std::nullopt));
+}
+
+TEST(ReversibleMap, MapperWorksWithMoveOnlyTypes) {
+  auto domain = ReversibleMap(
+      [](std::unique_ptr<int> n) -> int { return n == nullptr ? 0 : *n; },
+      [](int n) -> std::optional<std::tuple<std::unique_ptr<int>>> {
+        return {{std::make_unique<int>(n)}};
+      },
+      UniquePtrOf(Just(1)));
+  EXPECT_THAT(MutateUntilFoundN(domain, /*n=*/2), UnorderedElementsAre(0, 1));
 }
 
 TEST(FlatMap, WorksWithSameCorpusType) {
@@ -284,6 +302,15 @@ TEST(FlatMap, MutationDoesNotAlterInputDomains) {
     EXPECT_THAT(domain.GetValue(mutated).size(), Eq(original_size));
   }
   EXPECT_THAT(domain.GetValue(mutated), Each(Eq(0)));
+}
+
+TEST(FlatMap, FlatMapperWorksWithMoveOnlyTypes) {
+  auto domain = FlatMap(
+      [](std::unique_ptr<int> n) -> Domain<int> {
+        return n == nullptr ? Just(0) : Just(*n);
+      },
+      UniquePtrOf(Just(1)));
+  EXPECT_THAT(MutateUntilFoundN(domain, /*n=*/2), UnorderedElementsAre(0, 1));
 }
 
 TEST(Filter, CanFilterInitCalls) {

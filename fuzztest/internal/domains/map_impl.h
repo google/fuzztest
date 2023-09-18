@@ -32,10 +32,11 @@
 namespace fuzztest::internal {
 
 template <typename Mapper, typename... Inner>
-class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
-                                  std::decay_t<std::invoke_result_t<
-                                      Mapper, const value_type_t<Inner>&...>>,
-                                  std::tuple<corpus_type_t<Inner>...>> {
+class MapImpl
+    : public DomainBase<
+          MapImpl<Mapper, Inner...>,
+          std::decay_t<std::invoke_result_t<Mapper, value_type_t<Inner>...>>,
+          std::tuple<corpus_type_t<Inner>...>> {
  public:
   using typename MapImpl::DomainBase::corpus_type;
   using typename MapImpl::DomainBase::value_type;
@@ -107,10 +108,10 @@ class MapImpl : public DomainBase<MapImpl<Mapper, Inner...>,
 
 template <typename Mapper, typename InvMapper, typename... Inner>
 class ReversibleMapImpl
-    : public DomainBase<ReversibleMapImpl<Mapper, InvMapper, Inner...>,
-                        std::decay_t<std::invoke_result_t<
-                            Mapper, const value_type_t<Inner>&...>>,
-                        std::tuple<corpus_type_t<Inner>...>> {
+    : public DomainBase<
+          ReversibleMapImpl<Mapper, InvMapper, Inner...>,
+          std::decay_t<std::invoke_result_t<Mapper, value_type_t<Inner>...>>,
+          std::tuple<corpus_type_t<Inner>...>> {
  public:
   using typename ReversibleMapImpl::DomainBase::corpus_type;
   using typename ReversibleMapImpl::DomainBase::value_type;

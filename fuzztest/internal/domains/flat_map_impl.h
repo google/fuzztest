@@ -38,7 +38,7 @@ namespace fuzztest::internal {
 // input domains.
 template <typename FlatMapper, typename... InputDomain>
 using FlatMapOutputDomain = std::decay_t<
-    std::invoke_result_t<FlatMapper, const value_type_t<InputDomain>&...>>;
+    std::invoke_result_t<FlatMapper, value_type_t<InputDomain>...>>;
 
 template <typename FlatMapper, typename... InputDomain>
 class FlatMapImpl
@@ -162,7 +162,7 @@ class FlatMapImpl
 
  private:
   using output_domain_t = std::decay_t<
-      std::invoke_result_t<FlatMapper, const value_type_t<InputDomain>&...>>;
+      std::invoke_result_t<FlatMapper, value_type_t<InputDomain>...>>;
   output_domain_t GetOutputDomain(const corpus_type& val) const {
     return ApplyIndex<sizeof...(InputDomain)>([&](auto... I) {
       // The first field of `val` is the output corpus value, so skip it.
