@@ -243,10 +243,15 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     seeds_.reserve(seeds_.size() + seeds.size());
     for (const ValueType& seed : seeds) {
       std::optional<CorpusType> corpus_value = derived().FromValue(seed);
-      if (!corpus_value.has_value()) ReportBadSeedAndExit(seed);
+      if (!corpus_value.has_value()) {
+        ReportBadSeedAndExit(
+            seed,
+            absl::InvalidArgumentError(
+                "Seed could not be converted to the internal corpus value"));
+      }
 
       absl::Status valid = derived().ValidateCorpusValue(*corpus_value);
-      if (!valid.ok()) ReportBadSeedAndExit(seed);
+      if (!valid.ok()) ReportBadSeedAndExit(seed, valid);
 
       seeds_.push_back(*std::move(corpus_value));
     }
@@ -287,10 +292,12 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  static void ReportBadSeedAndExit(const ValueType& seed) {
+  static void ReportBadSeedAndExit(const ValueType& seed,
+                                   const absl::Status& status) {
     // This may run during fuzz test registration (i.e., global variable
     // initialization), so we can't use `GetStderr()`.
-    absl::FPrintF(stderr, "[!] Invalid seed value:\n\n{");
+    absl::FPrintF(stderr, "[!] Invalid seed value (%s):\n\n{",
+                  status.ToString());
     AutodetectTypePrinter<ValueType>().PrintUserValue(
         seed, &std::cerr, PrintMode::kHumanReadable);
     absl::FPrintF(stderr, "}\n");
