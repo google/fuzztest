@@ -27,7 +27,9 @@ cc_test(
     data = [
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_with_invalid_seeds.stripped",
-    ],
+    ] + select({
+        "//conditions:default": [],
+    }),
     shard_count = 50,
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
