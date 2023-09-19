@@ -189,6 +189,22 @@ TEST(ConstructorOf, WorksWithTemplatedConstructors) {
   }
 }
 
+struct StringMover {
+  explicit StringMover(std::string&& v) : data_(std::move(v)) {}
+  std::string data_;
+};
+
+TEST(ConstructorOf, WorksWithMoveConstructors) {
+  auto domain = ConstructorOf<StringMover>(Arbitrary<std::string>());
+  absl::BitGen bitgen;
+
+  Value value(domain, bitgen);
+  const std::string initial_value = value.user_value.data_;
+  while (value.user_value.data_ == initial_value) {
+    value.Mutate(domain, bitgen, false);
+  }
+}
+
 TEST(VariantOf, InitGenerateValidValues) {
   using X = std::variant<int, int, std::string>;
   Domain<X> domain =
