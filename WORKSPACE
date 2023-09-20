@@ -23,10 +23,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # Required by com_google_absl.
 http_archive(
     name = "bazel_skylib",
-    sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",
+    sha256 = "66ffd9315665bfaafc96b52278f57c7e2dd09f5ede279ea6d39b2be471e7e3aa",
     urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
+        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
     ],
 )
 
@@ -36,16 +36,16 @@ http_archive(
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "3ea49a7d97421b88a8c48a0de16c16048e17725c7ec0f1d3ea2683a2a75adc21",
-    strip_prefix = "abseil-cpp-20230125.0",
-    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.0.tar.gz",
+    sha256 = "987ce98f02eefbaf930d6e38ab16aa05737234d7afbab2d5c4ea7adbe50c28ed",
+    strip_prefix = "abseil-cpp-20230802.1",
+    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.tar.gz",
 )
 
 http_archive(
     name = "com_googlesource_code_re2",
-    sha256 = "f89c61410a072e5cbcf8c27e3a778da7d6fd2f2b5b1445cd4f4508bee946ab0f",
-    strip_prefix = "re2-2022-06-01",
-    url = "https://github.com/google/re2/archive/refs/tags/2022-06-01.tar.gz",
+    sha256 = "5bb6875ae1cd1e9fedde98018c346db7260655f86fdb8837e3075103acd3649b",
+    strip_prefix = "re2-2023-09-01",
+    url = "https://github.com/google/re2/archive/refs/tags/2023-09-01.tar.gz",
 )
 
 http_archive(
@@ -61,9 +61,9 @@ http_archive(
 
 http_archive(
     name = "com_google_googletest",
-    sha256 = "81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2",
-    strip_prefix = "googletest-release-1.12.1",
-    url = "https://github.com/google/googletest/archive/refs/tags/release-1.12.1.tar.gz",
+    sha256 = "8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7",
+    strip_prefix = "googletest-1.14.0",
+    url = "https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz",
 )
 
 http_archive(
@@ -76,9 +76,9 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "4a7e87e4166c358c63342dddcde6312faee06ea9d5bb4e2fa87d3478076f6639",
-    strip_prefix = "protobuf-21.5",
-    url = "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v21.5.tar.gz"
+    sha256 = "07d69502e58248927b58c7d7e7424135272ba5b2852a753ab6b67e62d2d29355",
+    strip_prefix = "protobuf-24.3",
+    url = "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v24.3.tar.gz"
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
@@ -87,9 +87,9 @@ protobuf_deps()
 
 http_archive(
     name = "rules_proto",
-    sha256 = "e017528fd1c91c5a33f15493e3a398181a9e821a804eb7ff5acdd1d2d6c2b18d",
-    strip_prefix = "rules_proto-4.0.0-3.20.0",
-    url = "https://github.com/bazelbuild/rules_proto/archive/refs/tags/4.0.0-3.20.0.tar.gz",
+    sha256 = "dc3fb206a2cb3441b485eb1e423165b231235a1ea9b031b4433cf7bc1fa460dd",
+    strip_prefix = "rules_proto-5.3.0-21.7",
+    url = "https://github.com/bazelbuild/rules_proto/archive/refs/tags/5.3.0-21.7.tar.gz",
 )
 
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
