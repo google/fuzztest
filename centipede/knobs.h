@@ -15,10 +15,10 @@
 #ifndef THIRD_PARTY_CENTIPEDE_KNOBS_H_
 #define THIRD_PARTY_CENTIPEDE_KNOBS_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <numeric>
 #include <string_view>
 
 #include "absl/types/span.h"

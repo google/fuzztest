@@ -1,5 +1,8 @@
 #include "./fuzztest/internal/status.h"
 
+#include "absl/status/status.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
 absl::Status SetMessage(const absl::Status& status, absl::string_view message) {

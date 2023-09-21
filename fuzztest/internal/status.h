@@ -2,6 +2,7 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_STATUS_H_
 
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 
 // Prefix status error message with `prefix`, if `status` is not OK.
 absl::Status Prefix(const absl::Status& status, absl::string_view prefix);

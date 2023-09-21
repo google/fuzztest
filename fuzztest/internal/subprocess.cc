@@ -16,9 +16,9 @@
 
 #include <cerrno>
 #include <csignal>
-#include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <variant>
 
 #if !defined(_MSC_VER)
 #include <fcntl.h>

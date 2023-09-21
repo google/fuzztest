@@ -6,13 +6,13 @@ set(gtest_URL https://github.com/google/googletest.git)
 set(gtest_TAG v1.14.0)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_TAG 20230802.1)
+set(absl_TAG db08109eeb15fcd856761557f1668c2b34690036)
 
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2023-09-01)
 
 set(proto_URL https://github.com/protocolbuffers/protobuf.git)
-set(proto_TAG v24.3)
+set(proto_TAG 33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27)
 
 # From https://www.antlr.org/download.html
 set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip)

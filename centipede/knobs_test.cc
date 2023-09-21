@@ -15,9 +15,13 @@
 #include "./centipede/knobs.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <string>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 
 namespace centipede {
 

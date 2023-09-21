@@ -15,10 +15,12 @@
 #include "./fuzztest/internal/subprocess.h"
 
 #include <csignal>
+#include <sstream>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {

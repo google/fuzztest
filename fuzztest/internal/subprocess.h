@@ -16,7 +16,6 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <variant>
 #include <vector>

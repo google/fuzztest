@@ -36,9 +36,9 @@ http_archive(
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "987ce98f02eefbaf930d6e38ab16aa05737234d7afbab2d5c4ea7adbe50c28ed",
-    strip_prefix = "abseil-cpp-20230802.1",
-    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.tar.gz",
+    sha256 = "f17ba8d569af3ebf649cbce80d089fed35e046a44f40e0714b6bd6fe83d82738",
+    strip_prefix = "abseil-cpp-db08109eeb15fcd856761557f1668c2b34690036",
+    url = "https://github.com/abseil/abseil-cpp/archive/db08109eeb15fcd856761557f1668c2b34690036.tar.gz",
 )
 
 http_archive(
@@ -76,9 +76,9 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "07d69502e58248927b58c7d7e7424135272ba5b2852a753ab6b67e62d2d29355",
-    strip_prefix = "protobuf-24.3",
-    url = "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v24.3.tar.gz"
+    sha256 = "6f1f962933da7728d81e0467b7ee6f99987c02fc284ff929eb99aeb375ee4b90",
+    strip_prefix = "protobuf-33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27",
+    url = "https://github.com/protocolbuffers/protobuf/archive/33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27.tar.gz"
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")

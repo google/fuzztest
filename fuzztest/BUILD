@@ -453,6 +453,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 
@@ -473,6 +474,7 @@ cc_test(
     srcs = ["internal/subprocess_test.cc"],
     deps = [
         ":subprocess",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],

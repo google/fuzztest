@@ -14,6 +14,7 @@
 
 #include "./centipede/knobs.h"
 
+#include <cstdio>
 #include <string_view>
 
 namespace centipede {

@@ -388,6 +388,7 @@ add_library(
 target_link_libraries(
   fuzztest_status
   PUBLIC
+  absl::cord
   absl::status
   absl::strings
 )
@@ -418,6 +419,7 @@ if (FUZZTEST_TESTING)
     PUBLIC
     fuzztest_logging
     fuzztest_subprocess
+    absl::strings
     absl::time
     GTest::gmock_main
   )
