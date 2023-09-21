@@ -27,6 +27,7 @@
 #include "absl/debugging/symbolize.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -84,20 +85,8 @@ absl::string_view GetTypeName() {
 #endif
 }
 
-// Used only in the predicate `HasAbslStringify`.
-struct DummySink {};
-
-template <typename T, typename = void>
-struct HasAbslStringify : std::false_type {};
-
 template <typename T>
-struct HasAbslStringify<
-    T, std::enable_if_t<std::is_void_v<decltype(AbslStringify(
-           std::declval<DummySink&>(), std::declval<const T&>()))>>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool has_absl_stringify_v = HasAbslStringify<T>::value;
+inline constexpr bool has_absl_stringify_v = absl::HasAbslStringify<T>::value;
 
 using RawSink = absl::FormatRawSink;
 
