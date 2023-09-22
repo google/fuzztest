@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The Centipede seed corpus maker. Following the input text proto config in the
+// ./seed_corpus_config.proto format, selects a sample of fuzzing inputs from N
+// Centipede workdirs and writes them out to a new set of Centipede corpus file
+// shards.
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -117,17 +122,18 @@ void SampleSeedCorpusElementsFromSource(  //
             << source.DebugString();
 
   // Find `source.dir_blog()`-matching dirs and pick at most
-  // `source.num_recent_dirs()` of the most recent of them.
+  // `source.num_recent_dirs()` most recent ones.
 
   std::vector<std::string> corpus_dirs;
   RemoteGlobMatch(source.dir_glob(), corpus_dirs);
   LOG(INFO) << "Found " << corpus_dirs.size() << " corpus dirs matching "
             << source.dir_glob();
-  // Sort in the reverse lexicographical order. We expect that dir names contain
-  // timestamps and are therefore sorted from oldest to newest.
+  // Sort in the ascending lexicographical order. We expect that dir names
+  // contain timestamps and therefore will be sorted from oldest to newest.
   std::sort(corpus_dirs.begin(), corpus_dirs.end(), std::less<std::string>());
   if (source.num_recent_dirs() < corpus_dirs.size()) {
-    corpus_dirs.erase(corpus_dirs.begin() + source.num_recent_dirs());
+    corpus_dirs.erase(  //
+        corpus_dirs.begin(), corpus_dirs.end() - source.num_recent_dirs());
     LOG(INFO) << "Selected " << corpus_dirs.size() << " corpus dirs";
   }
 
