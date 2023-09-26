@@ -64,7 +64,7 @@ namespace internal {
 class FuzzTestFuzzer {
  public:
   virtual ~FuzzTestFuzzer() = default;
-  virtual void RunInUnitTestMode() = 0;
+  virtual void RunInUnitTestMode(std::optional<absl::string_view> input) = 0;
   // Returns fuzzing mode's exit code. Zero indicates success.
   virtual int RunInFuzzingMode(int* argc, char*** argv) = 0;
 };
@@ -72,7 +72,7 @@ class FuzzTestFuzzer {
 class FuzzTest;
 
 using FuzzTestFuzzerFactory =
-    absl::AnyInvocable<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&) &&>;
+    absl::AnyInvocable<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&) const>;
 
 class FuzzTest {
  public:
@@ -93,7 +93,7 @@ class FuzzTest {
   const char* file() const { return test_info_.file; }
   int line() const { return test_info_.line; }
   bool uses_fixture() const { return test_info_.uses_fixture; }
-  auto make() && { return std::move(make_)(*this); }
+  auto make() const { return make_(*this); }
 
  private:
   BasicTestInfo test_info_;
@@ -154,6 +154,15 @@ class Runtime {
   }
   absl::Duration fuzz_time_limit() const { return fuzz_time_limit_; }
 
+  void SetFilesToReplay(absl::Span<const std::string> files_to_replay) {
+    FUZZTEST_INTERNAL_CHECK(files_to_replay_.empty(),
+                            "Replay files are set already!");
+    files_to_replay_ = std::vector<std::string>(files_to_replay.begin(),
+                                                files_to_replay.end());
+  }
+
+  std::vector<std::string>& files_to_replay() { return files_to_replay_; }
+
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
     reporter_enabled_ = true;
     stats_ = stats;
@@ -203,6 +212,7 @@ class Runtime {
 
   RunMode run_mode_ = RunMode::kUnitTest;
   absl::Duration fuzz_time_limit_ = absl::InfiniteDuration();
+  std::vector<std::string> files_to_replay_;
 
   bool reporter_enabled_ = false;
   Args* current_args_ = nullptr;
@@ -233,7 +243,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
  private:
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
-  void RunInUnitTestMode() override;
+  void RunInUnitTestMode(std::optional<absl::string_view> input) override;
 
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
   int RunInFuzzingMode(int* argc, char*** argv) override;
@@ -258,7 +268,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   bool ReplayInputsIfAvailable();
 
-  std::optional<std::vector<std::string>> GetFilesToReplay();
+  std::optional<std::vector<std::string>> GetFilesToReplay(bool& early_return);
 
   std::optional<corpus_type> ReadReproducerToMinimize();
 
@@ -294,7 +304,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   void InitializeCorpus(absl::BitGenRef prng);
 
-  RunResult RunOneInput(const Input& input);
+  RunResult RunOneInput(const Input& input, bool expect_pass = false);
 
   bool ShouldStop();
 

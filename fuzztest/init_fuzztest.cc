@@ -10,10 +10,13 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
+#include "./fuzztest/internal/io.h"
+#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -124,6 +127,16 @@ void InitFuzzTest(int* argc, char*** argv) {
     std::exit(0);
   }
 
+  FUZZTEST_INTERNAL_CHECK(
+      internal::Runtime::instance().files_to_replay().empty(),
+      "You cannot manually set corpus files");
+  std::vector<std::string> corpus_files =
+      internal::GetFileOrFilesInDir(absl::StrCat(
+          "security/laser/sundew/blaze/corpora/", *argv[0], "/minimized"));
+  if (!corpus_files.empty()) {
+    internal::Runtime::instance().SetFilesToReplay(corpus_files);
+  }
+
   const auto test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
   const bool is_test_to_fuzz_specified = test_to_fuzz != kUnspecified;
   if (is_test_to_fuzz_specified) {
@@ -140,7 +153,12 @@ void InitFuzzTest(int* argc, char*** argv) {
     internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
 
-  internal::RegisterFuzzTestsAsGoogleTests(argc, argv);
+  std::vector<std::string> crashing_files;
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+  crashing_files = internal::GetFileOrFilesInDir(absl::StrCat(
+      "security/laser/sundew/blaze/corpora/", *argv[0], "/crashing_inputs"));
+#endif
+  internal::RegisterFuzzTestsAsGoogleTests(argc, argv, crashing_files);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified
                                ? RunMode::kFuzz

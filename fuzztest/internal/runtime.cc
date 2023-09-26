@@ -57,6 +57,8 @@ inline constexpr int TRAP_PERF = 6;
 
 namespace fuzztest::internal {
 
+extern void RunExpectExit(absl::FunctionRef<void()> test);
+
 void (*crash_handler_hook)();
 
 void Runtime::DumpReproducer(std::string_view outdir) const {
@@ -315,9 +317,8 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
 }
 
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
-  runtime_.SetRunMode(RunMode::kFuzz);
-
-  if (const auto file_paths = GetFilesToReplay()) {
+  if (bool early_return;
+      const auto file_paths = GetFilesToReplay(early_return)) {
     for (const std::string& path : *file_paths) {
       const auto content = ReadFile(path);
       if (!content) {
@@ -337,9 +338,10 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
       absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
       RunOneInput({*corpus_value});
     }
-    return true;
+    if (early_return) return true;
   }
 
+  runtime_.SetRunMode(RunMode::kFuzz);
   if (const auto to_minimize = ReadReproducerToMinimize()) {
     absl::FPrintF(GetStderr(),
                   "[!] Looking for smaller mutations indefinitely: please "
@@ -386,16 +388,17 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   return false;
 }
 
-std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
+std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay(
+    bool& early_return) {
   auto file_or_dir = absl::NullSafeStringView(getenv("FUZZTEST_REPLAY"));
-  if (file_or_dir.empty()) return std::nullopt;
-  // Try as a directory path first.
-  std::vector<std::string> files = ListDirectory(std::string(file_or_dir));
-  // If not, consider it a file path.
-  if (files.empty()) {
-    files.push_back(std::string(file_or_dir));
+  if (file_or_dir.empty()) {
+    early_return = false;
+    auto result = Runtime::instance().files_to_replay();
+    if (result.empty()) return std::nullopt;
+    return result;
   }
-  return files;
+  early_return = true;
+  return GetFileOrFilesInDir(file_or_dir);
 }
 
 std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
@@ -599,11 +602,35 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds() {
   }
 }
 
-void FuzzTestFuzzerImpl::RunInUnitTestMode() {
+void FuzzTestFuzzerImpl::RunInUnitTestMode(
+    std::optional<absl::string_view> input) {
+  // std::cout << "In UnitTest mode" << std::endl;
   fixture_driver_->SetUpFuzzTest();
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
     runtime_.SetCurrentTest(&test_);
+
+    if (input.has_value()) {
+      // std::cout << "has crashing input!" << std::endl;
+      const auto content = ReadFile(*input);
+      if (!content) {
+        absl::FPrintF(GetStderr(),
+                      "[!] Failed to read FUZZTEST_REPLAY file or directory "
+                      "(might be empty): %s\n",
+                      *input);
+      } else {
+        auto corpus_value = TryParse(*content);
+        if (!corpus_value) {
+          absl::FPrintF(GetStderr(),
+                        "[!] Skipping invalid input file %s.\n===\n%s\n===\n",
+                        *input, *content);
+        } else {
+          absl::FPrintF(GetStderr(), "[.] Replaying %s\n", *input);
+          RunOneInput({*corpus_value}, /*expect_pass=*/true);
+        }
+      }
+      return;
+    }
 
     // TODO(sbenzaquen): Currently, some infrastructure code assumes that replay
     // works in unit test mode, so we support it. However, we would like to
@@ -660,7 +687,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
 }
 
 FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
-    const Input& input) {
+    const Input& input, bool expect_pass) {
   ++stats_.runs;
   auto untyped_args = params_domain_->UntypedGetValue(input.args);
   Runtime::Args debug_args{input.args, *params_domain_};
@@ -681,7 +708,11 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   }
 
   fixture_driver_->SetUpIteration();
-  fixture_driver_->Test(std::move(untyped_args));
+  if (expect_pass) {
+    RunExpectExit([&]() { fixture_driver_->Test(std::move(untyped_args)); });
+  } else {
+    fixture_driver_->Test(std::move(untyped_args));
+  }
   fixture_driver_->TearDownIteration();
   if (execution_coverage_ != nullptr) {
     execution_coverage_->SetIsTracing(false);
