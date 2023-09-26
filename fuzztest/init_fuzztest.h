@@ -54,6 +54,8 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name);
 // REQUIRES: Binary must be built with SanCov instrumentation on.
 void RunSpecifiedFuzzTest(std::string_view name);
 
+void __attribute__((weak)) CheckCorpus(std::string_view corpus);
+
 }  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_INIT_FUZZTEST_H_

@@ -27,10 +27,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/str_cat.h"
 #include "./fuzztest/fuzztest.h"
 
 namespace fuzztest::internal {
+
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 using ::testing::Eq;

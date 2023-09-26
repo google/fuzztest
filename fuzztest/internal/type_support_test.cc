@@ -35,6 +35,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -44,6 +45,9 @@
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {
+
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 using ::testing::AllOf;
