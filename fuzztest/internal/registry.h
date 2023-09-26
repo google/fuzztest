@@ -15,6 +15,8 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
 
+#include <stdbool.h>
+
 #include <memory>
 #include <string_view>
 #include <type_traits>

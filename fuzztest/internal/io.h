@@ -46,6 +46,8 @@ std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir);
 // returns an empty list.
 std::vector<std::string> ListDirectory(std::string_view dir);
 
+std::vector<std::string> GetFileOrFilesInDir(std::string_view file_or_dir);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_IO_H_

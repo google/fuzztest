@@ -65,6 +65,10 @@ std::vector<std::string> ListDirectory(std::string_view dir) {
   FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
 }
 
+std::vector<std::string> GetFileOrFilesInDir(std::string_view file_or_dir) {
+  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+}
+
 #else  // defined(__APPLE__)
 
 bool WriteFile(std::string_view filename, std::string_view contents) {
@@ -132,6 +136,36 @@ std::vector<std::string> ListDirectory(std::string_view dir) {
     out.push_back(entry.path().string());
   }
   return out;
+}
+
+namespace {
+
+void GetAllFilesRecursively(std::string_view dir,
+                            std::vector<std::string>& files) {
+  std::vector<std::string> entries = ListDirectory(dir);
+  for (const auto& entry : entries) {
+    absl::FPrintF(GetStderr(), "entry: %s\n", entry);
+    if (!std::filesystem::is_directory(entry)) {
+      files.push_back(entry);
+    } else {
+      GetAllFilesRecursively(entry, files);
+    }
+  }
+}
+
+}  // namespace
+
+std::vector<std::string> GetFileOrFilesInDir(std::string_view file_or_dir) {
+  // Try as a directory path first.
+  std::vector<std::string> files;
+  GetAllFilesRecursively(file_or_dir, files);
+  // If not, consider it a file path.
+  if (files.empty()) {
+    if (std::filesystem::is_regular_file(file_or_dir)) {
+      files.push_back(std::string(file_or_dir));
+    }
+  }
+  return files;
 }
 
 #endif  // defined(STUB_FILESYSTEM)
