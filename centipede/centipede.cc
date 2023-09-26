@@ -56,6 +56,8 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -545,8 +547,8 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
       {__FILE__, __LINE__}, std::string{description});
   VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
   auto path = env_.MakeRUsageReportPath(filename_annotation);
-  LOG(INFO) << "Generate rusage report: " << VV(env_.my_shard_index)
-            << description << " " << VV(path);
+  LOG(INFO) << "Generate rusage report [" << description << "]; "
+            << VV(env_.my_shard_index) << VV(path);
   ReportDumper dumper{path};
   rusage_profiler_.GenerateReport(&dumper);
 }

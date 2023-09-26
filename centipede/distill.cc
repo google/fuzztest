@@ -54,10 +54,14 @@ void DistillTask(const Environment &env,
   FeatureSet feature_set(/*frequency_threshold=*/1,
                          env.MakeDomainDiscardMask());
   for (size_t shard_idx : shard_indices) {
-    LOG(INFO) << log_line << "reading shard " << shard_idx;
+    const std::string corpus_path = env.MakeCorpusPath(shard_idx);
+    const std::string features_path = env.MakeFeaturesPath(shard_idx);
+    LOG(INFO) << log_line << "reading shard " << shard_idx << " from:\n"
+              << VV(corpus_path) << "\n"
+              << VV(features_path);
     // Read records from the current shard.
     std::vector<std::pair<ByteArray, FeatureVec>> records;
-    ReadShard(env.MakeCorpusPath(shard_idx), env.MakeFeaturesPath(shard_idx),
+    ReadShard(corpus_path, features_path,
               [&](const ByteArray &input, FeatureVec &input_features) {
                 records.emplace_back(input, std::move(input_features));
               });
