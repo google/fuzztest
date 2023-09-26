@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
@@ -26,6 +27,9 @@
 #include "./fuzztest/internal/registration.h"
 
 namespace fuzztest::internal {
+
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 using ::testing::UnorderedElementsAre;

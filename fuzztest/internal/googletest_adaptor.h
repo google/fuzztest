@@ -17,9 +17,11 @@
 
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -27,13 +29,18 @@ namespace fuzztest::internal {
 
 class GTest_TestAdaptor : public ::testing::Test {
  public:
-  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv)
-      : test_(test), argc_(argc), argv_(argv) {}
+  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv,
+                             std::optional<absl::string_view> input)
+      : test_(test), argc_(argc), argv_(argv), input_(input) {}
 
   void TestBody() override {
-    auto test = std::move(test_).make();
+    std::cout << "In Test Body..." << std::endl;
+    std::cout << "unit test? "
+              << (Runtime::instance().run_mode() == RunMode::kUnitTest)
+              << std::endl;
+    auto test = test_.make();
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
-      test->RunInUnitTestMode();
+      test->RunInUnitTestMode(input_);
     } else {
       ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_)) << "Fuzzing failure.";
     }
@@ -55,6 +62,7 @@ class GTest_TestAdaptor : public ::testing::Test {
   FuzzTest& test_;
   int* argc_;
   char*** argv_;
+  std::optional<absl::string_view> input_;
 };
 
 template <typename Base, typename TestPartResult>
@@ -77,7 +85,8 @@ class GTest_EventListener : public Base {
 };
 
 // Registers FUZZ_TEST as GoogleTest TEST-s.
-void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv);
+void RegisterFuzzTestsAsGoogleTests(
+    int* argc, char*** argv, const std::vector<std::string>& crashing_inputs);
 
 }  // namespace fuzztest::internal
 
