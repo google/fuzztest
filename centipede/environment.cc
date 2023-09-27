@@ -570,9 +570,9 @@ std::string Environment::MakeDistilledCorpusPath() const {
 }
 
 std::string Environment::MakeDistilledFeaturesPath() const {
-  return std::filesystem::path(workdir).append(
-      absl::StrFormat("distilled-features-%s.%0*d", binary_name,
-                      kDigitsInShardIndex, my_shard_index));
+  return std::filesystem::path(MakeCoverageDirPath())
+      .append(absl::StrFormat("distilled-features-%s.%0*d", binary_name,
+                              kDigitsInShardIndex, my_shard_index));
 }
 
 std::string Environment::MakeCoverageReportPath(

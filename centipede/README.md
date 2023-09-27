@@ -329,7 +329,7 @@ distributed. Distillation is however IO-bound.
 
 ```shell
 $BIN_DIR/centipede --binary=$FUZZ_TARGET --workdir=$WD \
-  --binary_hash=a5e87c9b6057e5ffd3b32a5b9a9ef3978527e9cd  --distill \
+  --binary_hash=a5e87c9b6057e5ffd3b32a5b9a9ef3978527e9cd --distill \
   --total_shards=5 --num_threads=3
 ```
 
@@ -337,7 +337,8 @@ Note: `--binary=$FUZZ_TARGET` in this example does not point to a real file and
 so we also pass `--binary_hash=<HASH>`.
 
 The result of this command is that `$WD` will now contain 3 distilled versions
-of the corpus:
+of the corpus, while the features subdirectory, `$WD/<fuzz target name>-<fuzz
+target hash>`, will contain 3 distilled versions of the features:
 
 ```shell
 tree $WD
@@ -345,9 +346,14 @@ tree $WD
 
 ```
 ...
-├── distilled-features-byte_cmp_4.000000
-├── distilled-features-byte_cmp_4.000001
-├── distilled-features-byte_cmp_4.000002
+├── <fuzz target name>-d9d90139ee2ccc687f7c9d5821bcc04b8a847df5
+│   ├── distilled-features-byte_cmp_4.000000
+│   ├── distilled-features-byte_cmp_4.000001
+│   ├── distilled-features-byte_cmp_4.000002
+│   ├── features.000000
+│   ...
+├── corpus.000000
+│   ...
 ├── distilled-byte_cmp_4.000000
 ├── distilled-byte_cmp_4.000001
 ├── distilled-byte_cmp_4.000002

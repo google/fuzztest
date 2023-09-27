@@ -120,8 +120,8 @@ struct Environment {
 
   std::string exec_name;          // copied from argv[0]
   std::vector<std::string> args;  // copied from argv[1:].
-  const std::string binary_name;  // Name of `coverage_binary`, w/o directories.
-  const std::string binary_hash;  // Hash of the `coverage_binary` file.
+  std::string binary_name;        // Name of `coverage_binary`, w/o directories.
+  std::string binary_hash;        // Hash of the `coverage_binary` file.
   bool has_input_wildcards = false;  // Set to true iff `binary` contains "@@".
 
   // Experiment-related settings -----------------------------------------------

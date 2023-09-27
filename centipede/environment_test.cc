@@ -14,6 +14,9 @@
 
 #include "./centipede/environment.h"
 
+#include <cstddef>
+#include <string_view>
+
 #include "gtest/gtest.h"
 
 namespace centipede {
@@ -52,8 +55,11 @@ TEST(Environment, UpdateForExperiment) {
 TEST(Environment, MakeDistilledCorpusAndFeaturesPaths) {
   Environment env;
   env.my_shard_index = 3;
-  EXPECT_EQ(env.MakeDistilledCorpusPath(), "distilled-.000003");
-  EXPECT_EQ(env.MakeDistilledFeaturesPath(), "distilled-features-.000003");
+  env.binary_name = "foo";
+  env.binary_hash = "foo_hash";
+  EXPECT_EQ(env.MakeDistilledCorpusPath(), "distilled-foo.000003");
+  EXPECT_EQ(env.MakeDistilledFeaturesPath(),
+            "foo-foo_hash/distilled-features-foo.000003");
 }
 
 TEST(Environment, MakeCoverageReportPath) {
