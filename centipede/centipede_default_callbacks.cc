@@ -18,10 +18,14 @@
 #include <string_view>
 #include <vector>
 
-#include "./centipede/centipede_interface.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
+#include "./centipede/mutation_input.h"
+#include "./centipede/runner_result.h"
 
 namespace centipede {
 
@@ -66,15 +70,14 @@ void CentipedeDefaultCallbacks::Mutate(
         custom_mutator_is_usable_ = true;
       }
       if (!mutants.empty()) return;
-      LOG(WARNING)
-          << "No mutants returned from the custom mutator - falling "
-             "back to the internal mutator. Check the custom mutator if this "
-             "happens frequently";
+      LOG_FIRST_N(WARNING, 5)
+          << "Custom mutator returned no mutants: falling back to internal "
+             "default mutator";
     } else {
-      LOG(INFO) << "Custom mutator undetected or misbehaving:";
+      LOG(WARNING) << "Custom mutator undetected or misbehaving:";
       CHECK(!custom_mutator_is_usable_.has_value())
           << "Custom mutator is unreliable, aborting";
-      LOG(INFO) << "Falling back to the internal default mutator.";
+      LOG(WARNING) << "Falling back to internal default mutator";
       custom_mutator_is_usable_ = false;
     }
   }

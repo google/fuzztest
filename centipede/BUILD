@@ -741,11 +741,15 @@ cc_library(
     srcs = ["centipede_default_callbacks.cc"],
     hdrs = ["centipede_default_callbacks.h"],
     deps = [
+        ":centipede_callbacks",
         ":centipede_interface",
         ":defs",
         ":environment",
         ":logging",
+        ":mutation_input",
         ":runner_result",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
