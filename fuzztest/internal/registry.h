@@ -80,16 +80,15 @@ struct RegistrationToken {
     using FuzzerImpl = FuzzTestFuzzerImpl;
 #endif
 
-    return
-        [target_function = reg.target_function_, domain = reg.GetDomains(),
-         seeds = reg.seeds(), seed_provider = reg.seed_provider()](
-            const FuzzTest& test) mutable -> std::unique_ptr<FuzzTestFuzzer> {
-          return std::make_unique<FuzzerImpl>(
-              test,
-              std::make_unique<FixtureDriverImpl<decltype(domain), Fixture,
-                                                 TargetFunction, SeedProvider>>(
-                  target_function, domain, seeds, std::move(seed_provider)));
-        };
+    return [target_function = reg.target_function_, domain = reg.GetDomains(),
+            seeds = reg.seeds(), seed_provider = reg.seed_provider()](
+               const FuzzTest& test) -> std::unique_ptr<FuzzTestFuzzer> {
+      return std::make_unique<FuzzerImpl>(
+          test,
+          std::make_unique<FixtureDriverImpl<decltype(domain), Fixture,
+                                             TargetFunction, SeedProvider>>(
+              target_function, domain, seeds, seed_provider));
+    };
   }
 };
 

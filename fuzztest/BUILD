@@ -246,11 +246,10 @@ cc_test(
     srcs = ["internal/fixture_driver_test.cc"],
     deps = [
         ":any",
-        ":domain",
+        ":domain_core",
         ":fixture_driver",
         ":logging",
         ":registration",
-        ":type_support",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],

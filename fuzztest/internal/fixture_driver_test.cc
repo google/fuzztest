@@ -14,18 +14,16 @@
 
 #include "./fuzztest/internal/fixture_driver.h"
 
-#include <string>
 #include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registration.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 namespace {

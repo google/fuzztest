@@ -99,10 +99,15 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
  public:
   TypedFixtureDriver(std::unique_ptr<TypedDomainInterface<ValueType>> domain,
                      std::vector<GenericDomainCorpusType> seeds,
-                     SeedProvider seed_provider)
+                     const SeedProvider& seed_provider)
       : domain_(std::move(domain)),
         seeds_(std::move(seeds)),
-        seed_provider_(std::move(seed_provider)) {}
+        seed_provider_(seed_provider) {}
+
+  TypedFixtureDriver(const TypedFixtureDriver&) = delete;
+  TypedFixtureDriver& operator=(const TypedFixtureDriver&) = delete;
+  TypedFixtureDriver(TypedFixtureDriver&& other) = delete;
+  TypedFixtureDriver& operator=(TypedFixtureDriver&& other) = delete;
 
   std::vector<GenericDomainCorpusType> GetSeeds() const final {
     std::vector<GenericDomainCorpusType> seeds = GetSeedsFromSeedProvider();
@@ -158,7 +163,7 @@ class TypedFixtureDriver : public UntypedFixtureDriver {
 
   std::unique_ptr<TypedDomainInterface<ValueType>> domain_;
   std::vector<GenericDomainCorpusType> seeds_;
-  SeedProvider seed_provider_;
+  const SeedProvider& seed_provider_;
 };
 
 // ForceVectorForStringView is a temporary hack for realiably
@@ -220,12 +225,12 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
                          std::vector<GenericDomainCorpusType> seeds,
-                         SeedProvider seed_provider)
+                         const SeedProvider& seed_provider)
       : FixtureDriver::TypedFixtureDriver(
             absl::WrapUnique(
                 static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
                     domain.Clone().release())),
-            std::move(seeds), std::move(seed_provider)),
+            std::move(seeds), seed_provider),
         target_function_(target_function) {}
 
   void Test(MoveOnlyAny&& args_untyped) const override {
@@ -283,12 +288,12 @@ class FixtureDriver<DomainT, NoFixture, void (*)(Args...), SeedProvider>
 
   explicit FixtureDriver(TargetFunction target_function, const DomainT& domain,
                          std::vector<GenericDomainCorpusType> seeds,
-                         SeedProvider seed_provider)
+                         const SeedProvider& seed_provider)
       : FixtureDriver::TypedFixtureDriver(
             absl::WrapUnique(
                 static_cast<TypedDomainInterface<value_type_t<DomainT>>*>(
                     domain.Clone().release())),
-            std::move(seeds), std::move(seed_provider)),
+            std::move(seeds), seed_provider),
         target_function_(target_function) {}
 
   void Test(MoveOnlyAny&& args_untyped) const override {

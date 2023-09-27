@@ -72,15 +72,12 @@ class FuzzTestFuzzer {
 class FuzzTest;
 
 using FuzzTestFuzzerFactory =
-    absl::AnyInvocable<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&) &&>;
+    absl::AnyInvocable<std::unique_ptr<FuzzTestFuzzer>(const FuzzTest&) const>;
 
 class FuzzTest {
  public:
   FuzzTest(BasicTestInfo test_info, FuzzTestFuzzerFactory factory)
       : test_info_(test_info), make_(std::move(factory)) {}
-
-  FuzzTest(const FuzzTest&) = delete;
-  FuzzTest& operator=(const FuzzTest&) = delete;
 
   const char* suite_name() const { return test_info_.suite_name; }
   const char* test_name() const { return test_info_.test_name; }
@@ -93,7 +90,7 @@ class FuzzTest {
   const char* file() const { return test_info_.file; }
   int line() const { return test_info_.line; }
   bool uses_fixture() const { return test_info_.uses_fixture; }
-  auto make() && { return std::move(make_)(*this); }
+  auto make() const { return make_(*this); }
 
  private:
   BasicTestInfo test_info_;
