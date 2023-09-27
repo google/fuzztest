@@ -292,7 +292,6 @@ ABSL_FLAG(std::string, runner_dl_path_suffix, "",
           "or a suffix, like '/my.so' or 'my.so'."
           "This flag is experimental and may be removed in future");
 // TODO(kcc): --distill and several others better be sub-command, not flags.
-// TODO(kcc): deprecate --distill_shards once --distill is ready.
 ABSL_FLAG(bool, distill, false,
           "Experimental reimplementation of distillation - not ready yet. "
           "All `total_shards` shards of the corpus in `workdir` are loaded "
@@ -301,14 +300,8 @@ ABSL_FLAG(bool, distill, false,
           "loading the shards in random order. "
           "Each distillation thread writes a minimized (distilled) "
           "corpus to workdir/distilled-BINARY.`my_shard_index`.");
-ABSL_FLAG(size_t, distill_shards, 0,
-          "The first --distill_shards will write the distilled corpus to "
-          "workdir/distilled-BINARY.SHARD files. Also, if --corpus_dir is "
-          "specified, the distilled corpus shards will be duplicated to its "
-          "first element. Note that every shard will produce its own variant "
-          "of distilled corpus thanks to random loading order. Distillation "
-          "will work properly only if all shards already have their feature "
-          "files computed.");
+ABSL_RETIRED_FLAG(size_t, distill_shards, 0,
+                  "No longer supported: use --distill instead.");
 ABSL_FLAG(size_t, log_features_shards, 0,
           "The first --log_features_shards shards will log newly observed "
           "features as symbols. In most cases you don't need this to be >= 2.");
@@ -466,7 +459,6 @@ Environment::Environment(const std::vector<std::string> &argv)
       telemetry_frequency(absl::GetFlag(FLAGS_telemetry_frequency)),
       print_runner_log(absl::GetFlag(FLAGS_print_runner_log)),
       distill(absl::GetFlag(FLAGS_distill)),
-      distill_shards(absl::GetFlag(FLAGS_distill_shards)),
       log_features_shards(absl::GetFlag(FLAGS_log_features_shards)),
       knobs_file(absl::GetFlag(FLAGS_knobs_file)),
       save_corpus_to_local_dir(absl::GetFlag(FLAGS_save_corpus_to_local_dir)),

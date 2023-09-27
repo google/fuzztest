@@ -625,6 +625,7 @@ cc_library(
         "centipede.h",
     ],
     deps = [
+        ":binary_info",
         ":blob_file",
         ":centipede_callbacks",
         ":command",
@@ -636,6 +637,7 @@ cc_library(
         ":feature",
         ":feature_set",
         ":logging",
+        ":mutation_input",
         ":remote_file",
         ":runner_result",
         ":rusage_profiler",
@@ -643,6 +645,7 @@ cc_library(
         ":shard_reader",
         ":stats",
         ":util",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

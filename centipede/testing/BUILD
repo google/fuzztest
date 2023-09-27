@@ -214,6 +214,7 @@ cc_test(
     tags = ["not_run:arm"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
         "@com_google_fuzztest//centipede:blob_file",
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:centipede_default_callbacks",

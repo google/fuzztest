@@ -360,13 +360,6 @@ tree $WD
 
 ```
 
-### Deprecated but still works
-
-Use the deprecated flag `--distill_shards=N` to produce `N` independent
-distilled corpus files. This option requires the target binary to be present on
-disk. If you need to also export the distilled corpus to a libFuzzer-style
-directory (local dir with one file per input), add `--corpus_dir=DIR`.
-
 ## Coverage Reports
 
 Centipede provides two ways to write coverage reports: a simple text-based

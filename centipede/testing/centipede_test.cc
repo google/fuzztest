@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_cat.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
@@ -189,27 +190,28 @@ TEST(Centipede, ShardsAndDistillTest) {
 
   // Second round of runs. Don't fuzz, only distill.
   // Don't distill in the last one to test the flag behaviour.
-  env.distill_shards = env.total_shards - 1;
-  env.num_runs = 0;  // No fuzzing.
+  env.distill = true;
+  env.num_threads = env.total_shards - 1;
+  env.my_shard_index = 0;
+  // Empty the corpus_dir[0]
+  std::filesystem::remove_all(env.corpus_dir[0]);
+  std::filesystem::create_directory(env.corpus_dir[0]);
+  MockFactory factory(mock);
+  CentipedeMain(env, factory);  // Run distilling in shard `shard_index`.
+  EXPECT_EQ(CountFilesInDir(env.corpus_dir[0]), 0);
   for (size_t shard_index = 0; shard_index < env.total_shards; shard_index++) {
-    env.my_shard_index = shard_index;
-    // Empty the corpus_dir[0]
-    std::filesystem::remove_all(env.corpus_dir[0]);
-    std::filesystem::create_directory(env.corpus_dir[0]);
-    MockFactory factory(mock);
-    CentipedeMain(env, factory);  // Run distilling in shard `shard_index`.
+    SCOPED_TRACE(absl::StrCat("Shard ", shard_index));
     auto distilled_size =
         tmp_dir.CountElementsInCorpusFile(shard_index, "distilled-.");
     if (shard_index == env.total_shards - 1) {
-      EXPECT_EQ(distilled_size, 0);  // Didn't distill in the last shard.
-      EXPECT_EQ(CountFilesInDir(env.corpus_dir[0]), 0);
+      // Didn't distill in the last shard.
+      EXPECT_EQ(distilled_size, 0);
     } else {
       // Distillation is expected to find more inputs than any individual shard.
       EXPECT_GT(distilled_size, max_shard_size);
       // And since we are expecting 512 features, with 2-byte inputs,
       // we get at least 512/2 corpus elements after distillation.
       EXPECT_GT(distilled_size, 256);
-      EXPECT_GT(CountFilesInDir(env.corpus_dir[0]), 256);
     }
   }
 }

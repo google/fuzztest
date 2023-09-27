@@ -94,7 +94,6 @@ struct Environment {
   int telemetry_frequency;
   bool print_runner_log;
   bool distill;
-  size_t distill_shards;
   size_t log_features_shards;
   std::string knobs_file;
   std::string save_corpus_to_local_dir;
@@ -186,8 +185,6 @@ struct Environment {
 
   // Should certain actions be performed ---------------------------------------
 
-  // Returns true if we want to distill the corpus in this shard before fuzzing.
-  bool DistillingInThisShard() const { return my_shard_index < distill_shards; }
   // Returns true if we want to log features as symbols in this shard.
   bool LogFeaturesInThisShard() const {
     return my_shard_index < log_features_shards;

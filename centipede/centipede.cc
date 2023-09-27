@@ -44,28 +44,37 @@
 #include "./centipede/centipede.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/base/attributes.h"
+#include "absl/base/const_init.h"  // NOLINT
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./centipede/binary_info.h"
 #include "./centipede/blob_file.h"
+#include "./centipede/centipede_callbacks.h"
+#include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
@@ -73,11 +82,13 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"
 #include "./centipede/shard_reader.h"
+#include "./centipede/stats.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -746,20 +757,8 @@ void Centipede::FuzzingLoop() {
   // The tests rely on this stat being logged last.
   UpdateAndMaybeLogStats("end-fuzz", 0);
 
-  // If we've fuzzed anything, dump the final telemetry files, possibly
-  // overwriting the last intermediate version dumped inside the loop.
-  if (env_.num_runs != 0) MaybeGenerateTelemetry("latest", "After fuzzing");
-
-  // If requested, distill the corpus. Note that with `--num_runs` == 0, this
-  // will essentially be the single action this run will carry out, with the
-  // fuzzing loop being a no-op.
-  if (env_.DistillingInThisShard()) {
-    ReloadAllShardsAndWriteDistilledCorpus();
-
-    // Dump the distillation telemetry so the post-distillation vs. post-fuzzing
-    // stats can be compared.
-    MaybeGenerateTelemetry("distilled", "After distillation");
-  }
+  // If we've fuzzed anything, dump the final telemetry files.
+  if (env_.num_runs != 0) MaybeGenerateTelemetry("final", "After fuzzing");
 }
 
 void Centipede::ReportCrash(std::string_view binary,
