@@ -1087,6 +1087,7 @@ cc_test(
     srcs = ["rusage_profiler_test.cc"],
     deps = [
         ":rusage_profiler",
+        ":rusage_stats",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/time",

@@ -19,14 +19,19 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
-#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./centipede/rusage_stats.h"
 
 ABSL_FLAG(bool, verbose, false, "Print extra info for debugging");
+ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,
+          "Enable tests that are sensitive to the overall execution "
+          "environment on the current machine, e.g. the wall time accuracy or "
+          "average CPU load");
 
 // clang-format off
 #define EXPECT_TIME_NEAR(x, y, e) \
@@ -67,7 +72,7 @@ struct BigSlowThing {
     double cpu_waster = 1.23;
     while (absl::Now() - start < waste_time) {
       cpu_waster = std::cos(cpu_waster);
-      sleep(1 /*second*/);
+      absl::SleepFor(absl::Seconds(1));
     }
   }
 
@@ -169,9 +174,11 @@ TEST(RUsageProfilerTest, ValidateManualSnapshots) {
   LOG(WARNING) << "Validation of some test results omitted under *SANs";
 #endif
 
-  EXPECT_SYS_MEMORY_NEAR(before_snapshot.memory, before_memory);
-  EXPECT_SYS_MEMORY_NEAR(after_snapshot.memory, after_memory);
-  EXPECT_SYS_MEMORY_NEAR(after_snapshot.delta_memory, delta_memory);
+  if (absl::GetFlag(FLAGS_enable_system_load_sensitive_tests)) {
+    EXPECT_SYS_MEMORY_NEAR(before_snapshot.memory, before_memory);
+    EXPECT_SYS_MEMORY_NEAR(after_snapshot.memory, after_memory);
+    EXPECT_SYS_MEMORY_NEAR(after_snapshot.delta_memory, delta_memory);
+  }
 }
 #endif  // MSAN is now back on.
 
