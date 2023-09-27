@@ -322,11 +322,6 @@ distillation, you can still pass `--binary=/path/to/foo --binary_hash=<HASH>`,
 but you can also pass `--binary=foo --binary_hash=<HASH>` or
 `--binary=/invalid/path/foo --binary_hash=<HASH>`.
 
-Unlike fuzzing, the distillation step is not distributed and needs to run on a
-single machine. The distillation is a much lighter-weight process than fuzzing
-because it does not require executing the target, and thus it doesn't need to be
-distributed. Distillation is however IO-bound.
-
 ```shell
 $BIN_DIR/centipede --binary=$FUZZ_TARGET --workdir=$WD \
   --binary_hash=a5e87c9b6057e5ffd3b32a5b9a9ef3978527e9cd --distill \
