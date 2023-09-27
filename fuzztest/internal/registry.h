@@ -15,6 +15,8 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
 
+#include <stdbool.h>
+
 #include <memory>
 #include <string_view>
 #include <type_traits>
@@ -82,13 +84,13 @@ struct RegistrationToken {
 
     return
         [target_function = reg.target_function_, domain = reg.GetDomains(),
-         seeds = reg.seeds(), seed_provider = reg.seed_provider()](
-            const FuzzTest& test) mutable -> std::unique_ptr<FuzzTestFuzzer> {
+         seeds = reg.seeds(), seed_provider = std::move(reg.seed_provider())](
+            const FuzzTest& test) -> std::unique_ptr<FuzzTestFuzzer> {
           return std::make_unique<FuzzerImpl>(
               test,
               std::make_unique<FixtureDriverImpl<decltype(domain), Fixture,
                                                  TargetFunction, SeedProvider>>(
-                  target_function, domain, seeds, std::move(seed_provider)));
+                  target_function, domain, seeds, seed_provider));
         };
   }
 };

@@ -24,6 +24,7 @@ exports_files(["LICENSE"])
 
 cc_library(
     name = "fuzztest",
+    testonly = True,
     srcs = ["fuzztest.cc"],
     hdrs = ["fuzztest.h"],
     deps = [
@@ -52,6 +53,8 @@ cc_library(
     hdrs = ["init_fuzztest.h"],
     deps = [
         ":googletest_adaptor",
+        ":io",
+        ":logging",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/flags:flag",
@@ -97,6 +100,7 @@ cc_test(
 
 cc_library(
     name = "centipede_adaptor",
+    testonly = True,
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
     deps = [
@@ -111,6 +115,7 @@ cc_library(
 
 cc_library(
     name = "compatibility_mode",
+    testonly = True,
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
     deps = [
@@ -264,6 +269,8 @@ cc_library(
     deps = [
         ":registry",
         ":runtime",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -338,12 +345,14 @@ cc_library(
         ":type_support",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
 )
 
 cc_library(
     name = "registry",
+    testonly = True,
     srcs = ["internal/registry.cc"],
     hdrs = ["internal/registry.h"],
     deps = [
