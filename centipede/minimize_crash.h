@@ -26,7 +26,8 @@ namespace centipede {
 // Returns EXIT_SUCCESS if at least one smaller crasher was found,
 // EXIT_FAILURE otherwise.
 // Also returns EXIT_FAILURE if the original input didn't crash.
-// Stores the newly found crashy inputs in `env.MakeCrashReproducerDirPath()`.
+// Stores the newly found crashy inputs in
+// `WorkDir{env}.CrashReproducerDirPath()`.
 int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
                   CentipedeCallbacksFactory &callbacks_factory);
 

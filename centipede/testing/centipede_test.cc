@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <set>
 #include <string>
 #include <string_view>
@@ -39,6 +39,7 @@
 #include "./centipede/shard_reader.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -582,7 +583,7 @@ TEST(Centipede, ExtraBinaries) {
   // The "crashes" dir must contain 3 crashy inputs, one for each binary.
   // We simply match their file names, because they are hashes of the contents.
   std::vector<std::string> found_crash_file_names;
-  auto crashes_dir_path = env.MakeCrashReproducerDirPath();
+  auto crashes_dir_path = WorkDir{env}.CrashReproducerDirPath();
   ASSERT_TRUE(std::filesystem::exists(crashes_dir_path))
       << VV(crashes_dir_path);
   for (const auto &dir_ent :

@@ -282,6 +282,7 @@ cc_library(
         ":environment",
         ":logging",
         ":remote_file",
+        ":workdir",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -302,7 +303,13 @@ cc_library(
         ":defs",
         ":environment",
         ":logging",
+        ":mutation_input",
+        ":runner_result",
         ":util",
+        ":workdir",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/synchronization",
     ],
 )
@@ -599,6 +606,9 @@ cc_library(
         ":runner_result",
         ":shared_memory_blob_sequence",
         ":util",
+        ":workdir",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
     ],
@@ -641,6 +651,7 @@ cc_library(
         ":feature_set",
         ":logging",
         ":mutation_input",
+        ":pc_info",
         ":remote_file",
         ":runner_result",
         ":rusage_profiler",
@@ -648,6 +659,7 @@ cc_library(
         ":shard_reader",
         ":stats",
         ":util",
+        ":workdir",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -677,16 +689,20 @@ cc_library(
         ":centipede_callbacks",
         ":centipede_lib",
         ":command",
+        ":corpus",
         ":coverage",
         ":defs",
         ":distill",
         ":environment",
+        ":feature",
         ":logging",
         ":minimize_crash",
+        ":pc_info",
         ":remote_file",
         ":shard_reader",
         ":stats",
         ":util",
+        ":workdir",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -718,7 +734,6 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
     ],
 )
@@ -736,6 +751,7 @@ cc_library(
         ":logging",
         ":shard_reader",
         ":util",
+        ":workdir",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -963,6 +979,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "workdir",
+    srcs = ["workdir.cc"],
+    hdrs = ["workdir.h"],
+    deps = [
+        ":environment",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 sh_library(
     name = "test_fuzzing_util_sh",
     srcs = ["test_fuzzing_util.sh"],
@@ -984,6 +1013,16 @@ cc_test(
     srcs = ["environment_test.cc"],
     deps = [
         ":environment",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "workdir_test",
+    srcs = ["workdir_test.cc"],
+    deps = [
+        ":environment",
+        ":workdir",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1076,8 +1115,11 @@ cc_test(
         ":feature",
         ":shard_reader",
         ":test_util",
+        ":util",
+        ":workdir",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:reflection",
+        "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1118,10 +1160,14 @@ cc_test(
     name = "minimize_crash_test",
     srcs = ["minimize_crash_test.cc"],
     deps = [
+        ":centipede_callbacks",
         ":defs",
+        ":environment",
         ":minimize_crash",
+        ":runner_result",
         ":test_util",
         ":util",
+        ":workdir",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -32,7 +32,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -535,110 +534,6 @@ std::string NormalizeAnnotation(std::string_view annotation) {
 }
 
 }  // namespace
-
-std::string Environment::MakeCoverageDirPath() const {
-  return std::filesystem::path(workdir).append(
-      absl::StrCat(binary_name, "-", binary_hash));
-}
-
-std::string Environment::MakeCrashReproducerDirPath() const {
-  return std::filesystem::path(workdir).append("crashes");
-}
-
-std::string Environment::MakeCorpusPath(size_t shard_index) const {
-  return std::filesystem::path(workdir).append(
-      absl::StrFormat("corpus.%0*d", kDigitsInShardIndex, shard_index));
-}
-
-std::string Environment::MakeFeaturesPath(size_t shard_index) const {
-  return std::filesystem::path(MakeCoverageDirPath())
-      .append(
-          absl::StrFormat("features.%0*d", kDigitsInShardIndex, shard_index));
-}
-
-std::string Environment::MakeDistilledCorpusPath() const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "distilled-%s.%0*d", binary_name, kDigitsInShardIndex, my_shard_index));
-}
-
-std::string Environment::MakeDistilledFeaturesPath() const {
-  return std::filesystem::path(MakeCoverageDirPath())
-      .append(absl::StrFormat("distilled-features-%s.%0*d", binary_name,
-                              kDigitsInShardIndex, my_shard_index));
-}
-
-std::string Environment::MakeCoverageReportPath(
-    std::string_view annotation) const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "coverage-report-%s.%0*d%s.txt", binary_name, kDigitsInShardIndex,
-      my_shard_index, NormalizeAnnotation(annotation)));
-}
-
-std::string Environment::MakeCorpusStatsPath(
-    std::string_view annotation) const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "corpus-stats-%s.%0*d%s.json", binary_name, kDigitsInShardIndex,
-      my_shard_index, NormalizeAnnotation(annotation)));
-}
-
-std::string Environment::MakeFuzzingStatsPath(
-    std::string_view annotation) const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "fuzzing-stats-%s.%0*d%s.csv", binary_name, kDigitsInShardIndex,
-      my_shard_index, NormalizeAnnotation(annotation)));
-}
-
-std::string Environment::MakeSourceBasedCoverageRawProfilePath() const {
-  // Pass %m to enable online merge mode: updates file in place instead of
-  // replacing it %m is replaced by lprofGetLoadModuleSignature(void) which
-  // should be consistent for a fixed binary
-  return std::filesystem::path(MakeCoverageDirPath())
-      .append(absl::StrFormat("clang_coverage.%0*d.%s.profraw",
-                              kDigitsInShardIndex, my_shard_index, "%m"));
-}
-
-std::string Environment::MakeSourceBasedCoverageIndexedProfilePath() const {
-  return std::filesystem::path(MakeCoverageDirPath())
-      .append(absl::StrFormat("clang_coverage.profdata"));
-}
-
-std::string Environment::MakeSourceBasedCoverageReportPath(
-    std::string_view annotation) const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "source-coverage-report-%s.%0*d%s", binary_name, kDigitsInShardIndex,
-      my_shard_index, NormalizeAnnotation(annotation)));
-}
-
-std::vector<std::string> Environment::EnumerateRawCoverageProfiles() const {
-  // Unfortunately we have to enumerate the profiles from the filesystem since
-  // clang-coverage generates its own hash of the binary to avoid collisions
-  // between builds. We account for this in Centipede already with the
-  // per-binary coverage directory but LLVM coverage (perhaps smartly) doesn't
-  // trust the user to get this right. We could call __llvm_profile_get_filename
-  // in the runner and plumb it back to us but this is simpler.
-  const std::string dir_path = MakeCoverageDirPath();
-  std::error_code dir_error;
-  const auto dir_iter =
-      std::filesystem::directory_iterator(dir_path, dir_error);
-  if (dir_error) {
-    LOG(ERROR) << "Failed to access coverage dir '" << dir_path
-               << "': " << dir_error.message();
-    return {};
-  }
-  std::vector<std::string> raw_profiles;
-  for (const auto &entry : dir_iter) {
-    if (entry.is_regular_file() && entry.path().extension() == ".profraw")
-      raw_profiles.push_back(entry.path());
-  }
-  return raw_profiles;
-}
-
-std::string Environment::MakeRUsageReportPath(
-    std::string_view annotation) const {
-  return std::filesystem::path(workdir).append(absl::StrFormat(
-      "rusage-report-%s.%0*d%s.txt", binary_name, kDigitsInShardIndex,
-      my_shard_index, NormalizeAnnotation(annotation)));
-}
 
 bool Environment::DumpCorpusTelemetryInThisShard() const {
   // Corpus stats are global across all shards on all machines.

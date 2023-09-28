@@ -228,6 +228,7 @@ cc_test(
         "@com_google_fuzztest//centipede:shard_reader",
         "@com_google_fuzztest//centipede:test_util",
         "@com_google_fuzztest//centipede:util",
+        "@com_google_fuzztest//centipede:workdir",
         "@com_google_googletest//:gtest_main",
     ],
 )

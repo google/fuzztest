@@ -14,15 +14,27 @@
 
 #include "./centipede/minimize_crash.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <string>
+#include <string_view>
 #include <thread>      // NOLINT(build/c++11)
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
+#include "./centipede/mutation_input.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -138,7 +150,7 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
   LOG(INFO) << "Starting the crash minimization loop in " << env.num_threads
             << "threads";
 
-  MinimizerWorkQueue queue(env.MakeCrashReproducerDirPath(),
+  MinimizerWorkQueue queue(WorkDir{env}.CrashReproducerDirPath(),
                            original_crashy_input);
 
   std::vector<std::thread> threads(env.num_threads);

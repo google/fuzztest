@@ -49,6 +49,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <numeric>
@@ -90,6 +91,7 @@
 #include "./centipede/shard_reader.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -129,21 +131,24 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 
 void Centipede::SaveCorpusToLocalDir(
     const Environment &env, std::string_view save_corpus_to_local_dir) {
+  const WorkDir wd{env};
   for (size_t shard = 0; shard < env.total_shards; shard++) {
     auto reader = DefaultBlobFileReaderFactory();
-    reader->Open(env.MakeCorpusPath(shard)).IgnoreError();  // may not exist.
+    auto corpus_path = wd.CorpusPath(shard);
+    reader->Open(corpus_path).IgnoreError();  // may not exist.
     absl::Span<uint8_t> blob;
     size_t num_read = 0;
     while (reader->Read(blob).ok()) {
       ++num_read;
       WriteToLocalHashedFileInDir(save_corpus_to_local_dir, blob);
     }
-    LOG(INFO) << "Read " << num_read << " from " << env.MakeCorpusPath(shard);
+    LOG(INFO) << "Read " << num_read << " from " << corpus_path;
   }
 }
 
 void Centipede::ExportCorpusFromLocalDir(const Environment &env,
                                          std::string_view local_dir) {
+  const WorkDir wd{env};
   // Shard the file paths in `local_dir` based on hashes of filenames.
   // Such partition is stable: a given file always goes to a specific shard.
   std::vector<std::vector<std::string>> sharded_paths(env.total_shards);
@@ -160,13 +165,14 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
   size_t inputs_added = 0;
   size_t inputs_ignored = 0;
   for (size_t shard = 0; shard < env.total_shards; shard++) {
+    const std::string corpus_path = wd.CorpusPath(shard);
     size_t num_shard_bytes = 0;
     // Read the shard (if it exists), collect input hashes from it.
     absl::flat_hash_set<std::string> existing_hashes;
     {
       auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
-      reader->Open(env.MakeCorpusPath(shard)).IgnoreError();
+      reader->Open(corpus_path).IgnoreError();
       absl::Span<uint8_t> blob;
       while (reader->Read(blob).ok()) {
         existing_hashes.insert(Hash(blob));
@@ -174,7 +180,6 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
     auto appender = DefaultBlobFileWriterFactory();
-    std::string corpus_path = env.MakeCorpusPath(shard);
     CHECK_OK(appender->Open(corpus_path, "a"))
         << "Failed to open corpus file: " << corpus_path;
     ByteArray shard_data;
@@ -410,14 +415,15 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
 
   // See serialize_shard_loads on why we may want to serialize shard loads.
   // TODO(kcc): remove serialize_shard_loads when LoadShards() uses less RAM.
+  const WorkDir wd{load_env};
+  const std::string corpus_path = wd.CorpusPath(shard_index);
+  const std::string features_path = wd.FeaturesPath(shard_index);
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
     absl::MutexLock lock(&load_shard_mu);
-    ReadShard(load_env.MakeCorpusPath(shard_index),
-              load_env.MakeFeaturesPath(shard_index), input_features_callback);
+    ReadShard(corpus_path, features_path, input_features_callback);
   } else {
-    ReadShard(load_env.MakeCorpusPath(shard_index),
-              load_env.MakeFeaturesPath(shard_index), input_features_callback);
+    ReadShard(corpus_path, features_path, input_features_callback);
   }
 
   VLOG(1) << "Loaded shard " << shard_index << ": added " << num_added_inputs
@@ -445,9 +451,9 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
 
 void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
+  auto features_file_path = wd_.FeaturesPath(env_.my_shard_index);
   auto features_file = DefaultBlobFileWriterFactory();
-  CHECK_OK(
-      features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
+  CHECK_OK(features_file->Open(features_file_path, "a"));
 
   LOG(INFO) << to_rerun.size() << " inputs to rerun";
   // Re-run all inputs for which we don't know their features.
@@ -467,7 +473,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
                                        std::string_view description) {
   if (pc_table_.empty()) return;
 
-  auto coverage_path = env_.MakeCoverageReportPath(filename_annotation);
+  auto coverage_path = wd_.CoverageReportPath(filename_annotation);
   LOG(INFO) << "Generate coverage report: " << description << " "
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
@@ -480,7 +486,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
 
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
-  auto stats_path = env_.MakeCorpusStatsPath(filename_annotation);
+  auto stats_path = wd_.CorpusStatsPath(filename_annotation);
   LOG(INFO) << "Generate corpus stats: " << description << " "
             << VV(stats_path);
   std::ostringstream os;
@@ -494,13 +500,12 @@ void Centipede::GenerateSourceBasedCoverageReport(
     std::string_view filename_annotation, std::string_view description) {
   if (env_.clang_coverage_binary.empty()) return;
 
-  auto report_path =
-      env_.MakeSourceBasedCoverageReportPath(filename_annotation);
+  auto report_path = wd_.SourceBasedCoverageReportPath(filename_annotation);
   LOG(INFO) << "Generate source based coverage report: " << description << " "
             << VV(report_path);
   RemoteMkdir(report_path);
 
-  std::vector<std::string> raw_profiles = env_.EnumerateRawCoverageProfiles();
+  std::vector<std::string> raw_profiles = wd_.EnumerateRawCoverageProfiles();
 
   if (raw_profiles.empty()) {
     LOG(ERROR) << "No raw profiles found for coverage report";
@@ -508,7 +513,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
   }
 
   std::string indexed_profile_path =
-      env_.MakeSourceBasedCoverageIndexedProfilePath();
+      wd_.SourceBasedCoverageIndexedProfilePath();
 
   std::vector<std::string> merge_arguments = {"merge", "-o",
                                               indexed_profile_path, "-sparse"};
@@ -557,7 +562,7 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
   const auto &snapshot = rusage_profiler_.TakeSnapshot(
       {__FILE__, __LINE__}, std::string{description});
   VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
-  auto path = env_.MakeRUsageReportPath(filename_annotation);
+  auto path = wd_.RUsageReportPath(filename_annotation);
   LOG(INFO) << "Generate rusage report [" << description << "]; "
             << VV(env_.my_shard_index) << VV(path);
   ReportDumper dumper{path};
@@ -595,7 +600,7 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   CHECK_GE(new_corpus_size, initial_corpus_size);  // Corpus can't shrink here.
   if (new_corpus_size > initial_corpus_size) {
     auto appender = DefaultBlobFileWriterFactory();
-    CHECK_OK(appender->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
+    CHECK_OK(appender->Open(wd_.CorpusPath(env_.my_shard_index), "a"));
     for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
       CHECK_OK(appender->Write(corpus_.Get(idx)));
     }
@@ -614,7 +619,7 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
 
   // Save the distilled corpus to a file in workdir and possibly to a hashed
   // file in the first corpus dir passed in `--corpus_dir`.
-  const auto distill_to_path = env_.MakeDistilledCorpusPath();
+  const auto distill_to_path = wd_.DistilledCorpusPath();
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
@@ -676,9 +681,8 @@ void Centipede::FuzzingLoop() {
 
   auto corpus_file = DefaultBlobFileWriterFactory();
   auto features_file = DefaultBlobFileWriterFactory();
-  CHECK_OK(corpus_file->Open(env_.MakeCorpusPath(env_.my_shard_index), "a"));
-  CHECK_OK(
-      features_file->Open(env_.MakeFeaturesPath(env_.my_shard_index), "a"));
+  CHECK_OK(corpus_file->Open(wd_.CorpusPath(env_.my_shard_index), "a"));
+  CHECK_OK(features_file->Open(wd_.FeaturesPath(env_.my_shard_index), "a"));
 
   // Load seed corpus when there is no external corpus loaded.
   if (corpus_.NumTotal() == 0) LoadSeedInputs();
@@ -820,7 +824,7 @@ void Centipede::ReportCrash(std::string_view binary,
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
       auto hash = Hash(one_input);
-      auto crash_dir = env_.MakeCrashReproducerDirPath();
+      auto crash_dir = wd_.CrashReproducerDirPath();
       RemoteMkdir(crash_dir);
       std::string file_path = std::filesystem::path(crash_dir).append(hash);
       LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
@@ -850,7 +854,7 @@ void Centipede::ReportCrash(std::string_view binary,
   const auto &suspect_input = input_vec[suspect_input_idx];
   // Save inputs to <--workdir>/crash/unreliable_batch-<HASH_OF_SUSPECT_INPUT>.
   auto suspect_hash = Hash(suspect_input);
-  auto crash_dir = env_.MakeCrashReproducerDirPath();
+  auto crash_dir = wd_.CrashReproducerDirPath();
   RemoteMkdir(crash_dir);
   std::string save_dir = std::filesystem::path(crash_dir)
                              .append("crashing_batch-")

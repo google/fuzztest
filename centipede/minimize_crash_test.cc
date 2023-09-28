@@ -16,12 +16,19 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
+#include "./centipede/environment.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 namespace {
@@ -72,6 +79,7 @@ TEST(MinimizeTest, MinimizeTest) {
   Environment env;
   env.workdir = tmp_dir.path();
   env.num_runs = 100000;
+  const WorkDir wd{env};
   MinimizerMockFactory factory;
 
   // Test with a non-crashy input.
@@ -90,7 +98,7 @@ TEST(MinimizeTest, MinimizeTest) {
   // Collect the new crashers from the crasher dir.
   std::vector<ByteArray> crashers;
   for (auto const &dir_entry :
-       std::filesystem::directory_iterator{env.MakeCrashReproducerDirPath()}) {
+       std::filesystem::directory_iterator{wd.CrashReproducerDirPath()}) {
     ByteArray crasher;
     const std::string &path = dir_entry.path();
     ReadFromLocalFile(path, crasher);

@@ -42,6 +42,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -180,7 +181,7 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
   RemoteFile *&file = files_[master_env.experiment_name];
   if (file == nullptr) {
     const std::string filename =
-        master_env.MakeFuzzingStatsPath(master_env.experiment_name);
+        WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
     // TODO(ussuri): Append, not overwrite, so restarts keep accumulating.
     //  This will require writing the CSV header only if the file is brand new.
     file = RemoteFileOpen(filename, "w");

@@ -142,47 +142,6 @@ struct Environment {
 
   // APIs ----------------------------------------------------------------------
 
-  // Paths to various input and output files and directories -------------------
-
-  // Returns the path to the coverage dir.
-  std::string MakeCoverageDirPath() const;
-  // Returns the path to the crash reproducer dir.
-  std::string MakeCrashReproducerDirPath() const;
-  // Returns the path for a corpus file by its shard_index.
-  std::string MakeCorpusPath(size_t shard_index) const;
-  // Returns the path for a features file by its shard_index.
-  std::string MakeFeaturesPath(size_t shard_index) const;
-  // Returns the path to the coverage profile for this shard.
-  std::string MakeSourceBasedCoverageRawProfilePath() const;
-  // Returns the path to the indexed code coverage file.
-  std::string MakeSourceBasedCoverageIndexedProfilePath() const;
-  // Returns the path for the distilled corpus file for my_shard_index.
-  std::string MakeDistilledCorpusPath() const;
-  // Returns the path for the distilled features file for my_shard_index.
-  std::string MakeDistilledFeaturesPath() const;
-  // Returns the path for the coverage report file for my_shard_index.
-  // Non-default `annotation` becomes a part of the returned filename.
-  // `annotation` must not start with a '.'.
-  std::string MakeCoverageReportPath(std::string_view annotation = "") const;
-  // Returns the path for the corpus stats report file for my_shard_index.
-  // Non-default `annotation` becomes a part of the returned filename.
-  // `annotation` must not start with a '.'.
-  std::string MakeCorpusStatsPath(std::string_view annotation = "") const;
-  // Returns the path for the fuzzing progress stats report file for
-  // `my_shard_index`.
-  // Non-default `annotation` becomes a part of the returned filename.
-  // `annotation` must not start with a '.'.
-  std::string MakeFuzzingStatsPath(std::string_view annotation = "") const;
-  // Returns the path to the source-based coverage report directory.
-  std::string MakeSourceBasedCoverageReportPath(
-      std::string_view annotation = "") const;
-  // Returns the path for the performance report file for my_shard_index.
-  // Non-default `annotation` becomes a part of the returned filename.
-  // `annotation` must not start with a '.'.
-  std::string MakeRUsageReportPath(std::string_view annotation = "") const;
-  // Returns all shards' raw profile paths by scanning the coverage directory.
-  std::vector<std::string> EnumerateRawCoverageProfiles() const;
-
   // Should certain actions be performed ---------------------------------------
 
   // Returns true if we want to log features as symbols in this shard.

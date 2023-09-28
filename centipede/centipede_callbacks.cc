@@ -23,18 +23,24 @@
 #include <system_error>  // NOLINT
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -119,8 +125,9 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
       disable_coverage)};
 
   if (env_.clang_coverage_binary == binary)
-    env.emplace_back(absl::StrCat(
-        "LLVM_PROFILE_FILE=", env_.MakeSourceBasedCoverageRawProfilePath()));
+    env.emplace_back(
+        absl::StrCat("LLVM_PROFILE_FILE=",
+                     WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
 
   // Allow for the time it takes to fork a subprocess etc.
   const auto amortized_timeout =

@@ -16,12 +16,17 @@
 
 #include <unistd.h>
 
+#include <algorithm>
+#include <atomic>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <functional>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
@@ -40,16 +45,20 @@
 #include "./centipede/centipede.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
+#include "./centipede/corpus.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/distill.h"
 #include "./centipede/environment.h"
+#include "./centipede/feature.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/minimize_crash.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
@@ -165,12 +174,13 @@ int Analyze(const Environment &env, const BinaryInfo &binary_info) {
     LOG(INFO) << "Reading " << workdir;
     Environment workdir_env = env;
     workdir_env.workdir = workdir;
+    const WorkDir workdir_wd{workdir_env};
     corpora.emplace_back();
     auto &corpus = corpora.back();
     for (size_t shard_index = 0; shard_index < env.total_shards;
          ++shard_index) {
-      auto corpus_path = workdir_env.MakeCorpusPath(shard_index);
-      auto features_path = workdir_env.MakeFeaturesPath(shard_index);
+      auto corpus_path = workdir_wd.CorpusPath(shard_index);
+      auto features_path = workdir_wd.FeaturesPath(shard_index);
       LOG(INFO) << "Loading corpus shard: " << corpus_path << " "
                 << features_path;
       ReadShard(corpus_path, features_path,
@@ -228,8 +238,8 @@ int CentipedeMain(const Environment &env,
 
   // Create the local temporary dir and remote coverage dirs once, before
   // creating any threads.
-  const auto coverage_dir = env.MakeCoverageDirPath();
-  RemoteMkdir(env.MakeCoverageDirPath());
+  const auto coverage_dir = WorkDir{env}.CoverageDirPath();
+  RemoteMkdir(coverage_dir);
   const auto tmpdir = TemporaryLocalDirPath();
   CreateLocalDirRemovedAtExit(tmpdir);
   LOG(INFO) << "Coverage dir: " << coverage_dir

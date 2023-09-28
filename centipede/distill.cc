@@ -34,14 +34,16 @@
 #include "./centipede/logging.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
 
 void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
+  const WorkDir wd{env};
   std::string log_line = absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
-  const auto corpus_path = env.MakeDistilledCorpusPath();
-  const auto features_path = env.MakeDistilledFeaturesPath();
+  const auto corpus_path = wd.DistilledCorpusPath();
+  const auto features_path = wd.DistilledFeaturesPath();
   LOG(INFO) << log_line << VV(env.total_shards) << VV(corpus_path)
             << VV(features_path);
 
@@ -54,8 +56,8 @@ void DistillTask(const Environment &env,
   FeatureSet feature_set(/*frequency_threshold=*/1,
                          env.MakeDomainDiscardMask());
   for (size_t shard_idx : shard_indices) {
-    const std::string corpus_path = env.MakeCorpusPath(shard_idx);
-    const std::string features_path = env.MakeFeaturesPath(shard_idx);
+    const std::string corpus_path = wd.CorpusPath(shard_idx);
+    const std::string features_path = wd.FeaturesPath(shard_idx);
     LOG(INFO) << log_line << "reading shard " << shard_idx << " from:\n"
               << VV(corpus_path) << "\n"
               << VV(features_path);

@@ -14,20 +14,27 @@
 
 #include "./centipede/distill.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
+#include "absl/log/check.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/test_util.h"
+#include "./centipede/util.h"
+#include "./centipede/workdir.h"
 
 ABSL_DECLARE_FLAG(std::string, binary_hash);
 ABSL_DECLARE_FLAG(std::string, binary);
@@ -61,8 +68,9 @@ using InputVec = std::vector<ByteArray>;
 // Writes `record` to shard `shard_index`.
 void WriteToShard(const Environment &env, const TestCorpusRecord &record,
                   size_t shard_index) {
-  auto corpus_path = env.MakeCorpusPath(shard_index);
-  auto features_path = env.MakeFeaturesPath(shard_index);
+  const WorkDir wd{env};
+  auto corpus_path = wd.CorpusPath(shard_index);
+  auto features_path = wd.FeaturesPath(shard_index);
   const auto corpus_appender = DefaultBlobFileWriterFactory();
   const auto features_appender = DefaultBlobFileWriterFactory();
   CHECK_OK(corpus_appender->Open(corpus_path, "a"));
@@ -73,17 +81,17 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
 }
 
 // Reads and returns the distilled corpus record from
-// `env.MakeDistilledCorpusPath()` and `env.MakeDistilledFeaturesPath()`.
-std::vector<TestCorpusRecord> ReadFromDistilled(const Environment &env) {
-  auto distilled_corpus_path = env.MakeDistilledCorpusPath();
-  auto distilled_features_path = env.MakeDistilledFeaturesPath();
+// `wd.DistilledCorpusPath()` and `wd.DistilledFeaturesPath()`.
+std::vector<TestCorpusRecord> ReadFromDistilled(const WorkDir &wd) {
+  auto distilled_corpus_path = wd.DistilledCorpusPath();
+  auto distilled_features_path = wd.DistilledFeaturesPath();
 
   std::vector<TestCorpusRecord> result;
   auto shard_reader_callback = [&result](const ByteArray &input,
                                          FeatureVec &features) {
     result.push_back({input, features});
   };
-  ReadShard(env.MakeDistilledCorpusPath(), env.MakeDistilledFeaturesPath(),
+  ReadShard(wd.DistilledCorpusPath(), wd.DistilledFeaturesPath(),
             shard_reader_callback);
   return result;
 }
@@ -107,7 +115,8 @@ std::vector<TestCorpusRecord> TestDistill(
   env.total_shards = shards.size();
   env.my_shard_index = 1;  // an arbitrary shard index.
   env.user_feature_domain_mask = user_feature_domain_mask;
-  std::filesystem::create_directories(env.MakeCoverageDirPath());
+  const WorkDir wd{env};
+  std::filesystem::create_directories(wd.CoverageDirPath());
 
   // Write the shards.
   for (size_t shard_index = 0; shard_index < shards.size(); ++shard_index) {
@@ -118,7 +127,7 @@ std::vector<TestCorpusRecord> TestDistill(
   // Distill.
   DistillTask(env, shard_indices);
   // Read the result back.
-  return ReadFromDistilled(env);
+  return ReadFromDistilled(wd);
 }
 
 TEST(Distill, BasicDistill) {
