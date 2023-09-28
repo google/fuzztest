@@ -54,6 +54,8 @@ class WorkDir {
   std::string CoverageDirPath() const;
   // Returns the path to the crash reproducer dir.
   std::string CrashReproducerDirPath() const;
+  // Returns the path where the BinaryInfo will be serialized within workdir.
+  std::string BinaryInfoDirPath() const;
 
   // Returns the path for a corpus file by its shard_index.
   std::string CorpusPath(size_t shard_index) const;

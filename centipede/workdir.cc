@@ -74,6 +74,10 @@ std::string WorkDir::CrashReproducerDirPath() const {
   return std::filesystem::path(workdir_) / "crashes";
 }
 
+std::string WorkDir::BinaryInfoDirPath() const {
+  return std::filesystem::path(CoverageDirPath()) / "binary-info";
+}
+
 std::string WorkDir::CorpusPath(size_t shard_index) const {
   return std::filesystem::path(workdir_) /
          absl::StrFormat("corpus.%0*d", kDigitsInShardIndex, shard_index);

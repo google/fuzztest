@@ -41,6 +41,7 @@ TEST(WorkDirTest, Main) {
 
     EXPECT_EQ(wd.CoverageDirPath(), "/dir/bin-hash");
     EXPECT_EQ(wd.CrashReproducerDirPath(), "/dir/crashes");
+    EXPECT_EQ(wd.BinaryInfoDirPath(), "/dir/bin-hash/binary-info");
 
     EXPECT_EQ(wd.CorpusPath(), "/dir/corpus.000003");
     EXPECT_EQ(wd.CorpusPath(7), "/dir/corpus.000007");
