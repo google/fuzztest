@@ -15,6 +15,7 @@
 #include "./centipede/rusage_stats.h"
 
 #include <cmath>
+#include <cstddef>
 #include <iosfwd>
 #include <numeric>
 #include <string>
@@ -23,12 +24,13 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
-#include "absl/functional/any_invocable.h"
+#include "absl/log/log.h"
 #include "absl/synchronization/barrier.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./centipede/logging.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
 
 ABSL_FLAG(bool, verbose, false, "Print extra info for debugging");
 ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,

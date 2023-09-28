@@ -1055,7 +1055,7 @@ cc_test(
         ":logging",
         ":rusage_stats",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
