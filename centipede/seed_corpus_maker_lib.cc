@@ -168,14 +168,18 @@ void SampleSeedCorpusElementsFromSource(  //
 
     absl::Status read_status;
     size_t num_read_elts = 0;
-    do {
+    while (true) {
       absl::Span<uint8_t> elt;
       read_status = corpus_reader->Read(elt);
-      CHECK(read_status.ok() || absl::IsOutOfRange(read_status))
-          << VV(read_status);
+      // Reached EOF - done with this shard.
+      if (absl::IsOutOfRange(read_status)) break;
+      CHECK_OK(read_status)
+          << "Failure reading elements from shard " << shard_fname;
+      // TODO(b/302558385): Replace with a CHECK.
+      LOG_IF(ERROR, elt.empty()) << "Read empty element: " << VV(shard_fname);
       src_elts.emplace_back(elt.begin(), elt.end());
       ++num_read_elts;
-    } while (read_status.ok());
+    }
 
     corpus_reader->Close().IgnoreError();
 
