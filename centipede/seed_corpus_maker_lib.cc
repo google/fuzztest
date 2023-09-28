@@ -213,7 +213,7 @@ void SampleSeedCorpusElementsFromSource(  //
   } else {
     LOG(INFO) << "Using all " << src_elts.size() << " elements";
     // TODO(ussuri): Should we still use std::sample() to randomize the order?
-    elements.insert(elements.end(), src_elts.cbegin(), src_elts.cbegin());
+    elements.insert(elements.end(), src_elts.cbegin(), src_elts.cend());
   }
 }
 
