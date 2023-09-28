@@ -57,13 +57,13 @@ readonly BAZEL_OUTPUT_DIR
 declare -ra BAZEL_ARGS=("--color=no" "--curses=no" "--noshow_progress")
 
 set +e
-# TODO(b/259298232): When/if any part of the bug ever gets fixed, do some of:
+# TODO(b/259298232): As remaining parts of the bug get fixed, do:
 #  - Remove `--local_test_jobs=1`.
-#  - Remove `--test_filter`.
-#  - Use `testing:all` instead of specific tests under `testing`.
+#  - When all tests under `testing` pass, remove separate tests for each
+#    subdirectory and replace `centipede:all` with `centipede/...`.
 #  - Use a single `bazel test "${BAZEL_ARGS[@]}" ...`.
 bazel test "${BAZEL_ARGS[@]}" --local_test_jobs=1 --test_output=streamed \
-  --test_filter="-CommandDeathTest.Execute" centipede:all &&
+  centipede:all &&
 bazel test "${BAZEL_ARGS[@]}" centipede/testing:instrumentation_test centipede/testing:runner_test &&
 bazel test "${BAZEL_ARGS[@]}" centipede/puzzles:all
 declare -ri exit_code=$?
