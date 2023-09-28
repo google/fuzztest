@@ -530,7 +530,10 @@ cc_library(
         ":execution_metadata",
         ":feature",
         ":feature_set",
+        ":logging",
         ":util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
     ],
 )

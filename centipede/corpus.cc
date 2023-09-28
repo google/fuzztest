@@ -14,17 +14,24 @@
 
 #include "./centipede/corpus.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
+#include "./centipede/feature_set.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -108,7 +115,12 @@ void Corpus::Add(const ByteArray &data, const FeatureVec &fv,
                  const ExecutionMetadata &metadata, const FeatureSet &fs,
                  const CoverageFrontier &coverage_frontier) {
   // TODO(kcc): use coverage_frontier.
-  CHECK(!data.empty());
+  // TODO(b/302558385): Replace with CHECK(!data.empty()) after fixing the root
+  //  cause.
+  if (data.empty()) {
+    LOG(ERROR) << "Got request to add empty element to corpus: ignoring";
+    return;
+  }
   CHECK_EQ(records_.size(), weighted_distribution_.size());
   records_.push_back({data, fv, metadata});
   weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
