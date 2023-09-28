@@ -14,35 +14,78 @@
 
 #include "./centipede/workdir.h"
 
+#include <array>
 #include <string_view>
 
 #include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
 #include "./centipede/environment.h"
-
-// TODO(b/295978603, ussuri): Add more tests. The ones below were transplanted
-//  from `Environment`'s tests while factoring out `WorkDir` from it.
 
 namespace centipede {
 
-TEST(WorkDirTest, DistilledCorpusAndFeaturesPaths) {
+TEST(WorkDirTest, Main) {
   Environment env{};
+  env.workdir = "/dir";
+  env.binary_name = "bin";
+  env.binary_hash = "hash";
   env.my_shard_index = 3;
-  WorkDir wd{env};
-  env.binary_name = "foo";
-  env.binary_hash = "foo_hash";
-  EXPECT_EQ(wd.DistilledCorpusPath(), "distilled-foo.000003");
-  EXPECT_EQ(wd.DistilledFeaturesPath(),
-            "foo-foo_hash/distilled-features-foo.000003");
-}
 
-TEST(WorkDirTest, CoverageReportPath) {
-  // TODO(ussuri): `Environment` is not test-friendly (initialized through
-  //  flags hidden in the .cc, so can't even `absl::SetFlag` them). Fix.
-  Environment env{};
-  WorkDir wd{env};
-  EXPECT_EQ(wd.CoverageReportPath(), "coverage-report-.000000.txt");
-  EXPECT_EQ(wd.CoverageReportPath("initial"),
-            "coverage-report-.000000.initial.txt");
+  const std::array<WorkDir, 2> wds = {
+      WorkDir{"/dir", "bin", "hash", 3},
+      WorkDir{env},
+  };
+
+  for (int i = 0; i < wds.size(); ++i) {
+    SCOPED_TRACE(absl::StrCat("Test case ", i));
+    const WorkDir& wd = wds[i];
+
+    EXPECT_EQ(wd.CoverageDirPath(), "/dir/bin-hash");
+    EXPECT_EQ(wd.CrashReproducerDirPath(), "/dir/crashes");
+
+    EXPECT_EQ(wd.CorpusPath(), "/dir/corpus.000003");
+    EXPECT_EQ(wd.CorpusPath(7), "/dir/corpus.000007");
+    EXPECT_EQ(wd.DistilledCorpusPath(), "/dir/distilled-bin.000003");
+
+    EXPECT_EQ(wd.FeaturesPath(), "/dir/bin-hash/features.000003");
+    EXPECT_EQ(wd.FeaturesPath(7), "/dir/bin-hash/features.000007");
+    EXPECT_EQ(wd.DistilledFeaturesPath(),
+              "/dir/bin-hash/distilled-features-bin.000003");
+
+    EXPECT_EQ(wd.CoverageReportPath(),  //
+              "/dir/coverage-report-bin.000003.txt");
+    EXPECT_EQ(wd.CoverageReportPath("anno"),
+              "/dir/coverage-report-bin.000003.anno.txt");
+    EXPECT_EQ(wd.SourceBasedCoverageReportPath(),
+              "/dir/source-coverage-report-bin.000003");
+    EXPECT_EQ(wd.SourceBasedCoverageReportPath("anno"),
+              "/dir/source-coverage-report-bin.000003.anno");
+    EXPECT_EQ(wd.SourceBasedCoverageRawProfilePath(),
+              "/dir/bin-hash/clang_coverage.000003.%m.profraw");
+    EXPECT_EQ(wd.SourceBasedCoverageIndexedProfilePath(),
+              "/dir/bin-hash/clang_coverage.profdata");
+    // TODO(ussuri): Test `EnumerateRawCoverageProfiles()`.
+
+    EXPECT_EQ(wd.CorpusStatsPath(),  //
+              "/dir/corpus-stats-bin.000003.json");
+    EXPECT_EQ(wd.CorpusStatsPath("anno"),  //
+              "/dir/corpus-stats-bin.000003.anno.json");
+    EXPECT_EQ(wd.CoverageReportPath(),  //
+              "/dir/coverage-report-bin.000003.txt");
+    EXPECT_EQ(wd.CoverageReportPath("anno"),  //
+              "/dir/coverage-report-bin.000003.anno.txt");
+    EXPECT_EQ(wd.FuzzingStatsPath(),  //
+              "/dir/fuzzing-stats-bin.000003.csv");
+    EXPECT_EQ(wd.FuzzingStatsPath("anno"),  //
+              "/dir/fuzzing-stats-bin.000003.anno.csv");
+    EXPECT_EQ(wd.RUsageReportPath(),  //
+              "/dir/rusage-report-bin.000003.txt");
+    EXPECT_EQ(wd.RUsageReportPath("anno"),  //
+              "/dir/rusage-report-bin.000003.anno.txt");
+    EXPECT_EQ(wd.RUsageReportPath(),  //
+              "/dir/rusage-report-bin.000003.txt");
+    EXPECT_EQ(wd.RUsageReportPath("anno"),  //
+              "/dir/rusage-report-bin.000003.anno.txt");
+  }
 }
 
 }  // namespace centipede

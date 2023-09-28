@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -44,19 +45,37 @@ std::string NormalizeAnnotation(std::string_view annotation) {
 
 }  // namespace
 
-WorkDir::WorkDir(const centipede::Environment& env) : env_(env) {}
+WorkDir::WorkDir(             //
+    std::string workdir,      //
+    std::string binary_name,  //
+    std::string binary_hash,  //
+    size_t my_shard_index)
+    : workdir_holder_{std::move(workdir)},
+      binary_name_holder_{std::move(binary_name)},
+      binary_hash_holder_{std::move(binary_hash)},
+      my_shard_index_holder_{my_shard_index},
+      workdir_{workdir_holder_},
+      binary_name_{binary_name_holder_},
+      binary_hash_{binary_hash_holder_},
+      my_shard_index_{my_shard_index_holder_} {}
+
+WorkDir::WorkDir(const centipede::Environment& env)
+    : workdir_{env.workdir},
+      binary_name_{env.binary_name},
+      binary_hash_{env.binary_hash},
+      my_shard_index_{env.my_shard_index} {}
 
 std::string WorkDir::CoverageDirPath() const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrCat(env_.binary_name, "-", env_.binary_hash);
+  return std::filesystem::path(workdir_) /
+         absl::StrCat(binary_name_, "-", binary_hash_);
 }
 
 std::string WorkDir::CrashReproducerDirPath() const {
-  return std::filesystem::path(env_.workdir) / "crashes";
+  return std::filesystem::path(workdir_) / "crashes";
 }
 
 std::string WorkDir::CorpusPath(size_t shard_index) const {
-  return std::filesystem::path(env_.workdir) /
+  return std::filesystem::path(workdir_) /
          absl::StrFormat("corpus.%0*d", kDigitsInShardIndex, shard_index);
 }
 
@@ -66,35 +85,35 @@ std::string WorkDir::FeaturesPath(size_t shard_index) const {
 }
 
 std::string WorkDir::DistilledCorpusPath() const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrFormat("distilled-%s.%0*d", env_.binary_name,
-                         kDigitsInShardIndex, env_.my_shard_index);
+  return std::filesystem::path(workdir_) /
+         absl::StrFormat("distilled-%s.%0*d", binary_name_, kDigitsInShardIndex,
+                         my_shard_index_);
 }
 
 std::string WorkDir::DistilledFeaturesPath() const {
-  return std::filesystem::path(CoverageDirPath()).append(
-      absl::StrFormat("distilled-features-%s.%0*d", env_.binary_name,
-                      kDigitsInShardIndex, env_.my_shard_index));
+  return std::filesystem::path(CoverageDirPath())
+      .append(absl::StrFormat("distilled-features-%s.%0*d", binary_name_,
+                              kDigitsInShardIndex, my_shard_index_));
 }
 
 std::string WorkDir::CoverageReportPath(std::string_view annotation) const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrFormat("coverage-report-%s.%0*d%s.txt", env_.binary_name,
-                         kDigitsInShardIndex, env_.my_shard_index,
+  return std::filesystem::path(workdir_) /
+         absl::StrFormat("coverage-report-%s.%0*d%s.txt", binary_name_,
+                         kDigitsInShardIndex, my_shard_index_,
                          NormalizeAnnotation(annotation));
 }
 
 std::string WorkDir::CorpusStatsPath(std::string_view annotation) const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrFormat("corpus-stats-%s.%0*d%s.json", env_.binary_name,
-                         kDigitsInShardIndex, env_.my_shard_index,
+  return std::filesystem::path(workdir_) /
+         absl::StrFormat("corpus-stats-%s.%0*d%s.json", binary_name_,
+                         kDigitsInShardIndex, my_shard_index_,
                          NormalizeAnnotation(annotation));
 }
 
 std::string WorkDir::FuzzingStatsPath(std::string_view annotation) const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrFormat("fuzzing-stats-%s.%0*d%s.csv", env_.binary_name,
-                         kDigitsInShardIndex, env_.my_shard_index,
+  return std::filesystem::path(workdir_) /
+         absl::StrFormat("fuzzing-stats-%s.%0*d%s.csv", binary_name_,
+                         kDigitsInShardIndex, my_shard_index_,
                          NormalizeAnnotation(annotation));
 }
 
@@ -104,7 +123,7 @@ std::string WorkDir::SourceBasedCoverageRawProfilePath() const {
   // should be consistent for a fixed binary
   return std::filesystem::path(CoverageDirPath()) /
          absl::StrFormat("clang_coverage.%0*d.%s.profraw", kDigitsInShardIndex,
-                         env_.my_shard_index, "%m");
+                         my_shard_index_, "%m");
 }
 
 std::string WorkDir::SourceBasedCoverageIndexedProfilePath() const {
@@ -114,16 +133,17 @@ std::string WorkDir::SourceBasedCoverageIndexedProfilePath() const {
 
 std::string WorkDir::SourceBasedCoverageReportPath(
     std::string_view annotation) const {
-  return std::filesystem::path(env_.workdir) /
-         absl::StrFormat("source-coverage-report-%s.%0*d%s", env_.binary_name,
-                         kDigitsInShardIndex, env_.my_shard_index,
+  return std::filesystem::path(workdir_) /
+         absl::StrFormat("source-coverage-report-%s.%0*d%s", binary_name_,
+                         kDigitsInShardIndex, my_shard_index_,
                          NormalizeAnnotation(annotation));
 }
 
 std::string WorkDir::RUsageReportPath(std::string_view annotation) const {
-  return std::filesystem::path(env_.workdir) / (absl::StrFormat(
-      "rusage-report-%s.%0*d%s.txt", env_.binary_name, kDigitsInShardIndex,
-      env_.my_shard_index, NormalizeAnnotation(annotation)));
+  return std::filesystem::path(workdir_) /
+         (absl::StrFormat("rusage-report-%s.%0*d%s.txt", binary_name_,
+                          kDigitsInShardIndex, my_shard_index_,
+                          NormalizeAnnotation(annotation)));
 }
 
 std::vector<std::string> WorkDir::EnumerateRawCoverageProfiles() const {
