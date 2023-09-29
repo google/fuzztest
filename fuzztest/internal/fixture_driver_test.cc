@@ -248,8 +248,8 @@ std::vector<std::tuple<int>> GetSeeds() { return {{7}, {42}}; }
 
 TEST(FixtureDriverTest, PropagatesSeedsFromFreeSeedProvider) {
   FixtureDriverImpl<Domain<std::tuple<int>>, NoFixture, decltype(&TakesInt),
-                    decltype(&GetSeeds)>
-      fixture_driver(&TakesInt, Arbitrary<std::tuple<int>>(), {}, &GetSeeds);
+                    decltype(GetSeeds)>
+      fixture_driver(&TakesInt, Arbitrary<std::tuple<int>>(), {}, GetSeeds);
 
   EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
               UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
@@ -261,12 +261,12 @@ struct FixtureWithSeedProvider {
 };
 
 TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnFixture) {
+  auto seed_provided = &FixtureWithSeedProvider::GetSeeds;
   FixtureDriverImpl<Domain<std::tuple<int>>, FixtureWithSeedProvider,
                     decltype(&FixtureWithSeedProvider::TakesInt),
-                    decltype(&FixtureWithSeedProvider::GetSeeds)>
+                    decltype(seed_provided)>
       fixture_driver(&FixtureWithSeedProvider::TakesInt,
-                     Arbitrary<std::tuple<int>>(), {},
-                     &FixtureWithSeedProvider::GetSeeds);
+                     Arbitrary<std::tuple<int>>(), {}, seed_provided);
   fixture_driver.SetUpFuzzTest();
 
   EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
@@ -276,12 +276,12 @@ TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnFixture) {
 struct DerivedFixtureWithSeedProvider : FixtureWithSeedProvider {};
 
 TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnBaseFixture) {
+  auto seed_provided = &DerivedFixtureWithSeedProvider::GetSeeds;
   FixtureDriverImpl<Domain<std::tuple<int>>, DerivedFixtureWithSeedProvider,
                     decltype(&DerivedFixtureWithSeedProvider::TakesInt),
-                    decltype(&DerivedFixtureWithSeedProvider::GetSeeds)>
+                    decltype(seed_provided)>
       fixture_driver(&DerivedFixtureWithSeedProvider::TakesInt,
-                     Arbitrary<std::tuple<int>>(), {},
-                     &DerivedFixtureWithSeedProvider::GetSeeds);
+                     Arbitrary<std::tuple<int>>(), {}, seed_provided);
   fixture_driver.SetUpFuzzTest();
 
   EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
@@ -290,12 +290,12 @@ TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnBaseFixture) {
 
 TEST(FixtureDriverTest, InvalidSeedsFromSeedProviderAreSkipped) {
   FixtureDriverImpl<Domain<std::tuple<int>>, NoFixture, decltype(&TakesInt),
-                    decltype(&GetSeeds)>
+                    decltype(GetSeeds)>
       fixture_driver(
           &TakesInt,
           Filter([](std::tuple<int> i) { return std::get<0>(i) % 2 == 0; },
                  Arbitrary<std::tuple<int>>()),
-          {}, &GetSeeds);
+          {}, GetSeeds);
 
   EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
               UnorderedElementsAre(std::tuple{42}));
