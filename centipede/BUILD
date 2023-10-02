@@ -78,6 +78,17 @@ cc_proto_library(
     deps = [":seed_corpus_config_proto"],
 )
 
+# Proto representation of coverage reports
+proto_library(
+    name = "coverage_proto",
+    srcs = ["coverage.proto"],
+)
+
+cc_proto_library(
+    name = "coverage_cc_proto",
+    deps = [":coverage_proto"],
+)
+
 ################################################################################
 #                             C++ libraries
 ################################################################################
@@ -322,9 +333,12 @@ cc_library(
         ":binary_info",
         ":control_flow",
         ":corpus",
+        ":coverage_cc_proto",
         ":feature",
         ":logging",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

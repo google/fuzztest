@@ -340,6 +340,9 @@ ABSL_FLAG(bool, analyze, false,
           " as argv and analyze differences between those corpora."
           " Used by the Centipede developers to improve the engine. "
           " TODO(kcc) implement. ");
+ABSL_FLAG(std::string, analyze_report, "",
+          "If set, --analyze will output a binary proto to the provided path "
+          "containing the AnalyzeReport");
 ABSL_FLAG(std::string, dictionary, "",
           "A comma-separated list of paths to dictionary files. The dictionary "
           "file is either in AFL/libFuzzer plain text format or in the binary "
@@ -475,6 +478,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       for_each_blob(absl::GetFlag(FLAGS_for_each_blob)),
       experiment(absl::GetFlag(FLAGS_experiment)),
       analyze(absl::GetFlag(FLAGS_analyze)),
+      analyze_report(absl::GetFlag(FLAGS_analyze_report)),
       exit_on_crash(absl::GetFlag(FLAGS_exit_on_crash)),
       max_num_crash_reports(absl::GetFlag(FLAGS_num_crash_reports)),
       minimize_crash_file_path(absl::GetFlag(FLAGS_minimize_crash)),

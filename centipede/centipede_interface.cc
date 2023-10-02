@@ -192,7 +192,7 @@ int Analyze(const Environment &env, const BinaryInfo &binary_info) {
     LOG(INFO) << "corpus size " << corpus.size();
   }
   CHECK_EQ(corpora.size(), 2);
-  AnalyzeCorpora(binary_info, corpora[0], corpora[1]);
+  AnalyzeCorpora(binary_info, corpora[0], corpora[1], env.analyze_report);
   return EXIT_SUCCESS;
 }
 

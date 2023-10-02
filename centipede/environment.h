@@ -108,6 +108,7 @@ struct Environment {
   std::string for_each_blob;
   std::string experiment;
   bool analyze;
+  std::string analyze_report;
   bool exit_on_crash;
   size_t max_num_crash_reports;
   std::string minimize_crash_file_path;
