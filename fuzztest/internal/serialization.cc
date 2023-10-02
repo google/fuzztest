@@ -17,6 +17,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <optional>
 #include <string>
@@ -97,11 +98,20 @@ std::string_view ReadToken(std::string_view& in) {
 }
 
 bool ReadScalar(uint64_t& out, std::string_view value) {
-  return absl::SimpleAtoi(AsAbsl(value), &out);
+  // No need to check for spaces since `value` comes from ReadToken().
+  if (value.empty() || value[0] == '-') return false;
+  char* end;
+  errno = 0;
+  unsigned long long result = strtoull(value.data(), &end, 10);
+  return errno == 0 && end == value.data() + value.size() &&
+         (out = result) == result;
 }
 
 bool ReadScalar(double& out, std::string_view value) {
-  return absl::SimpleAtod(AsAbsl(value), &out);
+  char* end;
+  errno = 0;
+  out = strtod(value.data(), &end);
+  return errno == 0 && end == value.data() + value.size();
 }
 
 bool ReadScalar(std::string& out, std::string_view value) {

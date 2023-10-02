@@ -201,12 +201,21 @@ TEST(SerializerTest, HandlesUnterminatedString) {
 TEST(SerializerTest, BadScalarWontParse) {
   EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 1"),
               Optional(ValueIs<uint64_t>(1)));
+  EXPECT_THAT(
+      IRObject::FromString("FUZZTESTv1 i: 18446744073709551615"),
+      Optional(ValueIs<uint64_t>(std::numeric_limits<uint64_t>::max())));
   // Out of bounds values
+  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 18446744073709551616"),
+              Not(Optional(_)));
   EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 123456789012345678901"),
               Not(Optional(_)));
   EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: -1"), Not(Optional(_)));
   // Missing :
   EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i 1"), Not(Optional(_)));
+  // Missing value
+  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i:"), Not(Optional(_)));
+  // Missing number
+  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: +"), Not(Optional(_)));
   // Bad tag
   EXPECT_THAT(IRObject::FromString("FUZZTESTv1 x: 1"), Not(Optional(_)));
   // Wrong separator
