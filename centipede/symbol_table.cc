@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <ostream>
 #include <string>
 #include <string_view>
 
@@ -49,6 +50,14 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
       file = absl::StripPrefix(file, bad_prefix);
     }
     AddEntry(func, file);
+  }
+}
+
+void SymbolTable::WriteToLLVMSymbolizer(std::ostream &out) {
+  for (const Entry &entry : entries_) {
+    out << entry.func << std::endl;
+    out << entry.file_line_col << std::endl;
+    out << std::endl;
   }
 }
 

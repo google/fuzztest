@@ -195,6 +195,7 @@ cc_test(
         "@com_google_fuzztest//centipede:logging",
         "@com_google_fuzztest//centipede:pc_info",
         "@com_google_fuzztest//centipede:runner_result",
+        "@com_google_fuzztest//centipede:symbol_table",
         "@com_google_fuzztest//centipede:test_util",
         "@com_google_fuzztest//centipede:util",
         "@com_google_googletest//:gtest_main",

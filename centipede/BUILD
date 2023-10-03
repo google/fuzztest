@@ -97,6 +97,24 @@ cc_library(
 )
 
 cc_library(
+    name = "symbol_table",
+    srcs = ["symbol_table.cc"],
+    hdrs = ["symbol_table.h"],
+    visibility = TEMP_EXTENDED_VISIBILITY,
+    deps = [
+        ":command",
+        ":control_flow",
+        ":logging",
+        ":pc_info",
+        ":util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "foreach_nonzero",
     hdrs = ["foreach_nonzero.h"],
 )
@@ -423,29 +441,23 @@ cc_library(
     name = "coverage",
     srcs = [
         "coverage.cc",
-        "symbol_table.cc",
     ],
     hdrs = [
         "coverage.h",
-        "symbol_table.h",
     ],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
-        ":command",
         ":control_flow",
         ":defs",
         ":feature",
         ":logging",
-        ":pc_info",
+        ":symbol_table",
         ":util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -455,11 +467,9 @@ cc_library(
     name = "control_flow",
     srcs = [
         "control_flow.cc",
-        "symbol_table.cc",
     ],
     hdrs = [
         "control_flow.h",
-        "symbol_table.h",
     ],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
@@ -473,7 +483,6 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -574,6 +583,7 @@ cc_library(
         ":command",
         ":control_flow",
         ":pc_info",
+        ":symbol_table",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -605,6 +615,7 @@ cc_library(
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
+        ":symbol_table",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log",
@@ -658,6 +669,7 @@ cc_library(
         ":rusage_stats",
         ":shard_reader",
         ":stats",
+        ":symbol_table",
         ":util",
         ":workdir",
         "@com_google_absl//absl/base:core_headers",
@@ -1039,6 +1051,15 @@ cc_test(
 )
 
 cc_test(
+    name = "symbol_table_test",
+    srcs = ["symbol_table_test.cc"],
+    deps = [
+        ":symbol_table",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "logging_test",
     srcs = ["logging_test.cc"],
     deps = [
@@ -1378,6 +1399,7 @@ cc_test(
         ":control_flow",
         ":defs",
         ":logging",
+        ":symbol_table",
         ":test_util",
         "@com_google_googletest//:gtest_main",
     ],

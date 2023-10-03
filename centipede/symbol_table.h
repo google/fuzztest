@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <istream>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -39,6 +40,10 @@ class SymbolTable {
   //   <empty line>
   // If called multiple times, this function will append symbols to `this`.
   void ReadFromLLVMSymbolizer(std::istream &in);
+
+  // Writes the contents of `this` to `path` in the same format as read by
+  // `ReadFromLLVMSymbolizer`.
+  void WriteToLLVMSymbolizer(std::ostream &out);
 
   // Invokes `symbolizer_path --no-inlines` on all binaries from `dso_table`,
   // pipes through it all PCs in pc_table that correspond to each of the
