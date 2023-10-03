@@ -366,6 +366,9 @@ ABSL_FLAG(bool, dry_run, false,
           "etc. Also useful in combination with --save_config or "
           "--update_config to stop execution immediately after writing the "
           "(updated) config file.");
+ABSL_FLAG(
+    bool, save_binary_info, false,
+    "Save the BinaryInfo from the fuzzing run within the working directory.");
 
 namespace centipede {
 
@@ -481,6 +484,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       shmem_size_mb(absl::GetFlag(FLAGS_shmem_size_mb)),
       use_posix_shmem(absl::GetFlag(FLAGS_use_posix_shmem)),
       dry_run(absl::GetFlag(FLAGS_dry_run)),
+      save_binary_info(absl::GetFlag(FLAGS_save_binary_info)),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
       binary_hash(absl::GetFlag(FLAGS_binary_hash).empty()
                       ? HashOfFileContents(coverage_binary)

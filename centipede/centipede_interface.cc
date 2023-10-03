@@ -251,6 +251,13 @@ int CentipedeMain(const Environment &env,
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }
 
+  if (env.save_binary_info) {
+    const std::string binary_info_dir = WorkDir{env}.BinaryInfoDirPath();
+    RemoteMkdir(binary_info_dir);
+    LOG(INFO) << "Serializing binary info to: " << binary_info_dir;
+    binary_info.Write(binary_info_dir);
+  }
+
   std::string pcs_file_path;
   if (binary_info.uses_legacy_trace_pc_instrumentation) {
     pcs_file_path = std::filesystem::path(tmpdir).append("pcs");

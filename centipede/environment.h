@@ -114,6 +114,7 @@ struct Environment {
   size_t shmem_size_mb;
   bool use_posix_shmem = false;
   bool dry_run = false;
+  bool save_binary_info = false;
 
   // Command line-related fields -----------------------------------------------
 
