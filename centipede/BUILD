@@ -139,8 +139,14 @@ cc_library(
 
 cc_library(
     name = "pc_info",
+    srcs = ["pc_info.cc"],
     hdrs = ["pc_info.h"],
     visibility = PUBLIC_API_VISIBILITY,
+    deps = [
+        ":defs",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+    ],
 )
 
 cc_library(
@@ -1036,6 +1042,15 @@ cc_test(
         ":environment",
         ":workdir",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "pc_info_test",
+    srcs = ["pc_info_test.cc"],
+    deps = [
+        ":pc_info",
         "@com_google_googletest//:gtest_main",
     ],
 )

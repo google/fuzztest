@@ -17,6 +17,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <istream>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -35,6 +37,8 @@ struct PCInfo {
   uintptr_t flags{};
 
   bool has_flag(PCFlags f) const { return flags & f; }
+
+  bool operator==(const PCInfo &rhs) const;
 };
 
 // Array of PCInfo-s.
@@ -44,6 +48,12 @@ struct PCInfo {
 // Every PCInfo that is kFuncEntry is followed by PCInfo-s from the same
 // function.
 using PCTable = std::vector<PCInfo>;
+
+// Reads a PCTable from `in`, returns it. Returns empty table on error.
+PCTable ReadPcTable(std::istream &in);
+
+// Writes the contents of `pc_table` in the format expected by `ReadPCTable`.
+void WritePcTable(const PCTable &pc_table, std::ostream &out);
 
 // PCGuard is used during run-time as a compressed reference to PCInfo.
 // The SanitizerCoverage's 'Tracing PCs with guards'
