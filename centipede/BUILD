@@ -589,6 +589,7 @@ cc_library(
         ":command",
         ":control_flow",
         ":pc_info",
+        ":remote_file",
         ":symbol_table",
         ":util",
         "@com_google_absl//absl/log",
@@ -1025,6 +1026,18 @@ sh_library(
 ################################################################################
 #                               Unit tests
 ################################################################################
+
+cc_test(
+    name = "binary_info_test",
+    srcs = ["binary_info_test.cc"],
+    deps = [
+        ":binary_info",
+        ":pc_info",
+        ":symbol_table",
+        ":test_util",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
 
 cc_test(
     name = "environment_test",

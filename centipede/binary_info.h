@@ -45,6 +45,13 @@ struct BinaryInfo {
                                   std::string_view objdump_path,
                                   std::string_view symbolizer_path,
                                   std::string_view tmp_dir_path);
+
+  // Serialize `this` within the given `dir`.
+  void Write(std::string_view dir);
+
+  // Initialize `this` with the serialized contents in `dir`. Assumes the same
+  // format as `Write`.
+  void Read(std::string_view dir);
 };
 
 }  // namespace centipede

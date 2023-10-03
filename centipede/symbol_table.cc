@@ -34,6 +34,14 @@
 
 namespace centipede {
 
+bool SymbolTable::Entry::operator==(const Entry &other) const {
+  return this->func == other.func && this->file_line_col == other.file_line_col;
+}
+
+bool SymbolTable::operator==(const SymbolTable &other) const {
+  return this->entries_ == other.entries_;
+}
+
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   // We remove some useless file prefixes for better human readability.
   const std::string_view file_prefixes_to_remove[] = {"/proc/self/cwd/", "./"};

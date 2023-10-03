@@ -32,6 +32,7 @@ namespace centipede {
 // function names, file names, line numbers, column numbers.
 class SymbolTable {
  public:
+  bool operator==(const SymbolTable &other) const;
   // Reads the symbols from a stream produced by `llvm-symbolizer --no-inlines`.
   // https://llvm.org/docs/CommandGuide/llvm-symbolizer.html.
   // The input consists of tuples of 3 lines each:
@@ -84,6 +85,7 @@ class SymbolTable {
   struct Entry {
     std::string func;
     std::string file_line_col;
+    bool operator==(const Entry &other) const;
   };
 
   // Add function name and file location to symbol table.
