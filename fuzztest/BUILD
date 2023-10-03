@@ -71,6 +71,8 @@ cc_library(
         ":domain_core",
         ":fuzztest",
         ":init_fuzztest",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_googletest//:gtest",
     ],
     alwayslink = True,
