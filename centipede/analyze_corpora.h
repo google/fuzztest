@@ -15,16 +15,34 @@
 #ifndef THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
 #define THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
 
+#include <cstddef>
 #include <string_view>
+#include <vector>
 
 #include "./centipede/binary_info.h"
 #include "./centipede/corpus.h"
 
 namespace centipede {
 
+// The results of comparing corpus `a` with corpus `b`.
+struct AnalyzeCorporaResults {
+  std::vector<size_t> a_pcs;
+  std::vector<size_t> b_pcs;
+  std::vector<size_t> a_only_pcs;
+  std::vector<size_t> b_only_pcs;
+};
+
 // Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
-void AnalyzeCorpora(std::string_view binary_name, std::string_view binary_hash,
-                    std::string_view workdir_a, std::string_view workdir_b);
+AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
+                                     std::string_view binary_hash,
+                                     std::string_view workdir_a,
+                                     std::string_view workdir_b);
+
+// Same as above but `LOG`s the results for human consumption.
+void AnalyzeCorporaToLog(std::string_view binary_name,
+                         std::string_view binary_hash,
+                         std::string_view workdir_a,
+                         std::string_view workdir_b);
 
 }  // namespace centipede
 

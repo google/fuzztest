@@ -170,7 +170,8 @@ int Analyze(const Environment &env) {
   CHECK_EQ(env.args.size(), 2) << "for now, Analyze supports only 2 work dirs";
   CHECK(!env.binary.empty()) << "--binary must be used";
   std::vector<std::vector<CorpusRecord>> corpora;
-  AnalyzeCorpora(env.binary_name, env.binary_hash, env.args[0], env.args[1]);
+  AnalyzeCorporaToLog(env.binary_name, env.binary_hash, env.args[0],
+                      env.args[1]);
   return EXIT_SUCCESS;
 }
 
