@@ -78,14 +78,24 @@ std::string WorkDir::BinaryInfoDirPath() const {
   return std::filesystem::path(CoverageDirPath()) / "binary-info";
 }
 
+std::string WorkDir::CorpusPathPrefix() const {
+  return std::filesystem::path(workdir_) / "corpus.";
+}
+
 std::string WorkDir::CorpusPath(size_t shard_index) const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("corpus.%0*d", kDigitsInShardIndex, shard_index);
+  return absl::StrCat(
+      CorpusPathPrefix(),
+      absl::StrFormat("%0*d", kDigitsInShardIndex, shard_index));
+}
+
+std::string WorkDir::FeaturesPathPrefix() const {
+  return std::filesystem::path(CoverageDirPath()) / "features.";
 }
 
 std::string WorkDir::FeaturesPath(size_t shard_index) const {
-  return std::filesystem::path(CoverageDirPath()) /
-         absl::StrFormat("features.%0*d", kDigitsInShardIndex, shard_index);
+  return absl::StrCat(
+      FeaturesPathPrefix(),
+      absl::StrFormat("%0*d", kDigitsInShardIndex, shard_index));
 }
 
 std::string WorkDir::DistilledCorpusPath() const {

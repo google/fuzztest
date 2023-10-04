@@ -15,15 +15,16 @@
 #ifndef THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
 #define THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
 
+#include <string_view>
+
 #include "./centipede/binary_info.h"
 #include "./centipede/corpus.h"
 
 namespace centipede {
 
-// Analyzes two corpora, `a` and `b`, reports the differences.
-void AnalyzeCorpora(const BinaryInfo &binary_info,
-                    const std::vector<CorpusRecord> &a,
-                    const std::vector<CorpusRecord> &b);
+// Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
+void AnalyzeCorpora(std::string_view binary_name, std::string_view binary_hash,
+                    std::string_view workdir_a, std::string_view workdir_b);
 
 }  // namespace centipede
 

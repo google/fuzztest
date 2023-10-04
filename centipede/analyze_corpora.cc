@@ -15,14 +15,25 @@
 #include "./centipede/analyze_corpora.h"
 
 #include <algorithm>
+#include <string>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus.h"
+#include "./centipede/coverage.h"
+#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
+#include "./centipede/remote_file.h"
+#include "./centipede/shard_reader.h"
+#include "./centipede/workdir.h"
 
 namespace centipede {
+
+namespace {
 void AnalyzeCorpora(const BinaryInfo &binary_info,
                     const std::vector<CorpusRecord> &a,
                     const std::vector<CorpusRecord> &b) {
@@ -64,8 +75,9 @@ void AnalyzeCorpora(const BinaryInfo &binary_info,
   const auto &symbols = binary_info.symbols;
   CoverageLogger coverage_logger(pc_table, symbols);
 
-  CoverageFrontier frontier_a(binary_info);
-  frontier_a.Compute(a);
+  // TODO(kcc): enabling these lines causes a CHECK-fail.
+  // CoverageFrontier frontier_a(binary_info);
+  // frontier_a.Compute(a);
 
   // TODO(kcc): use frontier_a to show the most interesting b-only PCs.
 
@@ -90,6 +102,60 @@ void AnalyzeCorpora(const BinaryInfo &binary_info,
     auto str = coverage_logger.ObserveAndDescribeIfNew(pc);
     if (!str.empty()) LOG(INFO).NoPrefix() << str;
   }
+}
+
+std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
+                                      std::string_view binary_hash,
+                                      std::string_view workdir_path) {
+  WorkDir workdir(std::string(workdir_path), std::string(binary_name),
+                  std::string(binary_hash), /*my_shard_index=*/0);
+  std::vector<std::string> corpus_paths;
+  RemoteGlobMatch(absl::StrCat(workdir.CorpusPathPrefix(), "*"), corpus_paths);
+  std::vector<std::string> features_paths;
+  RemoteGlobMatch(absl::StrCat(workdir.FeaturesPathPrefix(), "*"),
+                  features_paths);
+
+  CHECK_EQ(corpus_paths.size(), features_paths.size());
+  std::vector<CorpusRecord> corpus;
+  for (int i = 0; i < corpus_paths.size(); ++i) {
+    LOG(INFO) << "Reading corpus at: " << corpus_paths[i];
+    LOG(INFO) << "Reading features at: " << features_paths[i];
+    ReadShard(corpus_paths[i], features_paths[i],
+              [&corpus](const ByteArray &input, FeatureVec &features) {
+                corpus.push_back({input, features});
+              });
+  }
+  return corpus;
+}
+
+BinaryInfo ReadBinaryInfo(std::string_view binary_name,
+                          std::string_view binary_hash,
+                          std::string_view workdir_path) {
+  WorkDir workdir(std::string(workdir_path), std::string(binary_name),
+                  std::string(binary_hash), /*my_shard_index=*/0);
+  BinaryInfo ret;
+  ret.Read(workdir.BinaryInfoDirPath());
+  return ret;
+}
+
+}  // namespace
+
+void AnalyzeCorpora(std::string_view binary_name, std::string_view binary_hash,
+                    std::string_view workdir_a, std::string_view workdir_b) {
+  BinaryInfo binary_info_a =
+      ReadBinaryInfo(binary_name, binary_hash, workdir_a);
+  BinaryInfo binary_info_b =
+      ReadBinaryInfo(binary_name, binary_hash, workdir_b);
+
+  CHECK_EQ(binary_info_a.pc_table.size(), binary_info_b.pc_table.size());
+  CHECK_EQ(binary_info_a.symbols.size(), binary_info_b.symbols.size());
+
+  const std::vector<CorpusRecord> a =
+      ReadCorpora(binary_name, binary_hash, workdir_a);
+  const std::vector<CorpusRecord> b =
+      ReadCorpora(binary_name, binary_hash, workdir_b);
+
+  AnalyzeCorpora(binary_info_a, a, b);
 }
 
 }  // namespace centipede

@@ -346,9 +346,17 @@ cc_library(
         ":binary_info",
         ":control_flow",
         ":corpus",
+        ":coverage",
+        ":defs",
         ":feature",
         ":logging",
+        ":remote_file",
+        ":shard_reader",
+        ":workdir",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

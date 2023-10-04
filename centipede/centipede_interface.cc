@@ -165,34 +165,12 @@ void ReportStatsThread(const std::atomic<bool> &continue_running,
 
 // Loads corpora from work dirs provided in `env.args`, analyzes differences.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
-int Analyze(const Environment &env, const BinaryInfo &binary_info) {
+int Analyze(const Environment &env) {
   LOG(INFO) << "Analyze " << absl::StrJoin(env.args, ",");
   CHECK_EQ(env.args.size(), 2) << "for now, Analyze supports only 2 work dirs";
   CHECK(!env.binary.empty()) << "--binary must be used";
   std::vector<std::vector<CorpusRecord>> corpora;
-  for (const auto &workdir : env.args) {
-    LOG(INFO) << "Reading " << workdir;
-    Environment workdir_env = env;
-    workdir_env.workdir = workdir;
-    const WorkDir workdir_wd{workdir_env};
-    corpora.emplace_back();
-    auto &corpus = corpora.back();
-    for (size_t shard_index = 0; shard_index < env.total_shards;
-         ++shard_index) {
-      auto corpus_path = workdir_wd.CorpusPath(shard_index);
-      auto features_path = workdir_wd.FeaturesPath(shard_index);
-      LOG(INFO) << "Loading corpus shard: " << corpus_path << " "
-                << features_path;
-      ReadShard(corpus_path, features_path,
-                [&corpus](const ByteArray &input, FeatureVec &features) {
-                  corpus.push_back({input, features});
-                });
-    }
-    CHECK(!corpus.empty()) << "the corpus is empty, nothing to analyze";
-    LOG(INFO) << "corpus size " << corpus.size();
-  }
-  CHECK_EQ(corpora.size(), 2);
-  AnalyzeCorpora(binary_info, corpora[0], corpora[1]);
+  AnalyzeCorpora(env.binary_name, env.binary_hash, env.args[0], env.args[1]);
   return EXIT_SUCCESS;
 }
 
@@ -264,7 +242,7 @@ int CentipedeMain(const Environment &env,
     SavePCTableToFile(binary_info.pc_table, pcs_file_path);
   }
 
-  if (env.analyze) return Analyze(env, binary_info);
+  if (env.analyze) return Analyze(env);
 
   if (env.use_pcpair_features) {
     CHECK(!binary_info.pc_table.empty())

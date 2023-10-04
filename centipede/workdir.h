@@ -60,12 +60,16 @@ class WorkDir {
   // Returns the path for a corpus file by its shard_index.
   std::string CorpusPath(size_t shard_index) const;
   std::string CorpusPath() const { return CorpusPath(my_shard_index_); }
+  // Returns the prefix of all corpus shards
+  std::string CorpusPathPrefix() const;
   // Returns the path for the distilled corpus file for my_shard_index.
   std::string DistilledCorpusPath() const;
 
   // Returns the path for a features file by its shard_index.
   std::string FeaturesPath(size_t shard_index) const;
   std::string FeaturesPath() const { return FeaturesPath(my_shard_index_); }
+  // Returns the prefix of all feature shards
+  std::string FeaturesPathPrefix() const;
   // Returns the path for the distilled features file for my_shard_index.
   std::string DistilledFeaturesPath() const;
 
