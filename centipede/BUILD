@@ -15,8 +15,8 @@
 # Description:
 #   Centipede: an experimental distributed fuzzing engine.
 
-load(":instrument.bzl", "cc_uninstrumented_binary")
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load(":instrument.bzl", "cc_uninstrumented_binary")
 
 VISIBILITY = ["//visibility:public"]
 
