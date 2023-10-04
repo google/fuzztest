@@ -30,6 +30,7 @@ struct AnalyzeCorporaResults {
   std::vector<size_t> b_pcs;
   std::vector<size_t> a_only_pcs;
   std::vector<size_t> b_only_pcs;
+  BinaryInfo binary_info;
 };
 
 // Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
@@ -43,7 +44,6 @@ void AnalyzeCorporaToLog(std::string_view binary_name,
                          std::string_view binary_hash,
                          std::string_view workdir_a,
                          std::string_view workdir_b);
-
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
