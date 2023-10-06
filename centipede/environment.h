@@ -115,6 +115,7 @@ struct Environment {
   bool use_posix_shmem = false;
   bool dry_run = false;
   bool save_binary_info = false;
+  bool populate_binary_info = true;
 
   // Command line-related fields -----------------------------------------------
 

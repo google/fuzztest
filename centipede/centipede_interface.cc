@@ -225,7 +225,9 @@ int CentipedeMain(const Environment &env,
             << "; temporary dir: " << tmpdir;
 
   BinaryInfo binary_info;
-  {
+  // Some fuzz targets have coverage not based on instrumenting binaries.
+  // For those target, we should not populate binary info.
+  if (env.populate_binary_info) {
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }

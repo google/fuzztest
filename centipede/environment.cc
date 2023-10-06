@@ -369,6 +369,10 @@ ABSL_FLAG(bool, dry_run, false,
 ABSL_FLAG(
     bool, save_binary_info, false,
     "Save the BinaryInfo from the fuzzing run within the working directory.");
+ABSL_FLAG(bool, populate_binary_info, true,
+          "Get binary info from a coverage instrumented binary. This should "
+          "only be turned off when coverage is not based on instrumenting some "
+          "binary.");
 
 namespace centipede {
 
@@ -485,6 +489,7 @@ Environment::Environment(const std::vector<std::string> &argv)
       use_posix_shmem(absl::GetFlag(FLAGS_use_posix_shmem)),
       dry_run(absl::GetFlag(FLAGS_dry_run)),
       save_binary_info(absl::GetFlag(FLAGS_save_binary_info)),
+      populate_binary_info(absl::GetFlag(FLAGS_populate_binary_info)),
       binary_name(std::filesystem::path(coverage_binary).filename().string()),
       binary_hash(absl::GetFlag(FLAGS_binary_hash).empty()
                       ? HashOfFileContents(coverage_binary)
