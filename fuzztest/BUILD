@@ -63,6 +63,19 @@ cc_library(
     alwayslink = True,
 )
 
+cc_library(
+    name = "llvm_fuzzer_wrapper",
+    testonly = True,
+    srcs = ["llvm_fuzzer_wrapper.cc"],
+    deps = [
+        ":domain_core",
+        ":fuzztest",
+        ":init_fuzztest",
+        "@com_google_googletest//:gtest",
+    ],
+    alwayslink = True,
+)
+
 ################################################################################
 # Internal
 ################################################################################
