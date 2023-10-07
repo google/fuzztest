@@ -173,35 +173,6 @@ sh_binary(
 #                                 Fuzz tests
 ################################################################################
 
-cc_test(
-    name = "coverage_test",
-    srcs = ["coverage_test.cc"],
-    data = [
-        ":test_fuzz_target",
-        ":test_fuzz_target_trace_pc",
-        ":threaded_fuzz_target",
-    ],
-    tags = ["not_run:arm"],
-    deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings",
-        "@com_google_fuzztest//centipede:binary_info",
-        "@com_google_fuzztest//centipede:centipede_interface",
-        "@com_google_fuzztest//centipede:control_flow",
-        "@com_google_fuzztest//centipede:coverage",
-        "@com_google_fuzztest//centipede:defs",
-        "@com_google_fuzztest//centipede:environment",
-        "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//centipede:logging",
-        "@com_google_fuzztest//centipede:pc_info",
-        "@com_google_fuzztest//centipede:runner_result",
-        "@com_google_fuzztest//centipede:symbol_table",
-        "@com_google_fuzztest//centipede:test_util",
-        "@com_google_fuzztest//centipede:util",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 # Runs common Centipede scenarios with local files.
 sh_test(
     name = "centipede_main_test",

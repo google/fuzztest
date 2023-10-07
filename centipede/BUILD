@@ -1506,3 +1506,32 @@ sh_test(
         ":test_util_sh",
     ],
 )
+
+cc_test(
+    name = "coverage_test",
+    srcs = ["coverage_test.cc"],
+    data = [
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
+        "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
+    ],
+    tags = ["not_run:arm"],
+    deps = [
+        ":binary_info",
+        ":centipede_interface",
+        ":control_flow",
+        ":coverage",
+        ":defs",
+        ":environment",
+        ":feature",
+        ":logging",
+        ":pc_info",
+        ":runner_result",
+        ":symbol_table",
+        ":test_util",
+        ":util",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
