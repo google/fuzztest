@@ -202,38 +202,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "centipede_test",
-    timeout = "long",
-    srcs = ["centipede_test.cc"],
-    data = [
-        ":abort_fuzz_target",
-        ":seeded_fuzz_target",
-        ":test_fuzz_target",
-        ":test_input_filter",
-    ],
-    tags = ["not_run:arm"],
-    deps = [
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/strings",
-        "@com_google_fuzztest//centipede:blob_file",
-        "@com_google_fuzztest//centipede:centipede_callbacks",
-        "@com_google_fuzztest//centipede:centipede_default_callbacks",
-        "@com_google_fuzztest//centipede:centipede_interface",
-        "@com_google_fuzztest//centipede:corpus",
-        "@com_google_fuzztest//centipede:defs",
-        "@com_google_fuzztest//centipede:environment",
-        "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//centipede:logging",
-        "@com_google_fuzztest//centipede:runner_result",
-        "@com_google_fuzztest//centipede:shard_reader",
-        "@com_google_fuzztest//centipede:test_util",
-        "@com_google_fuzztest//centipede:util",
-        "@com_google_fuzztest//centipede:workdir",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 # Runs common Centipede scenarios with local files.
 sh_test(
     name = "centipede_main_test",

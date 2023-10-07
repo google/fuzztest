@@ -1464,6 +1464,38 @@ cc_test(
 #                               Other tests
 ################################################################################
 
+cc_test(
+    name = "centipede_test",
+    timeout = "long",
+    srcs = ["centipede_test.cc"],
+    data = [
+        "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_input_filter",
+    ],
+    tags = ["not_run:arm"],
+    deps = [
+        ":blob_file",
+        ":centipede_callbacks",
+        ":centipede_default_callbacks",
+        ":centipede_interface",
+        ":corpus",
+        ":defs",
+        ":environment",
+        ":feature",
+        ":logging",
+        ":runner_result",
+        ":shard_reader",
+        ":test_util",
+        ":util",
+        ":workdir",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 # Verify that the `:centipede` target indeed creates a binary with the
 # expected name.
 sh_test(
