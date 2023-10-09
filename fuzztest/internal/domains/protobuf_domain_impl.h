@@ -849,7 +849,7 @@ class ProtobufDomainUntypedImpl
         field = GetField(*number);
       } else if (auto name = (*pair_subs)[0].GetScalar<std::string>();
                  name.has_value()) {
-        field = GetField(std::string(*name));
+        field = GetFieldWithoutCheck(std::string(*name));
       }
       if (!field) return std::nullopt;
       present_fields.insert(field->number());
@@ -1030,13 +1030,18 @@ class ProtobufDomainUntypedImpl
     customized_fields_.insert(field->index());
   }
 
-  auto GetField(absl::string_view field_name) const {
+  auto GetFieldWithoutCheck(absl::string_view field_name) const {
     auto* field = prototype_.Get()->GetDescriptor()->FindFieldByName(
         std::string(field_name));
     if (field == nullptr) {
       field = prototype_.Get()->GetReflection()->FindKnownExtensionByName(
           std::string(field_name));
     }
+    return field;
+  }
+
+  auto GetField(absl::string_view field_name) const {
+    auto* field = GetFieldWithoutCheck(field_name);
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(field != nullptr,
                                          "Invalid field name '",
                                          std::string(field_name), "'.");
