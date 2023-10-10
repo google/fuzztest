@@ -194,7 +194,7 @@ mutates `vec_`.
 
 Adapt a fixture called `Fixture` by extending
 `::fuzztest::PerFuzzTestFixtureAdapter<Fixture>`. This case should be the less
-common once: it relies on the fixture being easily resettable, which is not a
+common one: it relies on the fixture being easily resettable, which is not a
 typical concern when designing GoogleTest fixtures.
 
 As an example, let's return to EchoServer. Suppose we already have a GoogleTest
