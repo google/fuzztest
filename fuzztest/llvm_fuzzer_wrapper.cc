@@ -83,13 +83,12 @@ class InplaceVector {
 
 extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
-  auto kDomain =
-      fuzztest::internal::SequenceContainerOfImpl<
-          InplaceVector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>>()
-          .WithMaxSize(max_size);
+  static auto domain = fuzztest::internal::SequenceContainerOfImpl<
+      InplaceVector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>>();
+  domain.WithMaxSize(max_size);
   absl::BitGen bitgen;
   InplaceVector<uint8_t> val(data, size);
-  kDomain.Mutate(val, bitgen, false);
+  domain.Mutate(val, bitgen, false);
   return val.size();
 }
 
