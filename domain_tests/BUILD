@@ -85,7 +85,20 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:type_support",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "container_test",
+    srcs = ["container_test.cc"],
+    deps = [
+        ":domain_testing",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",
