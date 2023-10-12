@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/strings/match.h"
-#include "./centipede/environment.h"
+#include "./centipede/environment_flags.h"
 #include "./centipede/logging.h"
 
 // Dummy flags for testing.
@@ -47,27 +47,28 @@ using ::testing::IsSupersetOf;
 TEST(FlagUtilTest, GetFlagsPerSource) {
   constexpr const char* kCentipedeRoot = "centipede/";
   constexpr const char* kThisCc = "centipede/config_util_test.cc";
-  constexpr const char* kEnvironmentCc = "centipede/environment.cc";
+  constexpr const char* kEnvironmentFlagsCc =
+      "centipede/environment_flags.cc";
 
   // Change some flag values to non-defaults.
   absl::SetFlag(&FLAGS_foo, "baz");
   absl::SetFlag(&FLAGS_qux, true);
   // Create a dummy Environment to touch its flags and prevent them from being
   // optimized out.
-  [[maybe_unused]] Environment dummy_env;
+  [[maybe_unused]] auto dummy_env = CreateEnvironmentFromFlags();
 
   // All centipede/ modules.
   {
     const FlagInfosPerSource flags = GetFlagsPerSource(kCentipedeRoot);
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentCc), 1);
+    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 1);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},
                     FlagInfo{"qux", "true", "false", "qux help"},
                 }));
-    ASSERT_THAT(flags.at(kEnvironmentCc),
+    ASSERT_THAT(flags.at(kEnvironmentFlagsCc),
                 IsSupersetOf({
                     FlagInfo{"binary", "*", "*", "*"},
                     FlagInfo{"workdir", "*", "*", "*"},
@@ -78,7 +79,7 @@ TEST(FlagUtilTest, GetFlagsPerSource) {
     const FlagInfosPerSource flags = GetFlagsPerSource(kThisCc);
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentCc), 0);
+    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 0);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},
@@ -91,7 +92,7 @@ TEST(FlagUtilTest, GetFlagsPerSource) {
         GetFlagsPerSource(kThisCc, /*exclude_flags=*/{"qux"});
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentCc), 0);
+    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 0);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},

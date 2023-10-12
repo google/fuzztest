@@ -108,10 +108,10 @@ std::vector<TestCorpusRecord> TestDistill(
   std::string dir = std::filesystem::path(GetTestTempDir()).append(test_name);
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
-  absl::SetFlag(&FLAGS_workdir, dir);
-  absl::SetFlag(&FLAGS_binary, "binary_that_is_not_here");
-  absl::SetFlag(&FLAGS_binary_hash, "01234567890");
   Environment env;
+  env.workdir = dir;
+  env.binary = "binary_that_is_not_here";
+  env.binary_hash = "01234567890";
   env.total_shards = shards.size();
   env.my_shard_index = 1;  // an arbitrary shard index.
   env.user_feature_domain_mask = user_feature_domain_mask;

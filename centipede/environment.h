@@ -28,28 +28,12 @@
 
 namespace centipede {
 
-// Fuzzing environment that is initialized at startup and doesn't change.
-// Data fields are copied from the FLAGS defined in centipede_interface.cc,
-// or derived from them. See FLAGS descriptions for comments.
-// Users or tests can override any of the non-const fields after the object
-// is constructed, but before it is passed to CentipedeMain.
+// Fuzzing environment controlling the behavior of
+// CentipedeMain(). Centipede binaries are creating Environment instances using
+// the flags defined in environment_flags.cc, while other users can use
+// CentipedeMain() as a library function without importing the flags.
 struct Environment {
-  // Life cycle ----------------------------------------------------------------
-
-  explicit Environment(const std::vector<std::string>& argv = {});
-
-  Environment(int argc, char **argv)
-      : Environment(std::vector<std::string>{argv, argv + argc}) {}
-
-  // Copy-constructible only (due to const members).
-  Environment(const Environment&) = default;
-  Environment& operator=(const Environment&) = delete;
-  Environment(Environment&&) noexcept = delete;
-  Environment& operator=(Environment&&) noexcept = delete;
-
-  // Data ----------------------------------------------------------------------
-
-  // Global params. Set in CTOR from the flags in environment.cc ---------------
+  // Global params. See environment_flags.cc for help on each parameter. -------
 
   std::string binary;
   std::string coverage_binary;
@@ -57,61 +41,61 @@ struct Environment {
   std::vector<std::string> extra_binaries;
   std::string workdir;
   std::string merge_from;
-  size_t num_runs;
-  size_t total_shards;
-  size_t my_shard_index;
-  size_t num_threads;
-  size_t max_len;
-  size_t batch_size;
-  size_t mutate_batch_size;
-  bool use_legacy_default_mutator;
-  size_t load_other_shard_frequency;
-  bool serialize_shard_loads;
-  size_t seed;
-  size_t prune_frequency;
-  size_t address_space_limit_mb;
-  size_t rss_limit_mb;
-  size_t timeout_per_input;
-  size_t timeout_per_batch;
-  absl::Time stop_at;
-  bool fork_server;
-  bool full_sync;
-  bool use_corpus_weights;
-  bool use_coverage_frontier;
-  size_t max_corpus_size;
-  size_t crossover_level;
-  bool use_pc_features;
-  size_t path_level;
-  bool use_cmp_features;
-  size_t callstack_level;
-  bool use_auto_dictionary;
-  bool use_dataflow_features;
-  bool use_counter_features;
-  bool use_pcpair_features;
-  uint64_t user_feature_domain_mask;
-  size_t feature_frequency_threshold;
-  bool require_pc_table;
-  int telemetry_frequency;
-  bool print_runner_log;
-  bool distill;
-  size_t log_features_shards;
+  size_t num_runs = std::numeric_limits<size_t>::max();
+  size_t total_shards = 1;
+  size_t my_shard_index = 0;
+  size_t num_threads = 1;
+  size_t max_len = 4000;
+  size_t batch_size = 1000;
+  size_t mutate_batch_size = 2;
+  bool use_legacy_default_mutator = false;
+  size_t load_other_shard_frequency = 10;
+  bool serialize_shard_loads = false;
+  size_t seed = 0;
+  size_t prune_frequency = 100;
+  size_t address_space_limit_mb = 8192;
+  size_t rss_limit_mb = 4096;
+  size_t timeout_per_input = 60;
+  size_t timeout_per_batch = 0;
+  absl::Time stop_at = absl::InfiniteFuture();
+  bool fork_server = true;
+  bool full_sync = false;
+  bool use_corpus_weights = true;
+  bool use_coverage_frontier = false;
+  size_t max_corpus_size = 100000;
+  size_t crossover_level = 50;
+  bool use_pc_features = true;
+  size_t path_level = 0;
+  bool use_cmp_features = true;
+  size_t callstack_level = 0;
+  bool use_auto_dictionary = true;
+  bool use_dataflow_features = true;
+  bool use_counter_features = false;
+  bool use_pcpair_features = false;
+  uint64_t user_feature_domain_mask = ~0UL;
+  size_t feature_frequency_threshold = 100;
+  bool require_pc_table = true;
+  int telemetry_frequency = 0;
+  bool print_runner_log = false;
+  bool distill = false;
+  size_t log_features_shards = 0;
   std::string knobs_file;
   std::string save_corpus_to_local_dir;
   std::string export_corpus_from_local_dir;
   std::vector<std::string> corpus_dir;
-  std::string symbolizer_path;
-  std::string objdump_path;
+  std::string symbolizer_path = "llvm-symbolizer";
+  std::string objdump_path = "objdump";
   std::string runner_dl_path_suffix;
   std::string input_filter;
   std::vector<std::string> dictionary;
   std::string function_filter;
   std::string for_each_blob;
   std::string experiment;
-  bool analyze;
-  bool exit_on_crash;
-  size_t max_num_crash_reports;
+  bool analyze = false;
+  bool exit_on_crash = false;
+  size_t max_num_crash_reports = 5;
   std::string minimize_crash_file_path;
-  size_t shmem_size_mb;
+  size_t shmem_size_mb = 1024;
   bool use_posix_shmem = false;
   bool dry_run = false;
   bool save_binary_info = false;

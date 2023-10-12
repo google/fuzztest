@@ -40,7 +40,7 @@ cc_binary(
         ":centipede_default_callbacks",
         ":centipede_interface",
         ":config_file",
-        ":environment",
+        ":environment_flags",
         "@com_google_absl//absl/log:flags",
     ],
 )
@@ -656,6 +656,23 @@ cc_library(
 )
 
 cc_library(
+    name = "environment_flags",
+    srcs = ["environment_flags.cc"],
+    hdrs = ["environment_flags.h"],
+    visibility = PUBLIC_API_VISIBILITY,
+    deps = [
+        ":environment",
+        ":logging",
+        ":util",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "centipede_lib",
     srcs = [
         "centipede.cc",
@@ -755,9 +772,7 @@ cc_library(
         ":knobs",
         ":logging",
         ":remote_file",
-        ":util",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -1128,6 +1143,7 @@ cc_test(
         # Include this just to get some flags external to the test itself.
         ":environment",  # buildcleaner:keep
         ":config_util",
+        ":environment_flags",
         ":logging",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/flags:flag",

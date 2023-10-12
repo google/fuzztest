@@ -27,7 +27,7 @@
 #include "./centipede/command.h"
 #include "./centipede/config_file.h"
 #include "./centipede/defs.h"
-#include "./centipede/environment.h"
+#include "./centipede/environment_flags.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
   const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
 
   // Reads flags; must happen after ParseCommandLine().
-  centipede::Environment env{leftover_argv};
+  const auto env = centipede::CreateEnvironmentFromFlags(leftover_argv);
   centipede::DefaultCallbacksFactory<centipede::CustomizedCallbacks>
       callbacks_factory;
   return CentipedeMain(env, callbacks_factory);

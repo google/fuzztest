@@ -130,7 +130,7 @@ class MockFactory : public CentipedeCallbacksFactory {
 
 TEST(Centipede, MockTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
-  Environment env;    // Reads the flags. We override some members below.
+  Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
   env.workdir = tmp_dir.path();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
@@ -158,7 +158,7 @@ static size_t CountFilesInDir(std::string_view dir_path) {
 // Tests fuzzing and distilling in multiple shards.
 TEST(Centipede, ShardsAndDistillTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
-  Environment env;  // Reads the flags. We override some members below.
+  Environment env;
   env.workdir = tmp_dir.path();
   env.log_level = 0;  // Disable most of the logging in the test.
   size_t combined_num_runs = 100000;  // Enough to run through all inputs.
@@ -220,7 +220,7 @@ TEST(Centipede, ShardsAndDistillTest) {
 // Tests --input_filter. test_input_filter filters out inputs with 'b' in them.
 TEST(Centipede, InputFilter) {
   TempCorpusDir tmp_dir{test_info_->name()};
-  Environment env;  // Reads the flags. We override some members below.
+  Environment env;
   env.workdir = tmp_dir.path();
   env.num_runs = 256;            // Enough to run through all 1- byte inputs.
   env.log_level = 0;             // Disable most of the logging in the test.

@@ -16,12 +16,12 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/config_file.h"
-#include "./centipede/environment.h"
+#include "./centipede/environment_flags.h"
 
 int main(int argc, char** argv) {
   const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
 
-  centipede::Environment env{leftover_argv};
+  const auto env = centipede::CreateEnvironmentFromFlags(leftover_argv);
   centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
       callbacks;
   return CentipedeMain(env, callbacks);
