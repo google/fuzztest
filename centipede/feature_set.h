@@ -18,12 +18,10 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
+#include <ostream>
 #include <string>
-#include <vector>
 
-#include "absl/container/flat_hash_set.h"
-#include "./centipede/coverage.h"
-#include "./centipede/defs.h"
+#include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/util.h"
 
@@ -66,7 +64,7 @@ class FeatureSet {
   PCIndexVec ToCoveragePCs() const;
 
   // Returns the number of features in `this` from the given feature domain.
-  size_t CountFeatures(feature_domains::Domain domain);
+  size_t CountFeatures(feature_domains::Domain domain) const;
 
   // Returns the frequency associated with `feature`.
   size_t Frequency(feature_t feature) const { return frequencies_[feature]; }
@@ -115,6 +113,9 @@ class FeatureSet {
 
   FeatureDomainSet should_discard_domain_;
 };
+
+// Stream out description and count of features in feature set.
+std::ostream &operator<<(std::ostream &out, const FeatureSet &fs);
 
 }  // namespace centipede
 

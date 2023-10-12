@@ -537,13 +537,12 @@ cc_library(
     srcs = ["feature_set.cc"],
     hdrs = ["feature_set.h"],
     deps = [
-        ":coverage",
-        ":defs",
+        ":control_flow",
         ":feature",
         ":logging",
         ":util",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

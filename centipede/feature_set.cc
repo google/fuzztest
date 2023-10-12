@@ -19,8 +19,11 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
+#include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 
@@ -41,7 +44,7 @@ PCIndexVec FeatureSet::ToCoveragePCs() const {
   return pcs;
 }
 
-size_t FeatureSet::CountFeatures(feature_domains::Domain domain) {
+size_t FeatureSet::CountFeatures(feature_domains::Domain domain) const {
   return features_per_domain_[domain.domain_id()];
 }
 
@@ -114,11 +117,34 @@ std::string FeatureSet::DebugString() const {
   std::ostringstream os;
   os << VV((int)frequency_threshold_);
   os << VV(num_features_);
-  for (size_t domain = 0; domain < feature_domains::kNumDomains; ++domain) {
-    if (features_per_domain_[domain] == 0) continue;
-    os << " dom" << domain << ": " << features_per_domain_[domain];
-  }
+  os << this;
   return os.str();
+}
+
+std::ostream &operator<<(std::ostream &out, const FeatureSet &fs) {
+  auto num_cmp_features = fs.CountFeatures(feature_domains::kCMP) +
+                          fs.CountFeatures(feature_domains::kCMPEq) +
+                          fs.CountFeatures(feature_domains::kCMPModDiff) +
+                          fs.CountFeatures(feature_domains::kCMPHamming) +
+                          fs.CountFeatures(feature_domains::kCMPDiffLog);
+  auto LogIfNotZero = [&out](size_t value, std::string_view name) {
+    if (!value) return;
+    out << " " << name << ": " << value;
+  };
+  out << "ft: " << fs.size();
+  LogIfNotZero(fs.CountFeatures(feature_domains::kPCs), "cov");
+  LogIfNotZero(fs.CountFeatures(feature_domains::k8bitCounters), "cnt");
+  LogIfNotZero(fs.CountFeatures(feature_domains::kDataFlow), "df");
+  LogIfNotZero(num_cmp_features, "cmp");
+  LogIfNotZero(fs.CountFeatures(feature_domains::kCallStack), "stk");
+  LogIfNotZero(fs.CountFeatures(feature_domains::kBoundedPath), "path");
+  LogIfNotZero(fs.CountFeatures(feature_domains::kPCPair), "pair");
+  for (size_t i = 0; i < std::size(feature_domains::kUserDomains); ++i) {
+    LogIfNotZero(fs.CountFeatures(feature_domains::kUserDomains[i]),
+                 absl::StrCat("usr", i));
+  }
+  LogIfNotZero(fs.CountFeatures(feature_domains::kUnknown), "unknown");
+  return out;
 }
 
 }  // namespace centipede

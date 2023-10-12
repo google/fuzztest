@@ -220,11 +220,6 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
       fuzz_time_secs > 0 ? static_cast<double>(num_runs_) / fuzz_time_secs : 0;
   if (execs_per_sec > 1.) execs_per_sec = std::round(execs_per_sec);
   static const auto rusage_scope = perf::RUsageScope::ThisProcess();
-  auto num_cmp_features = fs_.CountFeatures(feature_domains::kCMP) +
-                          fs_.CountFeatures(feature_domains::kCMPEq) +
-                          fs_.CountFeatures(feature_domains::kCMPModDiff) +
-                          fs_.CountFeatures(feature_domains::kCMPHamming) +
-                          fs_.CountFeatures(feature_domains::kCMPDiffLog);
   std::ostringstream os;
   auto LogIfNotZero = [&os](size_t value, std::string_view name) {
     if (!value) return;
@@ -232,18 +227,8 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   };
   if (!env_.experiment_name.empty()) os << env_.experiment_name << " ";
   os << "[S" << env_.my_shard_index << "." << num_runs_ << "] " << log_type
-     << ": ft: " << fs_.size();
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kPCs), "cov");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::k8bitCounters), "cnt");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kDataFlow), "df");
-  LogIfNotZero(num_cmp_features, "cmp");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kBoundedPath), "path");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kPCPair), "pair");
-  LogIfNotZero(fs_.CountFeatures(feature_domains::kCallStack), "stk");
-  for (size_t i = 0; i < std::size(feature_domains::kUserDomains); ++i) {
-    LogIfNotZero(fs_.CountFeatures(feature_domains::kUserDomains[i]),
-                 absl::StrCat("usr", i));
-  }
+     << ": ";
+  os << fs_;
   os << " corp: " << corpus_.NumActive() << "/" << corpus_.NumTotal();
   LogIfNotZero(coverage_frontier_.NumFunctionsInFrontier(), "fr");
   LogIfNotZero(num_crashes_, "crash");

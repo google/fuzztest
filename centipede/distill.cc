@@ -77,21 +77,14 @@ void DistillTask(const Environment &env,
     // Iterate the records, add those that have new features.
     // This is a simple linear greedy set cover algorithm.
     for (auto &&[input, features] : records) {
-      VLOG(1) << log_line << VV(input.size()) << VV(features.size());
       feature_set.PruneDiscardedDomains(features);
       if (!feature_set.HasUnseenFeatures(features)) continue;
       feature_set.IncrementFrequencies(features);
-      // Logging will log names of these variables.
-      auto num_new_features = features.size();
-      CHECK_NE(num_new_features, 0);
-      auto cov = feature_set.CountFeatures(feature_domains::kPCs);
-      auto ft = feature_set.size();
-      LOG(INFO) << log_line << "adding to distilled: " << VV(ft) << VV(cov)
-                << VV(input.size()) << VV(num_new_features);
       // Append to the distilled corpus and features files.
       CHECK_OK(corpus_writer->Write(input));
       CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));
     }
+    LOG(INFO) << log_line << feature_set;
   }
 }
 
