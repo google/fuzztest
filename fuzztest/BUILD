@@ -14,6 +14,7 @@
 
 # FuzzTest: a coverage-guided fuzzing / property-based testing framework.
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -21,6 +22,20 @@ package(default_visibility = ["//visibility:public"])
 licenses(["notice"])
 
 exports_files(["LICENSE"])
+
+################################################################################
+# Flag and setting to enable the Centipede integration.
+################################################################################
+bool_flag(
+    name = "centipede_integration",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "use_centipede",
+    flag_values = {":centipede_integration": "True"},
+)
+################################################################################
 
 cc_library(
     name = "fuzztest",
@@ -114,6 +129,7 @@ cc_library(
     name = "centipede_adaptor",
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
+    defines = ["FUZZTEST_USE_CENTIPEDE"],
     deps = [
         ":domain_core",
         ":fixture_driver",
@@ -143,6 +159,10 @@ cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
     hdrs = ["internal/coverage.h"],
+    defines = select({
+        "@com_google_fuzztest//fuzztest:use_centipede": ["FUZZTEST_USE_CENTIPEDE"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":logging",
         ":table_of_recent_compares",
@@ -368,6 +388,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:function_ref",
     ] + select({
+        "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
         "//conditions:default": [],
     }),
 )

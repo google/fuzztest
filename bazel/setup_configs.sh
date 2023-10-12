@@ -55,9 +55,11 @@ REPO_NAME="${1}"
 # When used in the fuzztest repo itself.
 if [ ${REPO_NAME} == "@" ]; then
   FUZZTEST_FILTER="//fuzztest:"
+  CENTIPEDE_FILTER="//centipede:"
 # When used in client repo.
 elif [ ${REPO_NAME} == "@com_google_fuzztest" ]; then
   FUZZTEST_FILTER="fuzztest/.*"
+  CENTIPEDE_FILTER="centipede/.*"
 else
   echo "Unexpected repo name: ${REPO_NAME}"
   exit 1
@@ -65,7 +67,7 @@ fi
 
 echo "# We apply coverage tracking instrumentation to everything but the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp
+build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-${CENTIPEDE_FILTER},-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp,-fsanitize-coverage=pc-table
 "
 
 # Do not use the extra configurations below, unless you know what you're doing.
