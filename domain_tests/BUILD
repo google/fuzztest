@@ -36,7 +36,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
