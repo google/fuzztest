@@ -121,6 +121,7 @@ void TestOneInput(const std::vector<uint8_t>& data) {
 FUZZ_TEST(LLVMFuzzer, TestOneInput).WithDomains(ArbitraryByteVector());
 
 int main(int argc, char** argv) {
+  testing::InitGoogleTest(&argc, &argv);
   if (LLVMFuzzerInitialize) {
     LLVMFuzzerInitialize(&argc, &argv);
   }
