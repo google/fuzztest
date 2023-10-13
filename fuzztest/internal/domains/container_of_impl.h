@@ -18,11 +18,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <list>
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
@@ -173,7 +175,7 @@ class ContainerOfImplBase
       if (can_use_memory_dict) {
         if (action-- == 0) {
           bool mutated = MemoryDictionaryMutation(
-              val, prng, temporary_dict_, manual_dict_, permanent_dict_,
+              val, prng, temporary_dict_, GetManualDict(), permanent_dict_,
               permanent_dict_candidate_, max_size());
           // If dict failed, fall back to changing an element.
           if (!mutated) {
@@ -236,6 +238,11 @@ class ContainerOfImplBase
           "At least one dictionary entry is larger than max container size.");
       manual_dict_.AddEntry({std::nullopt, entry});
     }
+    return Self();
+  }
+  Derived& WithDictionary(
+      std::function<std::vector<value_type>()> manual_dict_provider) {
+    manual_dict_provider_ = std::move(manual_dict_provider);
     return Self();
   }
 
@@ -367,6 +374,15 @@ class ContainerOfImplBase
 
  private:
   Derived& Self() { return static_cast<Derived&>(*this); }
+  dict_type& GetManualDict() {
+    if (manual_dict_provider_.has_value() &&
+        *manual_dict_provider_ != nullptr) {
+      std::vector<value_type> manual_dict = (*manual_dict_provider_)();
+      WithDictionary({manual_dict.data(), manual_dict.size()});
+      manual_dict_provider_ = std::nullopt;
+    }
+    return manual_dict_;
+  }
 
   // DO NOT use directly. Use min_size() and max_size() instead.
   size_t min_size_ = 0;
@@ -381,6 +397,7 @@ class ContainerOfImplBase
   // memory dictionaries, but it could be made more general.
   // TODO(JunyangShao): make it more general.
   dict_type manual_dict_ = {};
+  std::optional<std::function<std::vector<value_type>()>> manual_dict_provider_;
 
   // Permanent memory dictionary. Contains entries upgraded from
   // temporary_dict_. Upgrade happens when a temporary_dict_ entry
