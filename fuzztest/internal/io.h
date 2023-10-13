@@ -37,9 +37,9 @@ struct FilePathAndData {
   std::string data;
 };
 
-// If `file_or_dir` is a directory, returns a list of its top-level files' paths
-// and contents. If `file_or_dir` is a file, returns a singleton list with its
-// path and content. In all other cases, returns an empty list.
+// If `file_or_dir` is a directory, returns a list of its files' paths and
+// contents. If `file_or_dir` is a file, returns a singleton list with its path
+// and content. In all other cases, returns an empty list.
 std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir);
 
 // Returns a list of top-level paths in `dir`. If `dir` is not a directory,

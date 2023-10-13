@@ -115,7 +115,8 @@ std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir) {
     }
   };
   if (std::filesystem::is_directory(file_or_dir)) {
-    for (const auto& entry : std::filesystem::directory_iterator(file_or_dir)) {
+    for (const auto& entry :
+         std::filesystem::recursive_directory_iterator(file_or_dir)) {
       try_append_file(entry.path().string());
     }
   } else {

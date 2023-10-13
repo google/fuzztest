@@ -14,6 +14,8 @@
 
 #include "./fuzztest/internal/io.h"
 
+#include <sys/stat.h>
+
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
@@ -123,6 +125,20 @@ TEST(IOTest, ReadFileOrDirectoryWorks) {
   EXPECT_THAT(ReadFileOrDirectory(tmp_dir),
               UnorderedElementsAre(FieldsAre(tmp_file_1, "Payload3.1"),
                                    FieldsAre(tmp_file_2, "Payload3.2")));
+  std::filesystem::remove_all(tmp_dir);
+}
+
+TEST(IOTest, ReadFileOrDirectoryWorksRecursively) {
+  const std::string tmp_dir = TmpDir("test_dir");
+  const std::string tmp_sub_dir = absl::StrCat(tmp_dir, "/subdir");
+  mkdir(tmp_sub_dir.c_str(), 0700);
+  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  TestWrite(tmp_file_1, "Payload5.1");
+  const std::string tmp_file_2 = absl::StrCat(tmp_sub_dir, "/file2");
+  TestWrite(tmp_file_2, "Payload5.2");
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir),
+              UnorderedElementsAre(FieldsAre(tmp_file_1, "Payload5.1"),
+                                   FieldsAre(tmp_file_2, "Payload5.2")));
   std::filesystem::remove_all(tmp_dir);
 }
 
