@@ -241,7 +241,7 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
     std::apply(
         [&](auto&&... args) {
           (fixture_.get()->*target_function_)(
-              ForceVectorForStringView<Args>(std::move(args))...);
+              ForceVectorForStringView<Args>(std::forward<Args>(args))...);
         },
         args_untyped.GetAs<value_type_t<DomainT>>());
   }
@@ -299,7 +299,8 @@ class FixtureDriver<DomainT, NoFixture, void (*)(Args...), SeedProvider>
   void Test(MoveOnlyAny&& args_untyped) const override {
     std::apply(
         [&](auto&&... args) {
-          target_function_(ForceVectorForStringView<Args>(std::move(args))...);
+          target_function_(
+              ForceVectorForStringView<Args>(std::forward<Args>(args))...);
         },
         args_untyped.GetAs<value_type_t<DomainT>>());
   }
