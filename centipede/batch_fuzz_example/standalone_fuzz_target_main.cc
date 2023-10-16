@@ -65,11 +65,14 @@ int main(int argc, char* argv[]) {
     std::string output;
     output.resize(kMaxOutputLimit);
 
+    CentipedeBeginExecutionBatch();
     CentipedeClearExecutionResult();
 
     FuzzMe(input_data.data(), input_data.size());
     const size_t offset = CentipedeGetExecutionResult(
         reinterpret_cast<uint8_t*>(output.data()), kMaxOutputLimit);
+    CentipedeEndExecutionBatch();
+
     if (offset == 0) {
       std::cerr << "Failed to dump output execution results.";
       return EXIT_FAILURE;

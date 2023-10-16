@@ -53,19 +53,23 @@ class LockGuard {
 };
 
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
-// Flags used in instrumentation callbacks are bit-packed for efficiency.
 struct RunTimeFlags {
-  uint64_t path_level : 8;
-  uint64_t use_pc_features : 1;
-  uint64_t use_dataflow_features : 1;
-  uint64_t use_cmp_features : 1;
-  uint64_t callstack_level : 8;
-  uint64_t use_counter_features : 1;
-  uint64_t use_auto_dictionary : 1;
-  uint64_t timeout_per_input;
-  uint64_t timeout_per_batch;
-  uint64_t rss_limit_mb;
-  uint64_t crossover_level;
+  // Flags used in instrumentation callbacks are bit-packed for efficiency.
+  struct InstrumentationFlags {
+    uint64_t path_level : 8;
+    uint64_t use_pc_features : 1;
+    uint64_t use_dataflow_features : 1;
+    uint64_t use_cmp_features : 1;
+    uint64_t callstack_level : 8;
+    uint64_t use_counter_features : 1;
+    uint64_t use_auto_dictionary : 1;
+  };
+  // All flags may be updated and used concurrently.
+  std::atomic<InstrumentationFlags> instrumentation_flags;
+  std::atomic<uint64_t> timeout_per_input;
+  std::atomic<uint64_t> timeout_per_batch;
+  std::atomic<uint64_t> rss_limit_mb;
+  std::atomic<uint64_t> crossover_level;
 };
 
 // One such object is created in runner's TLS.
@@ -128,35 +132,50 @@ struct GlobalRunnerState {
   GlobalRunnerState();
   ~GlobalRunnerState();
 
-  // Runner reads flags from a dedicated env var, CENTIPEDE_RUNNER_FLAGS.
-  // We don't use flags passed via argv so that argv flags can be passed
-  // directly to LLVMFuzzerInitialize, w/o filtering. The flags passed in
-  // CENTIPEDE_RUNNER_FLAGS are separated with ':' on both sides, i.e. like
-  // this: CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:". We do it this way to make the
+  // Runner sets up flags from a flag string, which initially comes from the
+  // dedicated env var CENTIPEDE_RUNNER_FLAGS. We don't use flags passed via
+  // argv so that argv flags can be passed directly to LLVMFuzzerInitialize, w/o
+  // filtering. The flags in the flag string are separated with ':' on both
+  // sides, i.e. like
+  // ":flag1:flag2:flag3=value3:". We do it this way to make the
   // flag parsing code extremely simple. The interface is private between
   // Centipede and the runner and may change.
-  const char *centipede_runner_flags = getenv("CENTIPEDE_RUNNER_FLAGS");
-  const char *arg1 = GetStringFlag(":arg1=");
-  const char *arg2 = GetStringFlag(":arg2=");
-  const char *arg3 = GetStringFlag(":arg3=");
+  char *centipede_runner_flags = nullptr;
+  const char *arg1;
+  const char *arg2;
+  const char *arg3;
   // The path to a file where the runner may write the description of failure.
-  const char *failure_description_path =
-      GetStringFlag(":failure_description_path=");
+  const char *failure_description_path;
 
   // Flags.
-  RunTimeFlags run_time_flags = {
-      .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
-                             HasIntFlag(":path_level=", 0)),
-      .use_pc_features = HasFlag(":use_pc_features:"),
-      .use_dataflow_features = HasFlag(":use_dataflow_features:"),
-      .use_cmp_features = HasFlag(":use_cmp_features:"),
-      .callstack_level = HasIntFlag(":callstack_level=", 0),
-      .use_counter_features = HasFlag(":use_counter_features:"),
-      .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
-      .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
-      .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
-      .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
-      .crossover_level = HasIntFlag(":crossover_level=", 50)};
+  RunTimeFlags run_time_flags;
+
+  void SetUpCentipedeRunnerFlags(const char *flag_string) {
+    if (centipede_runner_flags != nullptr) free(centipede_runner_flags);
+    if (flag_string == nullptr)
+      centipede_runner_flags = nullptr;
+    else
+      centipede_runner_flags = strdup(flag_string);
+
+    arg1 = GetStringFlag(":arg1=");
+    arg2 = GetStringFlag(":arg2=");
+    arg3 = GetStringFlag(":arg3=");
+    failure_description_path = GetStringFlag(":failure_description_path=");
+    run_time_flags.instrumentation_flags = RunTimeFlags::InstrumentationFlags{
+        .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
+                               HasIntFlag(":path_level=", 0)),
+        .use_pc_features = HasFlag(":use_pc_features:"),
+        .use_dataflow_features = HasFlag(":use_dataflow_features:"),
+        .use_cmp_features = HasFlag(":use_cmp_features:"),
+        .callstack_level = HasIntFlag(":callstack_level=", 0),
+        .use_counter_features = HasFlag(":use_counter_features:"),
+        .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
+    };
+    run_time_flags.timeout_per_input = HasIntFlag(":timeout_per_input=", 0);
+    run_time_flags.timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0);
+    run_time_flags.rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0);
+    run_time_flags.crossover_level = HasIntFlag(":crossover_level=", 50);
+  }
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
@@ -291,10 +310,14 @@ struct GlobalRunnerState {
 
   // Timeout-related machinery.
 
-  // If the timeout_per_input and/or rss_limit_mb flags are passed, initializes
-  // the watchdog thread that terminates the runner if either of those limits
-  // are exceeded.
+  // Initializes the watchdog thread that terminates the runner if either of
+  // those limits are exceeded.
   void StartWatchdogThread();
+  // Starts the watchdog thread if the timeout_per_input and/or rss_limit_mb
+  // flags are passed and the thread is never started before.
+  //
+  // This function is non-reentrant. Do not call it concurrently.
+  void MaybeStartWatchdogThread();
   // Resets the per-input timer. Call this before executing every input.
   void ResetTimers();
 
@@ -306,7 +329,7 @@ struct GlobalRunnerState {
   std::atomic<time_t> batch_start_time;
 
   // The Watchdog thread sets this to true.
-  std::atomic<bool> watchdog_thread_started;
+  std::atomic<bool> watchdog_thread_ready;
 
   // An arbitrary large size.
   static const size_t kMaxFeatures = 1 << 20;

@@ -64,7 +64,8 @@ using centipede::tls;
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceLoad(void *addr) {
-  if (!state.run_time_flags.use_dataflow_features) return;
+  if (!state.run_time_flags.instrumentation_flags.load().use_dataflow_features)
+    return;
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   auto load_addr = reinterpret_cast<uintptr_t>(addr);
   auto pc_offset = caller_pc - state.main_object.start_address;
@@ -77,7 +78,8 @@ ENFORCE_INLINE static void TraceLoad(void *addr) {
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceCmp(uint64_t Arg1, uint64_t Arg2) {
-  if (!state.run_time_flags.use_cmp_features) return;
+  if (!state.run_time_flags.instrumentation_flags.load().use_cmp_features)
+    return;
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   auto pc_offset = caller_pc - state.main_object.start_address;
   uintptr_t hash =
@@ -110,19 +112,22 @@ void __sanitizer_cov_trace_const_cmp1(uint8_t Arg1, uint8_t Arg2) {
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp2(uint16_t Arg1, uint16_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp4(uint32_t Arg1, uint32_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
@@ -132,19 +137,22 @@ void __sanitizer_cov_trace_cmp1(uint8_t Arg1, uint8_t Arg2) {
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp2(uint16_t Arg1, uint16_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp4(uint32_t Arg1, uint32_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 &&
+      state.run_time_flags.instrumentation_flags.load().use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
 }
 // TODO(kcc): [impl] handle switch.
@@ -189,10 +197,13 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
 static inline void HandleOnePc(PCGuard pc_guard) {
-  if (!state.run_time_flags.use_pc_features) return;
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
+  if (!instrumentation_flags.use_pc_features) return;
   state.pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
 
-  if (pc_guard.is_function_entry && state.run_time_flags.callstack_level != 0) {
+  if (pc_guard.is_function_entry &&
+      instrumentation_flags.callstack_level != 0) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
     if (sp < tls.lowest_sp) tls.lowest_sp = sp;
     tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
@@ -200,7 +211,7 @@ static inline void HandleOnePc(PCGuard pc_guard) {
   }
 
   // path features.
-  if (state.run_time_flags.path_level != 0) HandlePath(pc_guard.pc_index);
+  if (instrumentation_flags.path_level != 0) HandlePath(pc_guard.pc_index);
 }
 
 // Caller PC is the PC of the call instruction.
