@@ -55,12 +55,16 @@ void DistillTask(const Environment &env,
 
   FeatureSet feature_set(/*frequency_threshold=*/1,
                          env.MakeDomainDiscardMask());
+
+  const size_t num_total_shards = shard_indices.size();
+  size_t num_shards_read = 0;
+  size_t num_distilled_corpus_elements = 0;
   for (size_t shard_idx : shard_indices) {
     const std::string corpus_path = wd.CorpusPath(shard_idx);
     const std::string features_path = wd.FeaturesPath(shard_idx);
-    LOG(INFO) << log_line << "reading shard " << shard_idx << " from:\n"
-              << VV(corpus_path) << "\n"
-              << VV(features_path);
+    VLOG(2) << log_line << "reading shard " << shard_idx << " from:\n"
+            << VV(corpus_path) << "\n"
+            << VV(features_path);
     // Read records from the current shard.
     std::vector<std::pair<ByteArray, FeatureVec>> records;
     ReadShard(corpus_path, features_path,
@@ -83,8 +87,12 @@ void DistillTask(const Environment &env,
       // Append to the distilled corpus and features files.
       CHECK_OK(corpus_writer->Write(input));
       CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));
+      num_distilled_corpus_elements++;
     }
-    LOG(INFO) << log_line << feature_set;
+    num_shards_read++;
+    LOG(INFO) << log_line << feature_set << " shards: " << num_shards_read
+              << "/" << num_total_shards
+              << " corpus: " << num_distilled_corpus_elements;
   }
 }
 
