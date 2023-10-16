@@ -71,6 +71,11 @@ bool RemotePathExists(std::string_view path);
 // Finds all files matching `glob` and appends them to `matches`.
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 
+// Recursively lists all files within `path`. Does not return any directories.
+// Returns an empty vector if `path` is an empty directory, or `path` does not
+// exist. Returns `{path}` if `path` is a non-directory.
+std::vector<std::string> RemoteListFilesRecursively(std::string_view path);
+
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_

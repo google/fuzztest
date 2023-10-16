@@ -147,4 +147,16 @@ ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
   ::globfree(&glob_ret);
 }
 
+ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFilesRecursively(
+    std::string_view path) {
+  if (!std::filesystem::exists(path)) return {};
+  std::vector<std::string> ret;
+  for (const auto &entry :
+       std::filesystem::recursive_directory_iterator(path)) {
+    if (entry.is_directory()) continue;
+    ret.push_back(entry.path());
+  }
+  return ret;
+}
+
 }  // namespace centipede

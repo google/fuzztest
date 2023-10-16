@@ -1091,6 +1091,16 @@ cc_test(
 )
 
 cc_test(
+    name = "remote_file_test",
+    srcs = ["remote_file_test.cc"],
+    deps = [
+        ":remote_file",
+        ":test_util",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "rolling_hash_test",
     srcs = ["rolling_hash_test.cc"],
     deps = [
