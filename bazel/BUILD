@@ -21,4 +21,5 @@ sh_binary(
     srcs = ["setup_configs.sh"],
     # To determine if the script runs from the fuzztest repo or from a client repo.
     args = [repository_name()],
+    visibility = ["//visibility:public"],
 )
