@@ -41,7 +41,7 @@ def _sancov_transition_impl(settings, attr):
         # sancov and break test expectations.
         "//command_line_option:collect_code_coverage": False,
         "//command_line_option:copt": settings["//command_line_option:copt"] + [
-            "-O1",
+            "-O2",
             "-fno-builtin",  # prevent memcmp & co from inlining.
             sancov,
             "-gline-tables-only",  # debug info, for coverage reporting tools.
