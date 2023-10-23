@@ -292,7 +292,8 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
   Runtime::instance().DisableReporter();
 }
 
-std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(std::string_view data) {
+std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(
+    absl::string_view data) {
   auto ir_value = IRObject::FromString(data);
   if (!ir_value) {
     absl::FPrintF(GetStderr(), "[!] Unexpected file format.\n");

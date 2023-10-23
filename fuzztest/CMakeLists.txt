@@ -625,6 +625,7 @@ target_link_libraries(
   fuzztest_runtime
   absl::flat_hash_map
   absl::function_ref
+  absl::string_view
 )
 
 add_library(

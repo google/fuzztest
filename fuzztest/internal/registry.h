@@ -16,12 +16,11 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
 
 #include <memory>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 
 #include "absl/functional/function_ref.h"
-
+#include "absl/strings/string_view.h"
 #ifdef FUZZTEST_USE_CENTIPEDE
 #include "./fuzztest/internal/centipede_adaptor.h"
 #endif
@@ -41,14 +40,14 @@ void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func);
 using SetUpTearDownTestSuiteFunction = void (*)();
 
 void RegisterSetUpTearDownTestSuiteFunctions(
-    std::string_view suite_name,
+    absl::string_view suite_name,
     SetUpTearDownTestSuiteFunction set_up_test_suite,
     SetUpTearDownTestSuiteFunction tear_down_test_suite);
 
-SetUpTearDownTestSuiteFunction GetSetUpTestSuite(std::string_view suite_name);
+SetUpTearDownTestSuiteFunction GetSetUpTestSuite(absl::string_view suite_name);
 
 SetUpTearDownTestSuiteFunction GetTearDownTestSuite(
-    std::string_view suite_name);
+    absl::string_view suite_name);
 
 struct RegistrationToken {
   template <typename RegBase, typename Fixture, typename TargetFunction,

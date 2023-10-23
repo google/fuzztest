@@ -393,6 +393,7 @@ cc_library(
         ":runtime",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings:string_view",
     ] + select({
         "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
         "//conditions:default": [],

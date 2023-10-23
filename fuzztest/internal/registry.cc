@@ -16,11 +16,11 @@
 
 #include <deque>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/function_ref.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -43,7 +43,7 @@ auto& SetUpTearDownTestSuiteRegistry() {
 }
 
 SetUpTearDownTestSuiteFunctionPair GetSetUpTearDownTestSuiteFunctions(
-    std::string_view suite_name) {
+    absl::string_view suite_name) {
   if (auto it = SetUpTearDownTestSuiteRegistry().find(std::string(suite_name));
       it != SetUpTearDownTestSuiteRegistry().end()) {
     return it->second;
@@ -62,19 +62,19 @@ void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
 }
 
 void RegisterSetUpTearDownTestSuiteFunctions(
-    std::string_view suite_name,
+    absl::string_view suite_name,
     SetUpTearDownTestSuiteFunction set_up_test_suite,
     SetUpTearDownTestSuiteFunction tear_down_test_suite) {
   SetUpTearDownTestSuiteRegistry().try_emplace(
       std::string(suite_name), set_up_test_suite, tear_down_test_suite);
 }
 
-SetUpTearDownTestSuiteFunction GetSetUpTestSuite(std::string_view suite_name) {
+SetUpTearDownTestSuiteFunction GetSetUpTestSuite(absl::string_view suite_name) {
   return GetSetUpTearDownTestSuiteFunctions(suite_name).first;
 }
 
 SetUpTearDownTestSuiteFunction GetTearDownTestSuite(
-    std::string_view suite_name) {
+    absl::string_view suite_name) {
   return GetSetUpTearDownTestSuiteFunctions(suite_name).second;
 }
 

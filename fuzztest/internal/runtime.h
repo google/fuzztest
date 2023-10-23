@@ -84,9 +84,6 @@ class FuzzTest {
   std::string full_name() const {
     return suite_name() + std::string(".") + test_name();
   }
-  const std::vector<std::string_view>& param_names() const {
-    return param_names_;
-  }
   const char* file() const { return test_info_.file; }
   int line() const { return test_info_.line; }
   bool uses_fixture() const { return test_info_.uses_fixture; }
@@ -94,7 +91,6 @@ class FuzzTest {
 
  private:
   BasicTestInfo test_info_;
-  std::vector<std::string_view> param_names_;
   FuzzTestFuzzerFactory make_;
 };
 
@@ -259,7 +255,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   std::optional<corpus_type> ReadReproducerToMinimize();
 
-  std::optional<corpus_type> TryParse(std::string_view data);
+  std::optional<corpus_type> TryParse(absl::string_view data);
 
   void MutateValue(Input& input, absl::BitGenRef prng);
 
