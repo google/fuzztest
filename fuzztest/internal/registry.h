@@ -54,13 +54,14 @@ struct RegistrationToken {
             typename SeedProvider>
   RegistrationToken& operator=(
       Registration<Fixture, TargetFunction, RegBase, SeedProvider>&& reg) {
-    const BasicTestInfo test_info = reg.test_info_;
-    RegisterImpl(test_info, GetFuzzTestFuzzerFactory(std::move(reg)));
     if constexpr (std::is_base_of_v<FixtureWithExplicitSetUp, Fixture>) {
-      RegisterSetUpTearDownTestSuiteFunctions(test_info.suite_name,
+      RegisterSetUpTearDownTestSuiteFunctions(reg.test_info_.suite_name,
                                               &Fixture::SetUpTestSuite,
                                               &Fixture::TearDownTestSuite);
     }
+    BasicTestInfo test_info = reg.test_info_;
+    RegisterImpl(std::move(test_info),
+                 GetFuzzTestFuzzerFactory(std::move(reg)));
     return *this;
   }
 

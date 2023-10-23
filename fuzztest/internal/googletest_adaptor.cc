@@ -15,13 +15,13 @@ void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv) {
       return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);
     };
     if (test.uses_fixture()) {
-      ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,
-                              nullptr, test.file(), test.line(),
-                              std::move(fixture_factory));
+      ::testing::RegisterTest(
+          test.suite_name().c_str(), test.test_name().c_str(), nullptr, nullptr,
+          test.file().c_str(), test.line(), std::move(fixture_factory));
     } else {
-      ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,
-                              nullptr, test.file(), test.line(),
-                              std::move(test_factory));
+      ::testing::RegisterTest(
+          test.suite_name().c_str(), test.test_name().c_str(), nullptr, nullptr,
+          test.file().c_str(), test.line(), std::move(test_factory));
     }
   });
 

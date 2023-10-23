@@ -32,6 +32,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
@@ -77,14 +78,14 @@ using FuzzTestFuzzerFactory =
 class FuzzTest {
  public:
   FuzzTest(BasicTestInfo test_info, FuzzTestFuzzerFactory factory)
-      : test_info_(test_info), make_(std::move(factory)) {}
+      : test_info_(std::move(test_info)), make_(std::move(factory)) {}
 
-  const char* suite_name() const { return test_info_.suite_name; }
-  const char* test_name() const { return test_info_.test_name; }
+  const std::string& suite_name() const { return test_info_.suite_name; }
+  const std::string& test_name() const { return test_info_.test_name; }
   std::string full_name() const {
-    return suite_name() + std::string(".") + test_name();
+    return absl::StrCat(test_info_.suite_name, ".", test_info_.test_name);
   }
-  const char* file() const { return test_info_.file; }
+  const std::string& file() const { return test_info_.file; }
   int line() const { return test_info_.line; }
   bool uses_fixture() const { return test_info_.uses_fixture; }
   auto make() const { return make_(*this); }
