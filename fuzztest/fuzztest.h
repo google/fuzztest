@@ -20,6 +20,8 @@
 #include <tuple>
 #include <vector>
 
+#if !defined(__APPLE__) && !defined(_MSC_VER) && !defined(DISABLE_FUZZTEST)
+
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/registry.h"
 
@@ -123,18 +125,36 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
 
 }  // namespace fuzztest
 
-// Temporarily disable fuzz tests under MSVC/iOS/MacOS.
+#else  // !defined(__APPLE__) && !defined(_MSC_VER) &&
+       // !defined(DISABLE_FUZZTEST)
+
+namespace fuzztest {
+namespace internal {
+
+// For those platforms we don't support yet.
+struct RegisterStub {
+  template <typename... T>
+  RegisterStub WithDomains(T&&...) {
+    return *this;
+  }
+};
+
+}  // namespace internal
+}  // namespace fuzztest
+
+// Temporarily disable fuzz tests under MSVC/iOS/MacOS, and in any other
+// cases where DISABLE_FUZZTEST has been specified.
 // They might not support all the C++17 features we are using right now.
 // Disables all registration and disables running the domain expressions by
 // using a ternary expression. The tail code (eg .WithDomains(...)) will not be
 // executed.
-#if defined(__APPLE__) || defined(_MSC_VER)
 #undef FUZZ_TEST
 #define FUZZ_TEST(suite_name, func)                          \
   [[maybe_unused]] static ::fuzztest::internal::RegisterStub \
       fuzztest_reg_##suite_name##func =                      \
           true ? ::fuzztest::internal::RegisterStub()        \
                : ::fuzztest::internal::RegisterStub()
-#endif  // defined(__APPLE__) || defined(_MSC_VER)
+#endif  // !defined(__APPLE__) && !defined(_MSC_VER) &&
+        // !defined(DISABLE_FUZZTEST)
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_H_
