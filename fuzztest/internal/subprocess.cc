@@ -40,6 +40,8 @@
 
 namespace fuzztest::internal {
 
+#if !defined(_MSC_VER)
+
 TerminationStatus::TerminationStatus(int status) : status_(status) {}
 
 bool TerminationStatus::Exited() const { return WIFEXITED(status_); }
@@ -51,8 +53,6 @@ std::variant<ExitCodeT, SignalT> TerminationStatus::Status() const {
   FUZZTEST_INTERNAL_CHECK(Signaled(), "!Exited && !Signaled");
   return static_cast<SignalT>(WTERMSIG(status_));
 }
-
-#if !defined(_MSC_VER)
 
 // Helper class for running commands in a subprocess.
 class SubProcess {
