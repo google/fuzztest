@@ -38,6 +38,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/io.h"
@@ -65,9 +66,10 @@ namespace internal {
 class FuzzTestFuzzer {
  public:
   virtual ~FuzzTestFuzzer() = default;
-  virtual void RunInUnitTestMode() = 0;
+  virtual void RunInUnitTestMode(const Configuration& configuration) = 0;
   // Returns fuzzing mode's exit code. Zero indicates success.
-  virtual int RunInFuzzingMode(int* argc, char*** argv) = 0;
+  virtual int RunInFuzzingMode(int* argc, char*** argv,
+                               const Configuration& configuration) = 0;
 };
 
 class FuzzTest;
@@ -227,10 +229,11 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
  private:
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
-  void RunInUnitTestMode() override;
+  void RunInUnitTestMode(const Configuration& configuration) override;
 
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
-  int RunInFuzzingMode(int* argc, char*** argv) override;
+  int RunInFuzzingMode(int* argc, char*** argv,
+                       const Configuration& configuration) override;
 
   // Use the standard PRNG instead of absl::BitGen because Abseil doesn't
   // guarantee seed stability

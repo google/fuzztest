@@ -39,6 +39,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
@@ -600,7 +601,7 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds() {
   }
 }
 
-void FuzzTestFuzzerImpl::RunInUnitTestMode() {
+void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
@@ -741,7 +742,8 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   }
 }
 
-int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
+int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
+                                         const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
