@@ -162,6 +162,17 @@ cc_library(
 )
 
 cc_library(
+    name = "configuration",
+    srcs = ["internal/configuration.cc"],
+    hdrs = ["internal/configuration.h"],
+    deps = [
+        ":io",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
     name = "coverage",
     srcs = ["internal/coverage.cc"],
     hdrs = ["internal/coverage.h"],
