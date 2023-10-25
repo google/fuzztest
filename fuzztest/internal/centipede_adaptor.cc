@@ -26,7 +26,10 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "./centipede/runner_interface.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
@@ -154,12 +157,14 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
     : test_(test), fuzzer_impl_(test_, std::move(fixture_driver)) {}
 
-void CentipedeFuzzerAdaptor::RunInUnitTestMode() {
+void CentipedeFuzzerAdaptor::RunInUnitTestMode(
+    const Configuration& configuration) {
   // Run the unit test mode directly without using Centipede.
-  fuzzer_impl_.RunInUnitTestMode();
+  fuzzer_impl_.RunInUnitTestMode(configuration);
 }
 
-int CentipedeFuzzerAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
+int CentipedeFuzzerAdaptor::RunInFuzzingMode(
+    int* argc, char*** argv, const Configuration& configuration) {
   if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
     auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
     execution_coverage->SetIsTracing(true);
