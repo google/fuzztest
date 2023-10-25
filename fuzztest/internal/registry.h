@@ -92,14 +92,6 @@ struct RegistrationToken {
   }
 };
 
-// For those platforms we don't support yet.
-struct RegisterStub {
-  template <typename... T>
-  RegisterStub WithDomains(T&&...) {
-    return *this;
-  }
-};
-
 #define INTERNAL_FUZZ_TEST(suite_name, func)                         \
   [[maybe_unused]] static ::fuzztest::internal::RegistrationToken    \
       fuzztest_reg_##suite_name##func =                              \
