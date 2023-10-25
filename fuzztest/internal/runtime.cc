@@ -39,6 +39,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
@@ -315,28 +316,37 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(
   return corpus_value;
 }
 
+std::optional<GenericDomainCorpusType>
+FuzzTestFuzzerImpl::GetCorpusValueFromFile(const std::string& path) {
+  const auto content = ReadFile(path);
+  if (!content) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Failed to read file or directory (might be empty): %s\n",
+                  path);
+    return std::nullopt;
+  }
+  auto corpus_value = TryParse(*content);
+  if (!corpus_value) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Skipping invalid input file %s.\n===\n%s\n===\n", path,
+                  *content);
+  }
+  return corpus_value;
+}
+
+void FuzzTestFuzzerImpl::ReplayInput(const std::string& path) {
+  const auto corpus_value = GetCorpusValueFromFile(path);
+  if (!corpus_value) return;
+  absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
+  RunOneInput({*corpus_value});
+}
+
 bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
   runtime_.SetRunMode(RunMode::kFuzz);
 
   if (const auto file_paths = GetFilesToReplay()) {
     for (const std::string& path : *file_paths) {
-      const auto content = ReadFile(path);
-      if (!content) {
-        absl::FPrintF(GetStderr(),
-                      "[!] Failed to read FUZZTEST_REPLAY file or directory "
-                      "(might be empty): %s\n",
-                      path);
-        continue;
-      }
-      auto corpus_value = TryParse(*content);
-      if (!corpus_value) {
-        absl::FPrintF(GetStderr(),
-                      "[!] Skipping invalid input file %s.\n===\n%s\n===\n",
-                      path, *content);
-        continue;
-      }
-      absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
-      RunOneInput({*corpus_value});
+      ReplayInput(path);
     }
     return true;
   }
@@ -600,7 +610,7 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds() {
   }
 }
 
-void FuzzTestFuzzerImpl::RunInUnitTestMode() {
+void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
@@ -741,7 +751,8 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   }
 }
 
-int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
+int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
+                                         const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
