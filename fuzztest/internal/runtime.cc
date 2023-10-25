@@ -39,6 +39,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
@@ -315,29 +316,43 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(
   return corpus_value;
 }
 
-bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable() {
+std::optional<GenericDomainCorpusType>
+FuzzTestFuzzerImpl::GetCorpusValueFromFile(const std::string& path) {
+  const auto content = ReadFile(path);
+  if (!content) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Failed to read file or directory (might be empty): %s\n",
+                  path);
+    return std::nullopt;
+  }
+  auto corpus_value = TryParse(*content);
+  if (!corpus_value) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Skipping invalid input file %s.\n===\n%s\n===\n", path,
+                  *content);
+  }
+  return corpus_value;
+}
+
+void FuzzTestFuzzerImpl::ReplayInput(const std::string& path) {
+  const auto corpus_value = GetCorpusValueFromFile(path);
+  if (!corpus_value) return;
+  absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
+  RunOneInput({*corpus_value});
+}
+
+bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
+    const Configuration& configuration) {
   runtime_.SetRunMode(RunMode::kFuzz);
 
   if (const auto file_paths = GetFilesToReplay()) {
     for (const std::string& path : *file_paths) {
-      const auto content = ReadFile(path);
-      if (!content) {
-        absl::FPrintF(GetStderr(),
-                      "[!] Failed to read FUZZTEST_REPLAY file or directory "
-                      "(might be empty): %s\n",
-                      path);
-        continue;
-      }
-      auto corpus_value = TryParse(*content);
-      if (!corpus_value) {
-        absl::FPrintF(GetStderr(),
-                      "[!] Skipping invalid input file %s.\n===\n%s\n===\n",
-                      path, *content);
-        continue;
-      }
-      absl::FPrintF(GetStderr(), "[.] Replaying %s\n", path);
-      RunOneInput({*corpus_value});
+      ReplayInput(path);
     }
+    return true;
+  }
+  if (configuration.crashing_input_to_reproduce.has_value()) {
+    ReplayInput(*configuration.crashing_input_to_reproduce);
     return true;
   }
 
@@ -593,14 +608,19 @@ bool FuzzTestFuzzerImpl::ShouldStop() {
   return runtime_.termination_requested();
 }
 
-void FuzzTestFuzzerImpl::PopulateFromSeeds() {
+void FuzzTestFuzzerImpl::PopulateFromSeeds(
+    const std::vector<std::string>& corpus_files) {
   for (const auto& seed : fixture_driver_->GetSeeds()) {
-    TrySampleAndUpdateInMemoryCorpus(Input{seed},
-                                     /*write_to_file=*/false);
+    TrySampleAndUpdateInMemoryCorpus(Input{seed}, /*write_to_file=*/false);
   }
+  // for (const auto& corpus_file : corpus_files) {
+  //   auto seed = GetCorpusValueFromFile(corpus_file);
+  //   if (!seed) continue;
+  //   TrySampleAndUpdateInMemoryCorpus(Input{*seed}, /*write_to_file=*/false);
+  // }
 }
 
-void FuzzTestFuzzerImpl::RunInUnitTestMode() {
+void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
@@ -611,16 +631,22 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode() {
     // limit replaying to fuzzing mode only, where we can guarantee that only
     // a single FUZZ_TEST is selected to run. Once we make sure that no
     // existing infra tries to replay in unit test mode, we can remove this.
-    if (ReplayInputsIfAvailable()) {
+    if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
       // In replay mode, we only replay.
       runtime_.DisableReporter();
       return;
     }
 
+    for (const std::string& file :
+         configuration.corpus_database.GetNonCrashingInputs(
+             test_.full_name())) {
+      ReplayInput(file);
+    }
+
     runtime_.SetRunMode(RunMode::kUnitTest);
 
-    PopulateFromSeeds();
+    PopulateFromSeeds(/*corpus_files=*/{});
 
     auto duration = absl::Seconds(1);
     const auto fuzz_for = absl::NullSafeStringView(getenv("FUZZTEST_FUZZ_FOR"));
@@ -741,7 +767,8 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   }
 }
 
-int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
+int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
+                                         const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
@@ -751,7 +778,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
     runtime_.SetCurrentTest(&test_);
 
-    if (ReplayInputsIfAvailable()) {
+    if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
       // We don't want to actually run the fuzzer so exit now.
       return 0;
@@ -776,7 +803,9 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/) {
       return 0;
     }
 
-    PopulateFromSeeds();
+    auto seeds =
+        configuration.corpus_database.GetNonCrashingInputs(test_.full_name());
+    PopulateFromSeeds(seeds);
     InitializeCorpus(prng);
 
     FUZZTEST_INTERNAL_CHECK(!corpus_.empty(),
