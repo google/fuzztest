@@ -31,7 +31,8 @@
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/runtime.h"
 
-namespace fuzztest::internal {
+namespace fuzztest {
+namespace internal {
 
 void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
 
@@ -67,7 +68,7 @@ struct RegistrationToken {
 
   template <typename RegBase, typename Fixture, typename TargetFunction,
             typename SeedProvider>
-  FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
+  static FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
       Registration<Fixture, TargetFunction, RegBase, SeedProvider>&& reg) {
 #if defined(FUZZTEST_COMPATIBILITY_MODE) && defined(FUZZTEST_USE_CENTIPEDE)
 #error FuzzTest compatibility mode cannot work together with Centipede.
@@ -100,23 +101,34 @@ struct RegisterStub {
   }
 };
 
-#define INTERNAL_FUZZ_TEST(suite_name, func)                         \
-  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken    \
-      fuzztest_reg_##suite_name##func =                              \
-          ::fuzztest::internal::RegistrationToken{} =                \
-              ::fuzztest::internal::Registration<                    \
-                  ::fuzztest::internal::NoFixture, decltype(+func)>( \
-                  {#suite_name, #func, __FILE__, __LINE__, false}, +func)
+#define INTERNAL_FUZZ_TEST(suite_name, func)                      \
+  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken \
+      fuzztest_reg_##suite_name##func =                           \
+          ::fuzztest::internal::RegistrationToken{} =             \
+              ::fuzztest::GetRegistration<decltype(+func)>(       \
+                  #suite_name, #func, __FILE__, __LINE__, +func)
 
-#define INTERNAL_FUZZ_TEST_F(suite_name, test_name, fixture, func)          \
-  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken           \
-      fuzztest_reg_##suite_name##test_name =                                \
-          ::fuzztest::internal::RegistrationToken{} =                       \
-              ::fuzztest::internal::Registration<fixture,                   \
-                                                 decltype(&fixture::func)>( \
-                  {#suite_name, #test_name, __FILE__, __LINE__, true},      \
-                  &fixture::func)
+#define INTERNAL_FUZZ_TEST_F(suite_name, test_name, fixture, func) \
+  [[maybe_unused]] static ::fuzztest::internal::RegistrationToken  \
+      fuzztest_reg_##suite_name##test_name =                       \
+          ::fuzztest::internal::RegistrationToken{} =              \
+              ::fuzztest::GetRegistrationWithFixture<              \
+                  fixture, decltype(&fixture::func)>(              \
+                  #suite_name, #test_name, __FILE__, __LINE__, &fixture::func)
 
-}  // namespace fuzztest::internal
+}  // namespace internal
+
+// Registers a fuzz test defined by the registration `reg`. You can obtain a
+// fuzz test registration by calling functions `GetRegistration()` and
+// `GetRegistrationWithFixture()`.
+//
+// Make sure to only call this function before calling
+// `RegisterFuzzTestsAsGoogleTests()`.
+template <typename Registration>
+void RegisterFuzzTest(Registration&& reg) {
+  ::fuzztest::internal::RegistrationToken{} = std::forward<Registration>(reg);
+}
+
+}  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_REGISTRY_H_
