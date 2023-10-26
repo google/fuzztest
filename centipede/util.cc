@@ -50,6 +50,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
+#include "./centipede/remote_file.h"
 
 namespace centipede {
 
@@ -135,10 +136,18 @@ void WriteToLocalHashedFileInDir(std::string_view dir_path,
   WriteToLocalFile(file_path, data);
 }
 
+void WriteToRemoteHashedFileInDir(std::string_view dir_path,
+                                  absl::Span<const uint8_t> data) {
+  if (dir_path.empty()) return;
+  std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
+  RemoteFileSetContents(file_path, std::string(data.begin(), data.end()));
+}
+
 std::string HashOfFileContents(std::string_view file_path) {
-  ByteArray ba;
-  ReadFromLocalFile(file_path, ba);
-  return Hash(ba);
+  if (file_path.empty()) return "";
+  std::string file_contents;
+  RemoteFileGetContents(std::filesystem::path(file_path), file_contents);
+  return Hash(file_contents);
 }
 
 std::string ProcessAndThreadUniqueID(std::string_view prefix) {

@@ -263,12 +263,10 @@ ABSL_FLAG(bool, print_runner_log, default_env->print_runner_log,
 ABSL_FLAG(std::string, knobs_file, default_env->knobs_file,
           "If not empty, knobs will be read from this (possibly remote) file."
           " The feature is experimental, not yet fully functional.");
-ABSL_FLAG(std::string, save_corpus_to_local_dir,
-          default_env->save_corpus_to_local_dir,
+ABSL_FLAG(std::string, corpus_to_files, default_env->corpus_to_files,
           "Save the remote corpus from working to the given directory, one "
           "file per corpus.");
-ABSL_FLAG(std::string, export_corpus_from_local_dir,
-          default_env->export_corpus_from_local_dir,
+ABSL_FLAG(std::string, corpus_from_files, default_env->corpus_from_files,
           "Export a corpus from a local directory with one file per input into "
           "the sharded remote corpus in workdir. Not recursive.");
 ABSL_FLAG(std::vector<std::string>, corpus_dir, default_env->corpus_dir,
@@ -470,9 +468,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .distill = absl::GetFlag(FLAGS_distill),
       .log_features_shards = absl::GetFlag(FLAGS_log_features_shards),
       .knobs_file = absl::GetFlag(FLAGS_knobs_file),
-      .save_corpus_to_local_dir = absl::GetFlag(FLAGS_save_corpus_to_local_dir),
-      .export_corpus_from_local_dir =
-          absl::GetFlag(FLAGS_export_corpus_from_local_dir),
+      .corpus_to_files = absl::GetFlag(FLAGS_corpus_to_files),
+      .corpus_from_files = absl::GetFlag(FLAGS_corpus_from_files),
       .corpus_dir = absl::GetFlag(FLAGS_corpus_dir),
       .symbolizer_path = absl::GetFlag(FLAGS_symbolizer_path),
       .objdump_path = absl::GetFlag(FLAGS_objdump_path),
