@@ -5,8 +5,8 @@ string into an integer:
 
 ```c++
 TEST(ParseLeadingDigitsTest, ParsesIntCorrectly) {
-  std::string input = "42IsTheAnswer";
-  std::optional<int> output = ParseLeadingDigits(input);
+  const std::string input = "42IsTheAnswer";
+  const std::optional<int> output = ParseLeadingDigits(input);
   EXPECT_THAT(output, Optional(Eq(42)));
 }
 ```
@@ -19,8 +19,8 @@ With FuzzTest, you can write tests that generalize to a wider set of inputs:
 
 ```c++
 void ParsesIntCorrectly(int number, const std::string& suffix) {
-  std::string input = absl::StrCat(number, suffix);
-  std::optional<int> output = ParseLeadingDigits(input);
+  const std::string input = absl::StrCat(number, suffix);
+  const std::optional<int> output = ParseLeadingDigits(input);
   EXPECT_THAT(output, Optional(Eq(number)));
 }
 FUZZ_TEST(ParseLeadingDigitsTest, ParsesIntCorrectly)
@@ -37,14 +37,14 @@ FuzzTest will run a test with many different parameter values from the specified
 input domains and find tricky edge cases that invalidate your assertions.
 
 Writing fuzz tests requires you to shift focus from providing interesting
-specific inputs to specifying EXPECT-ations (properties) that must hold for a
+specific inputs to specifying `EXPECT`-ations (properties) that must hold for a
 given set of inputs. This doesn't mean that you always need to write explicit
-ASSERT/EXPECT statements in the property function (the test body). You might
-simply check that the ASSERT-ions in your code under test don't get invalidated
-with any inputs. If you can identify properties that generalize to all or a set
-of inputs, your can write additional assertions too and let FuzzTest find the
-tricky edge cases for you. This sort of testing is commonly known as
-"property-based testing".
+`ASSERT`/`EXPECT` statements in the property function (the test body). You might
+simply check that the `ASSERT`-ions in your code under test don't get
+invalidated with any inputs. If you can identify properties that generalize to
+all or a set of inputs, your can write additional assertions too and let
+FuzzTest find the tricky edge cases for you. This sort of testing is commonly
+known as "property-based testing".
 
 The most typical property to check is that your code has no undefined behavior
 (e.g., buffer overflows, use-after-frees, integer overflows, uninitialized
@@ -57,5 +57,5 @@ to test for such undefined behavior:
 void HasNoUndefinedBehavior(const std::string& input) {
   ParseLeadingDigits(input);
 }
-FUZZ_TEST(ParseLeadingDigitsTest, HasNoUndefinedBehavior); // Uses Arbitrary<T> as input domain for each parameter by default.
+FUZZ_TEST(ParseLeadingDigitsTest, HasNoUndefinedBehavior);  // Uses Arbitrary<T> as input domain for each parameter by default.
 ```
