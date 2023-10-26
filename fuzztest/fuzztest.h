@@ -20,8 +20,11 @@
 #include <tuple>
 #include <vector>
 
+// IWYU pragma: begin_exports
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/registry.h"
+// IWYU pragma: end_exports
 
 namespace fuzztest {
 

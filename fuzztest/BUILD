@@ -44,6 +44,7 @@ cc_library(
     deps = [
         ":domain",
         ":io",
+        ":registration",
         ":registry",
     ],
 )

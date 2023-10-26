@@ -34,7 +34,8 @@
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/type_support.h"
 
-namespace fuzztest::internal {
+namespace fuzztest {
+namespace internal {
 
 struct BasicTestInfo {
   std::string suite_name;
@@ -295,6 +296,52 @@ class Registration : private Base {
   TargetFunction target_function_;
 };
 
-}  // namespace fuzztest::internal
+}  // namespace internal
+
+// Returns a registration for a fuzz test based on `Fixture` and
+// `target_function`. `target_function` must be a pointer to a member function
+// of `Fixture` or its base class.
+//
+// This is an advanced API; in almost all cases you should prefer registring
+// your fixture-based fuzz tests with the FUZZ_TEST_F macro. Unlike the macro,
+// this function allows customizing `suite_name`, `test_name`, `file`, and
+// `line`. For example, it is suitable when you want to register fuzz tests with
+// dynamically generated test names.
+//
+// Note: If `Fixture` is a GoogleTest fixture, make sure that all fuzz tests
+// registered with `suite_name` also use `Fixture`. Otherwise, you may encounter
+// undefined behavior when it comes to test suite setup and teardown.
+template <typename Fixture, typename TargetFunction>
+auto GetRegistrationWithFixture(std::string suite_name, std::string test_name,
+                                std::string file, int line,
+                                TargetFunction target_function) {
+  return ::fuzztest::internal::Registration<Fixture, TargetFunction>(
+      ::fuzztest::internal::BasicTestInfo{std::move(suite_name),
+                                          std::move(test_name), std::move(file),
+                                          line, true},
+      target_function);
+}
+
+// Returns a registration for a fuzz test based on `target_function`, which
+// should be a function pointer.
+//
+// This is an advanced API; in almost all cases you should prefer registring
+// your fuzz tests with the FUZZ_TEST macro. Unlike the macro, this function
+// allows customizing `suite_name`, `test_name`, `file`, and `line`. For
+// example, it is suitable when you want to register fuzz tests with dynamically
+// generated test names.
+template <typename TargetFunction>
+auto GetRegistration(std::string suite_name, std::string test_name,
+                     std::string file, int line,
+                     TargetFunction target_function) {
+  return ::fuzztest::internal::Registration<::fuzztest::internal::NoFixture,
+                                            TargetFunction>(
+      ::fuzztest::internal::BasicTestInfo{std::move(suite_name),
+                                          std::move(test_name), std::move(file),
+                                          line, false},
+      target_function);
+}
+
+}  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_REGISTRATION_H_

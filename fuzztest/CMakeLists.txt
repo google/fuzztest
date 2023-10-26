@@ -640,6 +640,7 @@ target_link_libraries(
   PUBLIC
   fuzztest_domain
   fuzztest_io
+  fuzztest_registration
   fuzztest_registry
   fuzztest_runtime
   absl::str_format

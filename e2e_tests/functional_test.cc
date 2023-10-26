@@ -548,8 +548,9 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
   RunResults RunWith(
       std::string_view flags,
       const absl::flat_hash_map<std::string, std::string>& env = {},
-      absl::Duration timeout = absl::Minutes(10)) {
-    std::vector<std::string> args = {BinaryPath(kDefaultTargetBinary)};
+      absl::Duration timeout = absl::Minutes(10),
+      absl::string_view binary = kDefaultTargetBinary) {
+    std::vector<std::string> args = {BinaryPath(binary)};
     std::vector<std::string> split_flags = absl::StrSplit(flags, ' ');
     args.insert(args.end(), split_flags.begin(), split_flags.end());
     return RunCommand(args, env, timeout);
@@ -562,6 +563,17 @@ TEST_F(GenericCommandLineInterfaceTest, FuzzTestsAreFoundInTheBinary) {
   EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.DivByZero"));
   EXPECT_THAT(std_out,
               HasSubstr("[*] Fuzz test: MySuite.PassesWithPositiveInput"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(GenericCommandLineInterfaceTest,
+       DynamicallyRegisteredFuzzTestsAreFound) {
+  auto [status, std_out, std_err] =
+      RunWith(/*flags=*/"--list_fuzz_tests", /*env=*/{},
+              /*timeout=*/absl::Minutes(1),
+              /*binary=*/"testdata/dynamically_registered_fuzz_tests");
+  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: TestSuiteOne.DoesNothing/1"));
+  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: TestSuiteTwo.DoesNothing/2"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
