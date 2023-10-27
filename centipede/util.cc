@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>  // NOLINT(popen)
 #include <cstdlib>
@@ -31,7 +32,11 @@
 #include <ctime>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <functional>
+#include <ios>
 #include <queue>
+#include <random>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>  // NOLINT(build/c++11)
@@ -41,6 +46,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -85,7 +91,8 @@ void ReadFromLocalFile(std::string_view file_path, Container &data) {
   CHECK_EQ(size % sizeof(data[0]), 0);
   data.resize(size / sizeof(data[0]));
   f.read(reinterpret_cast<char *>(data.data()), size);
-  CHECK(f) << "Failed to read from local file: " << file_path;
+  CHECK(f) << "Failed to read from local file: " << VV(file_path) << VV(f.eof())
+           << VV(f.bad()) << VV(f.fail()) << VV(size);
   f.close();
 }
 
