@@ -175,8 +175,7 @@ void SampleSeedCorpusElementsFromSource(  //
       if (absl::IsOutOfRange(read_status)) break;
       CHECK_OK(read_status)
           << "Failure reading elements from shard " << shard_fname;
-      // TODO(b/302558385): Replace with a CHECK.
-      LOG_IF(ERROR, elt.empty()) << "Read empty element: " << VV(shard_fname);
+      CHECK(!elt.empty()) << "Read empty element: " << VV(shard_fname);
       src_elts.emplace_back(elt.begin(), elt.end());
       ++num_read_elts;
     }
