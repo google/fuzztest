@@ -66,7 +66,7 @@ test_crashing_target() {
   # Create a corpus with one crasher and one other input.
   cp "$1" "${TMPCORPUS}"  # Triggers an error.
   echo -n "foo" >"${TMPCORPUS}/foo"     # Just some input.
-  abort_test_fuzz --export_corpus_from_local_dir="${TMPCORPUS}"
+  abort_test_fuzz --corpus_from_files="${TMPCORPUS}"
 
   # Run fuzzing with num_runs=0, i.e. only run the inputs from the corpus.
   # Expecting a crash to be observed and reported.

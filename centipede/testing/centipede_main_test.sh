@@ -75,7 +75,7 @@ test_debug_symbols() {
   centipede::assert_regex_in_file "EDGE: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc" "${LOG}"
 
   echo "============ ${FUNC}: add func1/func2-A inputs to the corpus."
-  test_fuzz --workdir="${WD}" --export_corpus_from_local_dir="${TMPCORPUS}"
+  test_fuzz --workdir="${WD}" --corpus_from_files="${TMPCORPUS}"
 
   echo "============ ${FUNC}: run again, append to the same LOG file."
   # TODO(b/282845630): Passing `--num_runs=1` only to trigger telemetry dumping.
@@ -129,7 +129,7 @@ test_dictionary() {
   echo "foo" >"${TMPCORPUS}"/foo
   echo "bat" >"${TMPCORPUS}"/binary
   centipede::ensure_empty_dir "${WD}"
-  test_fuzz --workdir="${WD}" --export_corpus_from_local_dir "${TMPCORPUS}"
+  test_fuzz --workdir="${WD}" --corpus_from_files "${TMPCORPUS}"
   cp "${WD}/corpus.000000" "${DICT}"
 
   echo "============ ${FUNC}: testing binary dictionary file"
@@ -150,7 +150,7 @@ test_for_each_blob() {
   echo "FoO" >"${TMPCORPUS}"/a
   echo "bAr" >"${TMPCORPUS}"/b
 
-  test_fuzz --workdir="${WD}" --export_corpus_from_local_dir "${TMPCORPUS}"
+  test_fuzz --workdir="${WD}" --corpus_from_files "${TMPCORPUS}"
   echo "============ ${FUNC}: test for_each_blob"
   test_fuzz --for_each_blob="cat %P" "${WD}"/corpus.000000 | tee "${LOG}"
   centipede::assert_regex_in_file "Running 'cat %P' on ${WD}/corpus.000000" "${LOG}"

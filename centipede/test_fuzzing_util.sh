@@ -73,7 +73,7 @@ function centipede::test_crashing_target() {
   # Create a corpus with one crasher and one other input.
   echo -n "${crash_input}" >"${TMPCORPUS}/${crash_input}" # induces abort in the target.
   echo -n "${nice_input}" >"${TMPCORPUS}/${nice_input}"     # just some input.
-  ${target} --workdir="${WD}" --export_corpus_from_local_dir="${TMPCORPUS}"
+  ${target} --workdir="${WD}" --corpus_from_files="${TMPCORPUS}"
 
   # Run fuzzing with num_runs=0, i.e. only run the inputs from the corpus.
   # Expecting a crash to be observed and reported.
