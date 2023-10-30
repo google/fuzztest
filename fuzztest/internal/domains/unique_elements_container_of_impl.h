@@ -42,8 +42,8 @@ template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
     : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
                         corpus_type_t<UniqueDomain<InnerDomain>>> {
-  using UniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
-  using UniqueDomain = UniqueDomain<InnerDomain>;
+  using InnerUniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
+  using InnerUniqueDomain = UniqueDomain<InnerDomain>;
 
  public:
   using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
@@ -66,13 +66,13 @@ class UniqueElementsContainerImpl
   }
 
   value_type GetValue(const corpus_type& v) const {
-    UniqueDomainValueT unique_values = unique_domain_.GetValue(v);
+    InnerUniqueDomainValueT unique_values = unique_domain_.GetValue(v);
     return value_type(unique_values.begin(), unique_values.end());
   }
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     return unique_domain_.FromValue(
-        value_type_t<UniqueDomain>(v.begin(), v.end()));
+        value_type_t<InnerUniqueDomain>(v.begin(), v.end()));
   }
 
   auto GetPrinter() const { return unique_domain_.GetPrinter(); }
@@ -100,7 +100,7 @@ class UniqueElementsContainerImpl
   }
 
  private:
-  UniqueDomain unique_domain_;
+  InnerUniqueDomain unique_domain_;
 };
 
 }  // namespace fuzztest::internal
