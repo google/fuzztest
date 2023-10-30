@@ -212,6 +212,7 @@ cc_library(
         ":defs",
         ":feature",
         ":logging",
+        ":remote_file",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",

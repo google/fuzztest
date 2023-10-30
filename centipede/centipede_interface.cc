@@ -187,8 +187,8 @@ int CentipedeMain(const Environment &env,
                   CentipedeCallbacksFactory &callbacks_factory) {
   SetSignalHandlers(env.stop_at);
 
-  if (!env.save_corpus_to_local_dir.empty()) {
-    Centipede::SaveCorpusToLocalDir(env, env.save_corpus_to_local_dir);
+  if (!env.corpus_to_files.empty()) {
+    Centipede::CorpusToFiles(env, env.corpus_to_files);
     return EXIT_SUCCESS;
   }
 
@@ -201,15 +201,15 @@ int CentipedeMain(const Environment &env,
   }
 
   // Just export the corpus from a local dir and exit.
-  if (!env.export_corpus_from_local_dir.empty()) {
-    Centipede::ExportCorpusFromLocalDir(env, env.export_corpus_from_local_dir);
+  if (!env.corpus_from_files.empty()) {
+    Centipede::CorpusFromFiles(env, env.corpus_from_files);
     return EXIT_SUCCESS;
   }
 
   // Export the corpus from a local dir and then fuzz.
   if (!env.corpus_dir.empty()) {
     for (const auto &corpus_dir : env.corpus_dir) {
-      Centipede::ExportCorpusFromLocalDir(env, corpus_dir);
+      Centipede::CorpusFromFiles(env, corpus_dir);
     }
   }
 

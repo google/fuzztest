@@ -80,8 +80,8 @@ struct Environment {
   bool distill = false;
   size_t log_features_shards = 0;
   std::string knobs_file;
-  std::string save_corpus_to_local_dir;
-  std::string export_corpus_from_local_dir;
+  std::string corpus_to_files;
+  std::string corpus_from_files;
   std::vector<std::string> corpus_dir;
   std::string symbolizer_path = "llvm-symbolizer";
   std::string objdump_path = "objdump";

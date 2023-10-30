@@ -48,7 +48,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -129,9 +129,8 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
     input_filter_cmd_.StartForkServer(TemporaryLocalDirPath(), "input_filter");
 }
 
-void Centipede::SaveCorpusToLocalDir(
-    const Environment &env, std::string_view save_corpus_to_local_dir) {
-  const WorkDir wd{env};
+void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
+  WorkDir wd{env};
   for (size_t shard = 0; shard < env.total_shards; shard++) {
     auto reader = DefaultBlobFileReaderFactory();
     auto corpus_path = wd.CorpusPath(shard);
@@ -140,26 +139,23 @@ void Centipede::SaveCorpusToLocalDir(
     size_t num_read = 0;
     while (reader->Read(blob).ok()) {
       ++num_read;
-      WriteToLocalHashedFileInDir(save_corpus_to_local_dir, blob);
+      WriteToRemoteHashedFileInDir(dir, blob);
     }
     LOG(INFO) << "Read " << num_read << " from " << corpus_path;
   }
 }
 
-void Centipede::ExportCorpusFromLocalDir(const Environment &env,
-                                         std::string_view local_dir) {
-  const WorkDir wd{env};
-  // Shard the file paths in `local_dir` based on hashes of filenames.
+void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
+  WorkDir wd{env};
+  // Shard the file paths in `dir` based on hashes of filenames.
   // Such partition is stable: a given file always goes to a specific shard.
   std::vector<std::vector<std::string>> sharded_paths(env.total_shards);
+  std::vector<std::string> paths;
   size_t total_paths = 0;
-  for (const auto &entry :
-       std::filesystem::recursive_directory_iterator(local_dir)) {
-    if (entry.is_regular_file()) {
-      size_t filename_hash = std::hash<std::string>{}(entry.path().filename());
-      sharded_paths[filename_hash % env.total_shards].push_back(entry.path());
-      ++total_paths;
-    }
+  for (const std::string &path : RemoteListFilesRecursively(dir)) {
+    size_t filename_hash = std::hash<std::string>{}(path);
+    sharded_paths[filename_hash % env.total_shards].push_back(path);
+    ++total_paths;
   }
   // Iterate over all shards.
   size_t inputs_added = 0;
@@ -184,13 +180,13 @@ void Centipede::ExportCorpusFromLocalDir(const Environment &env,
         << "Failed to open corpus file: " << corpus_path;
     ByteArray shard_data;
     for (const auto &path : sharded_paths[shard]) {
-      ByteArray input;
-      ReadFromLocalFile(path, input);
+      std::string input;
+      RemoteFileGetContents(path, input);
       if (input.empty() || existing_hashes.contains(Hash(input))) {
         ++inputs_ignored;
         continue;
       }
-      CHECK_OK(appender->Write(input));
+      CHECK_OK(appender->Write(ByteArray{input.begin(), input.end()}));
       ++inputs_added;
     }
     LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
