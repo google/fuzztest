@@ -35,7 +35,8 @@ std::string Hash(absl::Span<const uint8_t> span);
 std::string Hash(std::string_view str);
 // Hashes are always this many bytes.
 inline constexpr size_t kHashLen = 40;
-// Returns the hash of the contents of the file `file_path`.
+// Returns the hash of the contents of the file `file_path`. Supports the file
+// being remote. Returns an empty string if the `file_path` is empty.
 std::string HashOfFileContents(std::string_view file_path);
 // Returns a printable string representing at most `max_len` bytes of `data`.
 std::string AsString(const ByteArray &data, size_t max_len = 16);

@@ -151,9 +151,10 @@ void WriteToRemoteHashedFileInDir(std::string_view dir_path,
 }
 
 std::string HashOfFileContents(std::string_view file_path) {
-  ByteArray ba;
-  ReadFromLocalFile(file_path, ba);
-  return Hash(ba);
+  if (file_path.empty()) return "";
+  std::string file_contents;
+  RemoteFileGetContents(std::filesystem::path(file_path), file_contents);
+  return Hash(file_contents);
 }
 
 std::string ProcessAndThreadUniqueID(std::string_view prefix) {
