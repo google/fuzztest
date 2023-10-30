@@ -122,7 +122,8 @@ const char *GetOneEnv(const char *key) {
 // without explicitly specified priority run after all constructors with
 // explicitly specified priority, thus we still run before most
 // "normal" constructors.
-__attribute__((constructor(150))) void ForkServerCallMeVeryEarly() {
+__attribute__((constructor(150), no_sanitize("memory"))) void
+ForkServerCallMeVeryEarly() {
   // Guard against calling twice.
   static bool called_already = false;
   if (called_already) return;
