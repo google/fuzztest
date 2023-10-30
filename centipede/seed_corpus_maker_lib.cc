@@ -121,37 +121,36 @@ void SampleSeedCorpusElementsFromSource(  //
   LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
             << source.DebugString();
 
-  // Find `source.dir_blog()`-matching dirs and pick at most
+  // Find `source.dir_glob()`-matching dirs and pick at most
   // `source.num_recent_dirs()` most recent ones.
 
-  std::vector<std::string> corpus_dirs;
-  RemoteGlobMatch(source.dir_glob(), corpus_dirs);
-  LOG(INFO) << "Found " << corpus_dirs.size() << " corpus dirs matching "
+  std::vector<std::string> src_dirs;
+  RemoteGlobMatch(source.dir_glob(), src_dirs);
+  LOG(INFO) << "Found " << src_dirs.size() << " corpus dirs matching "
             << source.dir_glob();
   // Sort in the ascending lexicographical order. We expect that dir names
   // contain timestamps and therefore will be sorted from oldest to newest.
-  std::sort(corpus_dirs.begin(), corpus_dirs.end(), std::less<std::string>());
-  if (source.num_recent_dirs() < corpus_dirs.size()) {
-    corpus_dirs.erase(  //
-        corpus_dirs.begin(), corpus_dirs.end() - source.num_recent_dirs());
-    LOG(INFO) << "Selected " << corpus_dirs.size() << " corpus dirs";
+  std::sort(src_dirs.begin(), src_dirs.end(), std::less<std::string>());
+  if (source.num_recent_dirs() < src_dirs.size()) {
+    src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs());
+    LOG(INFO) << "Selected " << src_dirs.size() << " corpus dirs";
   }
 
   // Find all the corpus shard files in the found dirs.
 
-  std::vector<std::string> shard_fnames;
-  for (const auto& dir : corpus_dirs) {
+  std::vector<std::string> corpus_fnames;
+  for (const auto& dir : src_dirs) {
     const std::string shards_glob = fs::path{dir} / source.shard_rel_glob();
     // NOTE: `RemoteGlobMatch` appends to the output list.
-    const auto prev_num_shards = shard_fnames.size();
-    RemoteGlobMatch(shards_glob, shard_fnames);
-    LOG(INFO) << "Found " << (shard_fnames.size() - prev_num_shards)
+    const auto prev_num_shards = corpus_fnames.size();
+    RemoteGlobMatch(shards_glob, corpus_fnames);
+    LOG(INFO) << "Found " << (corpus_fnames.size() - prev_num_shards)
               << " shards matching " << shards_glob;
   }
-  LOG(INFO) << "Found " << shard_fnames.size() << " shards total in source "
+  LOG(INFO) << "Found " << corpus_fnames.size() << " shards total in source "
             << source.dir_glob();
 
-  if (shard_fnames.empty()) {
+  if (corpus_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob();
     return;
   }
@@ -160,11 +159,11 @@ void SampleSeedCorpusElementsFromSource(  //
 
   std::vector<centipede::ByteArray> src_elts;
 
-  for (const auto& shard_fname : shard_fnames) {
+  for (const auto& corpus_fname : corpus_fnames) {
     std::unique_ptr<centipede::BlobFileReader> corpus_reader =
         centipede::DefaultBlobFileReaderFactory();
     CHECK(corpus_reader != nullptr);
-    CHECK_OK(corpus_reader->Open(shard_fname)) << VV(shard_fname);
+    CHECK_OK(corpus_reader->Open(corpus_fname)) << VV(corpus_fname);
 
     absl::Status read_status;
     size_t num_read_elts = 0;
@@ -174,8 +173,8 @@ void SampleSeedCorpusElementsFromSource(  //
       // Reached EOF - done with this shard.
       if (absl::IsOutOfRange(read_status)) break;
       CHECK_OK(read_status)
-          << "Failure reading elements from shard " << shard_fname;
-      CHECK(!elt.empty()) << "Read empty element: " << VV(shard_fname);
+          << "Failure reading elements from shard " << corpus_fname;
+      CHECK(!elt.empty()) << "Read empty element: " << VV(corpus_fname);
       src_elts.emplace_back(elt.begin(), elt.end());
       ++num_read_elts;
     }
@@ -183,7 +182,7 @@ void SampleSeedCorpusElementsFromSource(  //
     corpus_reader->Close().IgnoreError();
 
     LOG(INFO) << "Read " << num_read_elts << " elements from shard "
-              << shard_fname;
+              << corpus_fname;
   }
 
   LOG(INFO) << "Read " << src_elts.size() << " elements total from source "
