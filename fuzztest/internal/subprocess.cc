@@ -40,7 +40,8 @@
 
 namespace fuzztest::internal {
 
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) && \
+                            __ANDROID_MIN_SDK_VERSION__ < 28)
 
 TerminationStatus::TerminationStatus(int status) : status_(status) {}
 
@@ -288,7 +289,8 @@ RunResults SubProcess::Run(
   return {TerminationStatus(status.get()), stdout_output, stderr_output};
 }
 
-#endif  // !defined(_MSC_VER)
+#endif  // !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) &&
+        // __ANDROID_MIN_SDK_VERSION__ < 28)
 
 RunResults RunCommand(
     const std::vector<std::string>& command_line,
@@ -297,6 +299,10 @@ RunResults RunCommand(
 #if defined(_MSC_VER)
   FUZZTEST_INTERNAL_CHECK(false,
                           "Subprocess library not implemented on Windows yet.");
+#elif defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 28
+  FUZZTEST_INTERNAL_CHECK(
+      false,
+      "Subprocess library not implemented on older Android NDK versions yet");
 #else
   SubProcess proc;
   return proc.Run(command_line, environment, timeout);
