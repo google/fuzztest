@@ -15,6 +15,7 @@
 #include "./centipede/analyze_corpora.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,7 +24,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus.h"
@@ -31,6 +31,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/workdir.h"
@@ -45,10 +46,9 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
   WorkDir workdir(std::string(workdir_path), std::string(binary_name),
                   std::string(binary_hash), /*my_shard_index=*/0);
   std::vector<std::string> corpus_paths;
-  RemoteGlobMatch(absl::StrCat(workdir.CorpusPathPrefix(), "*"), corpus_paths);
+  RemoteGlobMatch(workdir.CorpusFiles().AllShardsGlob(), corpus_paths);
   std::vector<std::string> features_paths;
-  RemoteGlobMatch(absl::StrCat(workdir.FeaturesPathPrefix(), "*"),
-                  features_paths);
+  RemoteGlobMatch(workdir.FeaturesFiles().AllShardsGlob(), features_paths);
 
   CHECK_EQ(corpus_paths.size(), features_paths.size());
   std::vector<CorpusRecord> corpus;

@@ -24,7 +24,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/declare.h"
-#include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
 #include "absl/log/check.h"
 #include "./centipede/blob_file.h"
@@ -69,8 +68,8 @@ using InputVec = std::vector<ByteArray>;
 void WriteToShard(const Environment &env, const TestCorpusRecord &record,
                   size_t shard_index) {
   const WorkDir wd{env};
-  auto corpus_path = wd.CorpusPath(shard_index);
-  auto features_path = wd.FeaturesPath(shard_index);
+  const auto corpus_path = wd.CorpusFiles().ShardPath(shard_index);
+  const auto features_path = wd.FeaturesFiles().ShardPath(shard_index);
   const auto corpus_appender = DefaultBlobFileWriterFactory();
   const auto features_appender = DefaultBlobFileWriterFactory();
   CHECK_OK(corpus_appender->Open(corpus_path, "a"));
@@ -83,15 +82,16 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
 // Reads and returns the distilled corpus record from
 // `wd.DistilledCorpusPath()` and `wd.DistilledFeaturesPath()`.
 std::vector<TestCorpusRecord> ReadFromDistilled(const WorkDir &wd) {
-  auto distilled_corpus_path = wd.DistilledCorpusPath();
-  auto distilled_features_path = wd.DistilledFeaturesPath();
+  const auto distilled_corpus_path = wd.DistilledCorpusFiles().MyShardPath();
+  const auto distilled_features_path =
+      wd.DistilledFeaturesFiles().MyShardPath();
 
   std::vector<TestCorpusRecord> result;
   auto shard_reader_callback = [&result](const ByteArray &input,
                                          FeatureVec &features) {
     result.push_back({input, features});
   };
-  ReadShard(wd.DistilledCorpusPath(), wd.DistilledFeaturesPath(),
+  ReadShard(distilled_corpus_path, distilled_features_path,
             shard_reader_callback);
   return result;
 }

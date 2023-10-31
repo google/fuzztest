@@ -42,8 +42,8 @@ void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
   const WorkDir wd{env};
   std::string log_line = absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
-  const auto corpus_path = wd.DistilledCorpusPath();
-  const auto features_path = wd.DistilledFeaturesPath();
+  const auto corpus_path = wd.DistilledCorpusFiles().MyShardPath();
+  const auto features_path = wd.DistilledFeaturesFiles().MyShardPath();
   LOG(INFO) << log_line << VV(env.total_shards) << VV(corpus_path)
             << VV(features_path);
 
@@ -59,9 +59,11 @@ void DistillTask(const Environment &env,
   const size_t num_total_shards = shard_indices.size();
   size_t num_shards_read = 0;
   size_t num_distilled_corpus_elements = 0;
+  const auto corpus_files = wd.CorpusFiles();
+  const auto features_files = wd.FeaturesFiles();
   for (size_t shard_idx : shard_indices) {
-    const std::string corpus_path = wd.CorpusPath(shard_idx);
-    const std::string features_path = wd.FeaturesPath(shard_idx);
+    const std::string corpus_path = corpus_files.ShardPath(shard_idx);
+    const std::string features_path = features_files.ShardPath(shard_idx);
     VLOG(2) << log_line << "reading shard " << shard_idx << " from:\n"
             << VV(corpus_path) << "\n"
             << VV(features_path);

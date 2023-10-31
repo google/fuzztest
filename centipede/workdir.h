@@ -31,6 +31,26 @@ class WorkDir {
   // pad indices with 0's in output file names so the names are sorted by index.
   static constexpr int kDigitsInShardIndex = 6;
 
+  // Provides APIs for getting paths of a particular category of sharded files.
+  class ShardedFileInfo {
+   public:
+    // Returns the path of the shard file for `shard_index`.
+    std::string ShardPath(size_t shard_index) const;
+    // Returns the path of the shard file for `my_shard_index_`.
+    std::string MyShardPath() const;
+    // Returns a glob matching all the shard files.
+    std::string AllShardsGlob() const;
+
+   private:
+    friend class WorkDir;
+
+    ShardedFileInfo(std::string_view base_dir, std::string_view rel_prefix,
+                    size_t my_shard_index);
+
+    const std::string prefix_;
+    const size_t my_shard_index_;
+  };
+
   // Constructs an object from directly provided field values.
   WorkDir(                      //
       std::string workdir,      //
@@ -57,21 +77,14 @@ class WorkDir {
   // Returns the path where the BinaryInfo will be serialized within workdir.
   std::string BinaryInfoDirPath() const;
 
-  // Returns the path for a corpus file by its shard_index.
-  std::string CorpusPath(size_t shard_index) const;
-  std::string CorpusPath() const { return CorpusPath(my_shard_index_); }
-  // Returns the prefix of all corpus shards
-  std::string CorpusPathPrefix() const;
-  // Returns the path for the distilled corpus file for my_shard_index.
-  std::string DistilledCorpusPath() const;
-
-  // Returns the path for a features file by its shard_index.
-  std::string FeaturesPath(size_t shard_index) const;
-  std::string FeaturesPath() const { return FeaturesPath(my_shard_index_); }
-  // Returns the prefix of all feature shards
-  std::string FeaturesPathPrefix() const;
-  // Returns the path for the distilled features file for my_shard_index.
-  std::string DistilledFeaturesPath() const;
+  // Returns the path info for the corpus files.
+  ShardedFileInfo CorpusFiles() const;
+  // Returns the path info for the distilled corpus files.
+  ShardedFileInfo DistilledCorpusFiles() const;
+  // Returns the path info for the features files.
+  ShardedFileInfo FeaturesFiles() const;
+  // Returns the path info for the distilled features files.
+  ShardedFileInfo DistilledFeaturesFiles() const;
 
   // Returns the path for the coverage report file for my_shard_index.
   // Non-default `annotation` becomes a part of the returned filename.

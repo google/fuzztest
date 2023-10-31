@@ -45,6 +45,30 @@ std::string NormalizeAnnotation(std::string_view annotation) {
 
 }  // namespace
 
+//------------------------------------------------------------------------------
+//                             WorkDir::PathInfo
+
+WorkDir::ShardedFileInfo::ShardedFileInfo(std::string_view base_dir,
+                                          std::string_view rel_prefix,
+                                          size_t my_shard_index)
+    : prefix_{std::filesystem::path(base_dir) / rel_prefix},
+      my_shard_index_{my_shard_index} {}
+
+std::string WorkDir::ShardedFileInfo::ShardPath(size_t shard_index) const {
+  return absl::StrFormat("%s%0*d", prefix_, kDigitsInShardIndex, shard_index);
+}
+
+std::string WorkDir::ShardedFileInfo::MyShardPath() const {
+  return ShardPath(my_shard_index_);
+}
+
+std::string WorkDir::ShardedFileInfo::AllShardsGlob() const {
+  return absl::StrCat(prefix_, "*");
+}
+
+//------------------------------------------------------------------------------
+//                                 WorkDir
+
 WorkDir::WorkDir(             //
     std::string workdir,      //
     std::string binary_name,  //
@@ -78,36 +102,23 @@ std::string WorkDir::BinaryInfoDirPath() const {
   return std::filesystem::path(CoverageDirPath()) / "binary-info";
 }
 
-std::string WorkDir::CorpusPathPrefix() const {
-  return std::filesystem::path(workdir_) / "corpus.";
+WorkDir::ShardedFileInfo WorkDir::CorpusFiles() const {
+  return {workdir_, "corpus.", my_shard_index_};
 }
 
-std::string WorkDir::CorpusPath(size_t shard_index) const {
-  return absl::StrCat(
-      CorpusPathPrefix(),
-      absl::StrFormat("%0*d", kDigitsInShardIndex, shard_index));
+WorkDir::ShardedFileInfo WorkDir::DistilledCorpusFiles() const {
+  return {workdir_, absl::StrCat("distilled-", binary_name_, "."),
+          my_shard_index_};
 }
 
-std::string WorkDir::FeaturesPathPrefix() const {
-  return std::filesystem::path(CoverageDirPath()) / "features.";
+WorkDir::ShardedFileInfo WorkDir::FeaturesFiles() const {
+  return {CoverageDirPath(), "features.", my_shard_index_};
 }
 
-std::string WorkDir::FeaturesPath(size_t shard_index) const {
-  return absl::StrCat(
-      FeaturesPathPrefix(),
-      absl::StrFormat("%0*d", kDigitsInShardIndex, shard_index));
-}
-
-std::string WorkDir::DistilledCorpusPath() const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("distilled-%s.%0*d", binary_name_, kDigitsInShardIndex,
-                         my_shard_index_);
-}
-
-std::string WorkDir::DistilledFeaturesPath() const {
-  return std::filesystem::path(CoverageDirPath())
-      .append(absl::StrFormat("distilled-features-%s.%0*d", binary_name_,
-                              kDigitsInShardIndex, my_shard_index_));
+WorkDir::ShardedFileInfo WorkDir::DistilledFeaturesFiles() const {
+  return {CoverageDirPath(),
+          absl::StrCat("distilled-features-", binary_name_, "."),
+          my_shard_index_};
 }
 
 std::string WorkDir::CoverageReportPath(std::string_view annotation) const {

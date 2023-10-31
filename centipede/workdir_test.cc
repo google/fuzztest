@@ -43,14 +43,30 @@ TEST(WorkDirTest, Main) {
     EXPECT_EQ(wd.CrashReproducerDirPath(), "/dir/crashes");
     EXPECT_EQ(wd.BinaryInfoDirPath(), "/dir/bin-hash/binary-info");
 
-    EXPECT_EQ(wd.CorpusPath(), "/dir/corpus.000003");
-    EXPECT_EQ(wd.CorpusPath(7), "/dir/corpus.000007");
-    EXPECT_EQ(wd.DistilledCorpusPath(), "/dir/distilled-bin.000003");
+    EXPECT_EQ(wd.CorpusFiles().MyShardPath(), "/dir/corpus.000003");
+    EXPECT_EQ(wd.CorpusFiles().ShardPath(7), "/dir/corpus.000007");
+    EXPECT_EQ(wd.CorpusFiles().AllShardsGlob(), "/dir/corpus.*");
 
-    EXPECT_EQ(wd.FeaturesPath(), "/dir/bin-hash/features.000003");
-    EXPECT_EQ(wd.FeaturesPath(7), "/dir/bin-hash/features.000007");
-    EXPECT_EQ(wd.DistilledFeaturesPath(),
+    EXPECT_EQ(wd.DistilledCorpusFiles().MyShardPath(),  //
+              "/dir/distilled-bin.000003");
+    EXPECT_EQ(wd.DistilledCorpusFiles().ShardPath(7),  //
+              "/dir/distilled-bin.000007");
+    EXPECT_EQ(wd.DistilledCorpusFiles().AllShardsGlob(),  //
+              "/dir/distilled-bin.*");
+
+    EXPECT_EQ(wd.FeaturesFiles().MyShardPath(),  //
+              "/dir/bin-hash/features.000003");
+    EXPECT_EQ(wd.FeaturesFiles().ShardPath(7),  //
+              "/dir/bin-hash/features.000007");
+    EXPECT_EQ(wd.FeaturesFiles().AllShardsGlob(),  //
+              "/dir/bin-hash/features.*");
+
+    EXPECT_EQ(wd.DistilledFeaturesFiles().MyShardPath(),  //
               "/dir/bin-hash/distilled-features-bin.000003");
+    EXPECT_EQ(wd.DistilledFeaturesFiles().ShardPath(7),  //
+              "/dir/bin-hash/distilled-features-bin.000007");
+    EXPECT_EQ(wd.DistilledFeaturesFiles().AllShardsGlob(),  //
+              "/dir/bin-hash/distilled-features-bin.*");
 
     EXPECT_EQ(wd.CoverageReportPath(),  //
               "/dir/coverage-report-bin.000003.txt");
