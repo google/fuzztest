@@ -51,7 +51,7 @@ class CentipedeCallbacks {
   CentipedeCallbacks(const Environment &env)
       : env_(env),
         byte_array_mutator_(env.knobs, GetRandomSeed(env.seed)),
-        fuzztest_mutator_(GetRandomSeed(env.seed)),
+        fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)),
         inputs_blobseq_(shmem_name1_.c_str(), env.shmem_size_mb << 20,
                         env.use_posix_shmem),
         outputs_blobseq_(shmem_name2_.c_str(), env.shmem_size_mb << 20,

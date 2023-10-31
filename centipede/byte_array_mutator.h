@@ -243,6 +243,14 @@ class ByteArrayMutator {
   CmpDictionary cmp_dictionary_;
 };
 
+// Controls how much crossover is used during mutations.
+// https://en.wikipedia.org/wiki/Crossover_(genetic_algorithm)
+// TODO(kcc): add tests with different values of knobs.
+extern const KnobId knob_mutate_or_crossover;
+// Controls how much crossver inserts data from the other input instead of
+// overwriting.
+extern const KnobId knob_cross_over_insert_or_overwrite;
+
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_BYTE_ARRAY_MUTATOR_H_

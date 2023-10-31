@@ -837,8 +837,10 @@ cc_library(
     srcs = ["fuzztest_mutator.cc"],
     hdrs = ["fuzztest_mutator.h"],
     deps = [
+        ":byte_array_mutator",
         ":defs",
         ":execution_metadata",
+        ":knobs",
         ":mutation_input",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
@@ -1369,6 +1371,7 @@ cc_test(
     deps = [
         ":defs",
         ":fuzztest_mutator",
+        ":knobs",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
