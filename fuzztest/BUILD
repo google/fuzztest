@@ -236,10 +236,7 @@ cc_library(
         "internal/domains/value_mutation_helpers.h",
         "internal/domains/variant_of_impl.h",
     ],
-    visibility = [
-        "@com_google_fuzztest//centipede:__subpackages__",
-        "@com_google_fuzztest//domain_tests:__pkg__",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":absl_helpers",
         ":any",
