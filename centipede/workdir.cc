@@ -24,13 +24,17 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "./centipede/environment.h"
+#include "./centipede/logging.h"
 
 namespace centipede {
 
 namespace {
+
+inline constexpr std::string_view kCorpusShardStem = "corpus";
 
 // If `annotation` is empty, returns an empty string. Otherwise, verifies that
 // it does not start with a dot and returns it with a dot prepended.
@@ -69,6 +73,28 @@ std::string WorkDir::ShardedFileInfo::AllShardsGlob() const {
 //------------------------------------------------------------------------------
 //                                 WorkDir
 
+WorkDir WorkDir::FromCorpusShardPath(    //
+    std::string_view corpus_shard_path,  //
+    std::string_view binary_name,        //
+    std::string_view binary_hash) {
+  const std::filesystem::path path{corpus_shard_path};
+  const std::string dir = path.parent_path();
+  const std::string stem = path.stem();
+  CHECK_EQ(stem, kCorpusShardStem) << VV(corpus_shard_path);
+  const std::string dot_ext = path.extension();
+  CHECK(!dot_ext.empty() && dot_ext[0] == '.') << VV(corpus_shard_path);
+  const std::string ext = dot_ext.substr(1);
+  CHECK_EQ(ext.size(), kDigitsInShardIndex) << VV(corpus_shard_path);
+  size_t shard_index = -1;
+  CHECK(absl::SimpleAtoi(ext, &shard_index)) << VV(corpus_shard_path);
+  return WorkDir{
+      dir,
+      std::string{binary_name},
+      std::string{binary_hash},
+      shard_index,
+  };
+}
+
 WorkDir::WorkDir(             //
     std::string workdir,      //
     std::string binary_name,  //
@@ -103,7 +129,7 @@ std::string WorkDir::BinaryInfoDirPath() const {
 }
 
 WorkDir::ShardedFileInfo WorkDir::CorpusFiles() const {
-  return {workdir_, "corpus.", my_shard_index_};
+  return {workdir_, absl::StrCat(kCorpusShardStem, "."), my_shard_index_};
 }
 
 WorkDir::ShardedFileInfo WorkDir::DistilledCorpusFiles() const {

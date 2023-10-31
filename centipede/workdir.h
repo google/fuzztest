@@ -16,11 +16,13 @@
 #define THIRD_PARTY_CENTIPEDE_WORKDIR_MGR_H_
 
 #include <cstddef>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "./centipede/environment.h"
+#include "./centipede/logging.h"
 
 namespace centipede {
 
@@ -51,6 +53,13 @@ class WorkDir {
     const size_t my_shard_index_;
   };
 
+  // Deduces the workdir properties from a provided corpus shard path and
+  // coverage binary basename and hash.
+  static WorkDir FromCorpusShardPath(      //
+      std::string_view corpus_shard_path,  //
+      std::string_view binary_name,        //
+      std::string_view binary_hash);
+
   // Constructs an object from directly provided field values.
   WorkDir(                      //
       std::string workdir,      //
@@ -69,6 +78,20 @@ class WorkDir {
   WorkDir &operator=(const WorkDir &) = delete;
   WorkDir(WorkDir&&) noexcept = delete;
   WorkDir& operator=(WorkDir&&) noexcept = delete;
+
+  // Comparisons and debugging I/O (mainly for tests).
+  friend bool operator==(const WorkDir &a, const WorkDir &b) {
+    return a.workdir_ == b.workdir_ && a.binary_name_ == b.binary_name_ &&
+           a.binary_hash_ == b.binary_hash_ &&
+           a.my_shard_index_ == b.my_shard_index_;
+  }
+  friend bool operator!=(const WorkDir &a, const WorkDir &b) {
+    return !(a == b);
+  }
+  friend std::ostream &operator<<(std::ostream &os, const WorkDir &wd) {
+    return os << VV(wd.workdir_) << VV(wd.binary_name_) << VV(wd.binary_hash_)
+              << VV(wd.my_shard_index_);
+  }
 
   // Returns the path to the coverage dir.
   std::string CoverageDirPath() const;

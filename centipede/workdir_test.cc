@@ -105,4 +105,11 @@ TEST(WorkDirTest, Main) {
   }
 }
 
+TEST(WorkDirTest, DeduceFromCorpusShardPath) {
+  const auto wd =
+      WorkDir::FromCorpusShardPath("/dir/corpus.000003", "bin", "hash");
+  const WorkDir kExpectedWd{"/dir", "bin", "hash", 3};
+  ASSERT_EQ(wd, kExpectedWd);
+}
+
 }  // namespace centipede
