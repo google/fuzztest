@@ -106,10 +106,21 @@ TEST(WorkDirTest, Main) {
 }
 
 TEST(WorkDirTest, DeduceFromCorpusShardPath) {
-  const auto wd =
-      WorkDir::FromCorpusShardPath("/dir/corpus.000003", "bin", "hash");
-  const WorkDir kExpectedWd{"/dir", "bin", "hash", 3};
-  ASSERT_EQ(wd, kExpectedWd);
+  {
+    const auto wd = WorkDir::FromCorpusShardPath(  //
+        "/dir/corpus.000003", "bin", "hash");
+    const WorkDir kExpectedWd{"/dir", "bin", "hash", 3};
+    ASSERT_EQ(wd, kExpectedWd);
+  }
+  {
+    // NOTE: Intentionally mismatch the binary name encoded in the corpus shard
+    // filename: it should not be used for deduction of the workdir properties
+    // -- the explicitly provided binary name should be.
+    const auto wd = WorkDir::FromCorpusShardPath(  //
+        "/dir/distilled-some-other-bin.000003", "bin", "hash");
+    const WorkDir kExpectedWd{"/dir", "bin", "hash", 3};
+    ASSERT_EQ(wd, kExpectedWd);
+  }
 }
 
 }  // namespace centipede

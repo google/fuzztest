@@ -24,6 +24,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -35,6 +36,8 @@ namespace centipede {
 namespace {
 
 inline constexpr std::string_view kCorpusShardStem = "corpus";
+inline constexpr std::string_view kDistilledCorpusShardStemPrefix =
+    "distilled-";
 
 // If `annotation` is empty, returns an empty string. Otherwise, verifies that
 // it does not start with a dot and returns it with a dot prepended.
@@ -80,7 +83,9 @@ WorkDir WorkDir::FromCorpusShardPath(    //
   const std::filesystem::path path{corpus_shard_path};
   const std::string dir = path.parent_path();
   const std::string stem = path.stem();
-  CHECK_EQ(stem, kCorpusShardStem) << VV(corpus_shard_path);
+  CHECK(stem == kCorpusShardStem ||
+        absl::StartsWith(stem, kDistilledCorpusShardStemPrefix))
+      << VV(corpus_shard_path);
   const std::string dot_ext = path.extension();
   CHECK(!dot_ext.empty() && dot_ext[0] == '.') << VV(corpus_shard_path);
   const std::string ext = dot_ext.substr(1);
@@ -133,7 +138,8 @@ WorkDir::ShardedFileInfo WorkDir::CorpusFiles() const {
 }
 
 WorkDir::ShardedFileInfo WorkDir::DistilledCorpusFiles() const {
-  return {workdir_, absl::StrCat("distilled-", binary_name_, "."),
+  return {workdir_,
+          absl::StrCat(kDistilledCorpusShardStemPrefix, binary_name_, "."),
           my_shard_index_};
 }
 
