@@ -233,9 +233,11 @@ void WriteSeedCorpusElementsToDestination(              //
   // Compute shard sizes. If the elements can't be evenly divided between the
   // requested number of shards, distribute the N excess elements between the
   // first N shards.
-  const size_t shard_size = elements.size() / destination.num_shards();
-  std::vector<size_t> shard_sizes(destination.num_shards(), shard_size);
-  const size_t excess_elts = elements.size() % destination.num_shards();
+  const size_t num_shards =
+      std::min<size_t>(destination.num_shards(), elements.size());
+  const size_t shard_size = elements.size() / num_shards;
+  std::vector<size_t> shard_sizes(num_shards, shard_size);
+  const size_t excess_elts = elements.size() % num_shards;
   for (size_t i = 0; i < excess_elts; ++i) {
     ++shard_sizes[i];
   }
