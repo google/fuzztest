@@ -19,11 +19,14 @@
 #include <tuple>
 
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 TEST(OnFailureTest, Output) {

@@ -27,6 +27,7 @@
 
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
@@ -43,6 +44,7 @@ struct BasicTestInfo {
   std::string file;
   int line = 0;
   bool uses_fixture = false;
+  std::function<void*(absl::string_view)> factory;
 };
 
 // Use base classes to progressively add members/behavior to the registerer
