@@ -7,9 +7,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/random/random.h"
 
 namespace fuzztest::internal {
+
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 // TODO(JunyangShao) : Make these functions neater (https://abseil.io/tips/122).

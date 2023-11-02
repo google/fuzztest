@@ -27,7 +27,7 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
  public:
   CentipedeFuzzerAdaptor(const FuzzTest& test,
                          std::unique_ptr<UntypedFixtureDriver> fixture_driver);
-  void RunInUnitTestMode() override;
+  void RunInUnitTestMode(std::optional<absl::string_view> input) override;
   int RunInFuzzingMode(int* argc, char*** argv) override;
 
  private:
