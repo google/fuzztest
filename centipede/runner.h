@@ -111,6 +111,7 @@ struct ThreadLocalRunnerState {
   CmpTrace<0, 64> cmp_traceN;
 
   // Set this to true if the thread needs to be ignored in ForEachTLS.
+  // It should be always false if the state is in the global detached_tls_list.
   bool ignore;
 };
 
@@ -191,7 +192,9 @@ struct GlobalRunnerState {
 
   // Doubly linked list of TLSs of all live threads.
   ThreadLocalRunnerState *tls_list;
-  pthread_mutex_t tls_list_mu;  // Guards tls_list.
+  // Doubly linked list of detached TLSs.
+  ThreadLocalRunnerState *detached_tls_list;
+  pthread_mutex_t tls_list_mu;  // Guards tls_list and detached_tls_list.
   // Iterates all TLS objects under tls_list_mu, except those with `ignore` set.
   // Calls `callback()` on every TLS.
   template <typename Callback>
@@ -200,7 +203,13 @@ struct GlobalRunnerState {
     for (auto *it = tls_list; it; it = it->next) {
       if (!it->ignore) callback(*it);
     }
+    for (auto *it = detached_tls_list; it; it = it->next) {
+      callback(*it);
+    }
   }
+
+  // Reclaims all TLSs in detached_tls_list and cleans up the list.
+  void CleanUpDetachedTls();
 
   // Computed by DlInfo().
   // Usually, the main object is the executable binary containing main()

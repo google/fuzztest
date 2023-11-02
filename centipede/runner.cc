@@ -151,6 +151,18 @@ void ThreadLocalRunnerState::OnThreadStop() {
     prev_tls->next = next_tls;
     if (next_tls != nullptr) next_tls->prev = prev_tls;
   }
+  tls.next = tls.prev = nullptr;
+  if (tls.ignore) return;
+  // Create a detached copy on heap and add it to detached_tls_list to
+  // collect its coverage later.
+  //
+  // TODO(xinhaoyuan): Consider refactoring the list operations into class
+  // methods instead of duplicating them.
+  ThreadLocalRunnerState *detached_tls = new ThreadLocalRunnerState(tls);
+  auto *old_list = state.detached_tls_list;
+  detached_tls->next = old_list;
+  state.detached_tls_list = detached_tls;
+  if (old_list != nullptr) old_list->prev = detached_tls;
 }
 
 static size_t GetPeakRSSMb() {
@@ -233,6 +245,16 @@ static void CheckWatchdogLimits() {
   }
 }
 
+void GlobalRunnerState::CleanUpDetachedTls() {
+  LockGuard lock(tls_list_mu);
+  ThreadLocalRunnerState *it_next = nullptr;
+  for (auto *it = detached_tls_list; it; it = it_next) {
+    it_next = it->next;
+    delete it;
+  }
+  detached_tls_list = nullptr;
+}
+
 void GlobalRunnerState::StartWatchdogThread() {
   if (state.run_time_flags.timeout_per_input == 0 &&
       state.run_time_flags.timeout_per_batch == 0 &&
@@ -313,6 +335,7 @@ static void WriteFeaturesToFile(FILE *file, const feature_t *features,
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
+  state.CleanUpDetachedTls();
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
@@ -929,6 +952,8 @@ GlobalRunnerState::~GlobalRunnerState() {
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
+  // Always clean up detached TLSs to avoid leakage.
+  CleanUpDetachedTls();
 }
 
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names

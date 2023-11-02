@@ -16,9 +16,7 @@
 // We should be able to solve it w/o cmp features *or* w/o auto dictionary.
 // RUN: Run && SolutionIs Fuzz
 // RUN: Run --use_auto_dictionary=0 && SolutionIs Fuzz
-// TODO(b/295378866): Centipede runner currently fails to collect dictionary
-// entries from merged threads, so if we disable cmp features we can't crack
-// this puzzle. Enable "Run --use_cmp_features=0 && SolutionIs Fuzz"
+// RUN: Run --use_cmp_features=0 && SolutionIs Fuzz
 
 #include <cstdint>
 #include <cstdlib>
