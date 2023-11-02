@@ -14,20 +14,26 @@
 
 #include "./centipede/command.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
+#include <vector>
 
+#include "absl/base/const_init.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -38,6 +44,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "./centipede/logging.h"
 #include "./centipede/util.h"
 
