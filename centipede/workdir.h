@@ -42,6 +42,11 @@ class WorkDir {
     std::string MyShardPath() const;
     // Returns a glob matching all the shard files.
     std::string AllShardsGlob() const;
+    // Returns true if `path` looks like a shard file path from this set.
+    // Matching is purely lexicographical: the actual file doesn't have to exist
+    // on disk, but `path` must have the exact `base_dir`/`rel_prefix` prefix,
+    // including any relative "." and ".." path elements.
+    bool IsShardPath(std::string_view path) const;
 
    private:
     friend class WorkDir;

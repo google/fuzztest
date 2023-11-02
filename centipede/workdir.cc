@@ -73,6 +73,13 @@ std::string WorkDir::ShardedFileInfo::AllShardsGlob() const {
   return absl::StrCat(prefix_, "*");
 }
 
+bool WorkDir::ShardedFileInfo::IsShardPath(std::string_view path) const {
+  // TODO(ussuri): This is as barebones as it can be right now. Possible
+  //  improvements: 1. Make `path` & `prefix_` absolute before comparing (or in
+  //  ctor for `prefix_`). 2. Add option to require the actual file's existence.
+  return absl::StartsWith(path, prefix_);
+}
+
 //------------------------------------------------------------------------------
 //                                 WorkDir
 
