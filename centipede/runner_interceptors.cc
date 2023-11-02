@@ -55,10 +55,11 @@ struct ThreadCreateArgs {
 // Performs custom actions before and after start_routine().
 // `arg` is a `ThreadCreateArgs *` with the actual pthread_create() args.
 void *MyThreadStart(void *arg) {
-  auto *args = static_cast<ThreadCreateArgs *>(arg);
+  auto *args_orig_ptr = static_cast<ThreadCreateArgs *>(arg);
+  auto args = *args_orig_ptr;
+  delete args_orig_ptr;  // allocated in the pthread_create wrapper.
   tls.OnThreadStart();
-  void *retval = args->start_routine(args->arg);
-  delete args;  // allocated in the pthread_create wrapper.
+  void *retval = args.start_routine(args.arg);
   return retval;
 }
 
