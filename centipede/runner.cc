@@ -75,6 +75,17 @@ size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
   return n;
 }
 
+class ThreadTerminationDetector {
+ public:
+  // A dummy method to trigger the construction and make sure that the
+  // destructor will be called on the thread termination.
+  __attribute__((optnone)) void EnsureAlive() {}
+
+  ~ThreadTerminationDetector() { tls.OnThreadStop(); }
+};
+
+thread_local ThreadTerminationDetector termination_detector;
+
 }  // namespace
 
 // Use of the fixed init priority allows to call CentipedeRunnerMain
@@ -126,6 +137,7 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 }
 
 void ThreadLocalRunnerState::OnThreadStart() {
+  termination_detector.EnsureAlive();
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.call_stack.Reset(state.run_time_flags.callstack_level);

@@ -43,4 +43,5 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "autodictionary_stress",
     "paths",
     "thread_uint32_cmp_1",
+    "pthread_exit_uint32_cmp_1",
 ]]

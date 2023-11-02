@@ -83,9 +83,9 @@ struct ThreadLocalRunnerState {
   // Guarded by state.tls_list_mu.
   ThreadLocalRunnerState *next, *prev;
 
-  // The pthread_create() interceptor calls OnThreadStart()/OnThreadStop()
-  // before/after the thread callback.
-  // The main thread calls OnThreadStart().
+  // The pthread_create() interceptor calls OnThreadStart() before the thread
+  // callback. The main thread also calls OnThreadStart(). OnThreadStop() will
+  // be called when thread termination is detected internally - see runner.cc.
   void OnThreadStart();
   void OnThreadStop();
 

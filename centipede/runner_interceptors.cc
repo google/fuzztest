@@ -58,7 +58,6 @@ void *MyThreadStart(void *arg) {
   auto *args = static_cast<ThreadCreateArgs *>(arg);
   tls.OnThreadStart();
   void *retval = args->start_routine(args->arg);
-  tls.OnThreadStop();
   delete args;  // allocated in the pthread_create wrapper.
   return retval;
 }
