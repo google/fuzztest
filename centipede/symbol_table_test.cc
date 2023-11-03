@@ -41,5 +41,21 @@ TEST(SymbolTableTest, SerializesAndDeserializesCorrectly) {
   EXPECT_EQ(input, output_stream.str());
 }
 
+TEST(SymbolTableTest, SerializesAndDeserializesCorrectlyWithUnknownFile) {
+  std::string input =
+      R"(?
+    ?
+
+)";
+  std::istringstream input_stream(input);
+  SymbolTable symbol_table;
+
+  symbol_table.ReadFromLLVMSymbolizer(input_stream);
+
+  std::ostringstream output_stream;
+  symbol_table.WriteToLLVMSymbolizer(output_stream);
+  EXPECT_EQ(input, output_stream.str());
+}
+
 }  // namespace
 }  // namespace centipede

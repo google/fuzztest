@@ -22,6 +22,13 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
@@ -72,8 +79,8 @@ class SymbolTable {
   const std::string &func(size_t idx) const { return entries_[idx].func; }
 
   // Returns source code location for idx-th entry,
-  const std::string &location(size_t idx) const {
-    return entries_[idx].file_line_col;
+  std::string location(size_t idx) const {
+    return entries_[idx].file_line_col();
   }
 
   // Returns a full human-readable description for idx-th entry.
@@ -81,19 +88,32 @@ class SymbolTable {
     return func(idx) + " " + location(idx);
   }
 
+  // Add function name and file location to symbol table.
+  void AddEntry(std::string_view func, std::string_view file_line_col);
+
+ private:
   // Defines a symbol table entry.
   struct Entry {
     std::string func;
-    std::string file_line_col;
-    bool operator==(const Entry &other) const;
+    std::string file;
+    int line = -1;
+    int col = -1;
+    bool operator==(const Entry &other) const = default;
+    std::string file_line_col() const {
+      if (absl::StrContains(file, "?")) {
+        return file;
+      }
+      std::string ret = file;
+      if (line >= 0) {
+        absl::StrAppend(&ret, ":", line);
+      }
+      if (col >= 0) {
+        absl::StrAppend(&ret, ":", col);
+      }
+      return ret;
+    }
   };
 
-  // Add function name and file location to symbol table.
-  void AddEntry(std::string_view func, std::string_view file_line_col) {
-    entries_.push_back({std::string(func), std::string(file_line_col)});
-  }
-
- private:
   std::vector<Entry> entries_;
 };
 
