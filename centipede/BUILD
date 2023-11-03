@@ -1092,7 +1092,6 @@ cc_test(
     deps = [
         ":environment",
         ":workdir",
-        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
