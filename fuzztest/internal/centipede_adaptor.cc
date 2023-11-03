@@ -19,6 +19,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <thread>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/strings/string_view.h"
 #include "./centipede/runner_interface.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
@@ -154,9 +156,10 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
     : test_(test), fuzzer_impl_(test_, std::move(fixture_driver)) {}
 
-void CentipedeFuzzerAdaptor::RunInUnitTestMode() {
+void CentipedeFuzzerAdaptor::RunInUnitTestMode(
+    std::optional<absl::string_view> input) {
   // Run the unit test mode directly without using Centipede.
-  fuzzer_impl_.RunInUnitTestMode();
+  fuzzer_impl_.RunInUnitTestMode(input);
 }
 
 int CentipedeFuzzerAdaptor::RunInFuzzingMode(int* argc, char*** argv) {

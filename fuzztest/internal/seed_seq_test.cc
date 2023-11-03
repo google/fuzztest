@@ -26,12 +26,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 
 namespace fuzztest::internal {
+
+void RunExpectExit(absl::FunctionRef<void()> test) { test(); }
+
 namespace {
 
 using ::testing::ElementsAre;
