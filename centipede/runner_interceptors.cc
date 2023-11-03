@@ -13,13 +13,7 @@
 // limitations under the License.
 
 // Function interceptors for Centipede.
-// Interceptors are disabled under ASAN/TSAN/MSAN because those sanitizers
-// have their own conflicting interceptors.
-// The typical usage of sanitizers with Centipede is via the --extra_binaries
-// flag, where the sanitized binary does not produce coverage output and thus
-// doesn't need (most of?) interceptors.
-#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
-    !defined(MEMORY_SANITIZER)
+
 #include <dlfcn.h>  // for dlsym()
 #include <pthread.h>
 
@@ -77,19 +71,49 @@ int NormalizeCmpResult(int result) {
 
 }  // namespace
 
-// Initialize original function pointers at the module startup. This may still
-// be too late, since the functions may be used before this module is
-// initialized. So, the interceptor may not assume that X_orig != nullptr for
-// function X.
-static auto memcmp_orig =
-    FuncAddr<int (*)(const void *s1, const void *s2, size_t n)>("memcmp");
-static auto strcmp_orig =
-    FuncAddr<int (*)(const char *s1, const char *s2)>("strcmp");
+namespace centipede {
+void RunnerInterceptor() {}  // to be referenced in runner.cc
+}  // namespace centipede
 
-// TODO(kcc): as we implement more functions like memcmp_fallback and
-// length_of_common_prefix, move them into a separate module and unittest.
+// A sanitizer-compatible way to intercept functions that are potentially
+// intercepted by sanitizers, in which case the symbol __interceptor_X would be
+// defined for intercepted function X. So we always forward an intercepted call
+// to the sanitizer interceptor if it exists, and fall back to the next
+// definition following dlsym.
+//
+// We define the X_orig pointers that are statically initialized to GetOrig_X()
+// with the aforementioned logic to fill the pointers early, but they might
+// still be too late. So the Centipede interceptors might need to handle the
+// nullptr case and/or use REAL(X), which calls GetOrig_X() when needed. Also
+// see compiler-rt/lib/interception/interception.h in the llvm-project source
+// code.
+//
+// Note that since LLVM 17 it allows three interceptions (from the original
+// binary, an external tool, and a sanitizer) to co-exist under a new scheme,
+// while it is still compatible with the old way used here.
+#define SANITIZER_INTERCEPTOR_NAME(orig_func_name) \
+  __interceptor_##orig_func_name
+#define DECLARE_CENTIPEDE_ORIG_FUNC(ret_type, orig_func_name, args)         \
+  extern "C" __attribute__((weak))                                          \
+  ret_type(SANITIZER_INTERCEPTOR_NAME(orig_func_name)) args;                \
+  static decltype(&SANITIZER_INTERCEPTOR_NAME(                              \
+      orig_func_name)) GetOrig_##orig_func_name() {                         \
+    if (auto p = &SANITIZER_INTERCEPTOR_NAME(orig_func_name)) return p;     \
+    return FuncAddr<decltype(&SANITIZER_INTERCEPTOR_NAME(orig_func_name))>( \
+        #orig_func_name);                                                   \
+  }                                                                         \
+  static ret_type(*orig_func_name##_orig) args = GetOrig_##orig_func_name()
+#define REAL(orig_func_name) \
+  (orig_func_name##_orig ? orig_func_name##_orig : GetOrig_##orig_func_name())
 
-// Fallback for the case memcmp_orig is null.
+DECLARE_CENTIPEDE_ORIG_FUNC(int, memcmp,
+                            (const void *s1, const void *s2, size_t n));
+DECLARE_CENTIPEDE_ORIG_FUNC(int, strcmp, (const char *s1, const char *s2));
+DECLARE_CENTIPEDE_ORIG_FUNC(int, pthread_create,
+                            (pthread_t * thread, const pthread_attr_t *attr,
+                             void *(*start_routine)(void *), void *arg));
+
+// Fallback for the case *cmp_orig is null.
 // Will be executed several times at process startup, if at all.
 static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
@@ -131,12 +155,8 @@ extern "C" int strcmp(const char *s1, const char *s2) {
 // Calls real pthread_create, but wraps the start_routine() in MyThreadStart.
 extern "C" int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                               void *(*start_routine)(void *), void *arg) {
-  static auto pthread_create_orig =
-      FuncAddr<int (*)(pthread_t *, const pthread_attr_t *, void *(*)(void *),
-                       void *)>("pthread_create");
   // Wrap the arguments. Will be deleted in MyThreadStart.
   auto *wrapped_args = new ThreadCreateArgs{start_routine, arg};
   // Run the actual pthread_create.
-  return pthread_create_orig(thread, attr, MyThreadStart, wrapped_args);
+  return REAL(pthread_create)(thread, attr, MyThreadStart, wrapped_args);
 }
-#endif  // not ASAN/TSAN/MSAN

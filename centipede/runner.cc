@@ -908,9 +908,10 @@ extern void ForkServerCallMeVeryEarly();
 // * linker sees them and decides to drop runner_sancov.o.
 extern void RunnerSancov();
 [[maybe_unused]] auto fake_reference_for_runner_sancov = &RunnerSancov;
-// Same for runner_sanitizer.cc.
-extern void RunnerSanitizer();
-[[maybe_unused]] auto fake_reference_for_runner_sanitizer = &RunnerSanitizer;
+// Same for runner_interceptor.cc.
+extern void RunnerInterceptor();
+[[maybe_unused]] auto fake_reference_for_runner_interceptor =
+    &RunnerInterceptor;
 
 GlobalRunnerState::GlobalRunnerState() {
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works

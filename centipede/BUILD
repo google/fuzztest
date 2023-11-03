@@ -924,7 +924,6 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner_interceptors.cc",
     "runner_interface.h",
     "runner_sancov.cc",
-    "runner_sanitizer.cc",
     "shared_memory_blob_sequence.cc",
     "shared_memory_blob_sequence.h",
 ]
