@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
@@ -29,21 +28,24 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
-#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
-#include "absl/types/span.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
+#include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/seed_corpus_config.pb.h"
+#include "./centipede/shard_reader.h"
+#include "./centipede/util.h"
+#include "./centipede/workdir.h"
 #include "google/protobuf/text_format.h"
 
 // TODO(ussuri): Add unit tests.
@@ -58,6 +60,9 @@
 namespace centipede {
 
 namespace fs = std::filesystem;
+
+using InputAndFeatures = std::pair<ByteArray, FeatureVec>;
+using InputAndFeaturesVec = std::vector<InputAndFeatures>;
 
 SeedCorpusConfig ResolveSeedCorpusConfig(  //
     std::string_view config_spec,          //
@@ -115,9 +120,11 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   return config;
 }
 
-void SampleSeedCorpusElementsFromSource(  //
-    const SeedCorpusSource& source,       //
-    std::vector<centipede::ByteArray>& elements) {
+void SampleSeedCorpusElementsFromSource(    //
+    const SeedCorpusSource& source,         //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
+    InputAndFeaturesVec& elements) {
   LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
             << source.DebugString();
 
@@ -157,35 +164,39 @@ void SampleSeedCorpusElementsFromSource(  //
 
   // Read all the elements from the found corpus shard files.
 
-  std::vector<centipede::ByteArray> src_elts;
+  InputAndFeaturesVec src_elts;
+  size_t num_non_empty_features = 0;
 
   for (const auto& corpus_fname : corpus_fnames) {
-    std::unique_ptr<centipede::BlobFileReader> corpus_reader =
-        centipede::DefaultBlobFileReaderFactory();
-    CHECK(corpus_reader != nullptr);
-    CHECK_OK(corpus_reader->Open(corpus_fname)) << VV(corpus_fname);
-
-    absl::Status read_status;
-    size_t num_read_elts = 0;
-    while (true) {
-      absl::Span<uint8_t> elt;
-      read_status = corpus_reader->Read(elt);
-      // Reached EOF - done with this shard.
-      if (absl::IsOutOfRange(read_status)) break;
-      CHECK_OK(read_status)
-          << "Failure reading elements from shard " << corpus_fname;
-      CHECK(!elt.empty()) << "Read empty element: " << VV(corpus_fname);
-      src_elts.emplace_back(elt.begin(), elt.end());
-      ++num_read_elts;
-    }
-
-    corpus_reader->Close().IgnoreError();
-
-    LOG(INFO) << "Read " << num_read_elts << " elements from shard "
-              << corpus_fname;
+    // NOTE: The deduced matching `features_fname` may not exist if the source
+    // corpus was generated for a coverage binary that is different from the one
+    // we need, but `ReadShard()` can tolerate that, passing empty `FeatureVec`s
+    // to the callback if that's the case.
+    const auto work_dir = WorkDir::FromCorpusShardPath(  //
+        corpus_fname, coverage_binary_name, coverage_binary_hash);
+    const std::string features_fname =
+        work_dir.CorpusFiles().IsShardPath(corpus_fname)
+            ? work_dir.FeaturesFiles().MyShardPath()
+        : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
+            ? work_dir.DistilledFeaturesFiles().MyShardPath()
+            : "";
+    size_t prev_src_elts_size = src_elts.size();
+    size_t prev_num_non_empty_features = num_non_empty_features;
+    ReadShard(corpus_fname, features_fname,
+              [&src_elts, &num_non_empty_features](const ByteArray& input,
+                                                   FeatureVec& features) {
+                num_non_empty_features += features.empty() ? 0 : 1;
+                src_elts.emplace_back(input, std::move(features));
+              });
+    LOG(INFO) << "Read " << (src_elts.size() - prev_src_elts_size)
+              << " elements with "
+              << (num_non_empty_features - prev_num_non_empty_features)
+              << " non-empty features from source shard:\n"
+              << VV(corpus_fname) << "\n"
+              << VV(features_fname);
   }
-
-  LOG(INFO) << "Read " << src_elts.size() << " elements total from source "
+  LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
+            << num_non_empty_features << " non-empty features from source "
             << source.dir_glob();
 
   // Extract a sample of the elements of the size specified in
@@ -219,8 +230,10 @@ void SampleSeedCorpusElementsFromSource(  //
   }
 }
 
-void WriteSeedCorpusElementsToDestination(              //
-    const std::vector<centipede::ByteArray>& elements,  //
+void WriteSeedCorpusElementsToDestination(  //
+    const InputAndFeaturesVec& elements,    //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
   LOG(INFO) << "Writing seed corpus elements to destination:\n"
             << destination.DebugString();
@@ -250,34 +263,89 @@ void WriteSeedCorpusElementsToDestination(              //
   auto elt_it = elements.cbegin();
   for (size_t s = 0; s < shard_sizes.size(); ++s) {
     // Generate the output shard's filename.
+    // TODO(ussuri): Use more of `WorkDir` APIs here (possibly extend them,
+    //  and possibly retire `SeedCorpusDestination::shard_index_digits`).
     const std::string shard_idx =
         absl::StrFormat("%0*d", shard_index_digits, s);
-    const std::string shard_rel_fname =
+    const std::string corpus_rel_fname =
         absl::StrReplaceAll(destination.shard_rel_glob(), {{"*", shard_idx}});
-    const std::string shard_fname =
-        fs::path{destination.dir_path()} / shard_rel_fname;
+    const std::string corpus_fname =
+        fs::path{destination.dir_path()} / corpus_rel_fname;
 
-    LOG(INFO) << "Writing " << shard_sizes[s] << " elements to " << shard_fname;
+    const auto work_dir = WorkDir::FromCorpusShardPath(  //
+        corpus_fname, coverage_binary_name, coverage_binary_hash);
 
-    // Open the shard's file.
-    std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
+    CHECK(corpus_fname == work_dir.CorpusFiles().MyShardPath() ||
+          corpus_fname == work_dir.DistilledCorpusFiles().MyShardPath())
+        << "Bad config: generated destination corpus filename '" << corpus_fname
+        << "' doesn't match one of two expected forms '"
+        << work_dir.CorpusFiles().MyShardPath() << "' or '"
+        << work_dir.DistilledCorpusFiles().MyShardPath()
+        << "'; make sure binary name in config matches explicitly passed '"
+        << coverage_binary_name << "'";
+
+    const std::string features_fname =
+        work_dir.CorpusFiles().IsShardPath(corpus_fname)
+            ? work_dir.FeaturesFiles().MyShardPath()
+            : work_dir.DistilledFeaturesFiles().MyShardPath();
+    CHECK(!features_fname.empty());
+
+    LOG(INFO) << "Writing " << shard_sizes[s]
+              << " elements to destination shard:\n"
+              << VV(corpus_fname) << "\n"
+              << VV(features_fname);
+
+    // Features files are always saved in a subdir of the workdir
+    // (== `destination.dir_path()` here), which might not exist yet, so we
+    // create it. Corpus files are saved in the workdir directly, but we also
+    // create it in case `destination.shard_rel_glob()` contains some dirs
+    // (not really intended for that, but the end-user may do that).
+    if (!corpus_fname.empty()) {
+      RemoteMkdir(fs::path{corpus_fname}.parent_path().string());
+    }
+    if (!features_fname.empty()) {
+      RemoteMkdir(fs::path{features_fname}.parent_path().string());
+    }
+
+    // Create writers for the corpus and features shard files.
+
+    // TODO(ussuri): 1. Once the whole thing is a class, make
+    // `num_non_empty_features` a member and don't even create a features file
+    // if 0. 2. Wrap corpus/features writing in a similar API to `ReadShard()`.
+
+    const std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
         centipede::DefaultBlobFileWriterFactory();
     CHECK(corpus_writer != nullptr);
-    CHECK_OK(corpus_writer->Open(shard_fname, "w")) << VV(shard_fname);
+    CHECK_OK(corpus_writer->Open(corpus_fname, "w")) << VV(corpus_fname);
 
-    // Write the shard's elements to the file.
+    const std::unique_ptr<centipede::BlobFileWriter> features_writer =
+        DefaultBlobFileWriterFactory();
+    CHECK(features_writer != nullptr);
+    CHECK_OK(features_writer->Open(features_fname, "w")) << VV(features_fname);
+
+    // Write the shard's elements to the corpus and features shard files.
+
     for (size_t e = 0, ee = shard_sizes[s]; e < ee; ++e) {
       CHECK(elt_it != elements.cend());
-      CHECK_OK(corpus_writer->Write(*elt_it)) << VV(shard_fname);
+      const ByteArray& input = elt_it->first;
+      CHECK_OK(corpus_writer->Write(input)) << VV(corpus_fname);
+      const FeatureVec& features = elt_it->second;
+      if (!features.empty()) {
+        const ByteArray packed_features = PackFeaturesAndHash(input, features);
+        CHECK_OK(features_writer->Write(packed_features)) << VV(features_fname);
+      }
       ++elt_it;
     }
 
-    CHECK_OK(corpus_writer->Close()) << VV(shard_fname);
+    CHECK_OK(corpus_writer->Close()) << VV(corpus_fname);
+    CHECK_OK(features_writer->Close()) << VV(features_fname);
   }
 }
 
-void GenerateSeedCorpusFromConfig(  //
-    std::string_view config_spec,   //
+void GenerateSeedCorpusFromConfig(          //
+    std::string_view config_spec,           //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
     std::string_view override_out_dir) {
   const SeedCorpusConfig config =
       ResolveSeedCorpusConfig(config_spec, override_out_dir);
@@ -290,14 +358,18 @@ void GenerateSeedCorpusFromConfig(  //
   // Pre-create the destination dir early to catch possible misspellings etc.
   RemoteMkdir(config.destination().dir_path());
 
-  std::vector<centipede::ByteArray> elements;
+  InputAndFeaturesVec elements;
+
   for (const auto& source : config.sources()) {
-    SampleSeedCorpusElementsFromSource(source, elements);
+    SampleSeedCorpusElementsFromSource(  //
+        source, coverage_binary_name, coverage_binary_hash, elements);
   }
   LOG(INFO) << "Sampled " << elements.size() << " elements from "
             << config.sources_size() << " seed corpus source(s)";
 
-  WriteSeedCorpusElementsToDestination(elements, config.destination());
+  WriteSeedCorpusElementsToDestination(  //
+      elements, coverage_binary_name, coverage_binary_hash,
+      config.destination());
   LOG(INFO) << "Wrote " << elements.size()
             << " elements to seed corpus destination";
 }

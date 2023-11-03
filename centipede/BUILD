@@ -59,6 +59,7 @@ cc_binary(
         ":config_init",
         ":seed_corpus_maker_flags",
         ":seed_corpus_maker_lib",
+        ":util",
         "@com_google_absl//absl/flags:flag",
     ],
 )
@@ -998,16 +999,18 @@ cc_library(
     deps = [
         ":blob_file",
         ":defs",
+        ":feature",
         ":logging",
         ":remote_file",
         ":seed_corpus_config_cc_proto",
+        ":shard_reader",
+        ":util",
+        ":workdir",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf",
     ],
 )

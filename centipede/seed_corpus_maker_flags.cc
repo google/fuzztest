@@ -27,6 +27,16 @@ ABSL_FLAG(
     "Furthermore, `destination.dir_path` can be overridden by passing a "
     "non-empty --out_dir.");
 ABSL_FLAG(
+    std::string, coverage_binary_path, "",
+    "The path of the binary from which coverage is to be collected. Can be "
+    "just the basename of the binary, but in that case --coverage_binary_hash "
+    "must also be provided.");
+ABSL_FLAG(
+    std::string, coverage_binary_hash, "",
+    "If not-empty, this hash is used instead of the actual hash of the "
+    "contents of --coverage_binary_path. Use when the binary pointed at by "
+    "--coverage_binary_path is not actually available on disk.");
+ABSL_FLAG(
     std::string, override_out_dir, "",
     "If non-empty, overrides the `destination.dir_path` field in the resolved "
     "--config protobuf.");
