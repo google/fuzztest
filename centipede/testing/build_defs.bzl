@@ -23,7 +23,7 @@ affect all its transitive dependencies as well.
 # Change the flags from the default ones to sancov:
 # https://clang.llvm.org/docs/SanitizerCoverage.html.
 def _sancov_transition_impl(settings, attr):
-    features_to_strip = ["asan", "tsan", "msan"]
+    features_to_strip = ["tsan", "msan"]
     filtered_features = [
         x
         for x in settings["//command_line_option:features"]

@@ -28,7 +28,7 @@ ls -la "$(dirname "$0")"
 source "$(dirname "$0")/../test_util.sh"
 
 readonly centipede_dir="$(centipede::get_centipede_test_srcdir)"
-centipede::maybe_set_var_to_executable_path centipede "${centipede_dir}/centipede"
+centipede::maybe_set_var_to_executable_path centipede "${centipede_dir}/centipede_uninstrumented"
 readonly centipede
 
 readonly target_name="$(basename "$0")"
