@@ -298,7 +298,7 @@ void ByteArrayMutator::CrossOverOverwrite(ByteArray &data,
             data.begin() + pos);
 }
 
-static const KnobId knob_cross_over_insert_or_overwrite =
+const KnobId knob_cross_over_insert_or_overwrite =
     Knobs::NewId("cross_over_insert_or_overwrite");
 
 void ByteArrayMutator::CrossOver(ByteArray &data, const ByteArray &other) {
@@ -316,8 +316,7 @@ void ByteArrayMutator::CrossOver(ByteArray &data, const ByteArray &other) {
 // Controls how much crossover is used during mutations.
 // https://en.wikipedia.org/wiki/Crossover_(genetic_algorithm)
 // TODO(kcc): add tests with different values of knobs.
-static const KnobId knob_mutate_or_crossover =
-    Knobs::NewId("mutate_or_crossover");
+const KnobId knob_mutate_or_crossover = Knobs::NewId("mutate_or_crossover");
 
 void ByteArrayMutator::MutateMany(const std::vector<MutationInputRef> &inputs,
                                   size_t num_mutants,

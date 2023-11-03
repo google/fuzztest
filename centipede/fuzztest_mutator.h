@@ -20,6 +20,7 @@
 #include "absl/random/random.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
+#include "./centipede/knobs.h"
 #include "./centipede/mutation_input.h"
 
 namespace centipede {
@@ -31,8 +32,8 @@ namespace centipede {
 // This class is thread-compatible.
 class FuzzTestMutator {
  public:
-  // Initialize the mutator with the given RNG `seed`.
-  explicit FuzzTestMutator(uint64_t seed);
+  // Initialize the mutator with the given `knobs` and RNG `seed`.
+  explicit FuzzTestMutator(const Knobs &knobs, uint64_t seed);
   ~FuzzTestMutator();
 
   // Takes non-empty `inputs`, produces `num_mutants` mutations in `mutants`.
@@ -56,10 +57,17 @@ class FuzzTestMutator {
   // Propagates the execution `metadata` to the internal mutation dictionary.
   void SetMetadata(const ExecutionMetadata& metadata);
 
+  // The crossover algorithm based on the legacy ByteArrayMutator.
+  // TODO: Implement and use the domain level crossover.
+  void CrossOverInsert(ByteArray &data, const ByteArray &other);
+  void CrossOverOverwrite(ByteArray &data, const ByteArray &other);
+  void CrossOver(ByteArray &data, const ByteArray &other);
+
   // Size limits on the cmp entries to be used in mutation.
   static constexpr uint8_t kMaxCmpEntrySize = 15;
   static constexpr uint8_t kMinCmpEntrySize = 2;
 
+  const Knobs &knobs_;
   absl::BitGen prng_;
   size_t max_len_ = 1000;
   std::unique_ptr<MutatorDomain> domain_;

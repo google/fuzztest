@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_join.h"
 #include "./centipede/defs.h"
+#include "./centipede/knobs.h"
 
 namespace centipede {
 
@@ -31,13 +32,15 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Each;
+using ::testing::IsSupersetOf;
 using ::testing::Le;
 using ::testing::SizeIs;
 using ::testing::Values;
 
 TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
-  FuzzTestMutator mutator[2]{FuzzTestMutator(/*seed=*/1),
-                             FuzzTestMutator(/*seed=*/2)};
+  const Knobs knobs;
+  FuzzTestMutator mutator[2]{FuzzTestMutator(knobs, /*seed=*/1),
+                             FuzzTestMutator(knobs, /*seed=*/2)};
 
   std::vector<ByteArray> res[2];
   for (size_t i = 0; i < 2; i++) {
@@ -56,7 +59,8 @@ TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
 
 TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
   constexpr size_t kMaxLen = 4;
-  FuzzTestMutator mutator(/*seed=*/1);
+  const Knobs knobs;
+  FuzzTestMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_max_len(kMaxLen));
   constexpr size_t kNumMutantsToGenerate = 10000;
   std::vector<ByteArray> mutants;
@@ -73,6 +77,72 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
 
   EXPECT_THAT(mutants,
               AllOf(SizeIs(kNumMutantsToGenerate), Each(SizeIs(Le(kMaxLen)))));
+}
+
+TEST(FuzzTestMutator, CrossOverInsertsDataFromOtherInputs) {
+  const Knobs knobs;
+  FuzzTestMutator mutator(knobs, /*seed=*/1);
+  constexpr size_t kNumMutantsToGenerate = 100000;
+  std::vector<ByteArray> mutants;
+
+  mutator.MutateMany(
+      {
+          {.data = {0, 1, 2, 3}},
+          {.data = {4, 5, 6, 7}},
+      },
+      kNumMutantsToGenerate, mutants);
+
+  EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
+                           // The entire other input
+                           {4, 5, 6, 7, 0, 1, 2, 3},
+                           {0, 1, 4, 5, 6, 7, 2, 3},
+                           {0, 1, 2, 3, 4, 5, 6, 7},
+                           // The prefix of other input
+                           {4, 5, 6, 0, 1, 2, 3},
+                           {0, 1, 4, 5, 6, 2, 3},
+                           {0, 1, 2, 3, 4, 5, 6},
+                           // The suffix of other input
+                           {5, 6, 7, 0, 1, 2, 3},
+                           {0, 1, 5, 6, 7, 2, 3},
+                           {0, 1, 2, 3, 5, 6, 7},
+                           // The middle of other input
+                           {5, 6, 0, 1, 2, 3},
+                           {0, 1, 5, 6, 2, 3},
+                           {0, 1, 2, 3, 5, 6},
+                       }));
+}
+
+TEST(FuzzTestMutator, CrossOverOverwritesDataFromOtherInputs) {
+  const Knobs knobs;
+  FuzzTestMutator mutator(knobs, /*seed=*/1);
+  constexpr size_t kNumMutantsToGenerate = 100000;
+  std::vector<ByteArray> mutants;
+
+  mutator.MutateMany(
+      {
+          {.data = {0, 1, 2, 3, 4, 5, 6, 7}},
+          {.data = {100, 101, 102, 103}},
+      },
+      kNumMutantsToGenerate, mutants);
+
+  EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
+                           // The entire other input
+                           {100, 101, 102, 103, 4, 5, 6, 7},
+                           {0, 1, 100, 101, 102, 103, 6, 7},
+                           {0, 1, 2, 3, 100, 101, 102, 103},
+                           // The prefix of other input
+                           {100, 101, 102, 3, 4, 5, 6, 7},
+                           {0, 1, 2, 100, 101, 102, 6, 7},
+                           {0, 1, 2, 3, 4, 100, 101, 102},
+                           // The suffix of other input
+                           {101, 102, 103, 3, 4, 5, 6, 7},
+                           {0, 1, 2, 101, 102, 103, 6, 7},
+                           {0, 1, 2, 3, 4, 101, 102, 103},
+                           // The middle of other input
+                           {101, 102, 2, 3, 4, 5, 6, 7},
+                           {0, 1, 2, 101, 102, 5, 6, 7},
+                           {0, 1, 2, 3, 4, 5, 101, 102},
+                       }));
 }
 
 // Test parameter containing the mutation settings and the expectations of a
@@ -102,7 +172,8 @@ class MutationStepTest
     : public testing::TestWithParam<MutationStepTestParameter> {};
 
 TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
-  FuzzTestMutator mutator(/*seed=*/1);
+  const Knobs knobs;
+  FuzzTestMutator mutator(knobs, /*seed=*/1);
   ASSERT_LE(GetParam().min_num_iterations, GetParam().max_num_iterations);
   if (GetParam().max_len.has_value())
     EXPECT_TRUE(mutator.set_max_len(*GetParam().max_len));
