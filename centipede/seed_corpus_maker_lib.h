@@ -70,13 +70,12 @@ void WriteSeedCorpusElementsToDestination(                          //
 
 // Reads and samples seed corpus elements from all the sources and writes the
 // results to the destination, as defined in `config_spec`. `config_spec` can be
-// either a textproto file (local or CNS) with
-// `silifuzz.ccmp.SeedCorpusConfig` proto or a verbatim
-// `silifuzz.ccmp.SeedCorpusConfig` string. The paths and globs in the proto
-// can be relative paths: in that case, they are resolved to absolute using
-// either the file's parent dir (if `config_spec` is a file) or the current dir
-// (if `config_spec` is a verbatim string) as the base dir.
-// If `override_out_dir` is non-empty, it overrides `destination.dir_path`
+// either a `silifuzz.ccmp.SeedCorpusConfig` textproto file (local or remote) or
+// a verbatim `silifuzz.ccmp.SeedCorpusConfig` string. The paths and globs in
+// the proto can be relative paths: in that case, they are resolved to absolute
+// using either the file's parent dir (if `config_spec` is a file) or the
+// current dir (if `config_spec` is a verbatim string) as the base dir. If
+// `override_out_dir` is non-empty, it overrides `destination.dir_path`
 // specified in `config_spec`.
 //
 // `coverage_binary_name` should be the basename of the coverage binary for
