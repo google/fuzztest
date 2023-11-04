@@ -1044,6 +1044,7 @@ cc_library(
     name = "workdir",
     srcs = ["workdir.cc"],
     hdrs = ["workdir.h"],
+    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
         ":logging",
