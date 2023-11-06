@@ -169,10 +169,15 @@ void SampleSeedCorpusElementsFromSource(    //
 
   // Read all the elements from the found corpus shard files.
 
-  InputAndFeaturesVec src_elts;
-  size_t num_non_empty_features = 0;
+  const auto num_shards = corpus_fnames.size();
+  std::vector<InputAndFeaturesVec> all_elts(num_shards);
+  std::vector<size_t> num_src_features(num_shards, 0);
 
-  for (const auto& corpus_fname : corpus_fnames) {
+  for (int shard = 0; shard < num_shards; ++shard) {
+    const auto& corpus_fname = corpus_fnames[shard];
+    auto& shard_elts = all_elts[shard];
+    auto& num_shard_features = num_src_features[shard];
+
     // NOTE: The deduced matching `features_fname` may not exist if the source
     // corpus was generated for a coverage binary that is different from the one
     // we need, but `ReadShard()` can tolerate that, passing empty `FeatureVec`s
@@ -185,23 +190,27 @@ void SampleSeedCorpusElementsFromSource(    //
         : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
             ? work_dir.DistilledFeaturesFiles().MyShardPath()
             : "";
-    size_t prev_src_elts_size = src_elts.size();
-    size_t prev_num_non_empty_features = num_non_empty_features;
+
+    size_t prev_shard_elts_size = shard_elts.size();
+    size_t prev_num_shard_features = num_shard_features;
+
     ReadShard(corpus_fname, features_fname,
-              [&src_elts, &num_non_empty_features](const ByteArray& input,
-                                                   FeatureVec& features) {
-                num_non_empty_features += features.empty() ? 0 : 1;
-                src_elts.emplace_back(input, std::move(features));
+              [&shard_elts, &num_shard_features](  //
+                  const ByteArray& input, FeatureVec& features) {
+                num_shard_features += features.empty() ? 0 : 1;
+                shard_elts.emplace_back(input, std::move(features));
               });
-    LOG(INFO) << "Read " << (src_elts.size() - prev_src_elts_size)
+
+    LOG(INFO) << "Read " << (shard_elts.size() - prev_shard_elts_size)
               << " elements with "
-              << (num_non_empty_features - prev_num_non_empty_features)
+              << (num_shard_features - prev_num_shard_features)
               << " non-empty features from source shard:\n"
               << VV(corpus_fname) << "\n"
               << VV(features_fname);
   }
-  LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
-            << num_non_empty_features << " non-empty features from source "
+
+  LOG(INFO) << "Read total of " << all_elts.size() << " elements with "
+            << num_src_features << " non-empty features from source "
             << source.dir_glob();
 
   // Extract a sample of the elements of the size specified in
@@ -212,26 +221,26 @@ void SampleSeedCorpusElementsFromSource(    //
     case SeedCorpusSource::kSampledFraction:
       CHECK(source.sampled_fraction() > 0.0 && source.sampled_fraction() <= 1.0)
           << VV(source.DebugString());
-      sample_size = std::llrint(src_elts.size() * source.sampled_fraction());
+      sample_size = std::llrint(all_elts.size() * source.sampled_fraction());
       break;
     case SeedCorpusSource::kSampledCount:
-      sample_size = std::min<size_t>(src_elts.size(), source.sampled_count());
+      sample_size = std::min<size_t>(all_elts.size(), source.sampled_count());
       break;
     case SeedCorpusSource::SAMPLE_SIZE_NOT_SET:
-      sample_size = src_elts.size();
+      sample_size = all_elts.size();
       break;
   }
 
-  if (sample_size < src_elts.size()) {
+  if (sample_size < all_elts.size()) {
     LOG(INFO) << "Sampling " << sample_size << " elements out of "
-              << src_elts.size();
+              << all_elts.size();
     std::sample(  //
-        src_elts.cbegin(), src_elts.cend(), std::back_inserter(elements),
+        all_elts.cbegin(), all_elts.cend(), std::back_inserter(elements),
         sample_size, absl::BitGen{});
   } else {
-    LOG(INFO) << "Using all " << src_elts.size() << " elements";
+    LOG(INFO) << "Using all " << all_elts.size() << " elements";
     // TODO(ussuri): Should we still use std::sample() to randomize the order?
-    elements.insert(elements.end(), src_elts.cbegin(), src_elts.cend());
+    elements.insert(elements.end(), all_elts.cbegin(), all_elts.cend());
   }
 }
 
