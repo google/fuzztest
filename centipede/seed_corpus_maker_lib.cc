@@ -115,6 +115,11 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
     }
   }
 
+  if (config.destination().shard_index_digits() == 0) {
+    config.mutable_destination()->set_shard_index_digits(
+        WorkDir::kDigitsInShardIndex);
+  }
+
   LOG(INFO) << "Resolved config:\n" << config.DebugString();
 
   return config;
@@ -256,17 +261,13 @@ void WriteSeedCorpusElementsToDestination(  //
   }
 
   // Write the elements to the shard files.
-  // TODO(b/295978603): Replace the 6 with `WorkdirMgr::kDigitsInShardIndex`.
-  const auto shard_index_digits = destination.shard_index_digits() > 0
-                                      ? destination.shard_index_digits()
-                                      : 6;
   auto elt_it = elements.cbegin();
   for (size_t s = 0; s < shard_sizes.size(); ++s) {
     // Generate the output shard's filename.
     // TODO(ussuri): Use more of `WorkDir` APIs here (possibly extend them,
     //  and possibly retire `SeedCorpusDestination::shard_index_digits`).
     const std::string shard_idx =
-        absl::StrFormat("%0*d", shard_index_digits, s);
+        absl::StrFormat("%0*d", destination.shard_index_digits(), s);
     const std::string corpus_rel_fname =
         absl::StrReplaceAll(destination.shard_rel_glob(), {{"*", shard_idx}});
     const std::string corpus_fname =
