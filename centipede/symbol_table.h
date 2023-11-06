@@ -39,6 +39,28 @@ namespace centipede {
 // function names, file names, line numbers, column numbers.
 class SymbolTable {
  public:
+  // Defines a symbol table entry.
+  struct Entry {
+    std::string func;
+    std::string file;
+    int line = -1;
+    int col = -1;
+    bool operator==(const Entry &other) const = default;
+    std::string file_line_col() const {
+      if (absl::StrContains(file, "?")) {
+        return file;
+      }
+      std::string ret = file;
+      if (line >= 0) {
+        absl::StrAppend(&ret, ":", line);
+      }
+      if (col >= 0) {
+        absl::StrAppend(&ret, ":", col);
+      }
+      return ret;
+    }
+  };
+
   bool operator==(const SymbolTable &other) const;
   // Reads the symbols from a stream produced by `llvm-symbolizer --no-inlines`.
   // https://llvm.org/docs/CommandGuide/llvm-symbolizer.html.
@@ -78,6 +100,8 @@ class SymbolTable {
   // Returns "FunctionName" for idx-th entry.
   const std::string &func(size_t idx) const { return entries_[idx].func; }
 
+  Entry entry(size_t idx) const { return entries_[idx]; }
+
   // Returns source code location for idx-th entry,
   std::string location(size_t idx) const {
     return entries_[idx].file_line_col();
@@ -92,28 +116,6 @@ class SymbolTable {
   void AddEntry(std::string_view func, std::string_view file_line_col);
 
  private:
-  // Defines a symbol table entry.
-  struct Entry {
-    std::string func;
-    std::string file;
-    int line = -1;
-    int col = -1;
-    bool operator==(const Entry &other) const = default;
-    std::string file_line_col() const {
-      if (absl::StrContains(file, "?")) {
-        return file;
-      }
-      std::string ret = file;
-      if (line >= 0) {
-        absl::StrAppend(&ret, ":", line);
-      }
-      if (col >= 0) {
-        absl::StrAppend(&ret, ":", col);
-      }
-      return ret;
-    }
-  };
-
   std::vector<Entry> entries_;
 };
 
