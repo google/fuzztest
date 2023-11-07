@@ -13,6 +13,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
@@ -108,9 +109,14 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
 void RunSpecifiedFuzzTest(std::string_view name) {
   const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
   internal::ForEachTest([&](auto& test) {
+    // TODO(b/301965259): Properly initialize the configuration.
+    internal::Configuration configuration(
+        internal::CorpusDatabase(/*database_path=*/"",
+                                 /*use_coverage_inputs=*/false,
+                                 /*use_crashing_inputs=*/false));
     if (test.full_name() == matching_fuzz_test) {
-      exit(std::move(test).make()->RunInFuzzingMode(/*argc=*/nullptr,
-                                                    /*argv=*/nullptr));
+      std::exit(test.make()->RunInFuzzingMode(/*argc=*/nullptr,
+                                              /*argv=*/nullptr, configuration));
     }
   });
 }

@@ -67,6 +67,7 @@ cc_library(
     srcs = ["init_fuzztest.cc"],
     hdrs = ["init_fuzztest.h"],
     deps = [
+        ":configuration",
         ":googletest_adaptor",
         ":registry",
         ":runtime",
@@ -138,11 +139,14 @@ cc_library(
     hdrs = ["internal/centipede_adaptor.h"],
     defines = ["FUZZTEST_USE_CENTIPEDE"],
     deps = [
+        ":configuration",
         ":domain_core",
         ":fixture_driver",
         ":logging",
         ":runtime",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
     ],
 )
@@ -159,6 +163,17 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "configuration",
+    srcs = ["internal/configuration.cc"],
+    hdrs = ["internal/configuration.h"],
+    deps = [
+        ":io",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -300,6 +315,7 @@ cc_library(
     srcs = ["internal/googletest_adaptor.cc"],
     hdrs = ["internal/googletest_adaptor.h"],
     deps = [
+        ":configuration",
         ":registry",
         ":runtime",
         "@com_google_googletest//:gtest",
@@ -403,6 +419,7 @@ cc_library(
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
     deps = [
+        ":configuration",
         ":coverage",
         ":domain",
         ":domain_core",

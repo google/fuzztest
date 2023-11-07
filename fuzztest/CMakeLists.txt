@@ -357,6 +357,7 @@ if (FUZZTEST_TESTING)
     PUBLIC
     fuzztest_logging
     fuzztest_domain
+    fuzztest_configuration
     fuzztest_coverage
     fuzztest_seed_seq
     fuzztest_fixture_driver
@@ -510,6 +511,7 @@ if (FUZZTEST_TESTING)
     PUBLIC
     fuzztest_logging
     fuzztest_domain
+    fuzztest_configuration
     fuzztest_coverage
     fuzztest_seed_seq
     fuzztest_fixture_driver
@@ -539,6 +541,7 @@ add_library(
 target_link_libraries(
   fuzztest_runtime
   PUBLIC
+  fuzztest_configuration
   fuzztest_coverage
   fuzztest_domain
   fuzztest_fixture_driver
@@ -570,6 +573,7 @@ if (FUZZTEST_TESTING)
     PUBLIC
     fuzztest_logging
     fuzztest_domain
+    fuzztest_configuration
     fuzztest_coverage
     fuzztest_seed_seq
     fuzztest_fixture_driver
@@ -600,6 +604,7 @@ add_library(
 target_link_libraries(
   fuzztest_compatibility_mode
   PUBLIC
+  fuzztest_configuration
   fuzztest_fixture_driver
   fuzztest_logging
   fuzztest_runtime
@@ -607,6 +612,21 @@ target_link_libraries(
   absl::strings
   absl::str_format
   absl::time
+)
+
+add_library(
+  fuzztest_configuration
+  OBJECT
+  internal/configuration.cc
+  internal/configuration.h
+)
+
+target_link_libraries(
+  fuzztest_configuration
+  PUBLIC
+  absl::strings
+  absl::string_view
+  fuzztest_io
 )
 
 add_library(
@@ -666,6 +686,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
     absl::flags
     absl::strings
     absl::time
+    fuzztest_configuration
     fuzztest_googletest_adaptor
     fuzztest_runtime
     GTest::gtest
@@ -681,6 +702,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
   target_link_libraries(
     fuzztest_googletest_adaptor
     PUBLIC
+    fuzztest_configuration
     fuzztest_registry
     fuzztest_runtime
     GTest::gtest
@@ -711,6 +733,7 @@ if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
     fuzztest_serialization
     fuzztest_init_fuzztest
     fuzztest_io
+    fuzztest_configuration
     fuzztest_coverage
     fuzztest_logging
     fuzztest_fixture_driver

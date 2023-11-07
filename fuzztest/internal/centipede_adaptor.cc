@@ -26,7 +26,10 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "./centipede/runner_interface.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
@@ -46,8 +49,12 @@ std::seed_seq GetRandomSeed() {
 class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
  public:
   CentipedeAdaptorRunnerCallbacks(Runtime& runtime,
-                                  FuzzTestFuzzerImpl& fuzzer_impl)
-      : runtime_(runtime), fuzzer_impl_(fuzzer_impl), prng_(GetRandomSeed()) {
+                                  FuzzTestFuzzerImpl& fuzzer_impl,
+                                  const Configuration& configuration)
+      : runtime_(runtime),
+        fuzzer_impl_(fuzzer_impl),
+        configuration_(configuration),
+        prng_(GetRandomSeed()) {
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
     FUZZTEST_INTERNAL_CHECK(fuzzer_impl_.fixture_driver_ != nullptr,
@@ -71,6 +78,13 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       std::function<void(centipede::ByteSpan)> seed_callback) override {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
+    for (const std::string& corpus_file :
+         configuration_.corpus_database.GetCoverageInputsIfAny(
+             fuzzer_impl_.test_.full_name())) {
+      auto corpus_value = fuzzer_impl_.GetCorpusValueFromFile(corpus_file);
+      if (!corpus_value) continue;
+      seeds.push_back(*corpus_value);
+    }
     absl::c_shuffle(seeds, prng_);
     if (seeds.empty())
       seeds.push_back(fuzzer_impl_.params_domain_->UntypedInit(prng_));
@@ -147,6 +161,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
 
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
+  Configuration configuration_;
   absl::BitGen prng_;
 };
 
@@ -154,12 +169,14 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
     : test_(test), fuzzer_impl_(test_, std::move(fixture_driver)) {}
 
-void CentipedeFuzzerAdaptor::RunInUnitTestMode() {
+void CentipedeFuzzerAdaptor::RunInUnitTestMode(
+    const Configuration& configuration) {
   // Run the unit test mode directly without using Centipede.
-  fuzzer_impl_.RunInUnitTestMode();
+  fuzzer_impl_.RunInUnitTestMode(configuration);
 }
 
-int CentipedeFuzzerAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
+int CentipedeFuzzerAdaptor::RunInFuzzingMode(
+    int* argc, char*** argv, const Configuration& configuration) {
   if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
     auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
     execution_coverage->SetIsTracing(true);
@@ -168,7 +185,8 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(int* argc, char*** argv) {
 
   runtime_.SetRunMode(RunMode::kFuzz);
   runtime_.SetCurrentTest(&test_);
-  CentipedeAdaptorRunnerCallbacks runner_callback(runtime_, fuzzer_impl_);
+  CentipedeAdaptorRunnerCallbacks runner_callback(runtime_, fuzzer_impl_,
+                                                  configuration);
   return centipede::RunnerMain(argc != nullptr ? *argc : 0,
                                argv != nullptr ? *argv : nullptr,
                                runner_callback);
