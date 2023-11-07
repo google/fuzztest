@@ -1002,8 +1002,10 @@ cc_library(
         ":feature",
         ":logging",
         ":remote_file",
+        ":rusage_profiler",
         ":seed_corpus_config_cc_proto",
         ":shard_reader",
+        ":thread_pool",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log",
@@ -1011,6 +1013,7 @@ cc_library(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
         "@com_google_protobuf//:protobuf",
     ],
 )
