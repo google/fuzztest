@@ -17,22 +17,16 @@
 #include <algorithm>
 #include <bitset>
 #include <charconv>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
@@ -40,25 +34,6 @@
 #include "./centipede/remote_file.h"
 
 namespace centipede {
-
-namespace {
-
-// Max number of decimal digits in a shard index given `total_shards`. Used to
-// pad indices with 0's in output file names so the names are sorted by index.
-inline constexpr int kDigitsInShardIndex = 6;
-
-// If `annotation` is empty, returns an empty string. Otherwise, verifies that
-// it does not start with a dot and returns it with a dot prepended.
-std::string NormalizeAnnotation(std::string_view annotation) {
-  std::string ret;
-  if (!annotation.empty()) {
-    CHECK_NE(annotation.front(), '.');
-    ret = absl::StrCat(".", annotation);
-  }
-  return ret;
-}
-
-}  // namespace
 
 bool Environment::DumpCorpusTelemetryInThisShard() const {
   // Corpus stats are global across all shards on all machines.
