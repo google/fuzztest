@@ -45,7 +45,7 @@ void ReadShard(
   {
     auto features_reader = DefaultBlobFileReaderFactory();
     features_reader->Open(features_path).IgnoreError();  // File may not exist.
-    absl::Span<uint8_t> hash_and_features;
+    absl::Span<const uint8_t> hash_and_features;
     while (features_reader->Read(hash_and_features).ok()) {
       // Every valid feature record must contain the hash at the end.
       // Ignore this record if it is too short.
@@ -64,7 +64,7 @@ void ReadShard(
   // Read the corpus. Call `callback` for every {input, features} pair.
   auto corpus_reader = DefaultBlobFileReaderFactory();
   corpus_reader->Open(corpus_path).IgnoreError();  // File may not exist.
-  absl::Span<uint8_t> blob;
+  absl::Span<const uint8_t> blob;
   while (corpus_reader->Read(blob).ok()) {
     callback(ByteArray(blob.begin(), blob.end()), hash_to_features[Hash(blob)]);
   }

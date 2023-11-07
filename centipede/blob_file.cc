@@ -62,14 +62,14 @@ class SimpleBlobFileReader : public BlobFileReader {
     return absl::OkStatus();
   }
 
-  absl::Status Read(absl::Span<uint8_t> &blob) override {
+  absl::Status Read(absl::Span<const uint8_t> &blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     if (next_to_read_blob_index_ == unpacked_blobs_.size())
       return absl::OutOfRangeError("no more blobs");
     if (next_to_read_blob_index_ != 0)  // Clear the previous blob to save RAM.
       unpacked_blobs_[next_to_read_blob_index_ - 1].clear();
-    blob = absl::Span<uint8_t>(unpacked_blobs_[next_to_read_blob_index_]);
+    blob = absl::Span<const uint8_t>(unpacked_blobs_[next_to_read_blob_index_]);
     ++next_to_read_blob_index_;
     return absl::OkStatus();
   }

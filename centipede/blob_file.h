@@ -58,7 +58,7 @@ class BlobFileReader {
   // Implementations must ensure that the memory wrapped by `blob` remains valid
   // until the next Read() or Close() call.
   // Returns absl::OutOfRangeError when there are no more blobs to read.
-  virtual absl::Status Read(absl::Span<uint8_t> &blob) = 0;
+  virtual absl::Status Read(absl::Span<const uint8_t> &blob) = 0;
 
   // Closes the file, which was previously opened and never closed.
   virtual absl::Status Close() = 0;

@@ -135,7 +135,7 @@ void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
     auto reader = DefaultBlobFileReaderFactory();
     auto corpus_path = corpus_files.ShardPath(shard);
     reader->Open(corpus_path).IgnoreError();  // may not exist.
-    absl::Span<uint8_t> blob;
+    absl::Span<const uint8_t> blob;
     size_t num_read = 0;
     while (reader->Read(blob).ok()) {
       ++num_read;
@@ -170,7 +170,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
       auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
       reader->Open(corpus_path).IgnoreError();
-      absl::Span<uint8_t> blob;
+      absl::Span<const uint8_t> blob;
       while (reader->Read(blob).ok()) {
         existing_hashes.insert(Hash(blob));
       }

@@ -114,7 +114,7 @@ int ForEachBlob(const Environment &env) {
       LOG(INFO) << "Failed to open " << arg << ": " << open_status;
       return EXIT_FAILURE;
     }
-    absl::Span<uint8_t> blob;
+    absl::Span<const uint8_t> blob;
     while (blob_reader->Read(blob) == absl::OkStatus()) {
       ByteArray bytes;
       bytes.insert(bytes.begin(), blob.data(), blob.end());

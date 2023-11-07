@@ -41,7 +41,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   ByteArray input3{6, 7, 8, 9};
   ByteArray input4{10, 11};
   const auto path = TempFilePath();
-  absl::Span<uint8_t> blob;
+  absl::Span<const uint8_t> blob;
 
   // Append two blobs to a file.
   {
@@ -121,7 +121,7 @@ void TestIncorrectUsage(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   EXPECT_EQ(reader->Open(invalid_path), absl::UnknownError("can't open file"));
   EXPECT_EQ(appender->Open(invalid_path, "a"),
             absl::UnknownError("can't open file"));
-  absl::Span<uint8_t> blob;
+  absl::Span<const uint8_t> blob;
 
   // Use the calls in the wrong order, e.g. Close() before Open(), etc.
 
