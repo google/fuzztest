@@ -37,13 +37,16 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./centipede/rusage_profiler.h"
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/shard_reader.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "google/protobuf/text_format.h"
@@ -125,11 +128,17 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   return config;
 }
 
+// TODO(ussuri): Refactor into smaller functions.
 void SampleSeedCorpusElementsFromSource(    //
     const SeedCorpusSource& source,         //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     InputAndFeaturesVec& elements) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
+      /*enable=*/true,                                                //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),  //
+      /*also_log_timelapses=*/VLOG_IS_ON(10));
+
   LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
             << source.DebugString();
 
@@ -150,58 +159,94 @@ void SampleSeedCorpusElementsFromSource(    //
 
   // Find all the corpus shard files in the found dirs.
 
-  std::vector<std::string> corpus_fnames;
+  std::vector<std::string> corpus_shard_fnames;
   for (const auto& dir : src_dirs) {
     const std::string shards_glob = fs::path{dir} / source.shard_rel_glob();
     // NOTE: `RemoteGlobMatch` appends to the output list.
-    const auto prev_num_shards = corpus_fnames.size();
-    RemoteGlobMatch(shards_glob, corpus_fnames);
-    LOG(INFO) << "Found " << (corpus_fnames.size() - prev_num_shards)
+    const auto prev_num_shards = corpus_shard_fnames.size();
+    RemoteGlobMatch(shards_glob, corpus_shard_fnames);
+    LOG(INFO) << "Found " << (corpus_shard_fnames.size() - prev_num_shards)
               << " shards matching " << shards_glob;
   }
-  LOG(INFO) << "Found " << corpus_fnames.size() << " shards total in source "
-            << source.dir_glob();
+  LOG(INFO) << "Found " << corpus_shard_fnames.size()
+            << " shards total in source " << source.dir_glob();
 
-  if (corpus_fnames.empty()) {
+  if (corpus_shard_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob();
     return;
   }
 
-  // Read all the elements from the found corpus shard files.
+  // Read all the elements from the found corpus shard files using parallel I/O
+  // threads.
+
+  const auto num_shards = corpus_shard_fnames.size();
+  std::vector<InputAndFeaturesVec> src_elts_per_shard(num_shards);
+  std::vector<size_t> src_num_features_per_shard(num_shards, 0);
+
+  {
+    // NOTE: Tested with 16 threads max.
+    constexpr int kMaxReadThreads = 32;
+    ThreadPool threads{std::min<int>(kMaxReadThreads, num_shards)};
+
+    for (int s = 0; s < num_shards; ++s) {
+      const auto& corpus_fname = corpus_shard_fnames[s];
+      auto& shard_elts = src_elts_per_shard[s];
+      auto& shard_num_features = src_num_features_per_shard[s];
+
+      threads.Schedule([s, corpus_fname, &shard_elts, &shard_num_features,
+                        &coverage_binary_name, &coverage_binary_hash]() {
+        // NOTE: The deduced matching `features_fname` may not exist if the
+        // source corpus was generated for a coverage binary that is different
+        // from the one we need, but `ReadShard()` can tolerate that, passing
+        // empty `FeatureVec`s to the callback if that's the case.
+        const auto work_dir = WorkDir::FromCorpusShardPath(  //
+            corpus_fname, coverage_binary_name, coverage_binary_hash);
+        const std::string features_fname =
+            work_dir.CorpusFiles().IsShardPath(corpus_fname)
+                ? work_dir.FeaturesFiles().MyShardPath()
+            : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
+                ? work_dir.DistilledFeaturesFiles().MyShardPath()
+                : "";
+
+        LOG(INFO) << "Reading elements from source shard " << s << ":\n"
+                  << VV(corpus_fname) << "\n"
+                  << VV(features_fname);
+
+        size_t prev_shard_elts_size = shard_elts.size();
+        size_t prev_num_shard_features = shard_num_features;
+
+        ReadShard(corpus_fname, features_fname,
+                  [&shard_elts, &shard_num_features](  //
+                      const ByteArray& input, FeatureVec& features) {
+                    shard_num_features += features.empty() ? 0 : 1;
+                    shard_elts.emplace_back(input, std::move(features));
+                  });
+
+        LOG(INFO) << "Read " << (shard_elts.size() - prev_shard_elts_size)
+                  << " elements with "
+                  << (shard_num_features - prev_num_shard_features)
+                  << " non-empty features from source shard " << s;
+      });
+    }
+  }
 
   InputAndFeaturesVec src_elts;
-  size_t num_non_empty_features = 0;
+  size_t src_num_features = 0;
 
-  for (const auto& corpus_fname : corpus_fnames) {
-    // NOTE: The deduced matching `features_fname` may not exist if the source
-    // corpus was generated for a coverage binary that is different from the one
-    // we need, but `ReadShard()` can tolerate that, passing empty `FeatureVec`s
-    // to the callback if that's the case.
-    const auto work_dir = WorkDir::FromCorpusShardPath(  //
-        corpus_fname, coverage_binary_name, coverage_binary_hash);
-    const std::string features_fname =
-        work_dir.CorpusFiles().IsShardPath(corpus_fname)
-            ? work_dir.FeaturesFiles().MyShardPath()
-        : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
-            ? work_dir.DistilledFeaturesFiles().MyShardPath()
-            : "";
-    size_t prev_src_elts_size = src_elts.size();
-    size_t prev_num_non_empty_features = num_non_empty_features;
-    ReadShard(corpus_fname, features_fname,
-              [&src_elts, &num_non_empty_features](const ByteArray& input,
-                                                   FeatureVec& features) {
-                num_non_empty_features += features.empty() ? 0 : 1;
-                src_elts.emplace_back(input, std::move(features));
-              });
-    LOG(INFO) << "Read " << (src_elts.size() - prev_src_elts_size)
-              << " elements with "
-              << (num_non_empty_features - prev_num_non_empty_features)
-              << " non-empty features from source shard:\n"
-              << VV(corpus_fname) << "\n"
-              << VV(features_fname);
+  for (int s = 0; s < num_shards; ++s) {
+    auto& shard_elts = src_elts_per_shard[s];
+    for (auto& elt : shard_elts) {
+      src_elts.emplace_back(std::move(elt));
+    }
+    shard_elts.clear();
+    auto& shard_num_features = src_num_features_per_shard[s];
+    src_num_features += shard_num_features;
   }
+
+  RPROF_SNAPSHOT_AND_LOG("Done reading");
+
   LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
-            << num_non_empty_features << " non-empty features from source "
+            << src_num_features << " non-empty features from source "
             << source.dir_glob();
 
   // Extract a sample of the elements of the size specified in
@@ -233,13 +278,21 @@ void SampleSeedCorpusElementsFromSource(    //
     // TODO(ussuri): Should we still use std::sample() to randomize the order?
     elements.insert(elements.end(), src_elts.cbegin(), src_elts.cend());
   }
+
+  RPROF_SNAPSHOT_AND_LOG("Done sampling");
 }
 
+// TODO(ussuri): Refactor into smaller functions.
 void WriteSeedCorpusElementsToDestination(  //
     const InputAndFeaturesVec& elements,    //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
+      /*enable=*/true,                                                //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),  //
+      /*also_log_timelapses=*/VLOG_IS_ON(10));
+
   LOG(INFO) << "Writing seed corpus elements to destination:\n"
             << destination.DebugString();
 
@@ -260,86 +313,109 @@ void WriteSeedCorpusElementsToDestination(  //
     ++shard_sizes[i];
   }
 
-  // Write the elements to the shard files.
-  auto elt_it = elements.cbegin();
-  for (size_t s = 0; s < shard_sizes.size(); ++s) {
-    // Generate the output shard's filename.
-    // TODO(ussuri): Use more of `WorkDir` APIs here (possibly extend them,
-    //  and possibly retire `SeedCorpusDestination::shard_index_digits`).
-    const std::string shard_idx =
-        absl::StrFormat("%0*d", destination.shard_index_digits(), s);
-    const std::string corpus_rel_fname =
-        absl::StrReplaceAll(destination.shard_rel_glob(), {{"*", shard_idx}});
-    const std::string corpus_fname =
-        fs::path{destination.dir_path()} / corpus_rel_fname;
+  // Write the elements to the shard files using parallel I/O threads.
+  {
+    // NOTE: Tested with 800 threads max.
+    constexpr int kMaxWriteThreads = 1000;
+    ThreadPool threads{std::min<int>(kMaxWriteThreads, num_shards)};
 
-    const auto work_dir = WorkDir::FromCorpusShardPath(  //
-        corpus_fname, coverage_binary_name, coverage_binary_hash);
+    auto shard_elt_it = elements.cbegin();
 
-    CHECK(corpus_fname == work_dir.CorpusFiles().MyShardPath() ||
-          corpus_fname == work_dir.DistilledCorpusFiles().MyShardPath())
-        << "Bad config: generated destination corpus filename '" << corpus_fname
-        << "' doesn't match one of two expected forms '"
-        << work_dir.CorpusFiles().MyShardPath() << "' or '"
-        << work_dir.DistilledCorpusFiles().MyShardPath()
-        << "'; make sure binary name in config matches explicitly passed '"
-        << coverage_binary_name << "'";
+    for (size_t s = 0; s < shard_sizes.size(); ++s) {
+      // Compute this shard's range of the input elements to write.
+      const auto shard_size = shard_sizes[s];
+      const auto elt_range_begin = shard_elt_it;
+      std::advance(shard_elt_it, shard_size);
+      const auto elt_range_end = shard_elt_it;
+      CHECK(shard_elt_it <= elements.cend()) << VV(s);
 
-    const std::string features_fname =
-        work_dir.CorpusFiles().IsShardPath(corpus_fname)
-            ? work_dir.FeaturesFiles().MyShardPath()
-            : work_dir.DistilledFeaturesFiles().MyShardPath();
-    CHECK(!features_fname.empty());
+      threads.Schedule([s, elt_range_begin, elt_range_end, &destination,
+                        &coverage_binary_name, &coverage_binary_hash]() {
+        // Generate the output shard's filename.
+        // TODO(ussuri): Use more of `WorkDir` APIs here (possibly extend
+        // them,
+        //  and possibly retire `SeedCorpusDestination::shard_index_digits`).
+        const std::string shard_idx =
+            absl::StrFormat("%0*d", destination.shard_index_digits(), s);
+        const std::string corpus_rel_fname = absl::StrReplaceAll(
+            destination.shard_rel_glob(), {{"*", shard_idx}});
+        const std::string corpus_fname =
+            fs::path{destination.dir_path()} / corpus_rel_fname;
 
-    LOG(INFO) << "Writing " << shard_sizes[s]
-              << " elements to destination shard:\n"
-              << VV(corpus_fname) << "\n"
-              << VV(features_fname);
+        const auto work_dir = WorkDir::FromCorpusShardPath(  //
+            corpus_fname, coverage_binary_name, coverage_binary_hash);
 
-    // Features files are always saved in a subdir of the workdir
-    // (== `destination.dir_path()` here), which might not exist yet, so we
-    // create it. Corpus files are saved in the workdir directly, but we also
-    // create it in case `destination.shard_rel_glob()` contains some dirs
-    // (not really intended for that, but the end-user may do that).
-    if (!corpus_fname.empty()) {
-      RemoteMkdir(fs::path{corpus_fname}.parent_path().string());
+        CHECK(corpus_fname == work_dir.CorpusFiles().MyShardPath() ||
+              corpus_fname == work_dir.DistilledCorpusFiles().MyShardPath())
+            << "Bad config: generated destination corpus filename '"
+            << corpus_fname << "' doesn't match one of two expected forms '"
+            << work_dir.CorpusFiles().MyShardPath() << "' or '"
+            << work_dir.DistilledCorpusFiles().MyShardPath()
+            << "'; make sure binary name in config matches explicitly passed '"
+            << coverage_binary_name << "'";
+
+        const std::string features_fname =
+            work_dir.CorpusFiles().IsShardPath(corpus_fname)
+                ? work_dir.FeaturesFiles().MyShardPath()
+                : work_dir.DistilledFeaturesFiles().MyShardPath();
+        CHECK(!features_fname.empty());
+
+        LOG(INFO) << "Writing " << std::distance(elt_range_begin, elt_range_end)
+                  << " elements to destination shard " << s << ":\n"
+                  << VV(corpus_fname) << "\n"
+                  << VV(features_fname);
+
+        // Features files are always saved in a subdir of the workdir
+        // (== `destination.dir_path()` here), which might not exist yet, so we
+        // create it. Corpus files are saved in the workdir directly, but we
+        // also create it in case `destination.shard_rel_glob()` contains some
+        // dirs (not really intended for that, but the end-user may do that).
+        if (!corpus_fname.empty()) {
+          RemoteMkdir(fs::path{corpus_fname}.parent_path().string());
+        }
+        if (!features_fname.empty()) {
+          RemoteMkdir(fs::path{features_fname}.parent_path().string());
+        }
+
+        // Create writers for the corpus and features shard files.
+
+        // TODO(ussuri): 1. Once the whole thing is a class, make
+        // `num_non_empty_features` a member and don't even create a features
+        // file if 0. 2. Wrap corpus/features writing in a similar API to
+        // `ReadShard()`.
+
+        const std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
+            centipede::DefaultBlobFileWriterFactory();
+        CHECK(corpus_writer != nullptr);
+        CHECK_OK(corpus_writer->Open(corpus_fname, "w")) << VV(corpus_fname);
+
+        const std::unique_ptr<centipede::BlobFileWriter> features_writer =
+            DefaultBlobFileWriterFactory();
+        CHECK(features_writer != nullptr);
+        CHECK_OK(features_writer->Open(features_fname, "w"))
+            << VV(features_fname);
+
+        // Write the shard's elements to the corpus and features shard files.
+
+        for (auto elt_it = elt_range_begin; elt_it != elt_range_end; ++elt_it) {
+          const ByteArray& input = elt_it->first;
+          CHECK_OK(corpus_writer->Write(input)) << VV(corpus_fname);
+          const FeatureVec& features = elt_it->second;
+          if (!features.empty()) {
+            const ByteArray packed_features =
+                PackFeaturesAndHash(input, features);
+            CHECK_OK(features_writer->Write(packed_features))
+                << VV(features_fname);
+          }
+        }
+
+        LOG(INFO) << "Wrote " << std::distance(elt_range_begin, elt_range_end)
+                  << " elements to destination shard " << s;
+
+        CHECK_OK(corpus_writer->Close()) << VV(corpus_fname);
+        CHECK_OK(features_writer->Close()) << VV(features_fname);
+      });
     }
-    if (!features_fname.empty()) {
-      RemoteMkdir(fs::path{features_fname}.parent_path().string());
-    }
-
-    // Create writers for the corpus and features shard files.
-
-    // TODO(ussuri): 1. Once the whole thing is a class, make
-    // `num_non_empty_features` a member and don't even create a features file
-    // if 0. 2. Wrap corpus/features writing in a similar API to `ReadShard()`.
-
-    const std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
-        centipede::DefaultBlobFileWriterFactory();
-    CHECK(corpus_writer != nullptr);
-    CHECK_OK(corpus_writer->Open(corpus_fname, "w")) << VV(corpus_fname);
-
-    const std::unique_ptr<centipede::BlobFileWriter> features_writer =
-        DefaultBlobFileWriterFactory();
-    CHECK(features_writer != nullptr);
-    CHECK_OK(features_writer->Open(features_fname, "w")) << VV(features_fname);
-
-    // Write the shard's elements to the corpus and features shard files.
-
-    for (size_t e = 0, ee = shard_sizes[s]; e < ee; ++e) {
-      CHECK(elt_it != elements.cend());
-      const ByteArray& input = elt_it->first;
-      CHECK_OK(corpus_writer->Write(input)) << VV(corpus_fname);
-      const FeatureVec& features = elt_it->second;
-      if (!features.empty()) {
-        const ByteArray packed_features = PackFeaturesAndHash(input, features);
-        CHECK_OK(features_writer->Write(packed_features)) << VV(features_fname);
-      }
-      ++elt_it;
-    }
-
-    CHECK_OK(corpus_writer->Close()) << VV(corpus_fname);
-    CHECK_OK(features_writer->Close()) << VV(features_fname);
   }
 }
 
