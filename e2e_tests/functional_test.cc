@@ -45,6 +45,8 @@
 namespace fuzztest::internal {
 namespace {
 
+#define FUZZTEST_FLAG_PREFIX_ ""
+
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
@@ -63,6 +65,11 @@ using ::testing::StartsWith;
 
 constexpr absl::string_view kDefaultTargetBinary =
     "testdata/fuzz_tests_for_functional_testing";
+
+std::string CreateFuzzTestFlag(absl::string_view flag_name,
+                               absl::string_view flag_value) {
+  return absl::StrCat("--", FUZZTEST_FLAG_PREFIX_, flag_name, "=", flag_value);
+}
 
 std::string BinaryPath(const absl::string_view name) {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
@@ -108,11 +115,16 @@ class UnitTestModeTest : public ::testing::Test {
   RunResults Run(
       std::string_view test_filter,
       std::string_view target_binary = kDefaultTargetBinary,
-      const absl::flat_hash_map<std::string, std::string>& env = {}) {
-    return RunCommand(
-        {BinaryPath(target_binary),
-         absl::StrCat("--", GTEST_FLAG_PREFIX_, "filter=", test_filter)},
-        env, absl::Minutes(10));
+      const absl::flat_hash_map<std::string, std::string>& env = {},
+      const absl::flat_hash_map<std::string, std::string>& fuzzer_flags = {}) {
+    std::vector<std::string> commandline = {
+        BinaryPath(target_binary),
+        absl::StrCat("--", GTEST_FLAG_PREFIX_, "filter=", test_filter)};
+
+    for (const auto& flag : fuzzer_flags) {
+      commandline.push_back(CreateFuzzTestFlag(flag.first, flag.second));
+    }
+    return RunCommand(commandline, env, absl::Minutes(10));
   }
 };
 
@@ -546,19 +558,20 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
   }
 
   RunResults RunWith(
-      std::string_view flags,
+      const absl::flat_hash_map<std::string, std::string>& flags,
       const absl::flat_hash_map<std::string, std::string>& env = {},
       absl::Duration timeout = absl::Minutes(10),
       absl::string_view binary = kDefaultTargetBinary) {
     std::vector<std::string> args = {BinaryPath(binary)};
-    std::vector<std::string> split_flags = absl::StrSplit(flags, ' ');
-    args.insert(args.end(), split_flags.begin(), split_flags.end());
+    for (const auto& [key, value] : flags) {
+      args.push_back(CreateFuzzTestFlag(key, value));
+    }
     return RunCommand(args, env, timeout);
   }
 };
 
 TEST_F(GenericCommandLineInterfaceTest, FuzzTestsAreFoundInTheBinary) {
-  auto [status, std_out, std_err] = RunWith("--list_fuzz_tests");
+  auto [status, std_out, std_err] = RunWith({{"list_fuzz_tests", "true"}});
   EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.Coverage"));
   EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.DivByZero"));
   EXPECT_THAT(std_out,
@@ -569,7 +582,7 @@ TEST_F(GenericCommandLineInterfaceTest, FuzzTestsAreFoundInTheBinary) {
 TEST_F(GenericCommandLineInterfaceTest,
        DynamicallyRegisteredFuzzTestsAreFound) {
   auto [status, std_out, std_err] =
-      RunWith(/*flags=*/"--list_fuzz_tests", /*env=*/{},
+      RunWith(/*flags=*/{{"list_fuzz_tests", "true"}}, /*env=*/{},
               /*timeout=*/absl::Minutes(1),
               /*binary=*/"testdata/dynamically_registered_fuzz_tests");
   EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: TestSuiteOne.DoesNothing/1"));
@@ -595,14 +608,14 @@ class FuzzingModeCommandLineInterfaceTest
 };
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, WrongFuzzTestNameTriggersError) {
-  auto [status, std_out, std_err] = RunWith("--fuzz=WrongName");
+  auto [status, std_out, std_err] = RunWith({{"fuzz", "WrongName"}});
   EXPECT_THAT(std_err, HasSubstr("No FUZZ_TEST matches the name: WrongName"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        MatchingMultipleFuzzTestsTriggersError) {
-  auto [status, std_out, std_err] = RunWith("--fuzz=Bad");
+  auto [status, std_out, std_err] = RunWith({{"fuzz", "Bad"}});
   EXPECT_THAT(
       std_err,
       HasSubstr(
@@ -612,14 +625,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, RunsAbortTestAndDetectsAbort) {
-  auto [status, std_out, std_err] = RunWith("--fuzz=MySuite.Aborts");
+  auto [status, std_out, std_err] = RunWith({{"fuzz", "MySuite.Aborts"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        FuzzTestCanBeSelectedForFuzzingUsingSubstring) {
-  auto [status, std_out, std_err] = RunWith("--fuzz=Abort");
+  auto [status, std_out, std_err] = RunWith({{"fuzz", "Abort"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
@@ -627,7 +640,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        IgnoresNegativeFuzzingRunsLimitInEnvVar) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.PassesWithPositiveInput",
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
               /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(std_err, HasSubstr("will not limit fuzzing runs")) << std_err;
@@ -635,7 +648,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.PassesWithPositiveInput",
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "100"}});
   EXPECT_THAT(std_err,
               // 100 fuzzing runs + 1 seed run.
@@ -645,7 +658,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
   auto [status, std_out, std_err] = RunWith(
-      "--fuzz=MySuite.PassesWithPositiveInput --fuzz_for=1s");
+      {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "1s"}});
   EXPECT_THAT(std_err, HasSubstr("Fuzzing timeout set to: 1s")) << std_err;
 }
 
@@ -653,7 +666,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
@@ -674,7 +687,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", out_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(out_dir.dirname());
@@ -689,14 +702,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
   ASSERT_THAT(corpus_files, Not(IsEmpty())) << producer_std_err;
 
   auto [consumer_status, consumer_std_out, consumer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.dirname()}});
   EXPECT_THAT(consumer_std_err,
               HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
@@ -712,7 +725,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
@@ -723,7 +736,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
   }
 
   auto [minimizer_status, minimizer_std_out, minimizer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.dirname()},
                {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.dirname()}});
 
@@ -756,7 +769,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
@@ -766,7 +779,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
   }
 
   auto [minimizer_status, minimizer_std_out, minimizer_std_err] =
-      RunWith("--fuzz=MySuite.String",
+      RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.dirname()},
                {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.dirname()}});
 
@@ -823,7 +836,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ReplayFile replay(std::in_place, std::tuple<std::string>{"NotFuzz"});
 
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.String", replay.GetReplayEnv());
+      RunWith({{"fuzz", "MySuite.String"}}, replay.GetReplayEnv());
   EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
 }
 
@@ -833,7 +846,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
                     std::tuple<std::string>{"Fuzz with some tail."});
 
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.String", replay.GetReplayEnv());
+      RunWith({{"fuzz", "MySuite.String"}}, replay.GetReplayEnv());
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz with some tail.\""));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
@@ -846,7 +859,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.WithDomainClass",
+      RunWith({{"fuzz", "MySuite.WithDomainClass"}},
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
   EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
@@ -864,7 +877,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ReplayFile replay(std::in_place, std::tuple<uint8_t, double>{11, 11});
 
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.WithDomainClass", replay.GetReplayEnv());
+      RunWith({{"fuzz", "MySuite.WithDomainClass"}}, replay.GetReplayEnv());
   EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
 }
 
@@ -872,7 +885,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
        ReplayingCrashingReproducerCrashesTypeErased) {
   ReplayFile replay(std::in_place, std::tuple<uint8_t, double>{10, 1979.125});
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.WithDomainClass", replay.GetReplayEnv());
+      RunWith({{"fuzz", "MySuite.WithDomainClass"}}, replay.GetReplayEnv());
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: 1979.125"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
@@ -887,7 +900,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
     env["FUZZTEST_REPRODUCERS_OUT_DIR"] = out_dir.dirname();
 
     auto [status, std_out, std_err] =
-        RunWith("--fuzz=MySuite.Minimizer", env);
+        RunWith({{"fuzz", "MySuite.Minimizer"}}, env);
     ASSERT_THAT(std_err, HasSubstr("argument 0: \""));
     ASSERT_THAT(status, Eq(Signal(SIGABRT)));
 
@@ -908,7 +921,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        FuzzerStatsArePrintedOnTermination) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.PassesWithPositiveInput",
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               /*env=*/{},
               /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
@@ -919,7 +932,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SilenceTargetWorking) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.TargetPrintSomethingThenAbrt",
+      RunWith({{"fuzz", "MySuite.TargetPrintSomethingThenAbrt"}},
               /*env=*/{{"FUZZTEST_SILENCE_TARGET", "1"}});
   EXPECT_THAT(std_out, Not(HasSubstr("Hello World from target stdout")));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
@@ -929,7 +942,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SilenceTargetWorking) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, NonFatalFailureAllowsMinimization) {
   auto [status, std_out, std_err] =
-      RunWith("--fuzz=MySuite.NonFatalFailureAllowsMinimization");
+      RunWith({{"fuzz", "MySuite.NonFatalFailureAllowsMinimization"}});
   // The final failure should be with the known minimal result, even though many
   // "larger" inputs also trigger the failure.
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"0123\""));
@@ -939,7 +952,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, NonFatalFailureAllowsMinimization) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
   auto [status, std_out, std_err] = RunWith(
-      "--fuzz=MySuite.GoogleTestHasCurrentTestInfo --fuzz_for=1s");
+      {{"fuzz", "MySuite.GoogleTestHasCurrentTestInfo"}, {"fuzz_for", "1s"}});
   EXPECT_THAT(std_out,
               HasSubstr("[       OK ] MySuite.GoogleTestHasCurrentTestInfo"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
@@ -983,13 +996,13 @@ class FuzzingModeFixtureTest : public ::testing::Test {
         {CentipedePath(), "--print_runner_log", "--exit_on_crash",
          absl::StrCat("--workdir=", workdir.dirname()),
          absl::StrCat("--binary=", BinaryPath(kDefaultTargetBinary), " ",
-                      absl::StrCat("--fuzz=", test_name)),
+                      CreateFuzzTestFlag("fuzz", test_name)),
          absl::StrCat("--num_runs=", iterations)},
         /*environment=*/{},
         /*timeout=*/absl::InfiniteDuration());
 #else
     return RunCommand({BinaryPath(kDefaultTargetBinary),
-                       absl::StrCat("--fuzz=", test_name)},
+                       CreateFuzzTestFlag("fuzz", test_name)},
                       {{"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}},
                       /*timeout=*/absl::InfiniteDuration());
 #endif
@@ -1103,11 +1116,11 @@ class FuzzingModeCrashFindingTest : public ::testing::Test {
                        absl::StrCat("--stop_at=", absl::Now() + timeout),
                        absl::StrCat("--workdir=", workdir.dirname()),
                        absl::StrCat("--binary=", BinaryPath(target_binary), " ",
-                                    absl::StrCat("--fuzz=", test_name))},
+                                    CreateFuzzTestFlag("fuzz", test_name))},
                       environment, timeout + absl::Seconds(10));
 #else
     return RunCommand(
-        {BinaryPath(target_binary), absl::StrCat("--fuzz=", test_name)},
+        {BinaryPath(target_binary), CreateFuzzTestFlag("fuzz", test_name)},
         environment, timeout);
 #endif
   }

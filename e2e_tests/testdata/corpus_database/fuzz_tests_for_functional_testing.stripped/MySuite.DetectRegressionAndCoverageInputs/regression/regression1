@@ -1,0 +1,4 @@
+FUZZTESTv1
+sub {
+  s: "regression input number 1"
+}

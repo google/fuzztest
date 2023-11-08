@@ -36,6 +36,11 @@ cc_binary(
     ],
 )
 
+filegroup(
+    name = "data",
+    srcs = glob(["*/**"]),
+)
+
 # The following binaries contain fuzz tests that are not for benchmarking, but
 # for functional testing only, i.e., to be used by `functional_test` only.
 cc_binary(
@@ -49,11 +54,13 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
+        "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@com_google_protobuf//:protobuf",
     ],

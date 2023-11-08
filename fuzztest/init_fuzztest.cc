@@ -1,20 +1,20 @@
 #include "./fuzztest/init_fuzztest.h"
 
 #include <cstdlib>
-#include <iostream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
+#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -61,6 +61,32 @@ FUZZTEST_DEFINE_FLAG(
     "filter to select a subset of fuzz tests. Recommended "
     "to use with test sharding.");
 
+FUZZTEST_DEFINE_FLAG(
+    std::string, corpus_database,
+    "~/.cache/fuzztest",
+    "The directory containing all corpora for all fuzz tests in the project. "
+    "For each test binary, there's a corresponding <binary_name> "
+    "subdirectory in `corpus_database`, and  the <binary_name> directory has "
+    "the following structure: (1) For each fuzz test `SuiteName.TestName` in "
+    "the binary, there's a sub-directory with the name of that test "
+    "('<binary_name>/SuiteName.TestName'). (2) For each fuzz test, there are "
+    "three directories containing `regression`, `crashing`, and `coverage` "
+    "directories. Files in the `regression` directory will always be used. "
+    "Files in `crashing` directory will be used when "
+    "--reproduce_findings_as_separate_tests flag is true. And finally, all "
+    "files in `coverage` directory will be used when --replay_corpus flag is "
+    "true.");
+
+FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
+                     "When true, the selected tests replay all crashing inputs "
+                     "in the database as separate TEST-s.");
+
+FUZZTEST_DEFINE_FLAG(
+    bool, replay_coverage_inputs, false,
+    "When true, the selected tests replay coverage inputs in the database for "
+    "a given test. This is useful for measuring the coverage of the corpus "
+    "built up during previously ran fuzzing sessions.");
+
 namespace fuzztest {
 
 std::vector<std::string> ListRegisteredTests() {
@@ -106,14 +132,30 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
   return *matches[0];
 }
 
-void RunSpecifiedFuzzTest(std::string_view name) {
+namespace {
+
+internal::Configuration CreateConfigurationsFromFlags(
+    absl::string_view binary_path) {
+  const std::string binary_identifier =
+      std::string(internal::Basename(binary_path));
+  std::string binary_corpus = absl::StrCat(
+      absl::GetFlag(FUZZTEST_FLAG(corpus_database)), "/", binary_identifier);
+  if (getenv("TEST_SRCDIR")) {
+    binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
+  }
+  return internal::Configuration(internal::CorpusDatabase(
+      binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
+      absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests))));
+}
+
+}  // namespace
+
+void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name) {
   const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
+  internal::Configuration configuration =
+      CreateConfigurationsFromFlags({binary_id.data(), binary_id.size()});
   internal::ForEachTest([&](auto& test) {
     // TODO(b/301965259): Properly initialize the configuration.
-    internal::Configuration configuration(
-        internal::CorpusDatabase(/*database_path=*/"",
-                                 /*use_coverage_inputs=*/false,
-                                 /*use_crashing_inputs=*/false));
     if (test.full_name() == matching_fuzz_test) {
       std::exit(test.make()->RunInFuzzingMode(/*argc=*/nullptr,
                                               /*argv=*/nullptr, configuration));
@@ -147,11 +189,8 @@ void InitFuzzTest(int* argc, char*** argv) {
     internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
 
-  // TODO(b/301965259): Properly initialize the configuration.
-  internal::Configuration configuration(
-      internal::CorpusDatabase(/*database_path=*/"",
-                               /*use_coverage_inputs=*/false,
-                               /*use_crashing_inputs=*/false));
+  internal::Configuration configuration =
+      CreateConfigurationsFromFlags(*argv[0]);
   internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified

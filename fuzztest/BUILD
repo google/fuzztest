@@ -69,6 +69,7 @@ cc_library(
     deps = [
         ":configuration",
         ":googletest_adaptor",
+        ":io",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/flags:flag",

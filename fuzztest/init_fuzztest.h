@@ -50,9 +50,12 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name);
 // If `name` matches exactly one FUZZ_TEST, it runs the selected test in fuzzing
 // mode, until a bug is found or until manually stopped. Otherwise, it exits.
 //
+// `binary_id` is used to lookup the binary corpus in the project corpus
+// database.
+//
 // REQUIRES: `main()` has started before calling this function.
 // REQUIRES: Binary must be built with SanCov instrumentation on.
-void RunSpecifiedFuzzTest(std::string_view name);
+void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name);
 
 }  // namespace fuzztest
 
