@@ -157,19 +157,19 @@ void SampleSeedCorpusElementsFromSource(    //
 
   // Find all the corpus shard files in the found dirs.
 
-  std::vector<std::string> corpus_fnames;
+  std::vector<std::string> corpus_shard_fnames;
   for (const auto& dir : src_dirs) {
     const std::string shards_glob = fs::path{dir} / source.shard_rel_glob();
     // NOTE: `RemoteGlobMatch` appends to the output list.
-    const auto prev_num_shards = corpus_fnames.size();
-    RemoteGlobMatch(shards_glob, corpus_fnames);
-    LOG(INFO) << "Found " << (corpus_fnames.size() - prev_num_shards)
+    const auto prev_num_shards = corpus_shard_fnames.size();
+    RemoteGlobMatch(shards_glob, corpus_shard_fnames);
+    LOG(INFO) << "Found " << (corpus_shard_fnames.size() - prev_num_shards)
               << " shards matching " << shards_glob;
   }
-  LOG(INFO) << "Found " << corpus_fnames.size() << " shards total in source "
-            << source.dir_glob();
+  LOG(INFO) << "Found " << corpus_shard_fnames.size()
+            << " shards total in source " << source.dir_glob();
 
-  if (corpus_fnames.empty()) {
+  if (corpus_shard_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob();
     return;
   }
@@ -177,9 +177,9 @@ void SampleSeedCorpusElementsFromSource(    //
   // Read all the elements from the found corpus shard files.
 
   InputAndFeaturesVec src_elts;
-  size_t num_non_empty_features = 0;
+  size_t src_num_features = 0;
 
-  for (const auto& corpus_fname : corpus_fnames) {
+  for (const auto& corpus_fname : corpus_shard_fnames) {
     // NOTE: The deduced matching `features_fname` may not exist if the source
     // corpus was generated for a coverage binary that is different from the one
     // we need, but `ReadShard()` can tolerate that, passing empty `FeatureVec`s
@@ -193,16 +193,16 @@ void SampleSeedCorpusElementsFromSource(    //
             ? work_dir.DistilledFeaturesFiles().MyShardPath()
             : "";
     size_t prev_src_elts_size = src_elts.size();
-    size_t prev_num_non_empty_features = num_non_empty_features;
+    size_t prev_num_non_empty_features = src_num_features;
     ReadShard(corpus_fname, features_fname,
-              [&src_elts, &num_non_empty_features](const ByteArray& input,
-                                                   FeatureVec& features) {
-                num_non_empty_features += features.empty() ? 0 : 1;
+              [&src_elts, &src_num_features](  //
+                  const ByteArray& input, FeatureVec& features) {
+                src_num_features += features.empty() ? 0 : 1;
                 src_elts.emplace_back(input, std::move(features));
               });
     LOG(INFO) << "Read " << (src_elts.size() - prev_src_elts_size)
               << " elements with "
-              << (num_non_empty_features - prev_num_non_empty_features)
+              << (src_num_features - prev_num_non_empty_features)
               << " non-empty features from source shard:\n"
               << VV(corpus_fname) << "\n"
               << VV(features_fname);
@@ -211,7 +211,7 @@ void SampleSeedCorpusElementsFromSource(    //
   RPROF_SNAPSHOT_AND_LOG("Done reading");
 
   LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
-            << num_non_empty_features << " non-empty features from source "
+            << src_num_features << " non-empty features from source "
             << source.dir_glob();
 
   // Extract a sample of the elements of the size specified in
@@ -279,12 +279,12 @@ void WriteSeedCorpusElementsToDestination(  //
 
   // Write the elements to the shard files.
   auto elt_it = elements.cbegin();
-  for (size_t s = 0; s < shard_sizes.size(); ++s) {
+  for (size_t shard = 0; shard < shard_sizes.size(); ++shard) {
     // Generate the output shard's filename.
     // TODO(ussuri): Use more of `WorkDir` APIs here (possibly extend them,
     //  and possibly retire `SeedCorpusDestination::shard_index_digits`).
     const std::string shard_idx =
-        absl::StrFormat("%0*d", destination.shard_index_digits(), s);
+        absl::StrFormat("%0*d", destination.shard_index_digits(), shard);
     const std::string corpus_rel_fname =
         absl::StrReplaceAll(destination.shard_rel_glob(), {{"*", shard_idx}});
     const std::string corpus_fname =
@@ -308,7 +308,7 @@ void WriteSeedCorpusElementsToDestination(  //
             : work_dir.DistilledFeaturesFiles().MyShardPath();
     CHECK(!features_fname.empty());
 
-    LOG(INFO) << "Writing " << shard_sizes[s]
+    LOG(INFO) << "Writing " << shard_sizes[shard]
               << " elements to destination shard:\n"
               << VV(corpus_fname) << "\n"
               << VV(features_fname);
@@ -343,7 +343,7 @@ void WriteSeedCorpusElementsToDestination(  //
 
     // Write the shard's elements to the corpus and features shard files.
 
-    for (size_t e = 0, ee = shard_sizes[s]; e < ee; ++e) {
+    for (size_t e = 0, ee = shard_sizes[shard]; e < ee; ++e) {
       CHECK(elt_it != elements.cend());
       const ByteArray& input = elt_it->first;
       CHECK_OK(corpus_writer->Write(input)) << VV(corpus_fname);
