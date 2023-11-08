@@ -37,11 +37,13 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./centipede/rusage_profiler.h"
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/util.h"
@@ -130,6 +132,11 @@ void SampleSeedCorpusElementsFromSource(    //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     InputAndFeaturesVec& elements) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                //
+      /*enable=*/true,                                               //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 5 : 60),  //
+      /*also_log_timelapses=*/VLOG_IS_ON(10));
+
   LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
             << source.DebugString();
 
@@ -200,6 +207,9 @@ void SampleSeedCorpusElementsFromSource(    //
               << VV(corpus_fname) << "\n"
               << VV(features_fname);
   }
+
+  RPROF_SNAPSHOT_AND_LOG("Done reading");
+
   LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
             << num_non_empty_features << " non-empty features from source "
             << source.dir_glob();
@@ -233,6 +243,8 @@ void SampleSeedCorpusElementsFromSource(    //
     // TODO(ussuri): Should we still use std::sample() to randomize the order?
     elements.insert(elements.end(), src_elts.cbegin(), src_elts.cend());
   }
+
+  RPROF_SNAPSHOT_AND_LOG("Done sampling");
 }
 
 void WriteSeedCorpusElementsToDestination(  //
@@ -240,6 +252,11 @@ void WriteSeedCorpusElementsToDestination(  //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                //
+      /*enable=*/true,                                               //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 5 : 60),  //
+      /*also_log_timelapses=*/VLOG_IS_ON(10));
+
   LOG(INFO) << "Writing seed corpus elements to destination:\n"
             << destination.DebugString();
 
