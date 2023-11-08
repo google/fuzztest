@@ -15,11 +15,11 @@
 #ifndef FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_
 #define FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_
 
+#include <algorithm>
 #include <cstdlib>
-#include <memory>
-#include <utility>
 
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
@@ -28,19 +28,35 @@ namespace fuzztest::internal {
 
 class GTest_TestAdaptor : public ::testing::Test {
  public:
-  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv)
-      : test_(test), argc_(argc), argv_(argv) {}
+  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv,
+                             Configuration configuration)
+      : test_(test),
+        argc_(argc),
+        argv_(argv),
+        configuration_(std::move(configuration)) {}
 
   void TestBody() override {
     auto test = test_.make();
-    // TODO(b/301965259): Properly initialize the configuration.
-    Configuration configuration(CorpusDatabase(/*database_path=*/"",
-                                               /*use_coverage_inputs=*/false,
-                                               /*use_crashing_inputs=*/false));
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
-      test->RunInUnitTestMode(configuration);
+      if (configuration_.crashing_input_to_reproduce.has_value()) {
+#ifdef GTEST_HAS_DEATH_TEST
+        // `RunInUnitTestMode` is supposed to fail and we wish to show the
+        // failure to the user. Directly running the test would terminate the
+        // process and using `EXPECT_DEATH` causes the test to pass. We use
+        // `EXPECT_EXIT` so that the test exit unsuccessfully, meaning that the
+        // test below fails without terminating the process.
+        EXPECT_EXIT(test->RunInUnitTestMode(configuration_),
+                    ::testing::ExitedWithCode(0), "");
+#else
+        test->RunInUnitTestMode(configuration_);
+#endif
+      } else {
+        test->RunInUnitTestMode(configuration_);
+      }
     } else {
-      ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_, configuration))
+      // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
+      // tolerate crashes in fuzzing mode.
+      ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_, configuration_))
           << "Fuzzing failure.";
     }
   }
@@ -61,6 +77,7 @@ class GTest_TestAdaptor : public ::testing::Test {
   FuzzTest& test_;
   int* argc_;
   char*** argv_;
+  Configuration configuration_;
 };
 
 template <typename Base, typename TestPartResult>
@@ -83,7 +100,8 @@ class GTest_EventListener : public Base {
 };
 
 // Registers FUZZ_TEST as GoogleTest TEST-s.
-void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv);
+void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv,
+                                    const Configuration& configuration);
 
 }  // namespace fuzztest::internal
 

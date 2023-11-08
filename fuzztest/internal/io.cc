@@ -134,6 +134,14 @@ std::vector<std::string> ListDirectory(std::string_view dir) {
   return out;
 }
 
+std::string_view Basename(std::string_view filename) {
+  auto last_slash_pos = filename.find_last_of("/\\");
+
+  return last_slash_pos == std::string_view::npos
+             ? filename
+             : filename.substr(last_slash_pos + 1);
+}
+
 #endif  // defined(STUB_FILESYSTEM)
 
 }  // namespace fuzztest::internal

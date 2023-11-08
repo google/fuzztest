@@ -316,8 +316,11 @@ cc_library(
     hdrs = ["internal/googletest_adaptor.h"],
     deps = [
         ":configuration",
+        ":io",
         ":registry",
         ":runtime",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest",
     ],
 )

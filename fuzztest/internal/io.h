@@ -46,6 +46,9 @@ std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir);
 // returns an empty list.
 std::vector<std::string> ListDirectory(std::string_view dir);
 
+// Returns the basename of `filename`.
+std::string_view Basename(std::string_view filename);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_IO_H_

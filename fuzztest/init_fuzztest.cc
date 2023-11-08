@@ -143,14 +143,21 @@ void InitFuzzTest(int* argc, char*** argv) {
   const bool is_duration_specified =
       absl::ZeroDuration() < duration && duration < absl::InfiniteDuration();
   if (is_duration_specified) {
+    // TODO(b/307513669): Use the Configuration class instead of Runtime.
     internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
 
-  internal::RegisterFuzzTestsAsGoogleTests(argc, argv);
+  // TODO(b/301965259): Properly initialize the configuration.
+  internal::Configuration configuration(
+      internal::CorpusDatabase(/*database_path=*/"",
+                               /*use_coverage_inputs=*/false,
+                               /*use_crashing_inputs=*/false));
+  internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified
                                ? RunMode::kFuzz
                                : RunMode::kUnitTest;
+  // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
 }
 
