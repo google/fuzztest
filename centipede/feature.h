@@ -30,21 +30,15 @@
 #ifndef THIRD_PARTY_CENTIPEDE_FEATURE_H_
 #define THIRD_PARTY_CENTIPEDE_FEATURE_H_
 
-#include <stddef.h>
-#include <string.h>
-
 // WARNING!!!: Be very careful with what STL headers or other dependencies you
 // add here. This header needs to remain mostly bare-bones so that we can
 // include it into runner.
 // <vector> is an exception, because it's too clumsy w/o it, and it introduces
 // minimal code footprint.
+#include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <memory>
+#include <cstring>
 #include <vector>
-
-#include "./centipede/concurrent_bitset.h"
-#include "./centipede/int_utils.h"
 
 namespace centipede {
 

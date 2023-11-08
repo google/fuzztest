@@ -45,7 +45,7 @@
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/foreach_nonzero.h"
+#include "./centipede/int_utils.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_interface.h"
@@ -1040,7 +1040,7 @@ extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 
 extern "C" void CentipedeClearExecutionResult() {
-  // TODO: full_clear=true is expensive - performance may suffer.
+  // TODO(kcc): full_clear=true is expensive - performance may suffer.
   centipede::PrepareCoverage(/*full_clear=*/true);
 }
 

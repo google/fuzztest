@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <numeric>
-#include <string>
 #include <thread>  // NOLINT.
 #include <utility>
 #include <vector>
@@ -27,8 +26,12 @@
 #include "gtest/gtest.h"
 #include "absl/base/const_init.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "./centipede/concurrent_bitset.h"
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/hashed_ring_buffer.h"
+#include "./centipede/int_utils.h"
 #include "./centipede/logging.h"
 
 namespace centipede {

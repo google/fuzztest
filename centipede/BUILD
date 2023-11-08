@@ -133,7 +133,6 @@ cc_library(
     ],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
-        ":int_utils",
         ":rolling_hash",
         "@com_google_absl//absl/base:core_headers",  # exception, ok to depend on here.
     ],
@@ -1353,9 +1352,12 @@ cc_test(
     srcs = ["feature_test.cc"],
     deps = [
         ":feature",
+        ":int_utils",
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -22,6 +22,7 @@
 #include <cstdio>
 
 #include "./centipede/feature.h"
+#include "./centipede/int_utils.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner.h"
