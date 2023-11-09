@@ -207,7 +207,7 @@ Note: Google Test filter = MyTestSuite.IntegerAdditionCommutes
 
 Congratulations! You're now all set for fuzzing with FuzzTest.
 
-## ### Compatibility mode
+### Compatibility mode
 
 Linking FuzzTest using `link_fuzztest()` enables linking with external fuzzing engines, when built with `-DFUZZTEST_COMPATIBILITY_MODE`.
 
