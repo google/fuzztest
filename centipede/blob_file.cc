@@ -135,11 +135,11 @@ class SimpleBlobFileWriter : public BlobFileWriter {
 };
 
 std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
-  return std::make_unique<SimpleBlobFileReader>();
+    return std::make_unique<SimpleBlobFileReader>();
 }
 
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory() {
-  return std::make_unique<SimpleBlobFileWriter>();
+    return std::make_unique<SimpleBlobFileWriter>();
 }
 
 }  // namespace centipede
