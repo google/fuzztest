@@ -5,9 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
 #include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
@@ -15,26 +14,18 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/fuzztest.h"
-#include "./fuzztest/init_fuzztest.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/io.h"
 #include "re2/re2.h"
 
-ABSL_FLAG(std::string, llvm_fuzzer_wrapper_dict_file, "",
-          "Path to dictionary file used by the wrapped legacy LLVMFuzzer "
-          "target (https://llvm.org/docs/LibFuzzer.html#fuzz-target).");
-ABSL_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir, "",
-          "Path to seed corpus directory used by the wrapped legacy LLVMFuzzer "
-          "target (https://llvm.org/docs/LibFuzzer.html#fuzz-target).");
+ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
+ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
 
 constexpr static size_t kByteArrayMaxLen = 4096;
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size);
-
-extern "C" int __attribute__((weak))
-LLVMFuzzerInitialize(int* argc, char*** argv);
 
 extern "C" size_t __attribute__((weak))
 LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
@@ -183,13 +174,3 @@ FUZZ_TEST(LLVMFuzzer, TestOneInput)
     .WithDomains(ArbitraryByteVector()
                      .WithDictionary(ReadByteArrayDictionaryFromFile)
                      .WithSeeds(ReadByteArraysFromDirectory));
-
-int main(int argc, char** argv) {
-  absl::ParseCommandLine(argc, argv);
-  if (LLVMFuzzerInitialize) {
-    LLVMFuzzerInitialize(&argc, &argv);
-  }
-  testing::InitGoogleTest(&argc, argv);
-  fuzztest::InitFuzzTest(&argc, &argv);
-  return RUN_ALL_TESTS();
-}

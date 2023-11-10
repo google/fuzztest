@@ -83,22 +83,33 @@ cc_library(
 
 # TODO(hadi88): Add an e2e test for llvm_fuzzer_wrapper.
 cc_library(
+    name = "llvm_fuzzer_main",
+    testonly = True,
+    srcs = ["llvm_fuzzer_main.cc"],
+    deps = [
+        ":init_fuzztest",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_googletest//:gtest",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "llvm_fuzzer_wrapper",
     testonly = True,
     srcs = ["llvm_fuzzer_wrapper.cc"],
     deps = [
         ":domain_core",
         ":fuzztest",
-        ":init_fuzztest",
         ":io",
+        ":llvm_fuzzer_main",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
-        "@com_google_googletest//:gtest",
         "@com_googlesource_code_re2//:re2",
     ],
     alwayslink = True,
