@@ -381,7 +381,7 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
       // Is always unset.
       .WithOptionalUInt32Field("uint32", NullOpt<int32_t>())
       // Is always set.
-      .WithOptionalInt32Field("int32", NonNull(InRange(1, 10)))
+      .WithOptionalInt32Field("int32", NonNull(OptionalOf(InRange(1, 10))))
       // Is non-empty.
       .WithRepeatedInt32Field("rep_int", VectorOf(InRange(1, 10)).WithMinSize(1))
       // Is vector of unique elements.
