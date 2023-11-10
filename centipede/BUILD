@@ -57,10 +57,13 @@ cc_binary(
     srcs = ["seed_corpus_maker.cc"],
     deps = [
         ":config_init",
+        ":remote_file",
         ":seed_corpus_maker_flags",
         ":seed_corpus_maker_lib",
         ":util",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
