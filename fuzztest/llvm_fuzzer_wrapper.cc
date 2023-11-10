@@ -7,6 +7,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
@@ -184,10 +185,11 @@ FUZZ_TEST(LLVMFuzzer, TestOneInput)
                      .WithSeeds(ReadByteArraysFromDirectory));
 
 int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, &argv);
+  absl::ParseCommandLine(argc, argv);
   if (LLVMFuzzerInitialize) {
     LLVMFuzzerInitialize(&argc, &argv);
   }
+  testing::InitGoogleTest(&argc, argv);
   fuzztest::InitFuzzTest(&argc, &argv);
   return RUN_ALL_TESTS();
 }

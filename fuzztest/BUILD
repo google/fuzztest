@@ -81,6 +81,7 @@ cc_library(
     alwayslink = True,
 )
 
+# TODO(hadi88): Add an e2e test for llvm_fuzzer_wrapper.
 cc_library(
     name = "llvm_fuzzer_wrapper",
     testonly = True,
@@ -91,6 +92,7 @@ cc_library(
         ":init_fuzztest",
         ":io",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
