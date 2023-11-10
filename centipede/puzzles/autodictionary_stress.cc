@@ -26,7 +26,9 @@
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   auto beg = data;
-  const auto end = data + size;
+  // Ignore any data starting with \0 so that the strcmp later would
+  // compare to the full length of the target token.
+  const auto end = data + strnlen(reinterpret_cast<const char *>(data), size);
 
   auto memcmp_and_forward = [&](const char *str) {
     const auto len = strlen(str);

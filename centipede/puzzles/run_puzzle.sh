@@ -65,8 +65,12 @@ function Run() {
     --timeout_per_input=10 \
     --exit_on_crash \
     "$@" \
-    > "${log}" 2>&1 && exit 1  # Centipede must exit with failure.
-  cat "${log}"
+    |& tee "${log}" || exit_code=$?
+  # Centipede must exit with failure.
+  if ((exit_code == 0)); then
+      return 1
+  fi
+  return 0
 }
 
 # Checks that $1 is the solution for the puzzle.
