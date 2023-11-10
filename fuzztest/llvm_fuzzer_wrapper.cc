@@ -186,10 +186,10 @@ FUZZ_TEST(LLVMFuzzer, TestOneInput)
 
 int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
+  testing::InitGoogleTest(&argc, argv);
   if (LLVMFuzzerInitialize) {
     LLVMFuzzerInitialize(&argc, &argv);
   }
-  testing::InitGoogleTest(&argc, argv);
   fuzztest::InitFuzzTest(&argc, &argv);
   return RUN_ALL_TESTS();
 }
