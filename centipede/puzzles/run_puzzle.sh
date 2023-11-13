@@ -57,7 +57,7 @@ function Run() {
   echo "======== Run $*"
   rm -rf "${workdir}"
   mkdir "${workdir}"
-  "${centipede}" \
+  if "${centipede}" \
     --workdir "${workdir}" \
     --binary "${puzzle_path}" \
     --seed="${seed}" \
@@ -65,12 +65,11 @@ function Run() {
     --timeout_per_input=10 \
     --exit_on_crash \
     "$@" \
-    |& tee "${log}" || exit_code=$?
-  # Centipede must exit with failure.
-  if ((exit_code == 0)); then
-      return 1
+    |& tee "${log}"
+  then
+    # Centipede must exit with failure.
+    return 1
   fi
-  return 0
 }
 
 # Checks that $1 is the solution for the puzzle.
