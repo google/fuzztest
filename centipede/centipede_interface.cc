@@ -208,8 +208,10 @@ int CentipedeMain(const Environment &env,
 
   // Export the corpus from a local dir and then fuzz.
   if (!env.corpus_dir.empty()) {
-    for (const auto &corpus_dir : env.corpus_dir) {
-      Centipede::CorpusFromFiles(env, corpus_dir);
+    for (size_t i = 0; i < env.corpus_dir.size(); ++i) {
+      const auto &corpus_dir = env.corpus_dir[i];
+      if (i > 0 || !env.first_corpus_dir_output_only)
+        Centipede::CorpusFromFiles(env, corpus_dir);
     }
   }
 

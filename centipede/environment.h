@@ -101,6 +101,11 @@ struct Environment {
   bool save_binary_info = false;
   bool populate_binary_info = true;
 
+  // Internal settings without global flags ------------------------------------
+
+  // If set, treat the first entry of `corpus_dir` as output-only.
+  bool first_corpus_dir_output_only = false;
+
   // Command line-related fields -----------------------------------------------
 
   std::string exec_name;          // copied from argv[0]

@@ -155,6 +155,90 @@ static size_t CountFilesInDir(std::string_view dir_path) {
                        std::filesystem::end(dir_iter));
 }
 
+TEST(Centipede, ReadFirstCorpusDir) {
+  TempDir workdir_1{test_info_->name(), "workdir_1"};
+  TempDir workdir_2{test_info_->name(), "workdir_2"};
+  TempDir corpus_dir{test_info_->name(), "corpus"};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = workdir_1.path();
+  env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
+  env.batch_size = 7;     // Just some small number.
+  env.require_pc_table = false;  // No PC table here.
+  env.corpus_dir.push_back(corpus_dir.path());
+
+  // First, generate corpus files in corpus_dir.
+  CentipedeMock mock_1(env);
+  MockFactory factory_1(mock_1);
+  CentipedeMain(env, factory_1);
+  ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
+  ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
+  ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
+            512);  // All 1-byte and 2-byte inputs.
+
+  // Second, run without fuzzing using the same corpus_dir.
+  env.workdir = workdir_2.path();
+  env.num_runs = 0;
+  CentipedeMock mock_2(env);
+  MockFactory factory_2(mock_2);
+  CentipedeMain(env, factory_2);
+  // Should observe all inputs in corpus_dir.
+  EXPECT_EQ(mock_2.num_inputs_, 512);
+}
+
+TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
+  TempDir workdir_1{test_info_->name(), "workdir_1"};
+  TempDir workdir_2{test_info_->name(), "workdir_2"};
+  TempDir corpus_dir{test_info_->name(), "corpus"};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = workdir_1.path();
+  env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
+  env.batch_size = 7;     // Just some small number.
+  env.require_pc_table = false;  // No PC table here.
+  env.corpus_dir.push_back(corpus_dir.path());
+
+  // First, generate corpus files in corpus_dir.
+  CentipedeMock mock_1(env);
+  MockFactory factory_1(mock_1);
+  CentipedeMain(env, factory_1);
+  ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
+  ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
+  ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
+            512);  // All 1-byte and 2-byte inputs.
+
+  // Second, run without fuzzing using the same corpus_dir, but as output-only.
+  env.workdir = workdir_2.path();
+  env.num_runs = 0;
+  env.first_corpus_dir_output_only = true;
+  CentipedeMock mock_2(env);
+  MockFactory factory_2(mock_2);
+  CentipedeMain(env, factory_2);
+  // Should observe no inputs other than the seed input {0}.
+  EXPECT_EQ(mock_2.num_inputs_, 1);
+}
+
+TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = tmp_dir.path();
+  env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
+  env.batch_size = 7;     // Just some small number.
+  env.require_pc_table = false;  // No PC table here.
+  // Set the first corpus_dir entry to empty path to skip output.
+  env.corpus_dir.push_back("");
+  env.corpus_dir.push_back(tmp_dir.CreateSubdir("cd"));
+
+  CentipedeMock mock(env);
+  MockFactory factory(mock);
+  CentipedeMain(env, factory);  // Run fuzzing with num_runs inputs.
+  EXPECT_EQ(mock.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
+  EXPECT_EQ(mock.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
+  // No output should be in other entires of corpus_dir.
+  EXPECT_EQ(CountFilesInDir(env.corpus_dir[1]), 0);
+}
+
 // Tests fuzzing and distilling in multiple shards.
 TEST(Centipede, ShardsAndDistillTest) {
   TempCorpusDir tmp_dir{test_info_->name()};

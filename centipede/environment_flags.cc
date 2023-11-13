@@ -273,8 +273,8 @@ ABSL_FLAG(std::vector<std::string>, corpus_dir, default_env->corpus_dir,
           "Comma-separated list of paths to local corpus dirs, with one file "
           "per input. At startup, the files are exported into the corpus in "
           "--workdir. While fuzzing, the new corpus elements are written to "
-          "the first dir. This makes it more convenient to interop with "
-          "libFuzzer corpora.");
+          "the first dir if it is not empty. This makes it more convenient to "
+          "interop with libFuzzer corpora.");
 ABSL_FLAG(std::string, symbolizer_path, default_env->symbolizer_path,
           "Path to the symbolizer tool. By default, we use llvm-symbolizer "
           "and assume it is in PATH.");

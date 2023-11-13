@@ -351,7 +351,7 @@ bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
       if (corpus_file != nullptr) {
         CHECK_OK(corpus_file->Write(input_vec[i]));
       }
-      if (!env_.corpus_dir.empty()) {
+      if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
         WriteToLocalHashedFileInDir(env_.corpus_dir[0], input_vec[i]);
       }
       if (features_file != nullptr) {
@@ -613,7 +613,7 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   for (size_t i = 0; i < corpus_.NumActive(); ++i) {
     const ByteArray &input = corpus_.Get(i);
     CHECK_OK(appender->Write(input));
-    if (!env_.corpus_dir.empty()) {
+    if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
       WriteToLocalHashedFileInDir(env_.corpus_dir[0], input);
     }
   }
