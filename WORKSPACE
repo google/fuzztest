@@ -55,6 +55,48 @@ http_archive(
     url = "https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip",
 )
 
+http_archive(
+    name = "com_google_riegeli",
+    sha256 = "f8386e44e16d044c1d7151c0b553bb7075d79583d4fa9e613a4be452599e0795",
+    strip_prefix = "riegeli-411cda7f6aa81f8b8591b04cf141b1decdcc928c",
+    url = "https://github.com/google/riegeli/archive/411cda7f6aa81f8b8591b04cf141b1decdcc928c.tar.gz",
+)
+
+################################################################################
+# Dependencies required for Riegeli
+################################################################################
+
+http_archive(
+    name = "highwayhash",
+    sha256 = "cf891e024699c82aabce528a024adbe16e529f2b4e57f954455e0bf53efae585",
+    strip_prefix = "highwayhash-276dd7b4b6d330e4734b756e97ccfb1b69cc2e12",
+    urls = ["https://github.com/google/highwayhash/archive/276dd7b4b6d330e4734b756e97ccfb1b69cc2e12.zip"],  # 2019-02-22
+    build_file = "@com_google_riegeli//third_party:highwayhash.BUILD",
+)
+
+http_archive(
+    name = "org_brotli",
+    sha256 = "84a9a68ada813a59db94d83ea10c54155f1d34399baf377842ff3ab9b3b3256e",
+    strip_prefix = "brotli-3914999fcc1fda92e750ef9190aa6db9bf7bdb07",
+    urls = ["https://github.com/google/brotli/archive/3914999fcc1fda92e750ef9190aa6db9bf7bdb07.zip"],  # 2022-11-17
+)
+
+http_archive(
+    name = "net_zstd",
+    sha256 = "b6c537b53356a3af3ca3e621457751fa9a6ba96daf3aebb3526ae0f610863532",
+    strip_prefix = "zstd-1.4.5/lib",
+    urls = ["https://github.com/facebook/zstd/archive/v1.4.5.zip"],  # 2020-05-22
+    build_file = "@com_google_riegeli//third_party:net_zstd.BUILD",
+)
+
+http_archive(
+    name = "snappy",
+    sha256 = "38b4aabf88eb480131ed45bfb89c19ca3e2a62daeb081bdf001cfb17ec4cd303",
+    strip_prefix = "snappy-1.1.8",
+    urls = ["https://github.com/google/snappy/archive/1.1.8.zip"],  # 2020-01-14
+    build_file = "@com_google_riegeli//third_party:snappy.BUILD",
+)
+
 ################################################################################
 # Direct dependencies that are only required for running tests
 ################################################################################

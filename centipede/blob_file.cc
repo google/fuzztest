@@ -20,12 +20,22 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "riegeli/base/object.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/records/record_reader.h"
+#include "riegeli/records/record_writer.h"
+
+ABSL_FLAG(bool, riegeli, false,
+          "Use Riegeli file format (instead of the default bespoke encoding) "
+          "for storage");
 
 namespace centipede {
 
@@ -134,11 +144,98 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   bool closed_ = false;
 };
 
+// Implementations of `BlobFileReader`/`BlobFileWriter` based on Riegeli
+// (https://github.com/google/riegeli).
+class RiegeliReader : public BlobFileReader {
+ public:
+  ~RiegeliReader() override {
+    // Virtual resolution is off in dtors, so use a specific Close().
+    CHECK_OK(RiegeliReader::Close());
+  }
+
+  absl::Status Open(std::string_view path) override {
+    reader_.Reset(riegeli::FdReader(path));
+    if (!reader_.ok()) return reader_.status();
+    return absl::OkStatus();
+  }
+
+  absl::Status Read(absl::Span<const uint8_t> &blob) override {
+    absl::string_view record;
+    if (!reader_.ReadRecord(record)) {
+      if (reader_.ok())
+        return absl::OutOfRangeError("no more blobs");
+      else
+        return reader_.status();
+    }
+    blob = absl::Span<const uint8_t>(
+        reinterpret_cast<const uint8_t *>(record.data()), record.size());
+    return absl::OkStatus();
+  }
+
+  absl::Status Close() override {
+    if (!reader_.Close()) {
+      absl::Status s = reader_.status();
+      // If the file is deleted before this Close() call is made then it will
+      // fail with a file not found error. In this case, no resources need to be
+      // relinquished, so mark the reader as closed.
+      if (absl::IsNotFound(s)) {
+        reader_.Reset(riegeli::kClosed);
+        return absl::OkStatus();
+      }
+      // All other close errors are propagated.
+      return s;
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  riegeli::RecordReader<riegeli::FdReader<>> reader_{riegeli::kClosed};
+};
+
+class RiegeliWriter : public BlobFileWriter {
+ public:
+  ~RiegeliWriter() override {
+    // Virtual resolution is off in dtors, so use a specific Close().
+    CHECK_OK(RiegeliWriter::Close());
+  }
+
+  absl::Status Open(std::string_view path, std::string_view mode) override {
+    CHECK(mode == "w" || mode == "a") << VV(mode);
+    if (writer_.is_open() && !writer_.Close()) return writer_.status();
+    writer_.Reset(riegeli::FdWriter(
+        path, riegeli::FdWriterBase::Options().set_append(mode == "a")));
+    if (!writer_.ok()) return writer_.status();
+    return absl::OkStatus();
+  }
+
+  absl::Status Write(absl::Span<const uint8_t> blob) override {
+    if (!writer_.WriteRecord(absl::string_view(
+            reinterpret_cast<const char *>(blob.data()), blob.size()))) {
+      return writer_.status();
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status Close() override {
+    if (!writer_.Close()) return writer_.status();
+    return absl::OkStatus();
+  }
+
+ private:
+  riegeli::RecordWriter<riegeli::FdWriter<>> writer_{riegeli::kClosed};
+};
+
 std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
+  if (absl::GetFlag(FLAGS_riegeli))
+    return std::make_unique<RiegeliReader>();
+  else
     return std::make_unique<SimpleBlobFileReader>();
 }
 
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory() {
+  if (absl::GetFlag(FLAGS_riegeli))
+    return std::make_unique<RiegeliWriter>();
+  else
     return std::make_unique<SimpleBlobFileWriter>();
 }
 

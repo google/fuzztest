@@ -387,8 +387,14 @@ cc_library(
         ":logging",
         ":remote_file",
         ":util",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
+        "@com_google_riegeli//riegeli/base:object",
+        "@com_google_riegeli//riegeli/bytes:fd_reader",
+        "@com_google_riegeli//riegeli/bytes:fd_writer",
+        "@com_google_riegeli//riegeli/records:record_reader",
+        "@com_google_riegeli//riegeli/records:record_writer",
     ],
 )
 
