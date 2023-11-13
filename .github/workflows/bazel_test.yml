@@ -43,7 +43,8 @@ jobs:
       - name: Setup --config=fuzztest for Bazel
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
-      - name: Delete Bazel cache (nightly)
+      - name: Nightly cache reset
+        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
         if: github.event_name == 'schedule'
         continue-on-error: true
         env:

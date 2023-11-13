@@ -19,31 +19,55 @@ on:
     branches:
     - main
   pull_request:
+  schedule:
+    # Triggered nightly at 8:00 AM UTC to re-create the build cache (ccache).
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
-# TODO: Support caching.
 jobs:
   run_tests:
     name: Run CMake tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
     strategy:
       matrix:
-        mode: ['default', 'fuzzing']
+        mode: ['default', 'fuzzing', 'codelab']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            clang libprotobuf-dev protobuf-compiler
+            ccache clang libprotobuf-dev protobuf-compiler
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: "3.19.0"  # Use exactly 3.19.0. And it also installs the latest ninja
-      - name: Check whether fuzztest can be build with FetchContent
+      - name: Nightly cache reset
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/caches?key=cmake-cache-${{ matrix.mode }}
+      - name: Mount the build cache (ccache)
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: cmake-cache-${{ matrix.mode }}
+      - name: Check whether FuzzTest can be build using FetchContent
+        if: matrix.mode == 'codelab'
         run: |
           CC=clang CXX=clang++ cmake \
             -S codelab -B build_codelab -G Ninja  \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_BUILD_TYPE=RelWithDebug \
             -DFUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" && \
           cmake --build build_codelab -j
       - name: Run all tests in default mode
@@ -52,6 +76,8 @@ jobs:
           mkdir build && \
           cd build && \
           CC=clang CXX=clang++ cmake -G Ninja \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=RelWithDebug \
             -DRE2_BUILD_TESTING=off \
             -Dprotobuf_BUILD_TESTS=off \
@@ -64,6 +90,8 @@ jobs:
           mkdir build && \
           cd build && \
           CC=clang CXX=clang++ cmake -G Ninja \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=RelWithDebug \
             -DRE2_BUILD_TESTING=off \
             -Dprotobuf_BUILD_TESTS=off \
