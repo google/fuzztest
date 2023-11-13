@@ -1,0 +1,75 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Bazel Test Centipede
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'centipede/**'
+  pull_request:
+  schedule:
+    # Triggered nightly at 8:00 AM UTC to reset the Bazel cache.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  run_tests:
+    name: Run Centipede tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        config: ['default', 'asan']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -yq \
+            clang llvm libssl-dev
+      - name: Nightly cache reset
+        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/caches?key=bazel-centipede-cache-${{ matrix.config }}
+      - name: Mount Bazel cache
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-centipede-cache-${{ matrix.config }}
+      - name: Run unit tests
+        if: matrix.config == 'default'
+        run: |
+          bazel test --local_test_jobs=1 --test_output=streamed centipede:all
+      - name: Run e2e tests
+        if: matrix.config == 'default'
+        run: |
+          bazel test --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+      - name: Run puzzles
+        if: matrix.config == 'default'
+        run: |
+          bazel test --test_output=errors centipede/puzzles:all
+      - name: Run puzzles with ASAN
+        if: matrix.config == 'asan'
+        run: |
+          bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
