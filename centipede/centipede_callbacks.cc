@@ -133,7 +133,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
   const auto amortized_timeout =
       absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   Command &cmd = commands_.emplace_back(Command(
-      /*path=*/binary, /*args=*/{},
+      /*path=*/binary, /*args=*/env_.binary_args,
       /*env=*/env,
       /*out=*/execute_log_path_,
       /*err=*/execute_log_path_,
@@ -226,7 +226,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(std::filesystem::create_directories(output_dir, error));
   CHECK(!error);
 
-  Command cmd(binary, {},
+  Command cmd(binary, env_.binary_args,
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
                             output_dir.string(), ":")},
               /*out=*/execute_log_path_,

@@ -63,6 +63,8 @@ ABSL_FLAG(std::vector<std::string>, extra_binaries, default_env->extra_binaries,
           "fed the same inputs as the main binary, but the coverage feedback "
           "from them is not collected. Use this e.g. to run the target under "
           "sanitizers.");
+ABSL_FLAG(std::vector<std::string>, binary_args, default_env->binary_args,
+          "A comma-separated list of arguments passed to the binary.");
 ABSL_FLAG(std::string, workdir, default_env->workdir, "The working directory.");
 ABSL_FLAG(std::string, merge_from, default_env->merge_from,
           "Another working directory to merge the corpus from. Inputs from "
@@ -421,6 +423,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .coverage_binary = coverage_binary,
       .clang_coverage_binary = absl::GetFlag(FLAGS_clang_coverage_binary),
       .extra_binaries = absl::GetFlag(FLAGS_extra_binaries),
+      .binary_args = absl::GetFlag(FLAGS_binary_args),
       .workdir = absl::GetFlag(FLAGS_workdir),
       .merge_from = absl::GetFlag(FLAGS_merge_from),
       .num_runs = absl::GetFlag(FLAGS_num_runs),

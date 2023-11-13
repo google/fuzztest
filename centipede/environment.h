@@ -39,6 +39,7 @@ struct Environment {
   std::string coverage_binary;
   std::string clang_coverage_binary;
   std::vector<std::string> extra_binaries;
+  std::vector<std::string> binary_args;
   std::string workdir;
   std::string merge_from;
   size_t num_runs = std::numeric_limits<size_t>::max();
