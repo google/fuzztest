@@ -411,20 +411,6 @@ std::vector<size_t> RandomWeightedSubset(absl::Span<const uint64_t> set,
   return res;
 }
 
-namespace {
-std::atomic<int> requested_exit_code = EXIT_SUCCESS;
-std::atomic<bool> early_exit_requested = false;
-}  // namespace
-
-void RequestEarlyExit(int exit_code) {
-  requested_exit_code = exit_code;
-  early_exit_requested = true;
-}
-
-bool EarlyExitRequested() { return early_exit_requested; }
-
-int ExitCode() { return requested_exit_code; }
-
 uint8_t *MmapNoReserve(size_t size) {
   auto result = mmap(0, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);

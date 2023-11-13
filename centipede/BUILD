@@ -342,6 +342,7 @@ cc_library(
     deps = [
         ":centipede_callbacks",
         ":defs",
+        ":early_exit",
         ":environment",
         ":logging",
         ":mutation_input",
@@ -596,6 +597,7 @@ cc_library(
     hdrs = ["command.h"],
     visibility = TEMP_EXTENDED_VISIBILITY,
     deps = [
+        ":early_exit",
         ":logging",
         ":util",
         "@com_google_absl//absl/base:core_headers",
@@ -680,6 +682,13 @@ cc_library(
 )
 
 cc_library(
+    name = "early_exit",
+    srcs = ["early_exit.cc"],
+    hdrs = ["early_exit.h"],
+    visibility = PUBLIC_API_VISIBILITY,
+)
+
+cc_library(
     name = "environment_flags",
     srcs = ["environment_flags.cc"],
     hdrs = ["environment_flags.h"],
@@ -713,6 +722,7 @@ cc_library(
         ":corpus",
         ":coverage",
         ":defs",
+        ":early_exit",
         ":environment",
         ":feature",
         ":feature_set",
@@ -761,6 +771,7 @@ cc_library(
         ":coverage",
         ":defs",
         ":distill",
+        ":early_exit",
         ":environment",
         ":feature",
         ":logging",
@@ -1464,6 +1475,7 @@ cc_test(
     data = [":command_test_helper"],
     deps = [
         ":command",
+        ":early_exit",
         ":logging",
         ":test_util",
         ":util",

@@ -22,6 +22,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/strings/substitute.h"
+#include "./centipede/early_exit.h"
 #include "./centipede/logging.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"

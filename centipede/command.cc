@@ -45,6 +45,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./centipede/early_exit.h"
 #include "./centipede/logging.h"
 #include "./centipede/util.h"
 

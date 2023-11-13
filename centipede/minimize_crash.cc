@@ -20,7 +20,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
-#include <thread>      // NOLINT(build/c++11)
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
@@ -29,6 +29,7 @@
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
+#include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/mutation_input.h"

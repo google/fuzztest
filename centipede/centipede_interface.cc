@@ -49,6 +49,7 @@
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/distill.h"
+#include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep

@@ -89,16 +89,6 @@ class ScopedFile {
   std::string my_path_;
 };
 
-// Requests that the process exits soon, with `exit_code`.
-// `exit_code` must be non-zero (!= EXIT_SUCCESS).
-// Async-signal-safe.
-void RequestEarlyExit(int exit_code);
-// Returns true iff RequestEarlyExit() was called.
-bool EarlyExitRequested();
-// Returns the value most recently passed to RequestEarlyExit()
-// or 0 if RequestEarlyExit() was not called.
-int ExitCode();
-
 // If `seed` != 0, returns `seed`, otherwise returns a random number
 // based on time, pid, tid, etc.
 size_t GetRandomSeed(size_t seed);
