@@ -41,11 +41,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            ccache clang libprotobuf-dev protobuf-compiler
-      - uses: lukka/get-cmake@latest
-        with:
-          cmakeVersion: "3.19.0"  # Use exactly 3.19.0. And it also installs the latest ninja
+            ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
       - name: Nightly cache reset
+        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
         if: github.event_name == 'schedule'
         continue-on-error: true
         env:
@@ -64,39 +62,43 @@ jobs:
         if: matrix.mode == 'codelab'
         run: |
           CC=clang CXX=clang++ cmake \
-            -S codelab -B build_codelab -G Ninja  \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_BUILD_TYPE=RelWithDebug \
-            -DFUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" && \
-          cmake --build build_codelab -j
+            -S codelab \
+            -B build_codelab \
+            -G Ninja  \
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_BUILD_TYPE=RelWithDebug \
+            -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" \
+          && cmake --build build_codelab -j $(nproc)
       - name: Run all tests in default mode
         if: matrix.mode == 'default'
         run: |
-          mkdir build && \
-          cd build && \
-          CC=clang CXX=clang++ cmake -G Ninja \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_BUILD_TYPE=RelWithDebug \
-            -DRE2_BUILD_TESTING=off \
-            -Dprotobuf_BUILD_TESTS=off \
-            -DFUZZTEST_TESTING=on .. && \
-            ninja -j $(nproc) && \
-            ctest -j $(nproc) --output-on-failure
+          CC=clang CXX=clang++ cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_BUILD_TYPE=RelWithDebug \
+            -D RE2_BUILD_TESTING=off \
+            -D protobuf_BUILD_TESTS=off \
+            -D FUZZTEST_TESTING=on \
+          && cmake --build build -j $(nproc) \
+          && ctest --build-run-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
         if: matrix.mode == 'fuzzing'
         run: |
-          mkdir build && \
-          cd build && \
-          CC=clang CXX=clang++ cmake -G Ninja \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_BUILD_TYPE=RelWithDebug \
-            -DRE2_BUILD_TESTING=off \
-            -Dprotobuf_BUILD_TESTS=off \
-            -DFUZZTEST_FUZZING_MODE=on \
-            -DFUZZTEST_TESTING=on .. && \
-            ninja -j $(nproc) && \
-            ctest -j $(nproc) --output-on-failure -R "functional_test"
+          CC=clang CXX=clang++ cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_BUILD_TYPE=RelWithDebug \
+            -D RE2_BUILD_TESTING=off \
+            -D protobuf_BUILD_TESTS=off \
+            -D FUZZTEST_FUZZING_MODE=on \
+            -D FUZZTEST_TESTING=on \
+          && cmake --build build -j $(nproc) \
+          && ctest --build-run-dir build -j $(nproc) --output-on-failure -R "functional_test"
 
