@@ -371,11 +371,11 @@ void WriteSeedCorpusElementsToDestination(  //
         // create it. Corpus files are saved in the workdir directly, but we
         // also create it in case `destination.shard_rel_glob()` contains some
         // dirs (not really intended for that, but the end-user may do that).
-        if (!corpus_fname.empty()) {
-          RemoteMkdir(fs::path{corpus_fname}.parent_path().string());
-        }
-        if (!features_fname.empty()) {
-          RemoteMkdir(fs::path{features_fname}.parent_path().string());
+        for (const auto& fname : {corpus_fname, features_fname}) {
+          if (!fname.empty()) {
+            const auto dir = fs::path{fname}.parent_path().string();
+            if (!RemotePathExists(dir)) RemoteMkdir(dir);
+          }
         }
 
         // Create writers for the corpus and features shard files.
@@ -436,7 +436,9 @@ void GenerateSeedCorpusFromConfig(          //
   }
 
   // Pre-create the destination dir early to catch possible misspellings etc.
-  RemoteMkdir(config.destination().dir_path());
+  if (!RemotePathExists(config.destination().dir_path())) {
+    RemoteMkdir(config.destination().dir_path());
+  }
 
   InputAndFeaturesVec elements;
 
