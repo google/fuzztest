@@ -1024,6 +1024,7 @@ cc_library(
         ":rusage_profiler",
         ":seed_corpus_config_cc_proto",
         ":shard_reader",
+        ":thread_pool",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log",

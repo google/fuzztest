@@ -46,12 +46,12 @@
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/shard_reader.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "google/protobuf/text_format.h"
 
 // TODO(ussuri): Add unit tests.
-// TODO(ussuri): Parallelize I/O where possible.
 // TODO(ussuri): Implement a smarter on-the-fly sampling to avoid having to
 //  load all of a source's elements into RAM only to pick some of them. That
 //  would be trivial if the number of elements in a corpus file could be
@@ -127,6 +127,7 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   return config;
 }
 
+// TODO(ussuri): Refactor into smaller functions.
 void SampleSeedCorpusElementsFromSource(    //
     const SeedCorpusSource& source,         //
     std::string_view coverage_binary_name,  //
@@ -174,44 +175,81 @@ void SampleSeedCorpusElementsFromSource(    //
     return;
   }
 
-  // Read all the elements from the found corpus shard files.
+  // Read all the elements from the found corpus shard files using parallel I/O
+  // threads.
+
+  const auto num_shards = corpus_shard_fnames.size();
+  std::vector<InputAndFeaturesVec> src_elts_per_shard(num_shards);
+  std::vector<size_t> src_num_features_per_shard(num_shards, 0);
+
+  {
+    constexpr int kMaxReadThreads = 32;
+    ThreadPool threads{std::min<int>(kMaxReadThreads, num_shards)};
+
+    for (int shard = 0; shard < num_shards; ++shard) {
+      const auto& corpus_fname = corpus_shard_fnames[shard];
+      auto& shard_elts = src_elts_per_shard[shard];
+      auto& shard_num_features = src_num_features_per_shard[shard];
+
+      const auto read_shard = [shard, corpus_fname, coverage_binary_name,
+                               coverage_binary_hash, &shard_elts,
+                               &shard_num_features]() {
+        // NOTE: The deduced matching `features_fname` may not exist if the
+        // source corpus was generated for a coverage binary that is different
+        // from the one we need, but `ReadShard()` can tolerate that, passing
+        // empty `FeatureVec`s to the callback if that's the case.
+        const auto work_dir = WorkDir::FromCorpusShardPath(  //
+            corpus_fname, coverage_binary_name, coverage_binary_hash);
+        const std::string features_fname =
+            work_dir.CorpusFiles().IsShardPath(corpus_fname)
+                ? work_dir.FeaturesFiles().MyShardPath()
+            : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
+                ? work_dir.DistilledFeaturesFiles().MyShardPath()
+                : "";
+
+        LOG(INFO) << "Reading elements from source shard " << shard << ":\n"
+                  << VV(corpus_fname) << "\n"
+                  << VV(features_fname);
+
+        size_t prev_shard_elts_size = shard_elts.size();
+        size_t prev_shard_num_features = shard_num_features;
+
+        ReadShard(corpus_fname, features_fname,
+                  [&shard_elts, &shard_num_features](  //
+                      const ByteArray& input, FeatureVec& features) {
+                    shard_num_features += features.empty() ? 0 : 1;
+                    shard_elts.emplace_back(input, std::move(features));
+                  });
+
+        LOG(INFO) << "Read " << (shard_elts.size() - prev_shard_elts_size)
+                  << " elements ("
+                  << (shard_num_features - prev_shard_num_features)
+                  << " with features) from source shard " << shard;
+      };
+
+      threads.Schedule(read_shard);
+    }
+  }
 
   InputAndFeaturesVec src_elts;
   size_t src_num_features = 0;
 
-  for (const auto& corpus_fname : corpus_shard_fnames) {
-    // NOTE: The deduced matching `features_fname` may not exist if the source
-    // corpus was generated for a coverage binary that is different from the one
-    // we need, but `ReadShard()` can tolerate that, passing empty `FeatureVec`s
-    // to the callback if that's the case.
-    const auto work_dir = WorkDir::FromCorpusShardPath(  //
-        corpus_fname, coverage_binary_name, coverage_binary_hash);
-    const std::string features_fname =
-        work_dir.CorpusFiles().IsShardPath(corpus_fname)
-            ? work_dir.FeaturesFiles().MyShardPath()
-        : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
-            ? work_dir.DistilledFeaturesFiles().MyShardPath()
-            : "";
-    size_t prev_src_elts_size = src_elts.size();
-    size_t prev_num_non_empty_features = src_num_features;
-    ReadShard(corpus_fname, features_fname,
-              [&src_elts, &src_num_features](  //
-                  const ByteArray& input, FeatureVec& features) {
-                src_num_features += features.empty() ? 0 : 1;
-                src_elts.emplace_back(input, std::move(features));
-              });
-    LOG(INFO) << "Read " << (src_elts.size() - prev_src_elts_size)
-              << " elements with "
-              << (src_num_features - prev_num_non_empty_features)
-              << " non-empty features from source shard:\n"
-              << VV(corpus_fname) << "\n"
-              << VV(features_fname);
+  for (int s = 0; s < num_shards; ++s) {
+    auto& shard_elts = src_elts_per_shard[s];
+    for (auto& elt : shard_elts) {
+      src_elts.emplace_back(std::move(elt));
+    }
+    shard_elts.clear();
+    src_num_features += src_num_features_per_shard[s];
   }
+
+  src_elts_per_shard.clear();
+  src_num_features_per_shard.clear();
 
   RPROF_SNAPSHOT_AND_LOG("Done reading");
 
-  LOG(INFO) << "Read total of " << src_elts.size() << " elements with "
-            << src_num_features << " non-empty features from source "
+  LOG(INFO) << "Read total of " << src_elts.size() << " elements ("
+            << src_num_features << " with features) from source "
             << source.dir_glob();
 
   // Extract a sample of the elements of the size specified in
