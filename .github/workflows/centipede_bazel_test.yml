@@ -21,6 +21,9 @@ on:
     paths:
       - 'centipede/**'
   pull_request:
+  schedule:
+    # Triggered nightly at 7:00 AM UTC to re-create the build cache (ccache).
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:
@@ -28,17 +31,38 @@ jobs:
     name: Run Centipede tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      matrix:
+        mode: ['default', 'sanitize_address']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Run all Centipede tests
+      - name: Install dependencies
         run: |
-          env OUTPUT_ARTIFACTS_DIR="$HOME/.output_artifacts" \
-            ./centipede/run_test_workflow.sh
-      - name: Upload output artifacts
-        # Always upload test artifacts, unless the job is cancelled.
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v3
+          source ./centipede/install_dependencies_debian.sh
+      - name: Nightly cache reset
+        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/caches?key=centipede-bazel-cache-${{ matrix.mode }}
+      - name: Mount Bazel cache
+        uses: actions/cache@v3
         with:
-          name: output-artifacts
-          path: "~/.output_artifacts/"
+          path: "~/.cache/bazel"
+          key: centipede-bazel-cache-${{ matrix.mode }}
+      - name: Run all Centipede tests with default mode
+        if: matrix.mode == 'default'
+        run: |
+          bazel test --local_test_jobs=1 --test_output=streamed centipede:all && \
+          bazel test centipede/testing:instrumentation_test \
+            centipede/testing:runner_test centipede/puzzles:all
+      - name: Run all Centipede tests with sanitize_address mode
+        if: matrix.mode == 'sanitize_address'
+        run: |
+          bazel test --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
