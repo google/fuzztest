@@ -25,9 +25,6 @@
 
 namespace centipede {
 
-using InputAndFeatures = std::pair<ByteArray, FeatureVec>;
-using InputAndFeaturesVec = std::vector<InputAndFeatures>;
-
 // If a file with `config_spec` path exists, tries to parse it as a
 // `SeedCorpusConfig` textproto. Otherwise, tries to parse `config_spec` as a
 // verbatim `SeedCorpusConfig` textproto. Resolves any relative paths and globs
@@ -54,7 +51,7 @@ void SampleSeedCorpusElementsFromSource(    //
     const SeedCorpusSource& source,         //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
-    InputAndFeaturesVec& elements);
+    std::vector<std::pair<ByteArray, FeatureVec>>& elements);
 
 // Writes seed corpus `elements` to `destination`. Any previously existing
 // corpus shard files matching `destination.shard_glob()` will be deleted
@@ -65,10 +62,10 @@ void SampleSeedCorpusElementsFromSource(    //
 // be the hash of that binary. The features in each `FeatureVec` of the
 // `elements` will be saved to a features shard file under
 // <coverage_binary_name>-<coverage_binary_hash> subdir of the destination.
-void WriteSeedCorpusElementsToDestination(  //
-    const InputAndFeaturesVec& elements,    //
-    std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
+void WriteSeedCorpusElementsToDestination(                          //
+    const std::vector<std::pair<ByteArray, FeatureVec>>& elements,  //
+    std::string_view coverage_binary_name,                          //
+    std::string_view coverage_binary_hash,                          //
     const SeedCorpusDestination& destination);
 
 // Reads and samples seed corpus elements from all the sources and writes the

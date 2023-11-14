@@ -17,8 +17,6 @@
 // Centipede workdirs and writes them out to a new set of Centipede corpus file
 // shards.
 
-#include "./centipede/seed_corpus_maker_lib.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -53,6 +51,7 @@
 #include "./centipede/workdir.h"
 #include "google/protobuf/text_format.h"
 
+// TODO(ussuri): Add unit tests.
 // TODO(ussuri): Implement a smarter on-the-fly sampling to avoid having to
 //  load all of a source's elements into RAM only to pick some of them. That
 //  would be trivial if the number of elements in a corpus file could be
@@ -63,6 +62,9 @@
 namespace centipede {
 
 namespace fs = std::filesystem;
+
+using InputAndFeatures = std::pair<ByteArray, FeatureVec>;
+using InputAndFeaturesVec = std::vector<InputAndFeatures>;
 
 SeedCorpusConfig ResolveSeedCorpusConfig(  //
     std::string_view config_spec,          //
