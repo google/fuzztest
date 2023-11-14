@@ -1533,6 +1533,23 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "seed_corpus_maker_lib_test",
+    srcs = ["seed_corpus_maker_lib_test.cc"],
+    deps = [
+        ":feature",
+        ":logging",
+        ":seed_corpus_maker_lib",
+        ":test_util",
+        ":workdir",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
 ################################################################################
 #                               Other tests
 ################################################################################
