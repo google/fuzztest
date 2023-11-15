@@ -30,7 +30,7 @@ jobs:
   run_tests:
     name: Run Centipede tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       matrix:
         config: ['default', 'asan']
@@ -41,19 +41,8 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang llvm libssl-dev
-      - name: Nightly cache reset
-        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
-        if: github.event_name == 'schedule'
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api \
-            --method DELETE \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/actions/caches?key=bazel-centipede-cache-${{ matrix.config }}
-      - name: Mount Bazel cache
-        uses: actions/cache@v3
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v3
         with:
           path: "~/.cache/bazel"
           key: bazel-centipede-cache-${{ matrix.config }}
@@ -73,3 +62,10 @@ jobs:
         if: matrix.config == 'asan'
         run: |
           bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+      - name: Update Bazel cache nightly
+        # We update the cache once a day using the scheduled nightly build.
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-centipede-cache-${{ matrix.config }}

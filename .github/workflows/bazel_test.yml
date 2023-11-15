@@ -43,19 +43,8 @@ jobs:
       - name: Setup --config=fuzztest for Bazel
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
-      - name: Nightly cache reset
-        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
-        if: github.event_name == 'schedule'
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api \
-            --method DELETE \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/actions/caches?key=bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
-      - name: Mount Bazel cache
-        uses: actions/cache@v3
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v3
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
@@ -69,4 +58,10 @@ jobs:
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
-
+      - name: Update Bazel cache nightly
+        # We update the cache once a day using the scheduled nightly build.
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}

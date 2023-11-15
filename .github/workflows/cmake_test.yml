@@ -42,19 +42,8 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
-      - name: Nightly cache reset
-        # To update the cache we need to reset it, otherwise the new cache doesn't get saved.
-        if: github.event_name == 'schedule'
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api \
-            --method DELETE \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/actions/caches?key=cmake-cache-${{ matrix.mode }}
-      - name: Mount the build cache (ccache)
-        uses: actions/cache@v3
+      - name: Restore the build cache (ccache)
+        uses: actions/cache/restore@v3
         with:
           path: ${{ env.CCACHE_DIR }}
           key: cmake-cache-${{ matrix.mode }}
@@ -101,4 +90,10 @@ jobs:
             -D FUZZTEST_TESTING=on \
           && cmake --build build -j $(nproc) \
           && ctest --build-run-dir build -j $(nproc) --output-on-failure -R "functional_test"
-
+      - name: Update the build cache nightly
+        # We update the cache once a day using the scheduled nightly build.
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v3
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: cmake-cache-${{ matrix.mode }}
