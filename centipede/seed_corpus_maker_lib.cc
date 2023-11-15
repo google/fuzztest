@@ -229,6 +229,8 @@ void SampleSeedCorpusElementsFromSource(    //
     }
   }
 
+  RPROF_SNAPSHOT_AND_LOG("Done reading");
+
   InputAndFeaturesVec src_elts;
   size_t src_num_features = 0;
 
@@ -244,7 +246,7 @@ void SampleSeedCorpusElementsFromSource(    //
   src_elts_per_shard.clear();
   src_num_features_per_shard.clear();
 
-  RPROF_SNAPSHOT_AND_LOG("Done reading");
+  RPROF_SNAPSHOT_AND_LOG("Done merging");
 
   LOG(INFO) << "Read total of " << src_elts.size() << " elements ("
             << src_num_features << " with features) from source "
