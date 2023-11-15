@@ -30,7 +30,7 @@ jobs:
   run_tests:
     name: Run Centipede tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       matrix:
         config: ['default', 'asan']
@@ -41,11 +41,12 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang llvm libssl-dev
-      - name: Restore Bazel cache
+      - name: Restore latest cache
         uses: actions/cache/restore@v3
         with:
           path: "~/.cache/bazel"
           key: bazel-centipede-cache-${{ matrix.config }}
+          restore-keys: bazel-centipede-cache-${{ matrix.config }}-
       - name: Run unit tests
         if: matrix.config == 'default'
         run: |
@@ -62,10 +63,9 @@ jobs:
         if: matrix.config == 'asan'
         run: |
           bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
-      - name: Update Bazel cache nightly
-        # We update the cache once a day using the scheduled nightly build.
-        if: github.event_name == 'schedule'
+      - name: Save new cache based on main
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3
         with:
           path: "~/.cache/bazel"
-          key: bazel-centipede-cache-${{ matrix.config }}
+          key: bazel-centipede-cache-${{ matrix.config }}-${{ github.event.repository.updated_at }}

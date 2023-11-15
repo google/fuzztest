@@ -42,11 +42,12 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
-      - name: Restore the build cache (ccache)
+      - name: Restore latest cache
         uses: actions/cache/restore@v3
         with:
           path: ${{ env.CCACHE_DIR }}
           key: cmake-cache-${{ matrix.mode }}
+          restore-keys: cmake-cache-${{ matrix.mode }}-
       - name: Check whether FuzzTest can be build using FetchContent
         if: matrix.mode == 'codelab'
         run: |
@@ -90,10 +91,10 @@ jobs:
             -D FUZZTEST_TESTING=on \
           && cmake --build build -j $(nproc) \
           && ctest --build-run-dir build -j $(nproc) --output-on-failure -R "functional_test"
-      - name: Update the build cache nightly
-        # We update the cache once a day using the scheduled nightly build.
-        if: github.event_name == 'schedule'
+      - name: Save new cache based on main
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: cmake-cache-${{ matrix.mode }}
+          key: cmake-cache-${{ matrix.mode }}-${{ github.event.repository.updated_at }}
+
