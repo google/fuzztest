@@ -134,8 +134,8 @@ void SampleSeedCorpusElementsFromSource(    //
     std::string_view coverage_binary_hash,  //
     InputAndFeaturesVec& elements) {
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
-      /*enable=*/true,                                                //
-      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),  //
+      /*enable=*/VLOG_IS_ON(1),                                       //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/VLOG_IS_ON(10));
 
   LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
@@ -292,8 +292,8 @@ void WriteSeedCorpusElementsToDestination(  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
-      /*enable=*/true,                                                //
-      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),  //
+      /*enable=*/VLOG_IS_ON(1),                                       //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/VLOG_IS_ON(10));
 
   LOG(INFO) << "Writing seed corpus elements to destination:\n"
