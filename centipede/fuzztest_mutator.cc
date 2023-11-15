@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <random>
 
 #include "absl/random/random.h"
@@ -41,9 +42,7 @@ class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
 };
 
 FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
-    : knobs_(knobs),
-      prng_(std::seed_seq({seed, seed >> 32})),
-      domain_(std::make_unique<MutatorDomain>()) {
+    : knobs_(knobs), prng_(seed), domain_(std::make_unique<MutatorDomain>()) {
   domain_->WithMinSize(1).WithMaxSize(max_len_);
   if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
     auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});

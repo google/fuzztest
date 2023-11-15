@@ -68,7 +68,7 @@ class FuzzTestMutator {
   static constexpr uint8_t kMinCmpEntrySize = 2;
 
   const Knobs &knobs_;
-  absl::BitGen prng_;
+  Rng prng_;
   size_t max_len_ = 1000;
   std::unique_ptr<MutatorDomain> domain_;
 };
