@@ -66,4 +66,4 @@ jobs:
         uses: actions/cache/save@v3
         with:
           path: "~/.cache/bazel"
-          key: bazel-centipede-cache-${{ matrix.config }}-${{ github.event.repository.updated_at }}
+          key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
