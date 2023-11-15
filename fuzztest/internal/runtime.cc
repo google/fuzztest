@@ -613,12 +613,20 @@ bool FuzzTestFuzzerImpl::ShouldStop() {
 void FuzzTestFuzzerImpl::PopulateFromSeeds(
     const std::vector<std::string>& corpus_files) {
   for (const auto& seed : fixture_driver_->GetSeeds()) {
-    TrySampleAndUpdateInMemoryCorpus(Input{seed}, /*write_to_file=*/false);
+    TrySampleAndUpdateInMemoryCorpus(
+        Input{seed},
+        // Dump the seed to the corpus so that it is present when the corpus is
+        // used in minimization or coverage replay.
+        /*write_to_file=*/true);
   }
   for (const auto& corpus_file : corpus_files) {
     auto seed = GetCorpusValueFromFile(corpus_file);
     if (!seed) continue;
-    TrySampleAndUpdateInMemoryCorpus(Input{*seed}, /*write_to_file=*/false);
+    TrySampleAndUpdateInMemoryCorpus(
+        Input{*seed},
+        // Dump the seed to the corpus so that it is present when the corpus is
+        // used in minimization or coverage replay.
+        /*write_to_file=*/true);
   }
 }
 
