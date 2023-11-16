@@ -113,6 +113,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
+        "@com_google_fuzztest//fuzztest:coverage",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",

@@ -15,6 +15,7 @@
 // Tests of domain ContainerOf, and various shorthands such as VectorOf.
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <deque>
 #include <list>
@@ -23,6 +24,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -32,6 +34,7 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
@@ -210,6 +213,43 @@ TEST(Container, ValidationRejectsInvalidElements) {
       domain_b.ValidateCorpusValue(value_a.corpus_value),
       IsInvalid(testing::MatchesRegex(
           R"(Invalid value in container at index 0 >> The value .+ is not InRange\(10, 12\))")));
+}
+
+// This should apply to all container types with memory dictionary mutation
+// enabled, but we test on strings for simplification.
+TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
+  auto domain = Arbitrary<std::string>();
+  class ScopedExecutionCoverage {
+   public:
+    ScopedExecutionCoverage() { internal::SetExecutionCoverage(&coverage); }
+
+    ~ScopedExecutionCoverage() { internal::SetExecutionCoverage(nullptr); }
+
+   private:
+    internal::ExecutionCoverage coverage =
+        internal::ExecutionCoverage(/*counter_map=*/{});
+  };
+  ScopedExecutionCoverage scoped_coverage;
+  fuzztest::internal::GetExecutionCoverage()
+      ->GetTablesOfRecentCompares()
+      .GetMutable<0>()
+      .Insert(reinterpret_cast<const uint8_t*>("abcd"),
+              reinterpret_cast<const uint8_t*>("1234"), 4);
+
+  absl::BitGen bitgen;
+  std::vector<std::string> mutants;
+  for (int i = 0; i < 1000000; ++i) {
+    std::string mutant = "abcdabcdabcdabcd";
+    domain.Mutate(mutant, bitgen, false);
+    mutants.push_back(std::move(mutant));
+  }
+
+  EXPECT_THAT(mutants, testing::IsSupersetOf(std::vector<std::string>{
+                           "1234abcdabcdabcd",
+                           "abcd1234abcdabcd",
+                           "abcdabcd1234abcd",
+                           "abcdabcdabcd1234",
+                       }));
 }
 
 }  // namespace

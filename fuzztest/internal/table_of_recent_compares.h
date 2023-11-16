@@ -213,12 +213,10 @@ class TableOfRecentlyComparedBuffers {
         " types with size = {1, 2, 4, 8}.");
     absl::flat_hash_set<DictionaryEntry<ContainerT>> dictionary = {};
     for (const ComparedBufferEntry& table_entry : table_) {
-      auto dict_entry = GetMatchingContainerDictionaryEntry(
+      const auto dict_entries = GetMatchingContainerDictionaryEntries(
           val, table_entry.buf1.data(), table_entry.buf2.data(),
           table_entry.buf_size);
-      if (dict_entry.has_value()) {
-        dictionary.insert(std::move(*dict_entry));
-      }
+      dictionary.insert(dict_entries.begin(), dict_entries.end());
     }
     return std::vector<DictionaryEntry<ContainerT>>(dictionary.begin(),
                                                     dictionary.end());
@@ -233,10 +231,10 @@ class TableOfRecentlyComparedBuffers {
   };
 
   template <typename ContainerT>
-  static std::optional<DictionaryEntry<ContainerT>>
-  GetMatchingContainerDictionaryEntry(const ContainerT& val,
-                                      const uint8_t* buf1, const uint8_t* buf2,
-                                      size_t buf_size) {
+  static std::vector<DictionaryEntry<ContainerT>>
+  GetMatchingContainerDictionaryEntries(const ContainerT& val,
+                                        const uint8_t* buf1,
+                                        const uint8_t* buf2, size_t buf_size) {
     using T = value_type_t<ContainerT>;
     size_t val_size = val.size() * sizeof(T);
     static constexpr size_t kBufSizeValueMask = sizeof(T) - 1;
@@ -244,26 +242,28 @@ class TableOfRecentlyComparedBuffers {
     // Filter out some impossible to match cases.
     if (((buf_size & kBufSizeValueMask) != 0) || val_size < buf_size ||
         buf_size == 0) {
-      return std::nullopt;
+      return {};
     }
-    auto offset1 =
-        std::search(val.begin(), val.end(), reinterpret_cast<const T*>(buf1),
-                    reinterpret_cast<const T*>(buf1 + buf_size));
-    if (offset1 != val.end()) {
-      return DictionaryEntry<ContainerT>{
-          size_t(offset1 - val.begin()),
-          MakeContainer<ContainerT>(buf2, buf_size)};
-    } else {
-      auto offset2 =
-          std::search(val.begin(), val.end(), reinterpret_cast<const T*>(buf2),
-                      reinterpret_cast<const T*>(buf2 + buf_size));
-      if (offset2 != val.end()) {
-        return DictionaryEntry<ContainerT>{
-            size_t(offset2 - val.begin()),
-            MakeContainer<ContainerT>(buf1, buf_size)};
+    auto get_offsets = [&](const uint8_t* s,
+                           size_t size) -> std::vector<size_t> {
+      std::vector<size_t> offsets;
+      auto it = val.begin();
+      while ((it = std::search(it, val.end(), reinterpret_cast<const T*>(s),
+                               reinterpret_cast<const T*>(s + size))) !=
+             val.end()) {
+        offsets.push_back(it - val.begin());
+        ++it;
       }
+      return offsets;
+    };
+    std::vector<DictionaryEntry<ContainerT>> entries;
+    for (const auto offset : get_offsets(buf1, buf_size)) {
+      entries.push_back({offset, MakeContainer<ContainerT>(buf2, buf_size)});
     }
-    return std::nullopt;
+    for (const auto offset : get_offsets(buf2, buf_size)) {
+      entries.push_back({offset, MakeContainer<ContainerT>(buf1, buf_size)});
+    }
+    return entries;
   }
 
   const ComparedBufferEntry& GetRandomEntry(absl::BitGenRef prng) const {
@@ -421,11 +421,13 @@ class ContainerDictionary {
     // Get from mem_cmp_table or i*_cmp_table with 50/50 probability.
     if (RandomBool(prng)) {
       auto& memcmp_entry = torc.Get<0>().GetRandomEntry(prng);
-      result =
-          TableOfRecentlyComparedBuffers::GetMatchingContainerDictionaryEntry(
+      const auto matches =
+          TableOfRecentlyComparedBuffers::GetMatchingContainerDictionaryEntries(
               val, memcmp_entry.buf1.data(), memcmp_entry.buf2.data(),
               memcmp_entry.buf_size);
-      if (!result.has_value()) {
+      if (!matches.empty()) {
+        result = matches[ChooseOffset(matches.size(), prng)];
+      } else {
         result = TableOfRecentlyComparedBuffers::GetRandomSide<ContainerT>(
             prng, memcmp_entry.buf1.data(), memcmp_entry.buf2.data(),
             memcmp_entry.buf_size);
@@ -435,8 +437,12 @@ class ContainerDictionary {
         switch (absl::Uniform(prng, 0, 3)) {
           case 0: {
             auto i32_entry = torc.Get<4>().GetRandomEntry(prng);
-            result = GetMatchingContainerDictionaryEntryFromInteger(
-                val, i32_entry.lhs, i32_entry.rhs);
+            const auto matches =
+                GetMatchingContainerDictionaryEntriesFromInteger(
+                    val, i32_entry.lhs, i32_entry.rhs);
+            if (!matches.empty()) {
+              result = matches[ChooseOffset(matches.size(), prng)];
+            }
           } break;
           case 1: {
             // Somewhere in the past we observe that some implicit type
@@ -444,21 +450,32 @@ class ContainerDictionary {
             // types to 32bit types and find matches. Demotion is explicit so we
             // do not consider that here.
             auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
-            result = GetMatchingContainerDictionaryEntryFromIntegerWithCastTo<
-                uint32_t>(val, i64_entry.lhs, i64_entry.rhs);
+            const auto matches =
+                GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo<
+                    uint32_t>(val, i64_entry.lhs, i64_entry.rhs);
+            if (!matches.empty()) {
+              result = matches[ChooseOffset(matches.size(), prng)];
+            }
           } break;
           case 2: {
             auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
-            result = GetMatchingContainerDictionaryEntryFromInteger(
-                val, i64_entry.lhs, i64_entry.rhs);
+            const auto matches =
+                GetMatchingContainerDictionaryEntriesFromInteger(
+                    val, i64_entry.lhs, i64_entry.rhs);
+            if (!matches.empty()) {
+              result = matches[ChooseOffset(matches.size(), prng)];
+            }
           } break;
           default:
             break;
         }
       } else if constexpr (sizeof(T) <= 8) {
         auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
-        result = GetMatchingContainerDictionaryEntryFromInteger(
+        const auto matches = GetMatchingContainerDictionaryEntriesFromInteger(
             val, i64_entry.lhs, i64_entry.rhs);
+        if (!matches.empty()) {
+          result = matches[ChooseOffset(matches.size(), prng)];
+        }
       }
     }
     return result;
@@ -469,24 +486,26 @@ class ContainerDictionary {
   // Assuming the format and the system running this fuzzer has the
   // same endian.
   template <typename T>
-  static std::optional<DictionaryEntry<ContainerT>>
-  GetMatchingContainerDictionaryEntryFromInteger(const ContainerT& val, T lhs,
-                                                 T rhs) {
-    return TableOfRecentlyComparedBuffers::GetMatchingContainerDictionaryEntry(
-        val, reinterpret_cast<const uint8_t*>(&lhs),
-        reinterpret_cast<const uint8_t*>(&rhs), sizeof(T));
+  static std::vector<DictionaryEntry<ContainerT>>
+  GetMatchingContainerDictionaryEntriesFromInteger(const ContainerT& val, T lhs,
+                                                   T rhs) {
+    return TableOfRecentlyComparedBuffers::
+        GetMatchingContainerDictionaryEntries(
+            val, reinterpret_cast<const uint8_t*>(&lhs),
+            reinterpret_cast<const uint8_t*>(&rhs), sizeof(T));
   }
 
   template <typename TCastTo, typename T>
-  static std::optional<DictionaryEntry<ContainerT>>
-  GetMatchingContainerDictionaryEntryFromIntegerWithCastTo(
+  static std::vector<DictionaryEntry<ContainerT>>
+  GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo(
       const ContainerT& val, T lhs, T rhs) {
     // Ignore overflows.
     TCastTo lhs_cast_to = static_cast<TCastTo>(lhs);
     TCastTo rhs_cast_to = static_cast<TCastTo>(rhs);
-    return TableOfRecentlyComparedBuffers::GetMatchingContainerDictionaryEntry(
-        val, reinterpret_cast<const uint8_t*>(&lhs_cast_to),
-        reinterpret_cast<const uint8_t*>(&rhs_cast_to), sizeof(TCastTo));
+    return TableOfRecentlyComparedBuffers::
+        GetMatchingContainerDictionaryEntries(
+            val, reinterpret_cast<const uint8_t*>(&lhs_cast_to),
+            reinterpret_cast<const uint8_t*>(&rhs_cast_to), sizeof(TCastTo));
   }
 
   // Cast integer types into byte arrays and use
@@ -497,30 +516,29 @@ class ContainerDictionary {
     if constexpr (sizeof(T) <= 4) {
       if (val.size() >= 4) {
         for (auto& i : torc.Get<4>().GetTable()) {
-          auto dict_entry_32 =
-              GetMatchingContainerDictionaryEntryFromInteger(val, i.lhs, i.rhs);
-          if (dict_entry_32.has_value()) {
-            dictionary_.push_back(std::move(*dict_entry_32));
-          }
+          const auto dict_entries_32 =
+              GetMatchingContainerDictionaryEntriesFromInteger(val, i.lhs,
+                                                               i.rhs);
+          dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
+                             dict_entries_32.end());
         }
         for (auto& i : torc.Get<8>().GetTable()) {
-          auto dict_entry_32 =
-              GetMatchingContainerDictionaryEntryFromIntegerWithCastTo<
+          const auto dict_entries_32 =
+              GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo<
                   uint32_t>(val, i.lhs, i.rhs);
-          if (dict_entry_32.has_value()) {
-            dictionary_.push_back(std::move(*dict_entry_32));
-          }
+          dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
+                             dict_entries_32.end());
         }
       }
     }
     if constexpr (sizeof(T) <= 8) {
       if (val.size() >= 8) {
         for (auto& i : torc.Get<8>().GetTable()) {
-          auto dict_entry_64 =
-              GetMatchingContainerDictionaryEntryFromInteger(val, i.lhs, i.rhs);
-          if (dict_entry_64.has_value()) {
-            dictionary_.push_back(std::move(*dict_entry_64));
-          }
+          const auto dict_entries_64 =
+              GetMatchingContainerDictionaryEntriesFromInteger(val, i.lhs,
+                                                               i.rhs);
+          dictionary_.insert(dictionary_.end(), dict_entries_64.begin(),
+                             dict_entries_64.end());
         }
       }
     }
