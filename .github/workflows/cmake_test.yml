@@ -74,7 +74,7 @@ jobs:
             -D protobuf_BUILD_TESTS=off \
             -D FUZZTEST_TESTING=on \
           && cmake --build build -j $(nproc) \
-          && ctest --build-run-dir build -j $(nproc) --output-on-failure
+          && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
         if: matrix.mode == 'fuzzing'
         run: |
@@ -90,7 +90,7 @@ jobs:
             -D FUZZTEST_FUZZING_MODE=on \
             -D FUZZTEST_TESTING=on \
           && cmake --build build -j $(nproc) \
-          && ctest --build-run-dir build -j $(nproc) --output-on-failure -R "functional_test"
+          && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3
