@@ -31,7 +31,7 @@ def puzzle(name):
     # trustworthy. The seeds are fixed so that we have some degree of
     # repeatability. Each sh_test performs a single run with a single seed, so
     # that the log is minimal.
-    for seed in ["1", "2"]:
+    for seed in ["1", "2", "3", "4", "5", "6", "7", "8", "9"]:
         native.sh_test(
             name = "run_" + seed + "_" + name,
             srcs = ["run_puzzle.sh"],
