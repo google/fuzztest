@@ -215,7 +215,12 @@ void SampleSeedCorpusElementsFromSource(    //
         ReadShard(corpus_fname, features_fname,
                   [&shard_elts, &shard_num_features](  //
                       const ByteArray& input, FeatureVec& features) {
-                    shard_num_features += features.empty() ? 0 : 1;
+                    // Empty features come in two flavors from `ReadShard()`.
+                    if (features.empty() ||
+                        (features.size() == 1 &&
+                         features[0] == feature_domains::kNoFeature)) {
+                      ++shard_num_features;
+                    }
                     shard_elts.emplace_back(input, std::move(features));
                   });
 
