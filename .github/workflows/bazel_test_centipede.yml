@@ -36,8 +36,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -yq \
+        run: >
+          sudo apt-get update && sudo apt-get install -yq
             clang llvm libssl-dev
       - name: Restore latest cache
         uses: actions/cache/restore@v3
@@ -47,20 +47,32 @@ jobs:
           restore-keys: bazel-centipede-cache-${{ matrix.config }}-
       - name: Run unit tests
         if: matrix.config == 'default'
-        run: |
-          bazel test --local_test_jobs=1 --test_output=streamed centipede:all
+        run: >
+          bazel test
+            --local_test_jobs=1
+            --test_output=streamed
+            centipede:all
       - name: Run e2e tests
         if: matrix.config == 'default'
-        run: |
-          bazel test --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+        run: >
+          bazel test
+            --test_output=errors
+            centipede/testing:instrumentation_test
+            centipede/testing:runner_test
       - name: Run puzzles
         if: matrix.config == 'default'
-        run: |
-          bazel test --test_output=errors centipede/puzzles:all
+        run: >
+          bazel test
+            --test_output=errors
+            centipede/puzzles:all
       - name: Run puzzles with ASAN
         if: matrix.config == 'asan'
-        run: |
-          bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+        run: >
+          bazel test
+            --test_output=errors
+            --linkopt=-fsanitize=address
+            --copt=-fsanitize=address
+            centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3

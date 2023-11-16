@@ -39,8 +39,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -yq \
+        run: >
+          sudo apt-get update && sudo apt-get install -yq
             ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
       - name: Restore latest cache
         uses: actions/cache/restore@v3
@@ -50,47 +50,47 @@ jobs:
           restore-keys: cmake-cache-${{ matrix.mode }}-
       - name: Check whether FuzzTest can be build using FetchContent
         if: matrix.mode == 'codelab'
-        run: |
-          CC=clang CXX=clang++ cmake \
-            -S codelab \
-            -B build_codelab \
-            -G Ninja  \
-            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" \
+        run: >
+          CC=clang CXX=clang++ cmake
+            -S codelab
+            -B build_codelab
+            -G Ninja 
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -D CMAKE_BUILD_TYPE=RelWithDebug
+            -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}"
           && cmake --build build_codelab -j $(nproc)
       - name: Run all tests in default mode
         if: matrix.mode == 'default'
-        run: |
-          CC=clang CXX=clang++ cmake \
-            -S . \
-            -B build \
-            -G Ninja \
-            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D RE2_BUILD_TESTING=off \
-            -D protobuf_BUILD_TESTS=off \
-            -D FUZZTEST_TESTING=on \
-          && cmake --build build -j $(nproc) \
-          && ctest --build-run-dir build -j $(nproc) --output-on-failure
+        run: >
+          CC=clang CXX=clang++ cmake
+            -S .
+            -B build
+            -G Ninja
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -D CMAKE_BUILD_TYPE=RelWithDebug
+            -D RE2_BUILD_TESTING=off
+            -D protobuf_BUILD_TESTS=off
+            -D FUZZTEST_TESTING=on
+          && cmake --build build -j $(nproc)
+          && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
         if: matrix.mode == 'fuzzing'
-        run: |
-          CC=clang CXX=clang++ cmake \
-            -S . \
-            -B build \
-            -G Ninja \
-            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D RE2_BUILD_TESTING=off \
-            -D protobuf_BUILD_TESTS=off \
-            -D FUZZTEST_FUZZING_MODE=on \
-            -D FUZZTEST_TESTING=on \
-          && cmake --build build -j $(nproc) \
-          && ctest --build-run-dir build -j $(nproc) --output-on-failure -R "functional_test"
+        run: >
+          CC=clang CXX=clang++ cmake
+            -S .
+            -B build
+            -G Ninja
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -D CMAKE_BUILD_TYPE=RelWithDebug
+            -D RE2_BUILD_TESTING=off
+            -D protobuf_BUILD_TESTS=off
+            -D FUZZTEST_FUZZING_MODE=on
+            -D FUZZTEST_TESTING=on
+          && cmake --build build -j $(nproc)
+          && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3
