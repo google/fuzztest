@@ -67,6 +67,24 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "blob_file_converter",
+    srcs = ["blob_file_converter.cc"],
+    deps = [
+        ":blob_file",
+        ":config_init",
+        ":logging",
+        ":remote_file",
+        ":rusage_profiler",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 ###############################################################################
 #                              Proto libraries
 ###############################################################################
