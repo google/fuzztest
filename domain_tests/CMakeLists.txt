@@ -2,345 +2,242 @@ get_filename_component(PARENT_DIR ../ ABSOLUTE)
 include_directories(${PARENT_DIR})
 
 include_directories(${CMAKE_BINARY_DIR})
-add_library(
-  fuzztest_domain_testing
-  OBJECT
-  domain_testing.h
-)
-set_target_properties(
-  fuzztest_domain_testing
-  PROPERTIES
-  LINKER_LANGUAGE CXX
-)
-target_link_libraries(
-  fuzztest_domain_testing
-  PUBLIC
-  absl::hash
-  absl::status
-  absl::strings
-  absl::flat_hash_set
-  absl::random_random
-  fuzztest_meta
-  fuzztest_serialization
-  test_protobuf
-  fuzztest_logging
-  fuzztest_type_support
-  protobuf::libprotobuf
-  GTest::gmock
+
+fuzztest_cc_test(
+  NAME
+    aggregate_combinators_test
+  SRCS
+    "aggregate_combinators_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    absl::optional
+    absl::span
+    absl::variant
+    fuzztest::domain
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_aggregate_combinators_test
-  aggregate_combinators_test.cc
-)
-target_link_libraries(
-  fuzztest_aggregate_combinators_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::optional
-  absl::random_random
-  absl::span
-  absl::variant
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_aggregate_combinators_test
-  COMMAND
-  fuzztest_aggregate_combinators_test
+    arbitrary_domains_protobuf_test
+  SRCS
+    "arbitrary_domains_protobuf_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    absl::random_bit_gen_ref
+    fuzztest::domain
+    test_protobuf
+    GTest::gmock_main
+    protobuf::libprotobuf
 )
 
-add_executable(
-  fuzztest_arbitrary_domains_test
-  arbitrary_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_arbitrary_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  protobuf::libprotobuf
-  test_protobuf
-  absl::flat_hash_map
-  absl::flat_hash_set
-  absl::random_random
-  absl::random_bit_gen_ref
-  absl::time
-  absl::span
-  absl::status
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_arbitrary_domains_test
-  COMMAND
-  fuzztest_arbitrary_domains_test
+    arbitrary_domains_test
+  SRCS
+    "arbitrary_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::status
+    absl::time
+    fuzztest::absl_helpers
+    fuzztest::domain
+    fuzztest::domain_core
+    fuzztest::serialization
+    test_protobuf
+    fuzztest::type_support
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_container_combinators_test
-  container_combinators_test.cc
-)
-target_link_libraries(
-  fuzztest_container_combinators_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_map
-  absl::flat_hash_set
-  absl::random_random
-  absl::span
-  absl::strings
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_container_combinators_test
-  COMMAND
-  fuzztest_container_combinators_test
+    container_combinators_test
+  SRCS
+    "container_combinators_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_map
+    absl::flat_hash_set
+    absl::random_random
+    absl::strings
+    fuzztest::domain
+    fuzztest::type_support
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_in_regexp_domain_test
-  in_regexp_domain_test.cc
-)
-target_link_libraries(
-  fuzztest_in_regexp_domain_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::random_random
-  absl::span
-  re2
-  fuzztest_regexp_dfa
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_in_regexp_domain_test
-  COMMAND
-  fuzztest_in_regexp_domain_test
+    container_test
+  SRCS
+    "container_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_map
+    absl::flat_hash_set
+    absl::random_random
+    fuzztest::coverage
+    fuzztest::domain
+    fuzztest::type_support
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_in_grammar_domain_test
-  in_grammar_domain_test.cc
-)
-target_link_libraries(
-  fuzztest_in_grammar_domain_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_domain
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::random_random
-  absl::flat_hash_set
-  nlohmann_json
-  json_grammar
-  re2
-  fuzztest_regexp_dfa
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_library(
   NAME
-  fuzztest_in_grammar_domain_test
-  COMMAND
-  fuzztest_in_grammar_domain_test
+    domain_testing
+  HDRS
+    "domain_testing.h"
+  DEPS
+    absl::flat_hash_set
+    absl::hash
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::status
+    absl::strings
+    fuzztest::logging
+    fuzztest::meta
+    fuzztest::serialization
+    test_protobuf
+    fuzztest::type_support
+    GTest::gtest
+    protobuf::libprotobuf
 )
 
-add_executable(
-  fuzztest_map_filter_combinator_test
-  map_filter_combinator_test.cc
-)
-target_link_libraries(
-  fuzztest_map_filter_combinator_test
-  PUBLIC
-  fuzztest_coverage
-  fuzztest_domain
-  fuzztest_domain_testing
-  fuzztest_logging
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_type_support
-  absl::algorithm_container
-  absl::random_random
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_map_filter_combinator_test
-  COMMAND
-  fuzztest_map_filter_combinator_test
+    in_grammar_domain_test
+  SRCS
+    "in_grammar_domain_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    fuzztest::domain
+    fuzztest::serialization
+    json_grammar
+    GTest::gmock_main
+    nlohmann_json
 )
 
-add_executable(
-  fuzztest_misc_domains_test
-  misc_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_misc_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_meta
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::int128
-  absl::random_random
-  absl::span
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_misc_domains_test
-  COMMAND
-  fuzztest_misc_domains_test
+    in_regexp_domain_test
+  SRCS
+    "in_regexp_domain_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    absl::span
+    fuzztest::domain
+    fuzztest::logging
+    fuzztest::type_support
+    GTest::gmock_main
+    re2::re2
 )
 
-add_executable(
-  fuzztest_numeric_domains_test
-  numeric_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_numeric_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::int128
-  absl::random_random
-  absl::span
-  absl::status
-  absl::strings
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_numeric_domains_test
-  COMMAND
-  fuzztest_numeric_domains_test
+    map_filter_combinator_test
+  SRCS
+    "map_filter_combinator_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::algorithm_container
+    absl::random_random
+    fuzztest::domain_core
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_pointer_domains_test
-  pointer_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_pointer_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::random_random
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_pointer_domains_test
-  COMMAND
-  fuzztest_pointer_domains_test
+    misc_domains_test
+  SRCS
+    "misc_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::int128
+    absl::random_random
+    absl::span
+    fuzztest::domain
+    fuzztest::meta
+    fuzztest::type_support
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_recursive_domains_test
-  recursive_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_recursive_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::random_random
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_recursive_domains_test
-  COMMAND
-  fuzztest_recursive_domains_test
+    numeric_domains_test
+  SRCS
+    "numeric_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::int128
+    absl::random_random
+    absl::status
+    absl::strings
+    absl::span
+    fuzztest::domain
+    fuzztest::serialization
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_string_domains_test
-  string_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_string_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::random_random
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_string_domains_test
-  COMMAND
-  fuzztest_string_domains_test
+    pointer_domains_test
+  SRCS
+    "pointer_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::random_random
+    fuzztest::domain
+    GTest::gmock_main
 )
 
-add_executable(
-  fuzztest_specific_value_domains_test
-  specific_value_domains_test.cc
-)
-target_link_libraries(
-  fuzztest_specific_value_domains_test
-  PUBLIC
-  fuzztest_domain_testing
-  fuzztest_coverage
-  fuzztest_type_support
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_logging
-  absl::flat_hash_set
-  absl::random_random
-  absl::span
-  GTest::gmock_main
-)
-add_test(
+fuzztest_cc_test(
   NAME
-  fuzztest_specific_value_domains_test
-  COMMAND
-  fuzztest_specific_value_domains_test
+    recursive_domains_test
+  SRCS
+    "recursive_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::random_random
+    fuzztest::domain
+    GTest::gmock_main
+)
+
+fuzztest_cc_test(
+  NAME
+    specific_value_domains_test
+  SRCS
+    "specific_value_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    absl::time
+    absl::span
+    fuzztest::domain
+    GTest::gmock_main
+)
+
+fuzztest_cc_test(
+  NAME
+    string_domains_test
+  SRCS
+    "string_domains_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_random
+    fuzztest::domain
+    GTest::gmock_main
 )

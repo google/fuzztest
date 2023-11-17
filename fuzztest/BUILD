@@ -119,6 +119,8 @@ cc_library(
 # Internal
 ################################################################################
 
+# TODO(lszekeres): Move these to internal/BUILD.
+
 cc_library(
     name = "absl_helpers",
     hdrs = ["internal/domains/absl_helpers.h"],

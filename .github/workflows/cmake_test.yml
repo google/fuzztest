@@ -72,7 +72,7 @@ jobs:
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D RE2_BUILD_TESTING=off \
             -D protobuf_BUILD_TESTS=off \
-            -D FUZZTEST_TESTING=on \
+            -D FUZZTEST_BUILD_TESTING=on \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
@@ -88,7 +88,7 @@ jobs:
             -D RE2_BUILD_TESTING=off \
             -D protobuf_BUILD_TESTS=off \
             -D FUZZTEST_FUZZING_MODE=on \
-            -D FUZZTEST_TESTING=on \
+            -D FUZZTEST_BUILD_TESTING=on \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main

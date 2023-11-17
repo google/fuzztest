@@ -21,20 +21,20 @@ set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
 set(nlohmann_json_TAG v3.11.2)
 
-if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
+if (FUZZTEST_BUILD_TESTING)
   FetchContent_Declare(
     nlohmann_json
     GIT_REPOSITORY ${nlohmann_json_URL}
     GIT_TAG        ${nlohmann_json_TAG}
   )
   FetchContent_MakeAvailable(nlohmann_json)
-
-  FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY ${gtest_URL}
-    GIT_TAG        ${gtest_TAG}
-  )
 endif ()
+
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY ${gtest_URL}
+  GIT_TAG        ${gtest_TAG}
+)
 
 FetchContent_Declare(
   abseil-cpp
@@ -54,7 +54,7 @@ FetchContent_Declare(
   GIT_TAG        ${re2_TAG}
 )
 
-if (FUZZTEST_TESTING)
+if (FUZZTEST_BUILD_TESTING)
   FetchContent_Declare(
     protobuf
     GIT_REPOSITORY ${proto_URL}
@@ -62,6 +62,7 @@ if (FUZZTEST_TESTING)
   )
 endif ()
 
+FetchContent_MakeAvailable(googletest)
 FetchContent_MakeAvailable(antlr_cpp)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(ABSL_ENABLE_INSTALL ON)
@@ -69,11 +70,7 @@ FetchContent_MakeAvailable(abseil-cpp)
 set(RE2_BUILD_TESTING OFF CACHE BOOL "")
 FetchContent_MakeAvailable(re2)
 
-if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
-  FetchContent_MakeAvailable(googletest)
-endif()
-
-if (FUZZTEST_TESTING)
+if (FUZZTEST_BUILD_TESTING)
   set(protobuf_BUILD_TESTS OFF)
   set(protobuf_INSTALL OFF)
   FetchContent_MakeAvailable(protobuf)

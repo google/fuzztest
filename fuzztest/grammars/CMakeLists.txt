@@ -7,6 +7,7 @@ function(fuzztest_grammar_library lib_name top_level_rule)
       list(APPEND ${lib_name}_grammar_files ${abs_path})
     endforeach()
     string(JOIN "," all_grammar_files ${${lib_name}_grammar_files})
+
     add_custom_command(
       OUTPUT ${${lib_name}_output_file}
       COMMAND

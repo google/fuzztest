@@ -1,5 +1,5 @@
 function(link_fuzztest name)
-  target_link_libraries(${name} PRIVATE fuzztest_gtest_main)
+  target_link_libraries(${name} PRIVATE fuzztest::fuzztest_gtest_main)
   if (FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer")
     EXECUTE_PROCESS (
         COMMAND bash -c "command -v llvm-config || command -v llvm-config-16 || command -v llvm-config-15 || command -v llvm-config-14 || command -v llvm-config-13 || command -v llvm-config-12 || echo"

@@ -3,8 +3,567 @@ include_directories(${PARENT_DIR})
 
 add_subdirectory(grammars)
 
-if (FUZZTEST_TESTING)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
+
+fuzztest_cc_library(
+  NAME
+    fuzztest
+  HDRS
+    "fuzztest.h"
+  SRCS
+    "fuzztest.cc"
+  DEPS
+    fuzztest::domain
+    fuzztest::io
+    fuzztest::registration
+    fuzztest::registry
+)
+
+fuzztest_cc_library(
+  NAME
+    fuzztest_gtest_main
+  SRCS
+    "fuzztest_gtest_main.cc"
+  DEPS
+    absl::flags_parse
+    absl::strings
+    fuzztest::init_fuzztest
+    GTest::gtest
+)
+
+fuzztest_cc_library(
+  NAME
+    init_fuzztest
+  HDRS
+    "init_fuzztest.h"
+  SRCS
+    "init_fuzztest.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::googletest_adaptor
+    fuzztest::io
+    fuzztest::registry
+    fuzztest::runtime
+    absl::flags
+    absl::strings
+    absl::str_format
+    absl::time
+    GTest::gtest
+)
+
+fuzztest_cc_library(
+  NAME
+    llvm_fuzzer_main
+  SRCS
+    "llvm_fuzzer_main.cc"
+  DEPS
+    fuzztest::init_fuzztest
+    absl::flags
+    absl::flags_parse
+    GTest::gtest
+)
+
+fuzztest_cc_library(
+  NAME
+    llvm_fuzzer_wrapper
+  SRCS
+    "llvm_fuzzer_wrapper.cc"
+  DEPS
+    fuzztest::domain_core
+    fuzztest::fuzztest
+    fuzztest::io
+    fuzztest::llvm_fuzzer_main
+    absl::flags
+    absl::log
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::strings
+    absl::string_view
+    re2::re2
+)
+
+################################################################################
+# Internal
+################################################################################
+
+# TODO(lszekeres): Move these under internal/CMakeLists.txt
+
+fuzztest_cc_library(
+  NAME
+    absl_helpers
+  HDRS
+    "internal/domains/absl_helpers.h"
+  DEPS
+    fuzztest::logging
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
+    any
+  HDRS
+    "internal/any.h"
+  DEPS
+    fuzztest::logging
+    fuzztest::meta
+)
+
+fuzztest_cc_test(
+  NAME
+    any_test
+  SRCS
+    "internal/any_test.cc"
+  DEPS
+    fuzztest::any
+    absl::strings
+    GTest::gmock_main
+)
+
+# TODO(lszekeres): centipede_adaptor
+
+fuzztest_cc_library(
+  NAME
+    compatibility_mode
+  HDRS
+    "internal/compatibility_mode.h"
+  SRCS
+    "internal/compatibility_mode.cc"
+  DEPS
+    fuzztest::fixture_driver
+    fuzztest::logging
+    fuzztest::runtime
+    absl::random_distributions
+    absl::strings
+    absl::str_format
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
+    configuration
+  HDRS
+    "internal/configuration.h"
+  SRCS
+    "internal/configuration.cc"
+  DEPS
+    fuzztest::io
+    absl::strings
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
+    coverage
+  HDRS
+    "internal/coverage.h"
+  SRCS
+    "internal/coverage.cc"
+  DEPS
+    fuzztest::logging
+    fuzztest::table_of_recent_compares
+    absl::core_headers
+    absl::str_format
+    absl::span
+)
+
+fuzztest_cc_library(
+  NAME
+    domain
+  HDRS
+    "domain.h"
+    "internal/domains/in_grammar_impl.h"
+    "internal/domains/in_regexp_impl.h"
+    "internal/domains/protobuf_domain_impl.h"
+  SRCS
+    "internal/domains/in_grammar_impl.cc"
+  DEPS
+    fuzztest::any
+    fuzztest::domain_core
+    fuzztest::logging
+    fuzztest::meta
+    fuzztest::regexp_dfa
+    fuzztest::serialization
+    fuzztest::status
+    fuzztest::type_support
+    absl::core_headers
+    absl::flat_hash_map
+    absl::flat_hash_set
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    absl::strings
+    absl::synchronization
+    absl::span
+)
+
+fuzztest_cc_library(
+  NAME
+    domain_core
+  HDRS
+    "domain_core.h"
+    "internal/domains/aggregate_of_impl.h"
+    "internal/domains/arbitrary_impl.h"
+    "internal/domains/bit_flag_combination_of_impl.h"
+    "internal/domains/container_mutation_helpers.h"
+    "internal/domains/container_of_impl.h"
+    "internal/domains/domain_base.h"
+    "internal/domains/element_of_impl.h"
+    "internal/domains/filter_impl.h"
+    "internal/domains/flat_map_impl.h"
+    "internal/domains/in_range_impl.h"
+    "internal/domains/map_impl.h"
+    "internal/domains/one_of_impl.h"
+    "internal/domains/optional_of_impl.h"
+    "internal/domains/serialization_helpers.h"
+    "internal/domains/smart_pointer_of_impl.h"
+    "internal/domains/unique_elements_container_of_impl.h"
+    "internal/domains/value_mutation_helpers.h"
+    "internal/domains/variant_of_impl.h"
+  DEPS
+    fuzztest::absl_helpers
+    fuzztest::any
+    fuzztest::coverage
+    fuzztest::logging
+    fuzztest::meta
+    fuzztest::serialization
+    fuzztest::status
+    fuzztest::table_of_recent_compares
+    fuzztest::type_support
+    absl::flat_hash_map
+    absl::flat_hash_set
+    absl::bits
+    absl::int128
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    absl::status
+    absl::strings
+    absl::str_format
+    absl::time
+    absl::span
+)
+
+fuzztest_cc_library(
+  NAME
+    fixture_driver
+  HDRS
+    "internal/fixture_driver.h"
+  SRCS
+    "internal/fixture_driver.cc"
+  DEPS
+    fuzztest::any
+    fuzztest::domain
+    fuzztest::domain_core
+    fuzztest::logging
+    fuzztest::registration
+    fuzztest::type_support
+    absl::memory
+    absl::str_format
+    absl::span
+)
+
+fuzztest_cc_test(
+  NAME
+    fixture_driver_test
+  SRCS
+    "internal/fixture_driver_test.cc"
+  DEPS
+    fuzztest::any
+    fuzztest::domain_core
+    fuzztest::fixture_driver
+    fuzztest::logging
+    fuzztest::registration
+    absl::span
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    googletest_adaptor
+  HDRS
+    "internal/googletest_adaptor.h"
+  SRCS
+    "internal/googletest_adaptor.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::io
+    fuzztest::registry
+    fuzztest::runtime
+    absl::strings
+    absl::string_view
+    GTest::gtest
+)
+
+fuzztest_cc_library(
+  NAME
+    googletest_fixture_adapter
+  HDRS
+    "googletest_fixture_adapter.h"
+  DEPS
+    fuzztest::fixture_driver
+    GTest::gtest
+)
+
+fuzztest_cc_library(
+  NAME
+    io
+  HDRS
+    "internal/io.h"
+  SRCS
+    "internal/io.cc"
+  DEPS
+    fuzztest::logging
+    absl::hash
+    absl::str_format
+)
+
+fuzztest_cc_test(
+  NAME
+    io_test
+  SRCS
+    "internal/io_test.cc"
+  DEPS
+    fuzztest::fuzztest
+    fuzztest::io
+    absl::strings
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    logging
+  HDRS
+    "internal/logging.h"
+  SRCS
+    "internal/logging.cc"
+  DEPS
+    absl::strings
+)
+
+fuzztest_cc_library(
+  NAME
+    meta
+  HDRS
+    "internal/meta.h"
+  DEPS
+    absl::int128
+)
+
+fuzztest_cc_library(
+  NAME
+    regexp_dfa
+  HDRS
+    "internal/domains/regexp_dfa.h"
+  SRCS
+    "internal/domains/regexp_dfa.cc"
+  DEPS
+    fuzztest::logging
+    absl::flat_hash_map
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    re2::re2
+)
+
+fuzztest_cc_library(
+  NAME
+    registration
+  HDRS
+    "internal/registration.h"
+  DEPS
+    fuzztest::domain
+    fuzztest::domain_core
+    fuzztest::meta
+    fuzztest::type_support
+    absl::any_invocable
+    absl::str_format
+    absl::span
+)
+
+fuzztest_cc_library(
+  NAME
+    registry
+  HDRS
+    "internal/registry.h"
+  SRCS
+    "internal/registry.cc"
+  DEPS
+    fuzztest::compatibility_mode
+    fuzztest::fixture_driver
+    fuzztest::registration
+    fuzztest::runtime
+    absl::flat_hash_map
+    absl::function_ref
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
+    runtime
+  HDRS
+    "internal/runtime.h"
+  SRCS
+    "internal/runtime.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::coverage
+    fuzztest::domain
+    fuzztest::domain_core
+    fuzztest::fixture_driver
+    fuzztest::io
+    fuzztest::logging
+    fuzztest::meta
+    fuzztest::registration
+    fuzztest::seed_seq
+    fuzztest::serialization
+    fuzztest::type_support
+    absl::any_invocable
+    absl::function_ref
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    absl::status
+    absl::strings
+    absl::str_format
+    absl::time
+    absl::span
+)
+
+fuzztest_cc_test(
+  NAME
+    runtime_test
+  SRCS
+    "internal/runtime_test.cc"
+  DEPS
+    fuzztest::domain
+    fuzztest::runtime
+    test_protobuf
+    absl::time
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    seed_seq
+  HDRS
+    "internal/seed_seq.h"
+  SRCS
+    "internal/seed_seq.cc"
+  DEPS
+    fuzztest::logging
+    absl::random_random
+    absl::strings
+    absl::span
+)
+
+fuzztest_cc_test(
+  NAME
+    seed_seq_test
+  SRCS
+    "internal/seed_seq_test.cc"
+  DEPS
+    fuzztest::seed_seq
+    absl::strings
+    absl::span
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    serialization
+  HDRS
+    "internal/serialization.h"
+  SRCS
+    "internal/serialization.cc"
+  DEPS
+    fuzztest::meta
+    absl::int128
+    absl::strings
+    absl::str_format
+    absl::span
+)
+
+fuzztest_cc_test(
+  NAME
+    serialization_test
+  SRCS
+    "internal/serialization_test.cc"
+  DEPS
+    fuzztest::serialization
+    test_protobuf
+    GTest::gmock_main
+    protobuf::libprotobuf
+)
+
+fuzztest_cc_library(
+  NAME
+    status
+  HDRS
+    "internal/status.h"
+  SRCS
+    "internal/status.cc"
+  DEPS
+    absl::status
+    absl::strings
+    absl::cord
+)
+
+fuzztest_cc_library(
+  NAME
+    subprocess
+  HDRS
+    "internal/subprocess.h"
+  SRCS
+    "internal/subprocess.cc"
+  DEPS
+    fuzztest::logging
+    absl::flat_hash_map
+    absl::strings
+    absl::time
+)
+
+fuzztest_cc_test(
+  NAME
+    subprocess_test
+  SRCS
+    "internal/subprocess_test.cc"
+  DEPS
+    fuzztest::subprocess
+    absl::strings
+    absl::time
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    table_of_recent_compares
+  HDRS
+    "internal/table_of_recent_compares.h"
+  DEPS
+    fuzztest::type_support
+    absl::flat_hash_set
+    absl::random_bit_gen_ref
+    absl::random_distributions
+)
+
+fuzztest_cc_test(
+  NAME
+    table_of_recent_compares_test
+  SRCS
+    "internal/table_of_recent_compares_test.cc"
+  DEPS
+    fuzztest::domain
+    fuzztest::table_of_recent_compares
+    absl::random_random
+    GTest::gmock_main
+)
+
+# TODO(lszekeres): Support fuzztest_cc_proto_library.
+
+if (FUZZTEST_BUILD_TESTING)
+
   include_directories(${PROTOBUF_INCLUDE_DIR})
+
   add_library(
     test_protobuf
     OBJECT
@@ -21,743 +580,50 @@ if (FUZZTEST_TESTING)
 
   protobuf_generate(
     TARGET
-    test_protobuf
+      test_protobuf
     IMPORT_DIRS
-    ${CMAKE_CURRENT_LIST_DIR}/internal
+      ${CMAKE_CURRENT_LIST_DIR}/internal
     PROTOC_OUT_DIR
-    ${CMAKE_CURRENT_BINARY_DIR}/internal
+      ${CMAKE_CURRENT_BINARY_DIR}/internal
   )
+
   target_include_directories(
     test_protobuf
     PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/.."
   )
+
 endif ()
 
-# TODO: introduce similar functions to absl_cc_library and absl_cc_test to ease
-# the automation of synchronization.
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
-
-add_library(
-  fuzztest_logging
-  OBJECT
-  internal/logging.cc
-  internal/logging.h
-)
-
-target_link_libraries(
-  fuzztest_logging
-  PUBLIC
-  absl::strings
-)
-
-add_library(
-  fuzztest_meta
-  OBJECT
-  internal/meta.h
-)
-
-set_target_properties(
-  fuzztest_meta
-  PROPERTIES
-  LINKER_LANGUAGE
-  CXX
-)
-target_link_libraries(
-  fuzztest_meta
-  PUBLIC
-  absl::int128
-)
-
-add_library(
-  fuzztest_any
-  OBJECT
-  internal/any.h
-)
-set_target_properties(
-  fuzztest_any
-  PROPERTIES
-  LINKER_LANGUAGE CXX
-)
-target_link_libraries(
-  fuzztest_any
-  PUBLIC
-  fuzztest_meta
-  fuzztest_logging
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_any_test
-    internal/any_test.cc
-  )
-  target_link_libraries(fuzztest_any_test PUBLIC
-    fuzztest_any
-    fuzztest_logging
+fuzztest_cc_library(
+  NAME
+    type_support
+  HDRS
+    "internal/type_support.h"
+  SRCS
+    "internal/type_support.cc"
+  DEPS
+    fuzztest::absl_helpers
+    fuzztest::meta
+    absl::symbolize
+    absl::int128
     absl::strings
-    GTest::gtest_main
-  )
-  add_test(
-    NAME
-    fuzztest_any_test
-    COMMAND
-    fuzztest_any_test
-  )
-endif()
-
-add_library(
-  fuzztest_type_support
-  OBJECT
-  internal/type_support.cc
-  internal/type_support.h
+    absl::str_format
+    absl::time
 )
 
-target_link_libraries(
-  fuzztest_type_support
-  PUBLIC
-  fuzztest_meta
-  absl::symbolize
-  absl::strings
-  absl::str_format
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_type_support_test
-    internal/type_support_test.cc
-  )
-  target_link_libraries(
-    fuzztest_type_support_test
-    PUBLIC
-    fuzztest_domain
-    fuzztest_fixture_driver
-    fuzztest_registration
-    fuzztest_logging
-    fuzztest_coverage
-    fuzztest_status
-    fuzztest_type_support
-    protobuf::libprotobuf
+fuzztest_cc_test(
+  NAME
+    type_support_test
+  SRCS
+    "internal/type_support_test.cc"
+  DEPS
+    fuzztest::domain
     test_protobuf
-    absl::span
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_type_support_test
-    COMMAND
-    fuzztest_type_support_test
-  )
-endif()
-
-add_library(
-  fuzztest_table_of_recent_compares
-  OBJECT
-  internal/table_of_recent_compares.h
-)
-
-set_target_properties(
-  fuzztest_table_of_recent_compares
-  PROPERTIES
-  LINKER_LANGUAGE CXX
-)
-target_link_libraries(
-  fuzztest_table_of_recent_compares
-  PUBLIC
-  fuzztest_type_support
-  absl::flat_hash_set
-  absl::random_distributions
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_table_of_recent_compares_test
-    internal/table_of_recent_compares_test.cc
-  )
-  target_link_libraries(
-    fuzztest_table_of_recent_compares_test
-    PUBLIC
-    fuzztest_domain
-    absl::random_random
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_table_of_recent_compares_test
-    COMMAND
-    fuzztest_table_of_recent_compares_test
-  )
-endif()
-
-add_library(
-  fuzztest_regexp_dfa
-  OBJECT
-  internal/domains/regexp_dfa.cc
-  internal/domains/regexp_dfa.h
-)
-
-target_link_libraries(
-  fuzztest_regexp_dfa
-  PUBLIC
-  fuzztest_logging
-  absl::flat_hash_map
-  absl::random_distributions
-  absl::string_view
-  re2::re2
-)
-
-add_library(
-  fuzztest_io
-  OBJECT
-  internal/io.cc
-  internal/io.h
-)
-
-target_link_libraries(
-  fuzztest_io
-  PUBLIC
-  fuzztest_logging
-  absl::hash
-  absl::str_format
-  absl::string_view
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_io_test
-    internal/io_test.cc
-  )
-  target_link_libraries(
-    fuzztest_io_test
-    PUBLIC
-    fuzztest_io
-    fuzztest_fuzztest
-    fuzztest_registry
-    fuzztest_logging
+    fuzztest::type_support
+    absl::int128
     absl::strings
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_io_test
-    COMMAND
-    fuzztest_io_test
-  )
-endif()
-
-add_library(
-  fuzztest_coverage
-  OBJECT
-  internal/coverage.cc
-  internal/coverage.h
-)
-
-target_link_libraries(
-  fuzztest_coverage
-  PUBLIC
-  fuzztest_logging
-  fuzztest_table_of_recent_compares
-  absl::base
-  absl::span
-)
-
-add_library(
-  fuzztest_registration
-  OBJECT
-  internal/registration.h
-)
-set_target_properties(
-  fuzztest_registration
-  PROPERTIES
-  LINKER_LANGUAGE CXX
-)
-target_link_libraries(
-  fuzztest_registration
-  PUBLIC
-  fuzztest_domain
-  fuzztest_meta
-  fuzztest_status
-  fuzztest_type_support
-  absl::any_invocable
-  absl::str_format
-  absl::span
-)
-
-add_library(
-  fuzztest_fixture_driver
-  OBJECT
-  internal/fixture_driver.h
-  internal/fixture_driver.cc
-)
-
-target_link_libraries(
-  fuzztest_fixture_driver
-  PUBLIC
-  fuzztest_any
-  fuzztest_domain
-  fuzztest_logging
-  fuzztest_registration
-  fuzztest_type_support
-  fuzztest_status
-  absl::memory
-  absl::str_format
-  absl::span
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_fixture_driver_test
-    internal/fixture_driver_test.cc
-  )
-  target_link_libraries(
-    fuzztest_fixture_driver_test
-    PUBLIC
-    fuzztest_any
-    fuzztest_domain
-    fuzztest_fixture_driver
-    fuzztest_registration
-    fuzztest_logging
-    fuzztest_coverage
-    fuzztest_status
-    fuzztest_type_support
-    absl::span
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_fixture_driver_test
-    COMMAND
-    fuzztest_fixture_driver_test
-  )
-endif()
-
-add_library(
-  fuzztest_serialization
-  OBJECT
-  internal/serialization.cc
-  internal/serialization.h
-)
-
-target_link_libraries(
-  fuzztest_serialization
-  PUBLIC
-  fuzztest_meta
-  absl::int128
-  absl::strings
-  absl::str_format
-  absl::span
-  absl::variant
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_serialization_test
-    internal/serialization_test.cc
-  )
-  target_link_libraries(
-    fuzztest_serialization_test
-    PUBLIC
-    fuzztest_logging
-    fuzztest_domain
-    fuzztest_configuration
-    fuzztest_coverage
-    fuzztest_seed_seq
-    fuzztest_fixture_driver
-    fuzztest_serialization
-    fuzztest_status
-    fuzztest_io
-    fuzztest_type_support
-    protobuf::libprotobuf
-    fuzztest_runtime
-    absl::time
-    test_protobuf
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_serialization_test
-    COMMAND
-    fuzztest_serialization_test
-  )
-endif ()
-
-add_library(
-  fuzztest_status
-  OBJECT
-  internal/status.cc
-  internal/status.h
-)
-
-target_link_libraries(
-  fuzztest_status
-  PUBLIC
-  absl::cord
-  absl::status
-  absl::strings
-)
-
-add_library(
-  fuzztest_subprocess
-  OBJECT
-  internal/subprocess.cc
-  internal/subprocess.h
-)
-
-target_link_libraries(
-  fuzztest_subprocess
-  PUBLIC
-  fuzztest_logging
-  absl::flat_hash_map
-  absl::strings
-  absl::time
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_subprocess_test
-    internal/subprocess_test.cc
-  )
-  target_link_libraries(
-    fuzztest_subprocess_test
-    PUBLIC
-    fuzztest_logging
-    fuzztest_subprocess
-    absl::strings
+    absl::str_format
     absl::time
     GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_subprocess_test
-    COMMAND
-    fuzztest_subprocess_test
-  )
-endif ()
-
-add_library(
-  fuzztest_domain
-  OBJECT
-  internal/domains/in_grammar_impl.cc
-  domain.h
-  domain_core.h
-  internal/domains/aggregate_of_impl.h
-  internal/domains/arbitrary_impl.h
-  internal/domains/bit_flag_combination_of_impl.h
-  internal/domains/container_mutation_helpers.h
-  internal/domains/container_of_impl.h
-  internal/domains/domain_base.h
-  internal/domains/element_of_impl.h
-  internal/domains/filter_impl.h
-  internal/domains/flat_map_impl.h
-  internal/domains/in_grammar_impl.h
-  internal/domains/in_range_impl.h
-  internal/domains/in_regexp_impl.h
-  internal/domains/map_impl.h
-  internal/domains/one_of_impl.h
-  internal/domains/optional_of_impl.h
-  internal/domains/protobuf_domain_impl.h
-  internal/domains/serialization_helpers.h
-  internal/domains/smart_pointer_of_impl.h
-  internal/domains/unique_elements_container_of_impl.h
-  internal/domains/value_mutation_helpers.h
-  internal/domains/variant_of_impl.h
 )
-
-target_link_libraries(
-  fuzztest_domain
-  PUBLIC
-  fuzztest_coverage
-  fuzztest_logging
-  fuzztest_meta
-  fuzztest_regexp_dfa
-  fuzztest_serialization
-  fuzztest_status
-  fuzztest_table_of_recent_compares
-  fuzztest_type_support
-  absl::base
-  absl::bits
-  absl::flat_hash_map
-  absl::flat_hash_set
-  absl::int128
-  absl::random_distributions
-  absl::span
-  absl::status
-  absl::str_format
-  absl::strings
-  absl::synchronization
-)
-
-add_library(
-  fuzztest_seed_seq
-  OBJECT
-  internal/seed_seq.cc
-  internal/seed_seq.h
-)
-
-target_link_libraries(
-  fuzztest_seed_seq
-  PUBLIC
-  fuzztest_logging
-  absl::strings
-  absl::random_random
-  absl::span
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_seed_seq_test
-    internal/seed_seq_test.cc
-  )
-  target_link_libraries(
-    fuzztest_seed_seq_test
-    PUBLIC
-    fuzztest_logging
-    fuzztest_domain
-    fuzztest_configuration
-    fuzztest_coverage
-    fuzztest_seed_seq
-    fuzztest_fixture_driver
-    fuzztest_serialization
-    fuzztest_io
-    fuzztest_type_support
-    fuzztest_runtime
-    fuzztest_status
-    absl::time
-    GTest::gmock_main
-  )
-  add_test(
-    NAME
-    fuzztest_seed_seq_test
-    COMMAND
-    fuzztest_seed_seq_test
-  )
-endif ()
-
-add_library(
-  fuzztest_runtime
-  OBJECT
-  internal/runtime.cc
-  internal/runtime.h
-)
-
-target_link_libraries(
-  fuzztest_runtime
-  PUBLIC
-  fuzztest_configuration
-  fuzztest_coverage
-  fuzztest_domain
-  fuzztest_fixture_driver
-  fuzztest_io
-  fuzztest_logging
-  fuzztest_meta
-  fuzztest_registration
-  fuzztest_status
-  fuzztest_serialization
-  fuzztest_type_support
-  absl::any_invocable
-  absl::function_ref
-  absl::random_random
-  absl::random_seed_sequences
-  absl::status
-  absl::strings
-  absl::str_format
-  absl::time
-  absl::span
-)
-
-if (FUZZTEST_TESTING)
-  add_executable(
-    fuzztest_runtime_test
-    internal/runtime_test.cc
-  )
-  target_link_libraries(
-    fuzztest_runtime_test
-    PUBLIC
-    fuzztest_logging
-    fuzztest_domain
-    fuzztest_configuration
-    fuzztest_coverage
-    fuzztest_seed_seq
-    fuzztest_fixture_driver
-    fuzztest_serialization
-    fuzztest_io
-    fuzztest_type_support
-    fuzztest_runtime
-    fuzztest_status
-    absl::time
-    test_protobuf
-    GTest::gtest_main
-  )
-  add_test(
-    NAME
-    fuzztest_runtime_test
-    COMMAND
-    fuzztest_runtime_test
-  )
-endif ()
-
-add_library(
-  fuzztest_compatibility_mode
-  OBJECT
-  internal/compatibility_mode.cc
-  internal/compatibility_mode.h
-)
-
-target_link_libraries(
-  fuzztest_compatibility_mode
-  PUBLIC
-  fuzztest_configuration
-  fuzztest_fixture_driver
-  fuzztest_logging
-  fuzztest_runtime
-  absl::random_distributions
-  absl::strings
-  absl::str_format
-  absl::time
-)
-
-add_library(
-  fuzztest_configuration
-  OBJECT
-  internal/configuration.cc
-  internal/configuration.h
-)
-
-target_link_libraries(
-  fuzztest_configuration
-  PUBLIC
-  absl::strings
-  absl::string_view
-  fuzztest_io
-)
-
-add_library(
-  fuzztest_registry
-  OBJECT
-  internal/registry.cc
-  internal/registry.h
-)
-
-target_link_libraries(
-  fuzztest_registry
-  PUBLIC
-  fuzztest_compatibility_mode
-  fuzztest_fixture_driver
-  fuzztest_registration
-  fuzztest_runtime
-  absl::flat_hash_map
-  absl::function_ref
-  absl::string_view
-)
-
-add_library(
-  fuzztest_fuzztest
-  OBJECT
-  fuzztest.cc
-  fuzztest.h
-)
-
-target_link_libraries(
-  fuzztest_fuzztest
-  PUBLIC
-  fuzztest_domain
-  fuzztest_io
-  fuzztest_registration
-  fuzztest_registry
-  fuzztest_runtime
-  absl::str_format
-  absl::strings
-)
-target_include_directories(
-    fuzztest_fuzztest
-    SYSTEM INTERFACE
-    "$<BUILD_INTERFACE:${fuzztest_SOURCE_DIR}>"
-    "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>")
-
-if (FUZZTEST_USE_GTEST OR FUZZTEST_TESTING)
-  add_library(
-    fuzztest_init_fuzztest
-    OBJECT
-    init_fuzztest.cc
-    init_fuzztest.h
-  )
-
-  target_link_libraries(
-    fuzztest_init_fuzztest
-    PUBLIC
-    absl::flags
-    absl::strings
-    absl::time
-    fuzztest_configuration
-    fuzztest_googletest_adaptor
-    fuzztest_runtime
-    GTest::gtest
-  )
-
-  add_library(
-    fuzztest_googletest_adaptor
-    OBJECT
-    internal/googletest_adaptor.cc
-    internal/googletest_adaptor.h
-  )
-
-  target_link_libraries(
-    fuzztest_googletest_adaptor
-    PUBLIC
-    fuzztest_configuration
-    fuzztest_registry
-    fuzztest_runtime
-    GTest::gtest
-  )
-
-  add_library(
-    fuzztest_googletest_fixture_adapter
-    OBJECT
-    googletest_fixture_adapter.h
-  )
-
-  target_link_libraries(
-    fuzztest_googletest_fixture_adapter
-    PUBLIC
-    fuzztest_fixture_driver
-    GTest::gtest
-  )
-
-  add_library(
-    fuzztest_gtest_main
-    STATIC
-    fuzztest_gtest_main.cc
-  )
-
-  target_link_libraries(
-    fuzztest_gtest_main
-    PUBLIC
-    fuzztest_serialization
-    fuzztest_init_fuzztest
-    fuzztest_io
-    fuzztest_configuration
-    fuzztest_coverage
-    fuzztest_logging
-    fuzztest_fixture_driver
-    fuzztest_type_support
-    fuzztest_seed_seq
-    fuzztest_fuzztest
-    fuzztest_registry
-    fuzztest_googletest_adaptor
-    fuzztest_regexp_dfa
-    fuzztest_runtime
-    fuzztest_table_of_recent_compares
-    fuzztest_subprocess
-    fuzztest_status
-    fuzztest_compatibility_mode
-    absl::flags_parse
-    GTest::gtest
-    GTest::gmock
-  )
-  # Make sure the headers are available.
-  target_include_directories(
-    fuzztest_gtest_main
-    SYSTEM INTERFACE
-    "$<BUILD_INTERFACE:${fuzztest_SOURCE_DIR}>"
-    "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>")
-endif ()

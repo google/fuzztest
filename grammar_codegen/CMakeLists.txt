@@ -64,7 +64,7 @@ target_include_directories(
 )
 
 # TODO(changochen): Enable the test if we can figure out how to specify the path.
-#if (FUZZTEST_TESTING)
+#if (FUZZTEST_BUILD_TESTING)
 #  add_executable(
 #    code_generation_test
 #    code_generation_test.cc
