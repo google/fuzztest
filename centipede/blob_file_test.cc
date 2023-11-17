@@ -31,11 +31,13 @@ std::string TempFilePath() {
   return GetTestTempDir().append("blob_file");
 }
 
+// TODO(b/310701588): Update/add test to use Riegeli.
 // Tests correct way of using a BlobFile.
 // We may have more than one BlobFile factory.
 // Need to test every factory the same way.
-void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
-                     std::unique_ptr<BlobFileWriter> (*WriterFactory)()) {
+void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(bool),
+                     std::unique_ptr<BlobFileWriter> (*WriterFactory)(bool),
+                     bool riegeli = false) {
   ByteArray input1{1, 2, 3};
   ByteArray input2{4, 5};
   ByteArray input3{6, 7, 8, 9};
@@ -45,7 +47,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Append two blobs to a file.
   {
-    auto appender = WriterFactory();
+    auto appender = WriterFactory(riegeli);
     EXPECT_OK(appender->Open(path, "a"));
     EXPECT_OK(appender->Write(input1));
     EXPECT_OK(appender->Write(input2));
@@ -54,7 +56,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Read the blobs back.
   {
-    auto reader = ReaderFactory();
+    auto reader = ReaderFactory(riegeli);
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
     EXPECT_EQ(input1, blob);
@@ -66,7 +68,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Append one more blob to the same file.
   {
-    auto appender = WriterFactory();
+    auto appender = WriterFactory(riegeli);
     EXPECT_OK(appender->Open(path, "a"));
     EXPECT_OK(appender->Write(input3));
     EXPECT_OK(appender->Close());
@@ -74,7 +76,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Re-read the file, expect to see all 3 blobs.
   {
-    auto reader = ReaderFactory();
+    auto reader = ReaderFactory(riegeli);
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
     EXPECT_EQ(input1, blob);
@@ -88,7 +90,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Overwrite the contents of the file by a new blob.
   {
-    auto appender = WriterFactory();
+    auto appender = WriterFactory(riegeli);
     EXPECT_OK(appender->Open(path, "w"));
     EXPECT_OK(appender->Write(input4));
     EXPECT_OK(appender->Close());
@@ -96,7 +98,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
 
   // Re-read the file, expect to see all 3 blobs.
   {
-    auto reader = ReaderFactory();
+    auto reader = ReaderFactory(riegeli);
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
     EXPECT_EQ(input4, blob);
@@ -109,13 +111,15 @@ TEST(BlobFile, DefaultTest) {
   TestOneBlobFile(&DefaultBlobFileReaderFactory, &DefaultBlobFileWriterFactory);
 }
 
+// TODO(b/310701588): Update/add test to use Riegeli.
 // Tests incorrect ways of using a BlobFileReader/BlobFileWriter.
-void TestIncorrectUsage(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
-                        std::unique_ptr<BlobFileWriter> (*WriterFactory)()) {
+void TestIncorrectUsage(std::unique_ptr<BlobFileReader> (*ReaderFactory)(bool),
+                        std::unique_ptr<BlobFileWriter> (*WriterFactory)(bool),
+                        bool riegeli = false) {
   const std::string invalid_path = "/DOES/NOT/EXIST";
   const auto path = TempFilePath();
-  auto reader = ReaderFactory();
-  auto appender = WriterFactory();
+  auto reader = ReaderFactory(riegeli);
+  auto appender = WriterFactory(riegeli);
 
   // open invalid file path.
   EXPECT_EQ(reader->Open(invalid_path), absl::UnknownError("can't open file"));

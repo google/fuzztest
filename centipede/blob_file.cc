@@ -20,7 +20,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
@@ -32,10 +31,6 @@
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
-
-ABSL_FLAG(bool, riegeli, false,
-          "Use Riegeli file format (instead of the default bespoke encoding) "
-          "for storage");
 
 namespace centipede {
 
@@ -225,15 +220,15 @@ class RiegeliWriter : public BlobFileWriter {
   riegeli::RecordWriter<riegeli::FdWriter<>> writer_{riegeli::kClosed};
 };
 
-std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
-  if (absl::GetFlag(FLAGS_riegeli))
+std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory(bool riegeli) {
+  if (riegeli)
     return std::make_unique<RiegeliReader>();
   else
     return std::make_unique<SimpleBlobFileReader>();
 }
 
-std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory() {
-  if (absl::GetFlag(FLAGS_riegeli))
+std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(bool riegeli) {
+  if (riegeli)
     return std::make_unique<RiegeliWriter>();
   else
     return std::make_unique<SimpleBlobFileWriter>();

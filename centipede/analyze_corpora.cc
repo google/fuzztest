@@ -42,7 +42,8 @@ namespace {
 
 std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
                                       std::string_view binary_hash,
-                                      std::string_view workdir_path) {
+                                      std::string_view workdir_path,
+                                      bool riegeli) {
   WorkDir workdir(std::string(workdir_path), std::string(binary_name),
                   std::string(binary_hash), /*my_shard_index=*/0);
   std::vector<std::string> corpus_paths;
@@ -55,10 +56,12 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
   for (int i = 0; i < corpus_paths.size(); ++i) {
     LOG(INFO) << "Reading corpus at: " << corpus_paths[i];
     LOG(INFO) << "Reading features at: " << features_paths[i];
-    ReadShard(corpus_paths[i], features_paths[i],
-              [&corpus](const ByteArray &input, FeatureVec &features) {
-                corpus.push_back({input, features});
-              });
+    ReadShard(
+        corpus_paths[i], features_paths[i],
+        [&corpus](const ByteArray &input, FeatureVec &features) {
+          corpus.push_back({input, features});
+        },
+        riegeli);
   }
   return corpus;
 }
@@ -140,7 +143,7 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view binary_hash,
                                      std::string_view workdir_a,
-                                     std::string_view workdir_b) {
+                                     std::string_view workdir_b, bool riegeli) {
   BinaryInfo binary_info_a =
       ReadBinaryInfo(binary_name, binary_hash, workdir_a);
   BinaryInfo binary_info_b =
@@ -150,9 +153,9 @@ AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
   CHECK_EQ(binary_info_a.symbols.size(), binary_info_b.symbols.size());
 
   const std::vector<CorpusRecord> a =
-      ReadCorpora(binary_name, binary_hash, workdir_a);
+      ReadCorpora(binary_name, binary_hash, workdir_a, riegeli);
   const std::vector<CorpusRecord> b =
-      ReadCorpora(binary_name, binary_hash, workdir_b);
+      ReadCorpora(binary_name, binary_hash, workdir_b, riegeli);
 
   AnalyzeCorporaResults ret = AnalyzeCorpora(binary_info_a, a, b);
   ret.binary_info = std::move(binary_info_a);
@@ -161,10 +164,10 @@ AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
 
 void AnalyzeCorporaToLog(std::string_view binary_name,
                          std::string_view binary_hash,
-                         std::string_view workdir_a,
-                         std::string_view workdir_b) {
+                         std::string_view workdir_a, std::string_view workdir_b,
+                         bool riegeli) {
   AnalyzeCorporaResults results =
-      AnalyzeCorpora(binary_name, binary_hash, workdir_a, workdir_b);
+      AnalyzeCorpora(binary_name, binary_hash, workdir_a, workdir_b, riegeli);
 
   const auto &pc_table = results.binary_info.pc_table;
   const auto &symbols = results.binary_info.symbols;

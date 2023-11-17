@@ -133,7 +133,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
   const auto corpus_files = WorkDir{env}.CorpusFiles();
   for (size_t shard = 0; shard < env.total_shards; shard++) {
-    auto reader = DefaultBlobFileReaderFactory();
+    auto reader = DefaultBlobFileReaderFactory(env.riegeli);
     auto corpus_path = corpus_files.ShardPath(shard);
     reader->Open(corpus_path).IgnoreError();  // may not exist.
     absl::Span<const uint8_t> blob;
@@ -168,7 +168,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     // Read the shard (if it exists), collect input hashes from it.
     absl::flat_hash_set<std::string> existing_hashes;
     {
-      auto reader = DefaultBlobFileReaderFactory();
+      auto reader = DefaultBlobFileReaderFactory(env.riegeli);
       // May fail to open if file doesn't exist.
       reader->Open(corpus_path).IgnoreError();
       absl::Span<const uint8_t> blob;
@@ -177,7 +177,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
       }
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
-    auto appender = DefaultBlobFileWriterFactory();
+    auto appender = DefaultBlobFileWriterFactory(env.riegeli);
     CHECK_OK(appender->Open(corpus_path, "a"))
         << "Failed to open corpus file: " << corpus_path;
     ByteArray shard_data;
@@ -404,9 +404,11 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
     absl::MutexLock lock(&load_shard_mu);
-    ReadShard(corpus_path, features_path, input_features_callback);
+    ReadShard(corpus_path, features_path, input_features_callback,
+              load_env.riegeli);
   } else {
-    ReadShard(corpus_path, features_path, input_features_callback);
+    ReadShard(corpus_path, features_path, input_features_callback,
+              load_env.riegeli);
   }
 
   VLOG(1) << "Loaded shard " << shard_index << ": added " << num_added_inputs
@@ -435,7 +437,7 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
 void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
   auto features_file_path = wd_.FeaturesFiles().ShardPath(env_.my_shard_index);
-  auto features_file = DefaultBlobFileWriterFactory();
+  auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_file_path, "a"));
 
   LOG(INFO) << to_rerun.size() << " inputs to rerun";
@@ -582,7 +584,7 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   size_t new_corpus_size = corpus_.NumActive();
   CHECK_GE(new_corpus_size, initial_corpus_size);  // Corpus can't shrink here.
   if (new_corpus_size > initial_corpus_size) {
-    auto appender = DefaultBlobFileWriterFactory();
+    auto appender = DefaultBlobFileWriterFactory(env_.riegeli);
     CHECK_OK(
         appender->Open(wd_.CorpusFiles().ShardPath(env_.my_shard_index), "a"));
     for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
@@ -607,7 +609,7 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
-  const auto appender = DefaultBlobFileWriterFactory();
+  const auto appender = DefaultBlobFileWriterFactory(env_.riegeli);
   // NOTE: Always overwrite distilled corpus files -- never append, unlike
   // "regular", per-shard corpus files.
   CHECK_OK(appender->Open(distill_to_path, "w"));
@@ -664,10 +666,10 @@ void Centipede::FuzzingLoop() {
   }
 
   auto corpus_path = wd_.CorpusFiles().ShardPath(env_.my_shard_index);
-  auto corpus_file = DefaultBlobFileWriterFactory();
+  auto corpus_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(corpus_file->Open(corpus_path, "a"));
   auto features_path = wd_.FeaturesFiles().ShardPath(env_.my_shard_index);
-  auto features_file = DefaultBlobFileWriterFactory();
+  auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_path, "a"));
 
   // Load seed corpus when there is no external corpus loaded.

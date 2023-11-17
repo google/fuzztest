@@ -788,8 +788,8 @@ TEST(Centipede, UndetectedCrashingInput) {
 }
 
 static void WriteBlobsToFile(const std::vector<ByteArray> &blobs,
-                             const std::string_view path) {
-  auto appender = DefaultBlobFileWriterFactory();
+                             const std::string_view path, bool riegeli) {
+  auto appender = DefaultBlobFileWriterFactory(riegeli);
   CHECK_OK(appender->Open(path, "a"));
   for (const auto &blob : blobs) {
     CHECK_OK(appender->Write(blob));
@@ -797,6 +797,8 @@ static void WriteBlobsToFile(const std::vector<ByteArray> &blobs,
 }
 
 TEST(Centipede, ShardReader) {
+  // TODO(b/310701588): Update/add test to use Riegeli.
+  const bool riegeli = false;
   ByteArray data1 = {1, 2, 3};
   ByteArray data2 = {3, 4, 5, 6};
   ByteArray data3 = {7, 8, 9, 10, 11};
@@ -823,14 +825,16 @@ TEST(Centipede, ShardReader) {
   TempDir tmp_dir{test_info_->name()};
   std::string corpus_path = tmp_dir.GetFilePath("corpus");
   std::string features_path = tmp_dir.GetFilePath("features");
-  WriteBlobsToFile(corpus_blobs, corpus_path);
-  WriteBlobsToFile(features_blobs, features_path);
+  WriteBlobsToFile(corpus_blobs, corpus_path, riegeli);
+  WriteBlobsToFile(features_blobs, features_path, riegeli);
 
   std::vector<CorpusRecord> res;
-  ReadShard(corpus_path, features_path,
-            [&res](const ByteArray &input, const FeatureVec &features) {
-              res.push_back(CorpusRecord{input, features});
-            });
+  ReadShard(
+      corpus_path, features_path,
+      [&res](const ByteArray &input, const FeatureVec &features) {
+        res.push_back(CorpusRecord{input, features});
+      },
+      riegeli);
 
   EXPECT_EQ(res.size(), 5UL);
   EXPECT_EQ(res[0].data, data1);

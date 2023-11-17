@@ -96,10 +96,16 @@ class BlobFileWriter {
 };
 
 // Creates a new object of a default implementation of BlobFileReader.
-std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory();
+// If `riegeli` is `true`, the implementation uses Riegeli
+// (https://github.com/google/riegeli).
+std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory(
+    bool riegeli = false);
 
 // Creates a new object of a default implementation of BlobFileWriter.
-std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory();
+// If `riegeli` is `true`, the implementation uses Riegeli
+// (https://github.com/google/riegeli).
+std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(
+    bool riegeli = false);
 
 }  // namespace centipede
 

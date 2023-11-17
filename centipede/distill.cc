@@ -47,8 +47,8 @@ void DistillTask(const Environment &env,
   LOG(INFO) << log_line << VV(env.total_shards) << VV(corpus_path)
             << VV(features_path);
 
-  const auto corpus_writer = DefaultBlobFileWriterFactory();
-  const auto features_writer = DefaultBlobFileWriterFactory();
+  const auto corpus_writer = DefaultBlobFileWriterFactory(env.riegeli);
+  const auto features_writer = DefaultBlobFileWriterFactory(env.riegeli);
   // NOTE: Overwrite distilled corpus and features files -- do not append.
   CHECK_OK(corpus_writer->Open(corpus_path, "w"));
   CHECK_OK(features_writer->Open(features_path, "w"));
@@ -69,10 +69,12 @@ void DistillTask(const Environment &env,
             << VV(features_path);
     // Read records from the current shard.
     std::vector<std::pair<ByteArray, FeatureVec>> records;
-    ReadShard(corpus_path, features_path,
-              [&](const ByteArray &input, FeatureVec &input_features) {
-                records.emplace_back(input, std::move(input_features));
-              });
+    ReadShard(
+        corpus_path, features_path,
+        [&](const ByteArray &input, FeatureVec &input_features) {
+          records.emplace_back(input, std::move(input_features));
+        },
+        env.riegeli);
     // Reverse the order of inputs read from the current shard.
     // The intuition is as follows:
     // * If the shard is the result of fuzzing with Centipede, the inputs that

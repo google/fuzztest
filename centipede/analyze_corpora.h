@@ -33,17 +33,21 @@ struct AnalyzeCorporaResults {
   BinaryInfo binary_info;
 };
 
+// TODO(v-ramesh): Consider changing `riegeli` parameter to an enum or
+// autodetection of file format.
 // Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
+// If `riegeli` is true, then the file format expected is Riegeli
+// (https://github.com/google/riegeli).
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view binary_hash,
                                      std::string_view workdir_a,
-                                     std::string_view workdir_b);
+                                     std::string_view workdir_b, bool riegeli);
 
 // Same as above but `LOG`s the results for human consumption.
 void AnalyzeCorporaToLog(std::string_view binary_name,
                          std::string_view binary_hash,
-                         std::string_view workdir_a,
-                         std::string_view workdir_b);
+                         std::string_view workdir_a, std::string_view workdir_b,
+                         bool riegeli);
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H
