@@ -22,6 +22,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -222,6 +224,20 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   IRObject SerializeCorpus(const CorpusType& v) const {
     static_assert(!has_custom_corpus_type);
     return IRObject::FromCorpus(v);
+  }
+
+  std::optional<std::string> SerializeValueAsString(value_type value) {
+    const auto corpus = derived().FromValue(std::move(value));
+    if (!corpus) return std::nullopt;
+    return derived().SerializeCorpus(*corpus).ToString();
+  }
+
+  std::optional<value_type> ParseValueFromString(absl::string_view input) {
+    auto ir_object = internal::IRObject::FromString(input);
+    if (!ir_object) return std::nullopt;
+    const auto corpus = derived().ParseCorpus(*ir_object);
+    if (!corpus) return std::nullopt;
+    return derived().GetValue(*corpus);
   }
 
   void UpdateMemoryDictionary(const CorpusType& val) {}
