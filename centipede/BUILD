@@ -20,7 +20,7 @@ load(":instrument.bzl", "cc_uninstrumented_binary")
 
 VISIBILITY = ["//visibility:public"]
 
-TEMP_EXTENDED_VISIBILITY = VISIBILITY
+EXTENDED_API_VISIBILITY = VISIBILITY
 
 PUBLIC_API_VISIBILITY = VISIBILITY
 
@@ -104,7 +104,7 @@ cc_library(
     name = "symbol_table",
     srcs = ["symbol_table.cc"],
     hdrs = ["symbol_table.h"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":command",
         ":control_flow",
@@ -211,7 +211,7 @@ cc_library(
     ],
     hdrs = ["util.h"],
     linkopts = ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":defs",
         ":feature",
@@ -230,7 +230,7 @@ cc_library(
     name = "config_util",
     srcs = ["config_util.cc"],
     hdrs = ["config_util.h"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         "@com_google_absl//absl/flags:reflection",
         "@com_google_absl//absl/strings",
@@ -241,7 +241,7 @@ cc_library(
     name = "config_init",
     srcs = ["config_init.cc"],
     hdrs = ["config_init.h"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":config_util",
         "@com_google_absl//absl/base:core_headers",
@@ -258,7 +258,7 @@ cc_library(
     name = "config_file",
     srcs = ["config_file.cc"],
     hdrs = ["config_file.h"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":config_init",
         ":config_util",
@@ -594,7 +594,7 @@ cc_library(
     name = "command",
     srcs = ["command.cc"],
     hdrs = ["command.h"],
-    visibility = TEMP_EXTENDED_VISIBILITY,
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":early_exit",
         ":logging",
