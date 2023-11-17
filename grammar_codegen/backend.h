@@ -16,11 +16,11 @@
 #define FUZZTEST_GRAMMAR_CODEGEN_BACKEND_H_
 
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/string_view.h"
 #include "./grammar_codegen/grammar_info.h"
 
 namespace fuzztest::internal::grammar {
@@ -41,8 +41,8 @@ class CodeGenerator {
 
  private:
   std::string BuildClassDefinitionForSymbol(GrammarRule& rule);
-  std::string BuilldClassDefinitionForCharSet(std::string_view class_name);
-  std::string BuildClassDefinitionForLiteral(std::string_view class_name);
+  std::string BuilldClassDefinitionForCharSet(absl::string_view class_name);
+  std::string BuildClassDefinitionForLiteral(absl::string_view class_name);
   std::string BuildBaseTypeForGrammarRule(const GrammarRule& rule);
 
   // Caculate the fallback indexes for all the symbols (including
@@ -50,8 +50,8 @@ class CodeGenerator {
   // fallback index during generation, generation will guarantee to end.
   void CalculateFallBackIndex(std::vector<GrammarRule>& rules);
 
-  bool IsSymbolSafe(std::string_view symbol);
-  void MarkSymbolAsSafe(std::string_view symbol);
+  bool IsSymbolSafe(absl::string_view symbol);
+  void MarkSymbolAsSafe(absl::string_view symbol);
 
   bool HasSafeRange(const Block& block);
 
@@ -63,8 +63,8 @@ class CodeGenerator {
   // Get the name of the generated class for the block.
   std::string GetClassName(const Block& block);
   std::string GetClassNameForSymbol(const std::string id);
-  std::string GetClassNameForLiteral(std::string_view s);
-  std::string GetClassNameForCharSet(std::string_view s);
+  std::string GetClassNameForLiteral(absl::string_view s);
+  std::string GetClassNameForCharSet(absl::string_view s);
 
   Grammar grammar_;
   absl::flat_hash_set<std::string> safe_rules_;

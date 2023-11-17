@@ -177,7 +177,7 @@ class Runtime {
  private:
   Runtime() = default;
 
-  void DumpReproducer(std::string_view outdir) const;
+  void DumpReproducer(absl::string_view outdir) const;
 
   // Some failures are not necessarily detected by signal handlers or by
   // sanitizers. For example, we could have test framework failures like
@@ -309,7 +309,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   // Corpus distribution is only used in Fuzzing mode.
   absl::discrete_distribution<> corpus_distribution_;
 
-  std::string_view corpus_out_dir_;
+  absl::string_view corpus_out_dir_;
   RuntimeStats stats_{};
   std::optional<size_t> runs_limit_;
   absl::Time time_limit_ = absl::InfiniteFuture();

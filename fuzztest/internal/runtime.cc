@@ -60,7 +60,7 @@ namespace fuzztest::internal {
 
 void (*crash_handler_hook)();
 
-void Runtime::DumpReproducer(std::string_view outdir) const {
+void Runtime::DumpReproducer(absl::string_view outdir) const {
   const std::string content =
       current_args_->domain.UntypedSerializeCorpus(current_args_->corpus_value)
           .ToString();

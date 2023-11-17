@@ -22,19 +22,19 @@
 #include <optional>
 #include <queue>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/discrete_distribution.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 #include "re2/prog.h"
 #include "re2/regexp.h"
 
 namespace fuzztest::internal {
 
-RegexpDFA RegexpDFA::Create(std::string_view regexp) {
+RegexpDFA RegexpDFA::Create(absl::string_view regexp) {
   RegexpDFA dfa;
   dfa.BuildEntireDFA(CompileRegexp(regexp));
   dfa.CompressStates();
@@ -43,7 +43,7 @@ RegexpDFA RegexpDFA::Create(std::string_view regexp) {
 }
 
 std::optional<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
-    std::string_view s) const {
+    absl::string_view s) const {
   std::vector<RegexpDFA::Edge> path;
   int state_id = 0;
   std::vector<std::int16_t> characters;
@@ -122,7 +122,7 @@ std::optional<int> RegexpDFA::NextState(
   return static_cast<int>(std::distance(cur_state.next.begin(), iter));
 }
 
-std::unique_ptr<re2::Prog> RegexpDFA::CompileRegexp(std::string_view regexp) {
+std::unique_ptr<re2::Prog> RegexpDFA::CompileRegexp(absl::string_view regexp) {
   // Build the RegexpDFA for only full match.
   std::string full_text_regexp(regexp);
   if (regexp.empty() || regexp[0] != '^')

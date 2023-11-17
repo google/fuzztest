@@ -114,7 +114,8 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
   }
 
   if (matches.empty()) {
-    absl::FPrintF(stderr, "\n\nNo FUZZ_TEST matches the name: %s\n\n", name);
+    absl::FPrintF(stderr, "\n\nNo FUZZ_TEST matches the name: %s\n\n",
+                  partial_name);
     absl::FPrintF(stderr, "Valid tests:\n");
     for (const std::string& full_name : full_names) {
       absl::FPrintF(stderr, " %s\n", full_name);
@@ -122,7 +123,7 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
     exit(1);
   } else if (matches.size() > 1) {
     absl::FPrintF(stderr, "\n\nMultiple FUZZ_TESTs match the name: %s\n\n",
-                  name);
+                  partial_name);
     absl::FPrintF(stderr, "Please select one. Matching tests:\n");
     for (const std::string* full_name : matches) {
       absl::FPrintF(stderr, " %s\n", *full_name);

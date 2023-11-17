@@ -357,6 +357,7 @@ cc_library(
         ":logging",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -395,6 +396,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings:string_view",
         "@com_googlesource_code_re2//:re2",
     ],
 )

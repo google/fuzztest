@@ -21,12 +21,12 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 #include "re2/re2.h"
 
@@ -56,7 +56,7 @@ class RegexpDFA {
     int edge_index;
   };
 
-  static RegexpDFA Create(std::string_view regexp);
+  static RegexpDFA Create(absl::string_view regexp);
 
   std::string GenerateString(absl::BitGenRef prng) {
     std::string result;
@@ -179,7 +179,7 @@ class RegexpDFA {
     return result;
   }
 
-  std::optional<std::vector<Edge>> StringToDFAPath(std::string_view s) const;
+  std::optional<std::vector<Edge>> StringToDFAPath(absl::string_view s) const;
 
   std::optional<std::string> DFAPathToString(
       const std::vector<Edge>& path, size_t start_offset = 0,
@@ -197,7 +197,7 @@ class RegexpDFA {
   std::optional<int> NextState(const State& cur_state,
                                const std::vector<std::int16_t>& input_chars,
                                size_t& cur_index) const;
-  static std::unique_ptr<re2::Prog> CompileRegexp(std::string_view regexp);
+  static std::unique_ptr<re2::Prog> CompileRegexp(absl::string_view regexp);
   void BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp);
 
   // Assign weights (the probability of being picked during random walk)

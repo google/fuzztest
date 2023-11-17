@@ -26,7 +26,7 @@ namespace fuzztest {
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {
   std::vector<internal::FilePathAndData> files =
-      internal::ReadFileOrDirectory(dir);
+      internal::ReadFileOrDirectory({dir.data(), dir.size()});
 
   std::vector<std::tuple<std::string>> out;
   out.reserve(files.size());

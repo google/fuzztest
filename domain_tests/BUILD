@@ -63,6 +63,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@com_google_googletest//:gtest_main",

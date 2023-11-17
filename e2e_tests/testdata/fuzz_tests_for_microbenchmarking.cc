@@ -30,10 +30,13 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
@@ -234,7 +237,10 @@ FUZZ_TEST(MySuite, WithDomainClass)
                  fuzztest::Domain<double>(fuzztest::Arbitrary<double>()));
 
 std::string NumberOfAnimalsToString(int num, std::string_view name) {
-  return absl::StrFormat("%d %ss", num, name);
+  // Explicit conversion to absl::string_view is for platforms where these two
+  // types are not the same.
+  return absl::StrFormat("%d %ss", num,
+                         absl::string_view{name.data(), name.size()});
 }
 int TimesTwo(int x) { return 2 * x; }
 
@@ -258,7 +264,7 @@ auto AnyStringAndValidIndex() {
   return fuzztest::FlatMap(StringAndValidIndex, string_domain);
 }
 void FlatMapping(const std::pair<std::string, size_t> str_and_idx) {
-  absl::string_view str = str_and_idx.first;
+  std::string_view str = str_and_idx.first;
   size_t idx = str_and_idx.second;
   if (str == "abc" && idx == 2) {
     std::abort();
@@ -386,7 +392,7 @@ auto Int32ValueInRangeTest(unsigned int x) {
 FUZZ_TEST(MySuite, Int32ValueInRangeTest)
     .WithDomains(fuzztest::InRange(0x00100000U, 0x00111111U));
 
-auto BasicStringCmpTest(absl::string_view encoded_data) {
+auto BasicStringCmpTest(std::string_view encoded_data) {
   if (encoded_data.size() < 8) {
     return;
   } else if (encoded_data.substr(0, 8) == "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a") {
@@ -395,7 +401,7 @@ auto BasicStringCmpTest(absl::string_view encoded_data) {
 }
 FUZZ_TEST(MySuite, BasicStringCmpTest);
 
-auto SimpleFormatParsingTest(absl::string_view encoded_data) {
+auto SimpleFormatParsingTest(std::string_view encoded_data) {
   if (encoded_data.size() < 72) {
     return;
   } else if (encoded_data.substr(0, 5) == "GUARD") {

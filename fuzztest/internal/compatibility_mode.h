@@ -28,7 +28,6 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -36,6 +35,7 @@
 #include "absl/random/distributions.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/logging.h"
@@ -54,8 +54,8 @@ class FuzzTestExternalEngineAdaptor {};
 class ExternalEngineCallback {
  public:
   virtual ~ExternalEngineCallback() = default;
-  virtual void RunOneInputData(std::string_view data) = 0;
-  virtual std::string MutateData(std::string_view data, size_t max_size,
+  virtual void RunOneInputData(absl::string_view data) = 0;
+  virtual std::string MutateData(absl::string_view data, size_t max_size,
                                  unsigned int seed) = 0;
 };
 
@@ -81,8 +81,8 @@ class FuzzTestExternalEngineAdaptor : public FuzzTestFuzzer,
 
   // External engine callbacks.
 
-  void RunOneInputData(std::string_view data) override;
-  std::string MutateData(std::string_view data, size_t max_size,
+  void RunOneInputData(absl::string_view data) override;
+  std::string MutateData(absl::string_view data, size_t max_size,
                          unsigned int seed) override;
 
  private:

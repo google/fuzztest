@@ -19,7 +19,6 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -28,6 +27,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 
 namespace {
 
@@ -37,15 +37,15 @@ std::string GetContents(const std::string& path) {
   return ss.str();
 }
 
-std::string RemoveWhiteSpace(std::string_view s) {
+std::string RemoveWhiteSpace(absl::string_view s) {
   return absl::StrReplaceAll(s, {{" ", ""}, {"\n", ""}});
 }
 
 // Removes lines that start with "//" from `s`.
-std::string RemoveCommentLines(std::string_view s) {
+std::string RemoveCommentLines(absl::string_view s) {
   std::vector<std::string> lines = absl::StrSplit(s, '\n');
   lines.erase(std::remove_if(lines.begin(), lines.end(),
-                             [](std::string_view line) {
+                             [](absl::string_view line) {
                                return absl::StartsWith(line, "//");
                              }),
               lines.end());

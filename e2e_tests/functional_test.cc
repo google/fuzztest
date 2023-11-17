@@ -113,8 +113,8 @@ class UnitTestModeTest : public ::testing::Test {
   }
 
   RunResults Run(
-      std::string_view test_filter,
-      std::string_view target_binary = kDefaultTargetBinary,
+      absl::string_view test_filter,
+      absl::string_view target_binary = kDefaultTargetBinary,
       const absl::flat_hash_map<std::string, std::string>& env = {},
       const absl::flat_hash_map<std::string, std::string>& fuzzer_flags = {}) {
     std::vector<std::string> commandline = {
@@ -166,7 +166,7 @@ TEST_F(UnitTestModeTest, UnitTestModeLimitsNumberOfIterationsByWallTime) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-int CountSubstrs(std::string_view haystack, std::string_view needle) {
+int CountSubstrs(absl::string_view haystack, absl::string_view needle) {
   int count = 0;
   while (true) {
     size_t pos = haystack.find(needle);
@@ -989,7 +989,7 @@ class FuzzingModeFixtureTest : public ::testing::Test {
 #endif
   }
 
-  RunResults Run(std::string_view test_name, int iterations) {
+  RunResults Run(absl::string_view test_name, int iterations) {
 #ifdef FUZZTEST_USE_CENTIPEDE
     TempDir workdir;
     return RunCommand(
@@ -1010,7 +1010,7 @@ class FuzzingModeFixtureTest : public ::testing::Test {
 
   // Counts the number of times the target binary has been run. Needed because
   // Centipede runs the binary multiple times.
-  int CountTargetRuns(std::string_view std_err) {
+  int CountTargetRuns(absl::string_view std_err) {
 #ifdef FUZZTEST_USE_CENTIPEDE
     return CountSubstrs(std_err, "Centipede fuzz target runner; argv[0]:");
 #else
@@ -1098,8 +1098,8 @@ class FuzzingModeCrashFindingTest : public ::testing::Test {
 #endif
   }
 
-  RunResults Run(std::string_view test_name,
-                 std::string_view target_binary = kDefaultTargetBinary,
+  RunResults Run(absl::string_view test_name,
+                 absl::string_view target_binary = kDefaultTargetBinary,
                  absl::Duration timeout = absl::InfiniteDuration()) {
     // We start the test binaries with an empty environment. This is
     // useful because we don't want to propagate env vars set by
@@ -1126,7 +1126,7 @@ class FuzzingModeCrashFindingTest : public ::testing::Test {
   }
 };
 
-void ExpectTargetAbort(TerminationStatus status, std::string_view std_err) {
+void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
 #ifdef FUZZTEST_USE_CENTIPEDE
   EXPECT_THAT(status, Ne(ExitCode(0)));
   EXPECT_TRUE(

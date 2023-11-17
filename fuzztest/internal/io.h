@@ -17,20 +17,21 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
+
+#include "absl/strings/string_view.h"
 
 namespace fuzztest::internal {
 
-bool WriteFile(std::string_view filename, std::string_view contents);
+bool WriteFile(absl::string_view filename, absl::string_view contents);
 
 // Write `data` to its hash-based filename in `dir`. Returns the `dir`-appended
 // path to the file.
-std::string WriteDataToDir(std::string_view data, std::string_view dir);
+std::string WriteDataToDir(absl::string_view data, absl::string_view dir);
 
 // Reads `file` and returns its content. If `file` is not a regular file or
 // reading it fails, returns `std::nullopt`.
-std::optional<std::string> ReadFile(std::string_view file);
+std::optional<std::string> ReadFile(absl::string_view file);
 
 struct FilePathAndData {
   std::string path;
@@ -40,14 +41,14 @@ struct FilePathAndData {
 // If `file_or_dir` is a directory, returns a list of its files' paths and
 // contents. If `file_or_dir` is a file, returns a singleton list with its path
 // and content. In all other cases, returns an empty list.
-std::vector<FilePathAndData> ReadFileOrDirectory(std::string_view file_or_dir);
+std::vector<FilePathAndData> ReadFileOrDirectory(absl::string_view file_or_dir);
 
 // Returns a list of top-level paths in `dir`. If `dir` is not a directory,
 // returns an empty list.
-std::vector<std::string> ListDirectory(std::string_view dir);
+std::vector<std::string> ListDirectory(absl::string_view dir);
 
 // Returns the basename of `filename`.
-std::string_view Basename(std::string_view filename);
+absl::string_view Basename(absl::string_view filename);
 
 }  // namespace fuzztest::internal
 

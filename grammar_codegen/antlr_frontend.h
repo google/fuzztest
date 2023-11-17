@@ -16,9 +16,9 @@
 #define FUZZTEST_GRAMMAR_CODEGEN_ANTLR_FRONTEND_H_
 
 #include <string>
-#include <string_view>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "./grammar_codegen/generated_antlr_parser/ANTLRv4Parser.h"
 #include "./grammar_codegen/generated_antlr_parser/ANTLRv4ParserBaseListener.h"
 #include "./grammar_codegen/grammar_info.h"
@@ -50,7 +50,7 @@ class GrammarInfoBuilder : public antlr4_grammar::ANTLRv4ParserBaseListener {
   void enterGrammarSpec(ANTLRv4Parser::GrammarSpecContext* ctx) override;
 
  private:
-  Range ParseRange(std::string_view s);
+  Range ParseRange(absl::string_view s);
 
   Block ConstructBlock(ANTLRv4Parser::BlockContext*);
   Block ConstructBlock(ANTLRv4Parser::AtomContext*);

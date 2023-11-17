@@ -83,8 +83,8 @@ void IntegralPrinter::PrintUserValue(char v, RawSink out,
   }
 }
 
-static void PrintNonFinite(double v, std::string_view nan,
-                           std::string_view type, RawSink out) {
+static void PrintNonFinite(double v, absl::string_view nan,
+                           absl::string_view type, RawSink out) {
   if (std::isnan(v)) {
     absl::Format(out, "std::%s(\"\")", nan);
   } else {

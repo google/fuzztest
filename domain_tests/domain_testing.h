@@ -23,7 +23,6 @@
 #include <ostream>
 #include <set>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -35,6 +34,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -546,8 +546,8 @@ void VisitTestProtobuf(ScalarVisitor scalar_visitor,
 
 inline bool TowardsZero(const internal::TestProtobuf& prev,
                         const internal::TestProtobuf& next) {
-  std::string_view error_field;
-  const auto verify_towards_zero = [&](std::string_view name, auto has,
+  absl::string_view error_field;
+  const auto verify_towards_zero = [&](absl::string_view name, auto has,
                                        auto get) {
     auto pv = has(prev) ? std::optional(get(prev)) : std::nullopt;
     auto nv = has(next) ? std::optional(get(next)) : std::nullopt;
@@ -560,7 +560,7 @@ inline bool TowardsZero(const internal::TestProtobuf& prev,
     }
   };
 
-  const auto verify_repeated_towards_zero = [&](std::string_view name,
+  const auto verify_repeated_towards_zero = [&](absl::string_view name,
                                                 auto get) {
     auto pv = get(prev);
     auto nv = get(next);

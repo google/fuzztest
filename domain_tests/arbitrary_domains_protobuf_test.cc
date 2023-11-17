@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -27,6 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/domain.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -76,7 +76,7 @@ TEST(ProtocolBuffer,
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  const auto verify_field_changes = [&](std::string_view name, auto has,
+  const auto verify_field_changes = [&](absl::string_view name, auto has,
                                         auto get) {
     const auto optional_get = [&]() {
       return has(val.user_value) ? std::optional(get(val.user_value))
@@ -94,7 +94,7 @@ TEST(ProtocolBuffer,
         << "Field: " << name << " -- " << testing::PrintToString(values);
   };
 
-  const auto verify_repeated_field_changes = [&](std::string_view name,
+  const auto verify_repeated_field_changes = [&](absl::string_view name,
                                                  auto get) {
     Set<int> sizes;
     Set<std::decay_t<decltype(get(val.user_value)[0])>> elem0;

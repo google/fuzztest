@@ -72,13 +72,9 @@ struct OutputVisitor {
   }
 };
 
-constexpr std::string_view kHeader = "FUZZTESTv1";
+constexpr absl::string_view kHeader = "FUZZTESTv1";
 
-absl::string_view AsAbsl(std::string_view str) {
-  return {str.data(), str.size()};
-}
-
-std::string_view ReadToken(std::string_view& in) {
+absl::string_view ReadToken(absl::string_view& in) {
   while (!in.empty() && std::isspace(in[0])) in.remove_prefix(1);
   if (in.empty()) return in;
   size_t end = 1;
@@ -91,20 +87,20 @@ std::string_view ReadToken(std::string_view& in) {
     while (end < in.size() && in[end] != '"') ++end;
     if (end < in.size()) ++end;
   }
-  std::string_view res = in.substr(0, end);
+  absl::string_view res = in.substr(0, end);
   in.remove_prefix(end);
   return res;
 }
 
-bool ReadScalar(uint64_t& out, std::string_view value) {
-  return absl::SimpleAtoi(AsAbsl(value), &out);
+bool ReadScalar(uint64_t& out, absl::string_view value) {
+  return absl::SimpleAtoi(value, &out);
 }
 
-bool ReadScalar(double& out, std::string_view value) {
-  return absl::SimpleAtod(AsAbsl(value), &out);
+bool ReadScalar(double& out, absl::string_view value) {
+  return absl::SimpleAtod(value, &out);
 }
 
-bool ReadScalar(std::string& out, std::string_view value) {
+bool ReadScalar(std::string& out, absl::string_view value) {
   if (value.empty() || value[0] != '"') return false;
   value.remove_prefix(1);
 
@@ -134,11 +130,11 @@ bool ReadScalar(std::string& out, std::string_view value) {
   return true;
 }
 
-bool ParseImpl(IRObject& obj, std::string_view& str) {
-  std::string_view key = ReadToken(str);
+bool ParseImpl(IRObject& obj, absl::string_view& str) {
+  absl::string_view key = ReadToken(str);
   if (key.empty() || key == "}") {
     // The object is empty. Put the token back and return.
-    str = std::string_view(key.data(), str.data() + str.size() - key.data());
+    str = absl::string_view(key.data(), str.data() + str.size() - key.data());
     return true;
   }
 
@@ -152,7 +148,7 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
     } while (key == "sub");
     // We are done reading this repeated sub.
     // Put the token back for the caller.
-    str = std::string_view(key.data(), str.data() + str.size() - key.data());
+    str = absl::string_view(key.data(), str.data() + str.size() - key.data());
     return true;
   } else {
     if (ReadToken(str) != ":") return false;
@@ -174,13 +170,13 @@ bool ParseImpl(IRObject& obj, std::string_view& str) {
 }  // namespace
 
 std::string IRObject::ToString() const {
-  std::string out = absl::StrCat(AsAbsl(kHeader), "\n");
+  std::string out = absl::StrCat(kHeader, "\n");
   std::visit(OutputVisitor{value.index(), 0, out}, value);
   return out;
 }
 
 // TODO(lszekeres): Return StatusOr<IRObject>.
-std::optional<IRObject> IRObject::FromString(std::string_view str) {
+std::optional<IRObject> IRObject::FromString(absl::string_view str) {
   IRObject object;
   if (ReadToken(str) != kHeader) return std::nullopt;
   if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;

@@ -26,7 +26,6 @@
 #include <ostream>
 #include <set>
 #include <string>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -38,6 +37,7 @@
 #include "absl/numeric/int128.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
@@ -138,9 +138,9 @@ using FloatingTypes = testing::Types<float, double, long double>;
 TYPED_TEST_SUITE(FloatingTest, FloatingTypes);
 
 TYPED_TEST(FloatingTest, Printer) {
-  std::string_view suffix = std::is_same_v<float, TypeParam>    ? "f"
-                            : std::is_same_v<double, TypeParam> ? ""
-                                                                : "L";
+  absl::string_view suffix = std::is_same_v<float, TypeParam>    ? "f"
+                             : std::is_same_v<double, TypeParam> ? ""
+                                                                 : "L";
   EXPECT_THAT(TestPrintValue(TypeParam{0}), Each(absl::StrCat("0.", suffix)));
   for (auto v : {std::numeric_limits<TypeParam>::min(),
                  std::numeric_limits<TypeParam>::max()}) {

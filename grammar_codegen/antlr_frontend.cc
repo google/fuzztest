@@ -24,6 +24,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./grammar_codegen/generated_antlr_parser/ANTLRv4Lexer.h"
 #include "./grammar_codegen/grammar_info.h"
 #include "./fuzztest/internal/logging.h"
@@ -39,7 +40,7 @@ void ChangeStringQuote(std::string& str) {
   }
 }
 
-std::string EscapeString(std::string_view text) {
+std::string EscapeString(absl::string_view text) {
   std::string excape_text;
   for (int i = 0; i < text.size(); ++i) {
     if (text[i] == '"' || text[i] == '\\') {
@@ -53,7 +54,7 @@ std::string EscapeString(std::string_view text) {
 
 // TODO(changochen): Handle Unicode.
 // Add '^' to the char set if it is a NOT set.
-std::string ConstructCharSetString(std::string_view raw_str,
+std::string ConstructCharSetString(absl::string_view raw_str,
                                    bool is_not_set = false) {
   FUZZTEST_INTERNAL_CHECK(
       raw_str.size() > 2 && raw_str.front() == '[' && raw_str.back() == ']',
@@ -163,7 +164,7 @@ GrammarRule GrammarInfoBuilder::ConstructGrammarRule(
   return grammar_rule;
 }
 
-Range GrammarInfoBuilder::ParseRange(std::string_view s) {
+Range GrammarInfoBuilder::ParseRange(absl::string_view s) {
   return (s == "?")   ? Range::kOptional
          : (s == "+") ? Range::kNonEmpty
          : (s == "*" || s == "+?" || s == "*?")

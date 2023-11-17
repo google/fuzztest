@@ -16,7 +16,6 @@
 
 #include <cctype>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -24,6 +23,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
 #include "./grammar_codegen/grammar_info.h"
 #include "./fuzztest/internal/logging.h"
 
@@ -37,13 +37,13 @@ void AppendRules(std::vector<GrammarRule>& rules,
 }
 
 std::vector<GrammarRule> SimplifyProductionWithFallbackIndex(
-    ProductionWithFallbackIndex& productions, std::string_view symbol_name);
+    ProductionWithFallbackIndex& productions, absl::string_view symbol_name);
 
 void SwitchBlockToNewNonTerminal(Block& block, std::string symbol_name) {
   block.element.emplace<NonTerminal>(NonTerminal{symbol_name});
 }
 
-std::string CreateIRNodeNameForClass(std::string_view symbol_name) {
+std::string CreateIRNodeNameForClass(absl::string_view symbol_name) {
   static int counter = 0;
   FUZZTEST_INTERNAL_CHECK(
       symbol_name.size() > 4 &&
@@ -58,7 +58,7 @@ std::string CreateIRNodeNameForClass(std::string_view symbol_name) {
 // For example, A: B | C*, we convert it into A: B | N, N: C*. So that A can be
 // reprensented with a Variant and N can be represented with a Vector.
 std::vector<GrammarRule> SimplifyVectorLikeBlock(
-    Block& block, std::string_view parent_symbol_name) {
+    Block& block, absl::string_view parent_symbol_name) {
   Range saved_range = block.range;
   // Set the range to kNoRange to avoid infinite recursion at
   // `SimplifyProductionWithFallbackIndex`.
@@ -81,7 +81,7 @@ std::vector<GrammarRule> SimplifyVectorLikeBlock(
 // For example, A: B | C D, we convert it into A: B | N, N: C D. So that A can
 // be reprensented with a Variant and N can be represented with a Tuple.
 std::vector<GrammarRule> SimplifyTupleLikeProduction(
-    ProductionRule& production, std::string_view parent_symbol_name) {
+    ProductionRule& production, absl::string_view parent_symbol_name) {
   std::string new_symbol_name = CreateIRNodeNameForClass(parent_symbol_name);
   Block block{Range::kNoRange, NonTerminal{new_symbol_name}};
   GrammarRule result = GrammarRule{
@@ -100,7 +100,7 @@ std::vector<GrammarRule> SimplifyTupleLikeProduction(
 // Note: Although such a definition seems meaningless, but it is allowed by
 // Antlr4.
 std::vector<GrammarRule> SimplifyVariantLikeBlock(
-    Block& block, std::string_view parent_symbol_name) {
+    Block& block, absl::string_view parent_symbol_name) {
   ProductionWithFallbackIndex inner =
       std::get<ProductionWithFallbackIndex>(block.element);
   std::string new_symbol_name = CreateIRNodeNameForClass(parent_symbol_name);
@@ -112,7 +112,7 @@ std::vector<GrammarRule> SimplifyVariantLikeBlock(
 }
 
 std::vector<GrammarRule> SimplifyProductionWithFallbackIndex(
-    ProductionWithFallbackIndex& productions, std::string_view symbol_name) {
+    ProductionWithFallbackIndex& productions, absl::string_view symbol_name) {
   std::vector<GrammarRule> intermediate_grammar_rules;
   for (ProductionRule& production : productions.production_rules) {
     for (Block& block : production.blocks) {
@@ -134,8 +134,8 @@ std::vector<GrammarRule> SimplifyProductionWithFallbackIndex(
   return intermediate_grammar_rules;
 }
 
-std::string WrapChildTypeWithRangedVector(std::string_view parent_type,
-                                          std::string_view child_type,
+std::string WrapChildTypeWithRangedVector(absl::string_view parent_type,
+                                          absl::string_view child_type,
                                           const Range range) {
   switch (range) {
     case Range::kNoRange:
@@ -199,7 +199,7 @@ void CodeGenerator::Preprocess(Grammar& grammar) {
 
 std::string CodeGenerator::Generate() {
   Preprocess(grammar_);
-  constexpr std::string_view kCodeTemplate =
+  constexpr absl::string_view kCodeTemplate =
       "#ifndef FUZZTEST_GRAMMARS_%1$s_GRAMMAR_H_\n"
       "#define "
       "FUZZTEST_GRAMMARS_%1$s_GRAMMAR_H_\n\n"
@@ -330,14 +330,14 @@ std::string CodeGenerator::BuildClassDefinitionForSymbol(GrammarRule& rule) {
 }
 
 std::string CodeGenerator::BuilldClassDefinitionForCharSet(
-    std::string_view class_name) {
+    absl::string_view class_name) {
   return absl::StrFormat(
       "class %s final: public RegexLiteralDomain<k%s, kStr%s> {};", class_name,
       class_name, class_name);
 }
 
 std::string CodeGenerator::BuildClassDefinitionForLiteral(
-    std::string_view class_name) {
+    absl::string_view class_name) {
   return absl::StrFormat(
       "class %s final: public StringLiteralDomain<k%s, kStr%s>{};", class_name,
       class_name, class_name);
@@ -345,11 +345,11 @@ std::string CodeGenerator::BuildClassDefinitionForLiteral(
 
 // Caculate the fallback indexes for all the symbols (including
 // sub-productions).
-bool CodeGenerator::IsSymbolSafe(std::string_view symbol) {
+bool CodeGenerator::IsSymbolSafe(absl::string_view symbol) {
   return safe_rules_.find(symbol) != safe_rules_.end();
 }
 
-void CodeGenerator::MarkSymbolAsSafe(std::string_view symbol) {
+void CodeGenerator::MarkSymbolAsSafe(absl::string_view symbol) {
   safe_rules_.insert(std::string(symbol));
 }
 
@@ -468,7 +468,7 @@ std::string CodeGenerator::GetClassNameForSymbol(std::string id) {
   }
 }
 
-std::string CodeGenerator::GetClassNameForLiteral(std::string_view s) {
+std::string CodeGenerator::GetClassNameForLiteral(absl::string_view s) {
   if (literal_node_ids_.find(s) == literal_node_ids_.end()) {
     literal_node_ids_[s] =
         absl::StrFormat("Literal%d", literal_node_ids_.size());
@@ -476,7 +476,7 @@ std::string CodeGenerator::GetClassNameForLiteral(std::string_view s) {
   return literal_node_ids_[s];
 }
 
-std::string CodeGenerator::GetClassNameForCharSet(std::string_view s) {
+std::string CodeGenerator::GetClassNameForCharSet(absl::string_view s) {
   if (charset_node_ids_.find(s) == charset_node_ids_.end()) {
     charset_node_ids_[s] =
         absl::StrFormat("CharSet%d", charset_node_ids_.size());

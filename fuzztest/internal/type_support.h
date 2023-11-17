@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -258,7 +259,7 @@ struct OptionalPrinter {
           // The source code version will work as long as the expression is
           // unambiguous.
           if constexpr (is_pointer) {
-            std::string_view maker =
+            absl::string_view maker =
                 is_unique_ptr_v<value_type>   ? "std::make_unique"
                 : is_shared_ptr_v<value_type> ? "std::make_shared"
                                               : "<MAKE_SMART_POINTER>";

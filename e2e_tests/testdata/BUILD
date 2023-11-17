@@ -30,6 +30,8 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_for_microbenchmarking.cc"],
     deps = [
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",

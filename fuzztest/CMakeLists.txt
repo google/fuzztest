@@ -202,6 +202,7 @@ target_link_libraries(
   fuzztest_logging
   absl::flat_hash_map
   absl::random_distributions
+  absl::string_view
   re2::re2
 )
 
@@ -218,6 +219,7 @@ target_link_libraries(
   fuzztest_logging
   absl::hash
   absl::str_format
+  absl::string_view
 )
 
 if (FUZZTEST_TESTING)

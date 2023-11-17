@@ -12,6 +12,8 @@ target_link_libraries(
   fuzztest_status
   protobuf::libprotobuf
   test_protobuf
+  absl::str_format
+  absl::string_view
 )
 link_fuzztest(fuzz_tests_for_microbenchmarking)
 

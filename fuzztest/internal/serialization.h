@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -27,6 +26,7 @@
 #include <vector>
 
 #include "absl/numeric/int128.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/meta.h"
 
@@ -70,7 +70,7 @@ struct IRObject {
   // Accessors for scalars to simplify their use, and hide conversions when
   // needed.
   // Returns optional<T>, except when T is std::string it returns
-  // std::optional<std::string_view> to avoid a copy.
+  // std::optional<absl::string_view> to avoid a copy.
   template <typename T>
   auto GetScalar() const {
     if constexpr (std::is_enum_v<T>) {
@@ -84,7 +84,7 @@ struct IRObject {
       const double* i = std::get_if<double>(&value);
       return i != nullptr ? std::optional(static_cast<T>(*i)) : std::nullopt;
     } else if constexpr (std::is_same_v<std::string, T>) {
-      std::optional<std::string_view> out;
+      std::optional<absl::string_view> out;
       if (const auto* s = std::get_if<std::string>(&value)) {
         out = *s;
       }
@@ -263,7 +263,7 @@ struct IRObject {
   // Serialize the object as a string. This is used to persist the object on
   // files for reproducing bugs later.
   std::string ToString() const;
-  static std::optional<IRObject> FromString(std::string_view str);
+  static std::optional<IRObject> FromString(absl::string_view str);
 
  private:
   template <typename T>

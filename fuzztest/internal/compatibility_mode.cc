@@ -18,9 +18,9 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include <string_view>
 
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
@@ -48,7 +48,7 @@ size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
       callback,
       "External engine callback is unset while running the FuzzTest mutator.");
   const std::string mutated_data = callback->MutateData(
-      std::string_view(reinterpret_cast<const char*>(data), size), max_size,
+      absl::string_view(reinterpret_cast<const char*>(data), size), max_size,
       seed);
   if (mutated_data.size() > max_size) {
     absl::FPrintF(GetStderr(),
@@ -90,7 +90,7 @@ int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
   driver_started = true;
   LLVMFuzzerRunDriver(argc, argv, [](const uint8_t* data, size_t size) -> int {
     GetExternalEngineCallback()->RunOneInputData(
-        std::string_view(reinterpret_cast<const char*>(data), size));
+        absl::string_view(reinterpret_cast<const char*>(data), size));
     return 0;
   });
 
@@ -105,7 +105,7 @@ int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
 
 // External engine callbacks.
 
-void FuzzTestExternalEngineAdaptor::RunOneInputData(std::string_view data) {
+void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
   auto& impl = GetFuzzerImpl();
   if (impl.ShouldStop()) {
     FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
@@ -121,7 +121,7 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(std::string_view data) {
   }
 }
 
-std::string FuzzTestExternalEngineAdaptor::MutateData(std::string_view data,
+std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
                                                       size_t max_size,
                                                       unsigned int seed) {
   auto& impl = GetFuzzerImpl();
