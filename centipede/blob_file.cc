@@ -149,6 +149,7 @@ class RiegeliReader : public BlobFileReader {
   }
 
   absl::Status Open(std::string_view path) override {
+    if (absl::Status s = Close(); !s.ok()) return s;
     reader_.Reset(riegeli::FdReader(path));
     if (!reader_.ok()) return reader_.status();
     return absl::OkStatus();
@@ -168,18 +169,13 @@ class RiegeliReader : public BlobFileReader {
   }
 
   absl::Status Close() override {
-    if (!reader_.Close()) {
-      absl::Status s = reader_.status();
-      // If the file is deleted before this Close() call is made then it will
-      // fail with a file not found error. In this case, no resources need to be
-      // relinquished, so mark the reader as closed.
-      if (absl::IsNotFound(s)) {
-        reader_.Reset(riegeli::kClosed);
-        return absl::OkStatus();
-      }
-      // All other close errors are propagated.
-      return s;
+    // Reader already being in a bad state will result in close failure but
+    // those errors have already been reported.
+    if (!reader_.ok()) {
+      reader_.Reset(riegeli::kClosed);
+      return absl::OkStatus();
     }
+    if (!reader_.Close()) return reader_.status();
     return absl::OkStatus();
   }
 
@@ -196,7 +192,7 @@ class RiegeliWriter : public BlobFileWriter {
 
   absl::Status Open(std::string_view path, std::string_view mode) override {
     CHECK(mode == "w" || mode == "a") << VV(mode);
-    if (writer_.is_open() && !writer_.Close()) return writer_.status();
+    if (absl::Status s = Close(); !s.ok()) return s;
     writer_.Reset(riegeli::FdWriter(
         path, riegeli::FdWriterBase::Options().set_append(mode == "a")));
     if (!writer_.ok()) return writer_.status();
@@ -212,6 +208,12 @@ class RiegeliWriter : public BlobFileWriter {
   }
 
   absl::Status Close() override {
+    // Writer already being in a bad state will result in close failure but
+    // those errors have already been reported.
+    if (!writer_.ok()) {
+      writer_.Reset(riegeli::kClosed);
+      return absl::OkStatus();
+    }
     if (!writer_.Close()) return writer_.status();
     return absl::OkStatus();
   }
