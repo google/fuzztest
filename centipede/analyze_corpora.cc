@@ -59,7 +59,7 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
     ReadShard(
         corpus_paths[i], features_paths[i],
         [&corpus](const ByteArray &input, FeatureVec &features) {
-          corpus.push_back({input, features});
+          corpus.emplace_back(CorpusRecord{input, std::move(features)});
         },
         riegeli);
   }

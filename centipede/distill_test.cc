@@ -19,6 +19,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -90,7 +91,7 @@ std::vector<TestCorpusRecord> ReadFromDistilled(const Environment &env,
   std::vector<TestCorpusRecord> result;
   auto shard_reader_callback = [&result](const ByteArray &input,
                                          FeatureVec &features) {
-    result.push_back({input, features});
+    result.emplace_back(input, std::move(features));
   };
   ReadShard(distilled_corpus_path, distilled_features_path,
             shard_reader_callback, env.riegeli);

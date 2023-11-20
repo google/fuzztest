@@ -20,6 +20,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -832,7 +833,7 @@ TEST(Centipede, ShardReader) {
   ReadShard(
       corpus_path, features_path,
       [&res](const ByteArray &input, const FeatureVec &features) {
-        res.push_back(CorpusRecord{input, features});
+        res.emplace_back(input, std::move(features));
       },
       riegeli);
 
