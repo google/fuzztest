@@ -506,8 +506,8 @@ class RUsageProfiler {
 // be used with `RPROF_SNAPSHOT` and other similar macros below, which normally
 // work with the other `RPROF_THIS_FUNCTION.*` macros.
 // clang-format off
-#define RPROF_THIS_FUNCTION_BY_EXISTING_JPROF(profiler)                 \
-  ::centipede::perf::JitProfiler& FUNCTION_LEVEL_JPROF_NAME = profiler; \
+#define RPROF_THIS_FUNCTION_BY_EXISTING_RPROF(profiler)                 \
+  ::centipede::perf::RUsageProfiler& FUNCTION_LEVEL_RPROF_NAME = profiler;
 // clang-format on
 
 // Records and returns an intermediate snapshot using the profiler defined by an
@@ -518,7 +518,7 @@ class RUsageProfiler {
 // clang-format off
 #define RPROF_SNAPSHOT(...) \
   FUNCTION_LEVEL_RPROF_NAME.TakeSnapshot( \
-      {__FILE__, __LINE__}, ##__VA_ARGS__);
+      {__FILE__, __LINE__}, ##__VA_ARGS__)
 // clang-format on
 
 // Records AND logs an intermediate snapshot using the profiler defined by an
@@ -527,7 +527,7 @@ class RUsageProfiler {
 // clang-format off
 #define RPROF_SNAPSHOT_AND_LOG(...) \
   FUNCTION_LEVEL_RPROF_NAME.TakeSnapshot( \
-      {__FILE__, __LINE__}, ##__VA_ARGS__).Log();
+      {__FILE__, __LINE__}, ##__VA_ARGS__).Log()
 // clang-format on
 
 // Starts taking periodic snapshots using the function-level snapshot created by
@@ -537,7 +537,7 @@ class RUsageProfiler {
 // clang-format off
 #define RPROF_START_TIMELAPSE(interval, also_log, ...) \
   FUNCTION_LEVEL_RPROF_NAME.StartTimelapse( \
-      {__FILE__, __LINE__}, interval, also_log, ##__VA_ARGS__);
+      {__FILE__, __LINE__}, interval, also_log, ##__VA_ARGS__)
 // clang-format on
 
 #define RPROF_STOP_TIMELAPSE() FUNCTION_LEVEL_RPROF_NAME.StopTimelapse()
@@ -547,7 +547,7 @@ class RUsageProfiler {
 // passed as a macro argument.
 // clang-format off
 #define RPROF_DUMP_REPORT_TO_LOG(...) \
-  FUNCTION_LEVEL_RPROF_NAME.PrintReport({__FILE__, __LINE__}, ##__VA_ARGS__);
+  FUNCTION_LEVEL_RPROF_NAME.PrintReport({__FILE__, __LINE__}, ##__VA_ARGS__)
 // clang-format on
 
 // Profiles a given scope: a snapshot and a delta of the system timing and
