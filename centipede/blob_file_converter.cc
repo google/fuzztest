@@ -69,10 +69,11 @@ void Convert(                                             //
 
   // Read and write blobs one-by-one.
 
-  absl::Span<const uint8_t> blob;
   int num_blobs = 0;
   int num_bytes = 0;
-  while (in_reader->Read(blob).ok()) {
+  absl::Span<const uint8_t> blob;
+  absl::Status read_status = absl::OkStatus();
+  while ((read_status = in_reader->Read(blob)).ok()) {
     CHECK_OK(out_writer->Write(blob));
     ++num_blobs;
     num_bytes += blob.size();
@@ -83,6 +84,8 @@ void Convert(                                             //
       RPROF_SNAPSHOT_AND_LOG(progress);
     }
   }
+  CHECK(read_status.ok() || absl::IsOutOfRange(read_status)) << VV(read_status);
+  CHECK_OK(out_writer->Close()) << VV(out);
 }
 
 }  // namespace centipede
@@ -98,7 +101,6 @@ int main(int argc, char** argv) {
   QCHECK(in_format == "legacy" || in_format == "riegeli") << VV(in_format);
   const std::string out_format = absl::GetFlag(FLAGS_out_format);
   QCHECK(out_format == "legacy" || out_format == "riegeli") << VV(out_format);
-  QCHECK_NE(in_format, out_format);
 
   centipede::Convert(in, in_format, out, out_format);
 
