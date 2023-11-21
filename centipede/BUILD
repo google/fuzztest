@@ -410,8 +410,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
         "@com_google_riegeli//riegeli/base:object",
-        "@com_google_riegeli//riegeli/bytes:fd_reader",
-        "@com_google_riegeli//riegeli/bytes:fd_writer",
+        "@com_google_riegeli//riegeli/bytes:reader",
+        "@com_google_riegeli//riegeli/bytes:writer",
         "@com_google_riegeli//riegeli/records:record_reader",
         "@com_google_riegeli//riegeli/records:record_writer",
     ],
@@ -571,6 +571,10 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_riegeli//riegeli/bytes:fd_reader",
+        "@com_google_riegeli//riegeli/bytes:fd_writer",
+        "@com_google_riegeli//riegeli/bytes:reader",
+        "@com_google_riegeli//riegeli/bytes:writer",
     ],
 )
 

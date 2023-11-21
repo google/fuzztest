@@ -28,6 +28,8 @@
 #include <vector>
 
 #include "./centipede/defs.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -75,6 +77,16 @@ void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 // Returns an empty vector if `path` is an empty directory, or `path` does not
 // exist. Returns `{path}` if `path` is a non-directory.
 std::vector<std::string> RemoteListFilesRecursively(std::string_view path);
+
+// Returns a reader for the file at `file_path`.
+std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
+    std::string_view file_path);
+
+// Returns a writer for the file at `file_path`.
+// If `append` is `true`, writes will append to the end of the file if it
+// exists. If `false, the file will be truncated to empty if it exists.
+std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
+    std::string_view file_path, bool append);
 
 }  // namespace centipede
 

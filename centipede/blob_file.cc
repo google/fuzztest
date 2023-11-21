@@ -27,8 +27,8 @@
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 #include "riegeli/base/object.h"
-#include "riegeli/bytes/fd_reader.h"
-#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
 
@@ -150,7 +150,7 @@ class RiegeliReader : public BlobFileReader {
 
   absl::Status Open(std::string_view path) override {
     if (absl::Status s = Close(); !s.ok()) return s;
-    reader_.Reset(riegeli::FdReader(path));
+    reader_.Reset(CreateRiegeliFileReader(path));
     if (!reader_.ok()) return reader_.status();
     return absl::OkStatus();
   }
@@ -180,7 +180,8 @@ class RiegeliReader : public BlobFileReader {
   }
 
  private:
-  riegeli::RecordReader<riegeli::FdReader<>> reader_{riegeli::kClosed};
+  riegeli::RecordReader<std::unique_ptr<riegeli::Reader>> reader_{
+      riegeli::kClosed};
 };
 
 class RiegeliWriter : public BlobFileWriter {
@@ -193,8 +194,7 @@ class RiegeliWriter : public BlobFileWriter {
   absl::Status Open(std::string_view path, std::string_view mode) override {
     CHECK(mode == "w" || mode == "a") << VV(mode);
     if (absl::Status s = Close(); !s.ok()) return s;
-    writer_.Reset(riegeli::FdWriter(
-        path, riegeli::FdWriterBase::Options().set_append(mode == "a")));
+    writer_.Reset(CreateRiegeliFileWriter(path, mode == "a"));
     if (!writer_.ok()) return writer_.status();
     return absl::OkStatus();
   }
@@ -219,7 +219,8 @@ class RiegeliWriter : public BlobFileWriter {
   }
 
  private:
-  riegeli::RecordWriter<riegeli::FdWriter<>> writer_{riegeli::kClosed};
+  riegeli::RecordWriter<std::unique_ptr<riegeli::Writer>> writer_{
+      riegeli::kClosed};
 };
 
 std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory(bool riegeli) {
