@@ -829,12 +829,10 @@ TEST(Centipede, ShardReader) {
   WriteBlobsToFile(features_blobs, features_path, riegeli);
 
   std::vector<CorpusRecord> res;
-  ReadShard(
-      corpus_path, features_path,
-      [&res](const ByteArray &input, const FeatureVec &features) {
-        res.push_back(CorpusRecord{input, features});
-      },
-      riegeli);
+  ReadShard(corpus_path, features_path,
+            [&res](const ByteArray &input, const FeatureVec &features) {
+              res.push_back(CorpusRecord{input, features});
+            });
 
   EXPECT_EQ(res.size(), 5UL);
   EXPECT_EQ(res[0].data, data1);

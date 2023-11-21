@@ -81,8 +81,7 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
 
 // Reads and returns the distilled corpus record from
 // `wd.DistilledCorpusPath()` and `wd.DistilledFeaturesPath()`.
-std::vector<TestCorpusRecord> ReadFromDistilled(const Environment &env,
-                                                const WorkDir &wd) {
+std::vector<TestCorpusRecord> ReadFromDistilled(const WorkDir &wd) {
   const auto distilled_corpus_path = wd.DistilledCorpusFiles().MyShardPath();
   const auto distilled_features_path =
       wd.DistilledFeaturesFiles().MyShardPath();
@@ -93,7 +92,7 @@ std::vector<TestCorpusRecord> ReadFromDistilled(const Environment &env,
     result.push_back({input, features});
   };
   ReadShard(distilled_corpus_path, distilled_features_path,
-            shard_reader_callback, env.riegeli);
+            shard_reader_callback);
   return result;
 }
 
@@ -128,7 +127,7 @@ std::vector<TestCorpusRecord> TestDistill(
   // Distill.
   DistillTask(env, shard_indices);
   // Read the result back.
-  return ReadFromDistilled(env, wd);
+  return ReadFromDistilled(wd);
 }
 
 TEST(Distill, BasicDistill) {

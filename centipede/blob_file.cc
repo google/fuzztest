@@ -139,29 +139,48 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   bool closed_ = false;
 };
 
-// Implementations of `BlobFileReader`/`BlobFileWriter` based on Riegeli
-// (https://github.com/google/riegeli).
-class RiegeliReader : public BlobFileReader {
+// Implementation of `BlobFileReader` that can read files written in legacy or
+// Riegeli (https://github.com/google/riegeli) format.
+class DefaultBlobFileReader : public BlobFileReader {
  public:
-  ~RiegeliReader() override {
+  ~DefaultBlobFileReader() override {
     // Virtual resolution is off in dtors, so use a specific Close().
-    CHECK_OK(RiegeliReader::Close());
+    CHECK_OK(DefaultBlobFileReader::Close());
   }
 
   absl::Status Open(std::string_view path) override {
     if (absl::Status s = Close(); !s.ok()) return s;
-    reader_.Reset(CreateRiegeliFileReader(path));
-    if (!reader_.ok()) return reader_.status();
+
+    riegeli_reader_.Reset(CreateRiegeliFileReader(path));
+    if (riegeli_reader_.CheckFileFormat()) [[likely]] {
+      // File could be opened and is in the Riegeli format.
+      return absl::OkStatus();
+    }
+    if (!riegeli_reader_.src()->ok()) [[unlikely]] {
+      // File could not be opened.
+      return riegeli_reader_.src()->status();
+    }
+    // File could be opened but is not in the Riegeli format.
+    riegeli_reader_.Reset(riegeli::kClosed);
+
+    legacy_reader_ = std::make_unique<SimpleBlobFileReader>();
+    if (absl::Status s = legacy_reader_->Open(path); !s.ok()) {
+      legacy_reader_ = nullptr;
+      return s;
+    }
     return absl::OkStatus();
   }
 
   absl::Status Read(absl::Span<const uint8_t> &blob) override {
+    if (legacy_reader_) [[unlikely]]
+      return legacy_reader_->Read(blob);
+
     absl::string_view record;
-    if (!reader_.ReadRecord(record)) {
-      if (reader_.ok())
+    if (!riegeli_reader_.ReadRecord(record)) {
+      if (riegeli_reader_.ok())
         return absl::OutOfRangeError("no more blobs");
       else
-        return reader_.status();
+        return riegeli_reader_.status();
     }
     blob = absl::Span<const uint8_t>(
         reinterpret_cast<const uint8_t *>(record.data()), record.size());
@@ -169,21 +188,30 @@ class RiegeliReader : public BlobFileReader {
   }
 
   absl::Status Close() override {
-    // Reader already being in a bad state will result in close failure but
-    // those errors have already been reported.
-    if (!reader_.ok()) {
-      reader_.Reset(riegeli::kClosed);
+    // NOLINTNEXTLINE(readability/braces). Similar to b/278586863.
+    if (legacy_reader_) [[unlikely]] {
+      legacy_reader_ = nullptr;
       return absl::OkStatus();
     }
-    if (!reader_.Close()) return reader_.status();
+
+    // Reader already being in a bad state will result in close failure but
+    // those errors have already been reported.
+    if (!riegeli_reader_.ok()) {
+      riegeli_reader_.Reset(riegeli::kClosed);
+      return absl::OkStatus();
+    }
+    if (!riegeli_reader_.Close()) return riegeli_reader_.status();
     return absl::OkStatus();
   }
 
  private:
-  riegeli::RecordReader<std::unique_ptr<riegeli::Reader>> reader_{
+  std::unique_ptr<SimpleBlobFileReader> legacy_reader_ = nullptr;
+  riegeli::RecordReader<std::unique_ptr<riegeli::Reader>> riegeli_reader_{
       riegeli::kClosed};
 };
 
+// Implementation of `BlobFileWriter` using Riegeli
+// (https://github.com/google/riegeli).
 class RiegeliWriter : public BlobFileWriter {
  public:
   ~RiegeliWriter() override {
@@ -223,11 +251,8 @@ class RiegeliWriter : public BlobFileWriter {
       riegeli::kClosed};
 };
 
-std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory(bool riegeli) {
-  if (riegeli)
-    return std::make_unique<RiegeliReader>();
-  else
-    return std::make_unique<SimpleBlobFileReader>();
+std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
+  return std::make_unique<DefaultBlobFileReader>();
 }
 
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(bool riegeli) {

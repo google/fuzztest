@@ -51,7 +51,6 @@ class BlobFileReader {
   BlobFileReader &operator=(BlobFileReader &&) = delete;
 
   // Opens the file `path`.
-  // Implementations must ensure that this is called only once.
   virtual absl::Status Open(std::string_view path) = 0;
 
   // Reads one `blob` from an open file.
@@ -60,7 +59,7 @@ class BlobFileReader {
   // Returns absl::OutOfRangeError when there are no more blobs to read.
   virtual absl::Status Read(absl::Span<const uint8_t> &blob) = 0;
 
-  // Closes the file, which was previously opened and never closed.
+  // Closes the previously opened file, if any.
   virtual absl::Status Close() = 0;
 };
 
@@ -96,10 +95,9 @@ class BlobFileWriter {
 };
 
 // Creates a new object of a default implementation of BlobFileReader.
-// If `riegeli` is `true`, the implementation uses Riegeli
-// (https://github.com/google/riegeli).
-std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory(
-    bool riegeli = false);
+// The current default implementation supports reading files in the bespoke
+// legacy or Riegeli (https://github.com/google/riegeli) format.
+std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory();
 
 // Creates a new object of a default implementation of BlobFileWriter.
 // If `riegeli` is `true`, the implementation uses Riegeli

@@ -69,12 +69,10 @@ void DistillTask(const Environment &env,
             << VV(features_path);
     // Read records from the current shard.
     std::vector<std::pair<ByteArray, FeatureVec>> records;
-    ReadShard(
-        corpus_path, features_path,
-        [&](const ByteArray &input, FeatureVec &input_features) {
-          records.emplace_back(input, std::move(input_features));
-        },
-        env.riegeli);
+    ReadShard(corpus_path, features_path,
+              [&](const ByteArray &input, FeatureVec &input_features) {
+                records.emplace_back(input, std::move(input_features));
+              });
     // Reverse the order of inputs read from the current shard.
     // The intuition is as follows:
     // * If the shard is the result of fuzzing with Centipede, the inputs that

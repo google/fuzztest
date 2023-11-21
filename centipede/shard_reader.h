@@ -32,12 +32,9 @@ namespace centipede {
 // If features are not found for a given input, callback's 2nd argument is {}.
 // If features are found for a given input but are empty,
 // then callback's 2n-d argument is {feature_domains::kNoFeature}.
-// If `riegeli` is true then the BlobFiles are expected to be in Riegeli
-// (https://github.com/google/riegeli) format.
 void ReadShard(
     std::string_view corpus_path, std::string_view features_path,
-    const std::function<void(const ByteArray &, FeatureVec &)> &callback,
-    bool riegeli = false);
+    const std::function<void(const ByteArray &, FeatureVec &)> &callback);
 
 }  // namespace centipede
 

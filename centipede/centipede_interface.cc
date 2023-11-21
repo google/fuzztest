@@ -109,7 +109,7 @@ int ForEachBlob(const Environment &env) {
 
   for (const auto &arg : env.args) {
     LOG(INFO) << "Running '" << env.for_each_blob << "' on " << arg;
-    auto blob_reader = DefaultBlobFileReaderFactory(env.riegeli);
+    auto blob_reader = DefaultBlobFileReaderFactory();
     absl::Status open_status = blob_reader->Open(arg);
     if (!open_status.ok()) {
       LOG(INFO) << "Failed to open " << arg << ": " << open_status;
@@ -172,7 +172,7 @@ int Analyze(const Environment &env) {
   CHECK(!env.binary.empty()) << "--binary must be used";
   std::vector<std::vector<CorpusRecord>> corpora;
   AnalyzeCorporaToLog(env.binary_name, env.binary_hash, env.args[0],
-                      env.args[1], env.riegeli);
+                      env.args[1]);
   return EXIT_SUCCESS;
 }
 

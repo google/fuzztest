@@ -33,7 +33,6 @@
 
 ABSL_FLAG(std::string, in, "", "Input path");
 ABSL_FLAG(std::string, out, "", "Output path");
-ABSL_FLAG(std::string, in_format, "legacy", "--in format (legacy|riegeli)");
 ABSL_FLAG(std::string, out_format, "riegeli", "--out format (legacy|riegeli)");
 
 namespace centipede {
@@ -87,16 +86,13 @@ class StatsLogger {
   perf::RUsageProfiler& rprof_;
 };
 
-void Convert(                                             //
-    const std::string& in, const std::string& in_format,  //
+void Convert(               //
+    const std::string& in,  //
     const std::string& out, const std::string& out_format) {
   RPROF_THIS_FUNCTION_WITH_REPORT(/*enable=*/VLOG_IS_ON(1));
 
-  LOG(INFO) << "Converting:\n"
-            << VV(in) << VV(in_format) << "\n"
-            << VV(out) << VV(out_format);
+  LOG(INFO) << "Converting:\n" << VV(in) << "\n" << VV(out) << VV(out_format);
 
-  const bool in_is_riegeli = in_format == "riegeli";
   const bool out_is_riegeli = out_format == "riegeli";
 
   // Verify and prepare source and destination.
@@ -108,7 +104,7 @@ void Convert(                                             //
 
   RPROF_START_TIMELAPSE(  //
       absl::Seconds(20), /*also_log=*/VLOG_IS_ON(3), "Opening --in");
-  const auto in_reader = DefaultBlobFileReaderFactory(in_is_riegeli);
+  const auto in_reader = DefaultBlobFileReaderFactory();
   CHECK_OK(in_reader->Open(in)) << VV(in);
   RPROF_STOP_TIMELAPSE();
   RPROF_SNAPSHOT_AND_LOG("Opened --in; opening --out");
@@ -144,12 +140,10 @@ int main(int argc, char** argv) {
   QCHECK(!in.empty());
   const std::string out = absl::GetFlag(FLAGS_out);
   QCHECK(!out.empty());
-  const std::string in_format = absl::GetFlag(FLAGS_in_format);
-  QCHECK(in_format == "legacy" || in_format == "riegeli") << VV(in_format);
   const std::string out_format = absl::GetFlag(FLAGS_out_format);
   QCHECK(out_format == "legacy" || out_format == "riegeli") << VV(out_format);
 
-  centipede::Convert(in, in_format, out, out_format);
+  centipede::Convert(in, out, out_format);
 
   return EXIT_SUCCESS;
 }

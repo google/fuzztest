@@ -133,7 +133,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
   const auto corpus_files = WorkDir{env}.CorpusFiles();
   for (size_t shard = 0; shard < env.total_shards; shard++) {
-    auto reader = DefaultBlobFileReaderFactory(env.riegeli);
+    auto reader = DefaultBlobFileReaderFactory();
     auto corpus_path = corpus_files.ShardPath(shard);
     reader->Open(corpus_path).IgnoreError();  // may not exist.
     absl::Span<const uint8_t> blob;
@@ -168,7 +168,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     // Read the shard (if it exists), collect input hashes from it.
     absl::flat_hash_set<std::string> existing_hashes;
     {
-      auto reader = DefaultBlobFileReaderFactory(env.riegeli);
+      auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
       reader->Open(corpus_path).IgnoreError();
       absl::Span<const uint8_t> blob;
@@ -404,11 +404,9 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
     absl::MutexLock lock(&load_shard_mu);
-    ReadShard(corpus_path, features_path, input_features_callback,
-              load_env.riegeli);
+    ReadShard(corpus_path, features_path, input_features_callback);
   } else {
-    ReadShard(corpus_path, features_path, input_features_callback,
-              load_env.riegeli);
+    ReadShard(corpus_path, features_path, input_features_callback);
   }
 
   VLOG(1) << "Loaded shard " << shard_index << ": added " << num_added_inputs

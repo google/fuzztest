@@ -38,13 +38,12 @@ namespace centipede {
 //    the corresponding input (again, in order to reduce temporary allocations).
 void ReadShard(
     std::string_view corpus_path, std::string_view features_path,
-    const std::function<void(const ByteArray &, FeatureVec &)> &callback,
-    bool riegeli) {
+    const std::function<void(const ByteArray &, FeatureVec &)> &callback) {
   // Maps features to input's hash.
   absl::flat_hash_map<std::string, FeatureVec> hash_to_features;
   // Read all features, populate hash_to_features.
   {
-    auto features_reader = DefaultBlobFileReaderFactory(riegeli);
+    auto features_reader = DefaultBlobFileReaderFactory();
     features_reader->Open(features_path).IgnoreError();  // File may not exist.
     absl::Span<const uint8_t> hash_and_features;
     while (features_reader->Read(hash_and_features).ok()) {
@@ -63,7 +62,7 @@ void ReadShard(
     }
   }
   // Read the corpus. Call `callback` for every {input, features} pair.
-  auto corpus_reader = DefaultBlobFileReaderFactory(riegeli);
+  auto corpus_reader = DefaultBlobFileReaderFactory();
   corpus_reader->Open(corpus_path).IgnoreError();  // File may not exist.
   absl::Span<const uint8_t> blob;
   while (corpus_reader->Read(blob).ok()) {
