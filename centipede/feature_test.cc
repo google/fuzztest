@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/const_init.h"
 #include "absl/container/flat_hash_set.h"
@@ -97,6 +98,26 @@ TEST(Feature, ConcurrentBitSet) {
   out_bits.clear();
   bs.ForEachNonZeroBit([&](size_t idx) { out_bits.push_back(idx); });
   EXPECT_TRUE(out_bits.empty());
+}
+
+TEST(Feature, ConcurrentBitGet) {
+  constexpr size_t kSize = 1 << 18;
+  static ConcurrentBitSet<kSize> bs(absl::kConstInit);
+  std::vector<size_t> in_bits = {0, 1, 2, 100, 102, 1000000};
+  std::vector<uint8_t> out_bits;
+  for (auto idx : in_bits) {
+    out_bits.push_back(bs.get(idx));
+  }
+  ASSERT_THAT(out_bits, testing::Each(testing::Eq(0)));
+
+  for (auto idx : in_bits) {
+    bs.set(idx);
+  }
+  out_bits.clear();
+  for (auto idx : in_bits) {
+    out_bits.push_back(bs.get(idx));
+  }
+  EXPECT_THAT(out_bits, testing::Each(testing::Eq(1)));
 }
 
 TEST(Feature, ConcurrentByteSet) {

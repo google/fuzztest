@@ -85,6 +85,14 @@ class ConcurrentBitSet {
     }
   }
 
+  // Gets the bit at `idx % kSizeInBits`.
+  uint8_t get(size_t idx) {
+    idx %= kSizeInBits;
+    size_t word_idx = idx / kBitsInWord;
+    size_t line_idx = word_idx / kWordsInLine;
+    return lines_.Get(line_idx);
+  }
+
   // Calls `action(index)` for every index of a non-zero bit in the set,
   // then sets all those bits to zero.
   __attribute__((noinline)) void ForEachNonZeroBit(

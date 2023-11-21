@@ -66,6 +66,7 @@ struct RunTimeFlags {
   uint64_t timeout_per_batch;
   uint64_t rss_limit_mb;
   uint64_t crossover_level;
+  uint64_t skip_seen_features : 1;
 };
 
 // One such object is created in runner's TLS.
@@ -156,7 +157,8 @@ struct GlobalRunnerState {
       .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
       .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
-      .crossover_level = HasIntFlag(":crossover_level=", 50)};
+      .crossover_level = HasIntFlag(":crossover_level=", 50),
+      .skip_seen_features = HasIntFlag(":skip_seen_features=", 0)};
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
@@ -312,6 +314,8 @@ struct GlobalRunnerState {
   static const size_t kMaxFeatures = 1 << 20;
   // FeatureArray used to accumulate features from all sources.
   FeatureArray<kMaxFeatures> g_features;
+  // Features that are seen before.
+  ConcurrentBitSet<kMaxFeatures> seen_features{absl::kConstInit};
 };
 
 extern GlobalRunnerState state;
