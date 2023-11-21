@@ -213,9 +213,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include <thread>  // NOLINT
 
-#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
@@ -224,6 +222,7 @@ namespace centipede::perf {
 
 // A simple source location wrapper. Typically, construct as
 // `SourceLocation{__FILE__, __LINE__}` and pass around by-value.
+// TODO(ussuri): Switch to absl::SourceLocation or std::source_location.
 struct SourceLocation {
   explicit SourceLocation() = default;
   SourceLocation(const char* file, int line) : file{file}, line{line} {}
