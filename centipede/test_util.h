@@ -20,6 +20,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/util.h"
 
@@ -85,16 +86,23 @@ class TempCorpusDir : public TempDir {
 
   // Loads the corpus from the file `name_prefix``shard_index`
   // and returns it as a vector<ByteArray>.
+  // Returns an empty vector if the file cannot be opened.
   std::vector<ByteArray> GetCorpus(size_t shard_index,
                                    std::string_view name_prefix = "corpus.") {
-    ByteArray corpus_data;
     // NOTE: The "6" in the "%06d" comes from kDigitsInShardIndex in
     // environment.cc.
-    ReadFromLocalFile(
-        GetFilePath(absl::StrFormat("%s%06d", name_prefix, shard_index)),
-        corpus_data);
+    if (!reader_
+             ->Open(GetFilePath(
+                 absl::StrFormat("%s%06d", name_prefix, shard_index)))
+             .ok()) {
+      return {};
+    }
     std::vector<ByteArray> corpus;
-    UnpackBytesFromAppendFile(corpus_data, &corpus);
+    absl::Span<const uint8_t> blob;
+    while (reader_->Read(blob).ok()) {
+      corpus.emplace_back(blob.begin(), blob.end());
+    }
+    CHECK_OK(reader_->Close());
     return corpus;
   }
 
@@ -103,6 +111,9 @@ class TempCorpusDir : public TempDir {
                                    std::string_view name_prefix = "corpus.") {
     return GetCorpus(shard_index, name_prefix).size();
   }
+
+ private:
+  std::unique_ptr<BlobFileReader> reader_ = DefaultBlobFileReaderFactory();
 };
 
 }  // namespace centipede
