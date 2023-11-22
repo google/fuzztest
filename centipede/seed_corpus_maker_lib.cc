@@ -393,12 +393,12 @@ void WriteSeedCorpusElementsToDestination(  //
         // `ReadShard()`.
 
         const std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
-            centipede::DefaultBlobFileWriterFactory();
+            centipede::DefaultBlobFileWriterFactory(/*riegeli=*/true);
         CHECK(corpus_writer != nullptr);
         CHECK_OK(corpus_writer->Open(corpus_fname, "w")) << VV(corpus_fname);
 
         const std::unique_ptr<centipede::BlobFileWriter> features_writer =
-            DefaultBlobFileWriterFactory();
+            DefaultBlobFileWriterFactory(/*riegeli=*/true);
         CHECK(features_writer != nullptr);
         CHECK_OK(features_writer->Open(features_fname, "w"))
             << VV(features_fname);
