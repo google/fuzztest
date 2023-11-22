@@ -98,7 +98,7 @@ class CustomizedCallbacks : public CentipedeCallbacks {
 
     std::string tmp_log;
     ReadFromLocalFile(tmp_log_filepath, tmp_log);
-    LOG(INFO) << tmp_log;
+    LOG_IF(INFO, !tmp_log.empty()) << tmp_log;
 
     batch_result.ClearAndResize(inputs.size());
     CHECK(UpdateBatchResult(tmp_output_filepath, batch_result));
