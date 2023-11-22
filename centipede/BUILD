@@ -1077,6 +1077,7 @@ cc_library(
     srcs = ["test_util.cc"],
     hdrs = ["test_util.h"],
     deps = [
+        ":blob_file",
         ":defs",
         ":logging",
         ":util",

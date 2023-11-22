@@ -126,16 +126,23 @@ class MockFactory : public CentipedeCallbacksFactory {
   CentipedeCallbacks &cb_;
 };
 
+std::string GetTestName() {
+  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+}
+
 }  // namespace
 
-TEST(Centipede, MockTest) {
-  TempCorpusDir tmp_dir{test_info_->name()};
+class Centipede : public testing::TestWithParam<bool> {};
+
+TEST_P(Centipede, MockTest) {
+  TempCorpusDir tmp_dir{GetTestName()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
   env.workdir = tmp_dir.path();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
+  env.riegeli = GetParam();
   CentipedeMock mock(env);
   MockFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing with num_runs inputs.
@@ -155,10 +162,10 @@ static size_t CountFilesInDir(std::string_view dir_path) {
                        std::filesystem::end(dir_iter));
 }
 
-TEST(Centipede, ReadFirstCorpusDir) {
-  TempDir workdir_1{test_info_->name(), "workdir_1"};
-  TempDir workdir_2{test_info_->name(), "workdir_2"};
-  TempDir corpus_dir{test_info_->name(), "corpus"};
+TEST_P(Centipede, ReadFirstCorpusDir) {
+  TempDir workdir_1{GetTestName(), "workdir_1"};
+  TempDir workdir_2{GetTestName(), "workdir_2"};
+  TempDir corpus_dir{GetTestName(), "corpus"};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
   env.workdir = workdir_1.path();
@@ -166,6 +173,7 @@ TEST(Centipede, ReadFirstCorpusDir) {
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   env.corpus_dir.push_back(corpus_dir.path());
+  env.riegeli = GetParam();
 
   // First, generate corpus files in corpus_dir.
   CentipedeMock mock_1(env);
@@ -186,10 +194,10 @@ TEST(Centipede, ReadFirstCorpusDir) {
   EXPECT_EQ(mock_2.num_inputs_, 512);
 }
 
-TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
-  TempDir workdir_1{test_info_->name(), "workdir_1"};
-  TempDir workdir_2{test_info_->name(), "workdir_2"};
-  TempDir corpus_dir{test_info_->name(), "corpus"};
+TEST_P(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
+  TempDir workdir_1{GetTestName(), "workdir_1"};
+  TempDir workdir_2{GetTestName(), "workdir_2"};
+  TempDir corpus_dir{GetTestName(), "corpus"};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
   env.workdir = workdir_1.path();
@@ -197,6 +205,7 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   env.corpus_dir.push_back(corpus_dir.path());
+  env.riegeli = GetParam();
 
   // First, generate corpus files in corpus_dir.
   CentipedeMock mock_1(env);
@@ -218,8 +227,8 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   EXPECT_EQ(mock_2.num_inputs_, 1);
 }
 
-TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
-  TempCorpusDir tmp_dir{test_info_->name()};
+TEST_P(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
+  TempCorpusDir tmp_dir{GetTestName()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
   env.workdir = tmp_dir.path();
@@ -229,6 +238,7 @@ TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
   // Set the first corpus_dir entry to empty path to skip output.
   env.corpus_dir.push_back("");
   env.corpus_dir.push_back(tmp_dir.CreateSubdir("cd"));
+  env.riegeli = GetParam();
 
   CentipedeMock mock(env);
   MockFactory factory(mock);
@@ -240,8 +250,8 @@ TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
 }
 
 // Tests fuzzing and distilling in multiple shards.
-TEST(Centipede, ShardsAndDistillTest) {
-  TempCorpusDir tmp_dir{test_info_->name()};
+TEST_P(Centipede, ShardsAndDistillTest) {
+  TempCorpusDir tmp_dir{GetTestName()};
   Environment env;
   env.workdir = tmp_dir.path();
   env.log_level = 0;  // Disable most of the logging in the test.
@@ -249,6 +259,7 @@ TEST(Centipede, ShardsAndDistillTest) {
   env.total_shards = 20;
   env.num_runs = combined_num_runs / env.total_shards;
   env.require_pc_table = false;  // No PC table here.
+  env.riegeli = GetParam();
 
   // Create two empty dirs and add them to corpus_dir.
   env.corpus_dir.push_back(tmp_dir.CreateSubdir("cd1"));
@@ -302,8 +313,8 @@ TEST(Centipede, ShardsAndDistillTest) {
 }
 
 // Tests --input_filter. test_input_filter filters out inputs with 'b' in them.
-TEST(Centipede, InputFilter) {
-  TempCorpusDir tmp_dir{test_info_->name()};
+TEST_P(Centipede, InputFilter) {
+  TempCorpusDir tmp_dir{GetTestName()};
   Environment env;
   env.workdir = tmp_dir.path();
   env.num_runs = 256;            // Enough to run through all 1- byte inputs.
@@ -312,6 +323,7 @@ TEST(Centipede, InputFilter) {
   // Add %f so that test_input_filter doesn't need to be linked with forkserver.
   env.input_filter = "%f" + std::string{GetDataDependencyFilepath(
                                 "centipede/testing/test_input_filter")};
+  env.riegeli = GetParam();
   CentipedeMock mock(env);
   MockFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing.
@@ -343,7 +355,7 @@ class MutateCallbacks : public CentipedeCallbacks {
   using CentipedeCallbacks::MutateViaExternalBinary;
 };
 
-TEST(Centipede, MutateViaExternalBinary) {
+TEST_P(Centipede, MutateViaExternalBinary) {
   // This binary contains a test-friendly custom mutator.
   const std::string binary_with_custom_mutator =
       GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
@@ -385,6 +397,7 @@ TEST(Centipede, MutateViaExternalBinary) {
   // Test with crossover enabled (default).
   {
     Environment env;
+    env.riegeli = GetParam();
     MutateCallbacks callbacks(env);
 
     // Expect to fail on the binary w/o a custom mutator.
@@ -408,6 +421,7 @@ TEST(Centipede, MutateViaExternalBinary) {
   {
     Environment env_no_crossover;
     env_no_crossover.crossover_level = 0;
+    env_no_crossover.riegeli = GetParam();
     MutateCallbacks callbacks_no_crossover(env_no_crossover);
     mutants.resize(10000);
     EXPECT_TRUE(callbacks_no_crossover.MutateViaExternalBinary(
@@ -455,15 +469,16 @@ class MergeMock : public CentipedeCallbacks {
   size_t number_of_mutations_ = 0;
 };
 
-TEST(Centipede, MergeFromOtherCorpus) {
+TEST_P(Centipede, MergeFromOtherCorpus) {
   using Corpus = std::vector<ByteArray>;
 
   // Set up the workdir, create a 2-shard corpus with 3 inputs each.
-  TempCorpusDir work_tmp_dir{test_info_->name(), "workdir"};
+  TempCorpusDir work_tmp_dir{GetTestName(), "workdir"};
   Environment env;
   env.workdir = work_tmp_dir.path();
   env.num_runs = 3;              // Just a few runs.
   env.require_pc_table = false;  // No PC table here.
+  env.riegeli = GetParam();
   MergeMock mock(env);
   MockFactory factory(mock);
   for (env.my_shard_index = 0; env.my_shard_index < 2; ++env.my_shard_index) {
@@ -474,11 +489,12 @@ TEST(Centipede, MergeFromOtherCorpus) {
   EXPECT_EQ(work_tmp_dir.GetCorpus(1), Corpus({{4}, {5}, {6}}));
 
   // Set up another workdir, create a 2-shard corpus there, with 4 inputs each.
-  TempCorpusDir merge_tmp_dir(test_info_->name(), "merge_from");
+  TempCorpusDir merge_tmp_dir(GetTestName(), "merge_from");
   Environment merge_env;
   merge_env.workdir = merge_tmp_dir.path();
   merge_env.num_runs = 4;
   merge_env.require_pc_table = false;  // No PC table here.
+  merge_env.riegeli = GetParam();
   mock.Reset();
   for (merge_env.my_shard_index = 0; merge_env.my_shard_index < 2;
 
@@ -553,7 +569,7 @@ class FunctionFilterMock : public CentipedeCallbacks {
 // Runs a short fuzzing session with the provided `function_filter`.
 // Returns a sorted array of observed inputs.
 static std::vector<ByteArray> RunWithFunctionFilter(
-    std::string_view function_filter, const TempDir &tmp_dir) {
+    std::string_view function_filter, const TempDir &tmp_dir, bool riegeli) {
   Environment env;
   env.workdir = tmp_dir.path();
   env.seed = 1;  // make the runs predictable.
@@ -569,6 +585,7 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   env.objdump_path = "objdump";
   env.log_level = 0;
   env.function_filter = function_filter;
+  env.riegeli = riegeli;
   FunctionFilterMock mock(env);
   MockFactory factory(mock);
   CentipedeMain(env, factory);
@@ -580,27 +597,28 @@ static std::vector<ByteArray> RunWithFunctionFilter(
 }
 
 // Tests --function_filter.
-TEST(Centipede, FunctionFilter) {
+TEST_P(Centipede, FunctionFilter) {
   // Run with empty function filter.
   {
-    TempDir tmp_dir{test_info_->name(), "none"};
-    auto observed_empty = RunWithFunctionFilter("", tmp_dir);
+    TempDir tmp_dir{GetTestName(), "none"};
+    auto observed_empty = RunWithFunctionFilter("", tmp_dir, GetParam());
     ASSERT_EQ(observed_empty.size(), 3);
   }
 
   // Run with a one-function filter
   {
-    TempDir tmp_dir{test_info_->name(), "single"};
-    auto observed_single = RunWithFunctionFilter("SingleEdgeFunc", tmp_dir);
+    TempDir tmp_dir{GetTestName(), "single"};
+    auto observed_single =
+        RunWithFunctionFilter("SingleEdgeFunc", tmp_dir, GetParam());
     ASSERT_EQ(observed_single.size(), 1);
     EXPECT_EQ(observed_single[0], FunctionFilterMock::GetMutant(0));
   }
 
   // Run with a two-function filter.
   {
-    TempDir tmp_dir{test_info_->name(), "single_multi"};
-    auto observed_both =
-        RunWithFunctionFilter("SingleEdgeFunc,MultiEdgeFunc", tmp_dir);
+    TempDir tmp_dir{GetTestName(), "single_multi"};
+    auto observed_both = RunWithFunctionFilter("SingleEdgeFunc,MultiEdgeFunc",
+                                               tmp_dir, GetParam());
     ASSERT_EQ(observed_both.size(), 2);
     EXPECT_EQ(observed_both[0], FunctionFilterMock::GetMutant(0));
     EXPECT_EQ(observed_both[1], FunctionFilterMock::GetMutant(1));
@@ -649,8 +667,8 @@ class ExtraBinariesMock : public CentipedeCallbacks {
 // Tests --extra_binaries.
 // Executes one main binary (--binary) and 3 extra ones (--extra_binaries).
 // Expects the main binary and two extra ones to generate one crash each.
-TEST(Centipede, ExtraBinaries) {
-  TempDir tmp_dir{test_info_->name()};
+TEST_P(Centipede, ExtraBinaries) {
+  TempDir tmp_dir{GetTestName()};
   Environment env;
   env.workdir = tmp_dir.path();
   env.num_runs = 100;
@@ -659,6 +677,7 @@ TEST(Centipede, ExtraBinaries) {
   env.binary = "b1";
   env.extra_binaries = {"b2", "b3", "b4"};
   env.require_pc_table = false;  // No PC table here.
+  env.riegeli = GetParam();
   ExtraBinariesMock mock(env);
   MockFactory factory(mock);
   CentipedeMain(env, factory);
@@ -745,7 +764,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
 // Test for preserving a crashing batch when 1-by-1 exec fails to reproduce.
 // Executes one main binary (--binary).
 // Expects the binary to crash once and 1-by-1 reproduction to fail.
-TEST(Centipede, UndetectedCrashingInput) {
+TEST_P(Centipede, UndetectedCrashingInput) {
   constexpr size_t kNumBatches = 7;
   constexpr size_t kBatchSize = 11;
   constexpr size_t kCrashingInputIdxInBatch = kBatchSize / 2;
@@ -755,13 +774,14 @@ TEST(Centipede, UndetectedCrashingInput) {
   LOG(INFO) << VV(kNumBatches) << VV(kBatchSize)
             << VV(kCrashingInputIdxInBatch) VV(kCrashingInputIdx);
 
-  TempDir temp_dir{test_info_->name()};
+  TempDir temp_dir{GetTestName()};
   Environment env;
   env.workdir = temp_dir.path();
   env.num_runs = kBatchSize * kNumBatches;
   env.batch_size = kBatchSize;
   // No real binary: prevent attempts by Centipede to read a PCtable from it.
   env.require_pc_table = false;
+  env.riegeli = GetParam();
 
   UndetectedCrashingInputMock mock(env, kCrashingInputIdx);
   MockFactory factory(mock);
@@ -796,9 +816,8 @@ static void WriteBlobsToFile(const std::vector<ByteArray> &blobs,
   }
 }
 
-TEST(Centipede, ShardReader) {
+TEST_P(Centipede, ShardReader) {
   // TODO(b/310701588): Update/add test to use Riegeli.
-  const bool riegeli = false;
   ByteArray data1 = {1, 2, 3};
   ByteArray data2 = {3, 4, 5, 6};
   ByteArray data3 = {7, 8, 9, 10, 11};
@@ -822,11 +841,11 @@ TEST(Centipede, ShardReader) {
   features_blobs.push_back(PackFeaturesAndHash(data3, fv3));
   features_blobs.push_back(PackFeaturesAndHash(data4, fv4));
 
-  TempDir tmp_dir{test_info_->name()};
+  TempDir tmp_dir{GetTestName()};
   std::string corpus_path = tmp_dir.GetFilePath("corpus");
   std::string features_path = tmp_dir.GetFilePath("features");
-  WriteBlobsToFile(corpus_blobs, corpus_path, riegeli);
-  WriteBlobsToFile(features_blobs, features_path, riegeli);
+  WriteBlobsToFile(corpus_blobs, corpus_path, GetParam());
+  WriteBlobsToFile(features_blobs, features_path, GetParam());
 
   std::vector<CorpusRecord> res;
   ReadShard(corpus_path, features_path,
@@ -847,10 +866,11 @@ TEST(Centipede, ShardReader) {
   EXPECT_EQ(res[4].features, FeatureVec());
 }
 
-TEST(Centipede, GetsSeedInputs) {
+TEST_P(Centipede, GetsSeedInputs) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
+  env.riegeli = GetParam();
   CentipedeDefaultCallbacks callbacks(env);
   std::vector<ByteArray> seeds;
   EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
@@ -863,5 +883,7 @@ TEST(Centipede, GetsSeedInputs) {
   EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
+
+INSTANTIATE_TEST_SUITE_P(CentipedeTests, Centipede, ::testing::Bool());
 
 }  // namespace centipede
