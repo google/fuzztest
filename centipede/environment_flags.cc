@@ -376,6 +376,8 @@ ABSL_FLAG(bool, populate_binary_info, default_env->populate_binary_info,
 ABSL_FLAG(bool, riegeli, default_env->riegeli,
           "Use Riegeli file format (instead of the legacy bespoke encoding) "
           "for storage");
+ABSL_FLAG(bool, skip_seen_features, default_env->skip_seen_features,
+          "Skips pushing coverage features if seen before.");
 
 namespace centipede {
 
@@ -492,6 +494,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .save_binary_info = absl::GetFlag(FLAGS_save_binary_info),
       .populate_binary_info = absl::GetFlag(FLAGS_populate_binary_info),
       .riegeli = absl::GetFlag(FLAGS_riegeli),
+      .skip_seen_features = absl::GetFlag(FLAGS_skip_seen_features),
       .binary_name = std::filesystem::path(coverage_binary).filename().string(),
       .binary_hash = absl::GetFlag(FLAGS_binary_hash).empty()
                          ? HashOfFileContents(coverage_binary)

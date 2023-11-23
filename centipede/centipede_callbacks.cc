@@ -95,6 +95,7 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
     flags.emplace_back(absl::StrCat("callstack_level=", env_.callstack_level));
     if (env_.use_auto_dictionary) flags.emplace_back("use_auto_dictionary");
     if (env_.use_dataflow_features) flags.emplace_back("use_dataflow_features");
+    if (env_.skip_seen_features) flags.emplace_back("skip_seen_features");
   }
   if (!env_.runner_dl_path_suffix.empty()) {
     flags.emplace_back(
