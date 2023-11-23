@@ -66,6 +66,12 @@ class ConcurrentByteSet {
     __atomic_store_n(&bytes_[idx], value, __ATOMIC_RELAXED);
   }
 
+  // Gets element at `idx`. `idx` must be <= kSize.
+  uint8_t Get(size_t idx) {
+    if (idx >= kSize) __builtin_trap();
+    return __atomic_load_n(&bytes_[idx], __ATOMIC_RELAXED);
+  }
+
   // Performs a saturated increment of element `idx`.
   void SaturatedIncrement(size_t idx) {
     if (idx >= kSize) __builtin_trap();

@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
     std::cerr << "Failed to open file arg[2]: " << argv[2] << std::endl;
     return EXIT_FAILURE;
   }
-  static constexpr int kMaxOutputLimit = 1000;
+  static constexpr int kMaxOutputLimit = 5000;
   std::string curr_filepath;
 
   while (getline(input_file, curr_filepath)) {

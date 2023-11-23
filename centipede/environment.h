@@ -101,6 +101,7 @@ struct Environment {
   bool save_binary_info = false;
   bool populate_binary_info = true;
   bool riegeli = false;
+  bool skip_seen_features = false;
 
   // Internal settings without global flags ------------------------------------
 

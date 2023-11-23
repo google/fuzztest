@@ -99,6 +99,18 @@ TEST(Feature, ConcurrentBitSet) {
   EXPECT_TRUE(out_bits.empty());
 }
 
+TEST(Feature, ConcurrentBitGet) {
+  constexpr size_t kSize = 1 << 18;
+  static ConcurrentBitSet<kSize> bs(absl::kConstInit);
+  constexpr size_t kInBit1 = 134217728;
+  constexpr size_t kInBit2 = 134217732;
+  ASSERT_EQ(bs.get(kInBit1), 0);
+  ASSERT_EQ(bs.get(kInBit2), 0);
+  bs.set(kInBit1);
+  EXPECT_EQ(bs.get(kInBit1), 1);
+  EXPECT_EQ(bs.get(kInBit2), 0);
+}
+
 TEST(Feature, ConcurrentByteSet) {
   static ConcurrentByteSet<1024> bs(absl::kConstInit);
   const std::vector<std::pair<size_t, uint8_t>> in = {

@@ -109,6 +109,7 @@ void Environment::SetFlagForExperiment(std::string_view name,
       {"use_pcpair_features", &use_pcpair_features},
       {"use_coverage_frontier", &use_coverage_frontier},
       {"use_legacy_default_mutator", &use_legacy_default_mutator},
+      {"skip_seen_features", &skip_seen_features},
   };
   auto bool_iter = bool_flags.find(name);
   if (bool_iter != bool_flags.end()) {

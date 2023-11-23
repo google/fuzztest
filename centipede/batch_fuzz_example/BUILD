@@ -14,6 +14,28 @@ centipede_fuzz_target(
 )
 
 ###############################################################################
+#                                  Libraries
+################################################################################
+
+cc_library(
+    name = "customized_centipede_lib",
+    srcs = ["customized_centipede.cc"],
+    hdrs = ["customized_centipede.h"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//centipede:centipede_callbacks",
+        "@com_google_fuzztest//centipede:command",
+        "@com_google_fuzztest//centipede:defs",
+        "@com_google_fuzztest//centipede:environment",
+        "@com_google_fuzztest//centipede:runner_result",
+        "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
+        "@com_google_fuzztest//centipede:util",
+    ],
+)
+
+###############################################################################
 #                                  Binaries
 ################################################################################
 
@@ -30,20 +52,13 @@ cc_binary(
 
 cc_binary(
     name = "customized_centipede",
-    srcs = ["customized_centipede.cc"],
+    srcs = ["customized_centipede_main.cc"],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        ":customized_centipede_lib",
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:centipede_interface",
-        "@com_google_fuzztest//centipede:command",
         "@com_google_fuzztest//centipede:config_file",
-        "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:environment_flags",
-        "@com_google_fuzztest//centipede:runner_result",
-        "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
-        "@com_google_fuzztest//centipede:util",
     ],
 )
 
