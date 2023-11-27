@@ -41,13 +41,9 @@ class CorpusDatabase {
 
 // All the configurations consumed by a fuzz test
 struct Configuration {
-  explicit Configuration(
-      CorpusDatabase corpus_database,
-      std::optional<std::string> crashing_input_to_reproduce = std::nullopt)
-      : corpus_database(std::move(corpus_database)),
-        crashing_input_to_reproduce(std::move(crashing_input_to_reproduce)) {}
-
   CorpusDatabase corpus_database;
+
+  size_t stack_limit;
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;

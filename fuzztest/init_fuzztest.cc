@@ -13,14 +13,11 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
-
-#define FUZZTEST_FLAG_PREFIX ""
-#define FUZZTEST_FLAG_NAME(name) name
-#define FUZZTEST_FLAG(name) FLAGS_##name
 
 #define FUZZTEST_DEFINE_FLAG(type, name, default_value, description) \
   ABSL_FLAG(type, FUZZTEST_FLAG_NAME(name), default_value, description)
@@ -87,6 +84,10 @@ FUZZTEST_DEFINE_FLAG(
     "a given test. This is useful for measuring the coverage of the corpus "
     "built up during previously ran fuzzing sessions.");
 
+FUZZTEST_DEFINE_FLAG(size_t, stack_limit, 128 * 1024,
+                     "The soft limit of the stack size in bytes to abort when "
+                     "the limit is exceeded.");
+
 namespace fuzztest {
 
 std::vector<std::string> ListRegisteredTests() {
@@ -144,9 +145,12 @@ internal::Configuration CreateConfigurationsFromFlags(
   if (getenv("TEST_SRCDIR")) {
     binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
   }
-  return internal::Configuration(internal::CorpusDatabase(
-      binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
-      absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests))));
+  return internal::Configuration{
+      .corpus_database = internal::CorpusDatabase(
+          binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
+          absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests))),
+      .stack_limit = absl::GetFlag(FUZZTEST_FLAG(stack_limit)),
+  };
 }
 
 }  // namespace

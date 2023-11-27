@@ -34,6 +34,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -43,6 +44,7 @@
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
+#include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
@@ -781,9 +783,31 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   }
 }
 
+static size_t GetStackLimitFromEnvOrConfiguration(
+    const Configuration& configuration) {
+  size_t env_stack_limit;
+  if (const char* env = getenv("FUZZTEST_STACK_LIMIT");
+      (env != nullptr && absl::SimpleAtoi(env, &env_stack_limit))) {
+    absl::FPrintF(
+        GetStderr(),
+        "[!] Stack limit is set by FUZZTEST_STACK_LIMIT env var - this is "
+        "going to be deprecated soon. Consider switching to "
+        "--" FUZZTEST_FLAG_PREFIX "stack_limit flag.\n");
+    return env_stack_limit;
+  }
+  return configuration.stack_limit;
+}
+
 int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
                                          const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
+  // TODO(b/273276918): For now, let existing FUZZTEST_STACK_LIMIT overwrite the
+  // stack limit. So that the existing targets that set the env var could still
+  // work.
+  if (execution_coverage_ != nullptr) {
+    execution_coverage_->SetStackLimit(
+        GetStackLimitFromEnvOrConfiguration(configuration));
+  }
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
 

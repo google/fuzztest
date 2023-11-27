@@ -68,6 +68,7 @@ cc_library(
     hdrs = ["init_fuzztest.h"],
     deps = [
         ":configuration",
+        ":flag_name",
         ":googletest_adaptor",
         ":io",
         ":registry",
@@ -202,6 +203,7 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
+        ":flag_name",
         ":logging",
         ":table_of_recent_compares",
         "@com_google_absl//absl/base:core_headers",
@@ -326,6 +328,11 @@ cc_test(
 )
 
 cc_library(
+    name = "flag_name",
+    hdrs = ["internal/flag_name.h"],
+)
+
+cc_library(
     name = "googletest_adaptor",
     testonly = True,
     srcs = ["internal/googletest_adaptor.cc"],
@@ -445,6 +452,7 @@ cc_library(
         ":domain",
         ":domain_core",
         ":fixture_driver",
+        ":flag_name",
         ":io",
         ":logging",
         ":meta",

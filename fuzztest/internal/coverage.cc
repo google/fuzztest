@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
@@ -160,28 +161,15 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
       max_stack_recorded_ = this_stack;
     }
 
-    if (static_cast<size_t>(this_stack) > MaxAllowedStackUsage()) {
+    if (StackLimit() > 0 && static_cast<size_t>(this_stack) > StackLimit()) {
       absl::FPrintF(GetStderr(),
                     "[!] Code under test used %d bytes of stack. Configured "
                     "limit is %d. You can change the limit by specifying "
-                    "FUZZTEST_STACK_LIMIT environment variable.\n",
-                    this_stack, MaxAllowedStackUsage());
+                    "--" FUZZTEST_FLAG_PREFIX "stack_limit flag.\n",
+                    this_stack, StackLimit());
       std::abort();
     }
   }
-}
-
-size_t ExecutionCoverage::MaxAllowedStackUsage() {
-  static const size_t cached = [] {
-    const char *env = getenv("FUZZTEST_STACK_LIMIT");
-    size_t res;
-    if (env == nullptr || !absl::SimpleAtoi(env, &res)) {
-      static constexpr size_t kDefault = 128 * 1024;
-      res = kDefault;
-    }
-    return res;
-  }();
-  return cached;
 }
 
 // Coverage only available in Clang, but only for Linux.

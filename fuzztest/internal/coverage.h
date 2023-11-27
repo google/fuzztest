@@ -135,20 +135,14 @@ class ExecutionCoverage {
   // target run, call this method with false.
   void SetIsTracing(bool is_tracing) { is_tracing_ = is_tracing; }
 
-  // Most of the time tests are run under the main thread, which has a very
-  // large stack limit. On the other hand, code under test will tend to run on
-  // threads with a much smaller stack size.
-  // Instead of waiting for a stack overflow, we measure the stack usage and
-  // abort the process if it finds it to be larger than
-  // `MaxAllowedStackUsage()`. This limit can be configured via environment
-  // variable `FUZZTEST_STACK_LIMIT`.
-  size_t MaxAllowedStackUsage();
   // Update the PC->max stack usage map for `PC`.
   // It compares the current stack frame against the stack frame specified in
   // `test_thread_stack`. Only applies to the thread that sets
   // `test_thread_stack` and it is a noop on other threads.
   void UpdateMaxStack(uintptr_t PC);
   size_t MaxStackUsed() const { return max_stack_recorded_; }
+  void SetStackLimit(size_t stack_limit) { stack_limit_ = stack_limit; }
+  size_t StackLimit() const { return stack_limit_; }
 
  private:
   // 8-bit counters map, records the hit of edges.
@@ -177,6 +171,8 @@ class ExecutionCoverage {
   // The watermark of stack usage observed on the test thread while tracing is
   // enabled.
   ptrdiff_t max_stack_recorded_ = 0;
+  // 0 means no limit.
+  size_t stack_limit_ = 0;
 
   // Like on other coverage maps above, we record the max stack usage on
   // different PC seen. This allows the runtime to mark "more stack usage" as

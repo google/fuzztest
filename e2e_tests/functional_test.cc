@@ -958,6 +958,41 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
+               {"stack_limit", "1234567"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       ConfiguresStackLimitByEnvVarWithWarning) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"}},
+              {{"FUZZTEST_STACK_LIMIT", "1234567"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(
+      std_err,
+      HasSubstr("Stack limit is set by FUZZTEST_STACK_LIMIT env var "
+                "- this is going to be deprecated soon. Consider "
+                "switching to --" FUZZTEST_FLAG_PREFIX_ "stack_limit flag."));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       ConfiguresStackLimitByEnvVarAndOverridesFlag) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
+               {"stack_limit", "1234567"}},
+              {{"FUZZTEST_STACK_LIMIT", "1000000"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1000000."));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 #ifdef FUZZTEST_USE_CENTIPEDE
 std::string CentipedePath() {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
@@ -1467,7 +1502,7 @@ TEST_F(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
       std_err,
       ContainsRegex("Code under test used [0-9]* bytes of stack. Configured "
                     "limit is 131072. You can change the limit by specifying "
-                    "FUZZTEST_STACK_LIMIT environment variable."));
+                    "--" FUZZTEST_FLAG_PREFIX_ "stack_limit flag."));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1483,10 +1518,8 @@ TEST_F(FuzzingModeCrashFindingTest,
   auto [status, std_out, std_err] =
       Run("MySuite.StackCalculationWorksWithAlternateStackForSignalHandlers");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
-  EXPECT_THAT(
-      std_err,
-      Not(HasSubstr(
-          "You can change the limit by specifying FUZZTEST_STACK_LIMIT")));
+  EXPECT_THAT(std_err,
+              Not(HasSubstr("You can change the limit by specifying")));
   ExpectTargetAbort(status, std_err);
 }
 
