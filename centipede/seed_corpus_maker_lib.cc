@@ -296,6 +296,11 @@ void WriteSeedCorpusElementsToDestination(  //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
+  CHECK(!elements.empty());
+  CHECK(!coverage_binary_name.empty());
+  CHECK(!coverage_binary_hash.empty());
+  CHECK(!destination.dir_path().empty());
+
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
       /*enable=*/VLOG_IS_ON(1),                                       //
       /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
@@ -314,6 +319,7 @@ void WriteSeedCorpusElementsToDestination(  //
   // first N shards.
   const size_t num_shards =
       std::min<size_t>(destination.num_shards(), elements.size());
+  CHECK_GT(num_shards, 0);
   const size_t shard_size = elements.size() / num_shards;
   std::vector<size_t> shard_sizes(num_shards, shard_size);
   const size_t excess_elts = elements.size() % num_shards;
@@ -456,11 +462,16 @@ void GenerateSeedCorpusFromConfig(          //
   LOG(INFO) << "Sampled " << elements.size() << " elements from "
             << config.sources_size() << " seed corpus source(s)";
 
-  WriteSeedCorpusElementsToDestination(  //
-      elements, coverage_binary_name, coverage_binary_hash,
-      config.destination());
-  LOG(INFO) << "Wrote " << elements.size()
-            << " elements to seed corpus destination";
+  if (elements.empty()) {
+    LOG(WARNING)
+        << "No elements to write to seed corpus destination - doing nothing";
+  } else {
+    WriteSeedCorpusElementsToDestination(  //
+        elements, coverage_binary_name, coverage_binary_hash,
+        config.destination());
+    LOG(INFO) << "Wrote " << elements.size()
+              << " elements to seed corpus destination";
+  }
 }
 
 }  // namespace centipede
