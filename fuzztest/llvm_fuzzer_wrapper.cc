@@ -25,7 +25,7 @@ ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
 
 constexpr static size_t kByteArrayMaxLen = 4096;
 
-extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size);
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
 extern "C" size_t __attribute__((weak))
 LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
@@ -167,7 +167,7 @@ class ArbitraryByteVector
 };
 
 void TestOneInput(const std::vector<uint8_t>& data) {
-  LLVMFuzzerTestOneInput(const_cast<uint8_t*>(data.data()), data.size());
+  LLVMFuzzerTestOneInput(data.data(), data.size());
 }
 
 FUZZ_TEST(LLVMFuzzer, TestOneInput)
