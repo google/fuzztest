@@ -55,7 +55,28 @@ constexpr uint8_t BitWidth(uint8_t x) {
   ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS \
   ABSL_ATTRIBUTE_NO_SANITIZE_UNDEFINED
 
-ExecutionCoverage* execution_coverage_instance = nullptr;
+// TODO(b/311658540):
+//
+// When integrated with Centipede, the execution coverage is
+// created/used by only the mutators in the engine or runner process
+// (for auto-dictionary mutation). Since each mutator runs in its
+// thread without the need to share the coverage information with
+// others, we can make this singleton thread_local, otherwise there
+// can be data-races when accessing the instance from multiple
+// Centipede shards.
+//
+// When running without Centipede, the singleton instance is updated
+// by test threads during the test execution. Thus we cannot make it
+// thread_local as it would skip coverage information in the threads
+// other than the thread running the property function, but we then
+// suffer from the race conditions.  This issue is hard to fix, but as
+// we are fully switching to the Centipede integration soon, we will
+// leave the issue as-is.
+#ifdef FUZZTEST_USE_CENTIPEDE
+thread_local ExecutionCoverage *execution_coverage_instance = nullptr;
+#else
+ExecutionCoverage *execution_coverage_instance = nullptr;
+#endif
 
 void SetExecutionCoverage(ExecutionCoverage *value) {
   execution_coverage_instance = value;
