@@ -123,7 +123,9 @@ static void WriteFailureDescription(const char *description) {
 void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
                                          const uint8_t *s2, size_t n,
                                          bool is_equal) {
-  if (state.run_time_flags.use_cmp_features) {
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
+  if (instrumentation_flags.use_cmp_features) {
     const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
     const uintptr_t hash =
         centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
@@ -131,17 +133,19 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
     // lcp is a 6-bit number.
     state.cmp_feature_set.set((hash << 6) | lcp);
   }
-  if (!is_equal && state.run_time_flags.use_auto_dictionary) {
+  if (!is_equal && instrumentation_flags.use_auto_dictionary) {
     cmp_traceN.Capture(n, s1, s2);
   }
 }
 
 void ThreadLocalRunnerState::OnThreadStart() {
   termination_detector.EnsureAlive();
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-  tls.call_stack.Reset(state.run_time_flags.callstack_level);
-  tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
+  tls.call_stack.Reset(instrumentation_flags.callstack_level);
+  tls.path_ring_buffer.Reset(instrumentation_flags.path_level);
   LockGuard lock(state.tls_list_mu);
   // Add myself to state.tls_list.
   auto *old_list = state.tls_list;
@@ -201,18 +205,21 @@ static void CheckWatchdogLimits() {
     uint64_t limit;
     const char *failure;
   };
+  const uint64_t input_start_time = state.input_start_time;
+  const uint64_t batch_start_time = state.batch_start_time;
+  if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
       {
           .what = "Per-input timeout",
           .units = "sec",
-          .value = curr_time - state.input_start_time,
+          .value = curr_time - input_start_time,
           .limit = state.run_time_flags.timeout_per_input,
           .failure = kExecutionFailurePerInputTimeout.data(),
       },
       {
           .what = "Per-batch timeout",
           .units = "sec",
-          .value = curr_time - state.batch_start_time,
+          .value = curr_time - batch_start_time,
           .limit = state.run_time_flags.timeout_per_batch,
           .failure = kExecutionFailurePerBatchTimeout.data(),
       },
@@ -277,9 +284,9 @@ void GlobalRunnerState::StartWatchdogThread() {
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
           " MB\n",
-          state.run_time_flags.timeout_per_input,
-          state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.rss_limit_mb);
+          state.run_time_flags.timeout_per_input.load(),
+          state.run_time_flags.timeout_per_batch.load(),
+          state.run_time_flags.rss_limit_mb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
@@ -348,28 +355,30 @@ __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
   state.CleanUpDetachedTls();
-  if (state.run_time_flags.path_level != 0) {
-    state.ForEachTls([](ThreadLocalRunnerState &tls) {
-      tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
-      tls.call_stack.Reset(state.run_time_flags.callstack_level);
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
+  if (instrumentation_flags.path_level != 0) {
+    state.ForEachTls([&](ThreadLocalRunnerState &tls) {
+      tls.path_ring_buffer.Reset(instrumentation_flags.path_level);
+      tls.call_stack.Reset(instrumentation_flags.callstack_level);
       tls.lowest_sp = tls.top_frame_sp;
     });
   }
   // TODO(kcc): do we need to clear tls.cmp_trace2 and others here?
   if (!full_clear) return;
   state.pc_counter_set.ForEachNonZeroByte([](size_t idx, uint8_t value) {});
-  if (state.run_time_flags.use_dataflow_features)
+  if (instrumentation_flags.use_dataflow_features)
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.use_cmp_features) {
+  if (instrumentation_flags.use_cmp_features) {
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {});
     state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {});
     state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {});
     state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {});
     state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {});
   }
-  if (state.run_time_flags.path_level != 0)
+  if (instrumentation_flags.path_level != 0)
     state.path_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.callstack_level != 0)
+  if (instrumentation_flags.callstack_level != 0)
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {});
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
     *p = 0;
@@ -381,10 +390,12 @@ PrepareCoverage(bool full_clear) {
 // `idx` is a pc_index.
 // `counter_value` (non-zero) is a counter value associated with that PC.
 static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
-  if (state.run_time_flags.use_pc_features) {
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
+  if (instrumentation_flags.use_pc_features) {
     state.g_features.push_back(feature_domains::kPCs.ConvertToMe(idx));
   }
-  if (state.run_time_flags.use_counter_features) {
+  if (instrumentation_flags.use_counter_features) {
     state.g_features.push_back(feature_domains::k8bitCounters.ConvertToMe(
         Convert8bitCounterToNumber(idx, counter_value)));
   }
@@ -404,6 +415,8 @@ PostProcessCoverage(int target_return_value) {
 
   if (target_return_value == -1) return;
 
+  const auto instrumentation_flags =
+      state.run_time_flags.instrumentation_flags.load();
   // Convert counters to features.
   state.pc_counter_set.ForEachNonZeroByte(
       [](size_t idx, uint8_t value) {
@@ -412,14 +425,14 @@ PostProcessCoverage(int target_return_value) {
       0, state.actual_pc_counter_set_size_aligned);
 
   // Convert data flow bit set to features.
-  if (state.run_time_flags.use_dataflow_features) {
+  if (instrumentation_flags.use_dataflow_features) {
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
       state.g_features.push_back(feature_domains::kDataFlow.ConvertToMe(idx));
     });
   }
 
   // Convert cmp bit set to features.
-  if (state.run_time_flags.use_cmp_features) {
+  if (instrumentation_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
       state.g_features.push_back(feature_domains::kCMP.ConvertToMe(idx));
@@ -439,7 +452,7 @@ PostProcessCoverage(int target_return_value) {
   }
 
   // Convert path bit set to features.
-  if (state.run_time_flags.path_level != 0) {
+  if (instrumentation_flags.path_level != 0) {
     state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
       state.g_features.push_back(
           feature_domains::kBoundedPath.ConvertToMe(idx));
@@ -447,8 +460,8 @@ PostProcessCoverage(int target_return_value) {
   }
 
   // Iterate all threads and get features from TLS data.
-  state.ForEachTls([](ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.callstack_level != 0) {
+  state.ForEachTls([&](ThreadLocalRunnerState &tls) {
+    if (instrumentation_flags.callstack_level != 0) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
@@ -457,7 +470,7 @@ PostProcessCoverage(int target_return_value) {
     }
   });
 
-  if (state.run_time_flags.callstack_level != 0) {
+  if (instrumentation_flags.callstack_level != 0) {
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {
       state.g_features.push_back(feature_domains::kCallStack.ConvertToMe(idx));
     });
@@ -484,8 +497,8 @@ PostProcessCoverage(int target_return_value) {
 
   // Iterates all non-zero inline 8-bit counters, if they are present.
   // Calls AddPcIndxedAndCounterToFeatures on non-zero counters and zeroes them.
-  if (state.run_time_flags.use_pc_features ||
-      state.run_time_flags.use_counter_features) {
+  if (instrumentation_flags.use_pc_features ||
+      instrumentation_flags.use_counter_features) {
     state.sancov_objects.ForEachNonZeroInlineCounter(
         [](size_t idx, uint8_t counter_value) {
           AddPcIndxedAndCounterToFeatures(idx, counter_value);
@@ -626,7 +639,7 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 
   ExecutionMetadata metadata;
   // Copy the CMP traces to shared memory.
-  if (state.run_time_flags.use_auto_dictionary) {
+  if (state.run_time_flags.instrumentation_flags.load().use_auto_dictionary) {
     bool append_failed = false;
     state.ForEachTls([&metadata, &append_failed](ThreadLocalRunnerState &tls) {
       if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
@@ -1000,10 +1013,13 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
       // We still pay for executing the coverage callbacks, but those will
       // return immediately.
       // TODO(kcc): do this more consistently, for all coverage types.
-      state.run_time_flags.use_cmp_features = false;
-      state.run_time_flags.use_pc_features = false;
-      state.run_time_flags.use_dataflow_features = false;
-      state.run_time_flags.use_counter_features = false;
+      auto instrumentation_flags =
+          state.run_time_flags.instrumentation_flags.load();
+      instrumentation_flags.use_cmp_features = false;
+      instrumentation_flags.use_pc_features = false;
+      instrumentation_flags.use_dataflow_features = false;
+      instrumentation_flags.use_counter_features = false;
+      state.run_time_flags.instrumentation_flags.store(instrumentation_flags);
       // Mutation request.
       inputs_blobseq.Reset();
       state.byte_array_mutator =
@@ -1039,9 +1055,33 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 
-extern "C" void CentipedeClearExecutionResult() {
-  // TODO(kcc): full_clear=true is expensive - performance may suffer.
+static std::atomic<bool> in_execution_batch = false;
+extern "C" void CentipedeBeginExecutionBatch() {
+  if (in_execution_batch) {
+    fprintf(stderr,
+            "CentipedeBeginExecutionBatch called twice without calling "
+            "CentipedeEndExecutionBatch in between\n");
+    _exit(EXIT_FAILURE);
+  }
+  in_execution_batch = true;
   centipede::PrepareCoverage(/*full_clear=*/true);
+}
+
+extern "C" void CentipedeEndExecutionBatch() {
+  if (!in_execution_batch) {
+    fprintf(stderr,
+            "CentipedeEndExecutionBatch called without calling "
+            "CentipedeBeginExecutionBatch before\n");
+    _exit(EXIT_FAILURE);
+  }
+  in_execution_batch = false;
+  centipede::state.input_start_time = 0;
+  centipede::state.batch_start_time = 0;
+}
+
+extern "C" void CentipedeClearExecutionResult() {
+  centipede::PrepareCoverage(/*full_clear=*/false);
+  centipede::state.ResetTimers();
 }
 
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {

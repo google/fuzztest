@@ -53,19 +53,25 @@ class LockGuard {
 };
 
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
-// Flags used in instrumentation callbacks are bit-packed for efficiency.
 struct RunTimeFlags {
-  uint64_t path_level : 8;
-  uint64_t use_pc_features : 1;
-  uint64_t use_dataflow_features : 1;
-  uint64_t use_cmp_features : 1;
-  uint64_t callstack_level : 8;
-  uint64_t use_counter_features : 1;
-  uint64_t use_auto_dictionary : 1;
-  uint64_t timeout_per_input;
-  uint64_t timeout_per_batch;
-  uint64_t rss_limit_mb;
-  uint64_t crossover_level;
+  // Flags used in instrumentation callbacks are bit-packed for efficiency.
+  struct InstrumentationFlags {
+    uint64_t path_level : 8;
+    uint64_t use_pc_features : 1;
+    uint64_t use_dataflow_features : 1;
+    uint64_t use_cmp_features : 1;
+    uint64_t callstack_level : 8;
+    uint64_t use_counter_features : 1;
+    uint64_t use_auto_dictionary : 1;
+  };
+  // Flags are wrapped with std::atomic so we can update the flags
+  // without exposing corrupted values, while race conditions should
+  // be fine by design.
+  std::atomic<InstrumentationFlags> instrumentation_flags;
+  std::atomic<uint64_t> timeout_per_input;
+  std::atomic<uint64_t> timeout_per_batch;
+  std::atomic<uint64_t> rss_limit_mb;
+  std::atomic<uint64_t> crossover_level;
 };
 
 // One such object is created in runner's TLS.
@@ -145,14 +151,17 @@ struct GlobalRunnerState {
 
   // Flags.
   RunTimeFlags run_time_flags = {
-      .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
-                             HasIntFlag(":path_level=", 0)),
-      .use_pc_features = HasFlag(":use_pc_features:"),
-      .use_dataflow_features = HasFlag(":use_dataflow_features:"),
-      .use_cmp_features = HasFlag(":use_cmp_features:"),
-      .callstack_level = HasIntFlag(":callstack_level=", 0),
-      .use_counter_features = HasFlag(":use_counter_features:"),
-      .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
+      .instrumentation_flags =
+          RunTimeFlags::InstrumentationFlags{
+              .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
+                                     HasIntFlag(":path_level=", 0)),
+              .use_pc_features = HasFlag(":use_pc_features:"),
+              .use_dataflow_features = HasFlag(":use_dataflow_features:"),
+              .use_cmp_features = HasFlag(":use_cmp_features:"),
+              .callstack_level = HasIntFlag(":callstack_level=", 0),
+              .use_counter_features = HasFlag(":use_counter_features:"),
+              .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
+          },
       .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
       .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
