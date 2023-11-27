@@ -666,6 +666,7 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":binary_info",
+        ":blob_file",
         ":byte_array_mutator",
         ":call_graph",
         ":command",
@@ -686,6 +687,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
