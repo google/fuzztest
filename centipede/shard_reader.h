@@ -23,15 +23,21 @@
 
 namespace centipede {
 
-// `corpus_path` is a path to a BlobFile with corpus elements (inputs).
+// `corpus_path` is a path to a BlobFile with corpus elements (inputs). If the
+// path is empty or non-existent, no processing is done.
+//
 // `features_path` is a path to a BlobFile with {features/hash} pairs created by
-// PackFeaturesAndHash.
+// `PackFeaturesAndHash()`. If the path is empty or non-existent, an empty
+// `FeatureVec` is passed to every call of `callback`.
+//
 // For every {features/hash} pair we need to find an input with this hash.
 // This function reads `corpus_path` and `features_path` and calls `callback`
 // on every pair {input, features}.
+//
 // If features are not found for a given input, callback's 2nd argument is {}.
+//
 // If features are found for a given input but are empty,
-// then callback's 2n-d argument is {feature_domains::kNoFeature}.
+// then callback's 2nd argument is {feature_domains::kNoFeature}.
 void ReadShard(
     std::string_view corpus_path, std::string_view features_path,
     const std::function<void(const ByteArray &, FeatureVec &)> &callback);
