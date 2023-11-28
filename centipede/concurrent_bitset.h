@@ -85,6 +85,16 @@ class ConcurrentBitSet {
     }
   }
 
+  // Gets the bit at `idx % kSizeInBits`.
+  uint8_t get(size_t idx) {
+    idx %= kSizeInBits;
+    size_t word_idx = idx / kBitsInWord;
+    size_t bit_idx = idx % kBitsInWord;
+    word_t word = __atomic_load_n(&words_[word_idx], __ATOMIC_RELAXED);
+    word_t mask = 1ULL << bit_idx;
+    return (word & mask) != 0;
+  }
+
   // Calls `action(index)` for every index of a non-zero bit in the set,
   // then sets all those bits to zero.
   __attribute__((noinline)) void ForEachNonZeroBit(
