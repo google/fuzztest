@@ -31,6 +31,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -349,6 +350,61 @@ class ArbitraryImpl<std::basic_string_view<Char>>
  private:
   ArbitraryImpl<std::vector<Char>> inner_;
 };
+
+#ifndef ABSL_USES_STD_STRING_VIEW
+// Arbitrary for absl::string_view when it does not alias to std::string_view.
+//
+// We define a separate container for string_view, to detect out of bounds bugs
+// better. See below.
+template <>
+class ArbitraryImpl<absl::string_view>
+    : public DomainBase<ArbitraryImpl<absl::string_view>, absl::string_view,
+                        // We use a vector to better manage the buffer and help
+                        // ASan find out-of-bounds bugs.
+                        std::vector<char>> {
+ public:
+  using typename ArbitraryImpl::DomainBase::corpus_type;
+  using typename ArbitraryImpl::DomainBase::value_type;
+
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return inner_.Init(prng);
+  }
+
+  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+    inner_.Mutate(val, prng, only_shrink);
+  }
+
+  void UpdateMemoryDictionary(const corpus_type& val) {
+    inner_.UpdateMemoryDictionary(val);
+  }
+
+  auto GetPrinter() const { return StringPrinter{}; }
+
+  value_type GetValue(const corpus_type& value) const {
+    return value_type(value.data(), value.size());
+  }
+
+  std::optional<corpus_type> FromValue(const value_type& value) const {
+    return corpus_type(value.begin(), value.end());
+  }
+
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return obj.ToCorpus<corpus_type>();
+  }
+
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return IRObject::FromCorpus(v);
+  }
+
+  absl::Status ValidateCorpusValue(const corpus_type&) const {
+    return absl::OkStatus();  // Nothing to validate.
+  }
+
+ private:
+  ArbitraryImpl<std::vector<char>> inner_;
+};
+#endif
 
 // Arbitrary for any const T.
 //
