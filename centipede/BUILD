@@ -1265,6 +1265,7 @@ cc_test(
         ":distill",
         ":environment",
         ":feature",
+        ":feature_set",
         ":shard_reader",
         ":test_util",
         ":util",

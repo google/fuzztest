@@ -19,6 +19,7 @@
 #include <functional>
 #include <numeric>
 #include <string>
+#include <string_view>
 #include <thread>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
@@ -37,6 +38,13 @@
 #include "./centipede/workdir.h"
 
 namespace centipede {
+
+bool DistillFeatures(FeatureVec &features, FeatureSet &feature_set) {
+  feature_set.PruneDiscardedDomains(features);
+  if (!feature_set.HasUnseenFeatures(features)) return false;
+  feature_set.IncrementFrequencies(features);
+  return true;
+}
 
 void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
@@ -83,9 +91,7 @@ void DistillTask(const Environment &env,
     // Iterate the records, add those that have new features.
     // This is a simple linear greedy set cover algorithm.
     for (auto &&[input, features] : records) {
-      feature_set.PruneDiscardedDomains(features);
-      if (!feature_set.HasUnseenFeatures(features)) continue;
-      feature_set.IncrementFrequencies(features);
+      if (!DistillFeatures(features, feature_set)) continue;
       // Append to the distilled corpus and features files.
       CHECK_OK(corpus_writer->Write(input));
       CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));

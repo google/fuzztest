@@ -19,8 +19,14 @@
 #include <vector>
 
 #include "./centipede/environment.h"
+#include "./centipede/feature.h"
+#include "./centipede/feature_set.h"
 
 namespace centipede {
+
+// Compares `features` to the `feature_set` and adds any unique features from
+// `features` to `feature_set`. Returns true if `feature_set` is updated.
+bool DistillFeatures(FeatureVec &features, FeatureSet &feature_set);
 
 // Runs one independent distillation task. Reads shards in the order specified
 // by `shard_indices`, distills inputs from them and writes the result to
