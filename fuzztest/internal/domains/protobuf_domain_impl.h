@@ -48,6 +48,12 @@
 #include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
+// GetMessage is a Windows macro. Undefine it here to avoid code clutter.
+#ifdef _WIN32
+#pragma push_macro("GetMessage")
+#undef GetMessage
+#endif
+
 namespace google::protobuf {
 class EnumDescriptor;
 
@@ -2043,5 +2049,9 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
 };
 
 }  // namespace fuzztest::internal
+
+#ifdef _WIN32
+#pragma pop_macro("GetMessage")
+#endif
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
