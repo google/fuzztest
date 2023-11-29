@@ -40,6 +40,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
@@ -227,9 +228,10 @@ class DomainBuilder {
                             "Finalize() has been called!");
     FUZZTEST_INTERNAL_CHECK(
         GetIndirect<T>(name)->has_value(),
-        // FUZZTEST_INTERNAL_CHECK uses absl::StrCat. But absl::StrCat does not
-        // accept std::string_view in iOS builds, so convert to std::string.
-        "Finalize() has been called with an unknown name: ", std::string(name));
+        // FUZZTEST_INTERNAL_CHECK uses absl::StrCat, which does not accept
+        // std::string_view in iOS builds, so convert to absl::string_view.
+        "Finalize() has been called with an unknown name: ",
+        absl::string_view{name.data(), name.size()});
     for (auto& iter : *domain_lookup_table_) {
       FUZZTEST_INTERNAL_CHECK(
           iter.second != nullptr && iter.second->has_value(),
@@ -250,7 +252,10 @@ class DomainBuilder {
   // Return the raw pointer of the indirections.
   template <typename T>
   auto GetIndirect(std::string_view name) {
-    auto& indirection = (*domain_lookup_table_)[name];
+    // Cast `name` to absl::string_view for platforms where this type is not
+    // the same as std::string_view.
+    auto& indirection =
+        (*domain_lookup_table_)[absl::string_view{name.data(), name.size()}];
     if (!indirection) {
       indirection = std::make_unique<internal::MoveOnlyAny>();
     }
