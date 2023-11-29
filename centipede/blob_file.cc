@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
@@ -193,14 +194,24 @@ class DefaultBlobFileReader : public BlobFileReader {
       legacy_reader_ = nullptr;
       return absl::OkStatus();
     }
-
-    // Reader already being in a bad state will result in close failure but
-    // those errors have already been reported.
-    if (!riegeli_reader_.ok()) {
-      riegeli_reader_.Reset(riegeli::kClosed);
-      return absl::OkStatus();
+    // When a shard is reading its sister shard's file for cross-pollination, it
+    // may encounter a partially written file even with flushing after every
+    // write in `RiegeliWriter::Write()` (see comment there) in case the last
+    // written chunk was large enough that it was not written atomically.
+    // Reading such a file would fetch as many complete records as possible,
+    // then stop before reaching the EOF, which is fine for us. But
+    // `riegeli_reader_.Close()` then would return false and leave the object in
+    // a sticky failed state, so we always additionally force-reset it to
+    // `kClosed`.
+    // Note that if any of the preceding reads failed to fetch records, those
+    // errors have already been reported.
+    // See b/313706444 for the full history.
+    // TODO(b/313706444): Reconsider error handling after experiments.
+    if (riegeli_reader_.ok() && !riegeli_reader_.Close()) {
+      LOG(WARNING) << "Ignoring errors while closing Riegeli file: "
+                   << riegeli_reader_.status();
     }
-    if (!riegeli_reader_.Close()) return riegeli_reader_.status();
+    riegeli_reader_.Reset(riegeli::kClosed);
     return absl::OkStatus();
   }
 
@@ -233,12 +244,18 @@ class RiegeliWriter : public BlobFileWriter {
       return writer_.status();
     }
     // NOTE: Riegeli's automatic flushing happens in chunks, not on record
-    // boundaries. That can leave the file in a temporarily invalid state.
+    // boundaries. That can leave the file in a partially written state.
     // At the same time, the other shards of the run periodically read their
-    // sister shards' corpus & feature files for cross-pollination purposes.
-    // Therefore, we must keep those files valid at all times, hence we flush
-    // explicitly after every write.
-    // See b/313706444 for the history.
+    // sister shards' files for cross-pollination. Therefore, we must keep those
+    // files valid at all times, hence we flush explicitly after every write.
+    // That may still not be enough for large chunks that are not written
+    // atomically, but `RiegeliReader::Read()` copes with that marginal case in
+    // a different way.
+    // See b/313706444 for the full history.
+    // TODO(b/313706444): Since `RiegeliReader::Read()` is tolerant to partially
+    //  written files now, our only gain from flushing here is that the files
+    //  are as current as possible at all times -- but we lose compression
+    //  efficiency. Profile the various combinations and adjust accordingly.
     // TODO(ussuri): Try adding a test for this.
     if (!writer_.Flush()) return writer_.status();
     return absl::OkStatus();
