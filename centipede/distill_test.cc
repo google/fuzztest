@@ -30,6 +30,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
+#include "./centipede/feature_set.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
@@ -183,6 +184,16 @@ TEST(Distill, BasicDistill) {
                   EqualsTestCorpusRecord(in0, FeatureVec{10, 20}),
                   EqualsTestCorpusRecord(in2, FeatureVec{30, 40}),
               }));
+}
+
+TEST(DistillFeatures, DistillSuceeds) {
+  FeatureVec fv0 = {10, 20};
+  FeatureVec fv1 = {10};
+
+  FeatureSet feature_set(/*frequency_threshold=*/1,
+                         /*should_discard_domain=*/{});
+  EXPECT_TRUE(DistillFeatures(fv0, feature_set));
+  EXPECT_FALSE(DistillFeatures(fv1, feature_set));
 }
 
 // TODO(kcc): add more tests once we settle on the testing code above.
