@@ -408,6 +408,7 @@ cc_library(
         ":logging",
         ":remote_file",
         ":util",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
         "@com_google_riegeli//riegeli/base:object",

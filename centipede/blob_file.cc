@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
@@ -175,7 +176,7 @@ class DefaultBlobFileReader : public BlobFileReader {
     if (legacy_reader_) [[unlikely]]
       return legacy_reader_->Read(blob);
 
-    absl::string_view record;
+    std::string_view record;
     if (!riegeli_reader_.ReadRecord(record)) {
       if (riegeli_reader_.ok())
         return absl::OutOfRangeError("no more blobs");
@@ -228,10 +229,19 @@ class RiegeliWriter : public BlobFileWriter {
   }
 
   absl::Status Write(absl::Span<const uint8_t> blob) override {
-    if (!writer_.WriteRecord(absl::string_view(
+    if (!writer_.WriteRecord(std::string_view(
             reinterpret_cast<const char *>(blob.data()), blob.size()))) {
       return writer_.status();
     }
+    // NOTE: Riegeli's automatic flushing happens in chunks, not on record
+    // boundaries. That can leave the file in a temporarily invalid state.
+    // At the same time, the other shards of the run periodically read their
+    // sister shards' corpus & feature files for cross-pollination purposes.
+    // Therefore, we must keep those files valid at all times, hence we flush
+    // explicitly after every write.
+    // See b/313706444 for the history.
+    // TODO(ussuri): Try adding a test for this.
+    if (!writer_.Flush()) return writer_.status();
     return absl::OkStatus();
   }
 
