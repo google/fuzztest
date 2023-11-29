@@ -232,6 +232,15 @@ class RiegeliWriter : public BlobFileWriter {
             reinterpret_cast<const char *>(blob.data()), blob.size()))) {
       return writer_.status();
     }
+    // NOTE: Riegeli's automatic flushing happens in chunks, not on record
+    // boundaries. That can leave the file in a temporarily invalid state.
+    // At the same time, the other shards of the run periodically read their
+    // sister shards' corpus & feature files for cross-pollination purposes.
+    // Therefore, we must keep those files valid at all times, hence we flush
+    // explicitly after every write.
+    // See b/313706444 for the history.
+    // TODO(ussuri): Try adding a test for this.
+    if (!writer_.Flush()) return writer_.status();
     return absl::OkStatus();
   }
 
