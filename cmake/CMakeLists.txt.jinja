@@ -1,0 +1,26 @@
+
+{%- for target in targets %}
+
+fuzztest_{{ target.type }}(
+  NAME
+    {{ target.name }}
+  {%- if target.hdrs is defined %}
+  HDRS
+  {%- for hdr in target.hdrs %}
+    "{{ hdr }}"
+  {%- endfor %}
+  {%- endif %}
+  {%- if target.srcs is defined %}
+  SRCS
+  {%- for src in target.srcs %}
+    "{{ src }}"
+  {%- endfor %}
+  {%- endif %}
+  {%- if target.deps is defined %}
+  DEPS
+  {%- for dep in target.deps %}
+    {{ dep }}
+  {%- endfor %}
+  {%- endif %}
+)
+{%- endfor %}
