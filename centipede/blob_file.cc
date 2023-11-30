@@ -194,23 +194,24 @@ class DefaultBlobFileReader : public BlobFileReader {
       legacy_reader_ = nullptr;
       return absl::OkStatus();
     }
-    // When a shard is reading its sister shard's file for cross-pollination, it
-    // may encounter a partially written file even with flushing after every
-    // write in `RiegeliWriter::Write()` (see comment there) in case the last
-    // written chunk was large enough that it was not written atomically.
-    // Reading such a file would fetch as many complete records as possible,
-    // then stop before reaching the EOF, which is fine for us. But
-    // `riegeli_reader_.Close()` then would return false and leave the object in
-    // a sticky failed state, so we always additionally force-reset it to
-    // `kClosed`.
-    // Note that if any of the preceding reads failed to fetch records, those
-    // errors have already been reported.
-    // See b/313706444 for the full history.
+
+    // `riegeli_reader_` not being ok will result in `Close()` failing, but its
+    // non-ok status stems from a previously failed operation in an `Open()` or
+    // `Read()` call whose errors were already propagated there - these are
+    // therefore filtered out here.
+    // `Close()` failing on an ok reader is due to the file being in an invalid
+    // state that primarily arises from an incomplete concurrent write (which
+    // can happen even with every write being flushed - see comment in
+    // `RiegeliWriter::Write()`) - these are therefore logged but not propagated
+    // as failures.
     // TODO(b/313706444): Reconsider error handling after experiments.
+    // TODO(b/310701588): Try adding a test for this.
     if (riegeli_reader_.ok() && !riegeli_reader_.Close()) {
       LOG(WARNING) << "Ignoring errors while closing Riegeli file: "
                    << riegeli_reader_.status();
     }
+    // Any non-ok status of `riegeli_reader_` persists for subsequent
+    // operations; therefore, re-initialize it to a closed ok state.
     riegeli_reader_.Reset(riegeli::kClosed);
     return absl::OkStatus();
   }
@@ -243,20 +244,17 @@ class RiegeliWriter : public BlobFileWriter {
             reinterpret_cast<const char *>(blob.data()), blob.size()))) {
       return writer_.status();
     }
-    // NOTE: Riegeli's automatic flushing happens in chunks, not on record
-    // boundaries. That can leave the file in a partially written state.
-    // At the same time, the other shards of the run periodically read their
-    // sister shards' files for cross-pollination. Therefore, we must keep those
-    // files valid at all times, hence we flush explicitly after every write.
-    // That may still not be enough for large chunks that are not written
-    // atomically, but `RiegeliReader::Read()` copes with that marginal case in
-    // a different way.
-    // See b/313706444 for the full history.
-    // TODO(b/313706444): Since `RiegeliReader::Read()` is tolerant to partially
-    //  written files now, our only gain from flushing here is that the files
-    //  are as current as possible at all times -- but we lose compression
-    //  efficiency. Profile the various combinations and adjust accordingly.
-    // TODO(ussuri): Try adding a test for this.
+    // Riegeli's automatic flushing happens in chunks, not on record boundaries.
+    // Flushing explicitly after every write makes it visible to readers earlier
+    // especially if writes are infrequent and/or the size of records is small
+    // relative to chunk size; however, compression performance suffers with
+    // more frequent flushing.
+    // Writes of large chunks are not atomic. Therefore, frequent flushing can
+    // still leave the file in an invalid state from a partial write which is
+    // accounted for in `DefaultBlobFileReader::Close()` - however, the
+    // likelihood of that is reduced since writes may be smaller.
+    // TODO(b/313706444): Profile tradeoff of read freshness vs compression and
+    // tune parameters accordingly.
     if (!writer_.Flush()) return writer_.status();
     return absl::OkStatus();
   }
