@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 
 #include "absl/types/span.h"
@@ -188,7 +189,7 @@ class ExecutionCoverage {
 };
 
 // Set the singleton ExecutionCoverage object.
-void SetExecutionCoverage(ExecutionCoverage* value);
+void SetExecutionCoverage(std::unique_ptr<ExecutionCoverage> value);
 // Returns the singleton ExecutionCoverage object.
 ExecutionCoverage* GetExecutionCoverage();
 

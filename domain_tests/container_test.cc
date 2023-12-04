@@ -221,13 +221,13 @@ TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
   auto domain = Arbitrary<std::string>();
   class ScopedExecutionCoverage {
    public:
-    ScopedExecutionCoverage() { internal::SetExecutionCoverage(&coverage); }
+    ScopedExecutionCoverage() {
+      internal::SetExecutionCoverage(
+          std::make_unique<internal::ExecutionCoverage>(
+              /*counter_map=*/absl::Span<uint8_t>{}));
+    }
 
     ~ScopedExecutionCoverage() { internal::SetExecutionCoverage(nullptr); }
-
-   private:
-    internal::ExecutionCoverage coverage =
-        internal::ExecutionCoverage(/*counter_map=*/{});
   };
   ScopedExecutionCoverage scoped_coverage;
   fuzztest::internal::GetExecutionCoverage()

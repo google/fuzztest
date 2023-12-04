@@ -74,17 +74,19 @@ constexpr uint8_t BitWidth(uint8_t x) {
 // we are fully switching to the Centipede integration soon, we will
 // leave the issue as-is.
 #ifdef FUZZTEST_USE_CENTIPEDE
-thread_local ExecutionCoverage *execution_coverage_instance = nullptr;
+ABSL_CONST_INIT thread_local std::unique_ptr<ExecutionCoverage>
+    execution_coverage_instance = nullptr;
 #else
-ExecutionCoverage *execution_coverage_instance = nullptr;
+ABSL_CONST_INIT std::unique_ptr<ExecutionCoverage> execution_coverage_instance =
+    nullptr;
 #endif
 
-void SetExecutionCoverage(ExecutionCoverage *value) {
-  execution_coverage_instance = value;
+void SetExecutionCoverage(std::unique_ptr<ExecutionCoverage> value) {
+  execution_coverage_instance = std::move(value);
 }
 
 ExecutionCoverage* GetExecutionCoverage() {
-  return execution_coverage_instance;
+  return execution_coverage_instance.get();
 }
 
 FUZZTEST_INTERNAL_NOSANITIZE void ExecutionCoverage::UpdateCmpMap(
@@ -351,9 +353,9 @@ extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
   if (execution_coverage_instance == nullptr) {
     fprintf(stderr, "[.] Sanitizer coverage enabled. Counter map size: %td",
             map_size);
-    size_t cmp_map_size = fuzztest::internal::ExecutionCoverage::kCmpCovMapSize;
+    size_t cmp_map_size = ExecutionCoverage::kCmpCovMapSize;
     fprintf(stderr, ", Cmp map size: %td\n", cmp_map_size);
-    execution_coverage_instance = new fuzztest::internal::ExecutionCoverage(
+    execution_coverage_instance = std::make_unique<ExecutionCoverage>(
         absl::Span<uint8_t>(start, map_size));
   } else if (execution_coverage_instance->GetCounterMap() ==
              absl::Span<uint8_t>(start, map_size)) {

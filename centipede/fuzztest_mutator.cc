@@ -45,9 +45,11 @@ FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
     : knobs_(knobs), prng_(seed), domain_(std::make_unique<MutatorDomain>()) {
   domain_->WithMinSize(1).WithMaxSize(max_len_);
   if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
-    auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
+    auto *execution_coverage =
+        new fuzztest::internal::ExecutionCoverage(/*counter_map=*/{});
     execution_coverage->SetIsTracing(true);
-    fuzztest::internal::SetExecutionCoverage(execution_coverage);
+    fuzztest::internal::SetExecutionCoverage(
+        absl::WrapUnique(execution_coverage));
   }
 }
 

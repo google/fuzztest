@@ -178,9 +178,11 @@ void CentipedeFuzzerAdaptor::RunInUnitTestMode(
 int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
-    auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
+    auto* execution_coverage =
+        new fuzztest::internal::ExecutionCoverage(/*counter_map=*/{});
     execution_coverage->SetIsTracing(true);
-    fuzztest::internal::SetExecutionCoverage(execution_coverage);
+    fuzztest::internal::SetExecutionCoverage(
+        absl::WrapUnique(execution_coverage));
   }
 
   runtime_.SetRunMode(RunMode::kFuzz);
