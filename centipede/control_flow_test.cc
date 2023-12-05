@@ -177,6 +177,12 @@ static std::string GetTargetPath() {
   return GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
 }
 
+// Returns path to test_fuzz_target_trace_pc.
+static std::string GetTracePCTargetPath() {
+  return GetDataDependencyFilepath(
+      "centipede/testing/test_fuzz_target_trace_pc");
+}
+
 // Returns path to llvm-symbolizer.
 static std::string GetLLVMSymbolizerPath() {
   CHECK_EQ(system("which llvm-symbolizer"), EXIT_SUCCESS)
@@ -272,6 +278,62 @@ TEST(CFTable, GetCfTable) {
       }
     }
   }
+}
+
+static void SymbolizeBinary(std::string_view target_path, bool use_trace_pc) {
+  BinaryInfo binary_info;
+  binary_info.InitializeFromSanCovBinary(
+      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(), GetTestTempDir());
+  // Load the pc table.
+  const auto &pc_table = binary_info.pc_table;
+  // Check that it's not empty.
+  EXPECT_NE(pc_table.size(), 0);
+  // Check that the first PCInfo corresponds to a kFuncEntry.
+  EXPECT_TRUE(pc_table[0].has_flag(PCInfo::kFuncEntry));
+
+  // Test the symbols.
+  const SymbolTable &symbols = binary_info.symbols;
+  ASSERT_EQ(symbols.size(), pc_table.size());
+
+  bool has_llvm_fuzzer_test_one_input = false;
+  size_t single_edge_func_num_edges = 0;
+  size_t multi_edge_func_num_edges = 0;
+  // Iterate all symbols, verify that we:
+  //  * Don't have main (coverage instrumentation is disabled for main).
+  //  * Have LLVMFuzzerTestOneInput with the correct location.
+  //  * Have one edge for SingleEdgeFunc.
+  //  * Have several edges for MultiEdgeFunc.
+  for (size_t i = 0; i < symbols.size(); i++) {
+    bool is_func_entry = pc_table[i].has_flag(PCInfo::kFuncEntry);
+    if (is_func_entry) {
+      LOG(INFO) << symbols.full_description(i);
+    }
+    single_edge_func_num_edges += symbols.func(i) == "SingleEdgeFunc";
+    multi_edge_func_num_edges += symbols.func(i) == "MultiEdgeFunc";
+    EXPECT_NE(symbols.func(i), "main");
+    if (is_func_entry && symbols.func(i) == "LLVMFuzzerTestOneInput") {
+      // This is a function entry block for LLVMFuzzerTestOneInput.
+      has_llvm_fuzzer_test_one_input = true;
+      EXPECT_THAT(
+          symbols.location(i),
+          testing::HasSubstr("centipede/testing/test_fuzz_target.cc:62"));
+    }
+  }
+  EXPECT_TRUE(has_llvm_fuzzer_test_one_input);
+  EXPECT_EQ(single_edge_func_num_edges, 1);
+  EXPECT_GT(multi_edge_func_num_edges, 1);
+}
+
+// Tests GetPcTableFromBinary() and SymbolTable on test_fuzz_target.
+TEST(PCTable, GetPcTableFromBinary_And_SymbolTable_PCTable) {
+  EXPECT_NO_FATAL_FAILURE(
+      SymbolizeBinary(GetTargetPath(), /*use_trace_pc=*/false));
+}
+
+// Tests GetPcTableFromBinary() and SymbolTable on test_fuzz_target_trace_pc.
+TEST(PCTable, GetPcTableFromBinary_And_SymbolTable_TracePC) {
+  EXPECT_NO_FATAL_FAILURE(
+      SymbolizeBinary(GetTracePCTargetPath(), /*use_trace_pc=*/true));
 }
 
 }  // namespace
