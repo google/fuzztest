@@ -84,9 +84,20 @@ FUZZTEST_DEFINE_FLAG(
     "a given test. This is useful for measuring the coverage of the corpus "
     "built up during previously ran fuzzing sessions.");
 
-FUZZTEST_DEFINE_FLAG(size_t, stack_limit, 128 * 1024,
-                     "The soft limit of the stack size in bytes to abort when "
-                     "the limit is exceeded.");
+FUZZTEST_DEFINE_FLAG(
+    size_t, stack_limit_kb, 128,
+    "The soft limit of the stack size in kibibytes to abort when "
+    "the limit is exceeded. 0 indicates no limit.");
+
+FUZZTEST_DEFINE_FLAG(size_t, rss_limit_mb, 0,
+                     "The soft limit of the RSS size in mebibytes to abort "
+                     "when the limit is exceeded. 0 indicates no limit.");
+
+FUZZTEST_DEFINE_FLAG(
+    absl::Duration, time_limit_per_input, absl::InfiniteDuration(),
+    "The time limit of the property-function: A timeout bug will be reported "
+    "for an input if the execution of the property-function with the input "
+    "takes longer than this time limit.");
 
 namespace fuzztest {
 
@@ -149,7 +160,10 @@ internal::Configuration CreateConfigurationsFromFlags(
       .corpus_database = internal::CorpusDatabase(
           binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
           absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests))),
-      .stack_limit = absl::GetFlag(FUZZTEST_FLAG(stack_limit)),
+      .stack_limit = absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
+      .rss_limit = absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
+      .time_limit_per_input =
+          absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
   };
 }
 

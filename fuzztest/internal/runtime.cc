@@ -831,22 +831,35 @@ static size_t GetStackLimitFromEnvOrConfiguration(
         GetStderr(),
         "[!] Stack limit is set by FUZZTEST_STACK_LIMIT env var - this is "
         "going to be deprecated soon. Consider switching to "
-        "--" FUZZTEST_FLAG_PREFIX "stack_limit flag.\n");
+        "--" FUZZTEST_FLAG_PREFIX "stack_limit_kb flag.\n");
     return env_stack_limit;
   }
   return configuration.stack_limit;
 }
 
-int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
-                                         const Configuration& configuration) {
-  fixture_driver_->SetUpFuzzTest();
+static void PopulateLimits(ExecutionCoverage& execution_coverage,
+                           const Configuration& configuration) {
   // TODO(b/273276918): For now, let existing FUZZTEST_STACK_LIMIT overwrite the
   // stack limit. So that the existing targets that set the env var could still
   // work.
-  if (execution_coverage_ != nullptr) {
-    execution_coverage_->SetStackLimit(
-        GetStackLimitFromEnvOrConfiguration(configuration));
+  execution_coverage.SetStackLimit(
+      GetStackLimitFromEnvOrConfiguration(configuration));
+  if (configuration.rss_limit > 0) {
+    absl::FPrintF(GetStderr(),
+                  "[!] RSS limit is specified but will be ignored for now.\n");
   }
+  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
+    absl::FPrintF(
+        GetStderr(),
+        "[!] Per-input time limit is specified but will be ignored for now.\n");
+  }
+}
+
+int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
+                                         const Configuration& configuration) {
+  fixture_driver_->SetUpFuzzTest();
+  if (execution_coverage_ != nullptr)
+    PopulateLimits(*execution_coverage_, configuration);
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
 

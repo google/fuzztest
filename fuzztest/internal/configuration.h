@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 
 namespace fuzztest::internal {
 
@@ -43,7 +44,12 @@ class CorpusDatabase {
 struct Configuration {
   CorpusDatabase corpus_database;
 
+  // Stack limit in bytes.
   size_t stack_limit;
+  // RSS limit in bytes.
+  size_t rss_limit;
+  // Time limit per test input.
+  absl::Duration time_limit_per_input;
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;

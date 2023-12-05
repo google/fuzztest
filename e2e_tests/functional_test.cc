@@ -961,9 +961,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
 TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
-               {"stack_limit", "1234567"}});
+               {"stack_limit_kb", "1000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1024000."));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
@@ -973,11 +973,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"}},
               {{"FUZZTEST_STACK_LIMIT", "1234567"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(
-      std_err,
-      HasSubstr("Stack limit is set by FUZZTEST_STACK_LIMIT env var "
-                "- this is going to be deprecated soon. Consider "
-                "switching to --" FUZZTEST_FLAG_PREFIX_ "stack_limit flag."));
+  EXPECT_THAT(std_err,
+              HasSubstr("Stack limit is set by FUZZTEST_STACK_LIMIT env var "
+                        "- this is going to be deprecated soon. Consider "
+                        "switching to --" FUZZTEST_FLAG_PREFIX_
+                        "stack_limit_kb flag."));
   EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
@@ -986,11 +986,45 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
        ConfiguresStackLimitByEnvVarAndOverridesFlag) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
-               {"stack_limit", "1234567"}},
-              {{"FUZZTEST_STACK_LIMIT", "1000000"}});
+               {"stack_limit_kb", "1000"}},
+              {{"FUZZTEST_STACK_LIMIT", "1234567"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1000000."));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       DoesNotPrintWarningForDisabledLimitFlagsByDefault) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
+              /*env=*/{},
+              /*timeout=*/absl::Seconds(1));
+  EXPECT_THAT(std_err,
+              Not(HasSubstr("limit is specified but will be ignored for now")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagExistsButIsDisabled) {
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"rss_limit_mb", "1234"}},
+      /*env=*/{},
+      /*timeout=*/absl::Seconds(1));
+  EXPECT_THAT(std_err,
+              HasSubstr("RSS limit is specified but will be ignored for now"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagExistsButIsDisabled) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"},
+               {"time_limit_per_input", "1s"}},
+              /*env=*/{},
+              /*timeout=*/absl::Seconds(1));
+  EXPECT_THAT(
+      std_err,
+      HasSubstr(
+          "Per-input time limit is specified but will be ignored for now"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 #ifdef FUZZTEST_USE_CENTIPEDE
