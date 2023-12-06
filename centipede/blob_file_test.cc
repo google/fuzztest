@@ -22,7 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
+#include "./centipede/defs.h"
 #include "./centipede/test_util.h"
 
 namespace centipede {
@@ -44,7 +44,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   ByteArray input3{6, 7, 8, 9};
   ByteArray input4{10, 11};
   const auto path = TempFilePath();
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
 
   // Append two blobs to a file.
   {
@@ -130,7 +130,7 @@ TEST_P(BlobFile, AfterFailedOpenTest) {
 
   // Open failure of reader due to non-existent file.
   ASSERT_FALSE(reader->Open(invalid_path).ok());
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
   // Follow that with reading the already written file and check that contents
   // are as expected.
   ASSERT_OK(reader->Open(path));
@@ -149,7 +149,7 @@ TEST_P(BlobFile, CloseReaderAfterFileRemovalTest) {
   ASSERT_OK(appender->Close());
 
   auto reader = DefaultBlobFileReaderFactory();
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
   ASSERT_OK(reader->Open(path));
   ASSERT_OK(reader->Read(blob));
   TempFilePath();  // Delete the file at `path`
@@ -168,7 +168,7 @@ void TestIncorrectUsage(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
   // Open invalid file path.
   EXPECT_FALSE(reader->Open(invalid_path).ok());
   EXPECT_FALSE(appender->Open(invalid_path, "a").ok());
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
 
   // Write() on objects that are not in a successfuly open state.
   EXPECT_FALSE(appender->Write(blob).ok());
@@ -202,7 +202,7 @@ TEST_P(ReadMultipleFiles, SingleObjectMultipleFormats) {
   ByteArray file1_blob1{1, 2, 3, 4, 5};
   ByteArray file2_blob1{6, 7};
   ByteArray file2_blob2{8, 9};
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
 
   // Write in first format and read.
   auto writer = DefaultBlobFileWriterFactory(first_riegeli);

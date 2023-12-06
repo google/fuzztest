@@ -22,7 +22,6 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
@@ -68,14 +67,14 @@ class SimpleBlobFileReader : public BlobFileReader {
     return absl::OkStatus();
   }
 
-  absl::Status Read(absl::Span<const uint8_t> &blob) override {
+  absl::Status Read(ByteSpan &blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     if (next_to_read_blob_index_ == unpacked_blobs_.size())
       return absl::OutOfRangeError("no more blobs");
     if (next_to_read_blob_index_ != 0)  // Clear the previous blob to save RAM.
       unpacked_blobs_[next_to_read_blob_index_ - 1].clear();
-    blob = absl::Span<const uint8_t>(unpacked_blobs_[next_to_read_blob_index_]);
+    blob = ByteSpan(unpacked_blobs_[next_to_read_blob_index_]);
     ++next_to_read_blob_index_;
     return absl::OkStatus();
   }
@@ -115,7 +114,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     return absl::OkStatus();
   }
 
-  absl::Status Write(absl::Span<const uint8_t> blob) override {
+  absl::Status Write(ByteSpan blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     // TODO(kcc): [as-needed] This copy from a span to vector is clumsy. Change
@@ -172,7 +171,7 @@ class DefaultBlobFileReader : public BlobFileReader {
     return absl::OkStatus();
   }
 
-  absl::Status Read(absl::Span<const uint8_t> &blob) override {
+  absl::Status Read(ByteSpan &blob) override {
     if (legacy_reader_) [[unlikely]]
       return legacy_reader_->Read(blob);
 
@@ -183,8 +182,8 @@ class DefaultBlobFileReader : public BlobFileReader {
       else
         return riegeli_reader_.status();
     }
-    blob = absl::Span<const uint8_t>(
-        reinterpret_cast<const uint8_t *>(record.data()), record.size());
+    blob = ByteSpan(reinterpret_cast<const uint8_t *>(record.data()),
+                    record.size());
     return absl::OkStatus();
   }
 
@@ -239,7 +238,7 @@ class RiegeliWriter : public BlobFileWriter {
     return absl::OkStatus();
   }
 
-  absl::Status Write(absl::Span<const uint8_t> blob) override {
+  absl::Status Write(ByteSpan blob) override {
     if (!writer_.WriteRecord(absl::string_view(
             reinterpret_cast<const char *>(blob.data()), blob.size()))) {
       return writer_.status();

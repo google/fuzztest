@@ -30,7 +30,7 @@
 namespace centipede {
 
 // Returns a printable hash of a byte array. Currently sha1 is used.
-std::string Hash(absl::Span<const uint8_t> span);
+std::string Hash(ByteSpan span);
 // Same as above, but for std::string_view.
 std::string Hash(std::string_view str);
 // Hashes are always this many bytes.
@@ -52,18 +52,15 @@ void ReadFromLocalFile(std::string_view file_path, FeatureVec &data);
 void ReadFromLocalFile(std::string_view file_path, std::vector<uint32_t> &data);
 // Writes the contents of `data` to a local file `file_path`.
 // Crashes on any error.
-void WriteToLocalFile(std::string_view file_path,
-                      absl::Span<const uint8_t> data);
+void WriteToLocalFile(std::string_view file_path, ByteSpan data);
 // Same as above.
 void WriteToLocalFile(std::string_view file_path, std::string_view data);
 // Same as above but for FeatureVec.
 void WriteToLocalFile(std::string_view file_path, const FeatureVec &data);
 // Writes `data` to `dir_path`/Hash(`data`). Does nothing if `dir_path.empty()`.
-void WriteToLocalHashedFileInDir(std::string_view dir_path,
-                                 absl::Span<const uint8_t> data);
+void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data);
 // Same as `WriteToLocalHashedFileInDir` except supports remote files.
-void WriteToRemoteHashedFileInDir(std::string_view dir_path,
-                                  absl::Span<const uint8_t> data);
+void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data);
 // Returns a path string suitable to create a temporary local directory.
 // Will return the same value every time it is called within one thread,
 // but different values for different threads and difference processes.

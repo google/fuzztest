@@ -31,7 +31,6 @@
 #include <string_view>
 
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 #include "./centipede/defs.h"
 
 namespace centipede {
@@ -57,7 +56,7 @@ class BlobFileReader {
   // Implementations must ensure that the memory wrapped by `blob` remains valid
   // until the next Read() or Close() call.
   // Returns absl::OutOfRangeError when there are no more blobs to read.
-  virtual absl::Status Read(absl::Span<const uint8_t> &blob) = 0;
+  virtual absl::Status Read(ByteSpan &blob) = 0;
 
   // Closes the previously opened file, if any.
   virtual absl::Status Close() = 0;
@@ -83,12 +82,10 @@ class BlobFileWriter {
 
   // Writes `blob` to this file. Implementations must ensure that the file has
   // been opened.
-  virtual absl::Status Write(absl::Span<const uint8_t> blob) = 0;
+  virtual absl::Status Write(ByteSpan blob) = 0;
 
   // Same as above, but for `ByteArray`.
-  absl::Status Write(const ByteArray &bytes) {
-    return Write(absl::Span<const uint8_t>{bytes});
-  }
+  absl::Status Write(const ByteArray &bytes) { return Write(ByteSpan{bytes}); }
 
   // Closes the file, which was previously opened and never closed.
   virtual absl::Status Close() = 0;

@@ -24,7 +24,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
@@ -69,7 +68,7 @@ void ReadShard(
   } else {
     auto features_reader = DefaultBlobFileReaderFactory();
     CHECK_OK(features_reader->Open(features_path)) << VV(features_path);
-    absl::Span<const uint8_t> hash_and_features;
+    ByteSpan hash_and_features;
     while (features_reader->Read(hash_and_features).ok()) {
       // Every valid feature record must contain the hash at the end.
       // Ignore this record if it is too short.
@@ -89,7 +88,7 @@ void ReadShard(
   // Read the corpus. Call `callback` for every {input, features} pair.
   auto corpus_reader = DefaultBlobFileReaderFactory();
   CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
   while (corpus_reader->Read(blob).ok()) {
     ByteArray input{blob.begin(), blob.end()};
     // In contrast to `{feature_domains::kNoFeature}` above, if features for

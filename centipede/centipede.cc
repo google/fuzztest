@@ -71,7 +71,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
@@ -136,7 +135,7 @@ void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
     auto reader = DefaultBlobFileReaderFactory();
     auto corpus_path = corpus_files.ShardPath(shard);
     reader->Open(corpus_path).IgnoreError();  // may not exist.
-    absl::Span<const uint8_t> blob;
+    ByteSpan blob;
     size_t num_read = 0;
     while (reader->Read(blob).ok()) {
       ++num_read;
@@ -171,7 +170,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
       auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
       reader->Open(corpus_path).IgnoreError();
-      absl::Span<const uint8_t> blob;
+      ByteSpan blob;
       while (reader->Read(blob).ok()) {
         existing_hashes.insert(Hash(blob));
       }

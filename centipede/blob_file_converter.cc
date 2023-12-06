@@ -24,9 +24,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/config_init.h"
+#include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
@@ -47,7 +47,7 @@ class StatsLogger {
         next_log_at_(start_ + log_every),
         rprof_(rprof) {}
 
-  void UpdateStats(absl::Span<const uint8_t> blob) {
+  void UpdateStats(ByteSpan blob) {
     ++num_blobs_;
     num_bytes_ += blob.size();
   }
@@ -114,7 +114,7 @@ void Convert(               //
 
   // Read and write blobs one-by-one.
 
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
   absl::Status read_status = absl::OkStatus();
   StatsLogger stats_logger{
       absl::Seconds(VLOG_IS_ON(1) ? 20 : 60),

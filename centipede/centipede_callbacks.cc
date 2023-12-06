@@ -32,7 +32,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/command.h"
@@ -316,7 +315,7 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
   CHECK_OK(reader->Open(dictionary_path))
       << "Error in opening dictionary file: " << dictionary_path;
   std::vector<ByteArray> unpacked_dictionary;
-  absl::Span<const uint8_t> blob;
+  ByteSpan blob;
   while (reader->Read(blob).ok()) {
     unpacked_dictionary.emplace_back(blob.begin(), blob.end());
   }

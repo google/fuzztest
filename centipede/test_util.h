@@ -98,7 +98,7 @@ class TempCorpusDir : public TempDir {
       return {};
     }
     std::vector<ByteArray> corpus;
-    absl::Span<const uint8_t> blob;
+    ByteSpan blob;
     while (reader_->Read(blob).ok()) {
       corpus.emplace_back(blob.begin(), blob.end());
     }

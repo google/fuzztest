@@ -111,8 +111,7 @@ void ReadFromLocalFile(std::string_view file_path,
   return ReadFromLocalFile<std::vector<uint32_t> &>(file_path, data);
 }
 
-void WriteToLocalFile(std::string_view file_path,
-                      absl::Span<const uint8_t> data) {
+void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
   std::ofstream f(std::string{file_path.data()});
   CHECK(f) << "Failed to open local file: " << file_path;
   f.write(reinterpret_cast<const char *>(data.data()),
@@ -125,26 +124,22 @@ void WriteToLocalFile(std::string_view file_path, std::string_view data) {
   static_assert(sizeof(decltype(data)::value_type) == sizeof(uint8_t));
   WriteToLocalFile(
       file_path,
-      absl::Span<const uint8_t>(reinterpret_cast<const uint8_t *>(data.data()),
-                                data.size()));
+      ByteSpan(reinterpret_cast<const uint8_t *>(data.data()), data.size()));
 }
 
 void WriteToLocalFile(std::string_view file_path, const FeatureVec &data) {
-  WriteToLocalFile(
-      file_path,
-      absl::Span<const uint8_t>(reinterpret_cast<const uint8_t *>(data.data()),
-                                sizeof(data[0]) * data.size()));
+  WriteToLocalFile(file_path,
+                   ByteSpan(reinterpret_cast<const uint8_t *>(data.data()),
+                            sizeof(data[0]) * data.size()));
 }
 
-void WriteToLocalHashedFileInDir(std::string_view dir_path,
-                                 absl::Span<const uint8_t> data) {
+void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
   WriteToLocalFile(file_path, data);
 }
 
-void WriteToRemoteHashedFileInDir(std::string_view dir_path,
-                                  absl::Span<const uint8_t> data) {
+void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
   RemoteFileSetContents(file_path, std::string(data.begin(), data.end()));

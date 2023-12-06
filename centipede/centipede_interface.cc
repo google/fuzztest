@@ -38,7 +38,6 @@
 #include "absl/strings/str_replace.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./centipede/analyze_corpora.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/blob_file.h"
@@ -115,7 +114,7 @@ int ForEachBlob(const Environment &env) {
       LOG(INFO) << "Failed to open " << arg << ": " << open_status;
       return EXIT_FAILURE;
     }
-    absl::Span<const uint8_t> blob;
+    ByteSpan blob;
     while (blob_reader->Read(blob) == absl::OkStatus()) {
       ByteArray bytes;
       bytes.insert(bytes.begin(), blob.data(), blob.end());

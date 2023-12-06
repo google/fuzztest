@@ -19,12 +19,12 @@
 #include <string>
 #include <string_view>
 
-#include "absl/types/span.h"
+#include "./centipede/defs.h"
 #include "./centipede/util.h"
 
 namespace centipede {
 
-std::string Hash(absl::Span<const uint8_t> span) {
+std::string Hash(ByteSpan span) {
   // Compute SHA1.
   unsigned char sha1[SHA_DIGEST_LENGTH];
   SHA1(span.data(), span.size(), sha1);
@@ -42,8 +42,8 @@ std::string Hash(absl::Span<const uint8_t> span) {
 
 std::string Hash(std::string_view str) {
   static_assert(sizeof(decltype(str)::value_type) == sizeof(uint8_t));
-  return Hash(absl::Span<const uint8_t>(
-      reinterpret_cast<const uint8_t *>(str.data()), str.size()));
+  return Hash(
+      ByteSpan(reinterpret_cast<const uint8_t *>(str.data()), str.size()));
 }
 
 }  // namespace centipede
