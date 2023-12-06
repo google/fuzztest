@@ -671,8 +671,43 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds(
   }
 }
 
+static size_t GetStackLimitFromEnvOrConfiguration(
+    const Configuration& configuration) {
+  size_t env_stack_limit;
+  if (const char* env = getenv("FUZZTEST_STACK_LIMIT");
+      (env != nullptr && absl::SimpleAtoi(env, &env_stack_limit))) {
+    absl::FPrintF(
+        GetStderr(),
+        "[!] Stack limit is set by FUZZTEST_STACK_LIMIT env var - this is "
+        "going to be deprecated soon. Consider switching to "
+        "--" FUZZTEST_FLAG_PREFIX "stack_limit_kb flag.\n");
+    return env_stack_limit;
+  }
+  return configuration.stack_limit;
+}
+
+static void PopulateLimits(ExecutionCoverage& execution_coverage,
+                           const Configuration& configuration) {
+  // TODO(b/273276918): For now, let existing FUZZTEST_STACK_LIMIT overwrite the
+  // stack limit. So that the existing targets that set the env var could still
+  // work.
+  execution_coverage.SetStackLimit(
+      GetStackLimitFromEnvOrConfiguration(configuration));
+  if (configuration.rss_limit > 0) {
+    absl::FPrintF(GetStderr(),
+                  "[!] RSS limit is specified but will be ignored for now.\n");
+  }
+  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
+    absl::FPrintF(
+        GetStderr(),
+        "[!] Per-input time limit is specified but will be ignored for now.\n");
+  }
+}
+
 void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
+  if (execution_coverage_ != nullptr)
+    PopulateLimits(*execution_coverage_, configuration);
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
     runtime_.SetCurrentTest(&test_);
@@ -819,39 +854,6 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
       }
     }
     ++tries_without_failure;
-  }
-}
-
-static size_t GetStackLimitFromEnvOrConfiguration(
-    const Configuration& configuration) {
-  size_t env_stack_limit;
-  if (const char* env = getenv("FUZZTEST_STACK_LIMIT");
-      (env != nullptr && absl::SimpleAtoi(env, &env_stack_limit))) {
-    absl::FPrintF(
-        GetStderr(),
-        "[!] Stack limit is set by FUZZTEST_STACK_LIMIT env var - this is "
-        "going to be deprecated soon. Consider switching to "
-        "--" FUZZTEST_FLAG_PREFIX "stack_limit_kb flag.\n");
-    return env_stack_limit;
-  }
-  return configuration.stack_limit;
-}
-
-static void PopulateLimits(ExecutionCoverage& execution_coverage,
-                           const Configuration& configuration) {
-  // TODO(b/273276918): For now, let existing FUZZTEST_STACK_LIMIT overwrite the
-  // stack limit. So that the existing targets that set the env var could still
-  // work.
-  execution_coverage.SetStackLimit(
-      GetStackLimitFromEnvOrConfiguration(configuration));
-  if (configuration.rss_limit > 0) {
-    absl::FPrintF(GetStderr(),
-                  "[!] RSS limit is specified but will be ignored for now.\n");
-  }
-  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
-    absl::FPrintF(
-        GetStderr(),
-        "[!] Per-input time limit is specified but will be ignored for now.\n");
   }
 }
 

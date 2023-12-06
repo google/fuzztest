@@ -685,7 +685,7 @@ void DataDependentStackOverflow(const std::string& s) {
   DataDependentStackOverflowImpl(s, 0);
 }
 FUZZ_TEST(MySuite, DataDependentStackOverflow)
-    .WithDomains(fuzztest::Arbitrary<std::string>().WithMaxSize(100000));
+    .WithDomains(fuzztest::Arbitrary<std::string>().WithSize(100000));
 
 void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
   static size_t dummy_to_trigger_cmp_in_handler;

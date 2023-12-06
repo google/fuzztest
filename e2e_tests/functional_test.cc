@@ -546,6 +546,22 @@ TEST_F(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(UnitTestModeTest, StackLimitWorks) {
+#if defined(__has_feature)
+#if !__has_feature(coverage_sanitizer)
+  GTEST_SKIP() << "No coverage instrumentation: skipping the stack limit test "
+                  "in the unit test mode. Please run with --config=fuzztest to "
+                  "enable these tests!";
+#endif
+#endif
+  auto [status, std_out, std_err] =
+      Run("MySuite.DataDependentStackOverflow", kDefaultTargetBinary,
+          /*env=*/{}, /*fuzzer_flags=*/{{"stack_limit_kb", "1000"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1024000."));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
