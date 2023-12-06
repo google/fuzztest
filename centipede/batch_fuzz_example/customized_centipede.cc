@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "./centipede/batch_fuzz_example/customized_centipede.h"
+
 #include <sys/types.h>
 
 #include <filesystem>  // NOLINT
@@ -22,12 +24,9 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "./centipede/centipede_callbacks.h"
-#include "./centipede/centipede_interface.h"
 #include "./centipede/command.h"
-#include "./centipede/config_file.h"
 #include "./centipede/defs.h"
-#include "./centipede/environment_flags.h"
+#include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
@@ -51,69 +50,48 @@ bool UpdateBatchResult(absl::string_view output_file,
   LOG(ERROR) << "Failed to read blob sequence from file: " << output_file;
   return false;
 }
-
-// This class implements the `Execute()` method of the `CentipedeCallbacks`
-// class. It saves a collection of inputs into files and passes them to a target
-// binary. The binary should exercise them in a batch and store the execution
-// result of each input into an output file. Those execution results will be
-// loaded from the output file and packed as the given `batch_result`.
-class CustomizedCallbacks : public CentipedeCallbacks {
- public:
-  explicit CustomizedCallbacks(const Environment& env)
-      : CentipedeCallbacks(env) {}
-
-  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
-               BatchResult& batch_result) override {
-    const std::string temp_dir = TemporaryLocalDirPath();
-    CHECK(!temp_dir.empty());
-    std::filesystem::create_directory(temp_dir);
-
-    std::string input_file_list;
-    int index = 0;
-    for (const auto& input : inputs) {
-      const std::string temp_file_path = std::filesystem::path(temp_dir).append(
-          absl::StrCat("input-", index++));
-      WriteToLocalFile(temp_file_path, input);
-      absl::StrAppend(&input_file_list, temp_file_path);
-      absl::StrAppend(&input_file_list, "\n");
-    }
-    const std::string input_list_filepath =
-        std::filesystem::path(temp_dir).append("input_file_list");
-    WriteToLocalFile(input_list_filepath, input_file_list);
-
-    const std::string tmp_output_filepath =
-        std::filesystem::path(temp_dir).append("output_execution_results");
-    const std::string tmp_log_filepath =
-        std::filesystem::path(temp_dir).append("tmp_log");
-
-    // Execute.
-    Command cmd{env_.binary,
-                {input_list_filepath, tmp_output_filepath},
-                // TODO: pass additional runner flags, such as use_cmp_features,
-                // based on `env`. Will require a small refactoring.
-                /*env=*/{},
-                tmp_log_filepath,
-                tmp_log_filepath};
-    const int retval = cmd.Execute();
-
-    std::string tmp_log;
-    ReadFromLocalFile(tmp_log_filepath, tmp_log);
-    LOG_IF(INFO, !tmp_log.empty()) << tmp_log;
-
-    batch_result.ClearAndResize(inputs.size());
-    CHECK(UpdateBatchResult(tmp_output_filepath, batch_result));
-    return retval == 0;
-  }
-};
 }  // namespace
-}  // namespace centipede
 
-int main(int argc, char** argv) {
-  const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
+bool CustomizedCallbacks::Execute(std::string_view binary,
+                                  const std::vector<ByteArray>& inputs,
+                                  BatchResult& batch_result) {
+  const std::string temp_dir = TemporaryLocalDirPath();
+  CHECK(!temp_dir.empty());
+  std::filesystem::create_directory(temp_dir);
 
-  // Reads flags; must happen after ParseCommandLine().
-  const auto env = centipede::CreateEnvironmentFromFlags(leftover_argv);
-  centipede::DefaultCallbacksFactory<centipede::CustomizedCallbacks>
-      callbacks_factory;
-  return CentipedeMain(env, callbacks_factory);
+  std::string input_file_list;
+  int index = 0;
+  for (const auto& input : inputs) {
+    const std::string temp_file_path =
+        std::filesystem::path(temp_dir).append(absl::StrCat("input-", index++));
+    WriteToLocalFile(temp_file_path, input);
+    absl::StrAppend(&input_file_list, temp_file_path);
+    absl::StrAppend(&input_file_list, "\n");
+  }
+  const std::string input_list_filepath =
+      std::filesystem::path(temp_dir).append("input_file_list");
+  WriteToLocalFile(input_list_filepath, input_file_list);
+
+  const std::string tmp_output_filepath =
+      std::filesystem::path(temp_dir).append("output_execution_results");
+  const std::string tmp_log_filepath =
+      std::filesystem::path(temp_dir).append("tmp_log");
+
+  // Execute.
+  Command cmd{env_.binary,
+              {input_list_filepath, tmp_output_filepath},
+              /*env=*/{ConstructRunnerFlags()},
+              tmp_log_filepath,
+              tmp_log_filepath};
+  const int retval = cmd.Execute();
+
+  std::string tmp_log;
+  ReadFromLocalFile(tmp_log_filepath, tmp_log);
+  LOG_IF(INFO, !tmp_log.empty()) << tmp_log;
+
+  batch_result.ClearAndResize(inputs.size());
+  CHECK(UpdateBatchResult(tmp_output_filepath, batch_result));
+  return retval == 0;
 }
+
+}  // namespace centipede
