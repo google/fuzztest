@@ -52,7 +52,7 @@ static int non_cost_global[10];
 static const int const_global[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 // See https://llvm.org/docs/LibFuzzer.html#fuzz-target.
-// coverage_test.cc and centipede_test.sh verify the exact line where
+// control_flow_test.cc and centipede_main_test.sh verify the exact line where
 // LLVMFuzzerTestOneInput is declared.
 // So if you move the declaration to another line, update these tests.
 //
