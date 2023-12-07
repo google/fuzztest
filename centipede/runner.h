@@ -53,19 +53,23 @@ class LockGuard {
 };
 
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
-// Flags used in instrumentation callbacks are bit-packed for efficiency.
 struct RunTimeFlags {
-  uint64_t path_level : 8;
-  uint64_t use_pc_features : 1;
-  uint64_t use_dataflow_features : 1;
-  uint64_t use_cmp_features : 1;
-  uint64_t callstack_level : 8;
-  uint64_t use_counter_features : 1;
-  uint64_t use_auto_dictionary : 1;
-  uint64_t timeout_per_input;
-  uint64_t timeout_per_batch;
-  uint64_t rss_limit_mb;
-  uint64_t crossover_level;
+  // Flags used in instrumentation callbacks are bit-packed for efficiency.
+  struct InstrumentationFlags {
+    uint64_t path_level : 8;
+    uint64_t use_pc_features : 1;
+    uint64_t use_dataflow_features : 1;
+    uint64_t use_cmp_features : 1;
+    uint64_t callstack_level : 8;
+    uint64_t use_counter_features : 1;
+    uint64_t use_auto_dictionary : 1;
+  };
+  // All flags may be updated and used concurrently.
+  std::atomic<InstrumentationFlags> instrumentation_flags;
+  std::atomic<uint64_t> timeout_per_input;
+  std::atomic<uint64_t> timeout_per_batch;
+  std::atomic<uint64_t> rss_limit_mb;
+  std::atomic<uint64_t> crossover_level;
 };
 
 // One such object is created in runner's TLS.
@@ -135,42 +139,54 @@ struct GlobalRunnerState {
   // this: CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:". We do it this way to make the
   // flag parsing code extremely simple. The interface is private between
   // Centipede and the runner and may change.
-  const char *centipede_runner_flags = getenv("CENTIPEDE_RUNNER_FLAGS");
-  const char *arg1 = GetStringFlag(":arg1=");
-  const char *arg2 = GetStringFlag(":arg2=");
-  const char *arg3 = GetStringFlag(":arg3=");
+  std::atomic<const char *> centipede_runner_flags =
+      getenv("CENTIPEDE_RUNNER_FLAGS")
+          ? strdup(getenv("CENTIPEDE_RUNNER_FLAGS"))
+          : nullptr;
+  std::atomic<const char *> arg1 = GetStringFlag(":arg1=");
+  std::atomic<const char *> arg2 = GetStringFlag(":arg2=");
+  std::atomic<const char *> arg3 = GetStringFlag(":arg3=");
   // The path to a file where the runner may write the description of failure.
-  const char *failure_description_path =
+  std::atomic<const char *> failure_description_path =
       GetStringFlag(":failure_description_path=");
 
   // Flags.
   RunTimeFlags run_time_flags = {
-      .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
-                             HasIntFlag(":path_level=", 0)),
-      .use_pc_features = HasFlag(":use_pc_features:"),
-      .use_dataflow_features = HasFlag(":use_dataflow_features:"),
-      .use_cmp_features = HasFlag(":use_cmp_features:"),
-      .callstack_level = HasIntFlag(":callstack_level=", 0),
-      .use_counter_features = HasFlag(":use_counter_features:"),
-      .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
+      .instrumentation_flags =
+          RunTimeFlags::InstrumentationFlags{
+              .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
+                                     HasIntFlag(":path_level=", 0)),
+              .use_pc_features = HasFlag(":use_pc_features:"),
+              .use_dataflow_features = HasFlag(":use_dataflow_features:"),
+              .use_cmp_features = HasFlag(":use_cmp_features:"),
+              .callstack_level = HasIntFlag(":callstack_level=", 0),
+              .use_counter_features = HasFlag(":use_counter_features:"),
+              .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
+          },
       .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
       .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
       .crossover_level = HasIntFlag(":crossover_level=", 50)};
 
+  // TODO(xinhaoyuan): Make sure that Has*Flag functions are used only for
+  // setting up atomic flags and replace other Has*Flag calls with access to the
+  // atomic flags.
+  //
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
   bool HasFlag(const char *flag) const {
-    if (!centipede_runner_flags) return false;
-    return strstr(centipede_runner_flags, flag) != nullptr;
+    const char *runner_flags = centipede_runner_flags.load();
+    if (!runner_flags) return false;
+    return strstr(runner_flags, flag) != nullptr;
   }
 
   // If a flag=value pair is present, returns value,
   // otherwise returns `default_value`.
   // Typical usage: pass ":some_flag=".
   uint64_t HasIntFlag(const char *flag, uint64_t default_value) const {
-    if (!centipede_runner_flags) return default_value;
-    const char *beg = strstr(centipede_runner_flags, flag);
+    const char *runner_flags = centipede_runner_flags.load();
+    if (!runner_flags) return default_value;
+    const char *beg = strstr(runner_flags, flag);
     if (!beg) return default_value;
     return atoll(beg + strlen(flag));  // NOLINT: can't use strto64, etc.
   }
@@ -180,9 +196,10 @@ struct GlobalRunnerState {
   // it in `this` to avoid a leak.
   // Typical usage: pass ":some_flag=".
   const char *GetStringFlag(const char *flag) const {
-    if (!centipede_runner_flags) return nullptr;
+    const char *runner_flags = centipede_runner_flags.load();
+    if (!runner_flags) return nullptr;
     // Extract "value" from ":flag=value:" inside centipede_runner_flags.
-    const char *beg = strstr(centipede_runner_flags, flag);
+    const char *beg = strstr(runner_flags, flag);
     if (!beg) return nullptr;
     const char *value_beg = beg + strlen(flag);
     const char *end = strstr(value_beg, ":");

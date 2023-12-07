@@ -60,6 +60,17 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((weak)) void CentipedeIsPresent();
 extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 
+// Prepares to run a batch of test executions that ends with calling
+// `CentipedeEndExecutionBatch`.
+//
+// `CentipedeBeginExecutionBatch` would abort if it was previously called
+// without a matching `CentipedeEndExecutionBatch` call.
+extern "C" void CentipedeBeginExecutionBatch();
+// Finalizes the current batch of test executions. It would abort if no
+// `CentipedeBeginExecutionBatch` was called before without a matching
+// `CentipedeEndExecutionBatch` call.
+extern "C" void CentipedeEndExecutionBatch();
+
 // Resets the internal state of the runner to process a new input.
 extern "C" void CentipedePrepareProcessing();
 
