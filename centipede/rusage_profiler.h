@@ -213,7 +213,9 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
@@ -288,7 +290,7 @@ class RUsageProfiler {
   class ReportSink {
    public:
     virtual ~ReportSink() = default;
-    virtual ReportSink& operator<<(const std::string& fragment) = 0;
+    virtual ReportSink& operator<<(std::string_view fragment) = 0;
   };
 
   //----------------------------------------------------------------------------

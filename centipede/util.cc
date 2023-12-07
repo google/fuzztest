@@ -55,6 +55,8 @@
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "riegeli/bytes/read_all.h"
+#include "riegeli/bytes/write.h"
 
 namespace centipede {
 
@@ -140,13 +142,14 @@ void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
-  RemoteFileSetContents(file_path, std::string(data.begin(), data.end()));
+  CHECK_OK(
+      riegeli::Write(AsStringView(data), CreateRiegeliFileWriter(file_path)));
 }
 
 std::string HashOfFileContents(std::string_view file_path) {
   if (file_path.empty()) return "";
   std::string file_contents;
-  RemoteFileGetContents(std::filesystem::path(file_path), file_contents);
+  CHECK_OK(riegeli::ReadAll(CreateRiegeliFileReader(file_path), file_contents));
   return Hash(file_contents);
 }
 
@@ -218,7 +221,7 @@ static_assert(sizeof(kPackEndMagic) == kMagicLen + 1);
 //
 // This is simple and efficient, but I wonder if there is a ready-to-use
 // standard open-source alternative. Or should we just use tar?
-ByteArray PackBytesForAppendFile(const ByteArray &data) {
+ByteArray PackBytesForAppendFile(ByteSpan data) {
   ByteArray res;
   auto hash = Hash(data);
   CHECK_EQ(hash.size(), kHashLen);
@@ -234,7 +237,7 @@ ByteArray PackBytesForAppendFile(const ByteArray &data) {
 }
 
 // Reverse to a sequence of PackBytesForAppendFile() appended to each other.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
+void UnpackBytesFromAppendFile(ByteSpan packed_data,
                                std::vector<ByteArray> *unpacked,
                                std::vector<std::string> *hashes) {
   auto pos = packed_data.cbegin();

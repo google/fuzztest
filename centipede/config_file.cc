@@ -37,6 +37,9 @@
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/bytes/read_all.h"
+#include "riegeli/bytes/write.h"
 
 // TODO(ussuri): Move these flags next to main() ASAP. They are here
 //  only temporarily to simplify the APIs and implementation in V1.
@@ -143,7 +146,8 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   if (!path.empty() && !std::filesystem::exists(path)) {  // assume remote
     // Read the remote file.
     std::string contents;
-    RemoteFileGetContents(path, contents);
+    CHECK_OK(
+        riegeli::ReadAll(CreateRiegeliFileReader(path.native()), contents));
 
     // Save a temporary local copy.
     const std::filesystem::path tmp_dir = TemporaryLocalDirPath();
@@ -151,7 +155,7 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
     LOG(INFO) << "Localizing remote config: " << VV(path) << VV(local_path);
     // NOTE: Ignore "Remote" in the API names here: the paths are always local.
     RemoteMkdir(tmp_dir.c_str());
-    RemoteFileSetContents(local_path, contents);
+    CHECK_OK(riegeli::Write(contents, riegeli::FdWriter(local_path.native())));
 
     // Augment the argv to point at the local copy and ensure it is cleaned up.
     replacements.emplace_back(path.c_str(), local_path.c_str());
@@ -224,7 +228,8 @@ $2 "$${flags[@]}"
     } else {
       file_contents = flags_str;
     }
-    RemoteFileSetContents(path, file_contents);
+    CHECK_OK(
+        riegeli::Write(file_contents, CreateRiegeliFileWriter(path.native())));
   }
 
   return path;

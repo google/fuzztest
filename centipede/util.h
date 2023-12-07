@@ -141,12 +141,12 @@ void RemoveSubset(const std::vector<size_t> &subset_indices,
 // TODO(kcc): [impl] is there a lightweight equivalent in the open-source world?
 //  tar sounds too heavy.
 // TODO(kcc): [impl] investigate https://github.com/google/riegeli.
-ByteArray PackBytesForAppendFile(const ByteArray &data);
+ByteArray PackBytesForAppendFile(ByteSpan data);
 // Unpacks `packed_data` into `unpacked` and `hashes`.
 // `packed_data` is multiple data packed by PackBytesForAppendFile()
 // and merged together.
 // `unpacked` or `hashes` can be nullptr.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
+void UnpackBytesFromAppendFile(ByteSpan packed_data,
                                std::vector<ByteArray> *unpacked,
                                std::vector<std::string> *hashes = nullptr);
 // Append the bytes from 'hash' to 'ba'.

@@ -17,11 +17,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -30,20 +29,23 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/centipede_interface.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "riegeli/bytes/string_reader.h"
+#include "riegeli/bytes/string_writer.h"
 
 namespace centipede {
 namespace {
@@ -52,7 +54,7 @@ namespace {
 // A, BB, CCC.
 // A and BB have one control flow edge each.
 // CCC has 3 edges.
-const char *symbolizer_output =
+constexpr std::string_view symbolizer_output =
     "A\n"
     "a.cc:1:0\n"
     "\n"
@@ -86,8 +88,7 @@ static const PCTable g_pc_table = {
 TEST(Coverage, SymbolTable) {
   // Initialize and test SymbolTable.
   SymbolTable symbols;
-  std::istringstream iss(symbolizer_output);
-  symbols.ReadFromLLVMSymbolizer(iss);
+  symbols.ReadFromLLVMSymbolizer(riegeli::StringReader(symbolizer_output));
   EXPECT_EQ(symbols.size(), 6U);
   EXPECT_EQ(symbols.func(1), "BB");
   EXPECT_EQ(symbols.location(2), "ccc.cc:1:0");
@@ -98,10 +99,9 @@ TEST(Coverage, SymbolTable) {
     // Tests coverage output for PCIndexVec = {0, 2},
     // i.e. the covered edges are 'A' and the entry of 'CCC'.
     Coverage cov(g_pc_table, {0, 2});
-    cov.Print(symbols, std::cout);
-    std::ostringstream os;
-    cov.Print(symbols, os);
-    std::string str = os.str();
+    std::string str;
+    cov.Print(symbols, riegeli::StringWriter(&str));
+    std::cout << str;
     EXPECT_THAT(str, testing::HasSubstr("FULL: A a.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("NONE: BB bb.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("PARTIAL: CCC ccc.cc:1:0"));
@@ -112,9 +112,8 @@ TEST(Coverage, SymbolTable) {
   {
     // Same as above, but for PCIndexVec = {1, 2, 3},
     Coverage cov(g_pc_table, {1, 2, 3});
-    std::ostringstream os;
-    cov.Print(symbols, os);
-    std::string str = os.str();
+    std::string str;
+    cov.Print(symbols, riegeli::StringWriter(&str));
     EXPECT_THAT(str, testing::HasSubstr("FULL: BB bb.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("NONE: A a.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("PARTIAL: CCC ccc.cc:1:0"));
@@ -146,8 +145,7 @@ TEST(Coverage, CoverageLoad) {
 
 TEST(Coverage, CoverageLogger) {
   SymbolTable symbols;
-  std::istringstream iss(symbolizer_output);
-  symbols.ReadFromLLVMSymbolizer(iss);
+  symbols.ReadFromLLVMSymbolizer(riegeli::StringReader(symbolizer_output));
   CoverageLogger logger(g_pc_table, symbols);
   // First time logging pc_index=0.
   EXPECT_EQ(logger.ObserveAndDescribeIfNew(0), "FUNC: A a.cc:1:0");

@@ -19,18 +19,19 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -48,7 +49,8 @@ class Coverage {
            const PCIndexVec &pci_vec);
 
   // Prints in human-readable form to `out` using `symbols`.
-  void Print(const SymbolTable &symbols, std::ostream &out);
+  void Print(const SymbolTable &symbols,
+             riegeli::AnyDependencyRef<riegeli::Writer *> out);
 
   // Returns true if the function is fully covered. pc_index is for a function
   // entry.
