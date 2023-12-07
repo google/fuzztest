@@ -21,10 +21,12 @@
 #include <random>
 
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
 #include "./centipede/knobs.h"
 #include "./fuzztest/domain_core.h"
+#include "./fuzztest/internal/coverage.h"
 
 namespace centipede {
 
@@ -38,17 +40,28 @@ using MutatorDomainBase =
 class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
  public:
   MutatorDomain()
-      : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {}
+      : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {
+    if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
+      execution_coverage_ = std::make_unique<ExecutionCoverage>(
+          /*counter_map=*/absl::Span<uint8_t>{});
+      execution_coverage_->SetIsTracing(true);
+      fuzztest::internal::SetExecutionCoverage(execution_coverage_.get());
+    }
+  }
+
+  ~MutatorDomain() {
+    if (fuzztest::internal::GetExecutionCoverage() == execution_coverage_.get())
+      fuzztest::internal::SetExecutionCoverage(nullptr);
+  }
+
+ private:
+  using ExecutionCoverage = fuzztest::internal::ExecutionCoverage;
+  std::unique_ptr<ExecutionCoverage> execution_coverage_;
 };
 
 FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
     : knobs_(knobs), prng_(seed), domain_(std::make_unique<MutatorDomain>()) {
   domain_->WithMinSize(1).WithMaxSize(max_len_);
-  if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
-    auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
-    execution_coverage->SetIsTracing(true);
-    fuzztest::internal::SetExecutionCoverage(execution_coverage);
-  }
 }
 
 FuzzTestMutator::~FuzzTestMutator() = default;

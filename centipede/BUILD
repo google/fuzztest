@@ -890,6 +890,8 @@ cc_library(
         ":knobs",
         ":mutation_input",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest:coverage",
         "@com_google_fuzztest//fuzztest:domain_core",
     ],
 )
