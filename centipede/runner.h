@@ -137,7 +137,10 @@ struct GlobalRunnerState {
   // this: CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:". We do it this way to make the
   // flag parsing code extremely simple. The interface is private between
   // Centipede and the runner and may change.
-  const char *centipede_runner_flags = getenv("CENTIPEDE_RUNNER_FLAGS");
+  const char *centipede_runner_flags =
+      getenv("CENTIPEDE_RUNNER_FLAGS")
+          ? strdup(getenv("CENTIPEDE_RUNNER_FLAGS"))
+          : nullptr;
   const char *arg1 = GetStringFlag(":arg1=");
   const char *arg2 = GetStringFlag(":arg2=");
   const char *arg3 = GetStringFlag(":arg3=");
