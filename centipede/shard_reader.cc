@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "./centipede/shard_reader.h"
 
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>

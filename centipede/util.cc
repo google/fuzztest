@@ -22,7 +22,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -47,7 +46,6 @@
 #include "absl/base/const_init.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"

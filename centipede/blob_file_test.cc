@@ -14,7 +14,6 @@
 
 #include "./centipede/blob_file.h"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <tuple>

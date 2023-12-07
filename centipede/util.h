@@ -22,10 +22,10 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 
 namespace centipede {
 
