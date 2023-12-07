@@ -65,9 +65,12 @@ int main(int argc, char* argv[]) {
     std::string output;
     output.resize(kMaxOutputLimit);
 
-    CentipedeClearExecutionResult();
+    CentipedePrepareProcessing();
 
     FuzzMe(input_data.data(), input_data.size());
+
+    CentipedeFinalizeProcessing();
+
     const size_t offset = CentipedeGetExecutionResult(
         reinterpret_cast<uint8_t*>(output.data()), kMaxOutputLimit);
     if (offset == 0) {

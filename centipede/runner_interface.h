@@ -60,12 +60,23 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((weak)) void CentipedeIsPresent();
 extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 
-// Clears all the accumulated execution result.
-extern "C" void CentipedeClearExecutionResult();
+// Resets the internal state of the runner to process a new input.
+extern "C" void CentipedePrepareProcessing();
 
-// Saves the execution result (coverage, etc.) to `data` with given `capacity`
-// in bytes. Returns the size of saved data.
+// Finalizes the processing of an input and stores the state internally.
+extern "C" void CentipedeFinalizeProcessing();
+
+// Retrieves the execution results (including coverage information) after
+// processing an input. This function saves the data to the provided buffer and
+// returns the size of the saved data. It may be called after
+// CentipedeFinalizeProcessing().
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity);
+
+// Retrieves the coverage data collected during the processing of an input.
+// This function saves the raw coverage data to the provided buffer and returns
+// the size of the saved data. It may be called after
+// CentipedeFinalizeProcessing().
+extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity);
 
 namespace centipede {
 

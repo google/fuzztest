@@ -615,6 +615,16 @@ static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
+// Copy all the `g_features` to `data` with given `capacity` in bytes.
+// Returns the byte size of `g_features`.
+static size_t CopyFeatures(uint8_t *data, size_t capacity) {
+  const size_t features_len_in_bytes =
+      state.g_features.size() * sizeof(feature_t);
+  if (features_len_in_bytes > capacity) return 0;
+  memcpy(data, state.g_features.data(), features_len_in_bytes);
+  return features_len_in_bytes;
+}
+
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
@@ -1039,15 +1049,22 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 
-extern "C" void CentipedeClearExecutionResult() {
+extern "C" void CentipedePrepareProcessing() {
   // TODO(kcc): full_clear=true is expensive - performance may suffer.
   centipede::PrepareCoverage(/*full_clear=*/true);
 }
 
-extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
+extern "C" void CentipedeFinalizeProcessing() {
   centipede::PostProcessCoverage(/*target_return_value=*/0);
+}
+
+extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
   centipede::BlobSequence outputs_blobseq(data, capacity);
   if (!centipede::StartSendingOutputsToEngine(outputs_blobseq)) return 0;
   if (!centipede::FinishSendingOutputsToEngine(outputs_blobseq)) return 0;
   return outputs_blobseq.offset();
+}
+
+extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity) {
+  return centipede::CopyFeatures(data, capacity);
 }
