@@ -15,7 +15,6 @@
 #include "./centipede/blob_file.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -184,8 +183,7 @@ class DefaultBlobFileReader : public BlobFileReader {
       else
         return riegeli_reader_.status();
     }
-    blob = ByteSpan(reinterpret_cast<const uint8_t *>(record.data()),
-                    record.size());
+    blob = AsByteSpan(record);
     return absl::OkStatus();
   }
 
@@ -241,10 +239,7 @@ class RiegeliWriter : public BlobFileWriter {
   }
 
   absl::Status Write(ByteSpan blob) override {
-    if (!writer_.WriteRecord(absl::string_view(
-            reinterpret_cast<const char *>(blob.data()), blob.size()))) {
-      return writer_.status();
-    }
+    if (!writer_.WriteRecord(AsStringView(blob))) return writer_.status();
     // Riegeli's automatic flushing happens in chunks, not on record boundaries.
     // Flushing explicitly after every write makes it visible to readers earlier
     // especially if writes are infrequent and/or the size of records is small

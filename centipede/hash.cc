@@ -42,8 +42,7 @@ std::string Hash(ByteSpan span) {
 
 std::string Hash(std::string_view str) {
   static_assert(sizeof(decltype(str)::value_type) == sizeof(uint8_t));
-  return Hash(
-      ByteSpan(reinterpret_cast<const uint8_t *>(str.data()), str.size()));
+  return Hash(AsByteSpan(str));
 }
 
 }  // namespace centipede
