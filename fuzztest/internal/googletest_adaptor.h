@@ -45,7 +45,7 @@ class GTest_TestAdaptor : public ::testing::Test {
         // process and using `EXPECT_DEATH` causes the test to pass. We use
         // `EXPECT_EXIT` so that the test exit unsuccessfully, meaning that the
         // test below fails without terminating the process.
-        EXPECT_EXIT(test->RunInUnitTestMode(configuration_),
+        EXPECT_EXIT((test->RunInUnitTestMode(configuration_), std::exit(0)),
                     ::testing::ExitedWithCode(0), "");
 #else
         test->RunInUnitTestMode(configuration_);
