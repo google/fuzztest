@@ -322,6 +322,43 @@ TEST(Coverage, DataFlowFeatures) {
   }
 }
 
+// Tests feature collection for counters (--use_counter_features).
+TEST(Coverage, CounterFeatures) {
+  Environment env;
+  env.binary = GetTargetPath();
+
+  // Inputs that generate the same PC coverage but different counters.
+  std::vector<std::string> inputs = {"cnt\x01", "cnt\x02", "cnt\x04", "cnt\x08",
+                                     "cnt\x10"};
+  const size_t n = inputs.size();
+
+  // Run with use_counter_features = true.
+  env.use_counter_features = true;
+  auto features = RunInputsAndCollectCoverage(env, inputs);
+  EXPECT_EQ(features.size(), n);
+  // Counter features should be different.
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = i + 1; j < n; ++j) {
+      EXPECT_NE(
+          ExtractDomainFeatures(features[i], feature_domains::k8bitCounters),
+          ExtractDomainFeatures(features[j], feature_domains::k8bitCounters));
+    }
+  }
+
+  // Run with use_counter_features = false.
+  env.use_counter_features = false;
+  features = RunInputsAndCollectCoverage(env, inputs);
+  EXPECT_EQ(features.size(), n);
+  // Counter features should be the same now.
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = i + 1; j < n; ++j) {
+      EXPECT_EQ(
+          ExtractDomainFeatures(features[i], feature_domains::k8bitCounters),
+          ExtractDomainFeatures(features[j], feature_domains::k8bitCounters));
+    }
+  }
+}
+
 // For each of {ABToCmpModDiff, ABToCmpHamming, ABToCmpDiffLog} verify that
 // a) they create all possible values in [0,64)
 // b) they don't create any other values.
