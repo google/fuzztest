@@ -144,8 +144,24 @@ class Domain {
     return inner_->UntypedParseCorpus(obj);
   }
 
+  // Parses a string value without validating it_.
+  // Requires subsequent validation with ValidateCorpusValue().
+  std::optional<corpus_type> ParseCorpus(const absl::string_view str) const {
+    std::optional<internal::IRObject> obj = internal::IRObject::FromString(str);
+    if (!obj.has_value()) return std::nullopt;
+    return ParseCorpus(*obj);
+  }
+
+  // Serializes a corpus_type object into an internal IRObject representation.
   internal::IRObject SerializeCorpus(const corpus_type& v) const {
     return inner_->UntypedSerializeCorpus(v);
+  }
+
+  // Serializes a value_type object into a string representation.
+  std::optional<std::string> SerializeValue(const value_type& v) const {
+    std::optional<corpus_type> corpus = FromValue(v);
+    if (!corpus.has_value()) return std::nullopt;
+    return SerializeCorpus(*corpus).ToString();
   }
 
   // After creating a corpus value, either via ParseCorpus() or via FromValue()
