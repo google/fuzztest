@@ -236,7 +236,7 @@ static void CheckWatchdogLimits() {
                 " (%s); exiting\n",
                 resource.what, resource.value, resource.limit, resource.units);
         WriteFailureDescription(resource.failure);
-        _exit(EXIT_FAILURE);
+        abort();
       }
     }
   }
