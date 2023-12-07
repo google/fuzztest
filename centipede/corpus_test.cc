@@ -17,15 +17,18 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "./centipede/binary_info.h"
+#include "./centipede/call_graph.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
+#include "./centipede/pc_info.h"
+#include "riegeli/bytes/string_writer.h"
 
 namespace centipede {
 namespace {
@@ -59,9 +62,9 @@ TEST(Corpus, PrintStats) {
   corpus.Add({1, 2, 3}, features1, {}, fs, coverage_frontier);
   fs.IncrementFrequencies(features2);
   corpus.Add({4, 5}, features2, {}, fs, coverage_frontier);
-  std::ostringstream os;
-  corpus.PrintStats(os, fs);
-  EXPECT_EQ(os.str(),
+  std::string str;
+  corpus.PrintStats(fs, riegeli::StringWriter(&str));
+  EXPECT_EQ(str,
             R"({
   "num_inputs": 2,
   "corpus_stats": [

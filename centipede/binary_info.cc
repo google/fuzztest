@@ -16,7 +16,6 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,9 +26,12 @@
 #include "absl/strings/str_split.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "riegeli/bytes/reader_istream.h"
+#include "riegeli/bytes/writer_ostream.h"
 
 namespace centipede {
 
@@ -121,31 +123,25 @@ void BinaryInfo::InitializeFromSanCovBinary(
 }
 
 void BinaryInfo::Read(std::string_view dir) {
-  std::string symbol_table_contents;
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  RemoteFileGetContents(std::filesystem::path(dir).append(kSymbolTableFileName),
-                        symbol_table_contents);
-  std::istringstream symbol_table_stream(symbol_table_contents);
-  symbols.ReadFromLLVMSymbolizer(symbol_table_stream);
+  symbols.ReadFromLLVMSymbolizer(CreateRiegeliFileReader(
+      std::filesystem::path(dir).append(kSymbolTableFileName).native()));
 
-  std::string pc_table_contents;
-  RemoteFileGetContents(std::filesystem::path(dir).append(kPCTableFileName),
-                        pc_table_contents);
-  std::istringstream pc_table_stream(pc_table_contents);
+  riegeli::ReaderIStream pc_table_stream(CreateRiegeliFileReader(
+      std::filesystem::path(dir).append(kPCTableFileName).native()));
   pc_table = ReadPcTable(pc_table_stream);
+  CHECK(pc_table_stream.close()) << VV(pc_table_stream.status());
 }
 
 void BinaryInfo::Write(std::string_view dir) {
-  std::ostringstream symbol_table_stream;
-  symbols.WriteToLLVMSymbolizer(symbol_table_stream);
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  RemoteFileSetContents(std::filesystem::path(dir).append(kSymbolTableFileName),
-                        symbol_table_stream.str());
+  symbols.WriteToLLVMSymbolizer(CreateRiegeliFileWriter(
+      std::filesystem::path(dir).append(kSymbolTableFileName).native()));
 
-  std::ostringstream pc_table_stream;
+  riegeli::WriterOStream pc_table_stream(CreateRiegeliFileWriter(
+      std::filesystem::path(dir).append(kPCTableFileName).native()));
   WritePcTable(pc_table, pc_table_stream);
-  RemoteFileSetContents(std::filesystem::path(dir).append(kPCTableFileName),
-                        pc_table_stream.str());
+  CHECK(pc_table_stream.close()) << VV(pc_table_stream.status());
 }
 
 }  // namespace centipede

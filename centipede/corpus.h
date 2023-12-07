@@ -17,18 +17,19 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/util.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -141,7 +142,8 @@ class Corpus {
   // Logging.
 
   // Prints corpus stats in JSON format to `out` using `fs` for frequencies.
-  void PrintStats(std::ostream &out, const FeatureSet &fs);
+  void PrintStats(const FeatureSet &fs,
+                  riegeli::AnyDependencyRef<riegeli::Writer *> out);
   // Returns a string used for logging the corpus memory usage.
   std::string MemoryUsageString() const;
 

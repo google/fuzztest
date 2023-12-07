@@ -19,7 +19,6 @@
 
 #include <glob.h>
 
-#include <cstdio>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
@@ -30,7 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -50,79 +48,6 @@ ABSL_ATTRIBUTE_WEAK void RemoteMkdir(std::string_view path) {
   std::error_code error;
   std::filesystem::create_directories(path, error);
   CHECK(!error) << VV(path) << VV(error);
-}
-
-ABSL_ATTRIBUTE_WEAK RemoteFile *RemoteFileOpen(std::string_view path,
-                                               const char *mode) {
-  CHECK(!path.empty());
-  FILE *f = std::fopen(path.data(), mode);
-  return reinterpret_cast<RemoteFile *>(f);
-}
-
-ABSL_ATTRIBUTE_WEAK void RemoteFileClose(RemoteFile *f) {
-  CHECK(f != nullptr);
-  std::fclose(reinterpret_cast<FILE *>(f));
-}
-
-ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(RemoteFile *f, const ByteArray &ba) {
-  CHECK(f != nullptr);
-  auto *file = reinterpret_cast<FILE *>(f);
-  constexpr auto elt_size = sizeof(ba[0]);
-  const auto elts_to_write = ba.size();
-  const auto elts_written =
-      std::fwrite(ba.data(), elt_size, elts_to_write, file);
-  CHECK_EQ(elts_written, elts_to_write);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileAppend(RemoteFile *, ByteArray).
-void RemoteFileAppend(RemoteFile *f, const std::string &contents) {
-  CHECK(f != nullptr);
-  ByteArray contents_ba{contents.cbegin(), contents.cend()};
-  RemoteFileAppend(f, contents_ba);
-}
-
-ABSL_ATTRIBUTE_WEAK void RemoteFileRead(RemoteFile *f, ByteArray &ba) {
-  CHECK(f != nullptr);
-  auto *file = reinterpret_cast<FILE *>(f);
-  std::fseek(file, 0, SEEK_END);  // seek to end
-  const auto file_size = std::ftell(file);
-  std::fseek(file, 0, SEEK_SET);  // seek back to start
-  constexpr auto elt_size = sizeof(ba[0]);
-  CHECK_EQ(file_size % elt_size, 0) << VV(file_size) << VV(elt_size);
-  const auto elts_to_read = file_size / elt_size;
-  ba.resize(elts_to_read);
-  const auto elts_read = std::fread(ba.data(), elt_size, elts_to_read, file);
-  CHECK_EQ(elts_read, elts_to_read);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileRead(RemoteFile *, ByteArray).
-void RemoteFileRead(RemoteFile *f, std::string &contents) {
-  CHECK(f != nullptr);
-  ByteArray contents_ba;
-  RemoteFileRead(f, contents_ba);
-  contents.assign(contents_ba.cbegin(), contents_ba.cend());
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileAppend(RemoteFile *, std::string).
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "w");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileAppend(file, contents);
-  RemoteFileClose(file);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileRead(RemoteFile *, std::string).
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "r");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileRead(file, contents);
-  RemoteFileClose(file);
 }
 
 ABSL_ATTRIBUTE_WEAK bool RemotePathExists(std::string_view path) {

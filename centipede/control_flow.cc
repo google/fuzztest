@@ -16,33 +16,38 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
-#include <fstream>
 #include <queue>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "./centipede/command.h"
-#include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/util.h"
+#include "riegeli/base/closing_ptr.h"
+#include "riegeli/bytes/copy_all.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/resizable_writer.h"
+#include "riegeli/lines/line_reading.h"
 
 namespace centipede {
 
 PCTable ReadPcTableFromFile(std::string_view file_path) {
-  ByteArray pc_infos_as_bytes;
-  ReadFromLocalFile(file_path, pc_infos_as_bytes);
-  CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
-  size_t pc_table_size = pc_infos_as_bytes.size() / sizeof(PCInfo);
-  const auto *pc_infos = reinterpret_cast<PCInfo *>(pc_infos_as_bytes.data());
-  PCTable pc_table{pc_infos, pc_infos + pc_table_size};
-  CHECK_EQ(pc_table.size(), pc_table_size);
+  PCTable pc_table;
+  riegeli::ResizableWriter<riegeli::VectorResizableTraits<PCInfo>> out(
+      &pc_table);
+  CHECK_OK(riegeli::CopyAll(riegeli::FdReader(file_path),
+                            riegeli::ClosingPtr(&out)));
+  CHECK_EQ(out.pos() % sizeof(PCInfo), 0);
   return pc_table;
 }
 
@@ -59,14 +64,13 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
     return {};
   }
   PCTable pc_table;
-  std::ifstream in(std::string{tmp_path});
-  CHECK(in.good()) << VV(tmp_path);
+  riegeli::FdReader in(tmp_path);
   bool saw_new_function = false;
 
   // Read the objdump output, find lines that start a function
   // and lines that have a call to __sanitizer_cov_trace_pc.
   // Reconstruct the PCTable from those.
-  for (std::string line; std::getline(in, line);) {
+  for (std::string line; riegeli::ReadLine(in, line);) {
     if (absl::EndsWith(line, ">:")) {  // new function.
       saw_new_function = true;
       continue;
@@ -79,26 +83,27 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
     saw_new_function = false;  // next trace_pc will be in the same function.
     pc_table.push_back({pc, flags});
   }
+  CHECK(in.Close()) << VV(in.status());
   std::filesystem::remove(tmp_path);
   return pc_table;
 }
 
 CFTable ReadCfTableFromFile(std::string_view file_path) {
-  ByteArray cf_infos_as_bytes;
-  ReadFromLocalFile(file_path, cf_infos_as_bytes);
-  size_t cf_table_size = cf_infos_as_bytes.size() / sizeof(CFTable::value_type);
-  const auto *cf_infos =
-      reinterpret_cast<CFTable::value_type *>(cf_infos_as_bytes.data());
-  CFTable cf_table{cf_infos, cf_infos + cf_table_size};
-  CHECK_EQ(cf_table.size(), cf_table_size);
+  CFTable cf_table;
+  riegeli::ResizableWriter<riegeli::VectorResizableTraits<intptr_t>> out(
+      &cf_table);
+  CHECK_OK(riegeli::CopyAll(riegeli::FdReader(file_path),
+                            riegeli::ClosingPtr(&out)));
+  CHECK_EQ(out.pos() % sizeof(intptr_t), 0);
   return cf_table;
 }
 
 DsoTable ReadDsoTableFromFile(std::string_view file_path) {
   DsoTable result;
-  std::string data;
-  ReadFromLocalFile(file_path, data);
-  for (const auto &line : absl::StrSplit(data, '\n', absl::SkipEmpty())) {
+  riegeli::FdReader in(file_path);
+  CHECK(in.ok()) << VV(in.status());
+  for (std::string_view line; riegeli::ReadLine(in, line);) {
+    if (line.empty()) continue;
     // Use std::string; there is no std::stoul for std::string_view.
     const std::vector<std::string> tokens =
         absl::StrSplit(line, ' ', absl::SkipEmpty());

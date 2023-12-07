@@ -15,9 +15,7 @@
 #include "./centipede/symbol_table.h"
 
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <ostream>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <vector>
@@ -26,7 +24,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
@@ -34,7 +31,13 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/util.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
+#include "riegeli/lines/line_reading.h"
+#include "riegeli/text/write_int.h"
 
 namespace centipede {
 
@@ -42,31 +45,33 @@ bool SymbolTable::operator==(const SymbolTable &other) const {
   return this->entries_ == other.entries_;
 }
 
-void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
+void SymbolTable::ReadFromLLVMSymbolizer(
+    riegeli::AnyDependencyRef<riegeli::Reader *> in) {
   // We remove some useless file prefixes for better human readability.
   const std::string_view file_prefixes_to_remove[] = {"/proc/self/cwd/", "./"};
-  while (in) {
-    // We (mostly) blindly trust the input format is correct.
-    std::string func, file, empty;
-    std::getline(in, func);
-    std::getline(in, file);
-    std::getline(in, empty);
+  std::string func, file, empty;
+  // We (mostly) blindly trust the input format is correct.
+  while (riegeli::ReadLine(*in, func) && riegeli::ReadLine(*in, file) &&
+         riegeli::ReadLine(*in, empty)) {
     CHECK(empty.empty()) << "Unexpected symbolizer output format: " << VV(func)
                          << VV(file) << VV(empty);
-    if (!in) break;
+    std::string_view file_view = file;
     for (auto &bad_prefix : file_prefixes_to_remove) {
-      file = absl::StripPrefix(file, bad_prefix);
+      file_view = absl::StripPrefix(file_view, bad_prefix);
     }
-    AddEntry(func, file);
+    AddEntry(func, file_view);
   }
+  if (in.is_owning()) CHECK(in->Close()) << VV(in->status());
 }
 
-void SymbolTable::WriteToLLVMSymbolizer(std::ostream &out) {
+void SymbolTable::WriteToLLVMSymbolizer(
+    riegeli::AnyDependencyRef<riegeli::Writer *> out) {
   for (const Entry &entry : entries_) {
-    out << entry.func << '\n';
-    out << entry.file_line_col() << '\n';
-    out << std::endl;
+    out->Write(entry.func, '\n');
+    out->Write(entry.file_line_col(), '\n');
+    out->Write('\n');
   }
+  if (out.is_owning()) CHECK(out->Close()) << VV(out->status());
 }
 
 void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
@@ -77,11 +82,11 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   auto pcs_path(tmp_path1);
   auto symbols_path(tmp_path2);
   // Create the input file (one PC per line).
-  std::string pcs_string;
+  riegeli::FdWriter pcs_writer(pcs_path);
   for (const auto &pc_info : pc_infos) {
-    absl::StrAppend(&pcs_string, "0x", absl::Hex(pc_info.pc), "\n");
+    pcs_writer.Write("0x", riegeli::Hex(pc_info.pc), '\n');
   }
-  WriteToLocalFile(pcs_path, pcs_string);
+  CHECK(pcs_writer.Close()) << VV(pcs_writer.status());
   // Run the symbolizer.
   Command cmd(symbolizer_path,
               {
@@ -102,9 +107,8 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
     return;
   }
   // Get and process the symbolizer output.
-  std::ifstream symbolizer_output(std::string{symbols_path});
   size_t old_size = size();
-  ReadFromLLVMSymbolizer(symbolizer_output);
+  ReadFromLLVMSymbolizer(riegeli::FdReader(symbols_path));
   std::filesystem::remove(pcs_path);
   std::filesystem::remove(symbols_path);
   size_t new_size = size();

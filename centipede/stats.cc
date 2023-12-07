@@ -15,8 +15,6 @@
 #include "./centipede/stats.h"
 
 #include <algorithm>
-#include <cinttypes>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -25,6 +23,7 @@
 #include <ios>
 #include <iosfwd>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -36,13 +35,14 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/workdir.h"
+#include "riegeli/bytes/writer.h"
+#include "riegeli/csv/csv_writer.h"
 
 namespace centipede {
 
@@ -153,8 +153,9 @@ void StatsLogger::DoneFieldSamplesBatch() {
 //                           StatsCsvFileAppender
 
 StatsCsvFileAppender::~StatsCsvFileAppender() {
-  for (const auto &[group_name, file] : files_) {
-    RemoteFileClose(file);
+  for (const auto &[group_name, csv_writer_with_record] : csv_writers_) {
+    CHECK(csv_writer_with_record.csv_writer->Close())
+        << VV(csv_writer_with_record.csv_writer->status());
   }
 }
 
@@ -163,32 +164,34 @@ void StatsCsvFileAppender::PreAnnounceFields(
   if (!csv_header_.empty()) return;
 
   for (const auto &field : fields) {
-    std::string col_names;
     switch (field.aggregation) {
       case Stats::Aggregation::kMinMax:
-        col_names = absl::Substitute("$0_Min,$0_Max,", field.name);
+        csv_header_.Add(absl::StrCat(field.name, "_Min"),
+                        absl::StrCat(field.name, "_Max"));
         break;
       case Stats::Aggregation::kMinMaxAvg:
-        col_names = absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
+        csv_header_.Add(absl::StrCat(field.name, "_Min"),
+                        absl::StrCat(field.name, "_Max"),
+                        absl::StrCat(field.name, "_Avg"));
         break;
     }
-    absl::StrAppend(&csv_header_, col_names);
   }
-  absl::StrAppend(&csv_header_, "\n");
 }
 
 void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
-  RemoteFile *&file = files_[master_env.experiment_name];
-  if (file == nullptr) {
+  curr_csv_writer_ = &csv_writers_[master_env.experiment_name];
+  if (curr_csv_writer_->csv_writer == nullptr) {
     const std::string filename =
         WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
-    // TODO(ussuri): Append, not overwrite, so restarts keep accumulating.
-    //  This will require writing the CSV header only if the file is brand new.
-    file = RemoteFileOpen(filename, "w");
-    CHECK(file != nullptr) << VV(filename);
-    RemoteFileAppend(file, csv_header_);
+    auto writer = CreateRiegeliFileWriter(filename, /*append=*/true);
+    CHECK(writer->ok()) << VV(writer->status());
+    riegeli::CsvWriterBase::Options options;
+    if (writer->pos() == 0) options.set_header(csv_header_);
+    curr_csv_writer_->csv_writer =
+        std::make_unique<riegeli::CsvWriter<std::unique_ptr<riegeli::Writer>>>(
+            std::move(writer), std::move(options));
+    curr_csv_writer_->record.reserve(csv_header_.size());
   }
-  curr_file_ = file;
 }
 
 void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
@@ -207,17 +210,17 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
     avg += value;
   }
   if (!values.empty()) avg /= values.size();
-  std::string values_str;
   switch (curr_field_info_.aggregation) {
     case Stats::Aggregation::kMinMax:
-      values_str = absl::StrFormat("%" PRIu64 ",%" PRIu64 ",", min, max);
+      curr_csv_writer_->record.push_back(absl::StrCat(min));
+      curr_csv_writer_->record.push_back(absl::StrCat(max));
       break;
     case Stats::Aggregation::kMinMaxAvg:
-      values_str =
-          absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
+      curr_csv_writer_->record.push_back(absl::StrCat(min));
+      curr_csv_writer_->record.push_back(absl::StrCat(max));
+      curr_csv_writer_->record.push_back(absl::StrFormat("%.1f", avg));
       break;
   }
-  RemoteFileAppend(curr_file_, values_str);
 }
 
 void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
@@ -226,8 +229,10 @@ void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
 }
 
 void StatsCsvFileAppender::DoneFieldSamplesBatch() {
-  for (const auto &[group_name, file] : files_) {
-    RemoteFileAppend(file, "\n");
+  for (auto &[group_name, csv_writer_with_record] : csv_writers_) {
+    csv_writer_with_record.csv_writer->WriteRecord(
+        csv_writer_with_record.record);
+    csv_writer_with_record.record.clear();
   }
 }
 

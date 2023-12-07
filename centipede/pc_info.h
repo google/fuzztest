@@ -38,7 +38,9 @@ struct PCInfo {
 
   bool has_flag(PCFlags f) const { return flags & f; }
 
-  bool operator==(const PCInfo &rhs) const;
+  friend bool operator==(const PCInfo &lhs, const PCInfo &rhs) {
+    return lhs.pc == rhs.pc && lhs.flags == rhs.flags;
+  }
 };
 
 // Array of PCInfo-s.
