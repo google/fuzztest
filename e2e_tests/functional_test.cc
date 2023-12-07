@@ -1552,7 +1552,7 @@ TEST_F(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
       std_err,
       ContainsRegex("Code under test used [0-9]* bytes of stack. Configured "
                     "limit is 131072. You can change the limit by specifying "
-                    "--" FUZZTEST_FLAG_PREFIX_ "stack_limit flag."));
+                    "--" FUZZTEST_FLAG_PREFIX_ "stack_limit_kb flag."));
   ExpectTargetAbort(status, std_err);
 }
 

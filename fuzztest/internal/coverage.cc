@@ -165,7 +165,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
       absl::FPrintF(GetStderr(),
                     "[!] Code under test used %d bytes of stack. Configured "
                     "limit is %d. You can change the limit by specifying "
-                    "--" FUZZTEST_FLAG_PREFIX "stack_limit flag.\n",
+                    "--" FUZZTEST_FLAG_PREFIX "stack_limit_kb flag.\n",
                     this_stack, StackLimit());
       std::abort();
     }
