@@ -47,7 +47,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -55,6 +55,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -91,6 +92,9 @@
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "riegeli/bytes/read_all.h"
+#include "riegeli/bytes/write.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -178,19 +182,18 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     auto appender = DefaultBlobFileWriterFactory(env.riegeli);
     CHECK_OK(appender->Open(corpus_path, "a"))
         << "Failed to open corpus file: " << corpus_path;
-    ByteArray shard_data;
     for (const auto &path : sharded_paths[shard]) {
       std::string input;
-      RemoteFileGetContents(path, input);
+      CHECK_OK(riegeli::ReadAll(CreateRiegeliFileReader(path), input));
       if (input.empty() || existing_hashes.contains(Hash(input))) {
         ++inputs_ignored;
         continue;
       }
-      CHECK_OK(appender->Write(ByteArray{input.begin(), input.end()}));
+      CHECK_OK(appender->Write(AsByteSpan(input)));
       ++inputs_added;
     }
     LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
-              << VV(num_shard_bytes) << VV(shard_data.size());
+              << VV(num_shard_bytes);
   }
   CHECK_EQ(total_paths, inputs_added + inputs_ignored);
 }
@@ -459,10 +462,9 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
-  std::stringstream out;
-  out << "# " << description << ":\n\n";
-  coverage.Print(symbols_, out);
-  RemoteFileSetContents(coverage_path, out.str());
+  auto out = CreateRiegeliFileWriter(coverage_path);
+  out->Write("# ", description, ":\n\n");
+  coverage.Print(symbols_, std::move(out));
 }
 
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
@@ -470,10 +472,9 @@ void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
   auto stats_path = wd_.CorpusStatsPath(filename_annotation);
   LOG(INFO) << "Generate corpus stats: " << description << " "
             << VV(stats_path);
-  std::ostringstream os;
-  os << "# " << description << ":\n\n";
-  corpus_.PrintStats(os, fs_);
-  RemoteFileSetContents(stats_path, os.str());
+  auto out = CreateRiegeliFileWriter(stats_path);
+  out->Write("# ", description, ":\n\n");
+  corpus_.PrintStats(fs_, std::move(out));
 }
 
 // TODO(nedwill): add integration test once tests are refactored per b/255660879
@@ -525,19 +526,19 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
   class ReportDumper : public RUsageProfiler::ReportSink {
    public:
     explicit ReportDumper(std::string_view path)
-        : file_{RemoteFileOpen(path, "w")} {
-      CHECK(file_ != nullptr) << VV(path);
+        : out_(CreateRiegeliFileWriter(path)) {
+      CHECK(out_->ok()) << VV(out_->status());
     }
 
-    ~ReportDumper() override { RemoteFileClose(file_); }
+    ~ReportDumper() override { CHECK(out_->Close()) << VV(out_->status()); }
 
-    ReportDumper &operator<<(const std::string &fragment) override {
-      RemoteFileAppend(file_, ByteArray{fragment.cbegin(), fragment.cend()});
+    ReportDumper &operator<<(std::string_view fragment) override {
+      CHECK(out_->Write(fragment)) << VV(out_->status());
       return *this;
     }
 
    private:
-    RemoteFile *file_;
+    std::unique_ptr<riegeli::Writer> out_;
   };
 
   const auto &snapshot = rusage_profiler_.TakeSnapshot(
@@ -818,10 +819,9 @@ void Centipede::ReportCrash(std::string_view binary,
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
                 << "\nSaving input to: " << file_path;
-      auto *file = RemoteFileOpen(file_path, "w");  // overwrites existing file.
-      CHECK(file != nullptr) << log_prefix << "Failed to open " << file_path;
-      RemoteFileAppend(file, one_input);
-      RemoteFileClose(file);
+      CHECK_OK(riegeli::Write(AsStringView(one_input),
+                              CreateRiegeliFileWriter(file_path)))
+          << log_prefix;
       return;
     }
   }
@@ -850,10 +850,9 @@ void Centipede::ReportCrash(std::string_view binary,
     auto hash = Hash(one_input);
     std::string file_path = std::filesystem::path(save_dir).append(
         absl::StrFormat("input-%010d-%s", i, hash));
-    auto *file = RemoteFileOpen(file_path, "w");
-    CHECK(file != nullptr) << log_prefix << "Failed to open " << file_path;
-    RemoteFileAppend(file, one_input);
-    RemoteFileClose(file);
+    CHECK_OK(riegeli::Write(AsStringView(one_input),
+                            CreateRiegeliFileWriter(file_path)))
+        << log_prefix;
   }
 }
 

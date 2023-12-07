@@ -16,7 +16,9 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -28,6 +30,7 @@
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 #include "riegeli/base/object.h"
+#include "riegeli/bytes/read_all.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/records/record_reader.h"
@@ -47,7 +50,7 @@ namespace centipede {
 class SimpleBlobFileReader : public BlobFileReader {
  public:
   ~SimpleBlobFileReader() override {
-    if (file_ && !closed_) {
+    if (open_ && !closed_) {
       // Virtual resolution is off in dtors, so use a specific Close().
       CHECK_OK(SimpleBlobFileReader::Close());
     }
@@ -55,22 +58,23 @@ class SimpleBlobFileReader : public BlobFileReader {
 
   absl::Status Open(std::string_view path) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, "r");
-    if (file_ == nullptr) return absl::UnknownError("can't open file");
+    if (open_) return absl::FailedPreconditionError("already open");
+    auto reader = CreateRiegeliFileReader(path);
+    if (!reader->ok()) return reader->status();
+    open_ = true;
     // Read the entire file at once.
     // It may be useful to read the file in chunks, but if we are going
     // to migrate to something else, it's not important here.
-    ByteArray raw_bytes;
-    RemoteFileRead(file_, raw_bytes);
-    RemoteFileClose(file_);  // close the file here, we won't need it.
-    UnpackBytesFromAppendFile(raw_bytes, &unpacked_blobs_);
+    std::string raw_bytes;
+    // close the file here, we won't need it.
+    absl::Status status = riegeli::ReadAll(std::move(reader), raw_bytes);
+    UnpackBytesFromAppendFile(AsByteSpan(raw_bytes), &unpacked_blobs_);
     return absl::OkStatus();
   }
 
   absl::Status Read(ByteSpan &blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
+    if (!open_) return absl::FailedPreconditionError("was not open");
     if (next_to_read_blob_index_ == unpacked_blobs_.size())
       return absl::OutOfRangeError("no more blobs");
     if (next_to_read_blob_index_ != 0)  // Clear the previous blob to save RAM.
@@ -83,14 +87,14 @@ class SimpleBlobFileReader : public BlobFileReader {
   // Closes the file (it must be open).
   absl::Status Close() override {
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
+    if (!open_) return absl::FailedPreconditionError("was not open");
     closed_ = true;
     // Nothing to do here, we've already closed the underlying file (in Open()).
     return absl::OkStatus();
   }
 
  private:
-  RemoteFile *file_ = nullptr;
+  bool open_ = false;
   bool closed_ = false;
   std::vector<ByteArray> unpacked_blobs_;
   size_t next_to_read_blob_index_ = 0;
@@ -100,7 +104,7 @@ class SimpleBlobFileReader : public BlobFileReader {
 class SimpleBlobFileWriter : public BlobFileWriter {
  public:
   ~SimpleBlobFileWriter() override {
-    if (file_ && !closed_) {
+    if (writer_ && !closed_) {
       // Virtual resolution is off in dtors, so use a specific Close().
       CHECK_OK(SimpleBlobFileWriter::Close());
     }
@@ -109,34 +113,31 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   absl::Status Open(std::string_view path, std::string_view mode) override {
     CHECK(mode == "w" || mode == "a") << VV(mode);
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, mode.data());
-    if (file_ == nullptr) return absl::UnknownError("can't open file");
+    if (writer_) return absl::FailedPreconditionError("already open");
+    writer_ = CreateRiegeliFileWriter(path, mode == "a");
+    if (!writer_->ok()) return std::exchange(writer_, nullptr)->status();
     return absl::OkStatus();
   }
 
   absl::Status Write(ByteSpan blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
-    // TODO(kcc): [as-needed] This copy from a span to vector is clumsy. Change
-    //  RemoteFileAppend to accept a span.
-    ByteArray bytes(blob.begin(), blob.end());
-    ByteArray packed = PackBytesForAppendFile(bytes);
-    RemoteFileAppend(file_, packed);
-
+    if (!writer_) return absl::FailedPreconditionError("was not open");
+    if (!writer_->Write(AsStringView(PackBytesForAppendFile(blob)))) {
+      return writer_->status();
+    }
     return absl::OkStatus();
   }
 
   absl::Status Close() override {
     if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
+    if (!writer_) return absl::FailedPreconditionError("was not open");
     closed_ = true;
-    RemoteFileClose(file_);
+    if (!writer_->Close()) return writer_->status();
     return absl::OkStatus();
   }
 
  private:
-  RemoteFile *file_ = nullptr;
+  std::unique_ptr<riegeli::Writer> writer_;
   bool closed_ = false;
 };
 

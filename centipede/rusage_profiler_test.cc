@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
@@ -230,7 +231,7 @@ TEST(RUsageProfilerTest, ValidateReport) {
   class ReportCapture : public RUsageProfiler::ReportSink {
    public:
     ~ReportCapture() override = default;
-    ReportCapture& operator<<(const std::string& fragment) override {
+    ReportCapture& operator<<(std::string_view fragment) override {
       LOG(INFO).NoPrefix() << fragment;
       return *this;
     }

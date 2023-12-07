@@ -30,9 +30,7 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>  // NOLINT
-#include <fstream>
 #include <functional>
-#include <ios>
 #include <queue>
 #include <random>
 #include <sstream>
@@ -53,8 +51,15 @@
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "riegeli/base/closing_ptr.h"
+#include "riegeli/bytes/copy_all.h"
+#include "riegeli/bytes/fd_reader.h"
+#include "riegeli/bytes/fd_writer.h"
+#include "riegeli/bytes/read_all.h"
+#include "riegeli/bytes/resizable_writer.h"
+#include "riegeli/bytes/string_writer.h"
+#include "riegeli/bytes/write.h"
 
 namespace centipede {
 
@@ -66,69 +71,73 @@ size_t GetRandomSeed(size_t seed) {
          std::hash<std::thread::id>{}(std::this_thread::get_id());
 }
 
-std::string AsString(const ByteArray &data, size_t max_len) {
-  std::ostringstream out;
-  size_t len = std::min(max_len, data.size());
-  for (size_t i = 0; i < len; ++i) {
-    const auto ch = data[i];
-    if (std::isprint(ch)) {
-      out << ch;
+std::string AsString(ByteSpan data, size_t max_len) {
+  static constexpr char kHexChars[16] = {'0', '1', '2', '3', '4', '5',
+                                         '6', '7', '8', '9', 'A', 'B',
+                                         'C', 'D', 'E', 'F'};
+  riegeli::StringWriter out;
+  bool was_single_digit_hex = false;
+  for (uint8_t ch : data.subspan(0, max_len)) {
+    if (ch == '\\') {
+      out.Write("\\\\");
+    } else if (std::isprint(ch) &&
+               !(was_single_digit_hex &&
+                 ((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F')))) {
+      out.Write(static_cast<char>(ch));
+      was_single_digit_hex = false;
     } else {
-      out << "\\x" << std::uppercase << std::hex << static_cast<uint32_t>(ch);
+      out.Write("\\x");
+      if (ch >= 16) {
+        out.Write(kHexChars[ch >> 4]);
+        was_single_digit_hex = false;
+      } else {
+        was_single_digit_hex = true;
+      }
+      out.Write(kHexChars[ch & 0xf]);
     }
   }
-  return out.str();
+  out.Close();
+  return std::move(out.dest());
 }
 
-template <typename Container>
-void ReadFromLocalFile(std::string_view file_path, Container &data) {
-  std::ifstream f(std::string{file_path});
-  if (!f) return;
-  f.seekg(0, std::ios_base::end);
-  auto size = f.tellg();
-  f.seekg(0, std::ios_base::beg);
-  CHECK_EQ(size % sizeof(data[0]), 0);
-  data.resize(size / sizeof(data[0]));
-  f.read(reinterpret_cast<char *>(data.data()), size);
-  CHECK(f) << "Failed to read from local file: " << VV(file_path) << VV(f.eof())
-           << VV(f.bad()) << VV(f.fail()) << VV(size);
-  f.close();
+template <typename T>
+void ReadFromLocalFileToVector(std::string_view file_path,
+                               std::vector<T> &data) {
+  riegeli::FdReader in(file_path);
+  if (!in.ok()) return;
+  riegeli::ResizableWriter<riegeli::VectorResizableTraits<T>> out(&data);
+  CHECK_OK(riegeli::CopyAll(std::move(in), riegeli::ClosingPtr(&out)));
+  CHECK_EQ(out.pos() % sizeof(T), 0);
 }
 
 void ReadFromLocalFile(std::string_view file_path, std::string &data) {
-  return ReadFromLocalFile<std::string>(file_path, data);
+  riegeli::FdReader in(file_path);
+  if (!in.ok()) return;
+  CHECK_OK(riegeli::ReadAll(std::move(in), data));
 }
 void ReadFromLocalFile(std::string_view file_path, ByteArray &data) {
-  return ReadFromLocalFile<ByteArray>(file_path, data);
+  ReadFromLocalFileToVector(file_path, data);
 }
 void ReadFromLocalFile(std::string_view file_path, FeatureVec &data) {
-  return ReadFromLocalFile<FeatureVec>(file_path, data);
+  ReadFromLocalFileToVector(file_path, data);
 }
 void ReadFromLocalFile(std::string_view file_path,
                        std::vector<uint32_t> &data) {
-  return ReadFromLocalFile<std::vector<uint32_t> &>(file_path, data);
+  ReadFromLocalFileToVector(file_path, data);
 }
 
 void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
-  std::ofstream f(std::string{file_path.data()});
-  CHECK(f) << "Failed to open local file: " << file_path;
-  f.write(reinterpret_cast<const char *>(data.data()),
-          static_cast<int64_t>(data.size()));
-  CHECK(f) << "Failed to write to local file: " << file_path;
-  f.close();
+  WriteToLocalFile(file_path, AsStringView(data));
 }
 
 void WriteToLocalFile(std::string_view file_path, std::string_view data) {
-  static_assert(sizeof(decltype(data)::value_type) == sizeof(uint8_t));
-  WriteToLocalFile(
-      file_path,
-      ByteSpan(reinterpret_cast<const uint8_t *>(data.data()), data.size()));
+  CHECK_OK(riegeli::Write(data, riegeli::FdWriter(file_path)));
 }
 
 void WriteToLocalFile(std::string_view file_path, const FeatureVec &data) {
   WriteToLocalFile(file_path,
-                   ByteSpan(reinterpret_cast<const uint8_t *>(data.data()),
-                            sizeof(data[0]) * data.size()));
+                   std::string_view(reinterpret_cast<const char *>(data.data()),
+                                    data.size() * sizeof(data[0])));
 }
 
 void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
@@ -140,13 +149,14 @@ void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
-  RemoteFileSetContents(file_path, std::string(data.begin(), data.end()));
+  CHECK_OK(
+      riegeli::Write(AsStringView(data), CreateRiegeliFileWriter(file_path)));
 }
 
 std::string HashOfFileContents(std::string_view file_path) {
   if (file_path.empty()) return "";
   std::string file_contents;
-  RemoteFileGetContents(std::filesystem::path(file_path), file_contents);
+  CHECK_OK(riegeli::ReadAll(CreateRiegeliFileReader(file_path), file_contents));
   return Hash(file_contents);
 }
 
@@ -218,7 +228,7 @@ static_assert(sizeof(kPackEndMagic) == kMagicLen + 1);
 //
 // This is simple and efficient, but I wonder if there is a ready-to-use
 // standard open-source alternative. Or should we just use tar?
-ByteArray PackBytesForAppendFile(const ByteArray &data) {
+ByteArray PackBytesForAppendFile(ByteSpan data) {
   ByteArray res;
   auto hash = Hash(data);
   CHECK_EQ(hash.size(), kHashLen);
@@ -234,7 +244,7 @@ ByteArray PackBytesForAppendFile(const ByteArray &data) {
 }
 
 // Reverse to a sequence of PackBytesForAppendFile() appended to each other.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
+void UnpackBytesFromAppendFile(ByteSpan packed_data,
                                std::vector<ByteArray> *unpacked,
                                std::vector<std::string> *hashes) {
   auto pos = packed_data.cbegin();

@@ -39,7 +39,7 @@ bool UpdateBatchResult(absl::string_view output_file,
   ByteArray content;
   ReadFromLocalFile(output_file, content);
   if (content.empty()) {
-    LOG(WARNING) << "Skip updating batch result with an emtpy output file: "
+    LOG(WARNING) << "Skip updating batch result with an empty output file: "
                  << output_file;
     return true;
   }

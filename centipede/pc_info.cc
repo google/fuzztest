@@ -14,40 +14,27 @@
 
 #include "./centipede/pc_info.h"
 
-#include <cstddef>
+#include <ios>
 #include <istream>
-#include <iterator>
 #include <ostream>
-#include <string>
 
 #include "absl/log/check.h"
-#include "absl/types/span.h"
-#include "./centipede/defs.h"
 
 namespace centipede {
 
-bool PCInfo::operator==(const PCInfo &rhs) const {
-  return this->pc == rhs.pc && this->flags == rhs.flags;
-}
-
 PCTable ReadPcTable(std::istream &in) {
-  std::string input_string(std::istreambuf_iterator<char>(in), {});
-
-  ByteArray pc_infos_as_bytes(input_string.begin(), input_string.end());
-  CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
-  size_t pc_table_size = pc_infos_as_bytes.size() / sizeof(PCInfo);
-  const auto *pc_infos = reinterpret_cast<PCInfo *>(pc_infos_as_bytes.data());
-  PCTable pc_table{pc_infos, pc_infos + pc_table_size};
-  CHECK_EQ(pc_table.size(), pc_table_size);
-
+  in.seekg(0, std::ios_base::end);
+  auto size = in.tellg();
+  in.seekg(0, std::ios_base::beg);
+  CHECK_EQ(size % sizeof(PCInfo), 0);
+  PCTable pc_table(size / sizeof(PCInfo));
+  in.read(reinterpret_cast<char *>(pc_table.data()), size);
   return pc_table;
 }
 
 void WritePcTable(const PCTable &pc_table, std::ostream &out) {
-  auto pc_infos_as_bytes =
-      absl::Span<const char>(reinterpret_cast<const char *>(pc_table.data()),
-                             sizeof(PCInfo) * pc_table.size());
-  out.write(pc_infos_as_bytes.data(), pc_infos_as_bytes.size());
+  out.write(reinterpret_cast<const char *>(pc_table.data()),
+            pc_table.size() * sizeof(PCInfo));
 }
 
 }  // namespace centipede

@@ -14,20 +14,20 @@
 
 #include "./centipede/binary_info.h"
 
-#include <sstream>
-#include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_util.h"
+#include "riegeli/bytes/string_reader.h"
 
 namespace centipede {
 namespace {
 
 TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
   PCTable input_pcs = {{.pc = 0, .flags = 1}, {.pc = 2, .flags = 3}};
-  std::string input_symbols =
+  const std::string_view input_symbols =
       R"(FunctionOne
     source/location/one.cc:1:0
 
@@ -35,9 +35,8 @@ TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
     source/location/two.cc:2:0
 
 )";
-  std::istringstream input_stream(input_symbols);
   SymbolTable symbol_table;
-  symbol_table.ReadFromLLVMSymbolizer(input_stream);
+  symbol_table.ReadFromLLVMSymbolizer(riegeli::StringReader(input_symbols));
   BinaryInfo input = {.pc_table = input_pcs, .symbols = symbol_table};
 
   auto temp_dir = GetTestTempDir(test_info_->name());

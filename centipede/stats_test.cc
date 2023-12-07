@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
@@ -212,13 +213,13 @@ TEST(Stats, DumpStatsToCsvFile) {
       workdir / "fuzzing-stats-.000000.ExperimentB.csv",
   };
   const std::vector<std::string_view> kExpectedCsvContents = {
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
-10,25,17.5,100,102,101.0,1000,3000,2000.0,1,5,3.0,1,3,2.0,1000000,1000002,
-11,26,18.5,101,103,102.0,1001,3001,2001.0,2,6,4.0,2,4,3.0,1000001,1000003,
+      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max
+10,25,17.5,100,102,101.0,1000,3000,2000.0,1,5,3.0,1,3,2.0,1000000,1000002
+11,26,18.5,101,103,102.0,1001,3001,2001.0,2,6,4.0,2,4,3.0,1000001,1000003
 )",
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
-15,40,27.5,101,103,102.0,2000,4000,3000.0,3,7,5.0,2,4,3.0,1000001,1000003,
-16,41,28.5,102,104,103.0,2001,4001,3001.0,4,8,6.0,3,5,4.0,1000002,1000004,
+      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,CorpusSize_Min,CorpusSize_Max,CorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max
+15,40,27.5,101,103,102.0,2000,4000,3000.0,3,7,5.0,2,4,3.0,1000001,1000003
+16,41,28.5,102,104,103.0,2001,4001,3001.0,4,8,6.0,3,5,4.0,1000002,1000004
 )",
   };
 

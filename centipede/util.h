@@ -39,7 +39,7 @@ inline constexpr size_t kHashLen = 40;
 // being remote. Returns an empty string if the `file_path` is empty.
 std::string HashOfFileContents(std::string_view file_path);
 // Returns a printable string representing at most `max_len` bytes of `data`.
-std::string AsString(const ByteArray &data, size_t max_len = 16);
+std::string AsString(ByteSpan data, size_t max_len = 16);
 // Reads from a local file `file_path` into `data`.
 // Crashes on any error.
 void ReadFromLocalFile(std::string_view file_path, ByteArray &data);
@@ -141,12 +141,12 @@ void RemoveSubset(const std::vector<size_t> &subset_indices,
 // TODO(kcc): [impl] is there a lightweight equivalent in the open-source world?
 //  tar sounds too heavy.
 // TODO(kcc): [impl] investigate https://github.com/google/riegeli.
-ByteArray PackBytesForAppendFile(const ByteArray &data);
+ByteArray PackBytesForAppendFile(ByteSpan data);
 // Unpacks `packed_data` into `unpacked` and `hashes`.
 // `packed_data` is multiple data packed by PackBytesForAppendFile()
 // and merged together.
 // `unpacked` or `hashes` can be nullptr.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
+void UnpackBytesFromAppendFile(ByteSpan packed_data,
                                std::vector<ByteArray> *unpacked,
                                std::vector<std::string> *hashes = nullptr);
 // Append the bytes from 'hash' to 'ba'.
