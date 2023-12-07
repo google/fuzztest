@@ -14,16 +14,18 @@
 
 #include "./centipede/symbol_table.h"
 
-#include <sstream>
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
+#include "riegeli/bytes/string_reader.h"
+#include "riegeli/bytes/string_writer.h"
 
 namespace centipede {
 namespace {
 
 TEST(SymbolTableTest, SerializesAndDeserializesCorrectly) {
-  std::string input =
+  const std::string_view input =
       R"(FunctionOne
     source/location/one.cc:1:0
 
@@ -31,30 +33,26 @@ TEST(SymbolTableTest, SerializesAndDeserializesCorrectly) {
     source/location/two.cc:2:0
 
 )";
-  std::istringstream input_stream(input);
   SymbolTable symbol_table;
+  symbol_table.ReadFromLLVMSymbolizer(riegeli::StringReader(input));
 
-  symbol_table.ReadFromLLVMSymbolizer(input_stream);
-
-  std::ostringstream output_stream;
-  symbol_table.WriteToLLVMSymbolizer(output_stream);
-  EXPECT_EQ(input, output_stream.str());
+  std::string output;
+  symbol_table.WriteToLLVMSymbolizer(riegeli::StringWriter(&output));
+  EXPECT_EQ(input, output);
 }
 
 TEST(SymbolTableTest, SerializesAndDeserializesCorrectlyWithUnknownFile) {
-  std::string input =
+  const std::string_view input =
       R"(?
     ?
 
 )";
-  std::istringstream input_stream(input);
   SymbolTable symbol_table;
+  symbol_table.ReadFromLLVMSymbolizer(riegeli::StringReader(input));
 
-  symbol_table.ReadFromLLVMSymbolizer(input_stream);
-
-  std::ostringstream output_stream;
-  symbol_table.WriteToLLVMSymbolizer(output_stream);
-  EXPECT_EQ(input, output_stream.str());
+  std::string output;
+  symbol_table.WriteToLLVMSymbolizer(riegeli::StringWriter(&output));
+  EXPECT_EQ(input, output);
 }
 
 }  // namespace

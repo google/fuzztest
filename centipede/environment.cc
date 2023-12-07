@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -32,6 +33,7 @@
 #include "./centipede/knobs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "riegeli/bytes/read_all.h"
 
 namespace centipede {
 
@@ -189,14 +191,11 @@ void Environment::UpdateForExperiment() {
 void Environment::ReadKnobsFileIfSpecified() {
   const std::string_view knobs_file_path = knobs_file;
   if (knobs_file_path.empty()) return;
-  ByteArray knob_bytes;
-  auto *f = RemoteFileOpen(knobs_file, "r");
-  CHECK(f) << "Failed to open remote file " << knobs_file;
-  RemoteFileRead(f, knob_bytes);
-  RemoteFileClose(f);
+  std::string knob_bytes;
+  CHECK_OK(riegeli::ReadAll(CreateRiegeliFileReader(knobs_file), knob_bytes));
   VLOG(1) << "Knobs: " << knob_bytes.size() << " knobs read from "
           << knobs_file;
-  knobs.Set(knob_bytes);
+  knobs.Set(AsByteSpan(knob_bytes));
   knobs.ForEachKnob([](std::string_view name, Knobs::value_type value) {
     VLOG(1) << "knob " << name << ": " << static_cast<uint32_t>(value);
   });

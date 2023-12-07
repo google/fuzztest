@@ -132,9 +132,13 @@ cc_library(
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_riegeli//riegeli/base:any_dependency",
+        "@com_google_riegeli//riegeli/bytes:fd_reader",
+        "@com_google_riegeli//riegeli/bytes:reader",
+        "@com_google_riegeli//riegeli/bytes:writer",
+        "@com_google_riegeli//riegeli/lines:line_reading",
     ],
 )
 
@@ -165,11 +169,7 @@ cc_library(
     srcs = ["pc_info.cc"],
     hdrs = ["pc_info.h"],
     visibility = PUBLIC_API_VISIBILITY,
-    deps = [
-        ":defs",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/types:span",
-    ],
+    deps = ["@com_google_absl//absl/log:check"],
 )
 
 cc_library(
@@ -242,6 +242,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
+        "@com_google_riegeli//riegeli/bytes:read_all",
+        "@com_google_riegeli//riegeli/bytes:write",
     ],
 )
 
@@ -290,6 +292,9 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_riegeli//riegeli/bytes:fd_writer",
+        "@com_google_riegeli//riegeli/bytes:read_all",
+        "@com_google_riegeli//riegeli/bytes:write",
     ],
 )
 
@@ -352,6 +357,9 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_riegeli//riegeli/bytes:writer",
+        "@com_google_riegeli//riegeli/csv:csv_record",
+        "@com_google_riegeli//riegeli/csv:csv_writer",
     ],
 )
 
@@ -413,6 +421,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_riegeli//riegeli/base:object",
+        "@com_google_riegeli//riegeli/bytes:read_all",
         "@com_google_riegeli//riegeli/bytes:reader",
         "@com_google_riegeli//riegeli/bytes:writer",
         "@com_google_riegeli//riegeli/records:record_reader",
@@ -507,16 +516,18 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
-        ":defs",
         ":feature",
         ":logging",
+        ":pc_info",
         ":symbol_table",
-        ":util",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@com_google_riegeli//riegeli/base:any_dependency",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
+        "@com_google_riegeli//riegeli/bytes:writer",
     ],
 )
 
@@ -569,7 +580,6 @@ cc_library(
     srcs = ["remote_file.cc"],
     hdrs = ["remote_file.h"],
     deps = [
-        ":defs",
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -613,6 +623,8 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_riegeli//riegeli/base:any_dependency",
+        "@com_google_riegeli//riegeli/bytes:writer",
     ],
 )
 
@@ -647,6 +659,7 @@ cc_library(
         ":call_graph",
         ":command",
         ":control_flow",
+        ":logging",
         ":pc_info",
         ":remote_file",
         ":symbol_table",
@@ -654,6 +667,8 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_riegeli//riegeli/bytes:reader_istream",
+        "@com_google_riegeli//riegeli/bytes:writer_ostream",
     ],
 )
 
@@ -777,6 +792,9 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_riegeli//riegeli/bytes:read_all",
+        "@com_google_riegeli//riegeli/bytes:write",
+        "@com_google_riegeli//riegeli/bytes:writer",
     ],
 )
 
@@ -838,6 +856,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_riegeli//riegeli/bytes:read_all",
     ],
 )
 
@@ -1060,6 +1079,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_protobuf//:protobuf",
+        "@com_google_riegeli//riegeli/bytes:read_all",
     ],
 )
 
@@ -1129,6 +1149,7 @@ cc_test(
         ":symbol_table",
         ":test_util",
         "@com_google_googletest//:gtest_main",
+        "@com_google_riegeli//riegeli/bytes:string_reader",
     ],
 )
 
@@ -1186,6 +1207,8 @@ cc_test(
     deps = [
         ":symbol_table",
         "@com_google_googletest//:gtest_main",
+        "@com_google_riegeli//riegeli/bytes:string_reader",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
     ],
 )
 
@@ -1301,6 +1324,7 @@ cc_test(
         ":stats",
         ":test_util",
         ":util",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:log_entry",
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/log:log_sink_registry",
@@ -1482,12 +1506,16 @@ cc_test(
     name = "corpus_test",
     srcs = ["corpus_test.cc"],
     deps = [
+        ":binary_info",
+        ":call_graph",
         ":control_flow",
         ":corpus",
         ":defs",
         ":feature",
         ":feature_set",
+        ":pc_info",
         "@com_google_googletest//:gtest_main",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
     ],
 )
 
@@ -1635,20 +1663,23 @@ cc_test(
     tags = ["not_run:arm"],
     deps = [
         ":binary_info",
-        ":centipede_interface",
+        ":centipede_callbacks",
         ":control_flow",
         ":coverage",
         ":defs",
         ":environment",
         ":feature",
-        ":logging",
+        ":mutation_input",
         ":pc_info",
         ":runner_result",
         ":symbol_table",
         ":test_util",
         ":util",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@com_google_riegeli//riegeli/bytes:string_reader",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
     ],
 )

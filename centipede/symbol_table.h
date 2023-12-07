@@ -16,22 +16,18 @@
 #define THIRD_PARTY_CENTIPEDE_SYMBOL_TABLE_H_
 
 #include <cstddef>
-#include <istream>
-#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -69,11 +65,11 @@ class SymbolTable {
   //   SourceCodeLocation
   //   <empty line>
   // If called multiple times, this function will append symbols to `this`.
-  void ReadFromLLVMSymbolizer(std::istream &in);
+  void ReadFromLLVMSymbolizer(riegeli::AnyDependencyRef<riegeli::Reader *> in);
 
-  // Writes the contents of `this` to `path` in the same format as read by
+  // Writes the contents of `this` to `out` in the same format as read by
   // `ReadFromLLVMSymbolizer`.
-  void WriteToLLVMSymbolizer(std::ostream &out);
+  void WriteToLLVMSymbolizer(riegeli::AnyDependencyRef<riegeli::Writer *> out);
 
   // Invokes `symbolizer_path --no-inlines` on all binaries from `dso_table`,
   // pipes through it all PCs in pc_table that correspond to each of the

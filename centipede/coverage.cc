@@ -17,17 +17,24 @@
 #include <string.h>
 
 #include <cstdint>
-#include <filesystem>
 #include <limits>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
-#include "./centipede/defs.h"
+#include "./centipede/control_flow.h"
+#include "./centipede/feature.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
-#include "./centipede/util.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/string_writer.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -82,26 +89,28 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
   }
 }
 
-void Coverage::Print(const SymbolTable &symbols, std::ostream &out) {
+void Coverage::Print(const SymbolTable &symbols,
+                     riegeli::AnyDependencyRef<riegeli::Writer *> out) {
   // Print symbolized function names for all covered functions.
   for (auto pc_index : fully_covered_funcs) {
-    out << "FULL: " << symbols.full_description(pc_index) << "\n";
+    out->Write("FULL: ", symbols.full_description(pc_index), '\n');
   }
   // Same for uncovered functions.
   for (auto pc_index : uncovered_funcs) {
-    out << "NONE: " << symbols.full_description(pc_index) << "\n";
+    out->Write("NONE: ", symbols.full_description(pc_index), '\n');
   }
   // For every partially covered function, first print its name,
   // then print its covered edges, then uncovered edges.
   for (auto &pcf : partially_covered_funcs) {
-    out << "PARTIAL: " << symbols.full_description(pcf.covered[0]) << "\n";
+    out->Write("PARTIAL: ", symbols.full_description(pcf.covered[0]), '\n');
     for (auto pc_index : pcf.covered) {
-      out << "  + " << symbols.full_description(pc_index) << "\n";
+      out->Write("  + ", symbols.full_description(pc_index), '\n');
     }
     for (auto pc_index : pcf.uncovered) {
-      out << "  - " << symbols.full_description(pc_index) << "\n";
+      out->Write("  - ", symbols.full_description(pc_index), '\n');
     }
   }
+  if (out.is_owning()) CHECK(out->Close()) << VV(out->status());
 }
 
 //---------------------- NewCoverageLogger
@@ -109,16 +118,18 @@ std::string CoverageLogger::ObserveAndDescribeIfNew(PCIndex pc_index) {
   if (pc_table_.empty()) return "";  // Fast-path return (symbolization is off).
   absl::MutexLock l(&mu_);
   if (!observed_indices_.insert(pc_index).second) return "";
-  std::ostringstream os;
+  riegeli::StringWriter out;
   if (pc_index >= pc_table_.size()) {
-    os << "FUNC/EDGE index: " << pc_index;
+    out.Write("FUNC/EDGE index: ", pc_index);
+    out.Close();
   } else {
-    os << (pc_table_[pc_index].has_flag(PCInfo::kFuncEntry) ? "FUNC: "
-                                                            : "EDGE: ");
-    os << symbols_.full_description(pc_index);
-    if (!observed_descriptions_.insert(os.str()).second) return "";
+    out.Write(
+        pc_table_[pc_index].has_flag(PCInfo::kFuncEntry) ? "FUNC: " : "EDGE: ",
+        symbols_.full_description(pc_index));
+    out.Close();
+    if (!observed_descriptions_.insert(out.dest()).second) return "";
   }
-  return os.str();
+  return std::move(out.dest());
 }
 
 FunctionFilter::FunctionFilter(std::string_view functions_to_filter,

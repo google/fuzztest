@@ -52,6 +52,7 @@
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "google/protobuf/text_format.h"
+#include "riegeli/bytes/read_all.h"
 
 // TODO(ussuri): Implement a smarter on-the-fly sampling to avoid having to
 //  load all of a source's elements into RAM only to pick some of them. That
@@ -76,7 +77,8 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
     LOG(INFO) << "Config spec points at an existing file; trying to parse "
                  "textproto config from it: "
               << VV(config_spec);
-    RemoteFileGetContents(config_spec, config_str);
+    CHECK_OK(
+        riegeli::ReadAll(CreateRiegeliFileReader(config_spec), config_str));
     LOG(INFO) << "Raw config read from file:\n" << config_str;
     base_dir = std::filesystem::path{config_spec}.parent_path();
   } else {

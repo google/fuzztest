@@ -1,5 +1,4 @@
 // Copyright 2022 The Centipede Authors.
-//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +18,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -29,7 +29,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
-#include "./centipede/remote_file.h"
+#include "riegeli/csv/csv_record.h"
+#include "riegeli/csv/csv_writer.h"
 
 namespace centipede {
 
@@ -195,6 +196,11 @@ class StatsCsvFileAppender : public StatsReporter {
   ~StatsCsvFileAppender() override;
 
  private:
+  struct CsvWriterWithRecord {
+    std::unique_ptr<riegeli::CsvWriterBase> csv_writer;
+    std::vector<std::string> record;
+  };
+
   void PreAnnounceFields(
       std::initializer_list<Stats::FieldInfo> fields) override;
   void SetCurrGroup(const Environment &master_env) override;
@@ -203,9 +209,10 @@ class StatsCsvFileAppender : public StatsReporter {
   void DoneFieldSamplesBatch() override;
   void ReportFlags(const GroupToFlags &group_to_flags) override;
 
-  std::string csv_header_;
-  absl::flat_hash_map<std::string /*group_name*/, RemoteFile *> files_;
-  RemoteFile *curr_file_;
+  riegeli::CsvHeader csv_header_;
+  absl::flat_hash_map<std::string /*group_name*/, CsvWriterWithRecord>
+      csv_writers_;
+  CsvWriterWithRecord *curr_csv_writer_;
   Stats::FieldInfo curr_field_info_;
 };
 

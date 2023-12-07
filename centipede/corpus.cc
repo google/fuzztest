@@ -17,8 +17,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,6 +33,8 @@
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/util.h"
+#include "riegeli/base/any_dependency.h"
+#include "riegeli/bytes/writer.h"
 
 namespace centipede {
 
@@ -130,25 +132,27 @@ const CorpusRecord &Corpus::UniformRandom(size_t random) const {
   return records_[random % records_.size()];
 }
 
-void Corpus::PrintStats(std::ostream &out, const FeatureSet &fs) {
-  out << "{\n";
-  out << "  \"num_inputs\": " << records_.size() << ",\n";
-  out << "  \"corpus_stats\": [\n";
-  std::string before_record;
+void Corpus::PrintStats(const FeatureSet &fs,
+                        riegeli::AnyDependencyRef<riegeli::Writer *> out) {
+  out->Write("{\n");
+  out->Write("  \"num_inputs\": ", records_.size(), ",\n");
+  out->Write("  \"corpus_stats\": [\n");
+  std::string_view before_record;
   for (const auto &record : records_) {
-    out << before_record;
+    out->Write(before_record);
     before_record = ",\n";
-    out << "    {\"size\": " << record.data.size() << ", ";
-    out << "\"frequencies\": [";
-    std::string before_feature;
+    out->Write("    {\"size\": ", record.data.size(), ", ");
+    out->Write("\"frequencies\": [");
+    std::string_view before_feature;
     for (const auto feature : record.features) {
-      out << before_feature;
+      out->Write(before_feature);
       before_feature = ", ";
-      out << fs.Frequency(feature);
+      out->Write(fs.Frequency(feature));
     }
-    out << "]}";
+    out->Write("]}");
   }
-  out << "\n  ]\n}\n";
+  out->Write("\n  ]\n}\n");
+  if (out.is_owning()) CHECK(out->Close()) << VV(out->status());
 }
 
 std::string Corpus::MemoryUsageString() const {
