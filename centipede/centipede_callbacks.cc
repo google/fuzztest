@@ -133,7 +133,9 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
 
   // Allow for the time it takes to fork a subprocess etc.
   const auto amortized_timeout =
-      absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
+      env_.timeout_per_batch == 0
+          ? absl::InfiniteDuration()
+          : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   Command &cmd = commands_.emplace_back(Command(
       /*path=*/binary, /*args=*/{},
       /*env=*/env,
