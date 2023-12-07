@@ -425,6 +425,7 @@ cc_library(
     srcs = ["shared_memory_blob_sequence.cc"],
     hdrs = ["shared_memory_blob_sequence.h"],
     linkopts = ["-lrt"],  # for shm_open.
+    visibility = PUBLIC_API_VISIBILITY,
     # don't add any dependencies.
 )
 
