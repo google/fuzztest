@@ -40,58 +40,79 @@ namespace centipede {
 // hence the use of atomics.
 // These objects may also be accessed after all worker threads have joined.
 struct Stats {
-  std::atomic<uint64_t> timestamp_unix_micros;
-  std::atomic<uint64_t> num_executions;
-  std::atomic<uint64_t> num_covered_pcs;
-  std::atomic<uint64_t> active_corpus_size;
-  std::atomic<uint64_t> max_corpus_element_size;
-  std::atomic<uint64_t> avg_corpus_element_size;
+  std::atomic<uint64_t> timestamp_unix_micros = 0;
+  std::atomic<uint64_t> num_executions = 0;
+  std::atomic<uint64_t> num_covered_pcs = 0;
+  std::atomic<uint64_t> active_corpus_size = 0;
+  std::atomic<uint64_t> max_corpus_element_size = 0;
+  std::atomic<uint64_t> avg_corpus_element_size = 0;
 
-  enum class Aggregation { kMinMaxAvg, kMinMax };
-
-  struct FieldInfo {
-    std::atomic<uint64_t> Stats::*field;
-    std::string_view name;
-    std::string_view description;
-    Aggregation aggregation;
+  // Some traits of each stat.
+  using Traits = uint32_t;
+  enum TraitBits : Traits {
+    // The kind of the stat.
+    kTimestamp = 1UL << 0,
+    kFuzzStat = 1UL << 1,
+    // The aggregate value(s) to report for the stat.
+    kMin = 1UL << 8,
+    kMax = 1UL << 9,
+    kAvg = 1UL << 10,
   };
 
+  // Ascribes some properties to each stat. Used in `StatReporter` & subclasses.
+  struct FieldInfo {
+    std::atomic<uint64_t> Stats::*field;
+    // The machine-readable name of the field. Used in the CSV header.
+    std::string_view name;
+    // The human-readable description of the field. Used in logging.
+    std::string_view description;
+    Traits traits;
+  };
+
+  // WARNING!!! Before reordering these or changing the aggregation types,
+  // consider the backward compatibility  implications for historical CSVs out
+  // there: if some end-user has a CSV post-processing step that relies on the
+  // old order or the aggregation type of the CSV fields, that step will break
+  // if either of those things change; if the post-processing step relies on the
+  // field names in the CSV header, than might break if those names change; etc.
+  // In other words: do not change the names or the order of the old fields
+  // without a very good reason.
   static constexpr std::initializer_list<FieldInfo> kFieldInfos = {
       {
           &Stats::num_covered_pcs,
           "NumCoveredPcs",
           "Coverage",
-          Aggregation::kMinMaxAvg,
+          kFuzzStat | kMin | kMax | kAvg,
       },
       {
           &Stats::num_executions,
           "NumExecs",
           "Number of executions",
-          Aggregation::kMinMaxAvg,
+          kFuzzStat | kMin | kMax | kAvg,
       },
       {
           &Stats::active_corpus_size,
           "ActiveCorpusSize",
           "Active corpus size",
-          Aggregation::kMinMaxAvg,
+          kFuzzStat | kMin | kMax | kAvg,
       },
       {
           &Stats::max_corpus_element_size,
           "MaxEltSize",
           "Max element size",
-          Aggregation::kMinMaxAvg,
+          kFuzzStat | kMin | kMax | kAvg,
       },
       {
           &Stats::avg_corpus_element_size,
           "AvgEltSize",
           "Avg element size",
-          Aggregation::kMinMaxAvg,
+          kFuzzStat | kMin | kMax | kAvg,
       },
       {
           &Stats::timestamp_unix_micros,
           "UnixMicros",
           "Timestamp",
-          Aggregation::kMinMax,
+          kTimestamp | kMin | kMax,
       },
   };
 };
@@ -126,6 +147,11 @@ class StatsReporter {
   // `ReportCurrStats()`, that subclasses need to override to implement their
   // stats reporting.
 
+  // Should this field be reported or skipped for the particular type of
+  // reporting that the subclass does. Can use `field.traits` to determine that.
+  virtual bool ShouldReportThisField(const Stats::FieldInfo &field) {
+    return true;
+  }
   // Gives a chance to subclasses to learn ahead of time the fields for which
   // samples are going to be reported, in this order. Is called once.
   virtual void PreAnnounceFields(
@@ -171,6 +197,7 @@ class StatsLogger : public StatsReporter {
   ~StatsLogger() override = default;
 
  private:
+  bool ShouldReportThisField(const Stats::FieldInfo &field) override;
   void PreAnnounceFields(
       std::initializer_list<Stats::FieldInfo> fields) override;
   void SetCurrGroup(const Environment &master_env) override;
@@ -180,6 +207,7 @@ class StatsLogger : public StatsReporter {
   void ReportFlags(const GroupToFlags &group_to_flags) override;
 
   std::stringstream os_;
+  std::string curr_experiment_name_;
   Stats::FieldInfo curr_field_info_;
 };
 
