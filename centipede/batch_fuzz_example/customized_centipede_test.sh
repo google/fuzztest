@@ -44,4 +44,10 @@ batch_fuzz() {
 centipede::run_some_fuzzing batch_fuzz
 centipede::test_crashing_target batch_fuzz "foo" "fuz" "Catch you"
 
+CENTIPEDE_RUNNER_FLAGS=":use_pc_features:use_cmp_features" \
+centipede::test_replaying_target batch_fuzz "Ratio of inputs with features: 2/2" "foo" "foo"
+
+export CENTIPEDE_RUNNER_FLAGS=":use_pc_features:use_cmp_features:skip_seen_features:"
+centipede::test_replaying_target batch_fuzz "Ratio of inputs with features: 1/2" "foo" "foo"
+
 echo "PASS"

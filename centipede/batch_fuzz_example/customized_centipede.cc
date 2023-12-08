@@ -16,6 +16,8 @@
 
 #include <sys/types.h>
 
+#include <cstddef>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
@@ -50,6 +52,16 @@ bool UpdateBatchResult(absl::string_view output_file,
   LOG(ERROR) << "Failed to read blob sequence from file: " << output_file;
   return false;
 }
+
+void DumpBatchResultStats(const BatchResult& batch_result) {
+  size_t num_results_with_features = 0;
+  for (const ExecutionResult& result : batch_result.results()) {
+    if (!result.features().empty()) ++num_results_with_features;
+  }
+  LOG(INFO) << "Ratio of inputs with features: " << num_results_with_features
+            << "/" << batch_result.results().size();
+}
+
 }  // namespace
 
 bool CustomizedCallbacks::Execute(std::string_view binary,
@@ -77,10 +89,17 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
   const std::string tmp_log_filepath =
       std::filesystem::path(temp_dir).append("tmp_log");
 
+  // Loads runner flags from `env_` unless they are explicitly specified through
+  // the CENTIPEDE_RUNNER_FLAGS environment variable, as used in shell testing.
+  std::vector<std::string> env;
+  if (getenv("CENTIPEDE_RUNNER_FLAGS") == nullptr) {
+    env = {ConstructRunnerFlags()};
+  }
+
   // Execute.
   Command cmd{env_.binary,
               {input_list_filepath, tmp_output_filepath},
-              /*env=*/{ConstructRunnerFlags()},
+              env,
               tmp_log_filepath,
               tmp_log_filepath};
   const int retval = cmd.Execute();
@@ -91,6 +110,7 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
 
   batch_result.ClearAndResize(inputs.size());
   CHECK(UpdateBatchResult(tmp_output_filepath, batch_result));
+  DumpBatchResultStats(batch_result);
   return retval == 0;
 }
 
