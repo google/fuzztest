@@ -201,18 +201,21 @@ static void CheckWatchdogLimits() {
     uint64_t limit;
     const char *failure;
   };
+  const uint64_t input_start_time = state.input_start_time;
+  const uint64_t batch_start_time = state.batch_start_time;
+  if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
       {
           .what = "Per-input timeout",
           .units = "sec",
-          .value = curr_time - state.input_start_time,
+          .value = curr_time - input_start_time,
           .limit = state.run_time_flags.timeout_per_input,
           .failure = kExecutionFailurePerInputTimeout.data(),
       },
       {
           .what = "Per-batch timeout",
           .units = "sec",
-          .value = curr_time - state.batch_start_time,
+          .value = curr_time - batch_start_time,
           .limit = state.run_time_flags.timeout_per_batch,
           .failure = kExecutionFailurePerBatchTimeout.data(),
       },
@@ -1062,9 +1065,33 @@ extern "C" __attribute__((weak)) const char *CentipedeGetRunnerFlags() {
   return nullptr;
 }
 
-extern "C" void CentipedePrepareProcessing() {
-  // TODO(kcc): full_clear=true is expensive - performance may suffer.
+static std::atomic<bool> in_execution_batch = false;
+
+extern "C" void CentipedeBeginExecutionBatch() {
+  if (in_execution_batch) {
+    fprintf(stderr,
+            "CentipedeBeginExecutionBatch called twice without calling "
+            "CentipedeEndExecutionBatch in between\n");
+    _exit(EXIT_FAILURE);
+  }
+  in_execution_batch = true;
   centipede::PrepareCoverage(/*full_clear=*/true);
+}
+
+extern "C" void CentipedeEndExecutionBatch() {
+  if (!in_execution_batch) {
+    fprintf(stderr,
+            "CentipedeEndExecutionBatch called without calling "
+            "CentipedeBeginExecutionBatch before\n");
+    _exit(EXIT_FAILURE);
+  }
+  in_execution_batch = false;
+  centipede::state.input_start_time = 0;
+  centipede::state.batch_start_time = 0;
+}
+
+extern "C" void CentipedePrepareProcessing() {
+  centipede::PrepareCoverage(/*full_clear=*/!in_execution_batch);
 }
 
 extern "C" void CentipedeFinalizeProcessing() {
