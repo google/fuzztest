@@ -26,6 +26,8 @@
 namespace centipede {
 namespace {
 
+using ::testing::Pointwise;
+
 // Simple test, calls OnFunctionEntry with fake sp values.
 TEST(CallStack, SimpleTest) {
   static CallStack<> cs;  // CallStack should be global/tls only.
@@ -109,6 +111,13 @@ __attribute__((noinline)) void Func0() {
   BreakOptimization(0);
 }
 
+// A 2-tuple matcher conversion of `::testing::IsSupersetOf`.
+MATCHER(IsSupersetOf, "") {
+  auto [actual, expected] = arg;
+  return ::testing::ExplainMatchResult(::testing::IsSupersetOf(expected),
+                                       actual, result_listener);
+}
+
 // This test actually creates a function call tree, and calls OnFunctionEntry
 // with real sp values (and fake PCs).
 TEST(CallStack, RealCallsTest) {
@@ -121,7 +130,12 @@ TEST(CallStack, RealCallsTest) {
   std::vector<TestCallstack> expected_test_callstacks = {
       {0, 1, 2, 3}, {0, 1, 2, 3}, {0, 1, 3}, {0, 2, 3}, {0, 2, 3}, {1, 2, 3},
       {1, 2, 3},    {1, 3},       {2, 3},    {2, 3},    {3}};
-  EXPECT_EQ(g_test_callstacks, expected_test_callstacks);
+
+  // Each computed callstack should correctly include every function on the
+  // callstack. It may also contain some additional spurious functions - these
+  // are ones that have exited but not yet removed.
+  EXPECT_THAT(g_test_callstacks,
+              Pointwise(IsSupersetOf(), expected_test_callstacks));
 }
 
 // Tests deep recursion.

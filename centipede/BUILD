@@ -1463,7 +1463,6 @@ cc_test(
 cc_test(
     name = "callstack_test",
     srcs = ["callstack_test.cc"],
-    tags = ["not_run:arm"],
     deps = [
         ":callstack",
         ":defs",
