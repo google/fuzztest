@@ -997,6 +997,7 @@ RUNNER_LINKOPTS = [
 RUNNER_DEPS = [
     "@com_google_absl//absl/types:span",
     "@com_google_absl//absl/base:core_headers",
+    "@com_google_absl//absl/numeric:bits",
 ]
 
 # A fuzz target needs to link with this library in order to run with Centipede.

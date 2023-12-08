@@ -26,6 +26,7 @@
 #include <cstdlib>
 
 #include "absl/base/const_init.h"
+#include "absl/numeric/bits.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/callstack.h"
 #include "./centipede/concurrent_bitset.h"
@@ -66,6 +67,7 @@ struct RunTimeFlags {
   uint64_t timeout_per_batch;
   uint64_t rss_limit_mb;
   uint64_t crossover_level;
+  uint64_t skip_seen_features : 1;
 };
 
 // One such object is created in runner's TLS.
@@ -156,7 +158,8 @@ struct GlobalRunnerState {
       .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
       .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
-      .crossover_level = HasIntFlag(":crossover_level=", 50)};
+      .crossover_level = HasIntFlag(":crossover_level=", 50),
+      .skip_seen_features = HasFlag(":skip_seen_features:")};
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
@@ -312,6 +315,11 @@ struct GlobalRunnerState {
   static const size_t kMaxFeatures = 1 << 20;
   // FeatureArray used to accumulate features from all sources.
   FeatureArray<kMaxFeatures> g_features;
+
+  // Features that were seen before.
+  static constexpr size_t kSeenFeatureSetSize =
+      absl::bit_ceil(feature_domains::kLastDomain.end());
+  ConcurrentBitSet<kSeenFeatureSetSize> seen_features{absl::kConstInit};
 };
 
 extern GlobalRunnerState state;

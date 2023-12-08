@@ -377,15 +377,24 @@ PrepareCoverage(bool full_clear) {
   state.sancov_objects.ClearInlineCounters();
 }
 
+static void MaybeAddFeature(feature_t feature) {
+  if (!state.run_time_flags.skip_seen_features) {
+    state.g_features.push_back(feature);
+  } else if (!state.seen_features.get(feature)) {
+    state.g_features.push_back(feature);
+    state.seen_features.set(feature);
+  }
+}
+
 // Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
 // `idx` is a pc_index.
 // `counter_value` (non-zero) is a counter value associated with that PC.
 static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
   if (state.run_time_flags.use_pc_features) {
-    state.g_features.push_back(feature_domains::kPCs.ConvertToMe(idx));
+    MaybeAddFeature(feature_domains::kPCs.ConvertToMe(idx));
   }
   if (state.run_time_flags.use_counter_features) {
-    state.g_features.push_back(feature_domains::k8bitCounters.ConvertToMe(
+    MaybeAddFeature(feature_domains::k8bitCounters.ConvertToMe(
         Convert8bitCounterToNumber(idx, counter_value)));
   }
 }
@@ -414,7 +423,7 @@ PostProcessCoverage(int target_return_value) {
   // Convert data flow bit set to features.
   if (state.run_time_flags.use_dataflow_features) {
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kDataFlow.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kDataFlow.ConvertToMe(idx));
     });
   }
 
@@ -422,27 +431,26 @@ PostProcessCoverage(int target_return_value) {
   if (state.run_time_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCMP.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCMP.ConvertToMe(idx));
     });
     state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCMPEq.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCMPEq.ConvertToMe(idx));
     });
     state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCMPModDiff.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCMPModDiff.ConvertToMe(idx));
     });
     state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCMPHamming.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCMPHamming.ConvertToMe(idx));
     });
     state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCMPDiffLog.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCMPDiffLog.ConvertToMe(idx));
     });
   }
 
   // Convert path bit set to features.
   if (state.run_time_flags.path_level != 0) {
     state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(
-          feature_domains::kBoundedPath.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
 
@@ -452,14 +460,13 @@ PostProcessCoverage(int target_return_value) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-      state.g_features.push_back(
-          feature_domains::kCallStack.ConvertToMe(sp_diff));
+      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
   });
 
   if (state.run_time_flags.callstack_level != 0) {
     state.callstack_set.ForEachNonZeroBit([](size_t idx) {
-      state.g_features.push_back(feature_domains::kCallStack.ConvertToMe(idx));
+      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(idx));
     });
   }
 
@@ -475,9 +482,8 @@ PostProcessCoverage(int target_return_value) {
       // available. If a user domain ID is out of range, alias it to an existing
       // domain. This is kinder than silently dropping the feature.
       user_domain_id %= std::size(feature_domains::kUserDomains);
-      state.g_features.push_back(
-          feature_domains::kUserDomains[user_domain_id].ConvertToMe(
-              user_feature_id));
+      MaybeAddFeature(feature_domains::kUserDomains[user_domain_id].ConvertToMe(
+          user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
   }
