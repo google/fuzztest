@@ -63,6 +63,14 @@ extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 // Reconfigures the RSS limit to `rss_limit_mb` - 0 indicates no limit.
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb);
 
+// An overridable function to get the runner flags for configuring the runner
+// during the initialization. The default implementation (as a weak function)
+// gets the flags from CENTIPEDE_RUNNER_FLAGS env var.
+//
+// It should return either a nullptr or a constant string that is valid
+// throughout the entire process life-time.
+extern "C" const char *CentipedeGetRunnerFlags();
+
 // Resets the internal state of the runner to process a new input.
 extern "C" void CentipedePrepareProcessing();
 

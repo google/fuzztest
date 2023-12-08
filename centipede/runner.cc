@@ -1056,6 +1056,12 @@ extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
   centipede::state.run_time_flags.rss_limit_mb = rss_limit_mb;
 }
 
+extern "C" __attribute__((weak)) const char *CentipedeGetRunnerFlags() {
+  if (const char *runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
+    return strdup(runner_flags_env);
+  return nullptr;
+}
+
 extern "C" void CentipedePrepareProcessing() {
   // TODO(kcc): full_clear=true is expensive - performance may suffer.
   centipede::PrepareCoverage(/*full_clear=*/true);

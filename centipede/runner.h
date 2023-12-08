@@ -38,6 +38,7 @@
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_sancov_object.h"
 
@@ -130,20 +131,16 @@ struct GlobalRunnerState {
   GlobalRunnerState();
   ~GlobalRunnerState();
 
-  // Runner reads flags from a dedicated env var, CENTIPEDE_RUNNER_FLAGS.
-  // We don't use flags passed via argv so that argv flags can be passed
-  // directly to LLVMFuzzerInitialize, w/o filtering. The flags passed in
-  // CENTIPEDE_RUNNER_FLAGS are separated with ':' on both sides, i.e. like
-  // this: CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:". We do it this way to make the
-  // flag parsing code extremely simple. The interface is private between
-  // Centipede and the runner and may change.
+  // Runner reads flags from CentipedeGetRunnerFlags(). We don't use flags
+  // passed via argv so that argv flags can be passed directly to
+  // LLVMFuzzerInitialize, w/o filtering. The flags are separated with
+  // ':' on both sides, i.e. like this: ":flag1:flag2:flag3=value3".
+  // We do it this way to make the flag parsing code extremely simple. The
+  // interface is private between Centipede and the runner and may change.
   //
   // Note that this field reflects the initial runner flags. But some
   // flags can change later (if wrapped with std::atomic).
-  const char *centipede_runner_flags =
-      getenv("CENTIPEDE_RUNNER_FLAGS")
-          ? strdup(getenv("CENTIPEDE_RUNNER_FLAGS"))
-          : nullptr;
+  const char *centipede_runner_flags = CentipedeGetRunnerFlags();
   const char *arg1 = GetStringFlag(":arg1=");
   const char *arg2 = GetStringFlag(":arg2=");
   const char *arg3 = GetStringFlag(":arg3=");
