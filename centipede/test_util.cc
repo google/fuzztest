@@ -14,6 +14,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #include "absl/strings/str_cat.h"
@@ -55,6 +56,18 @@ std::filesystem::path GetDataDependencyFilepath(std::string_view rel_path) {
   CHECK(std::filesystem::exists(path))  //
       << "No such path: " << VV(path) << VV(runfiles_dir) << VV(rel_path);
   return path;
+}
+
+std::string GetLLVMSymbolizerPath() {
+  CHECK_EQ(system("which llvm-symbolizer"), EXIT_SUCCESS)
+      << "llvm-symbolizer has to be installed and findable via PATH";
+  return "llvm-symbolizer";
+}
+
+std::string GetObjDumpPath() {
+  CHECK_EQ(system("which objdump"), EXIT_SUCCESS)
+      << "objdump has to be installed and findable via PATH";
+  return "objdump";
 }
 
 void PrependDirToPathEnvvar(std::string_view dir) {

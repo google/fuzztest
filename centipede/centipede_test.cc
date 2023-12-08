@@ -562,11 +562,8 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   env.coverage_binary = env.binary;
   // Must symbolize in order for the filter to work.
-  CHECK_EQ(system("which llvm-symbolizer"), EXIT_SUCCESS)
-      << "llvm-symbolizer should be installed and findable via PATH";
-  CHECK_EQ(system("which objdump"), EXIT_SUCCESS)
-      << "odjdump should be installed and findable via PATH";
-  env.objdump_path = "objdump";
+  env.symbolizer_path = GetLLVMSymbolizerPath();
+  env.objdump_path = GetObjDumpPath();
   env.log_level = 0;
   env.function_filter = function_filter;
   FunctionFilterMock mock(env);

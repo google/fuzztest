@@ -50,6 +50,12 @@ std::filesystem::path GetTestRunfilesDir();
 // Returns the filepath of a test's data dependency file.
 std::filesystem::path GetDataDependencyFilepath(std::string_view rel_path);
 
+// Returns a path to `llvm-symbolizer` binary.
+std::string GetLLVMSymbolizerPath();
+
+// Returns a path to `objdump` binary.
+std::string GetObjDumpPath();
+
 // Resets the PATH envvar to "`dir`:$PATH".
 void PrependDirToPathEnvvar(std::string_view dir);
 

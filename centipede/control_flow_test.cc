@@ -183,20 +183,6 @@ static std::string GetTracePCTargetPath() {
       "centipede/testing/test_fuzz_target_trace_pc");
 }
 
-// Returns path to llvm-symbolizer.
-static std::string GetLLVMSymbolizerPath() {
-  CHECK_EQ(system("which llvm-symbolizer"), EXIT_SUCCESS)
-      << "llvm-symbolizer has to be installed and findable via PATH";
-  return "llvm-symbolizer";
-}
-
-// Returns path to objdump.
-static std::string GetObjDumpPath() {
-  CHECK_EQ(system("which objdump"), EXIT_SUCCESS)
-      << "objdump has to be installed and findable via PATH";
-  return "objdump";
-}
-
 // Tests GetCfTableFromBinary() on test_fuzz_target.
 TEST(CFTable, GetCfTable) {
   auto target_path = GetTargetPath();

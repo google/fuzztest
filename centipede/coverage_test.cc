@@ -191,20 +191,6 @@ static std::string GetThreadedTargetPath() {
   return GetDataDependencyFilepath("centipede/testing/threaded_fuzz_target");
 }
 
-// Returns path to llvm-symbolizer.
-static std::string GetLLVMSymbolizerPath() {
-  CHECK_EQ(system("which llvm-symbolizer"), EXIT_SUCCESS)
-      << "llvm-symbolizer has to be installed and findable via PATH";
-  return "llvm-symbolizer";
-}
-
-// Returns path to objdump.
-static std::string GetObjDumpPath() {
-  CHECK_EQ(system("which objdump"), EXIT_SUCCESS)
-      << "objdump has to be installed and findable via PATH";
-  return "objdump";
-}
-
 // A simple CentipedeCallbacks derivative for this test.
 class TestCallbacks : public CentipedeCallbacks {
  public:
