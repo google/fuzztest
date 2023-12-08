@@ -268,11 +268,6 @@ void GlobalRunnerState::CleanUpDetachedTls() {
 }
 
 void GlobalRunnerState::StartWatchdogThread() {
-  if (state.run_time_flags.timeout_per_input == 0 &&
-      state.run_time_flags.timeout_per_batch == 0 &&
-      state.run_time_flags.rss_limit_mb == 0) {
-    return;
-  }
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64

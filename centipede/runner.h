@@ -297,9 +297,8 @@ struct GlobalRunnerState {
 
   // Timeout-related machinery.
 
-  // If the timeout_per_input and/or rss_limit_mb flags are passed, initializes
-  // the watchdog thread that terminates the runner if either of those limits
-  // are exceeded.
+  // Starts the watchdog thread that terminates the runner if any of the
+  // rss/time limits are exceeded.
   void StartWatchdogThread();
   // Resets the per-input timer. Call this before executing every input.
   void ResetTimers();
