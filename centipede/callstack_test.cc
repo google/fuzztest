@@ -14,8 +14,10 @@
 
 #include "./centipede/callstack.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -136,6 +138,27 @@ TEST(CallStack, RealCallsTest) {
   // are ones that have exited but not yet removed.
   EXPECT_THAT(g_test_callstacks,
               Pointwise(IsSupersetOf(), expected_test_callstacks));
+
+  // Check that the additional elements in each computed callstack only
+  // correspond to previous calls not yet removed.
+  for (TestCallstack &cs : g_test_callstacks) {
+    std::sort(cs.begin(), cs.end());
+  }
+  for (TestCallstack &cs : expected_test_callstacks) {
+    std::sort(cs.begin(), cs.end());
+  }
+  std::vector<TestCallstack> extra_calls(g_test_callstacks.size());
+  for (auto it_1 = g_test_callstacks.begin(),
+            it_2 = expected_test_callstacks.begin(), it = extra_calls.begin();
+       it_1 != g_test_callstacks.end(); it_1++, it_2++, it++) {
+    std::set_difference(it_1->begin(), it_1->end(), it_2->begin(), it_2->end(),
+                        std::inserter(*it, it->begin()));
+  }
+  EXPECT_THAT(std::vector<TestCallstack>(g_test_callstacks.begin(),
+                                         g_test_callstacks.end() - 1),
+              Pointwise(IsSupersetOf(),
+                        std::vector<TestCallstack>(extra_calls.begin() + 1,
+                                                   extra_calls.end())));
 }
 
 // Tests deep recursion.
