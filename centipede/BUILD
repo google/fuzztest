@@ -1533,7 +1533,6 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
         "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
     ],
-    tags = ["not_run:arm"],
     deps = [
         ":binary_info",
         ":control_flow",
@@ -1595,7 +1594,6 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",
     ],
-    tags = ["not_run:arm"],
     deps = [
         ":blob_file",
         ":centipede_callbacks",
@@ -1636,7 +1634,6 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
         "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
     ],
-    tags = ["not_run:arm"],
     deps = [
         ":binary_info",
         ":centipede_interface",
