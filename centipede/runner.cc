@@ -274,7 +274,7 @@ void GlobalRunnerState::StartWatchdogThread() {
           " MB\n",
           state.run_time_flags.timeout_per_input,
           state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.rss_limit_mb);
+          state.run_time_flags.rss_limit_mb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
@@ -1049,6 +1049,12 @@ extern "C" int LLVMFuzzerRunDriver(
 
 extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
+
+extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
+  fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu",
+          rss_limit_mb);
+  centipede::state.run_time_flags.rss_limit_mb = rss_limit_mb;
+}
 
 extern "C" void CentipedePrepareProcessing() {
   // TODO(kcc): full_clear=true is expensive - performance may suffer.

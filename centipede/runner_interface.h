@@ -60,6 +60,9 @@ extern "C" int LLVMFuzzerRunDriver(
 extern "C" __attribute__((weak)) void CentipedeIsPresent();
 extern "C" __attribute__((weak)) void __libfuzzer_is_present();
 
+// Reconfigures the RSS limit to `rss_limit_mb` - 0 indicates no limit.
+extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb);
+
 // Resets the internal state of the runner to process a new input.
 extern "C" void CentipedePrepareProcessing();
 

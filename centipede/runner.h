@@ -65,7 +65,7 @@ struct RunTimeFlags {
   uint64_t use_auto_dictionary : 1;
   uint64_t timeout_per_input;
   uint64_t timeout_per_batch;
-  uint64_t rss_limit_mb;
+  std::atomic<uint64_t> rss_limit_mb;
   uint64_t crossover_level;
   uint64_t skip_seen_features : 1;
 };
@@ -137,6 +137,9 @@ struct GlobalRunnerState {
   // this: CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:". We do it this way to make the
   // flag parsing code extremely simple. The interface is private between
   // Centipede and the runner and may change.
+  //
+  // Note that this field reflects the initial runner flags. But some
+  // flags can change later (if wrapped with std::atomic).
   const char *centipede_runner_flags =
       getenv("CENTIPEDE_RUNNER_FLAGS")
           ? strdup(getenv("CENTIPEDE_RUNNER_FLAGS"))
