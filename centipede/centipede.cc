@@ -47,7 +47,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
-#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -199,8 +198,8 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
   auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
 
-  stats_.unix_micros = absl::ToUnixMicros(absl::Now());
-  stats_.corpus_size = corpus_.NumActive();
+  stats_.timestamp_unix_micros = absl::ToUnixMicros(absl::Now());
+  stats_.active_corpus_size = corpus_.NumActive();
   stats_.num_covered_pcs = fs_.CountFeatures(feature_domains::kPCs);
   stats_.max_corpus_element_size = max_corpus_size;
   stats_.avg_corpus_element_size = avg_corpus_size;

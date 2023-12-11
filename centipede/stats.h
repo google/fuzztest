@@ -40,10 +40,10 @@ namespace centipede {
 // hence the use of atomics.
 // These objects may also be accessed after all worker threads have joined.
 struct Stats {
-  std::atomic<uint64_t> unix_micros;
+  std::atomic<uint64_t> timestamp_unix_micros;
   std::atomic<uint64_t> num_executions;
   std::atomic<uint64_t> num_covered_pcs;
-  std::atomic<uint64_t> corpus_size;
+  std::atomic<uint64_t> active_corpus_size;
   std::atomic<uint64_t> max_corpus_element_size;
   std::atomic<uint64_t> avg_corpus_element_size;
 
@@ -70,9 +70,9 @@ struct Stats {
           Aggregation::kMinMaxAvg,
       },
       {
-          &Stats::corpus_size,
-          "CorpusSize",
-          "Corpus size",
+          &Stats::active_corpus_size,
+          "ActiveCorpusSize",
+          "Active corpus size",
           Aggregation::kMinMaxAvg,
       },
       {
@@ -88,7 +88,7 @@ struct Stats {
           Aggregation::kMinMaxAvg,
       },
       {
-          &Stats::unix_micros,
+          &Stats::timestamp_unix_micros,
           "UnixMicros",
           "Timestamp",
           Aggregation::kMinMax,
