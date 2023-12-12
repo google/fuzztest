@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <string_view>
 
@@ -38,6 +39,10 @@ std::string Hash(ByteSpan span) {
     sha1_hex_text[i * 2 + 1] = hex[sha1[i] % 16];
   }
   return {sha1_hex_text, sha1_hex_text + kHashLen};
+}
+
+std::string Hash(std::initializer_list<uint8_t> il) {
+  return Hash(ByteSpan(il));
 }
 
 std::string Hash(std::string_view str) {

@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <string>
 
+#include "gmock/gmock.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "./centipede/blob_file.h"
@@ -121,6 +122,11 @@ class TempCorpusDir : public TempDir {
  private:
   std::unique_ptr<BlobFileReader> reader_ = DefaultBlobFileReaderFactory();
 };
+
+// A matcher for `ByteSpan` equality (`std::span` doesn't implement `op==`).
+inline testing::Matcher<ByteSpan> EqByteSpan(const ByteSpan& expected) {
+  return testing::ElementsAreArray(expected);
+}
 
 }  // namespace centipede
 

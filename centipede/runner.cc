@@ -498,7 +498,7 @@ PostProcessCoverage(int target_return_value) {
 }
 
 void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
-  seed_callback({0});
+  seed_callback(ByteSpan({0}));
 }
 
 class LegacyRunnerCallbacks : public RunnerCallbacks {

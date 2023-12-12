@@ -14,16 +14,29 @@
 
 #include "./centipede/execution_metadata.h"
 
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/defs.h"
 
 namespace centipede {
 namespace {
 
 using ::testing::IsEmpty;
-using ::testing::UnorderedElementsAreArray;
+
+testing::Matcher<std::vector<std::pair<ByteSpan, ByteSpan>>>
+UnorderedElementsAre(
+    const std::vector<std::pair<ByteArray, ByteArray>>& expected) {
+  std::vector<testing::Matcher<std::pair<ByteSpan, ByteSpan>>> matchers;
+  for (const auto& p : expected) {
+    auto [v1, v2] = p;
+    matchers.push_back(testing::Pair(testing::ElementsAreArray(v1),
+                                     testing::ElementsAreArray(v2)));
+  }
+  return testing::UnorderedElementsAreArray(matchers);
+}
 
 TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesInRawBytes) {
   ExecutionMetadata metadata{.cmp_data = {
@@ -38,14 +51,9 @@ TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesInRawBytes) {
   std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
   EXPECT_TRUE(metadata.ForEachCmpEntry(
       [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
-
-  EXPECT_THAT(
-      enumeration_result,
-      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
-          {{1, 2}, {3, 4}},
-          {{}, {}},
-          {{5, 6, 7}, {8, 9, 10}},
-      }));
+  EXPECT_THAT(enumeration_result,
+              UnorderedElementsAre(
+                  {{{1, 2}, {3, 4}}, {{}, {}}, {{5, 6, 7}, {8, 9, 10}}}));
 }
 
 TEST(ExecutionMetadata, ForEachCmpEntryHandlesEmptyCmpData) {
@@ -64,21 +72,19 @@ TEST(ExecutionMetadata,
 
 TEST(ExecutionMetadata, ForEachCmpEntryEnumeratesEntriesFromAppendCmpEntry) {
   ExecutionMetadata metadata;
-  ASSERT_TRUE(metadata.AppendCmpEntry({1, 2}, {3, 4}));
+  ASSERT_TRUE(metadata.AppendCmpEntry(ByteSpan({1, 2}), ByteSpan({3, 4})));
   std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
   EXPECT_TRUE(metadata.ForEachCmpEntry(
       [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
-  EXPECT_THAT(
-      enumeration_result,
-      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
-          {{1, 2}, {3, 4}},
-      }));
+  EXPECT_THAT(enumeration_result, UnorderedElementsAre({
+                                      {{1, 2}, {3, 4}},
+                                  }));
 }
 
 TEST(ExecutionMetadata, AppendCmpEntryReturnsFalseAndSkipsOnBadArgs) {
   ExecutionMetadata metadata;
   // Sizes don't match.
-  EXPECT_FALSE(metadata.AppendCmpEntry({}, {1}));
+  EXPECT_FALSE(metadata.AppendCmpEntry(ByteSpan({}), ByteSpan({1})));
   ByteArray long_byte_array;
   long_byte_array.resize(256);
   // Args too long.
@@ -92,7 +98,7 @@ TEST(ExecutionMetadata, AppendCmpEntryReturnsFalseAndSkipsOnBadArgs) {
 
 TEST(ExecutionMetadata, ReadAndWriteKeepsCmpEntries) {
   ExecutionMetadata metadata_in;
-  ASSERT_TRUE(metadata_in.AppendCmpEntry({1, 2}, {3, 4}));
+  ASSERT_TRUE(metadata_in.AppendCmpEntry(ByteSpan({1, 2}), ByteSpan({3, 4})));
   SharedMemoryBlobSequence blobseq("test", /*size=*/1024,
                                    /*use_posix_shmem=*/false);
   EXPECT_TRUE(metadata_in.Write(/*tag=*/1, blobseq));
@@ -103,11 +109,9 @@ TEST(ExecutionMetadata, ReadAndWriteKeepsCmpEntries) {
   std::vector<std::pair<ByteSpan, ByteSpan>> enumeration_result;
   EXPECT_TRUE(metadata_out.ForEachCmpEntry(
       [&](ByteSpan a, ByteSpan b) { enumeration_result.emplace_back(a, b); }));
-  EXPECT_THAT(
-      enumeration_result,
-      UnorderedElementsAreArray(std::vector<std::pair<ByteSpan, ByteSpan>>{
-          {{1, 2}, {3, 4}},
-      }));
+  EXPECT_THAT(enumeration_result, UnorderedElementsAre({
+                                      {{1, 2}, {3, 4}},
+                                  }));
 }
 
 }  // namespace

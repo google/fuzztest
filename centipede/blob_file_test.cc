@@ -59,9 +59,9 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
     auto reader = ReaderFactory();
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input1, blob);
+    EXPECT_THAT(blob, EqByteSpan(input1));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input2, blob);
+    EXPECT_THAT(blob, EqByteSpan(input2));
     EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
     EXPECT_OK(reader->Close());
   }
@@ -79,11 +79,11 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
     auto reader = ReaderFactory();
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input1, blob);
+    EXPECT_THAT(blob, EqByteSpan(input1));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input2, blob);
+    EXPECT_THAT(blob, EqByteSpan(input2));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input3, blob);
+    EXPECT_THAT(blob, EqByteSpan(input3));
     EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
     EXPECT_OK(reader->Close());
   }
@@ -101,7 +101,7 @@ void TestOneBlobFile(std::unique_ptr<BlobFileReader> (*ReaderFactory)(),
     auto reader = ReaderFactory();
     EXPECT_OK(reader->Open(path));
     EXPECT_OK(reader->Read(blob));
-    EXPECT_EQ(input4, blob);
+    EXPECT_THAT(blob, EqByteSpan(input4));
     EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
     EXPECT_OK(reader->Close());
   }
@@ -134,7 +134,7 @@ TEST_P(BlobFile, AfterFailedOpenTest) {
   // are as expected.
   ASSERT_OK(reader->Open(path));
   ASSERT_OK(reader->Read(blob));
-  EXPECT_EQ(input, blob);
+  EXPECT_THAT(blob, EqByteSpan(input));
   EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
   EXPECT_OK(reader->Close());
 }
@@ -214,7 +214,7 @@ TEST_P(ReadMultipleFiles, SingleObjectMultipleFormats) {
   EXPECT_OK(writer->Close());
   EXPECT_OK(reader->Open(path));
   EXPECT_OK(reader->Read(blob));
-  EXPECT_EQ(file1_blob1, blob);
+  EXPECT_THAT(blob, EqByteSpan(file1_blob1));
   EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
   EXPECT_OK(reader->Close());
 
@@ -226,9 +226,9 @@ TEST_P(ReadMultipleFiles, SingleObjectMultipleFormats) {
   EXPECT_OK(writer->Close());
   EXPECT_OK(reader->Open(path));
   EXPECT_OK(reader->Read(blob));
-  EXPECT_EQ(file2_blob1, blob);
+  EXPECT_THAT(blob, EqByteSpan(file2_blob1));
   EXPECT_OK(reader->Read(blob));
-  EXPECT_EQ(file2_blob2, blob);
+  EXPECT_THAT(blob, EqByteSpan(file2_blob2));
   EXPECT_EQ(reader->Read(blob), absl::OutOfRangeError("no more blobs"));
   EXPECT_OK(reader->Close());
 }

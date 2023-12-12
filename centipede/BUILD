@@ -226,7 +226,7 @@ cc_library(
     ],
 )
 
-# simple definitions only, no code, no deps other than span.
+# simple definitions only, no code, no deps.
 cc_library(
     name = "defs",
     hdrs = ["defs.h"],
@@ -1119,6 +1119,7 @@ cc_library(
 
 cc_library(
     name = "test_util",
+    testonly = True,
     srcs = ["test_util.cc"],
     hdrs = ["test_util.h"],
     deps = [
@@ -1128,6 +1129,7 @@ cc_library(
         ":util",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1393,6 +1395,7 @@ cc_test(
     name = "execution_metadata_test",
     srcs = ["execution_metadata_test.cc"],
     deps = [
+        ":defs",
         ":execution_metadata",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1402,6 +1405,7 @@ cc_test(
     name = "runner_result_test",
     srcs = ["runner_result_test.cc"],
     deps = [
+        ":defs",
         ":feature",
         ":runner_result",
         ":shared_memory_blob_sequence",
@@ -1425,6 +1429,7 @@ cc_test(
     deps = [
         ":byte_array_mutator",
         ":defs",
+        ":test_util",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
