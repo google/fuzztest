@@ -473,6 +473,7 @@ cc_library(
 cc_library(
     name = "mutation_input",
     hdrs = ["mutation_input.h"],
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -866,6 +867,7 @@ cc_library(
     name = "centipede_default_callbacks",
     srcs = ["centipede_default_callbacks.cc"],
     hdrs = ["centipede_default_callbacks.h"],
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":centipede_callbacks",
         ":centipede_interface",
