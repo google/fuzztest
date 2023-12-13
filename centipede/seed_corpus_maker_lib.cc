@@ -396,12 +396,12 @@ void WriteSeedCorpusElementsToDestination(  //
         // file if 0. 2. Wrap corpus/features writing in a similar API to
         // `ReadShard()`.
 
-        const std::unique_ptr<centipede::BlobFileWriter> corpus_writer =
-            centipede::DefaultBlobFileWriterFactory();
+        const std::unique_ptr<BlobFileWriter> corpus_writer =
+            DefaultBlobFileWriterFactory();
         CHECK(corpus_writer != nullptr);
         CHECK_OK(corpus_writer->Open(corpus_fname, "w")) << VV(corpus_fname);
 
-        const std::unique_ptr<centipede::BlobFileWriter> features_writer =
+        const std::unique_ptr<BlobFileWriter> features_writer =
             DefaultBlobFileWriterFactory();
         CHECK(features_writer != nullptr);
         CHECK_OK(features_writer->Open(features_fname, "w"))
