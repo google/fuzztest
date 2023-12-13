@@ -600,7 +600,7 @@ that are composed only of specific characters, you can use
 StringOf(OneOf(InRange('a', 'z'), ElementOf({'.', '!', '?'})))
 ```
 
-(See [OneOf](#oneof-combinator) combinator and [ElementOf](#elementof-domain)
+(See [OneOf](#oneof) combinator and [ElementOf](#element-of)
 domain.)
 
 Another example is the `AsciiString()`, whose implementation is
