@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -28,6 +27,7 @@
 #include <numeric>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -36,7 +36,6 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
@@ -45,6 +44,8 @@
 #include "./centipede/workdir.h"
 
 namespace centipede {
+
+using TraitBits = Stats::TraitBits;
 
 // -----------------------------------------------------------------------------
 //                               StatsReporter
@@ -65,6 +66,7 @@ StatsReporter::StatsReporter(const std::vector<Stats> &stats_vec,
 void StatsReporter::ReportCurrStats() {
   PreAnnounceFields(Stats::kFieldInfos);
   for (const Stats::FieldInfo &field_info : Stats::kFieldInfos) {
+    if (!ShouldReportThisField(field_info)) continue;
     SetCurrField(field_info);
     for (const auto &[group_name, group_indices] : group_to_indices_) {
       SetCurrGroup(env_vec_[group_indices.at(0)]);
@@ -84,19 +86,22 @@ void StatsReporter::ReportCurrStats() {
 // -----------------------------------------------------------------------------
 //                               StatsLogger
 
+bool StatsLogger::ShouldReportThisField(const Stats::FieldInfo &field) {
+  return (field.traits & (TraitBits::kFuzzStat | TraitBits::kTimestamp)) != 0;
+}
+
 void StatsLogger::PreAnnounceFields(
     std::initializer_list<Stats::FieldInfo> fields) {
-  // Nothing to do: field names are logged together with every sample values.
+  // Nothing to do: field names are logged together with every sample's values.
 }
 
 void StatsLogger::SetCurrGroup(const Environment &master_env) {
-  if (!master_env.experiment_name.empty())
-    os_ << master_env.experiment_name << ": ";
+  curr_experiment_name_ = master_env.experiment_name;
 }
 
 void StatsLogger::SetCurrField(const Stats::FieldInfo &field_info) {
-  os_ << field_info.description << ":\n";
   curr_field_info_ = field_info;
+  os_ << curr_field_info_.description << ":\n";
 }
 
 namespace {
@@ -108,27 +113,32 @@ std::string FormatTimestamp(uint64_t unix_micros) {
 }  // namespace
 
 void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
-  // Print min/max/avg and the full sorted contents of `values`.
+  if (!curr_experiment_name_.empty()) os_ << curr_experiment_name_ << ": ";
+
+  // Print the requested aggregate stats as well as the full sorted contents of
+  // `values`.
   std::sort(values.begin(), values.end());
   const uint64_t min = values.front();
   const uint64_t max = values.back();
-  const double avg = std::accumulate(values.begin(), values.end(), 0.) /
-                     static_cast<double>(values.size());
+  const uint64_t sum = std::accumulate(values.begin(), values.end(), 0.);
+  const double avg = !values.empty() ? (1.0 * sum / values.size()) : 0;
+
   os_ << std::fixed << std::setprecision(1);
-  switch (curr_field_info_.aggregation) {
-    case Stats::Aggregation::kMinMaxAvg: {
-      os_ << "min:\t" << min << "\t"
-          << "max:\t" << max << "\t"
-          << "avg:\t" << avg << "\t";
-      os_ << "--";
-      for (const auto value : values) {
-        os_ << "\t" << value;
-      }
-    } break;
-    case Stats::Aggregation::kMinMax: {
-      os_ << "min:\t" << FormatTimestamp(min) << "\t"
-          << "max:\t" << FormatTimestamp(max);
-    } break;
+  if (curr_field_info_.traits & TraitBits::kTimestamp) {
+    os_ << "min:\t" << FormatTimestamp(min) << "\t"
+        << "max:\t" << FormatTimestamp(max);
+  } else {
+    if (curr_field_info_.traits & TraitBits::kMin)
+      os_ << "min:\t" << min << "\t";
+    if (curr_field_info_.traits & TraitBits::kMax)
+      os_ << "max:\t" << max << "\t";
+    if (curr_field_info_.traits & TraitBits::kAvg)
+      os_ << "avg:\t" << avg << "\t";
+
+    os_ << "--";
+    for (auto value : values) {
+      os_ << "\t" << value;
+    }
   }
   os_ << "\n";
 }
@@ -163,16 +173,12 @@ void StatsCsvFileAppender::PreAnnounceFields(
   if (!csv_header_.empty()) return;
 
   for (const auto &field : fields) {
-    std::string col_names;
-    switch (field.aggregation) {
-      case Stats::Aggregation::kMinMax:
-        col_names = absl::Substitute("$0_Min,$0_Max,", field.name);
-        break;
-      case Stats::Aggregation::kMinMaxAvg:
-        col_names = absl::Substitute("$0_Min,$0_Max,$0_Avg,", field.name);
-        break;
-    }
-    absl::StrAppend(&csv_header_, col_names);
+    if (field.traits & TraitBits::kMin)
+      absl::StrAppend(&csv_header_, field.name, "_Min,");
+    if (field.traits & TraitBits::kMax)
+      absl::StrAppend(&csv_header_, field.name, "_Max,");
+    if (field.traits & TraitBits::kAvg)
+      absl::StrAppend(&csv_header_, field.name, "_Avg,");
   }
   absl::StrAppend(&csv_header_, "\n");
 }
@@ -197,26 +203,24 @@ void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
 
 void StatsCsvFileAppender::ReportCurrFieldSample(
     std::vector<uint64_t> &&values) {
-  // Print min/max/avg of `values`.
   uint64_t min = std::numeric_limits<uint64_t>::max();
   uint64_t max = std::numeric_limits<uint64_t>::min();
-  long double avg = 0;
+  uint64_t sum = 0;
   for (const auto value : values) {
     min = std::min(min, value);
     max = std::max(max, value);
-    avg += value;
+    sum += value;
   }
-  if (!values.empty()) avg /= values.size();
+  double avg = !values.empty() ? (1.0 * sum / values.size()) : 0;
+
   std::string values_str;
-  switch (curr_field_info_.aggregation) {
-    case Stats::Aggregation::kMinMax:
-      values_str = absl::StrFormat("%" PRIu64 ",%" PRIu64 ",", min, max);
-      break;
-    case Stats::Aggregation::kMinMaxAvg:
-      values_str =
-          absl::StrFormat("%" PRIu64 ",%" PRIu64 ",%.1Lf,", min, max, avg);
-      break;
-  }
+  if (curr_field_info_.traits & TraitBits::kMin)
+    absl::StrAppendFormat(&values_str, "%" PRIu64 ",", min);
+  if (curr_field_info_.traits & TraitBits::kMax)
+    absl::StrAppendFormat(&values_str, "%" PRIu64 ",", max);
+  if (curr_field_info_.traits & TraitBits::kAvg)
+    absl::StrAppendFormat(&values_str, "%.1lf,", avg);
+
   RemoteFileAppend(curr_file_, values_str);
 }
 
