@@ -144,14 +144,14 @@ void SampleSeedCorpusElementsFromSource(    //
 
   std::vector<std::string> src_dirs;
   RemoteGlobMatch(source.dir_glob(), src_dirs);
-  LOG(INFO) << "Found " << src_dirs.size() << " corpus dirs matching "
+  LOG(INFO) << "Found " << src_dirs.size() << " corpus dir(s) matching "
             << source.dir_glob();
   // Sort in the ascending lexicographical order. We expect that dir names
   // contain timestamps and therefore will be sorted from oldest to newest.
   std::sort(src_dirs.begin(), src_dirs.end(), std::less<std::string>());
   if (source.num_recent_dirs() < src_dirs.size()) {
     src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs());
-    LOG(INFO) << "Selected " << src_dirs.size() << " corpus dirs";
+    LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
   }
 
   // Find all the corpus shard files in the found dirs.
@@ -205,9 +205,8 @@ void SampleSeedCorpusElementsFromSource(    //
                 ? work_dir.DistilledFeaturesFiles().MyShardPath()
                 : "";
 
-        LOG(INFO) << "Reading elements from source shard " << shard << ":\n"
-                  << VV(corpus_fname) << "\n"
-                  << VV(features_fname);
+        LOG(INFO) << "Reading elements from source shard " << shard;
+        VLOG(1) << "Paths:\n" << VV(corpus_fname) << "\n" << VV(features_fname);
 
         size_t prev_shard_elts_size = shard_elts.size();
         size_t prev_shard_num_features = shard_num_features;
@@ -375,9 +374,8 @@ void WriteSeedCorpusElementsToDestination(  //
         CHECK(!features_fname.empty());
 
         LOG(INFO) << "Writing " << std::distance(elt_range_begin, elt_range_end)
-                  << " elements to destination shard " << shard << ":\n"
-                  << VV(corpus_fname) << "\n"
-                  << VV(features_fname);
+                  << " elements to destination shard " << shard;
+        VLOG(1) << "Paths:\n" << VV(corpus_fname) << "\n" << VV(features_fname);
 
         // Features files are always saved in a subdir of the workdir
         // (== `destination.dir_path()` here), which might not exist yet, so we
