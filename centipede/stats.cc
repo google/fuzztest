@@ -36,7 +36,6 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
@@ -87,7 +86,12 @@ void StatsReporter::ReportCurrStats() {
 //                               StatsLogger
 
 bool StatsLogger::ShouldReportThisField(const Stats::FieldInfo &field) {
-  return (field.traits & (TraitBits::kFuzzStat | TraitBits::kTimestamp)) != 0;
+  // Skip timestamps and rusage stats: the former because timestamps are
+  // not very useful in these logs (only in CSVs), the latter because rusage is
+  // (at least currently) measured for the whole process, not per shard or
+  // experiment, so reporting nearly identical numbers would be useless and
+  // confusing.
+  return (field.traits & TraitBits::kFuzzStat) != 0;
 }
 
 void StatsLogger::PreAnnounceFields(
@@ -104,16 +108,9 @@ void StatsLogger::SetCurrField(const Stats::FieldInfo &field_info) {
   os_ << curr_field_info_.description << ":\n";
 }
 
-namespace {
-std::string FormatTimestamp(uint64_t unix_micros) {
-  return absl::FormatTime("%Y-%m-%d%ET%H:%M:%S",
-                          absl::FromUnixMicros(unix_micros),
-                          absl::LocalTimeZone());
-}
-}  // namespace
-
 void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
-  if (!curr_experiment_name_.empty()) os_ << curr_experiment_name_ << ": ";
+  if (!curr_experiment_name_.empty())
+    os_ << "  " << curr_experiment_name_ << ": ";
 
   // Print the requested aggregate stats as well as the full sorted contents of
   // `values`.
@@ -124,21 +121,13 @@ void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
   const double avg = !values.empty() ? (1.0 * sum / values.size()) : 0;
 
   os_ << std::fixed << std::setprecision(1);
-  if (curr_field_info_.traits & TraitBits::kTimestamp) {
-    os_ << "min:\t" << FormatTimestamp(min) << "\t"
-        << "max:\t" << FormatTimestamp(max);
-  } else {
-    if (curr_field_info_.traits & TraitBits::kMin)
-      os_ << "min:\t" << min << "\t";
-    if (curr_field_info_.traits & TraitBits::kMax)
-      os_ << "max:\t" << max << "\t";
-    if (curr_field_info_.traits & TraitBits::kAvg)
-      os_ << "avg:\t" << avg << "\t";
+  if (curr_field_info_.traits & TraitBits::kMin) os_ << "min:\t" << min << "\t";
+  if (curr_field_info_.traits & TraitBits::kMax) os_ << "max:\t" << max << "\t";
+  if (curr_field_info_.traits & TraitBits::kAvg) os_ << "avg:\t" << avg << "\t";
 
-    os_ << "--";
-    for (auto value : values) {
-      os_ << "\t" << value;
-    }
+  os_ << "--";
+  for (const auto value : values) {
+    os_ << "\t" << value;
   }
   os_ << "\n";
 }
@@ -147,7 +136,7 @@ void StatsLogger::ReportFlags(const GroupToFlags &group_to_flags) {
   std::stringstream fos;
   for (const auto &[group_name, group_flags] : group_to_flags) {
     if (!group_name.empty() || !group_flags.empty()) {
-      fos << group_name << ": " << group_flags << "\n";
+      fos << "  " << group_name << ": " << group_flags << "\n";
     }
   }
   if (fos.tellp() != std::streampos{0}) os_ << "Flags:\n" << fos.rdbuf();
