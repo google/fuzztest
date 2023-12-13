@@ -214,6 +214,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/strings/str_cat.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"

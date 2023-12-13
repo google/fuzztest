@@ -15,15 +15,11 @@
 #ifndef THIRD_PARTY_CENTIPEDE_LOGGING_H_
 #define THIRD_PARTY_CENTIPEDE_LOGGING_H_
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/flags/flag.h"  // absl::GetFlag
-#include "absl/flags/declare.h"  // ABSL_DECLARE_FLAG
-
-ABSL_DECLARE_FLAG(int, v);
-
-#define VLOG_IS_ON(logging_level) ((logging_level) <= absl::GetFlag(FLAGS_v))
-#define VLOG(logging_level) LOG_IF(INFO, VLOG_IS_ON(logging_level))
+// TODO(b/315519925): Temporary leftover from switching to now-available
+//  OSS Abseil VLOG and friends. Explicitly include these wherever necessary and
+//  remove from here.
+#include "absl/log/check.h"  // IWYU pragma: keep
+#include "absl/log/log.h"    // IWYU pragma: keep
 
 // Easy variable value logging: LOG(INFO) << VV(foo) << VV(bar);
 #define VV(x) #x ": " << (x) << " "

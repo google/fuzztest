@@ -189,10 +189,8 @@ cc_library(
 
 cc_library(
     name = "logging",
-    srcs = ["logging.cc"],
     hdrs = ["logging.h"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
     ],
@@ -1229,17 +1227,6 @@ cc_test(
     srcs = ["symbol_table_test.cc"],
     deps = [
         ":symbol_table",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "logging_test",
-    srcs = ["logging_test.cc"],
-    deps = [
-        ":logging",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:scoped_mock_log",
         "@com_google_googletest//:gtest_main",
     ],
 )
