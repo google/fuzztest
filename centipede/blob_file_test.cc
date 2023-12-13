@@ -187,7 +187,11 @@ TEST_P(BlobFile, IncorrectUsage) {
                      &DefaultBlobFileWriterFactory, GetParam());
 }
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 INSTANTIATE_TEST_SUITE_P(BlobFileTests, BlobFile, ::testing::Bool());
+#else
+INSTANTIATE_TEST_SUITE_P(BlobFileTests, BlobFile, ::testing::Values(false));
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 class ReadMultipleFiles
     : public testing::TestWithParam<std::tuple<bool, bool>> {};
@@ -229,9 +233,20 @@ TEST_P(ReadMultipleFiles, SingleObjectMultipleFormats) {
   EXPECT_OK(reader->Close());
 }
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 INSTANTIATE_TEST_SUITE_P(DefaultBlobFileReaderTests, ReadMultipleFiles,
                          ::testing::Combine(::testing::Bool(),
                                             ::testing::Bool()));
+#else
+INSTANTIATE_TEST_SUITE_P(DefaultBlobFileReaderTests, ReadMultipleFiles,
+                         ::testing::Values(std::tuple{false, false}));
+#endif  // CENTIPEDE_DISABLE_RIEGELI
+
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+TEST(WriterFactoryDeathTest, FailWhenBuiltWithoutRiegeli) {
+  ASSERT_DEATH(DefaultBlobFileWriterFactory(true), "");
+}
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 }  // namespace
 }  // namespace centipede
