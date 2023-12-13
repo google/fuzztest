@@ -30,6 +30,7 @@
 #include "absl/types/span.h"
 #include "./centipede/runner_interface.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
@@ -55,6 +56,12 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         fuzzer_impl_(fuzzer_impl),
         configuration_(configuration),
         prng_(GetRandomSeed()) {
+    if (GetExecutionCoverage() == nullptr) {
+      execution_coverage_ = std::make_unique<ExecutionCoverage>(
+          /*counter_map=*/absl::Span<uint8_t>{});
+      execution_coverage_->SetIsTracing(true);
+      SetExecutionCoverage(execution_coverage_.get());
+    }
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
     FUZZTEST_INTERNAL_CHECK(fuzzer_impl_.fixture_driver_ != nullptr,
@@ -135,6 +142,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     FUZZTEST_INTERNAL_CHECK(fuzzer_impl_.fixture_driver_ != nullptr,
                             "Invalid fixture driver!");
     fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+    if (GetExecutionCoverage() == execution_coverage_.get())
+      SetExecutionCoverage(nullptr);
   }
 
  private:
@@ -162,6 +171,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   Configuration configuration_;
+  std::unique_ptr<ExecutionCoverage> execution_coverage_;
   absl::BitGen prng_;
 };
 
@@ -177,12 +187,6 @@ void CentipedeFuzzerAdaptor::RunInUnitTestMode(
 
 int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
-  if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
-    auto* execution_coverage = new fuzztest::internal::ExecutionCoverage({});
-    execution_coverage->SetIsTracing(true);
-    fuzztest::internal::SetExecutionCoverage(execution_coverage);
-  }
-
   runtime_.SetRunMode(RunMode::kFuzz);
   runtime_.SetCurrentTest(&test_);
   CentipedeAdaptorRunnerCallbacks runner_callback(runtime_, fuzzer_impl_,

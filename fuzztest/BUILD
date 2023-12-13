@@ -157,6 +157,7 @@ cc_library(
     defines = ["FUZZTEST_USE_CENTIPEDE"],
     deps = [
         ":configuration",
+        ":coverage",
         ":domain_core",
         ":fixture_driver",
         ":logging",
