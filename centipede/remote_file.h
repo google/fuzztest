@@ -28,8 +28,10 @@
 #include <vector>
 
 #include "./centipede/defs.h"
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 namespace centipede {
 
@@ -78,6 +80,7 @@ void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 // exist. Returns `{path}` if `path` is a non-directory.
 std::vector<std::string> RemoteListFilesRecursively(std::string_view path);
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 // Returns a reader for the file at `file_path`.
 std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
     std::string_view file_path);
@@ -87,6 +90,7 @@ std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
 // exists. If `false, the file will be truncated to empty if it exists.
 std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
     std::string_view file_path, bool append);
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 }  // namespace centipede
 

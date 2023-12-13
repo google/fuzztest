@@ -431,12 +431,16 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:string_view",
-        "@com_google_riegeli//riegeli/base:object",
-        "@com_google_riegeli//riegeli/bytes:reader",
-        "@com_google_riegeli//riegeli/bytes:writer",
-        "@com_google_riegeli//riegeli/records:record_reader",
-        "@com_google_riegeli//riegeli/records:record_writer",
-    ],
+    ] + select({
+        ":disable_riegeli": [],
+        "//conditions:default": [
+            "@com_google_riegeli//riegeli/base:object",
+            "@com_google_riegeli//riegeli/bytes:reader",
+            "@com_google_riegeli//riegeli/bytes:writer",
+            "@com_google_riegeli//riegeli/records:record_reader",
+            "@com_google_riegeli//riegeli/records:record_writer",
+        ],
+    }),
 )
 
 cc_library(
@@ -589,17 +593,25 @@ cc_library(
     name = "remote_file",
     srcs = ["remote_file.cc"],
     hdrs = ["remote_file.h"],
+    defines = select({
+        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":defs",
         ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_riegeli//riegeli/bytes:fd_reader",
-        "@com_google_riegeli//riegeli/bytes:fd_writer",
-        "@com_google_riegeli//riegeli/bytes:reader",
-        "@com_google_riegeli//riegeli/bytes:writer",
-    ],
+    ] + select({
+        ":disable_riegeli": [],
+        "//conditions:default": [
+            "@com_google_riegeli//riegeli/bytes:fd_reader",
+            "@com_google_riegeli//riegeli/bytes:fd_writer",
+            "@com_google_riegeli//riegeli/bytes:reader",
+            "@com_google_riegeli//riegeli/bytes:writer",
+        ],
+    }),
 )
 
 cc_library(

@@ -27,11 +27,13 @@
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 namespace centipede {
 
@@ -152,6 +154,7 @@ class DefaultBlobFileReader : public BlobFileReader {
   absl::Status Open(std::string_view path) override {
     if (absl::Status s = Close(); !s.ok()) return s;
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
     riegeli_reader_.Reset(CreateRiegeliFileReader(path));
     if (riegeli_reader_.CheckFileFormat()) [[likely]] {
       // File could be opened and is in the Riegeli format.
@@ -163,6 +166,7 @@ class DefaultBlobFileReader : public BlobFileReader {
     }
     // File could be opened but is not in the Riegeli format.
     riegeli_reader_.Reset(riegeli::kClosed);
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
     legacy_reader_ = std::make_unique<SimpleBlobFileReader>();
     if (absl::Status s = legacy_reader_->Open(path); !s.ok()) {
@@ -173,6 +177,12 @@ class DefaultBlobFileReader : public BlobFileReader {
   }
 
   absl::Status Read(ByteSpan &blob) override {
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+    if (legacy_reader_)
+      return legacy_reader_->Read(blob);
+    else
+      return absl::FailedPreconditionError("no reader open");
+#else
     if (legacy_reader_) [[unlikely]]
       return legacy_reader_->Read(blob);
 
@@ -185,9 +195,14 @@ class DefaultBlobFileReader : public BlobFileReader {
     }
     blob = AsByteSpan(record);
     return absl::OkStatus();
+#endif  // CENTIPEDE_DISABLE_RIEGELI
   }
 
   absl::Status Close() override {
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+    legacy_reader_ = nullptr;
+    return absl::OkStatus();
+#else
     // NOLINTNEXTLINE(readability/braces). Similar to b/278586863.
     if (legacy_reader_) [[unlikely]] {
       legacy_reader_ = nullptr;
@@ -213,14 +228,18 @@ class DefaultBlobFileReader : public BlobFileReader {
     // operations; therefore, re-initialize it to a closed ok state.
     riegeli_reader_.Reset(riegeli::kClosed);
     return absl::OkStatus();
+#endif  // CENTIPEDE_DISABLE_RIEGELI
   }
 
  private:
   std::unique_ptr<SimpleBlobFileReader> legacy_reader_ = nullptr;
+#ifndef CENTIPEDE_DISABLE_RIEGELI
   riegeli::RecordReader<std::unique_ptr<riegeli::Reader>> riegeli_reader_{
       riegeli::kClosed};
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 };
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 // Implementation of `BlobFileWriter` using Riegeli
 // (https://github.com/google/riegeli).
 class RiegeliWriter : public BlobFileWriter {
@@ -270,6 +289,7 @@ class RiegeliWriter : public BlobFileWriter {
   riegeli::RecordWriter<std::unique_ptr<riegeli::Writer>> writer_{
       riegeli::kClosed};
 };
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
   return std::make_unique<DefaultBlobFileReader>();
@@ -277,7 +297,11 @@ std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
 
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(bool riegeli) {
   if (riegeli)
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+    LOG(FATAL) << "Riegeli unavailable: built with --use_riegeli set to false.";
+#else
     return std::make_unique<RiegeliWriter>();
+#endif  // CENTIPEDE_DISABLE_RIEGELI
   else
     return std::make_unique<SimpleBlobFileWriter>();
 }

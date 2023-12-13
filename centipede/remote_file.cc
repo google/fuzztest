@@ -32,10 +32,12 @@
 #include "absl/log/log.h"
 #include "./centipede/defs.h"
 #include "./centipede/logging.h"
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 namespace centipede {
 
@@ -164,6 +166,7 @@ ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFilesRecursively(
   return ret;
 }
 
+#ifndef CENTIPEDE_DISABLE_RIEGELI
 ABSL_ATTRIBUTE_WEAK std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
     std::string_view file_path) {
   return std::make_unique<riegeli::FdReader<>>(file_path);
@@ -174,5 +177,6 @@ ABSL_ATTRIBUTE_WEAK std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
   return std::make_unique<riegeli::FdWriter<>>(
       file_path, riegeli::FdWriterBase::Options().set_append(append));
 }
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
 }  // namespace centipede
