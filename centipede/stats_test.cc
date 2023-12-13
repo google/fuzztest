@@ -27,13 +27,18 @@
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
 #include "./centipede/environment.h"
+#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 
 namespace centipede {
+
+using ::testing::ElementsAreArray;
 
 namespace {
 
@@ -42,12 +47,15 @@ class LogCapture : public absl::LogSink {
   LogCapture() { absl::AddLogSink(this); }
   ~LogCapture() override { absl::RemoveLogSink(this); }
   void Send(const absl::LogEntry &entry) override {
-    captured_log_ << entry.text_message() << "\n";
+    captured_log_.emplace_back(entry.text_message());
   }
-  std::string CapturedLog() const { return captured_log_.str(); }
+  std::vector<std::string> CapturedLogLines() const {
+    // Join->Split normalizes multi-line messages.
+    return absl::StrSplit(absl::StrJoin(captured_log_, "\n"), '\n');
+  }
 
  private:
-  std::stringstream captured_log_;
+  std::vector<std::string> captured_log_;
 };
 
 uint64_t CivilTimeToUnixMicros(  //
@@ -60,101 +68,105 @@ uint64_t CivilTimeToUnixMicros(  //
 
 TEST(Stats, PrintStatsToLog) {
   std::vector<Stats> stats_vec(4);
-  stats_vec[0].num_covered_pcs = 10;
-  stats_vec[1].num_covered_pcs = 15;
-  stats_vec[2].num_covered_pcs = 25;
-  stats_vec[3].num_covered_pcs = 40;
-
-  stats_vec[0].active_corpus_size = 1000;
-  stats_vec[1].active_corpus_size = 2000;
-  stats_vec[2].active_corpus_size = 3000;
-  stats_vec[3].active_corpus_size = 4000;
-
-  for (size_t i = 0; i < 4; ++i) {
+  for (int i = 0; i < stats_vec.size(); ++i) {
+    const auto j = i + 1;
     auto &stats = stats_vec[i];
-    stats.timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i);
-    stats.max_corpus_element_size = 2 * i + 1;
-    stats.avg_corpus_element_size = i + 1;
-    stats.num_executions = i + 100;
+    // NOTE: Use placement-new because `Stats` is not copyable nor moveable but
+    // we want designated initializers, for convenience and to compile-enforce
+    // the order as in the declaration. This is safe, because `~Stats` is
+    // trivial.
+    new (&stats) Stats{
+        .timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i),
+        .num_executions = 12 * j,
+        .num_covered_pcs = 21 * j,
+        .active_corpus_size = 101 * j,
+        .max_corpus_element_size = 103 * j,
+        .avg_corpus_element_size = 104 * j,
+    };
   }
 
-  std::vector<Environment> env_vec(4);
-  env_vec[0].experiment_name = "Experiment A";
-  env_vec[0].experiment_flags = "AAA";
-  env_vec[1].experiment_name = "Experiment B";
-  env_vec[1].experiment_flags = "BBB";
-  env_vec[2].experiment_name = "Experiment A";
-  env_vec[2].experiment_flags = "AAA";
-  env_vec[3].experiment_name = "Experiment B";
-  env_vec[3].experiment_flags = "BBB";
+  const std::vector<Environment> env_vec = {
+      {.experiment_name = "Experiment A", .experiment_flags = "AAA"},
+      {.experiment_name = "Experiment B", .experiment_flags = "BBB"},
+      {.experiment_name = "Experiment A", .experiment_flags = "AAA"},
+      {.experiment_name = "Experiment B", .experiment_flags = "BBB"},
+  };
 
   StatsLogger stats_logger{stats_vec, env_vec};
 
   {
-    constexpr std::string_view kExpectedLogLines =
-        "Current stats:\n"
-        "Coverage:\n"
-        "Experiment A: min:\t10\tmax:\t25\tavg:\t17.5\t--\t10\t25\n"
-        "Experiment B: min:\t15\tmax:\t40\tavg:\t27.5\t--\t15\t40\n"
-        "Number of executions:\n"
-        "Experiment A: min:\t100\tmax:\t102\tavg:\t101.0\t--\t100\t102\n"
-        "Experiment B: min:\t101\tmax:\t103\tavg:\t102.0\t--\t101\t103\n"
-        "Active corpus size:\n"
-        "Experiment A: min:\t1000\tmax:\t3000\tavg:\t2000.0\t--\t1000\t3000\n"
-        "Experiment B: min:\t2000\tmax:\t4000\tavg:\t3000.0\t--\t2000\t4000\n"
-        "Max element size:\n"
-        "Experiment A: min:\t1\tmax:\t5\tavg:\t3.0\t--\t1\t5\n"
-        "Experiment B: min:\t3\tmax:\t7\tavg:\t5.0\t--\t3\t7\n"
-        "Avg element size:\n"
-        "Experiment A: min:\t1\tmax:\t3\tavg:\t2.0\t--\t1\t3\n"
-        "Experiment B: min:\t2\tmax:\t4\tavg:\t3.0\t--\t2\t4\n"
-        "Timestamp:\n"
-        "Experiment A: min:\t1970-01-01T00:00:00\tmax:\t1970-01-01T00:00:02\n"
-        "Experiment B: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
-        "Flags:\n"
-        "Experiment A: AAA\n"
-        "Experiment B: BBB\n";
+    const std::vector<std::string_view> kExpectedLogLines = {
+        "Current stats:",
+        "Coverage:",
+        "Experiment A: min:\t21\tmax:\t63\tavg:\t42.0\t--\t21\t63",
+        "Experiment B: min:\t42\tmax:\t84\tavg:\t63.0\t--\t42\t84",
+        "Number of executions:",
+        "Experiment A: min:\t12\tmax:\t36\tavg:\t24.0\t--\t12\t36",
+        "Experiment B: min:\t24\tmax:\t48\tavg:\t36.0\t--\t24\t48",
+        "Active corpus size:",
+        "Experiment A: min:\t101\tmax:\t303\tavg:\t202.0\t--\t101\t303",
+        "Experiment B: min:\t202\tmax:\t404\tavg:\t303.0\t--\t202\t404",
+        "Max element size:",
+        "Experiment A: min:\t103\tmax:\t309\tavg:\t206.0\t--\t103\t309",
+        "Experiment B: min:\t206\tmax:\t412\tavg:\t309.0\t--\t206\t412",
+        "Avg element size:",
+        "Experiment A: min:\t104\tmax:\t312\tavg:\t208.0\t--\t104\t312",
+        "Experiment B: min:\t208\tmax:\t416\tavg:\t312.0\t--\t208\t416",
+        "Timestamp:",
+        "Experiment A: min:\t1970-01-01T00:00:00\tmax:\t1970-01-01T00:00:02",
+        "Experiment B: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03",
+        "Flags:",
+        "Experiment A: AAA",
+        "Experiment B: BBB",
+    };
+
     LogCapture log_capture;
     stats_logger.ReportCurrStats();
-    EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+
+    const auto log_lines = log_capture.CapturedLogLines();
+    EXPECT_THAT(log_lines, ElementsAreArray(kExpectedLogLines));
   }
 
   {
     for (auto &stats : stats_vec) {
-      stats.num_covered_pcs += 100;
-      stats.num_executions += 1000;
-      stats.active_corpus_size += 1;
-      stats.max_corpus_element_size += 10;
-      stats.avg_corpus_element_size += 10;
       stats.timestamp_unix_micros += 1000000;
+      stats.num_executions += 1;
+      stats.num_covered_pcs += 1;
+      stats.active_corpus_size += 1;
+      stats.max_corpus_element_size += 1;
+      stats.avg_corpus_element_size += 1;
     }
 
-    constexpr std::string_view kExpectedLogLines =
-        "Current stats:\n"
-        "Coverage:\n"
-        "Experiment A: min:\t110\tmax:\t125\tavg:\t117.5\t--\t110\t125\n"
-        "Experiment B: min:\t115\tmax:\t140\tavg:\t127.5\t--\t115\t140\n"
-        "Number of executions:\n"
-        "Experiment A: min:\t1100\tmax:\t1102\tavg:\t1101.0\t--\t1100\t1102\n"
-        "Experiment B: min:\t1101\tmax:\t1103\tavg:\t1102.0\t--\t1101\t1103\n"
-        "Active corpus size:\n"
-        "Experiment A: min:\t1001\tmax:\t3001\tavg:\t2001.0\t--\t1001\t3001\n"
-        "Experiment B: min:\t2001\tmax:\t4001\tavg:\t3001.0\t--\t2001\t4001\n"
-        "Max element size:\n"
-        "Experiment A: min:\t11\tmax:\t15\tavg:\t13.0\t--\t11\t15\n"
-        "Experiment B: min:\t13\tmax:\t17\tavg:\t15.0\t--\t13\t17\n"
-        "Avg element size:\n"
-        "Experiment A: min:\t11\tmax:\t13\tavg:\t12.0\t--\t11\t13\n"
-        "Experiment B: min:\t12\tmax:\t14\tavg:\t13.0\t--\t12\t14\n"
-        "Timestamp:\n"
-        "Experiment A: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03\n"
-        "Experiment B: min:\t1970-01-01T00:00:02\tmax:\t1970-01-01T00:00:04\n"
-        "Flags:\n"
-        "Experiment A: AAA\n"
-        "Experiment B: BBB\n";
+    const std::vector<std::string_view> kExpectedLogLines = {
+        "Current stats:",
+        "Coverage:",
+        "Experiment A: min:\t22\tmax:\t64\tavg:\t43.0\t--\t22\t64",
+        "Experiment B: min:\t43\tmax:\t85\tavg:\t64.0\t--\t43\t85",
+        "Number of executions:",
+        "Experiment A: min:\t13\tmax:\t37\tavg:\t25.0\t--\t13\t37",
+        "Experiment B: min:\t25\tmax:\t49\tavg:\t37.0\t--\t25\t49",
+        "Active corpus size:",
+        "Experiment A: min:\t102\tmax:\t304\tavg:\t203.0\t--\t102\t304",
+        "Experiment B: min:\t203\tmax:\t405\tavg:\t304.0\t--\t203\t405",
+        "Max element size:",
+        "Experiment A: min:\t104\tmax:\t310\tavg:\t207.0\t--\t104\t310",
+        "Experiment B: min:\t207\tmax:\t413\tavg:\t310.0\t--\t207\t413",
+        "Avg element size:",
+        "Experiment A: min:\t105\tmax:\t313\tavg:\t209.0\t--\t105\t313",
+        "Experiment B: min:\t209\tmax:\t417\tavg:\t313.0\t--\t209\t417",
+        "Timestamp:",
+        "Experiment A: min:\t1970-01-01T00:00:01\tmax:\t1970-01-01T00:00:03",
+        "Experiment B: min:\t1970-01-01T00:00:02\tmax:\t1970-01-01T00:00:04",
+        "Flags:",
+        "Experiment A: AAA",
+        "Experiment B: BBB",
+    };
+
     LogCapture log_capture;
     stats_logger.ReportCurrStats();
-    EXPECT_THAT(log_capture.CapturedLog(), testing::StrEq(kExpectedLogLines));
+
+    const auto log_lines = log_capture.CapturedLogLines();
+    EXPECT_THAT(log_lines, ElementsAreArray(kExpectedLogLines));
   }
 }
 
@@ -162,40 +174,55 @@ TEST(Stats, DumpStatsToCsvFile) {
   const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
 
   std::vector<Stats> stats_vec(4);
-  stats_vec[0].num_covered_pcs = 10;
-  stats_vec[0].active_corpus_size = 1000;
-  stats_vec[1].num_covered_pcs = 15;
-  stats_vec[1].active_corpus_size = 2000;
-  stats_vec[2].num_covered_pcs = 25;
-  stats_vec[2].active_corpus_size = 3000;
-  stats_vec[3].num_covered_pcs = 40;
-  stats_vec[3].active_corpus_size = 4000;
-  for (size_t i = 0; i < 4; ++i) {
+  for (int i = 0; i < stats_vec.size(); ++i) {
+    const auto j = i + 1;
     auto &stats = stats_vec[i];
-    stats.timestamp_unix_micros = i + 1000000;
-    stats.max_corpus_element_size = 2 * i + 1;
-    stats.avg_corpus_element_size = i + 1;
-    stats.num_executions = i + 100;
+    // NOTE: Use placement-new because `Stats` is not copyable nor moveable but
+    // we want designated initializers, for convenience and to compile-enforce
+    // the order as in the declaration. This is safe, because `~Stats` is
+    // trivial.
+    new (&stats) Stats{
+        .timestamp_unix_micros = 1000000 * j,
+        .num_executions = 12 * j,
+        .num_covered_pcs = 21 * j,
+        .active_corpus_size = 101 * j,
+        .max_corpus_element_size = 103 * j,
+        .avg_corpus_element_size = 104 * j,
+    };
   }
 
-  std::vector<Environment> env_vec(4);
-  env_vec[0].experiment_name = "ExperimentA";
-  env_vec[0].experiment_flags = "AAA";
-  env_vec[1].experiment_name = "ExperimentB";
-  env_vec[1].experiment_flags = "BBB";
-  env_vec[2].experiment_name = "ExperimentA";
-  env_vec[2].experiment_flags = "AAA";
-  env_vec[3].experiment_name = "ExperimentB";
-  env_vec[3].experiment_flags = "BBB";
-  for (auto &env : env_vec) {
-    env.workdir = workdir;
-  }
+  const std::vector<Environment> env_vec = {
+      {
+          .workdir = workdir,
+          .experiment_name = "ExperimentA",
+          .experiment_flags = "AAA",
+      },
+      {
+          .workdir = workdir,
+          .experiment_name = "ExperimentB",
+          .experiment_flags = "BBB",
+      },
+      {
+          .workdir = workdir,
+          .experiment_name = "ExperimentA",
+          .experiment_flags = "AAA",
+      },
+      {
+          .workdir = workdir,
+          .experiment_name = "ExperimentB",
+          .experiment_flags = "BBB",
+      },
+  };
 
   {
     StatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
 
-    for (auto &stats : stats_vec) {
+    // Emulate progress in shard #2 of each experiment. In the second line of
+    // each CSV, min's shouldn't change, max's should increase by 1, avg's
+    // should increase by 0.5.
+    for (int i = 2; i < stats_vec.size(); ++i) {
+      auto &stats = stats_vec[i];
       stats.timestamp_unix_micros += 1;
       stats.num_executions += 1;
       stats.num_covered_pcs += 1;
@@ -211,22 +238,65 @@ TEST(Stats, DumpStatsToCsvFile) {
       workdir / "fuzzing-stats-.000000.ExperimentA.csv",
       workdir / "fuzzing-stats-.000000.ExperimentB.csv",
   };
-  const std::vector<std::string_view> kExpectedCsvContents = {
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,ActiveCorpusSize_Min,ActiveCorpusSize_Max,ActiveCorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
-10,25,17.5,100,102,101.0,1000,3000,2000.0,1,5,3.0,1,3,2.0,1000000,1000002,
-11,26,18.5,101,103,102.0,1001,3001,2001.0,2,6,4.0,2,4,3.0,1000001,1000003,
-)",
-      R"(NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,NumExecs_Min,NumExecs_Max,NumExecs_Avg,ActiveCorpusSize_Min,ActiveCorpusSize_Max,ActiveCorpusSize_Avg,MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,UnixMicros_Min,UnixMicros_Max,
-15,40,27.5,101,103,102.0,2000,4000,3000.0,3,7,5.0,2,4,3.0,1000001,1000003,
-16,41,28.5,102,104,103.0,2001,4001,3001.0,4,8,6.0,3,5,4.0,1000002,1000004,
-)",
-  };
+  const std::vector<std::vector<std::string>> kExpectedCsvLines = {
+      // CSV #1.
+      {
+          // Header.
+          "NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,"
+          "NumExecs_Min,NumExecs_Max,NumExecs_Avg,"
+          "ActiveCorpusSize_Min,ActiveCorpusSize_Max,ActiveCorpusSize_Avg,"
+          "MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,"
+          "AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,"
+          "UnixMicros_Min,UnixMicros_Max,",
+          // Line 1.
+          "21,63,42.0,"
+          "12,36,24.0,"
+          "101,303,202.0,"
+          "103,309,206.0,"
+          "104,312,208.0,"
+          "1000000,3000000,",
+          // Line 2.
+          "21,64,42.5,"
+          "12,37,24.5,"
+          "101,304,202.5,"
+          "103,310,206.5,"
+          "104,313,208.5,"
+          "1000000,3000001,",
+          "",  // empty line at EOF
+      },
+      // CSV #2.
+      {
+          // Header.
+          "NumCoveredPcs_Min,NumCoveredPcs_Max,NumCoveredPcs_Avg,"
+          "NumExecs_Min,NumExecs_Max,NumExecs_Avg,"
+          "ActiveCorpusSize_Min,ActiveCorpusSize_Max,ActiveCorpusSize_Avg,"
+          "MaxEltSize_Min,MaxEltSize_Max,MaxEltSize_Avg,"
+          "AvgEltSize_Min,AvgEltSize_Max,AvgEltSize_Avg,"
+          "UnixMicros_Min,UnixMicros_Max,",
+          // Line 1.
+          "42,84,63.0,"
+          "24,48,36.0,"
+          "202,404,303.0,"
+          "206,412,309.0,"
+          "208,416,312.0,"
+          "2000000,4000000,",
+          // Line 2.
+          "42,85,63.5,"
+          "24,49,36.5,"
+          "202,405,303.5,"
+          "206,413,309.5,"
+          "208,417,312.5,"
+          "2000000,4000001,",
+          "",  // empty line at EOF
+      }};
 
   for (int i = 0; i < 2; ++i) {
     ASSERT_TRUE(std::filesystem::exists(kExpectedCsvs[i]));
     std::string csv_contents;
     ReadFromLocalFile(kExpectedCsvs[i], csv_contents);
-    EXPECT_EQ(csv_contents, kExpectedCsvContents[i]);
+
+    const auto csv_lines = absl::StrSplit(csv_contents, '\n');
+    EXPECT_THAT(csv_lines, ElementsAreArray(kExpectedCsvLines[i])) << VV(i);
   }
 }
 
@@ -238,14 +308,13 @@ TEST(Stats, PrintRewardValues) {
   stats_vec[2].num_covered_pcs = 40;
   stats_vec[3].num_covered_pcs = 25;
   PrintRewardValues(stats_vec, ss);
-  LOG(INFO) << "\n" << ss.str();
   const char *expected =
       "REWARD_MAX 40\n"
       "REWARD_SECOND_MAX 25\n"
       "REWARD_MIN 10\n"
       "REWARD_MEDIAN 25\n"
       "REWARD_AVERAGE 22.5\n";
-  EXPECT_THAT(ss.str(), testing::StrEq(expected));
+  EXPECT_EQ(ss.str(), expected);
 }
 
 }  // namespace centipede
