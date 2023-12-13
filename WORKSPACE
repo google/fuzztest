@@ -103,9 +103,9 @@ http_archive(
 
 http_archive(
     name = "com_google_googletest",
-    sha256 = "8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7",
-    strip_prefix = "googletest-1.14.0",
-    url = "https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz",
+    sha256 = "2ebedb9330ff0e7e07abd77df9bd8c62692016a8138a4722f5259e7f657c89c1",
+    strip_prefix = "googletest-b3a9ba2b8e975550799838332803d468797ae2e1",
+    url = "https://github.com/google/googletest/archive/b3a9ba2b8e975550799838332803d468797ae2e1.tar.gz",
 )
 
 http_archive(
@@ -118,9 +118,9 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "6f1f962933da7728d81e0467b7ee6f99987c02fc284ff929eb99aeb375ee4b90",
-    strip_prefix = "protobuf-33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27",
-    url = "https://github.com/protocolbuffers/protobuf/archive/33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27.tar.gz"
+    integrity = "sha256-m9h7goDvcg0yQFFPiE5WpxLyIY8NaTtIBQyDYCiUCkI=",
+    strip_prefix = "protobuf-25.1",
+    url = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protobuf-25.1.tar.gz"
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
