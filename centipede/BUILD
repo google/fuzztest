@@ -16,6 +16,7 @@
 #   Centipede: an experimental distributed fuzzing engine.
 
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
 VISIBILITY = ["//visibility:public"]
@@ -27,6 +28,20 @@ PUBLIC_API_VISIBILITY = VISIBILITY
 package(default_visibility = VISIBILITY)
 
 licenses(["notice"])
+
+################################################################################
+# Flag and setting to enable use of Riegeli
+################################################################################
+
+bool_flag(
+    name = "use_riegeli",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "disable_riegeli",
+    flag_values = {":use_riegeli": "False"},
+)
 
 ################################################################################
 #                                  Binaries
@@ -402,6 +417,10 @@ cc_library(
     name = "blob_file",
     srcs = ["blob_file.cc"],
     hdrs = ["blob_file.h"],
+    defines = select({
+        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":defs",
@@ -724,6 +743,10 @@ cc_library(
     name = "environment_flags",
     srcs = ["environment_flags.cc"],
     hdrs = ["environment_flags.h"],
+    defines = select({
+        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
@@ -828,6 +851,10 @@ cc_library(
     hdrs = [
         "environment.h",
     ],
+    defines = select({
+        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":defs",

@@ -99,7 +99,12 @@ std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory();
 // If `riegeli` is `true`, the implementation uses Riegeli
 // (https://github.com/google/riegeli).
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(
-    bool riegeli = true);
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+    bool riegeli = false
+#else
+    bool riegeli = true
+#endif  // CENTIPEDE_DISABLE_RIEGELI
+);
 
 }  // namespace centipede
 

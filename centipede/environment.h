@@ -100,7 +100,11 @@ struct Environment {
   bool dry_run = false;
   bool save_binary_info = false;
   bool populate_binary_info = true;
+#ifdef CENTIPEDE_DISABLE_RIEGELI
+  bool riegeli = false;
+#else
   bool riegeli = true;
+#endif  // CENTIPEDE_DISABLE_RIEGELI
 
   // Internal settings without global flags ------------------------------------
 
