@@ -711,11 +711,6 @@ void Centipede::FuzzingLoop() {
 
   UpdateAndMaybeLogStats("init-done", 0);
 
-  // Clear fuzz_start_time_ and num_runs_, so that the pre-init work doesn't
-  // affect them.
-  fuzz_start_time_ = absl::Now();
-  num_runs_ = 0;
-
   // If we're going to fuzz, dump the initial telemetry files. For a brand-new
   // run, these will be functionally empty, e.g. the coverage report will list
   // all target functions as not covered (NONE). For a bootstrapped run (the
@@ -723,6 +718,14 @@ void Centipede::FuzzingLoop() {
   // "latest" report of the previous run, depending on how the runs are
   // configured (the same number of shards, for example).
   if (env_.num_runs != 0) MaybeGenerateTelemetry("initial", "Before fuzzing");
+
+  // Reset fuzz_start_time_ and num_runs_, so that the pre-init work doesn't
+  // affect them.
+  fuzz_start_time_ = absl::Now();
+  num_runs_ = 0;
+
+  // Do not count these towards execs/s.
+  size_t preloaded_inputs_ = corpus_.NumTotal();
 
   // num_runs / batch_size, rounded up.
   size_t number_of_batches = env_.num_runs / env_.batch_size;
