@@ -31,14 +31,14 @@ class SeededRunnerCallbacks : public centipede::RunnerCallbacks {
   void GetSeeds(std::function<void(ByteSpan)> seed_callback) override {
     constexpr size_t kNumAvailSeeds = 10;
     for (size_t i = 0; i < kNumAvailSeeds; ++i)
-      seed_callback({static_cast<uint8_t>(i)});
+      seed_callback(ByteSpan({static_cast<uint8_t>(i)}));
   }
 
   bool Mutate(const std::vector<centipede::MutationInputRef> &inputs,
               size_t num_mutants,
               std::function<void(ByteSpan)> new_mutant_callback) override {
     // Should not be called in the test, but return a dummy mutant anyway.
-    new_mutant_callback({0});
+    new_mutant_callback(ByteSpan({0}));
     return true;
   }
 };

@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/defs.h"
+#include "./centipede/test_util.h"
 
 namespace centipede {
 
@@ -87,6 +88,9 @@ TEST(ByteArrayMutator, RoundDownToRemoveCorrectly) {
 
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::UnorderedElementsAre;
+
 TEST(DictEntry, DictEntry) {
   uint8_t bytes[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   DictEntry a_0_10({bytes + 0, 10});
@@ -126,27 +130,27 @@ TEST(CmpDictionary, CmpDictionary) {
   std::vector<ByteSpan> suggestions;
   suggestions.reserve(5);
 
-  dict.SuggestReplacement({42, 43}, suggestions);
+  dict.SuggestReplacement(S({42, 43}), suggestions);
   EXPECT_TRUE(suggestions.empty());
 
-  dict.SuggestReplacement({1, 2, 3}, suggestions);
-  EXPECT_THAT(suggestions, testing::ElementsAre(S({3, 4})));
+  dict.SuggestReplacement(S({1, 2, 3}), suggestions);
+  EXPECT_THAT(suggestions, ElementsAre(EqByteSpan(S({3, 4}))));
 
-  dict.SuggestReplacement({5, 6, 7, 8}, suggestions);
-  EXPECT_THAT(suggestions, testing::ElementsAre(S({8, 9, 10})));
+  dict.SuggestReplacement(S({5, 6, 7, 8}), suggestions);
+  EXPECT_THAT(suggestions, ElementsAre(EqByteSpan(S({8, 9, 10}))));
 
-  dict.SuggestReplacement({15, 16, 17, 18, 0, 0}, suggestions);
-  EXPECT_THAT(suggestions, testing::UnorderedElementsAre(S({11, 12, 13, 14}),
-                                                         S({20, 21, 22})));
+  dict.SuggestReplacement(S({15, 16, 17, 18, 0, 0}), suggestions);
+  EXPECT_THAT(suggestions, UnorderedElementsAre(EqByteSpan(S({11, 12, 13, 14})),
+                                                EqByteSpan(S({20, 21, 22}))));
 
-  dict.SuggestReplacement({15, 16, 20}, suggestions);
-  EXPECT_THAT(suggestions, testing::UnorderedElementsAre(S({30, 40, 50})));
+  dict.SuggestReplacement(S({15, 16, 20}), suggestions);
+  EXPECT_THAT(suggestions, UnorderedElementsAre(EqByteSpan(S({30, 40, 50}))));
 
   // check that we don't exceed capacity.
   std::vector<ByteSpan> capacity1;
   capacity1.reserve(1);
   EXPECT_EQ(capacity1.capacity(), 1);
-  dict.SuggestReplacement({15, 16, 17, 18, 0, 0}, capacity1);
+  dict.SuggestReplacement(S({15, 16, 17, 18, 0, 0}), capacity1);
   EXPECT_EQ(capacity1.size(), 1);
   EXPECT_EQ(capacity1.capacity(), 1);
 }
@@ -599,23 +603,23 @@ TEST(ByteArrayMutator, OverwriteFromDictionary) {
 }
 
 TEST(ByteArrayMutator, OverwriteFromCmpDictionary) {
-  TestMutatorFn(&ByteArrayMutator::OverwriteFromCmpDictionary,
-                {1, 2, 40, 50, 60},
-                /*expected_mutants=*/
-                {
-                    {3, 4, 40, 50, 60},
-                    {1, 2, 10, 20, 30},
-                },
-                /*unexpected_mutants=*/
-                {
-                    {3, 4, 10, 20, 30},
-                },
-                /*size_alignment=*/1,
-                /*max_len=*/std::numeric_limits<size_t>::max(),
-                /*dictionary=*/
-                {},
-                /*cmp_data=*/
-                {/*args1*/ 2, 1, 2, 3, 4, /*args2*/ 3, 10, 20, 30, 40, 50, 60});
+  TestMutatorFn(
+      &ByteArrayMutator::OverwriteFromCmpDictionary, {1, 2, 40, 50, 60},
+      /*expected_mutants=*/
+      {
+          {3, 4, 40, 50, 60},
+          {1, 2, 10, 20, 30},
+      },
+      /*unexpected_mutants=*/
+      {
+          {3, 4, 10, 20, 30},
+      },
+      /*size_alignment=*/1,
+      /*max_len=*/std::numeric_limits<size_t>::max(),
+      /*dictionary=*/
+      {},
+      /*cmp_data=*/
+      ByteSpan({/*args1*/ 2, 1, 2, 3, 4, /*args2*/ 3, 10, 20, 30, 40, 50, 60}));
 }
 
 TEST(ByteArrayMutator, OverwriteFromCmpDictionaryAndSkipLongEntry) {
@@ -632,15 +636,17 @@ TEST(ByteArrayMutator, OverwriteFromCmpDictionaryAndSkipLongEntry) {
       /*max_len=*/std::numeric_limits<size_t>::max(),
       /*dictionary=*/
       {},
-      /*cmp_data=*/
-      {/*size*/ 20, /*lhs*/ 0, 1,   2,   3,   4,           5,
-       6,           7,         8,   9,   10,  11,          12,
-       13,          14,        15,  16,  17,  18,          19,
-       /*rhs*/ 100, 101,       102, 103, 104, 105,         106,
-       107,         108,       109, 110, 111, 112,         113,
-       114,         115,       116, 117, 118, 119,
-       /*size*/ 4,  /*lhs*/ 0, 1,   2,   3,   /*rhs*/ 100, 101,
-       102,         103});
+      /*cmp_data=*/ByteSpan({/*size*/ 20, /*lhs*/ 0, 1,   2,   3,
+                             4,           5,         6,   7,   8,
+                             9,           10,        11,  12,  13,
+                             14,          15,        16,  17,  18,
+                             19,
+                             /*rhs*/ 100, 101,       102, 103, 104,
+                             105,         106,       107, 108, 109,
+                             110,         111,       112, 113, 114,
+                             115,         116,       117, 118, 119,
+                             /*size*/ 4,  /*lhs*/ 0, 1,   2,   3,
+                             /*rhs*/ 100, 101,       102, 103}));
 }
 
 TEST(ByteArrayMutator, InsertFromDictionary) {

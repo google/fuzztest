@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/test_util.h"
@@ -38,7 +39,7 @@ TEST(ExecutionResult, WriteThenRead) {
   FeatureVec v1{1, 2, 3};
   FeatureVec v2{5, 6, 7, 8};
   ExecutionMetadata metadata;
-  metadata.AppendCmpEntry({1, 2, 3}, {4, 5, 6});
+  metadata.AppendCmpEntry(ByteSpan({1, 2, 3}), ByteSpan({4, 5, 6}));
   ExecutionResult::Stats stats1{.peak_rss_mb = 10};
   ExecutionResult::Stats stats2{.peak_rss_mb = 20};
   // First input.
@@ -102,7 +103,7 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
   ExecutionResult::Stats stats1{.peak_rss_mb = 10};
   ExecutionResult::Stats stats2{.peak_rss_mb = 20};
   ExecutionMetadata metadata;
-  metadata.AppendCmpEntry({1, 2, 3}, {4, 5, 6});
+  metadata.AppendCmpEntry(ByteSpan({1, 2, 3}), ByteSpan({4, 5, 6}));
 
   std::vector<uint8_t> buffer1(1000);
   BlobSequence blobseq1(buffer1.data(), buffer1.size());

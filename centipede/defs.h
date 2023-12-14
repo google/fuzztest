@@ -15,15 +15,14 @@
 #ifndef THIRD_PARTY_CENTIPEDE_DEFS_H_
 #define THIRD_PARTY_CENTIPEDE_DEFS_H_
 // Only simple definitions here. No code, no dependencies.
-// span.h is an exception as it's header-only and very simple.
 
 #include <cstddef>
 #include <cstdint>
 #include <random>
+#include "absl/types/span.h"
+
 #include <string_view>
 #include <vector>
-
-#include "absl/types/span.h"
 
 namespace centipede {
 
@@ -32,7 +31,6 @@ using Rng = std::mt19937_64;
 
 using ByteArray = std::vector<uint8_t>;
 using ByteSpan = absl::Span<const uint8_t>;
-
 inline ByteSpan AsByteSpan(std::string_view str) {
   return ByteSpan(reinterpret_cast<const uint8_t *>(str.data()), str.size());
 }

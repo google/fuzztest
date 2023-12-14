@@ -83,7 +83,7 @@ TEST(MinimizeTest, MinimizeTest) {
   MinimizerMockFactory factory;
 
   // Test with a non-crashy input.
-  EXPECT_EQ(MinimizeCrash({1, 2, 3}, env, factory), EXIT_FAILURE);
+  EXPECT_EQ(MinimizeCrash(ByteSpan({1, 2, 3}), env, factory), EXIT_FAILURE);
 
   ByteArray expected_minimized = {'f', 'u', 'z'};
 

@@ -115,7 +115,7 @@ int ForEachBlob(const Environment &env) {
     ByteSpan blob;
     while (blob_reader->Read(blob) == absl::OkStatus()) {
       ByteArray bytes;
-      bytes.insert(bytes.begin(), blob.data(), blob.end());
+      bytes.insert(bytes.begin(), blob.begin(), blob.end());
       // TODO(kcc): [impl] add a variant of WriteToLocalFile that accepts Span.
       WriteToLocalFile(tmpfile, bytes);
       std::string command_line = absl::StrReplaceAll(
