@@ -23,7 +23,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <functional>
+#include <ios>
 #include <limits>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <thread>  // NOLINT
 

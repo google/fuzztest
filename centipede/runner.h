@@ -34,7 +34,6 @@
 #include "./centipede/feature.h"
 #include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/knobs.h"
-#include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/runner_dl_info.h"

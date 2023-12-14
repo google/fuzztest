@@ -15,12 +15,11 @@
 #ifndef THIRD_PARTY_CENTIPEDE_BYTE_ARRAY_MUTATOR_H_
 #define THIRD_PARTY_CENTIPEDE_BYTE_ARRAY_MUTATOR_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "./centipede/defs.h"

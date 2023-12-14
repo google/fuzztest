@@ -24,12 +24,12 @@
 #include <sys/resource.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <iosfwd>
 #include <ostream>
 #include <string>
 
-#include "absl/status/status.h"
 #include "absl/time/time.h"
 
 namespace centipede::perf {

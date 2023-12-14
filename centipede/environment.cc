@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

@@ -16,14 +16,21 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>  // NOLINT
+#include <string>
+#include <string_view>
 #include <thread>  //NOLINT
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/defs.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_util.h"
 

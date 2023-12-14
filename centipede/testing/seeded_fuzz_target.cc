@@ -17,6 +17,8 @@
 #include <functional>
 #include <vector>
 
+#include "./centipede/defs.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 
 using centipede::ByteSpan;

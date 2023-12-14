@@ -17,6 +17,9 @@
 #include <cstring>
 #include <vector>
 
+#include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
 namespace centipede {

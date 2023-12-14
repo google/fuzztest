@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/analyze_corpora.h"
 
 #include "gtest/gtest.h"
-#include "./centipede/logging.h"
+#include "absl/log/log.h"
 
 namespace centipede {
 namespace {

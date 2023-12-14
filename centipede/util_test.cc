@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <map>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
 #include <vector>
@@ -24,10 +25,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
-#include "./centipede/test_util.h"
 
 namespace centipede {
 

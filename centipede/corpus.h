@@ -22,8 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"

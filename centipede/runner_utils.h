@@ -15,7 +15,6 @@
 #ifndef THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_
 #define THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_
 
-#include <cstdint>
 
 namespace centipede {
 

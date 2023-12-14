@@ -14,6 +14,7 @@
 
 #include "./centipede/rusage_profiler.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdint>

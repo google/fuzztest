@@ -30,6 +30,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cinttypes>
 #include <cstddef>
@@ -39,13 +40,17 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <memory>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/int_utils.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_interface.h"

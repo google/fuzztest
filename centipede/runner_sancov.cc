@@ -26,7 +26,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner.h"
-#include "./centipede/runner_utils.h"
+#include "./centipede/runner_dl_info.h"
 
 namespace centipede {
 void RunnerSancov() {}  // to be referenced in runner.cc

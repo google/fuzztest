@@ -17,12 +17,12 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>  // NOLINT
@@ -30,15 +30,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/centipede_interface.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/symbol_table.h"

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "./centipede/defs.h"
 #include "./centipede/mutation_input.h"

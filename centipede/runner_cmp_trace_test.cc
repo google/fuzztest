@@ -14,7 +14,9 @@
 
 #include "./centipede/runner_cmp_trace.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

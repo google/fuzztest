@@ -18,13 +18,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <random>
+#include <utility>
+#include <vector>
 
 #include "absl/random/random.h"
 #include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
+#include "./centipede/mutation_input.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/coverage.h"
 

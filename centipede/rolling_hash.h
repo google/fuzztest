@@ -15,9 +15,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_ROLLING_HASH_H_
 #define THIRD_PARTY_CENTIPEDE_ROLLING_HASH_H_
 
+#include <cstddef>
 #include <cstdint>
 
-#include "absl/base/const_init.h"
 
 namespace centipede {
 

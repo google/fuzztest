@@ -14,9 +14,13 @@
 
 #include "./centipede/call_graph.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 
-#include "./centipede/logging.h"
+#include "absl/log/check.h"
+#include "./centipede/control_flow.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 

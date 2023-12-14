@@ -14,8 +14,11 @@
 
 #include "./centipede/mutation_input.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/defs.h"
 
 namespace centipede {
 namespace {

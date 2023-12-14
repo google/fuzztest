@@ -14,7 +14,9 @@
 
 #include "./centipede/runner_flags.h"
 
+#include <cstddef>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace centipede {

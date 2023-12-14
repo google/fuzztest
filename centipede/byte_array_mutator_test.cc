@@ -15,14 +15,18 @@
 #include "./centipede/byte_array_mutator.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
-#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/defs.h"
+#include "./centipede/execution_metadata.h"
+#include "./centipede/knobs.h"
+#include "./centipede/mutation_input.h"
 
 namespace centipede {
 

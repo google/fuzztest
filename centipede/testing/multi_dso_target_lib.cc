@@ -14,6 +14,9 @@
 
 #include "./centipede/testing/multi_dso_target_lib.h"
 
+#include <cstddef>
+#include <cstdint>
+
 void DSO(const uint8_t *data, size_t size) {
   if (size >= 4 && data[2] == 'z' && data[3] == 'z') __builtin_trap();
 }

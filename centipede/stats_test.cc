@@ -14,7 +14,6 @@
 
 #include "./centipede/stats.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <sstream>

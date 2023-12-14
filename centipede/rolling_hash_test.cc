@@ -19,13 +19,12 @@
 
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <numeric>
-#include <random>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "./centipede/feature.h"
 

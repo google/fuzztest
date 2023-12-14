@@ -17,7 +17,6 @@
 
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/util.h"
 
 namespace centipede {
 

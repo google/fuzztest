@@ -14,7 +14,7 @@
 
 #include "./centipede/remote_file.h"
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <string>
 #include <string_view>

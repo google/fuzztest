@@ -129,9 +129,6 @@ cc_library(
 cc_library(
     name = "rolling_hash",
     hdrs = ["rolling_hash.h"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",  # exception, ok to depend on here.
-    ],
 )
 
 cc_library(
@@ -324,7 +321,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
@@ -471,7 +467,6 @@ cc_library(
         # used in centipede_runner.
         ":feature",
         ":execution_metadata",
-        ":runner_cmp_trace",
         ":shared_memory_blob_sequence",
     ],
 )
@@ -529,14 +524,12 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
-        ":defs",
         ":feature",
-        ":logging",
+        ":pc_info",
         ":symbol_table",
-        ":util",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
     ],
@@ -581,7 +574,9 @@ cc_library(
     deps = [
         ":control_flow",
         ":logging",
+        ":pc_info",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
     ],
 )
@@ -700,19 +695,16 @@ cc_library(
         ":binary_info",
         ":blob_file",
         ":byte_array_mutator",
-        ":call_graph",
         ":command",
         ":control_flow",
         ":defs",
         ":environment",
         ":fuzztest_mutator",
-        ":knobs",
         ":logging",
         ":mutation_input",
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
-        ":symbol_table",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log",
@@ -906,7 +898,6 @@ cc_library(
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":centipede_callbacks",
-        ":centipede_interface",
         ":defs",
         ":environment",
         ":logging",
@@ -1126,6 +1117,8 @@ cc_library(
         ":defs",
         ":logging",
         ":util",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -1238,10 +1231,9 @@ cc_test(
     deps = [
         ":defs",
         ":feature",
-        ":logging",
-        ":test_util",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1257,7 +1249,6 @@ cc_test(
         ":logging",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -1362,8 +1353,7 @@ cc_test(
     name = "analyze_corpora_test",
     srcs = ["analyze_corpora_test.cc"],
     deps = [
-        ":analyze_corpora",
-        ":logging",
+        "@com_google_absl//absl/log",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1393,7 +1383,9 @@ cc_test(
     name = "execution_metadata_test",
     srcs = ["execution_metadata_test.cc"],
     deps = [
+        ":defs",
         ":execution_metadata",
+        ":shared_memory_blob_sequence",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1402,6 +1394,7 @@ cc_test(
     name = "runner_result_test",
     srcs = ["runner_result_test.cc"],
     deps = [
+        ":execution_metadata",
         ":feature",
         ":runner_result",
         ":shared_memory_blob_sequence",
@@ -1414,6 +1407,7 @@ cc_test(
     name = "mutation_input_test",
     srcs = ["mutation_input_test.cc"],
     deps = [
+        ":defs",
         ":mutation_input",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1425,6 +1419,9 @@ cc_test(
     deps = [
         ":byte_array_mutator",
         ":defs",
+        ":execution_metadata",
+        ":knobs",
+        ":mutation_input",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1459,8 +1456,10 @@ cc_test(
     srcs = ["fuzztest_mutator_test.cc"],
     deps = [
         ":defs",
+        ":execution_metadata",
         ":fuzztest_mutator",
         ":knobs",
+        ":mutation_input",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
@@ -1514,11 +1513,14 @@ cc_test(
     name = "corpus_test",
     srcs = ["corpus_test.cc"],
     deps = [
+        ":binary_info",
+        ":call_graph",
         ":control_flow",
         ":corpus",
         ":defs",
         ":feature",
         ":feature_set",
+        ":pc_info",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1536,10 +1538,11 @@ cc_test(
     deps = [
         ":command",
         ":early_exit",
-        ":logging",
         ":test_util",
         ":util",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1564,10 +1567,14 @@ cc_test(
     deps = [
         ":binary_info",
         ":control_flow",
-        ":defs",
         ":logging",
+        ":pc_info",
         ":symbol_table",
         ":test_util",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1577,7 +1584,10 @@ cc_test(
     srcs = ["call_graph_test.cc"],
     deps = [
         ":call_graph",
+        ":control_flow",
         ":logging",
+        ":pc_info",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1632,12 +1642,15 @@ cc_test(
         ":environment",
         ":feature",
         ":logging",
+        ":mutation_input",
         ":runner_result",
         ":shard_reader",
         ":test_util",
         ":util",
         ":workdir",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1664,19 +1677,20 @@ cc_test(
     ],
     deps = [
         ":binary_info",
-        ":centipede_interface",
+        ":centipede_callbacks",
         ":control_flow",
         ":coverage",
         ":defs",
         ":environment",
         ":feature",
-        ":logging",
+        ":mutation_input",
         ":pc_info",
         ":runner_result",
         ":symbol_table",
         ":test_util",
         ":util",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],

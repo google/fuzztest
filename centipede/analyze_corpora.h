@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "./centipede/binary_info.h"
-#include "./centipede/corpus.h"
 
 namespace centipede {
 

@@ -15,9 +15,11 @@
 #ifndef THIRD_PARTY_CENTIPEDE_FUZZTEST_MUTATOR_H_
 #define THIRD_PARTY_CENTIPEDE_FUZZTEST_MUTATOR_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <vector>
 
-#include "absl/random/random.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
@@ -58,7 +60,7 @@ class FuzzTestMutator {
   void SetMetadata(const ExecutionMetadata& metadata);
 
   // The crossover algorithm based on the legacy ByteArrayMutator.
-  // TODO: Implement and use the domain level crossover.
+  // TODO(ussuri): Implement and use the domain level crossover.
   void CrossOverInsert(ByteArray &data, const ByteArray &other);
   void CrossOverOverwrite(ByteArray &data, const ByteArray &other);
   void CrossOver(ByteArray &data, const ByteArray &other);

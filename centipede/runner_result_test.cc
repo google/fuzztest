@@ -15,13 +15,17 @@
 #include "./centipede/runner_result.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <fstream>
+#include <ios>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/test_util.h"

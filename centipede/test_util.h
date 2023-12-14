@@ -15,7 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
 #define THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 
 #include "absl/strings/str_cat.h"

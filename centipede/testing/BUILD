@@ -64,7 +64,11 @@ cc_binary(
         "manual",
         "notap",
     ],
-    deps = ["@com_google_fuzztest//centipede:centipede_runner_no_main"],
+    deps = [
+        "@com_google_fuzztest//centipede:centipede_runner_no_main",
+        "@com_google_fuzztest//centipede:defs",
+        "@com_google_fuzztest//centipede:mutation_input",
+    ],
 )
 
 centipede_fuzz_target(

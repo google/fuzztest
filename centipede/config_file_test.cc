@@ -14,6 +14,7 @@
 
 #include "./centipede/config_file.h"
 
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"

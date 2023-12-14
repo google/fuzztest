@@ -18,14 +18,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <sstream>
-#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "./centipede/binary_info.h"
+#include "./centipede/call_graph.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 namespace {

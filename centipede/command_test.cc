@@ -18,12 +18,15 @@
 #include <sys/wait.h>  // NOLINT(for WTERMSIG)
 
 #include <cstdlib>
+#include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 #include "./centipede/early_exit.h"
-#include "./centipede/logging.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 

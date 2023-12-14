@@ -17,7 +17,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "./centipede/runner_cmp_trace.h"
+#include "./centipede/execution_metadata.h"
+#include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 
 namespace centipede {

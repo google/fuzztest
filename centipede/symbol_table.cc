@@ -15,8 +15,9 @@
 #include "./centipede/symbol_table.h"
 
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
+#include <istream>
 #include <ostream>
 #include <string>
 #include <string_view>

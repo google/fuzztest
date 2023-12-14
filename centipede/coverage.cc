@@ -17,17 +17,21 @@
 #include <string.h>
 
 #include <cstdint>
-#include <filesystem>
 #include <limits>
+#include <ostream>
+#include <sstream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
-#include "./centipede/defs.h"
-#include "./centipede/logging.h"
+#include "./centipede/control_flow.h"
+#include "./centipede/feature.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
-#include "./centipede/util.h"
 
 namespace centipede {
 

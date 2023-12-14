@@ -20,7 +20,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
-#include "absl/strings/match.h"
 #include "./centipede/environment_flags.h"
 #include "./centipede/logging.h"
 

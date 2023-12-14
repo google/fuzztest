@@ -23,6 +23,7 @@
 #define THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>

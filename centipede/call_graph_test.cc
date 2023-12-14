@@ -14,13 +14,17 @@
 
 #include "./centipede/call_graph.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "./centipede/control_flow.h"
 #include "./centipede/logging.h"
+#include "./centipede/pc_info.h"
 
 namespace centipede {
 namespace {

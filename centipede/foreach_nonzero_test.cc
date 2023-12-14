@@ -14,7 +14,11 @@
 
 #include "./centipede/foreach_nonzero.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <functional>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"

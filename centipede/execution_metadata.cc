@@ -14,6 +14,12 @@
 
 #include "./centipede/execution_metadata.h"
 
+#include <cstddef>
+#include <functional>
+
+#include "./centipede/defs.h"
+#include "./centipede/shared_memory_blob_sequence.h"
+
 namespace centipede {
 
 bool ExecutionMetadata::AppendCmpEntry(ByteSpan a, ByteSpan b) {

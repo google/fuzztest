@@ -39,8 +39,6 @@
 #include <climits>
 #include <cstdint>
 #include <functional>
-#include <limits>
-#include <memory>
 
 #include "absl/base/const_init.h"
 #include "./centipede/concurrent_byteset.h"

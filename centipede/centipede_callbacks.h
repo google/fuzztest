@@ -16,26 +16,21 @@
 #define THIRD_PARTY_CENTIPEDE_CENTIPEDE_CALLBACKS_H_
 
 #include <cstddef>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/call_graph.h"
 #include "./centipede/command.h"
-#include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/knobs.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
-#include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
-#include "./centipede/symbol_table.h"
 #include "./centipede/util.h"
 
 namespace centipede {
