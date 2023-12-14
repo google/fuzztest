@@ -50,6 +50,19 @@ std::vector<std::string> ListDirectory(absl::string_view dir);
 // Returns the basename of `filename`.
 absl::string_view Basename(absl::string_view filename);
 
+// A temporary directory with `path_prefix` that will be cleaned up on object
+// destruction.
+class TempDir {
+ public:
+  explicit TempDir(absl::string_view path_prefix = "/tmp/");
+  ~TempDir();
+
+  const std::string& path() const { return path_; }
+
+ private:
+  std::string path_;
+};
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_IO_H_

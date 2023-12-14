@@ -14,8 +14,14 @@
 
 #include "./fuzztest/internal/io.h"
 
+#if defined(__APPLE__)
+// For mkdtemp
+#include <unistd.h>
+#endif
+
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -23,6 +29,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -40,6 +47,9 @@
 // Just stub out these functions.
 #define STUB_FILESYSTEM
 #endif
+#elif defined(_WIN32)
+// No mkdtemp.
+#define STUB_FILESYSTEM
 #endif
 
 namespace fuzztest::internal {
@@ -65,6 +75,13 @@ std::optional<std::string> ReadFile(absl::string_view file) {
 
 std::vector<std::string> ListDirectory(absl::string_view dir) {
   FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+}
+
+TempDir::TempDir(absl::string_view path_prefix) {
+  FUZZTEST_INTERNAL_CHECK(false, "Not implemented in iOS/MacOS");
+}
+TempDir::~TempDir() {
+  FUZZTEST_INTERNAL_CHECK(false, "Not implemented in iOS/MacOS");
 }
 
 #else  // defined(__APPLE__)
@@ -140,6 +157,24 @@ std::vector<std::string> ListDirectory(absl::string_view dir) {
     out.push_back(entry.path().string());
   }
   return out;
+}
+
+TempDir::TempDir(absl::string_view path_prefix) {
+  std::string filename = absl::StrFormat("%sXXXXXX", path_prefix);
+  const char* path = mkdtemp(filename.data());
+  const auto saved_errno = errno;
+  FUZZTEST_INTERNAL_CHECK(path, "Cannot create temporary dir with path prefix ",
+                          path_prefix, ": ", saved_errno);
+  path_ = path;
+}
+
+TempDir::~TempDir() {
+  std::error_code ec;
+  std::filesystem::remove_all(path_, ec);
+  if (ec) {
+    absl::FPrintF(GetStderr(), "[!] Unable to clean up temporary dir %s: %s",
+                  path_, ec.message());
+  }
 }
 
 #endif  // defined(STUB_FILESYSTEM)
