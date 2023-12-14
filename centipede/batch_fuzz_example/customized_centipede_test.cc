@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
@@ -30,24 +31,23 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Each;
+using ::testing::ExplainMatchResult;
 using ::testing::IsEmpty;
 using ::testing::Property;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
 
-bool RunInputsAndCollectCoverage(const Environment &env,
+bool RunInputsAndCollectCoverage(CentipedeCallbacks &centipede_callbacks,
+                                 std::string_view binary,
                                  const std::vector<std::string> &inputs,
                                  BatchResult &batch_result) {
-  CustomizedCallbacks customized_callbacks(env);
-
   // Repackage string inputs into ByteArray inputs.
   std::vector<ByteArray> byte_array_inputs;
   for (const auto &string_input : inputs) {
     byte_array_inputs.emplace_back(string_input.cbegin(), string_input.cend());
   }
   // Run.
-  return customized_callbacks.Execute(env.binary, byte_array_inputs,
-                                      batch_result);
+  return centipede_callbacks.Execute(binary, byte_array_inputs, batch_result);
 }
 
 std::string GetTargetPath() {
@@ -55,24 +55,66 @@ std::string GetTargetPath() {
       "centipede/batch_fuzz_example/batch_fuzz_target");
 }
 
-TEST(BatchFuzz, SucceedsToCollectCoverageForTwoInputs) {
-  Environment env;
-  env.binary = GetTargetPath();
+TEST(BatchFuzzWithExecutionResults, SucceedsToCollectCoverageForTwoInputs) {
+  const std::string target_path = GetTargetPath();
+  Environment env = {.binary = target_path};
+  CustomizedCallbacks callbacks(env, /*feature_only_feedback=*/false);
+
   BatchResult batch_result;
-  ASSERT_TRUE(RunInputsAndCollectCoverage(env, {"a", "b"}, batch_result));
+  ASSERT_TRUE(RunInputsAndCollectCoverage(callbacks, target_path, {"a", "b"},
+                                          batch_result));
   EXPECT_THAT(batch_result.results(),
               AllOf(SizeIs(2), Each(Property(&ExecutionResult::features,
                                              Not(IsEmpty())))));
 }
 
-TEST(BatchFuzz, CollectsTheSameCoverageForSameInputs) {
-  Environment env;
-  env.binary = GetTargetPath();
+TEST(BatchFuzzWithExecutionResults, CollectsTheSameCoverageForSameInputs) {
+  const std::string target_path = GetTargetPath();
+  const Environment env = {.binary = GetTargetPath()};
+  CustomizedCallbacks callbacks(env, /*feature_only_feedback=*/false);
+
   BatchResult batch_result;
-  ASSERT_TRUE(RunInputsAndCollectCoverage(env, {"f", "f"}, batch_result));
+  ASSERT_TRUE(RunInputsAndCollectCoverage(callbacks, target_path, {"f", "f"},
+                                          batch_result));
   ASSERT_THAT(batch_result.results(),
               AllOf(SizeIs(2), Each(Property(&ExecutionResult::features,
                                              Not(IsEmpty())))));
+  EXPECT_THAT(batch_result.results()[0].features(),
+              UnorderedElementsAreArray(batch_result.results()[1].features()));
+}
+
+MATCHER_P(HasFeaturesOnly, features_matcher, "") {
+  return ExplainMatchResult(features_matcher, arg.features(),
+                            result_listener) &&
+         ExplainMatchResult(IsEmpty(), arg.metadata().cmp_data,
+                            result_listener) &&
+         ExplainMatchResult(0, arg.stats().prep_time_usec, result_listener) &&
+         ExplainMatchResult(0, arg.stats().prep_time_usec, result_listener) &&
+         ExplainMatchResult(0, arg.stats().prep_time_usec, result_listener);
+}
+
+TEST(BatchFuzzWithCoverageData, SucceedsToCollectCoverageForTwoInputs) {
+  const std::string target_path = GetTargetPath();
+  const Environment env = {.binary = GetTargetPath()};
+  CustomizedCallbacks callbacks(env, /*feature_only_feedback=*/true);
+
+  BatchResult batch_result;
+  ASSERT_TRUE(RunInputsAndCollectCoverage(callbacks, target_path, {"a", "b"},
+                                          batch_result));
+  EXPECT_THAT(batch_result.results(),
+              AllOf(SizeIs(2), Each(HasFeaturesOnly(Not(IsEmpty())))));
+}
+
+TEST(BatchFuzzWithCoverageData, CollectsTheSameCoverageForSameInputs) {
+  const std::string target_path = GetTargetPath();
+  const Environment env = {.binary = target_path};
+  CustomizedCallbacks callbacks(env, /*feature_only_feedback=*/true);
+
+  BatchResult batch_result;
+  ASSERT_TRUE(RunInputsAndCollectCoverage(callbacks, target_path, {"f", "f"},
+                                          batch_result));
+  ASSERT_THAT(batch_result.results(),
+              AllOf(SizeIs(2), Each(HasFeaturesOnly(Not(IsEmpty())))));
   EXPECT_THAT(batch_result.results()[0].features(),
               UnorderedElementsAreArray(batch_result.results()[1].features()));
 }

@@ -16,8 +16,10 @@
 
 #include <sys/types.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
@@ -26,9 +28,12 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
+#include "./centipede/feature.h"
+#include "./centipede/logging.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
@@ -36,21 +41,54 @@
 namespace centipede {
 namespace {
 
-bool UpdateBatchResult(absl::string_view output_file,
-                       BatchResult& batch_result) {
-  ByteArray content;
-  ReadFromLocalFile(output_file, content);
-  if (content.empty()) {
-    LOG(WARNING) << "Skip updating batch result with an emtpy output file: "
-                 << output_file;
-    return true;
-  }
+void UpdateFeatures(const ByteArray& content, FeatureVec& features) {
+  CHECK_EQ(content.size() % sizeof(feature_t), 0)
+      << VV(content.size()) << VV(sizeof(feature_t));
+  const size_t features_size = content.size() / sizeof(feature_t);
+  features.resize(features_size);
+  memcpy(features.data(), content.data(), content.size());
+}
 
+void UpdateExecutionResult(ByteArray& content,
+                           ExecutionResult& execution_result) {
   BlobSequence blob_seq(content.data(), content.size());
-  if (batch_result.Read(blob_seq)) return true;
+  BatchResult local_batch_result;
+  local_batch_result.ClearAndResize(1);
+  local_batch_result.Read(blob_seq);
+  CHECK_EQ(local_batch_result.results().size(), 1);
+  CHECK_EQ(local_batch_result.num_outputs_read(), 1);
+  const ExecutionResult& local_execution_result =
+      local_batch_result.results()[0];
 
-  LOG(ERROR) << "Failed to read blob sequence from file: " << output_file;
-  return false;
+  execution_result.metadata() = local_execution_result.metadata();
+  execution_result.mutable_features() = local_execution_result.features();
+}
+
+void UpdateBatchResult(const bool feature_only_feedback,
+                       std::string_view output_dir, BatchResult& batch_result) {
+  std::vector<std::filesystem::path> entries;
+  for (const auto& entry :
+       std::filesystem::recursive_directory_iterator(output_dir)) {
+    entries.push_back(entry.path());
+  }
+  CHECK_LE(entries.size(), batch_result.results().size());
+  std::sort(entries.begin(), entries.end());
+
+  for (size_t index = 0; index < entries.size(); ++index) {
+    ByteArray content;
+    ReadFromLocalFile(std::string(entries[index]), content);
+    if (content.empty()) {
+      LOG(WARNING) << "Skip updating batch result with an emtpy output file: "
+                   << entries[index];
+      continue;
+    }
+    ExecutionResult& execution_result = batch_result.results()[index];
+    if (feature_only_feedback) {
+      UpdateFeatures(content, execution_result.mutable_features());
+    } else {
+      UpdateExecutionResult(content, execution_result);
+    }
+  }
 }
 
 void DumpBatchResultStats(const BatchResult& batch_result) {
@@ -64,19 +102,21 @@ void DumpBatchResultStats(const BatchResult& batch_result) {
 
 }  // namespace
 
+CustomizedCallbacks::CustomizedCallbacks(const Environment& env,
+                                         bool feature_only_feedback)
+    : CentipedeCallbacks(env), feature_only_feedback_(feature_only_feedback) {}
+
 bool CustomizedCallbacks::Execute(std::string_view binary,
                                   const std::vector<ByteArray>& inputs,
                                   BatchResult& batch_result) {
   const std::string temp_dir = TemporaryLocalDirPath();
-  CHECK(!temp_dir.empty());
-  std::filesystem::create_directory(temp_dir);
+  CreateLocalDirRemovedAtExit(temp_dir);
 
   std::string input_file_list;
-  int index = 0;
-  for (const auto& input : inputs) {
+  for (size_t index = 0; index < inputs.size(); ++index) {
     const std::string temp_file_path =
-        std::filesystem::path(temp_dir).append(absl::StrCat("input-", index++));
-    WriteToLocalFile(temp_file_path, input);
+        std::filesystem::path(temp_dir).append(absl::StrCat("input-", index));
+    WriteToLocalFile(temp_file_path, inputs[index]);
     absl::StrAppend(&input_file_list, temp_file_path);
     absl::StrAppend(&input_file_list, "\n");
   }
@@ -84,8 +124,9 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
       std::filesystem::path(temp_dir).append("input_file_list");
   WriteToLocalFile(input_list_filepath, input_file_list);
 
-  const std::string tmp_output_filepath =
-      std::filesystem::path(temp_dir).append("output_execution_results");
+  const std::string tmp_output_dir =
+      std::filesystem::path(temp_dir).append("output_data");
+  std::filesystem::create_directory(tmp_output_dir);
   const std::string tmp_log_filepath =
       std::filesystem::path(temp_dir).append("tmp_log");
 
@@ -96,12 +137,18 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
     env = {ConstructRunnerFlags()};
   }
 
+  std::vector<std::string> args = {
+      "--input_file",
+      input_list_filepath,
+      "--output_dir",
+      tmp_output_dir,
+  };
+  if (feature_only_feedback_) {
+    args.push_back("--enable_feature_only_feedback");
+  }
+
   // Execute.
-  Command cmd{env_.binary,
-              {input_list_filepath, tmp_output_filepath},
-              env,
-              tmp_log_filepath,
-              tmp_log_filepath};
+  Command cmd{env_.binary, args, env, tmp_log_filepath, tmp_log_filepath};
   const int retval = cmd.Execute();
 
   std::string tmp_log;
@@ -109,7 +156,8 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
   LOG_IF(INFO, !tmp_log.empty()) << tmp_log;
 
   batch_result.ClearAndResize(inputs.size());
-  CHECK(UpdateBatchResult(tmp_output_filepath, batch_result));
+  UpdateBatchResult(feature_only_feedback_, tmp_output_dir, batch_result);
+
   DumpBatchResultStats(batch_result);
   return retval == 0;
 }

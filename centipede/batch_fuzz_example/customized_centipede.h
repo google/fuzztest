@@ -17,7 +17,6 @@
 
 #include <sys/types.h>
 
-#include <string>
 #include <vector>
 
 #include "absl/strings/string_view.h"
@@ -36,10 +35,16 @@ namespace centipede {
 class CustomizedCallbacks : public CentipedeCallbacks {
  public:
   explicit CustomizedCallbacks(const Environment& env)
-      : CentipedeCallbacks(env) {}
+      : CustomizedCallbacks(env, /*feature_only_feedback=*/false) {}
+
+  explicit CustomizedCallbacks(const Environment& env,
+                               bool feature_only_feedback);
 
   bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
                BatchResult& batch_result) override;
+
+ private:
+  const bool feature_only_feedback_;
 };
 
 }  // namespace centipede
