@@ -86,22 +86,6 @@ std::string BinaryPath(const absl::string_view name) {
   return binary_path;
 }
 
-class TempDir {
- public:
-  TempDir() {
-    dirname_ = "/tmp/replay_test_XXXXXX";
-    dirname_ = mkdtemp(dirname_.data());
-    EXPECT_TRUE(std::filesystem::is_directory(dirname_));
-  }
-
-  const std::string& dirname() const { return dirname_; }
-
-  ~TempDir() { std::filesystem::remove_all(dirname_); }
-
- private:
-  std::string dirname_;
-};
-
 class UnitTestModeTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -683,11 +667,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
 
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
+              {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.path()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 
-  auto replay_files = ReadFileOrDirectory(out_dir.dirname());
+  auto replay_files = ReadFileOrDirectory(out_dir.path());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
   auto parsed = IRObject::FromString(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
@@ -704,9 +688,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
   // find the crash without saving some corpus.
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_OUT_DIR", out_dir.dirname()}});
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", out_dir.path()}});
 
-  auto corpus_files = ReadFileOrDirectory(out_dir.dirname());
+  auto corpus_files = ReadFileOrDirectory(out_dir.path());
   EXPECT_THAT(corpus_files, Not(IsEmpty())) << std_err;
 }
 
@@ -719,14 +703,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
-  auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
+  auto corpus_files = ReadFileOrDirectory(corpus_dir.path());
   ASSERT_THAT(corpus_files, Not(IsEmpty())) << producer_std_err;
 
   auto [consumer_status, consumer_std_out, consumer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.dirname()}});
+              {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.path()}});
   EXPECT_THAT(consumer_std_err,
               HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
                                         corpus_files.size())));
@@ -742,9 +726,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
-  auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
+  auto corpus_files = ReadFileOrDirectory(corpus_dir.path());
   ASSERT_THAT(corpus_files, Not(IsEmpty())) << producer_std_err;
   std::vector<std::string> corpus_data;
   for (const FilePathAndData& corpus_file : corpus_files) {
@@ -753,11 +737,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
 
   auto [minimizer_status, minimizer_std_out, minimizer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.dirname()},
-               {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.dirname()}});
+              {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.path()},
+               {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.path()}});
 
   auto minimized_corpus_files =
-      ReadFileOrDirectory(minimized_corpus_dir.dirname());
+      ReadFileOrDirectory(minimized_corpus_dir.path());
   EXPECT_THAT(minimized_corpus_files,
               AllOf(Not(IsEmpty()), SizeIs(Le(corpus_files.size()))))
       << minimizer_std_err;
@@ -786,9 +770,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
-  auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
+  auto corpus_files = ReadFileOrDirectory(corpus_dir.path());
   ASSERT_THAT(corpus_files, Not(IsEmpty())) << producer_std_err;
   for (const auto& corpus_file : corpus_files) {
     ASSERT_TRUE(WriteFile(corpus_file.path + "_dup", corpus_file.data));
@@ -796,11 +780,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
 
   auto [minimizer_status, minimizer_std_out, minimizer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.dirname()},
-               {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.dirname()}});
+              {{"FUZZTEST_MINIMIZE_TESTSUITE_DIR", corpus_dir.path()},
+               {"FUZZTEST_TESTSUITE_OUT_DIR", minimized_corpus_dir.path()}});
 
   auto minimized_corpus_files =
-      ReadFileOrDirectory(minimized_corpus_dir.dirname());
+      ReadFileOrDirectory(minimized_corpus_dir.path());
   EXPECT_THAT(minimized_corpus_files,
               AllOf(Not(IsEmpty()), SizeIs(Le(corpus_files.size()))))
       << minimizer_std_err;
@@ -828,7 +812,7 @@ class ReplayFile {
  public:
   template <typename T>
   ReplayFile(std::in_place_t, const T& corpus) {
-    filename_ = absl::StrCat(dir_.dirname(), "/replay_file");
+    filename_ = absl::StrCat(dir_.path(), "/replay_file");
     WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString());
   }
 
@@ -876,11 +860,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.WithDomainClass"}},
-              {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
+              {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.path()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
   EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
 
-  auto replay_files = ReadFileOrDirectory(out_dir.dirname());
+  auto replay_files = ReadFileOrDirectory(out_dir.path());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
   auto parsed = IRObject::FromString(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
@@ -913,14 +897,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
     TempDir out_dir;
     ReplayFile replay(std::in_place, std::tuple<std::string>{current_input});
     auto env = replay.GetMinimizeEnv();
-    env["FUZZTEST_REPRODUCERS_OUT_DIR"] = out_dir.dirname();
+    env["FUZZTEST_REPRODUCERS_OUT_DIR"] = out_dir.path();
 
     auto [status, std_out, std_err] =
         RunWith({{"fuzz", "MySuite.Minimizer"}}, env);
     ASSERT_THAT(std_err, HasSubstr("argument 0: \""));
     ASSERT_THAT(status, Eq(Signal(SIGABRT)));
 
-    auto replay_files = ReadFileOrDirectory(out_dir.dirname());
+    auto replay_files = ReadFileOrDirectory(out_dir.path());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
     auto parsed = IRObject::FromString(replay_files[0].data);
     ASSERT_TRUE(parsed) << std_err;
@@ -1079,7 +1063,7 @@ class FuzzingModeFixtureTest : public ::testing::Test {
     TempDir workdir;
     return RunCommand(
         {CentipedePath(), "--print_runner_log", "--exit_on_crash",
-         absl::StrCat("--workdir=", workdir.dirname()),
+         absl::StrCat("--workdir=", workdir.path()),
          absl::StrCat("--binary=", BinaryPath(kDefaultTargetBinary), " ",
                       CreateFuzzTestFlag("fuzz", test_name)),
          absl::StrCat("--num_runs=", iterations)},
@@ -1199,7 +1183,7 @@ class FuzzingModeCrashFindingTest : public ::testing::Test {
     environment["ASAN_OPTIONS"] = "handle_aborts=0";
     return RunCommand({CentipedePath(), "--exit_on_crash",
                        absl::StrCat("--stop_at=", absl::Now() + timeout),
-                       absl::StrCat("--workdir=", workdir.dirname()),
+                       absl::StrCat("--workdir=", workdir.path()),
                        absl::StrCat("--binary=", BinaryPath(target_binary), " ",
                                     CreateFuzzTestFlag("fuzz", test_name))},
                       environment, timeout + absl::Seconds(10));

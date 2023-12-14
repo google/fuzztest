@@ -38,14 +38,15 @@ using ::testing::FieldsAre;
 using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::SizeIs;
+using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 
-std::string TmpFile(const std::string& name) {
+std::string TestTmpFile(const std::string& name) {
   std::string filename = absl::StrCat(testing::TempDir(), "/", name, "XXXXXX");
   return mktemp(filename.data());
 }
 
-std::string TmpDir(const std::string& name) {
+std::string TestTmpDir(const std::string& name) {
   std::string filename = absl::StrCat(testing::TempDir(), "/", name, "XXXXXX");
   return mkdtemp(filename.data());
 }
@@ -69,14 +70,14 @@ void TestWrite(const std::string& filename, const std::string& contents) {
 }
 
 TEST(IOTest, WriteFileWorksWhenDirectoryExists) {
-  const std::string tmp_name = TmpFile("write_test");
+  const std::string tmp_name = TestTmpFile("write_test");
   EXPECT_TRUE(WriteFile(tmp_name, "Payload1"));
   EXPECT_EQ(TestRead(tmp_name), "Payload1");
   std::filesystem::remove(tmp_name);
 }
 
 TEST(IOTest, WriteFileWorksWhenDirectoryDoesNotExist) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
+  const std::string tmp_dir = TestTmpDir("write_test_dir");
   const std::string tmp_name = absl::StrCat(tmp_dir, "/doesnt_exist/file");
   EXPECT_TRUE(WriteFile(tmp_name, "Payload1"));
   EXPECT_EQ(TestRead(tmp_name), "Payload1");
@@ -84,14 +85,14 @@ TEST(IOTest, WriteFileWorksWhenDirectoryDoesNotExist) {
 }
 
 TEST(IOTest, WriteDataToDirReturnsWrittenFilePath) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
+  const std::string tmp_dir = TestTmpDir("write_test_dir");
   const std::string path = WriteDataToDir("data", tmp_dir);
   EXPECT_THAT(ReadFile(path), Optional(Eq("data")));
   std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, WriteDataToDirWritesToSameFileOnSameData) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
+  const std::string tmp_dir = TestTmpDir("write_test_dir");
   const std::string path = WriteDataToDir("data", tmp_dir);
   EXPECT_THAT(WriteDataToDir("data", tmp_dir), Eq(path));
   EXPECT_THAT(ReadFile(path), Optional(Eq("data")));
@@ -105,7 +106,7 @@ TEST(IOTest, ReadFileReturnsNulloptWhenMissing) {
 }
 
 TEST(IOTest, ReadFileWorksWhenFileExists) {
-  const std::string tmp_name = TmpFile("read_test");
+  const std::string tmp_name = TestTmpFile("read_test");
   TestWrite(tmp_name, "Payload2");
   EXPECT_THAT(ReadFile(tmp_name), Optional(Eq("Payload2")));
   EXPECT_THAT(ReadFileOrDirectory(tmp_name),
@@ -114,7 +115,7 @@ TEST(IOTest, ReadFileWorksWhenFileExists) {
 }
 
 TEST(IOTest, ReadFileOrDirectoryWorks) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
+  const std::string tmp_dir = TestTmpDir("write_test_dir");
   EXPECT_THAT(ReadFileOrDirectory(tmp_dir), UnorderedElementsAre());
   const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
   TestWrite(tmp_file_1, "Payload3.1");
@@ -129,7 +130,7 @@ TEST(IOTest, ReadFileOrDirectoryWorks) {
 }
 
 TEST(IOTest, ReadFileOrDirectoryWorksRecursively) {
-  const std::string tmp_dir = TmpDir("test_dir");
+  const std::string tmp_dir = TestTmpDir("test_dir");
   const std::string tmp_sub_dir = absl::StrCat(tmp_dir, "/subdir");
   mkdir(tmp_sub_dir.c_str(), 0700);
   const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
@@ -143,7 +144,7 @@ TEST(IOTest, ReadFileOrDirectoryWorksRecursively) {
 }
 
 TEST(IOTest, ReadFilesFromDirectoryWorks) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
+  const std::string tmp_dir = TestTmpDir("write_test_dir");
   EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), UnorderedElementsAre());
   EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), SizeIs(0));
   const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
@@ -161,7 +162,7 @@ TEST(IOTest, ReadFilesFromDirectoryWorks) {
 }
 
 TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenNoFilesInDir) {
-  const std::string tmp_dir = TmpDir("empty_dir");
+  const std::string tmp_dir = TestTmpDir("empty_dir");
   EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), UnorderedElementsAre());
   EXPECT_THAT(ReadFileOrDirectory(tmp_dir), SizeIs(0));
   std::filesystem::remove_all(tmp_dir);
@@ -173,7 +174,7 @@ TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenMissing) {
 }
 
 TEST(IOTest, ListDirectoryReturnsPathsInDirectory) {
-  const std::string tmp_dir = TmpDir("test_dir");
+  const std::string tmp_dir = TestTmpDir("test_dir");
   const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
   TestWrite(tmp_file_1, /*contents=*/"File1");
   const std::string tmp_file_2 = absl::StrCat(tmp_dir, "/file2");
@@ -184,13 +185,29 @@ TEST(IOTest, ListDirectoryReturnsPathsInDirectory) {
 }
 
 TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryIsEmpty) {
-  const std::string tmp_dir = TmpDir("empty_dir");
+  const std::string tmp_dir = TestTmpDir("empty_dir");
   EXPECT_THAT(ListDirectory(tmp_dir), IsEmpty());
   std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryDoesNotExist) {
   EXPECT_THAT(ListDirectory("/doesnt_exist/"), IsEmpty());
+}
+
+TEST(IOTest, TempDirGeneratesDirFollowingPathPrefix) {
+  TempDir temp_dir("/tmp/some_path_prefix");
+  EXPECT_THAT(temp_dir.path(), StartsWith("/tmp/some_path_prefix"));
+  EXPECT_TRUE(std::filesystem::is_directory(temp_dir.path()));
+}
+
+TEST(IOTest, TempDirRemovesDirOnDestruction) {
+  std::string temp_dir_path;
+  {
+    TempDir temp_dir("/tmp/some_path_prefix");
+    temp_dir_path = temp_dir.path();
+    EXPECT_TRUE(std::filesystem::is_directory(temp_dir_path));
+  }
+  EXPECT_FALSE(std::filesystem::exists(temp_dir_path));
 }
 
 }  // namespace
