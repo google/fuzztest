@@ -39,24 +39,49 @@ namespace centipede {
 // All such objects may be read synchronously by another thread,
 // hence the use of atomics.
 // These objects may also be accessed after all worker threads have joined.
+// TODO(ussuri): Too many atomics now: danger of grabbing stats half-way
+//  through updating in centipede.cc. Replace with a mutex instead.
 struct Stats {
   std::atomic<uint64_t> timestamp_unix_micros = 0;
+
+  std::atomic<uint64_t> fuzz_time_sec = 0;
   std::atomic<uint64_t> num_executions = 0;
+  std::atomic<uint64_t> num_target_crashes = 0;
+
   std::atomic<uint64_t> num_covered_pcs = 0;
+  std::atomic<uint64_t> num_8bit_counter_fts = 0;
+  std::atomic<uint64_t> num_data_flow_fts = 0;
+  std::atomic<uint64_t> num_cmp_fts = 0;
+  std::atomic<uint64_t> num_call_stack_fts = 0;
+  std::atomic<uint64_t> num_bounded_path_fts = 0;
+  std::atomic<uint64_t> num_pc_pair_fts = 0;
+  std::atomic<uint64_t> num_user_fts = 0;
+  std::atomic<uint64_t> num_unknown_fts = 0;
+
+  std::atomic<uint64_t> num_funcs_in_frontier = 0;
+
   std::atomic<uint64_t> active_corpus_size = 0;
+  std::atomic<uint64_t> total_corpus_size = 0;
   std::atomic<uint64_t> max_corpus_element_size = 0;
   std::atomic<uint64_t> avg_corpus_element_size = 0;
 
-  // Some traits of each stat.
+  std::atomic<uint64_t> engine_rusage_avg_millicores = 0;
+  std::atomic<uint64_t> engine_rusage_cpu_pct = 0;
+  std::atomic<uint64_t> engine_rusage_rss_mb = 0;
+  std::atomic<uint64_t> engine_rusage_vsize_mb = 0;
+
   using Traits = uint32_t;
   enum TraitBits : Traits {
     // The kind of the stat.
     kTimestamp = 1UL << 0,
     kFuzzStat = 1UL << 1,
+    kRUsageStat = 1UL << 2,
+
     // The aggregate value(s) to report for the stat.
     kMin = 1UL << 8,
     kMax = 1UL << 9,
     kAvg = 1UL << 10,
+    kSum = 1UL << 11,
   };
 
   // Ascribes some properties to each stat. Used in `StatReporter` & subclasses.
@@ -70,7 +95,7 @@ struct Stats {
   };
 
   // WARNING!!! Before reordering these or changing the aggregation types,
-  // consider the backward compatibility  implications for historical CSVs out
+  // consider the backward compatibility implications for historical CSVs out
   // there: if some end-user has a CSV post-processing step that relies on the
   // old order or the aggregation type of the CSV fields, that step will break
   // if either of those things change; if the post-processing step relies on the
@@ -113,6 +138,109 @@ struct Stats {
           "UnixMicros",
           "Timestamp",
           kTimestamp | kMin | kMax,
+      },
+      {
+          &Stats::fuzz_time_sec,
+          "FuzzTimeSec",
+          "Fuzz time (sec)",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_target_crashes,
+          "NumProxyCrashes",
+          "Num proxy crashes",
+          kFuzzStat | kMin | kMax | kSum,
+      },
+      {
+          &Stats::total_corpus_size,
+          "TotalCorpusSize",
+          "Total corpus size",
+          kFuzzStat | kMin | kMax | kSum,
+      },
+      {
+          &Stats::num_8bit_counter_fts,
+          "Num8BitCounterFts",
+          "Num 8-bit counter fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_data_flow_fts,
+          "NumDataFlowFts",
+          "Num data flow fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_cmp_fts,
+          "NumCmpFts",
+          "Num cmp fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_call_stack_fts,
+          "NumCallStackFts",
+          "Num call stack fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_bounded_path_fts,
+          "NumBoundedPathFts",
+          "Num bounded path fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_pc_pair_fts,
+          "NumPcPairFts",
+          "Num PC pair fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user_fts,
+          "NumUserFts",
+          "Num user fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_unknown_fts,
+          "NumUnknownFts",
+          "Num unknown fts",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_funcs_in_frontier,
+          "NumFuncsInFrontier",
+          "Num funcs in frontier",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      // Rusage. Each shard of a run is a thread of the same process, but it
+      // measures the following metrics for the whole process. That means that
+      // all the shards should return more or less the same number for the same
+      // thing, sampling jitter and noise notwithstanding. Therefore, for the
+      // aggregate stat we use the upper bound of the samples.
+      // TODO(ussuri): Revise aggregation for CPU metrics once/if we start
+      // measuring them per-thread.
+      {
+          &Stats::engine_rusage_avg_millicores,
+          "EngineRusageAvgCores",
+          "Engine rusage avg cores",
+          kRUsageStat | kMax,
+      },
+      {
+          &Stats::engine_rusage_cpu_pct,
+          "EngineRusageCpuPct",
+          "Engine rusage CPU (pct)",
+          kRUsageStat | kMax,
+      },
+      {
+          &Stats::engine_rusage_rss_mb,
+          "EngineRusageRssMb",
+          "Engine rusage RSS (MB)",
+          kRUsageStat | kMax,
+      },
+      {
+          &Stats::engine_rusage_vsize_mb,
+          "EngineRusageVSizeMb",
+          "Engine rusage VSize (MB)",
+          kRUsageStat | kMax,
       },
   };
 };

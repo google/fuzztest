@@ -46,6 +46,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -196,25 +197,62 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
 
 void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
-  auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
+  // `fuzz_start_time_ == ` means that fuzzing hasn't started yet. If so, grab
+  // the baseline numbers.
+  const double fuzz_time_secs =
+      fuzz_start_time_ == absl::InfiniteFuture()
+          ? 0
+          : absl::ToDoubleSeconds(absl::Now() - fuzz_start_time_);
+  const double execs_per_sec =
+      fuzz_time_secs == 0 ? 0 : (1.0 * num_runs_ / fuzz_time_secs);
+  const auto [max_corpus_size, avg_corpus_size] = corpus_.MaxAndAvgSize();
+
+  // NOTE: For now, this will double-count rusage in every shard on the same
+  // machine. The stats reporter knows and deals with that.
+  static const auto rusage_scope = perf::RUsageScope::ThisProcess();
+  const auto rusage_timing = perf::RUsageTiming::Snapshot(rusage_scope);
+  const auto rusage_memory = perf::RUsageMemory::Snapshot(rusage_scope);
 
   stats_.timestamp_unix_micros = absl::ToUnixMicros(absl::Now());
+  stats_.fuzz_time_sec = fuzz_time_secs;
+
+  stats_.num_executions = num_runs_;
+  stats_.num_target_crashes = num_crashes_;
+
   stats_.active_corpus_size = corpus_.NumActive();
+  stats_.total_corpus_size = corpus_.NumTotal();
   stats_.num_covered_pcs = fs_.CountFeatures(feature_domains::kPCs);
   stats_.max_corpus_element_size = max_corpus_size;
   stats_.avg_corpus_element_size = avg_corpus_size;
-  stats_.num_executions = num_runs_;
+
+  namespace fd = feature_domains;
+  stats_.num_covered_pcs = fs_.CountFeatures(fd::kPCs);
+  stats_.num_8bit_counter_fts = fs_.CountFeatures(fd::k8bitCounters);
+  stats_.num_data_flow_fts = fs_.CountFeatures(fd::kDataFlow);
+  stats_.num_cmp_fts =                      //
+      fs_.CountFeatures(fd::kCMP) +         //
+      fs_.CountFeatures(fd::kCMPEq) +       //
+      fs_.CountFeatures(fd::kCMPModDiff) +  //
+      fs_.CountFeatures(fd::kCMPHamming) +  //
+      fs_.CountFeatures(fd::kCMPDiffLog);
+  stats_.num_call_stack_fts = fs_.CountFeatures(fd::kCallStack);
+  stats_.num_bounded_path_fts = fs_.CountFeatures(fd::kBoundedPath);
+  stats_.num_pc_pair_fts = fs_.CountFeatures(fd::kPCPair);
+  uint64_t num_user_fts = 0;
+  for (size_t i = 0; i < std::size(fd::kUserDomains); ++i) {
+    num_user_fts += fs_.CountFeatures(fd::kUserDomains[i]);
+  }
+  stats_.num_user_fts = num_user_fts;
+  stats_.num_unknown_fts = fs_.CountFeatures(fd::kUnknown);
+  stats_.num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier();
+
+  stats_.engine_rusage_avg_millicores = rusage_timing.cpu_hyper_cores * 1000;
+  stats_.engine_rusage_cpu_pct = rusage_timing.cpu_utilization * 100;
+  stats_.engine_rusage_rss_mb = rusage_memory.mem_rss >> 20;
+  stats_.engine_rusage_vsize_mb = rusage_memory.mem_vsize >> 20;
 
   if (env_.log_level < min_log_level) return;
 
-  const double fuzz_time_secs =
-      absl::ToDoubleSeconds(absl::Now() - fuzz_start_time_);
-  // NOTE: By construction, if `fuzz_time_secs` <= 0, then the actual fuzzing
-  // hasn't started yet.
-  double execs_per_sec =
-      fuzz_time_secs > 0 ? static_cast<double>(num_runs_) / fuzz_time_secs : 0;
-  if (execs_per_sec > 1.) execs_per_sec = std::round(execs_per_sec);
-  static const auto rusage_scope = perf::RUsageScope::ThisProcess();
   std::ostringstream os;
   auto LogIfNotZero = [&os](size_t value, std::string_view name) {
     if (!value) return;
@@ -229,8 +267,9 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   LogIfNotZero(num_crashes_, "crash");
   os << " max/avg: " << max_corpus_size << "/" << avg_corpus_size << " "
      << corpus_.MemoryUsageString();
-  os << " exec/s: " << execs_per_sec;
-  os << " mb: " << (perf::RUsageMemory::Snapshot(rusage_scope).mem_rss >> 20);
+  os << " exec/s: "
+     << (execs_per_sec < 1.0 ? execs_per_sec : std::round(execs_per_sec));
+  os << " mb: " << (rusage_memory.mem_rss >> 20);
   LOG(INFO) << os.str();
 }
 

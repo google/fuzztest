@@ -124,6 +124,7 @@ void StatsLogger::ReportCurrFieldSample(std::vector<uint64_t> &&values) {
   if (curr_field_info_.traits & TraitBits::kMin) os_ << "min:\t" << min << "\t";
   if (curr_field_info_.traits & TraitBits::kMax) os_ << "max:\t" << max << "\t";
   if (curr_field_info_.traits & TraitBits::kAvg) os_ << "avg:\t" << avg << "\t";
+  if (curr_field_info_.traits & TraitBits::kSum) os_ << "sum:\t" << sum << "\t";
 
   os_ << "--";
   for (const auto value : values) {
@@ -168,6 +169,8 @@ void StatsCsvFileAppender::PreAnnounceFields(
       absl::StrAppend(&csv_header_, field.name, "_Max,");
     if (field.traits & TraitBits::kAvg)
       absl::StrAppend(&csv_header_, field.name, "_Avg,");
+    if (field.traits & TraitBits::kSum)
+      absl::StrAppend(&csv_header_, field.name, "_Sum,");
   }
   absl::StrAppend(&csv_header_, "\n");
 }
@@ -209,6 +212,8 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
     absl::StrAppendFormat(&values_str, "%" PRIu64 ",", max);
   if (curr_field_info_.traits & TraitBits::kAvg)
     absl::StrAppendFormat(&values_str, "%.1lf,", avg);
+  if (curr_field_info_.traits & TraitBits::kSum)
+    absl::StrAppendFormat(&values_str, "%" PRIu64 ",", sum);
 
   RemoteFileAppend(curr_file_, values_str);
 }
