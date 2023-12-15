@@ -300,7 +300,7 @@ void GlobalRunnerState::StartWatchdogThread() {
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
           " MB\n",
-          state.run_time_flags.timeout_per_input,
+          state.run_time_flags.timeout_per_input.load(),
           state.run_time_flags.timeout_per_batch,
           state.run_time_flags.rss_limit_mb.load());
   pthread_t watchdog_thread;
@@ -1088,6 +1088,14 @@ extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
           stack_limit_kb);
   centipede::state.run_time_flags.stack_limit_kb = stack_limit_kb;
+}
+
+extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
+  fprintf(stderr,
+          "CentipedeSetTimeoutPerInput: changing timeout_per_input to %" PRIu64
+          "\n",
+          timeout_per_input);
+  centipede::state.run_time_flags.timeout_per_input = timeout_per_input;
 }
 
 extern "C" __attribute__((weak)) const char *CentipedeGetRunnerFlags() {

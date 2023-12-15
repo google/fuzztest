@@ -63,7 +63,7 @@ struct RunTimeFlags {
   uint64_t callstack_level : 8;
   uint64_t use_counter_features : 1;
   uint64_t use_auto_dictionary : 1;
-  uint64_t timeout_per_input;
+  std::atomic<uint64_t> timeout_per_input;
   uint64_t timeout_per_batch;
   std::atomic<uint64_t> stack_limit_kb;
   std::atomic<uint64_t> rss_limit_mb;
