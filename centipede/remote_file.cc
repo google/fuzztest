@@ -31,7 +31,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "./centipede/defs.h"
-#include "./centipede/logging.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"

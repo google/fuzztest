@@ -26,7 +26,6 @@
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 

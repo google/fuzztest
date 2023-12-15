@@ -24,7 +24,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "./centipede/defs.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI

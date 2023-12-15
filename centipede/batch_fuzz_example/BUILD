@@ -30,7 +30,6 @@ cc_library(
         "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//centipede:logging",
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
         "@com_google_fuzztest//centipede:util",

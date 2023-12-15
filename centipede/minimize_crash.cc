@@ -31,7 +31,6 @@
 #include "./centipede/defs.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"

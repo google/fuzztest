@@ -82,7 +82,6 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/runner_result.h"

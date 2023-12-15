@@ -34,7 +34,7 @@
 #include "absl/strings/substitute.h"
 #include "./centipede/config_init.h"
 #include "./centipede/config_util.h"
-#include "./centipede/logging.h"
+#include "./centipede/defs.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 

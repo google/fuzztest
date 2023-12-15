@@ -21,8 +21,8 @@
 #include <string_view>
 #include <vector>
 
+#include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
 
 namespace centipede {
 

@@ -31,7 +31,6 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/logging.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"

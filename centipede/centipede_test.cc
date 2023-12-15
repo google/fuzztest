@@ -38,7 +38,6 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shard_reader.h"

@@ -24,8 +24,8 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 
 namespace centipede {
 

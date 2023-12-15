@@ -50,7 +50,6 @@
 #include "./centipede/distill.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"

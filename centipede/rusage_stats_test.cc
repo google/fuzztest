@@ -30,7 +30,6 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 
 ABSL_FLAG(bool, verbose, false, "Print extra info for debugging");
 ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,

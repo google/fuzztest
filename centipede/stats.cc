@@ -37,8 +37,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/workdir.h"
 

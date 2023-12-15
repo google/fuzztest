@@ -18,13 +18,12 @@
 #include <filesystem>  // NOLINT
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/util.h"
-
-#include "./centipede/logging.h"
 
 #define EXPECT_OK(status) EXPECT_TRUE((status).ok()) << VV(status)
 #define ASSERT_OK(status) ASSERT_TRUE((status).ok()) << VV(status)

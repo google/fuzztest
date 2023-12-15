@@ -53,7 +53,6 @@
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 
 namespace centipede {

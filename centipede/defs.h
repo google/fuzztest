@@ -50,6 +50,9 @@ inline std::string_view AsStringView(ByteSpan str) {
 // files. So we define kPathMax, and verify that it is >= PATH_MAX in util.cc.
 constexpr size_t kPathMax = 4096;
 
+// Easy variable value logging: LOG(INFO) << VV(foo) << VV(bar);
+#define VV(x) #x ": " << (x) << " "
+
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_DEFS_H_

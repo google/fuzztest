@@ -30,7 +30,6 @@
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/shard_reader.h"

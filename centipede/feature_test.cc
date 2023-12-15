@@ -30,9 +30,9 @@
 #include "absl/log/log.h"
 #include "./centipede/concurrent_bitset.h"
 #include "./centipede/concurrent_byteset.h"
+#include "./centipede/defs.h"
 #include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/int_utils.h"
-#include "./centipede/logging.h"
 
 namespace centipede {
 namespace {

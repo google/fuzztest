@@ -89,7 +89,6 @@ cc_binary(
         ":blob_file",
         ":config_init",
         ":defs",
-        ":logging",
         ":remote_file",
         ":rusage_profiler",
         "@com_google_absl//absl/flags:flag",
@@ -139,7 +138,7 @@ cc_library(
     deps = [
         ":command",
         ":control_flow",
-        ":logging",
+        ":defs",
         ":pc_info",
         ":util",
         "@com_google_absl//absl/log",
@@ -185,15 +184,6 @@ cc_library(
 )
 
 cc_library(
-    name = "logging",
-    hdrs = ["logging.h"],
-    deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-    ],
-)
-
-cc_library(
     name = "knobs",
     srcs = ["knobs.cc"],
     hdrs = ["knobs.h"],
@@ -208,10 +198,7 @@ cc_library(
     name = "reverse_pc_table",
     hdrs = ["reverse_pc_table.h"],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = [
-        ":pc_info",
-        "@com_google_absl//absl/types:span",
-    ],
+    deps = [":pc_info"],
 )
 
 cc_library(
@@ -244,7 +231,6 @@ cc_library(
     deps = [
         ":defs",
         ":feature",
-        ":logging",
         ":remote_file",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
@@ -291,7 +277,7 @@ cc_library(
     deps = [
         ":config_init",
         ":config_util",
-        ":logging",
+        ":defs",
         ":remote_file",
         ":util",
         "@com_google_absl//absl/flags:flag",
@@ -349,8 +335,8 @@ cc_library(
     srcs = ["stats.cc"],
     hdrs = ["stats.h"],
     deps = [
+        ":defs",
         ":environment",
-        ":logging",
         ":remote_file",
         ":workdir",
         "@com_google_absl//absl/container:btree",
@@ -372,7 +358,6 @@ cc_library(
         ":defs",
         ":early_exit",
         ":environment",
-        ":logging",
         ":mutation_input",
         ":runner_result",
         ":util",
@@ -395,7 +380,6 @@ cc_library(
         ":coverage",
         ":defs",
         ":feature",
-        ":logging",
         ":pc_info",
         ":remote_file",
         ":shard_reader",
@@ -417,7 +401,6 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":defs",
-        ":logging",
         ":remote_file",
         ":util",
         "@com_google_absl//absl/log",
@@ -549,7 +532,6 @@ cc_library(
     deps = [
         ":command",
         ":defs",
-        ":logging",
         ":pc_info",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -573,7 +555,7 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
-        ":logging",
+        ":defs",
         ":pc_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -591,7 +573,6 @@ cc_library(
     }),
     deps = [
         ":defs",
-        ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -612,8 +593,8 @@ cc_library(
     hdrs = ["feature_set.h"],
     deps = [
         ":control_flow",
+        ":defs",
         ":feature",
-        ":logging",
         ":util",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -633,7 +614,6 @@ cc_library(
         ":execution_metadata",
         ":feature",
         ":feature_set",
-        ":logging",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -647,8 +627,8 @@ cc_library(
     hdrs = ["command.h"],
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
+        ":defs",
         ":early_exit",
-        ":logging",
         ":util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -700,7 +680,6 @@ cc_library(
         ":defs",
         ":environment",
         ":fuzztest_mutator",
-        ":logging",
         ":mutation_input",
         ":runner_request",
         ":runner_result",
@@ -723,7 +702,6 @@ cc_library(
         ":blob_file",
         ":defs",
         ":feature",
-        ":logging",
         ":remote_file",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -750,8 +728,8 @@ cc_library(
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":defs",
         ":environment",
-        ":logging",
         ":util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -782,7 +760,6 @@ cc_library(
         ":environment",
         ":feature",
         ":feature_set",
-        ":logging",
         ":mutation_input",
         ":pc_info",
         ":remote_file",
@@ -828,7 +805,6 @@ cc_library(
         ":distill",
         ":early_exit",
         ":environment",
-        ":logging",
         ":minimize_crash",
         ":pc_info",
         ":remote_file",
@@ -861,7 +837,6 @@ cc_library(
         ":defs",
         ":feature",
         ":knobs",
-        ":logging",
         ":remote_file",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -881,7 +856,6 @@ cc_library(
         ":environment",
         ":feature",
         ":feature_set",
-        ":logging",
         ":shard_reader",
         ":util",
         ":workdir",
@@ -900,7 +874,6 @@ cc_library(
         ":centipede_callbacks",
         ":defs",
         ":environment",
-        ":logging",
         ":mutation_input",
         ":runner_result",
         "@com_google_absl//absl/log",
@@ -1078,7 +1051,6 @@ cc_library(
         ":blob_file",
         ":defs",
         ":feature",
-        ":logging",
         ":remote_file",
         ":rusage_profiler",
         ":seed_corpus_config_cc_proto",
@@ -1115,7 +1087,6 @@ cc_library(
     deps = [
         ":blob_file",
         ":defs",
-        ":logging",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -1130,8 +1101,8 @@ cc_library(
     hdrs = ["workdir.h"],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":defs",
         ":environment",
-        ":logging",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -1242,11 +1213,11 @@ cc_test(
     name = "config_util_test",
     srcs = ["config_util_test.cc"],
     deps = [
+        ":defs",
         # Include this just to get some flags external to the test itself.
         ":environment",  # buildcleaner:keep
         ":config_util",
         ":environment_flags",
-        ":logging",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/flags:flag",
     ],
@@ -1269,7 +1240,6 @@ cc_test(
     timeout = "long",
     srcs = ["rusage_stats_test.cc"],
     deps = [
-        ":logging",
         ":rusage_stats",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -1319,8 +1289,8 @@ cc_test(
     name = "stats_test",
     srcs = ["stats_test.cc"],
     deps = [
+        ":defs",
         ":environment",
-        ":logging",
         ":stats",
         ":test_util",
         ":util",
@@ -1431,9 +1401,9 @@ cc_test(
     name = "feature_test",
     srcs = ["feature_test.cc"],
     deps = [
+        ":defs",
         ":feature",
         ":int_utils",
-        ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -1567,7 +1537,7 @@ cc_test(
     deps = [
         ":binary_info",
         ":control_flow",
-        ":logging",
+        ":defs",
         ":pc_info",
         ":symbol_table",
         ":test_util",
@@ -1585,7 +1555,7 @@ cc_test(
     deps = [
         ":call_graph",
         ":control_flow",
-        ":logging",
+        ":defs",
         ":pc_info",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
@@ -1605,8 +1575,8 @@ cc_test(
     name = "seed_corpus_maker_lib_test",
     srcs = ["seed_corpus_maker_lib_test.cc"],
     deps = [
+        ":defs",
         ":feature",
-        ":logging",
         ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
         ":test_util",
@@ -1641,7 +1611,6 @@ cc_test(
         ":defs",
         ":environment",
         ":feature",
-        ":logging",
         ":mutation_input",
         ":runner_result",
         ":shard_reader",

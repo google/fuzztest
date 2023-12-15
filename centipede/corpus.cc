@@ -31,7 +31,6 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/util.h"
 
 namespace centipede {

@@ -28,8 +28,8 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
 
 namespace centipede {
 
@@ -235,4 +235,3 @@ std::vector<std::string> WorkDir::EnumerateRawCoverageProfiles() const {
 }
 
 }  // namespace centipede
-

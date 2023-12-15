@@ -29,7 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/logging.h"
+#include "./centipede/defs.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_util.h"

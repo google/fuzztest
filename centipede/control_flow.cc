@@ -33,7 +33,6 @@
 #include "absl/strings/str_split.h"
 #include "./centipede/command.h"
 #include "./centipede/defs.h"
-#include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/util.h"
 

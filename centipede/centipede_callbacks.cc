@@ -36,7 +36,6 @@
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/defs.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"

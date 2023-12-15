@@ -33,7 +33,7 @@
 #include "absl/types/span.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/logging.h"
+#include "./centipede/defs.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/util.h"
 

@@ -43,7 +43,6 @@
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/seed_corpus_config.pb.h"

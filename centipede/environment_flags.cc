@@ -29,8 +29,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
 #include "./centipede/util.h"
 
 static const auto *default_env = new centipede::Environment();

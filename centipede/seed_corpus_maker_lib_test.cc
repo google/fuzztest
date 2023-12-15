@@ -25,8 +25,8 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/substitute.h"
+#include "./centipede/defs.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/test_util.h"
 #include "./centipede/workdir.h"

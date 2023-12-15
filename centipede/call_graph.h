@@ -22,7 +22,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/logging.h"
+#include "./centipede/defs.h"
 #include "./centipede/pc_info.h"
 
 namespace centipede {

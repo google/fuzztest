@@ -30,8 +30,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
+#include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 

@@ -23,7 +23,6 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
 
