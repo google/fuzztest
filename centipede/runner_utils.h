@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_
 #define THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_
 
+#include <cstdint>
 
 namespace centipede {
 
@@ -27,6 +28,10 @@ void PrintErrorAndExitIf(bool condition, const char *error);
 inline void RunnerCheck(bool condition, const char *error) {
   PrintErrorAndExitIf(!condition, error);
 }
+
+// Returns the lower bound of the stack region for the current thread. 0 will be
+// returned on failures.
+uintptr_t GetCurrentThreadStackRegionLow();
 
 }  // namespace centipede
 

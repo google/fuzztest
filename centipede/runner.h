@@ -98,6 +98,8 @@ struct ThreadLocalRunnerState {
 
   // Value of SP in the top call frame of the thread, computed in OnThreadStart.
   uintptr_t top_frame_sp;
+  // The lower bound of the stack region of this thread. 0 means unknown.
+  uintptr_t stack_region_low;
   // Lowest observed value of SP.
   uintptr_t lowest_sp;
 

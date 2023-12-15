@@ -145,6 +145,7 @@ void ThreadLocalRunnerState::OnThreadStart() {
   termination_detector.EnsureAlive();
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
+  tls.stack_region_low = GetCurrentThreadStackRegionLow();
   tls.call_stack.Reset(state.run_time_flags.callstack_level);
   tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
   LockGuard lock(state.tls_list_mu);
