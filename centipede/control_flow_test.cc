@@ -309,7 +309,7 @@ static void SymbolizeBinary(std::string_view target_path, bool use_trace_pc) {
       has_llvm_fuzzer_test_one_input = true;
       EXPECT_THAT(
           symbols.location(i),
-          testing::HasSubstr("centipede/testing/test_fuzz_target.cc:62"));
+          testing::HasSubstr("centipede/testing/test_fuzz_target.cc:70"));
     }
   }
   EXPECT_TRUE(has_llvm_fuzzer_test_one_input);

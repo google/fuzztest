@@ -27,12 +27,16 @@ non_pie_target="$(centipede::get_centipede_test_srcdir)/testing/test_fuzz_target
 # Create input files.
 oom="${TEST_TMPDIR}/oom"
 slo="${TEST_TMPDIR}/slo"
+stk="${TEST_TMPDIR}/stk"
+sigstk="${TEST_TMPDIR}/sigstk"
 f1="${TEST_TMPDIR}/f1"
 func1="${TEST_TMPDIR}/func1"
 minus1="${TEST_TMPDIR}/minus1"
 
 echo -n oom > "${oom}"  # Triggers OOM
 echo -n slo > "${slo}"  # Triggers sleep(10)
+echo -n stk > "${stk}"  # Triggers stack limit excess
+echo -n sigstk > "${sigstk}"  # Triggers a large stack usage in signal stack, while the stack limit should not apply.
 echo -n f1 > "${f1}"    # Arbitrary input.
 echo -n func1 > "${func1}"  # Triggers a call to SingleEdgeFunc.
 echo -n "-1"  > "${minus1}" # Triggers return -1
@@ -100,5 +104,13 @@ CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=567:" "${target}" \
 
 CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=2:" "${target}" "${slo}" \
   2>&1 | grep "Per-input timeout exceeded"
+
+echo ======== Check stack limit check with stack_limit
+CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=200:" "${target}" "${stk}"  # must pass
+
+CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${stk}" \
+                      2>&1 | grep "Stack limit exceeded"
+
+CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${sigstk}"  # must pass
 
 echo "PASS"

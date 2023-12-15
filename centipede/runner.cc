@@ -146,6 +146,10 @@ void ThreadLocalRunnerState::OnThreadStart() {
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.stack_region_low = GetCurrentThreadStackRegionLow();
+  if (tls.stack_region_low == 0) {
+    fprintf(stderr,
+            "Disabling stack limit check due to missing stack region info.\n");
+  }
   tls.call_stack.Reset(state.run_time_flags.callstack_level);
   tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
   LockGuard lock(state.tls_list_mu);
@@ -263,6 +267,21 @@ static void CheckWatchdogLimits() {
     if (state.input_start_time == 0) continue;
 
     CheckWatchdogLimits();
+  }
+}
+
+__attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
+  const size_t stack_limit = state.run_time_flags.stack_limit_kb.load() << 10;
+  // Check for the stack limit only if sp is inside the stack region.
+  if (stack_limit > 0 && tls.stack_region_low &&
+      tls.top_frame_sp - sp > stack_limit) {
+    fprintf(stderr,
+            "========= Stack limit exceeded: %" PRIuPTR " > %" PRIu64
+            " (byte); aborting\n",
+            tls.top_frame_sp - sp, stack_limit);
+    centipede::WriteFailureDescription(
+        centipede::kExecutionFailureStackLimitExceeded.data());
+    abort();
   }
 }
 
@@ -1060,9 +1079,15 @@ extern "C" __attribute__((used)) void CentipedeIsPresent() {}
 extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
-  fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu",
+  fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu\n",
           rss_limit_mb);
   centipede::state.run_time_flags.rss_limit_mb = rss_limit_mb;
+}
+
+extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
+  fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
+          stack_limit_kb);
+  centipede::state.run_time_flags.stack_limit_kb = stack_limit_kb;
 }
 
 extern "C" __attribute__((weak)) const char *CentipedeGetRunnerFlags() {

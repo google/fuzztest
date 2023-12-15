@@ -65,6 +65,7 @@ struct RunTimeFlags {
   uint64_t use_auto_dictionary : 1;
   uint64_t timeout_per_input;
   uint64_t timeout_per_batch;
+  std::atomic<uint64_t> stack_limit_kb;
   std::atomic<uint64_t> rss_limit_mb;
   uint64_t crossover_level;
   uint64_t skip_seen_features : 1;
@@ -161,6 +162,7 @@ struct GlobalRunnerState {
       .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
       .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
       .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
+      .stack_limit_kb = HasIntFlag(":stack_limit_kb=", 0),
       .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
       .crossover_level = HasIntFlag(":crossover_level=", 50),
       .skip_seen_features = HasFlag(":skip_seen_features:")};
@@ -327,6 +329,9 @@ struct GlobalRunnerState {
 
 extern GlobalRunnerState state;
 extern __thread ThreadLocalRunnerState tls;
+
+// Check for stack limit for the stack pointer `sp` in the current thread.
+void CheckStackLimit(uintptr_t sp);
 
 }  // namespace centipede
 
