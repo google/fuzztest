@@ -82,14 +82,14 @@ TEST(Stats, PrintStatsToLog) {
         .num_target_crashes = 13 * j,
 
         .num_covered_pcs = 21 * j,
-        .num_8bit_counter_fts = 22 * j,
-        .num_data_flow_fts = 23 * j,
-        .num_cmp_fts = 24 * j,
-        .num_call_stack_fts = 25 * j,
-        .num_bounded_path_fts = 26 * j,
-        .num_pc_pair_fts = 27 * j,
-        .num_user_fts = 28 * j,
-        .num_unknown_fts = 29 * j,
+        .num_8bit_counter_features = 22 * j,
+        .num_data_flow_features = 23 * j,
+        .num_cmp_features = 24 * j,
+        .num_call_stack_features = 25 * j,
+        .num_bounded_path_features = 26 * j,
+        .num_pc_pair_features = 27 * j,
+        .num_user_features = 28 * j,
+        .num_unknown_features = 29 * j,
 
         .num_funcs_in_frontier = 31 * j,
 
@@ -99,7 +99,7 @@ TEST(Stats, PrintStatsToLog) {
         .avg_corpus_element_size = 104 * j,
 
         .engine_rusage_avg_millicores = 201 * j,
-        .engine_rusage_cpu_pct = 202 * j,
+        .engine_rusage_cpu_percent = 202 * j,
         .engine_rusage_rss_mb = 203 * j,
         .engine_rusage_vsize_mb = 204 * j,
     };
@@ -141,28 +141,28 @@ TEST(Stats, PrintStatsToLog) {
         "Total corpus size:",
         "  Experiment A: min:\t102\tmax:\t306\tsum:\t408\t--\t102\t306",
         "  Experiment B: min:\t204\tmax:\t408\tsum:\t612\t--\t204\t408",
-        "Num 8-bit counter fts:",
+        "Num 8-bit counter features:",
         "  Experiment A: min:\t22\tmax:\t66\tavg:\t44.0\t--\t22\t66",
         "  Experiment B: min:\t44\tmax:\t88\tavg:\t66.0\t--\t44\t88",
-        "Num data flow fts:",
+        "Num data flow features:",
         "  Experiment A: min:\t23\tmax:\t69\tavg:\t46.0\t--\t23\t69",
         "  Experiment B: min:\t46\tmax:\t92\tavg:\t69.0\t--\t46\t92",
-        "Num cmp fts:",
+        "Num cmp features:",
         "  Experiment A: min:\t24\tmax:\t72\tavg:\t48.0\t--\t24\t72",
         "  Experiment B: min:\t48\tmax:\t96\tavg:\t72.0\t--\t48\t96",
-        "Num call stack fts:",
+        "Num call stack features:",
         "  Experiment A: min:\t25\tmax:\t75\tavg:\t50.0\t--\t25\t75",
         "  Experiment B: min:\t50\tmax:\t100\tavg:\t75.0\t--\t50\t100",
-        "Num bounded path fts:",
+        "Num bounded path features:",
         "  Experiment A: min:\t26\tmax:\t78\tavg:\t52.0\t--\t26\t78",
         "  Experiment B: min:\t52\tmax:\t104\tavg:\t78.0\t--\t52\t104",
-        "Num PC pair fts:",
+        "Num PC pair features:",
         "  Experiment A: min:\t27\tmax:\t81\tavg:\t54.0\t--\t27\t81",
         "  Experiment B: min:\t54\tmax:\t108\tavg:\t81.0\t--\t54\t108",
-        "Num user fts:",
+        "Num user features:",
         "  Experiment A: min:\t28\tmax:\t84\tavg:\t56.0\t--\t28\t84",
         "  Experiment B: min:\t56\tmax:\t112\tavg:\t84.0\t--\t56\t112",
-        "Num unknown fts:",
+        "Num unknown features:",
         "  Experiment A: min:\t29\tmax:\t87\tavg:\t58.0\t--\t29\t87",
         "  Experiment B: min:\t58\tmax:\t116\tavg:\t87.0\t--\t58\t116",
         "Num funcs in frontier:",
@@ -191,14 +191,14 @@ TEST(Stats, PrintStatsToLog) {
       stats.num_target_crashes += 1;
 
       stats.num_covered_pcs += 1;
-      stats.num_8bit_counter_fts += 1;
-      stats.num_data_flow_fts += 1;
-      stats.num_cmp_fts += 1;
-      stats.num_call_stack_fts += 1;
-      stats.num_bounded_path_fts += 1;
-      stats.num_pc_pair_fts += 1;
-      stats.num_user_fts += 1;
-      stats.num_unknown_fts += 1;
+      stats.num_8bit_counter_features += 1;
+      stats.num_data_flow_features += 1;
+      stats.num_cmp_features += 1;
+      stats.num_call_stack_features += 1;
+      stats.num_bounded_path_features += 1;
+      stats.num_pc_pair_features += 1;
+      stats.num_user_features += 1;
+      stats.num_unknown_features += 1;
       stats.num_funcs_in_frontier += 1;
 
       stats.active_corpus_size += 1;
@@ -207,7 +207,7 @@ TEST(Stats, PrintStatsToLog) {
       stats.avg_corpus_element_size += 1;
 
       stats.engine_rusage_avg_millicores += 1;
-      stats.engine_rusage_cpu_pct += 1;
+      stats.engine_rusage_cpu_percent += 1;
       stats.engine_rusage_rss_mb += 1;
       stats.engine_rusage_vsize_mb += 1;
     }
@@ -238,28 +238,28 @@ TEST(Stats, PrintStatsToLog) {
         "Total corpus size:",
         "  Experiment A: min:\t103\tmax:\t307\tsum:\t410\t--\t103\t307",
         "  Experiment B: min:\t205\tmax:\t409\tsum:\t614\t--\t205\t409",
-        "Num 8-bit counter fts:",
+        "Num 8-bit counter features:",
         "  Experiment A: min:\t23\tmax:\t67\tavg:\t45.0\t--\t23\t67",
         "  Experiment B: min:\t45\tmax:\t89\tavg:\t67.0\t--\t45\t89",
-        "Num data flow fts:",
+        "Num data flow features:",
         "  Experiment A: min:\t24\tmax:\t70\tavg:\t47.0\t--\t24\t70",
         "  Experiment B: min:\t47\tmax:\t93\tavg:\t70.0\t--\t47\t93",
-        "Num cmp fts:",
+        "Num cmp features:",
         "  Experiment A: min:\t25\tmax:\t73\tavg:\t49.0\t--\t25\t73",
         "  Experiment B: min:\t49\tmax:\t97\tavg:\t73.0\t--\t49\t97",
-        "Num call stack fts:",
+        "Num call stack features:",
         "  Experiment A: min:\t26\tmax:\t76\tavg:\t51.0\t--\t26\t76",
         "  Experiment B: min:\t51\tmax:\t101\tavg:\t76.0\t--\t51\t101",
-        "Num bounded path fts:",
+        "Num bounded path features:",
         "  Experiment A: min:\t27\tmax:\t79\tavg:\t53.0\t--\t27\t79",
         "  Experiment B: min:\t53\tmax:\t105\tavg:\t79.0\t--\t53\t105",
-        "Num PC pair fts:",
+        "Num PC pair features:",
         "  Experiment A: min:\t28\tmax:\t82\tavg:\t55.0\t--\t28\t82",
         "  Experiment B: min:\t55\tmax:\t109\tavg:\t82.0\t--\t55\t109",
-        "Num user fts:",
+        "Num user features:",
         "  Experiment A: min:\t29\tmax:\t85\tavg:\t57.0\t--\t29\t85",
         "  Experiment B: min:\t57\tmax:\t113\tavg:\t85.0\t--\t57\t113",
-        "Num unknown fts:",
+        "Num unknown features:",
         "  Experiment A: min:\t30\tmax:\t88\tavg:\t59.0\t--\t30\t88",
         "  Experiment B: min:\t59\tmax:\t117\tavg:\t88.0\t--\t59\t117",
         "Num funcs in frontier:",
@@ -297,14 +297,14 @@ TEST(Stats, DumpStatsToCsvFile) {
         .num_target_crashes = 13 * j,
 
         .num_covered_pcs = 21 * j,
-        .num_8bit_counter_fts = 22 * j,
-        .num_data_flow_fts = 23 * j,
-        .num_cmp_fts = 24 * j,
-        .num_call_stack_fts = 25 * j,
-        .num_bounded_path_fts = 26 * j,
-        .num_pc_pair_fts = 27 * j,
-        .num_user_fts = 28 * j,
-        .num_unknown_fts = 29 * j,
+        .num_8bit_counter_features = 22 * j,
+        .num_data_flow_features = 23 * j,
+        .num_cmp_features = 24 * j,
+        .num_call_stack_features = 25 * j,
+        .num_bounded_path_features = 26 * j,
+        .num_pc_pair_features = 27 * j,
+        .num_user_features = 28 * j,
+        .num_unknown_features = 29 * j,
 
         .num_funcs_in_frontier = 31 * j,
 
@@ -314,7 +314,7 @@ TEST(Stats, DumpStatsToCsvFile) {
         .avg_corpus_element_size = 104 * j,
 
         .engine_rusage_avg_millicores = 201 * j,
-        .engine_rusage_cpu_pct = 202 * j,
+        .engine_rusage_cpu_percent = 202 * j,
         .engine_rusage_rss_mb = 203 * j,
         .engine_rusage_vsize_mb = 204 * j,
     };
@@ -360,14 +360,14 @@ TEST(Stats, DumpStatsToCsvFile) {
       stats.num_target_crashes += 1;
 
       stats.num_covered_pcs += 1;
-      stats.num_8bit_counter_fts += 1;
-      stats.num_data_flow_fts += 1;
-      stats.num_cmp_fts += 1;
-      stats.num_call_stack_fts += 1;
-      stats.num_bounded_path_fts += 1;
-      stats.num_pc_pair_fts += 1;
-      stats.num_user_fts += 1;
-      stats.num_unknown_fts += 1;
+      stats.num_8bit_counter_features += 1;
+      stats.num_data_flow_features += 1;
+      stats.num_cmp_features += 1;
+      stats.num_call_stack_features += 1;
+      stats.num_bounded_path_features += 1;
+      stats.num_pc_pair_features += 1;
+      stats.num_user_features += 1;
+      stats.num_unknown_features += 1;
       stats.num_funcs_in_frontier += 1;
 
       stats.active_corpus_size += 1;
@@ -376,7 +376,7 @@ TEST(Stats, DumpStatsToCsvFile) {
       stats.avg_corpus_element_size += 1;
 
       stats.engine_rusage_avg_millicores += 1;
-      stats.engine_rusage_cpu_pct += 1;
+      stats.engine_rusage_cpu_percent += 1;
       stats.engine_rusage_rss_mb += 1;
       stats.engine_rusage_vsize_mb += 1;
     }

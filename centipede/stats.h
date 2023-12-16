@@ -44,29 +44,32 @@ namespace centipede {
 struct Stats {
   std::atomic<uint64_t> timestamp_unix_micros = 0;
 
+  // Performance.
   std::atomic<uint64_t> fuzz_time_sec = 0;
   std::atomic<uint64_t> num_executions = 0;
   std::atomic<uint64_t> num_target_crashes = 0;
 
+  // Coverage.
   std::atomic<uint64_t> num_covered_pcs = 0;
-  std::atomic<uint64_t> num_8bit_counter_fts = 0;
-  std::atomic<uint64_t> num_data_flow_fts = 0;
-  std::atomic<uint64_t> num_cmp_fts = 0;
-  std::atomic<uint64_t> num_call_stack_fts = 0;
-  std::atomic<uint64_t> num_bounded_path_fts = 0;
-  std::atomic<uint64_t> num_pc_pair_fts = 0;
-  std::atomic<uint64_t> num_user_fts = 0;
-  std::atomic<uint64_t> num_unknown_fts = 0;
-
+  std::atomic<uint64_t> num_8bit_counter_features = 0;
+  std::atomic<uint64_t> num_data_flow_features = 0;
+  std::atomic<uint64_t> num_cmp_features = 0;
+  std::atomic<uint64_t> num_call_stack_features = 0;
+  std::atomic<uint64_t> num_bounded_path_features = 0;
+  std::atomic<uint64_t> num_pc_pair_features = 0;
+  std::atomic<uint64_t> num_user_features = 0;
+  std::atomic<uint64_t> num_unknown_features = 0;
   std::atomic<uint64_t> num_funcs_in_frontier = 0;
 
+  // Corpus & element sizes.
   std::atomic<uint64_t> active_corpus_size = 0;
   std::atomic<uint64_t> total_corpus_size = 0;
   std::atomic<uint64_t> max_corpus_element_size = 0;
   std::atomic<uint64_t> avg_corpus_element_size = 0;
 
+  // Rusage.
   std::atomic<uint64_t> engine_rusage_avg_millicores = 0;
-  std::atomic<uint64_t> engine_rusage_cpu_pct = 0;
+  std::atomic<uint64_t> engine_rusage_cpu_percent = 0;
   std::atomic<uint64_t> engine_rusage_rss_mb = 0;
   std::atomic<uint64_t> engine_rusage_vsize_mb = 0;
 
@@ -158,51 +161,51 @@ struct Stats {
           kFuzzStat | kMin | kMax | kSum,
       },
       {
-          &Stats::num_8bit_counter_fts,
+          &Stats::num_8bit_counter_features,
           "Num8BitCounterFts",
-          "Num 8-bit counter fts",
+          "Num 8-bit counter features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_data_flow_fts,
+          &Stats::num_data_flow_features,
           "NumDataFlowFts",
-          "Num data flow fts",
+          "Num data flow features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_cmp_fts,
+          &Stats::num_cmp_features,
           "NumCmpFts",
-          "Num cmp fts",
+          "Num cmp features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_call_stack_fts,
+          &Stats::num_call_stack_features,
           "NumCallStackFts",
-          "Num call stack fts",
+          "Num call stack features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_bounded_path_fts,
+          &Stats::num_bounded_path_features,
           "NumBoundedPathFts",
-          "Num bounded path fts",
+          "Num bounded path features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_pc_pair_fts,
+          &Stats::num_pc_pair_features,
           "NumPcPairFts",
-          "Num PC pair fts",
+          "Num PC pair features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_user_fts,
+          &Stats::num_user_features,
           "NumUserFts",
-          "Num user fts",
+          "Num user features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
-          &Stats::num_unknown_fts,
+          &Stats::num_unknown_features,
           "NumUnknownFts",
-          "Num unknown fts",
+          "Num unknown features",
           kFuzzStat | kMin | kMax | kAvg,
       },
       {
@@ -225,9 +228,9 @@ struct Stats {
           kRUsageStat | kMax,
       },
       {
-          &Stats::engine_rusage_cpu_pct,
+          &Stats::engine_rusage_cpu_percent,
           "EngineRusageCpuPct",
-          "Engine rusage CPU (pct)",
+          "Engine rusage CPU %",
           kRUsageStat | kMax,
       },
       {

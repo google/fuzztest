@@ -228,27 +228,27 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
 
   namespace fd = feature_domains;
   stats_.num_covered_pcs = fs_.CountFeatures(fd::kPCs);
-  stats_.num_8bit_counter_fts = fs_.CountFeatures(fd::k8bitCounters);
-  stats_.num_data_flow_fts = fs_.CountFeatures(fd::kDataFlow);
-  stats_.num_cmp_fts =                      //
+  stats_.num_8bit_counter_features = fs_.CountFeatures(fd::k8bitCounters);
+  stats_.num_data_flow_features = fs_.CountFeatures(fd::kDataFlow);
+  stats_.num_cmp_features =                 //
       fs_.CountFeatures(fd::kCMP) +         //
       fs_.CountFeatures(fd::kCMPEq) +       //
       fs_.CountFeatures(fd::kCMPModDiff) +  //
       fs_.CountFeatures(fd::kCMPHamming) +  //
       fs_.CountFeatures(fd::kCMPDiffLog);
-  stats_.num_call_stack_fts = fs_.CountFeatures(fd::kCallStack);
-  stats_.num_bounded_path_fts = fs_.CountFeatures(fd::kBoundedPath);
-  stats_.num_pc_pair_fts = fs_.CountFeatures(fd::kPCPair);
+  stats_.num_call_stack_features = fs_.CountFeatures(fd::kCallStack);
+  stats_.num_bounded_path_features = fs_.CountFeatures(fd::kBoundedPath);
+  stats_.num_pc_pair_features = fs_.CountFeatures(fd::kPCPair);
   uint64_t num_user_fts = 0;
   for (size_t i = 0; i < std::size(fd::kUserDomains); ++i) {
     num_user_fts += fs_.CountFeatures(fd::kUserDomains[i]);
   }
-  stats_.num_user_fts = num_user_fts;
-  stats_.num_unknown_fts = fs_.CountFeatures(fd::kUnknown);
+  stats_.num_user_features = num_user_fts;
+  stats_.num_unknown_features = fs_.CountFeatures(fd::kUnknown);
   stats_.num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier();
 
   stats_.engine_rusage_avg_millicores = rusage_timing.cpu_hyper_cores * 1000;
-  stats_.engine_rusage_cpu_pct = rusage_timing.cpu_utilization * 100;
+  stats_.engine_rusage_cpu_percent = rusage_timing.cpu_utilization * 100;
   stats_.engine_rusage_rss_mb = rusage_memory.mem_rss >> 20;
   stats_.engine_rusage_vsize_mb = rusage_memory.mem_vsize >> 20;
 
