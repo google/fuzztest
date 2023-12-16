@@ -1131,9 +1131,11 @@ extern "C" void CentipedeEndExecutionBatch() {
 
 extern "C" void CentipedePrepareProcessing() {
   centipede::PrepareCoverage(/*full_clear=*/!in_execution_batch);
+  centipede::state.ResetTimers();
 }
 
 extern "C" void CentipedeFinalizeProcessing() {
+  centipede::CheckWatchdogLimits();
   centipede::PostProcessCoverage(/*target_return_value=*/0);
 }
 

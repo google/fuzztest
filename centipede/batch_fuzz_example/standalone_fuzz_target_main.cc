@@ -26,12 +26,25 @@
 #include <iterator>
 #include <string>
 
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "./centipede/runner_interface.h"
 
 static void FuzzMe(const char* data, size_t size) {
   if (size >= 3 && data[0] == 'f' && data[1] == 'u' && data[2] == 'z') {
     std::cout << "Catch you: " << data << std::endl;
     __builtin_trap();
+  }
+  if (size == 3 && data[0] == 's' && data[1] == 'l' && data[2] == 'p') {
+    absl::SleepFor(absl::Seconds(10));
+  }
+  if (size == 3 && data[0] == 'o' && data[1] == 'o' && data[2] == 'm') {
+    static volatile void* ptr_sink = nullptr;
+    const size_t oom_allocation_size = 1ULL << 32;
+    void* ptr = malloc(oom_allocation_size);
+    memset(ptr, 42, oom_allocation_size);
+    ptr_sink = ptr;
+    free(ptr);
   }
 }
 

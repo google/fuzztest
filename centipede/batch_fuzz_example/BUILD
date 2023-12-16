@@ -48,6 +48,7 @@ cc_binary(
     linkopts = ["-ldl"],
     linkstatic = False,
     deps = [
+        "@com_google_absl//absl/time",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",  # build-cleaner:keep
     ],
 )
