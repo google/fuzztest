@@ -237,13 +237,16 @@ struct GlobalRunnerState {
   // State for SanitizerCoverage.
   // See https://clang.llvm.org/docs/SanitizerCoverage.html.
   SanCovObjectArray sancov_objects;
-  static const size_t kBitSetSize = 1 << 18;  // Arbitrary large size.
-  ConcurrentBitSet<kBitSetSize> data_flow_feature_set{absl::kConstInit};
+  // An arbitrarily large size.
+  static constexpr size_t kDataFlowFeatureSetSize = 1 << 18;
+  ConcurrentBitSet<kDataFlowFeatureSetSize> data_flow_feature_set{
+      absl::kConstInit};
 
   // Tracing CMP instructions, capture events from these domains:
   // kCMPEq, kCMPModDiff, kCMPHamming, kCMPModDiffLog, kCMPMsbEq.
   // See https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-data-flow.
-  static const size_t kCmpFeatureSetSize = 1 << 18;  // Arbitrary large size.
+  // An arbitrarily large size.
+  static constexpr size_t kCmpFeatureSetSize = 1 << 18;
   // TODO(kcc): remove cmp_feature_set.
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_feature_set{absl::kConstInit};
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_eq_set{absl::kConstInit};
@@ -252,7 +255,7 @@ struct GlobalRunnerState {
   ConcurrentBitSet<kCmpFeatureSetSize> cmp_difflog_set{absl::kConstInit};
 
   // We think that call stack produces rich signal, so we give a few bits to it.
-  static const size_t kCallStackFeatureSetSize = 1 << 24;
+  static constexpr size_t kCallStackFeatureSetSize = 1 << 24;
   ConcurrentBitSet<kCallStackFeatureSetSize> callstack_set{absl::kConstInit};
 
   // kMaxNumPcs is the maximum number of instrumented PCs in the binary.
@@ -283,7 +286,8 @@ struct GlobalRunnerState {
   // * Use call stacks instead of paths (via unwinding or other
   // instrumentation).
 
-  static const size_t kPathBitSetSize = 1 << 25;  // Arbitrary very large size.
+  // An arbitrarily large size.
+  static constexpr size_t kPathBitSetSize = 1 << 25;
   // Observed paths. The total number of observed paths for --path_level=N
   // can be up to NumPCs**N.
   // So, we make the bitset very large, but it may still saturate.
@@ -316,7 +320,7 @@ struct GlobalRunnerState {
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
 
-  // An arbitrary large size.
+  // An arbitrarily large size.
   static const size_t kMaxFeatures = 1 << 20;
   // FeatureArray used to accumulate features from all sources.
   FeatureArray<kMaxFeatures> g_features;

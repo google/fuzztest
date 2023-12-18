@@ -122,19 +122,19 @@ class ConcurrentBitSet {
     }
   }
 
-  // A word is the largest integer type convenient for bit-wise operations.
+  // A word is the largest integer type convenient for bitwise operations.
   using word_t = uintptr_t;
-  static const size_t kBytesInWord = sizeof(word_t);
-  static const size_t kBitsInWord = CHAR_BIT * kBytesInWord;
-  static const size_t kSizeInWords = kSizeInBits / kBitsInWord;
+  static constexpr size_t kBytesInWord = sizeof(word_t);
+  static constexpr size_t kBitsInWord = CHAR_BIT * kBytesInWord;
+  static constexpr size_t kSizeInWords = kSizeInBits / kBitsInWord;
 
   // All words are logically split into lines.
   // When Set() is called, we set the corresponding element of lines_ to 1, so
   // that we now know that at least 1 bit in that line is set. Then, in
   // ForEachNonZeroBit, we iterate only those lines that have non-zero bits.
-  static const size_t kBytesInLine = 64 * 8;
-  static const size_t kWordsInLine = kBytesInLine / kBytesInWord;
-  static const size_t kSizeInLines = kSizeInWords / kWordsInLine;
+  static constexpr size_t kBytesInLine = 64 * 8;
+  static constexpr size_t kWordsInLine = kBytesInLine / kBytesInWord;
+  static constexpr size_t kSizeInLines = kSizeInWords / kWordsInLine;
   ConcurrentByteSet<kSizeInLines> lines_;
   word_t words_[kSizeInWords];  // No initializer.
 };
