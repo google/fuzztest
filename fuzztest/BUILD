@@ -155,6 +155,11 @@ cc_library(
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
     defines = ["FUZZTEST_USE_CENTIPEDE"],
+    linkopts = [
+        # Needed for linking the Centipede engine with the runner, due to
+        # the common source code built separately for the engine and runner.
+        "-Wl,--warn-backrefs-exclude=*/centipede/*",
+    ],
     deps = [
         ":configuration",
         ":coverage",
@@ -163,9 +168,20 @@ cc_library(
         ":logging",
         ":runtime",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//centipede:centipede_callbacks",
+        "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
+        "@com_google_fuzztest//centipede:defs",
+        "@com_google_fuzztest//centipede:early_exit",
+        "@com_google_fuzztest//centipede:environment",
+        "@com_google_fuzztest//centipede:runner_result",
+        "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
     ],
 )
 
