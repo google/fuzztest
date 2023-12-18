@@ -9,6 +9,6 @@ function(link_fuzztest name)
       COMMAND bash -c "find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a -o -name libclang_rt.fuzzer_no_main.a | head -1"
       OUTPUT_VARIABLE FUZZER_NO_MAIN OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    target_link_libraries(${name} PRIVATE ${FUZZER_NO_MAIN})
+    target_link_libraries(${name} PRIVATE -Wl,-whole-archive ${FUZZER_NO_MAIN} -Wl,-no-whole-archive)
   endif ()
 endfunction()
