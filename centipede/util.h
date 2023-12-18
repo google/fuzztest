@@ -158,6 +158,10 @@ std::string ExtractHashFromArray(ByteArray &ba);
 ByteArray PackFeaturesAndHash(const ByteArray &data,
                               const FeatureVec &features);
 
+// Pack `features` and the hash of `data` directly from their raw data format.
+ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
+                                        ByteSpan features);
+
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
 // `features` and return the hash.
 std::string UnpackFeaturesAndHash(const ByteSpan &blob, FeatureVec *features);

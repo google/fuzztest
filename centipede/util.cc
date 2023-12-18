@@ -277,13 +277,18 @@ std::string ExtractHashFromArray(ByteArray &ba) {
 
 ByteArray PackFeaturesAndHash(const ByteArray &data,
                               const FeatureVec &features) {
-  size_t features_len_in_bytes = features.size() * sizeof(feature_t);
-  ByteArray feature_bytes_with_hash(features_len_in_bytes + kHashLen);
-  memcpy(feature_bytes_with_hash.data(), features.data(),
-         features_len_in_bytes);
+  ByteSpan feature_bytes(reinterpret_cast<const uint8_t *>(features.data()),
+                         features.size() * sizeof(feature_t));
+  return PackFeaturesAndHashAsRawBytes(data, feature_bytes);
+}
+
+ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
+                                        ByteSpan features) {
+  ByteArray feature_bytes_with_hash(features.size() + kHashLen);
   auto hash = Hash(data);
   CHECK_EQ(hash.size(), kHashLen);
-  memcpy(feature_bytes_with_hash.data() + features_len_in_bytes, hash.data(),
+  memcpy(feature_bytes_with_hash.data(), features.data(), features.size());
+  memcpy(feature_bytes_with_hash.data() + features.size(), hash.data(),
          kHashLen);
   return feature_bytes_with_hash;
 }
