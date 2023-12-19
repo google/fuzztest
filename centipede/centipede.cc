@@ -570,7 +570,7 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
 
     ~ReportDumper() override { RemoteFileClose(file_); }
 
-    ReportDumper &operator<<(const std::string &fragment) override {
+    ReportDumper &operator<<(std::string_view fragment) override {
       RemoteFileAppend(file_, ByteArray{fragment.cbegin(), fragment.cend()});
       return *this;
     }

@@ -213,6 +213,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/str_cat.h"  // IWYU pragma: keep
@@ -290,7 +291,7 @@ class RUsageProfiler {
   class ReportSink {
    public:
     virtual ~ReportSink() = default;
-    virtual ReportSink& operator<<(const std::string& fragment) = 0;
+    virtual ReportSink& operator<<(std::string_view fragment) = 0;
   };
 
   //----------------------------------------------------------------------------

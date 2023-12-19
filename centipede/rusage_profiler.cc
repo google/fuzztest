@@ -23,6 +23,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
 
@@ -505,9 +506,9 @@ void RUsageProfiler::PrintReport(  //
       }
     }
 
-    ReportLogger& operator<<(const std::string& fragment) override {
+    ReportLogger& operator<<(std::string_view fragment) override {
       const auto last_newline = fragment.rfind('\n');
-      if (last_newline == std::string::npos) {
+      if (last_newline == std::string_view::npos) {
         // Accumulate no-'\n' fragments: LOG() always wraps around.
         buffer_ += fragment;
       } else {
