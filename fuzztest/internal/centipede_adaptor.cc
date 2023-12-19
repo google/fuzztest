@@ -24,6 +24,7 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
+#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -130,6 +131,7 @@ centipede::Environment CreateCentipedeEnvironmentFromFuzzTestFlags(
                     "[!] Cannot parse env FUZZTEST_MAX_FUZZING_RUNS=%s - will "
                     "not limit fuzzing runs.\n",
                     max_fuzzing_runs);
+      env.num_runs = std::numeric_limits<size_t>::max();
     }
   }
   return env;
