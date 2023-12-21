@@ -107,10 +107,10 @@ WorkDir WorkDir::FromCorpusShardPath(    //
   };
 }
 
-WorkDir::WorkDir(             //
-    std::string workdir,      //
-    std::string binary_name,  //
-    std::string binary_hash,  //
+WorkDir::WorkDir(                  //
+    std::string_view workdir,      //
+    std::string_view binary_name,  //
+    std::string_view binary_hash,  //
     size_t my_shard_index)
     : workdir_holder_{std::move(workdir)},
       binary_name_holder_{std::move(binary_name)},
@@ -127,6 +127,10 @@ WorkDir::WorkDir(const centipede::Environment& env)
       binary_hash_{env.binary_hash},
       my_shard_index_{env.my_shard_index} {}
 
+WorkDir::ShardedFileInfo WorkDir::CorpusFiles() const {
+  return {workdir_, absl::StrCat(kCorpusShardStem, "."), my_shard_index_};
+}
+
 std::string WorkDir::CoverageDirPath() const {
   return std::filesystem::path(workdir_) /
          absl::StrCat(binary_name_, "-", binary_hash_);
@@ -140,8 +144,8 @@ std::string WorkDir::BinaryInfoDirPath() const {
   return std::filesystem::path(CoverageDirPath()) / "binary-info";
 }
 
-WorkDir::ShardedFileInfo WorkDir::CorpusFiles() const {
-  return {workdir_, absl::StrCat(kCorpusShardStem, "."), my_shard_index_};
+std::string WorkDir::DebugInfoDirPath() const {
+  return std::filesystem::path(workdir_) / "debug";
 }
 
 WorkDir::ShardedFileInfo WorkDir::DistilledCorpusFiles() const {

@@ -54,6 +54,7 @@ TEST(WorkDirTest, Ctors) {
 TEST(WorkDirTest, Api) {
   const WorkDir wd{"/dir", "bin", "hash", 3};
 
+  EXPECT_EQ(wd.DebugInfoDirPath(), "/dir/debug");
   EXPECT_EQ(wd.CoverageDirPath(), "/dir/bin-hash");
   EXPECT_EQ(wd.CrashReproducerDirPath(), "/dir/crashes");
   EXPECT_EQ(wd.BinaryInfoDirPath(), "/dir/bin-hash/binary-info");

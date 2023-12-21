@@ -66,10 +66,10 @@ class WorkDir {
       std::string_view binary_hash);
 
   // Constructs an object from directly provided field values.
-  WorkDir(                      //
-      std::string workdir,      //
-      std::string binary_name,  //
-      std::string binary_hash,  //
+  WorkDir(                           //
+      std::string_view workdir,      //
+      std::string_view binary_name,  //
+      std::string_view binary_hash,  //
       size_t my_shard_index);
 
   // Constructs an object by recording referenced to the field values in the
@@ -98,6 +98,10 @@ class WorkDir {
               << VV(wd.my_shard_index_);
   }
 
+  // Returns the path to a dir for dumping debug configs, command lines, logs,
+  // and anything else that might aid in debugging issues or understanding the
+  // provenance of the data.
+  std::string DebugInfoDirPath() const;
   // Returns the path to the coverage dir.
   std::string CoverageDirPath() const;
   // Returns the path to the crash reproducer dir.
