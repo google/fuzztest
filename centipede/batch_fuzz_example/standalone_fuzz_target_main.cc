@@ -32,7 +32,7 @@
 
 static void FuzzMe(const char* data, size_t size) {
   if (size >= 3 && data[0] == 'f' && data[1] == 'u' && data[2] == 'z') {
-    std::cout << "Catch you: " << data << std::endl;
+    std::cout << "Catch you: " << data << '\n';
     __builtin_trap();
   }
   if (size == 3 && data[0] == 's' && data[1] == 'l' && data[2] == 'p') {
@@ -71,13 +71,12 @@ int main(int argc, char* argv[]) {
 
   std::ifstream input_file(input_file_path);
   if (!input_file.is_open()) {
-    std::cerr << "Failed to open --input_file: " << input_file_path
-              << std::endl;
+    std::cerr << "Failed to open --input_file: " << input_file_path << '\n';
     return EXIT_FAILURE;
   }
 
   if (!std::filesystem::exists(output_dir)) {
-    std::cerr << "Not found --output_dir: " << output_dir << std::endl;
+    std::cerr << "Not found --output_dir: " << output_dir << '\n';
     return EXIT_FAILURE;
   }
 
@@ -89,7 +88,7 @@ int main(int argc, char* argv[]) {
     std::string input_data;
     std::ifstream curr_file(curr_filepath);
     if (!curr_file.is_open()) {
-      std::cerr << "Failed to open input file: " << curr_filepath << std::endl;
+      std::cerr << "Failed to open input file: " << curr_filepath << '\n';
       return EXIT_FAILURE;
     }
 
@@ -123,7 +122,7 @@ int main(int argc, char* argv[]) {
             .append("output." + std::to_string(++index));
     std::ofstream output_file(output_filename, std::ios::out);
     if (!output_file.is_open()) {
-      std::cerr << "Failed to open file: " << output_filename << std::endl;
+      std::cerr << "Failed to open file: " << output_filename << '\n';
       return EXIT_FAILURE;
     }
 
