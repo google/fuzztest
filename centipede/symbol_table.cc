@@ -66,7 +66,7 @@ void SymbolTable::WriteToLLVMSymbolizer(std::ostream &out) {
   for (const Entry &entry : entries_) {
     out << entry.func << '\n';
     out << entry.file_line_col() << '\n';
-    out << std::endl;
+    out << '\n';
   }
 }
 
