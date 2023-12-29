@@ -26,7 +26,7 @@ namespace {
 bool CreateAndJoinAThread() {
   const auto *parent_func = __func__;
   std::thread t([parent_func]() {
-    std::cerr << parent_func << "::" << __func__ << " " << std::endl;
+    std::cerr << parent_func << "::" << __func__ << " " << '\n';
   });
   t.join();
   return true;
@@ -36,7 +36,7 @@ bool CreateAndJoinAThread() {
     CreateAndJoinAThread(), CreateAndJoinAThread()};
 
 void BackgroundThread() {
-  std::cerr << __func__ << " " << std::endl;
+  std::cerr << __func__ << " " << '\n';
   while (true) {
     std::thread another_thread([]() {});
     another_thread.join();
@@ -61,7 +61,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     overlapping_thread = nullptr;
   } else {
     overlapping_thread =
-        new std::thread([]() { std::cerr << "weird thread" << std::endl; });
+        new std::thread([]() { std::cerr << "weird thread" << '\n'; });
   }
 
   // All interesting code runs inside a freshly-created thread.
