@@ -120,6 +120,10 @@ __attribute__((optnone)) void FindString(const std::string& in) {
 void String(const std::string& in) { FindString(in); }
 FUZZ_TEST(MySuite, String);
 
+void StringFast(const std::string& in) { FindString(in); }
+FUZZ_TEST(MySuite, StringFast)
+    .WithDomains(fuzztest::Arbitrary<std::string>().WithSize(4));
+
 // TODO(changochen): Replace it with better test function
 void StringAsciiOnly(const std::string& in) { FindString(in); }
 FUZZ_TEST(MySuite, StringAsciiOnly).WithDomains(fuzztest::AsciiString());

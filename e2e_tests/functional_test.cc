@@ -34,6 +34,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
@@ -86,6 +87,15 @@ std::string BinaryPath(const absl::string_view name) {
   return binary_path;
 }
 
+absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
+    absl::flat_hash_map<std::string, std::string> env) {
+  if (!env.contains("ASAN_OPTIONS"))
+    env["ASAN_OPTIONS"] = "handle_abort=0:handle_sigfpe=0";
+  if (!env.contains("MSAN_OPTIONS"))
+    env["MSAN_OPTIONS"] = "handle_abort=0:handle_sigfpe=0";
+  return env;
+}
+
 class TempDir {
  public:
   TempDir() {
@@ -104,14 +114,6 @@ class TempDir {
 
 class UnitTestModeTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-#ifdef FUZZTEST_USE_CENTIPEDE
-    GTEST_SKIP() << "Skipping the unit test mode tests in the Centipede based "
-                    "multi-process configuration. Please run with "
-                    "--config=fuzztest to enable these tests!";
-#endif
-  }
-
   RunResults Run(
       absl::string_view test_filter,
       absl::string_view target_binary = kDefaultTargetBinary,
@@ -124,7 +126,8 @@ class UnitTestModeTest : public ::testing::Test {
     for (const auto& flag : fuzzer_flags) {
       commandline.push_back(CreateFuzzTestFlag(flag.first, flag.second));
     }
-    return RunCommand(commandline, env, absl::Minutes(10));
+    return RunCommand(commandline, WithTestSanitizerOptions(env),
+                      absl::Minutes(10));
   }
 };
 
@@ -554,6 +557,11 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
                   "enable these tests!";
 #endif
 #endif
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
+
   auto [status, std_out, std_err] =
       Run("MySuite.DataDependentStackOverflow", kDefaultTargetBinary,
           /*env=*/{}, /*fuzzer_flags=*/{{"stack_limit_kb", "1000"}});
@@ -565,14 +573,6 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-#ifdef FUZZTEST_USE_CENTIPEDE
-    GTEST_SKIP() << "Skipping the FuzzTest command line interface tests in the "
-                    "Centipede based multi-process configuration. Please run "
-                    "with --config=fuzztest to enable these tests!";
-#endif
-  }
-
   RunResults RunWith(
       const absl::flat_hash_map<std::string, std::string>& flags,
       const absl::flat_hash_map<std::string, std::string>& env = {},
@@ -582,7 +582,7 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
     for (const auto& [key, value] : flags) {
       args.push_back(CreateFuzzTestFlag(key, value));
     }
-    return RunCommand(args, env, timeout);
+    return RunCommand(args, WithTestSanitizerOptions(env), timeout);
   }
 };
 
@@ -617,7 +617,8 @@ class FuzzingModeCommandLineInterfaceTest
 #if !__has_feature(coverage_sanitizer)
     GTEST_SKIP() << "No coverage instrumentation: skipping the fuzzing mode "
                     "command line interface tests. "
-                    "Please run with --config=fuzztest to enable these tests!";
+                    "Please run with --config=fuzztest or --config=centipede "
+                    "to enable these tests!";
 #endif
 #endif
   }
@@ -666,10 +667,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "100"}});
+#ifdef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT(std_err, HasSubstr("[S0.100] end-fuzz")) << std_err;
+#else
   EXPECT_THAT(std_err,
               // 100 fuzzing runs + 1 seed run.
               HasSubstr("Total runs: 101"))
       << std_err;
+#endif  // FUZZTEST_USE_CENTIPEDE
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
@@ -682,7 +687,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz", "MySuite.String"}},
+      RunWith({{"fuzz", "MySuite.StringFast"}},
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.dirname()}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
@@ -727,12 +732,22 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
   auto [consumer_status, consumer_std_out, consumer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
               {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.dirname()}});
+#ifdef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT(consumer_std_err, HasSubstr(absl::StrFormat(
+                                    "inputs_added: %d", corpus_files.size())));
+#else
   EXPECT_THAT(consumer_std_err,
               HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
                                         corpus_files.size())));
+#endif  // FUZZTEST_USE_CENTIPEDE
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP()
+      << "Skipping tests for corpus minimization when running with Centipede. "
+         "Please run with --config=fuzztest to enable these tests!";
+#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
   // We cannot use a non-crashing test since there is no easy way to limit the
@@ -777,6 +792,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP()
+      << "Skipping tests for corpus minimization when running with Centipede. "
+         "Please run with --config=fuzztest to enable these tests!";
+#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
   // We cannot use a non-crashing test since there is no easy way to limit the
@@ -957,6 +977,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SilenceTargetWorking) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, NonFatalFailureAllowsMinimization) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP()
+      << "Skipping tests for non-fatal failure minimization when running with "
+         "Centipede. Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.NonFatalFailureAllowsMinimization"}});
   // The final failure should be with the known minimal result, even though many
@@ -975,6 +1000,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
                {"stack_limit_kb", "1000"}});
@@ -985,6 +1014,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ConfiguresStackLimitByEnvVarWithWarning) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"}},
               {{"FUZZTEST_STACK_LIMIT", "1234567"}});
@@ -1000,6 +1033,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ConfiguresStackLimitByEnvVarAndOverridesFlag) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
                {"stack_limit_kb", "1000"}},
@@ -1021,6 +1058,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagExistsButIsDisabled) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the rss limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"rss_limit_mb", "1234"}},
       /*env=*/{},
@@ -1031,6 +1072,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagExistsButIsDisabled) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagExistsButIsDisabled) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping the time limit test when running with Centipede. "
+                  "Please run with --config=fuzztest to enable these tests!";
+#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"},
                {"time_limit_per_input", "1s"}},
@@ -1043,7 +1088,6 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagExistsButIsDisabled) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-#ifdef FUZZTEST_USE_CENTIPEDE
 std::string CentipedePath() {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -1058,53 +1102,67 @@ std::string CentipedePath() {
                           absl::StrCat("Can't find ", binary_path));
   return binary_path;
 }
+
+struct ExecutionModelParam {
+  bool multi_process;
+};
+
+std::vector<ExecutionModelParam> GetAvailableExecutionModels() {
+  std::vector<ExecutionModelParam> results = {{/*multi_process=*/false}};
+#ifdef FUZZTEST_USE_CENTIPEDE
+  results.push_back({/*multi_process=*/true});
 #endif
+  return results;
+}
 
 // Tests for the fixture logic in fuzzing mode, which can only run
 // with coverage instrumentation enabled.
-class FuzzingModeFixtureTest : public ::testing::Test {
+class FuzzingModeFixtureTest
+    : public ::testing::TestWithParam<ExecutionModelParam> {
  protected:
   void SetUp() override {
 #if defined(__has_feature)
 #if !__has_feature(coverage_sanitizer)
     GTEST_SKIP() << "No coverage instrumentation: skipping the fuzzing mode "
                     "fixture tests. "
-                    "Please run with --config=fuzztest to enable these tests!";
+                    "Please run with --config=fuzztest or --config=centipede "
+                    "to enable these tests!";
 #endif
 #endif
   }
 
   RunResults Run(absl::string_view test_name, int iterations) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-    TempDir workdir;
-    return RunCommand(
-        {CentipedePath(), "--print_runner_log", "--exit_on_crash",
-         absl::StrCat("--workdir=", workdir.dirname()),
-         absl::StrCat("--binary=", BinaryPath(kDefaultTargetBinary), " ",
-                      CreateFuzzTestFlag("fuzz", test_name)),
-         absl::StrCat("--num_runs=", iterations)},
-        /*environment=*/{},
-        /*timeout=*/absl::InfiniteDuration());
-#else
-    return RunCommand({BinaryPath(kDefaultTargetBinary),
-                       CreateFuzzTestFlag("fuzz", test_name)},
-                      {{"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}},
-                      /*timeout=*/absl::InfiniteDuration());
-#endif
+    if (GetParam().multi_process) {
+      TempDir workdir;
+      return RunCommand(
+          {CentipedePath(), "--print_runner_log", "--exit_on_crash",
+           absl::StrCat("--workdir=", workdir.dirname()),
+           absl::StrCat("--binary=", BinaryPath(kDefaultTargetBinary), " ",
+                        CreateFuzzTestFlag("fuzz", test_name)),
+           absl::StrCat("--num_runs=", iterations)},
+          /*environment=*/{},
+          /*timeout=*/absl::InfiniteDuration());
+    } else {
+      return RunCommand(
+          {BinaryPath(kDefaultTargetBinary),
+           CreateFuzzTestFlag("fuzz", test_name)},
+          {{"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}},
+          /*timeout=*/absl::InfiniteDuration());
+    }
   }
 
   // Counts the number of times the target binary has been run. Needed because
   // Centipede runs the binary multiple times.
   int CountTargetRuns(absl::string_view std_err) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-    return CountSubstrs(std_err, "Centipede fuzz target runner; argv[0]:");
-#else
-    return 1;
-#endif
+    if (GetParam().multi_process) {
+      return CountSubstrs(std_err, "Centipede fuzz target runner; argv[0]:");
+    } else {
+      return 1;
+    }
   }
 };
 
-TEST_F(FuzzingModeFixtureTest, GlobalEnvironmentIsSetUpForFailingTest) {
+TEST_P(FuzzingModeFixtureTest, GlobalEnvironmentIsSetUpForFailingTest) {
   auto [status, std_out, std_err] =
       Run("MySuite.GoogleTestExpect", /*iterations=*/10);
   EXPECT_GT(CountTargetRuns(std_err), 0);
@@ -1115,7 +1173,7 @@ TEST_F(FuzzingModeFixtureTest, GlobalEnvironmentIsSetUpForFailingTest) {
             CountSubstrs(std_err, "<<GlobalEnvironment::SetUp()>>"));
 }
 
-TEST_F(FuzzingModeFixtureTest,
+TEST_P(FuzzingModeFixtureTest,
        GlobalEnvironmentGoesThroughCompleteLifecycleForSuccessfulTest) {
   auto [status, std_out, std_err] =
       Run("MySuite.GoogleTestNeverFails", /*iterations=*/10);
@@ -1132,7 +1190,7 @@ TEST_F(FuzzingModeFixtureTest,
       CountSubstrs(std_err, "<<GlobalEnvironment::~GlobalEnvironment()>>"));
 }
 
-TEST_F(FuzzingModeFixtureTest, FixtureGoesThroughCompleteLifecycle) {
+TEST_P(FuzzingModeFixtureTest, FixtureGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("FixtureTest.NeverFails",
                                         /*iterations=*/10);
   EXPECT_GT(CountTargetRuns(std_err), 0);
@@ -1142,7 +1200,7 @@ TEST_F(FuzzingModeFixtureTest, FixtureGoesThroughCompleteLifecycle) {
             CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
 }
 
-TEST_F(FuzzingModeFixtureTest,
+TEST_P(FuzzingModeFixtureTest,
        GoogleTestPerIterationFixtureInstantiatedOncePerIteration) {
   auto [status, std_out, std_err] =
       Run("CallCountPerIteration."
@@ -1151,14 +1209,14 @@ TEST_F(FuzzingModeFixtureTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeFixtureTest,
+TEST_P(FuzzingModeFixtureTest,
        GoogleTestPerFuzzTestFixtureInstantiatedOncePerFuzzTest) {
   auto [status, std_out, std_err] =
       Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen", /*iterations=*/10);
   EXPECT_THAT(std_err, HasSubstr("<<CallCountGoogleTest::call_count_ == 10>>"));
 }
 
-TEST_F(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
+TEST_P(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
   auto [status, std_out, std_err] =
       Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen", /*iterations=*/10);
   EXPECT_GT(CountTargetRuns(std_err), 0);
@@ -1169,16 +1227,22 @@ TEST_F(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
       CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
 }
 
+INSTANTIATE_TEST_SUITE_P(FuzzingModeFixtureTestWithExecutionModel,
+                         FuzzingModeFixtureTest,
+                         testing::ValuesIn(GetAvailableExecutionModels()));
+
 // Tests for the crash finding ability of the fuzzing mode, which can
 // only run with coverage instrumentation enabled.
-class FuzzingModeCrashFindingTest : public ::testing::Test {
+class FuzzingModeCrashFindingTest
+    : public ::testing::TestWithParam<ExecutionModelParam> {
  protected:
   void SetUp() override {
 #if defined(__has_feature)
 #if !__has_feature(coverage_sanitizer)
     GTEST_SKIP() << "No coverage instrumentation: skipping the fuzzing mode "
                     "crash finding tests. "
-                    "Please run with --config=fuzztest to enable these tests!";
+                    "Please run with --config=fuzztest or --config=centipede "
+                    "to enable these tests!";
 #endif
 #endif
   }
@@ -1193,36 +1257,37 @@ class FuzzingModeCrashFindingTest : public ::testing::Test {
     // https://bazel.build/reference/test-encyclopedia#initial-conditions.)
     // There are however env vars that we do want to propagate, which
     // we now need to do explicitly.
-    absl::flat_hash_map<std::string, std::string> environment;
-#ifdef FUZZTEST_USE_CENTIPEDE
-    TempDir workdir;
-    environment["ASAN_OPTIONS"] = "handle_aborts=0";
-    return RunCommand({CentipedePath(), "--exit_on_crash",
-                       absl::StrCat("--stop_at=", absl::Now() + timeout),
-                       absl::StrCat("--workdir=", workdir.dirname()),
-                       absl::StrCat("--binary=", BinaryPath(target_binary), " ",
-                                    CreateFuzzTestFlag("fuzz", test_name))},
-                      environment, timeout + absl::Seconds(10));
-#else
-    return RunCommand(
-        {BinaryPath(target_binary), CreateFuzzTestFlag("fuzz", test_name)},
-        environment, timeout);
-#endif
+    absl::flat_hash_map<std::string, std::string> environment =
+        WithTestSanitizerOptions({});
+    if (GetParam().multi_process) {
+      TempDir workdir;
+      return RunCommand(
+          {CentipedePath(), "--exit_on_crash", "--timeout_per_input=0",
+           absl::StrCat("--stop_at=", absl::Now() + timeout),
+           absl::StrCat("--workdir=", workdir.dirname()),
+           absl::StrCat("--binary=", BinaryPath(target_binary), " ",
+                        CreateFuzzTestFlag("fuzz", test_name))},
+          environment, timeout + absl::Seconds(10));
+    } else {
+      return RunCommand(
+          {BinaryPath(target_binary), CreateFuzzTestFlag("fuzz", test_name)},
+          environment, timeout);
+    }
+  }
+
+  void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
+    if (GetParam().multi_process) {
+      EXPECT_THAT(status, Ne(ExitCode(0)));
+      EXPECT_TRUE(RE2::PartialMatch(
+          std_err, absl::StrCat("Exit code\\s*:\\s*", SIGABRT)))
+          << std_err;
+    } else {
+      EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+    }
   }
 };
 
-void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  EXPECT_THAT(status, Ne(ExitCode(0)));
-  EXPECT_TRUE(
-      RE2::PartialMatch(std_err, absl::StrCat("Exit code\\s*:\\s*", SIGABRT)))
-      << std_err;
-#else
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-#endif
-}
-
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithStringView");
   EXPECT_THAT(
@@ -1232,7 +1297,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        DereferencingEmptyOptionalTriggersLibcppAssertionsWhenEnabled) {
 #if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_ASSERTIONS)
   auto [status, std_out, std_err] = Run("MySuite.DereferenceEmptyOptional");
@@ -1241,7 +1306,7 @@ TEST_F(FuzzingModeCrashFindingTest,
 #endif
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithString");
   EXPECT_THAT(std_err,
@@ -1249,7 +1314,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndLvalueStringViewRef) {
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndLvalueStringViewRef");
@@ -1258,7 +1323,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndRvalueStringViewRef) {
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndRvalueStringViewRef");
@@ -1267,7 +1332,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.DivByZero");
   EXPECT_THAT(std_err, HasSubstr("argument 1: 0"));
 #ifdef ADDRESS_SANITIZER
@@ -1277,7 +1342,7 @@ TEST_F(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
 #endif
 }
 
-TEST_F(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Coverage");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 'F'"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: 'u'"));
@@ -1286,44 +1351,44 @@ TEST_F(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, StringTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, StringTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.String");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        StringAsciiOnlyTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringAsciiOnly");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, StringRegexpTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, StringRegexpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringRegexp");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, StringViewTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, StringViewTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringView");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, StrCmpTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, StrCmpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StrCmp");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"Hello!"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, BitFlagsFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, BitFlagsFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitFlags");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 21"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, EnumTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, EnumTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.EnumValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: Color{0}"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: Color{1}"));
@@ -1331,7 +1396,7 @@ TEST_F(FuzzingModeCrashFindingTest, EnumTestFindsAbortInFuzzingMode) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, EnumClassTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, EnumClassTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.EnumClassValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: ColorClass{0}"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: ColorClass{1}"));
@@ -1339,32 +1404,32 @@ TEST_F(FuzzingModeCrashFindingTest, EnumClassTestFindsAbortInFuzzingMode) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, ProtoTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, ProtoTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Proto");
   EXPECT_THAT(std_err, ContainsRegex(R"(argument 0: \(b:\s+true)"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, BitvectorValueTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, BitvectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitvectorValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {true"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
+TEST_P(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.VectorValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        FixedSizeVectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.FixedSizeVectorValue");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, GoogleTestExpectationsStopTheFuzzer) {
+TEST_P(FuzzingModeCrashFindingTest, GoogleTestExpectationsStopTheFuzzer) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestExpect");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
@@ -1378,7 +1443,7 @@ TEST_F(FuzzingModeCrashFindingTest, GoogleTestExpectationsStopTheFuzzer) {
   EXPECT_THAT(std_err, HasReproducerTest("MySuite", "GoogleTestExpect", ".*"));
 }
 
-TEST_F(FuzzingModeCrashFindingTest, GoogleTestAssertionsStopTheFuzzer) {
+TEST_P(FuzzingModeCrashFindingTest, GoogleTestAssertionsStopTheFuzzer) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestAssert");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
@@ -1393,7 +1458,7 @@ TEST_F(FuzzingModeCrashFindingTest, GoogleTestAssertionsStopTheFuzzer) {
   EXPECT_THAT(std_err, HasReproducerTest("MySuite", "GoogleTestAssert", ".*"));
 }
 
-TEST_F(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
+TEST_P(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
   auto [status, std_out, std_err] = Run("MySuite.Mapping");
   EXPECT_THAT(
       std_err,
@@ -1407,7 +1472,7 @@ TEST_F(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
+TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
   auto [status, std_out, std_err] = Run("MySuite.FlatMapping");
   EXPECT_THAT(std_err, AllOf(HasSubstr("argument 0: {\"abc\", 2}"),
                              HasReproducerTest(
@@ -1418,71 +1483,71 @@ TEST_F(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
+TEST_P(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
   auto [status, std_out, std_err] =
       Run("MySuite.FlatMapPassesWhenCorrect", kDefaultTargetBinary,
           /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCrashFindingTest, FilterDomainShowsOnlyFilteredValues) {
+TEST_P(FuzzingModeCrashFindingTest, FilterDomainShowsOnlyFilteredValues) {
   auto [status, std_out, std_err] = Run("MySuite.Filtering");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 8"));
   EXPECT_THAT(std_err, HasSubstr("argument 1: 9"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, BadFilterTriggersAnAbort) {
+TEST_P(FuzzingModeCrashFindingTest, BadFilterTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadFilter");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of Filter()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, BadWithMinSizeTriggersAnAbort) {
+TEST_P(FuzzingModeCrashFindingTest, BadWithMinSizeTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadWithMinSize");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of WithSize()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, SmartPointer) {
+TEST_P(FuzzingModeCrashFindingTest, SmartPointer) {
   auto [status, std_out, std_err] = Run("MySuite.SmartPointer");
   EXPECT_THAT(std_err, HasSubstr("argument 0: (1"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, UnprintableTypeRunsAndPrintsSomething) {
+TEST_P(FuzzingModeCrashFindingTest, UnprintableTypeRunsAndPrintsSomething) {
   auto [status, std_out, std_err] = Run("MySuite.UsesUnprintableType");
   EXPECT_THAT(std_err, HasSubstr("argument 0: <unprintable value>"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, MyStructTestArbitraryCanPrint) {
+TEST_P(FuzzingModeCrashFindingTest, MyStructTestArbitraryCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructArbitrary");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, MyStructTestWithDomainsCanPrint) {
+TEST_P(FuzzingModeCrashFindingTest, MyStructTestWithDomainsCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructWithDomains");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, ConstructorPrintsSomething) {
+TEST_P(FuzzingModeCrashFindingTest, ConstructorPrintsSomething) {
   auto [status, std_out, std_err] = Run("MySuite.ConstructorWithDomains");
   EXPECT_THAT(std_err, HasSubstr("\"ccc\""));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, SeedInputIsUsed) {
+TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsed) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsed");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {9439518, 21, 49153}"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        SeedInputIsUsedInProtobufsWithInternalMappings) {
   auto [status, std_out, std_err] =
       Run("MySuite.SeedInputIsUsedInProtobufsWithInternalMappings");
@@ -1490,39 +1555,39 @@ TEST_F(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, SeedInputIsUsedForMutation) {
+TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsedForMutation");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 19, 1234, 5678}"));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, UsesManualDictionary) {
+TEST_P(FuzzingModeCrashFindingTest, UsesManualDictionary) {
   auto [status, std_out, std_err] = Run("MySuite.StringPermutationTest");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, UsesSeededDomain) {
+TEST_P(FuzzingModeCrashFindingTest, UsesSeededDomain) {
   auto [status, std_out, std_err] = Run("MySuite.StringPermutationWithSeeds");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, UsesSeedFromSeedProvider) {
+TEST_P(FuzzingModeCrashFindingTest, UsesSeedFromSeedProvider) {
   auto [status, std_out, std_err] =
       Run("MySuite.StringPermutationWithSeedProvider");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, UsesSeedFromSeedProviderOnFixture) {
+TEST_P(FuzzingModeCrashFindingTest, UsesSeedFromSeedProviderOnFixture) {
   auto [status, std_out, std_err] =
       Run("SeededFixture.StringPermutationWithSeedProvider");
   EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        FunctionPointerAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       Run("MySuite.FunctionPointerAliasesAreFuzzable");
@@ -1530,7 +1595,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        FunctionReferenceAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       Run("MySuite.FunctionReferenceAliasesAreFuzzable");
@@ -1538,7 +1603,7 @@ TEST_F(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
+TEST_P(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
   // TODO(b/302012926): Consolidate the stack overflow checking between FuzzTest
   // and Centipede.
 #ifdef FUZZTEST_USE_CENTIPEDE
@@ -1556,7 +1621,7 @@ TEST_F(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
   ExpectTargetAbort(status, std_err);
 }
 
-TEST_F(FuzzingModeCrashFindingTest,
+TEST_P(FuzzingModeCrashFindingTest,
        StackCalculationWorksWithAlternateStackForSignalHandlers) {
   // TODO(b/302012926): Consolidate the stack overflow checking between FuzzTest
   // and Centipede.
@@ -1572,6 +1637,10 @@ TEST_F(FuzzingModeCrashFindingTest,
               Not(HasSubstr("You can change the limit by specifying")));
   ExpectTargetAbort(status, std_err);
 }
+
+INSTANTIATE_TEST_SUITE_P(FuzzingModeCrashFindingTestWithExecutionModel,
+                         FuzzingModeCrashFindingTest,
+                         testing::ValuesIn(GetAvailableExecutionModels()));
 
 }  // namespace
 }  // namespace fuzztest::internal
