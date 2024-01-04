@@ -438,9 +438,9 @@ void GenerateSeedCorpusFromConfig(          //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     std::string_view override_out_dir) {
+  // Resolve the config.
   const SeedCorpusConfig config =
       ResolveSeedCorpusConfig(config_spec, override_out_dir);
-
   if (config.sources_size() == 0 || !config.has_destination()) {
     LOG(WARNING) << "Config is empty: skipping seed corpus generation";
     return;
@@ -451,8 +451,20 @@ void GenerateSeedCorpusFromConfig(          //
     RemoteMkdir(config.destination().dir_path());
   }
 
+  // Dump the config to the debug info dir in the destination.
+  const WorkDir workdir{
+      config.destination().dir_path(),
+      coverage_binary_name,
+      coverage_binary_hash,
+      /*my_shard_index=*/0,
+  };
+  const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
+  RemoteMkdir(debug_info_dir.string());
+  RemoteFileSetContents(debug_info_dir / "seeding.cfg", config.DebugString());
+
   InputAndFeaturesVec elements;
 
+  // Read and sample elements from the sources.
   for (const auto& source : config.sources()) {
     SampleSeedCorpusElementsFromSource(  //
         source, coverage_binary_name, coverage_binary_hash, elements);
@@ -460,6 +472,7 @@ void GenerateSeedCorpusFromConfig(          //
   LOG(INFO) << "Sampled " << elements.size() << " elements from "
             << config.sources_size() << " seed corpus source(s)";
 
+  // Write the sampled elements to the destination.
   if (elements.empty()) {
     LOG(WARNING)
         << "No elements to write to seed corpus destination - doing nothing";
