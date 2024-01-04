@@ -29,6 +29,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -260,11 +261,14 @@ void SampleSeedCorpusElementsFromSource(    //
       src_elts.emplace_back(std::move(elt));
     }
     shard_elts.clear();
+    shard_elts.shrink_to_fit();
     src_num_features += src_elts_with_features_per_shard[s];
   }
 
   src_elts_per_shard.clear();
+  src_elts_per_shard.shrink_to_fit();
   src_elts_with_features_per_shard.clear();
+  src_elts_with_features_per_shard.shrink_to_fit();
 
   RPROF_SNAPSHOT_AND_LOG("Done merging");
 
@@ -293,16 +297,28 @@ void SampleSeedCorpusElementsFromSource(    //
   if (sample_size < src_elts.size()) {
     LOG(INFO) << "Sampling " << sample_size << " elements out of "
               << src_elts.size();
-    std::sample(  //
-        src_elts.cbegin(), src_elts.cend(), std::back_inserter(elements),
-        sample_size, absl::BitGen{});
   } else {
     LOG(INFO) << "Using all " << src_elts.size() << " elements";
-    // TODO(ussuri): Should we still use std::sample() to randomize the order?
-    elements.insert(elements.end(), src_elts.cbegin(), src_elts.cend());
   }
 
+  // Extract a sample by shuffling the elements' indices and resizing to the
+  // requested sample size. We do this, rather than std::sampling the elements
+  // themselves and associated inserting into `elements`, to avoid a spike in
+  // peak RAM usage.
+  std::vector<size_t> src_sample_idxs(src_elts.size());
+  std::iota(src_sample_idxs.begin(), src_sample_idxs.end(), 0);
+  std::shuffle(src_sample_idxs.begin(), src_sample_idxs.end(), absl::BitGen{});
+  src_sample_idxs.resize(sample_size);
+
   RPROF_SNAPSHOT_AND_LOG("Done sampling");
+
+  // Now move each sampled element from `src_elts` to `elements`.
+  elements.reserve(elements.size() + sample_size);
+  for (size_t idx : src_sample_idxs) {
+    elements.emplace_back(std::move(src_elts[idx]));
+  }
+
+  RPROF_SNAPSHOT_AND_LOG("Done appending");
 }
 
 // TODO(ussuri): Refactor into smaller functions.

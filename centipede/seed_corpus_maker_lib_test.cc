@@ -16,6 +16,7 @@
 
 #include <unistd.h>
 
+#include <cmath>
 #include <cstddef>
 #include <filesystem>  // NOLINT
 #include <string>
@@ -38,7 +39,6 @@ namespace {
 namespace fs = std::filesystem;
 using google::protobuf::TextFormat;
 using testing::IsSubsetOf;
-using testing::UnorderedElementsAreArray;
 
 inline constexpr auto kIdxDigits = WorkDir::kDigitsInShardIndex;
 
@@ -189,19 +189,16 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       }
     )pb";
 
-    for (const double fraction : {1.0, 0.5}) {
+    for (const double fraction : {1.0, 0.5, 0.2}) {
       const SeedCorpusConfig config = ParseSeedCorpusConfig(
           absl::Substitute(kConfigStr, kRelDir1, kCovBin, fraction));
       InputAndFeaturesVec elements;
       SampleSeedCorpusElementsFromSource(  //
           config.sources(0), kCovBin, kCovHash, elements);
       // NOTE: 1.0 has a precise double representation, so `==` is fine.
-      if (fraction == 1.0) {
-        ASSERT_THAT(elements, UnorderedElementsAreArray(kElements))
-            << VV(fraction);
-      } else {
-        ASSERT_THAT(elements, IsSubsetOf(kElements)) << VV(fraction);
-      }
+      ASSERT_EQ(elements.size(), std::llrint(kElements.size() * fraction))
+          << VV(fraction);
+      ASSERT_THAT(elements, IsSubsetOf(kElements)) << VV(fraction);
     }
   }
 
