@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -67,11 +68,10 @@ namespace fs = std::filesystem;
 SeedCorpusConfig ResolveSeedCorpusConfig(  //
     std::string_view config_spec,          //
     std::string_view override_out_dir) {
-  std::string config_str;
-  std::string base_dir;
-
   CHECK(!config_spec.empty());
 
+  std::string config_str;
+  std::string base_dir;
   if (RemotePathExists(config_spec)) {
     LOG(INFO) << "Config spec points at an existing file; trying to parse "
                  "textproto config from it: "
@@ -105,14 +105,18 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   }
 
   // Set `destination.dir_path` to `override_out_dir`, if the latter is
-  // non-empty, or resolve a relative `destination.dir_path` to an absolute one.
-  if (config.has_destination()) {
-    auto* dir = config.mutable_destination()->mutable_dir_path();
-    if (!override_out_dir.empty()) {
-      *dir = override_out_dir;
-    } else if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
-    }
+  // non-empty, or resolve a relative `destination.dir_path` to an absolute one,
+  // or set an empty `destination.dir_path` to the computed base dir. The net
+  // result is that
+  auto* dir = config.mutable_destination()->mutable_dir_path();
+  if (!override_out_dir.empty()) {
+    *dir = override_out_dir;
+  } else if (dir->empty()) {
+    *dir = fs::path{base_dir};
+  } else if (!fs::path{*dir}.is_absolute()) {
+    *dir = fs::path{base_dir} / *dir;
+  } else {
+    ABSL_UNREACHABLE();
   }
 
   if (config.destination().shard_index_digits() == 0) {
@@ -438,11 +442,14 @@ void GenerateSeedCorpusFromConfig(          //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     std::string_view override_out_dir) {
+  // Resolve the config.
   const SeedCorpusConfig config =
       ResolveSeedCorpusConfig(config_spec, override_out_dir);
 
-  if (config.sources_size() == 0 || !config.has_destination()) {
-    LOG(WARNING) << "Config is empty: skipping seed corpus generation";
+  // NOTE: If there is not destination, we can't even dump the config.
+  if (!config.has_destination()) {
+    LOG(WARNING)
+        << "Config has no destination: skipping seed corpus generation";
     return;
   }
 
@@ -451,8 +458,26 @@ void GenerateSeedCorpusFromConfig(          //
     RemoteMkdir(config.destination().dir_path());
   }
 
+  // Dump the config to the debug info dir in the destination.
+  const WorkDir workdir{
+      config.destination().dir_path(),
+      coverage_binary_name,
+      coverage_binary_hash,
+      /*my_shard_index=*/0,
+  };
+  const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
+  RemoteMkdir(debug_info_dir.string());
+  RemoteFileSetContents(debug_info_dir / "seeding.cfg", config.DebugString());
+
+  // NOTE: Do this only after dumping the config, even a sourceless one.
+  if (config.sources_size() == 0) {
+    LOG(WARNING) << "Config has no sources: skipping seed corpus generation";
+    return;
+  }
+
   InputAndFeaturesVec elements;
 
+  // Read and sample elements from the sources.
   for (const auto& source : config.sources()) {
     SampleSeedCorpusElementsFromSource(  //
         source, coverage_binary_name, coverage_binary_hash, elements);
@@ -460,6 +485,7 @@ void GenerateSeedCorpusFromConfig(          //
   LOG(INFO) << "Sampled " << elements.size() << " elements from "
             << config.sources_size() << " seed corpus source(s)";
 
+  // Write the sampled elements to the destination.
   if (elements.empty()) {
     LOG(WARNING)
         << "No elements to write to seed corpus destination - doing nothing";
