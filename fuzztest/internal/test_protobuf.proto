@@ -97,7 +97,8 @@ message IRObjectTestProto {
 
 message TestProtobufWithExtension {
   optional int32 non_ext = 1;
-  extensions 1000 to max;
+  extensions 1000 to max
+  [verification = UNVERIFIED];
 }
 
 message ProtoExtender {
