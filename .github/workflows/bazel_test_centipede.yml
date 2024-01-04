@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        config: ['default', 'asan']
+        config: ['default', 'noriegeli', 'asan']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -61,6 +61,22 @@ jobs:
         if: matrix.config == 'asan'
         run: |
           bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+      - name: Run unit tests without Riegeli
+        if: matrix.config == 'noriegeli'
+        run: |
+          bazel test --no//centipede:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all
+      - name: Run e2e tests without Riegeli
+        if: matrix.config == 'noriegeli'
+        run: |
+          bazel test --no//centipede:use_riegeli --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+      - name: Run puzzles without Riegeli
+        if: matrix.config == 'noriegeli'
+        run: |
+          bazel test --no//centipede:use_riegeli --test_output=errors centipede/puzzles:all
+      - name: Run puzzles without Riegeli with ASAN
+        if: matrix.config == 'noriegeli'
+        run: |
+          bazel test --no//centipede:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v3

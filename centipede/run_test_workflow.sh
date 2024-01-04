@@ -67,6 +67,10 @@ bazel test "${BAZEL_ARGS[@]}" --local_test_jobs=1 --test_output=streamed \
 bazel test "${BAZEL_ARGS[@]}" centipede/testing:instrumentation_test centipede/testing:runner_test &&
 bazel test "${BAZEL_ARGS[@]}" centipede/puzzles:all
 bazel test "${BAZEL_ARGS[@]}" --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+bazel test "${BAZEL_ARGS[@]}" --no//centipede:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all &&
+bazel test "${BAZEL_ARGS[@]}" --no//centipede:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test &&
+bazel test "${BAZEL_ARGS[@]}" --no//centipede:use_riegeli centipede/puzzles:all
+bazel test "${BAZEL_ARGS[@]}" --no//centipede:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
 
 declare -ri exit_code=$?
 set -e
