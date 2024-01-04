@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -83,18 +84,17 @@ std::string ShardPathsForLogging(  //
 SeedCorpusConfig ResolveSeedCorpusConfig(  //
     std::string_view config_spec,          //
     std::string_view override_out_dir) {
-  std::string config_str;
-  std::string base_dir;
-
   CHECK(!config_spec.empty());
 
+  std::string config_str;
+  fs::path base_dir;
   if (RemotePathExists(config_spec)) {
     LOG(INFO) << "Config spec points at an existing file; trying to parse "
                  "textproto config from it: "
               << VV(config_spec);
     RemoteFileGetContents(config_spec, config_str);
     LOG(INFO) << "Raw config read from file:\n" << config_str;
-    base_dir = std::filesystem::path{config_spec}.parent_path();
+    base_dir = fs::path{config_spec}.parent_path();
   } else {
     LOG(INFO) << "Config spec is not a file, or file doesn't exist; trying to "
                  "parse textproto config verbatim: "
@@ -116,19 +116,23 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
   for (auto& src : *config.mutable_sources()) {
     auto* dir = src.mutable_dir_glob();
     if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
+      *dir = base_dir / *dir;
     }
   }
 
   // Set `destination.dir_path` to `override_out_dir`, if the latter is
-  // non-empty, or resolve a relative `destination.dir_path` to an absolute one.
-  if (config.has_destination()) {
-    auto* dir = config.mutable_destination()->mutable_dir_path();
-    if (!override_out_dir.empty()) {
-      *dir = override_out_dir;
-    } else if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
-    }
+  // non-empty, or resolve a relative `destination.dir_path` to an absolute one,
+  // or set an empty `destination.dir_path` to the computed base dir. The net
+  // result is that
+  auto* dir = config.mutable_destination()->mutable_dir_path();
+  if (!override_out_dir.empty()) {
+    *dir = override_out_dir;
+  } else if (dir->empty()) {
+    *dir = base_dir;
+  } else if (!fs::path{*dir}.is_absolute()) {
+    *dir = base_dir / *dir;
+  } else {
+    ABSL_UNREACHABLE();
   }
 
   if (config.destination().shard_index_digits() == 0) {
