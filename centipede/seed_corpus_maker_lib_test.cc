@@ -87,6 +87,21 @@ void VerifyShardsExist(            //
   }
 }
 
+void VerifyDumpedConfig(           //
+    std::string_view workdir,      //
+    std::string_view binary_name,  //
+    std::string_view binary_hash) {
+  const WorkDir wd{
+      std::string{workdir},
+      std::string{binary_name},
+      std::string{binary_hash},
+      /*my_shard_index=*/0,
+  };
+  // TODO(ussuri): Verify the contents is as expected as well.
+  ASSERT_TRUE(fs::exists(fs::path{wd.DebugInfoDirPath()} / "seeding.cfg"))
+      << VV(workdir);
+}
+
 TEST(SeedCorpusMakerLibTest, ResolveConfig) {
   const std::string test_dir = fs::canonical(GetTestTempDir());
 
@@ -231,6 +246,7 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       GenerateSeedCorpusFromConfig(  //
           config_str, kCovBin, kCovHash, "");
       const std::string workdir = (test_dir / kRelDir2).c_str();
+      ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
           workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
     }
@@ -239,6 +255,7 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       GenerateSeedCorpusFromConfig(  //
           config_str, kCovBin, kCovHash, kRelDir3);
       const std::string workdir = (test_dir / kRelDir3).c_str();
+      ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
           workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
     }
