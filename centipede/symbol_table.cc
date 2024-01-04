@@ -14,6 +14,7 @@
 
 #include "./centipede/symbol_table.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
@@ -144,7 +145,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
   if (size() != pc_table.size()) {
     // Something went wrong. Set symbols to unknown so the sizes of pc_table and
     // symbols always match.
-    SetAllToUnknown(pc_table.size());
+    SetAllToUnknown(std::max(size(), pc_table.size()));
   }
 }
 
