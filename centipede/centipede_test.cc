@@ -864,4 +864,22 @@ TEST(Centipede, GetsSeedInputs) {
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
+TEST(Centipede, CleansUpMetadataAfterStartup) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath(
+      "centipede/testing/expensive_startup_fuzz_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult batch_result;
+  const std::vector<ByteArray> inputs = {{0}};
+  ASSERT_TRUE(callbacks.Execute(env.binary, inputs, batch_result));
+  ASSERT_EQ(batch_result.results().size(), 1);
+  bool found_startup_cmp_entry = false;
+  batch_result.results()[0].metadata().ForEachCmpEntry(
+      [&](ByteSpan a, ByteSpan b) {
+        if (a == ByteArray{'F', 'u', 'z', 'z'}) found_startup_cmp_entry = true;
+        if (b == ByteArray{'F', 'u', 'z', 'z'}) found_startup_cmp_entry = true;
+      });
+  EXPECT_FALSE(found_startup_cmp_entry);
+}
+
 }  // namespace centipede

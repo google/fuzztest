@@ -1628,6 +1628,7 @@ cc_test(
     srcs = ["centipede_test.cc"],
     data = [
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",
         "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",

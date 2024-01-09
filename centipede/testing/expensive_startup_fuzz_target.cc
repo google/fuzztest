@@ -15,15 +15,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 static int sink;
 
 // Instrumented function that runs at startup. We want it's coverage ignored.
-__attribute__((constructor, noinline)) void Startup() {
+__attribute__((constructor, noinline, optnone)) void Startup() {
   fprintf(stderr, "Startup\n");
   // Function entry: generate a coverage feature.
   sink++;                    // generate data flow feature
   if (sink == (sink == 42))  // generate some cmp features
+    Startup();
+  char str[] = {'F', 'u', 'z', 'z'};
+  if (memcmp(str, "Null", 4) == 0)  // generate some cmp traces
     Startup();
 }
 

@@ -378,8 +378,15 @@ PrepareCoverage(bool full_clear) {
       tls.lowest_sp = tls.top_frame_sp;
     });
   }
-  // TODO(kcc): do we need to clear tls.cmp_trace2 and others here?
   if (!full_clear) return;
+  state.ForEachTls([](ThreadLocalRunnerState &tls) {
+    if (state.run_time_flags.use_auto_dictionary) {
+      tls.cmp_trace2.Clear();
+      tls.cmp_trace4.Clear();
+      tls.cmp_trace8.Clear();
+      tls.cmp_traceN.Clear();
+    }
+  });
   state.pc_counter_set.ForEachNonZeroByte([](size_t idx, uint8_t value) {});
   if (state.run_time_flags.use_dataflow_features)
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
