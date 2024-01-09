@@ -218,7 +218,9 @@ __attribute__((optnone)) void VectorValue(const std::vector<char>& v) {
     std::abort();
   }
 }
-FUZZ_TEST(MySuite, VectorValue);
+FUZZ_TEST(MySuite, VectorValue)
+    .WithDomains(
+        fuzztest::VectorOf(fuzztest::Arbitrary<char>()).WithMaxSize(20));
 
 constexpr auto& FixedSizeVectorValue = VectorValue;
 FUZZ_TEST(MySuite, FixedSizeVectorValue)
