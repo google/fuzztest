@@ -33,7 +33,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/type_support.h"
 

@@ -17,7 +17,18 @@ workspace(name = "com_google_fuzztest")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 ################################################################################
-# Transitive dependencies (not directly required by FuzzTest itself)
+# Direct dependencies required by core FuzzTest (//fuzztest:fuzztest_core)
+################################################################################
+
+http_archive(
+    name = "com_google_absl",
+    sha256 = "0ddd37f347c58d89f449dd189a645bfd97bcd85c5284404a3af27a3ca3476f39",
+    strip_prefix = "abseil-cpp-fad946221cec37175e762c399760f54b9de9a9fa",
+    url = "https://github.com/abseil/abseil-cpp/archive/fad946221cec37175e762c399760f54b9de9a9fa.tar.gz",
+)
+
+################################################################################
+# Transitive dependencies for core FuzzTest
 ################################################################################
 
 # Required by com_google_absl.
@@ -31,15 +42,8 @@ http_archive(
 )
 
 ################################################################################
-# Direct dependencies
+# Direct dependencies required for full FuzzTest (//fuzztest:fuzztest)
 ################################################################################
-
-http_archive(
-    name = "com_google_absl",
-    sha256 = "0ddd37f347c58d89f449dd189a645bfd97bcd85c5284404a3af27a3ca3476f39",
-    strip_prefix = "abseil-cpp-fad946221cec37175e762c399760f54b9de9a9fa",
-    url = "https://github.com/abseil/abseil-cpp/archive/fad946221cec37175e762c399760f54b9de9a9fa.tar.gz",
-)
 
 http_archive(
     name = "com_googlesource_code_re2",
@@ -63,7 +67,7 @@ http_archive(
 )
 
 ################################################################################
-# Dependencies required for Riegeli
+# Transitive dependencies required by Riegeli (and therefore by full FuzzTest)
 ################################################################################
 
 http_archive(

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./fuzztest/fuzztest.h"
+#include "./fuzztest/fuzztest_core.h"
 
 namespace {
 

@@ -33,7 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/serialization.h"
 

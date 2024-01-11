@@ -20,7 +20,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/time/time.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {

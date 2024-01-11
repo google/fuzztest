@@ -37,7 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/fixture_driver.h"

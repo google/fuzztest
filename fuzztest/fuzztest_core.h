@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_FUZZTEST_H_
-#define FUZZTEST_FUZZTEST_FUZZTEST_H_
+#ifndef FUZZTEST_FUZZTEST_FUZZTEST_CORE_H_
+#define FUZZTEST_FUZZTEST_FUZZTEST_CORE_H_
 
 // IWYU pragma: begin_exports
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/fuzztest_macros.h"
 // IWYU pragma: end_exports
 
-#endif  // FUZZTEST_FUZZTEST_FUZZTEST_H_
+#endif  // FUZZTEST_FUZZTEST_FUZZTEST_CORE_H_

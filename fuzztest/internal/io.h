@@ -50,6 +50,11 @@ std::vector<std::string> ListDirectory(absl::string_view dir);
 // Returns the basename of `filename`.
 absl::string_view Basename(absl::string_view filename);
 
+// Reads files as strings from the directory `dir` and returns a vector usable
+// by .WithSeeds().
+std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
+    absl::string_view dir);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_IO_H_

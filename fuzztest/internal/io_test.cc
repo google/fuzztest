@@ -28,7 +28,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
-#include "./fuzztest/fuzztest.h"
+#include "./fuzztest/fuzztest_core.h"
 
 namespace fuzztest::internal {
 namespace {

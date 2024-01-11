@@ -75,7 +75,7 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_with_invalid_seeds.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:fuzztest_core",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
@@ -85,7 +85,7 @@ cc_binary(
     testonly = 1,
     srcs = ["dynamically_registered_fuzz_tests.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:fuzztest_core",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )

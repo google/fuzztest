@@ -11,10 +11,27 @@ fuzztest_cc_library(
     fuzztest
   HDRS
     "fuzztest.h"
-  SRCS
-    "fuzztest.cc"
   DEPS
     fuzztest::domain
+    fuzztest::fuzztest_macros
+)
+
+fuzztest_cc_library(
+  NAME
+    fuzztest_core
+  HDRS
+    "fuzztest_core.h"
+  DEPS
+    fuzztest::domain_core
+    fuzztest::fuzztest_macros
+)
+
+fuzztest_cc_library(
+  NAME
+    fuzztest_macros
+  HDRS
+    "fuzztest_macros.h"
+  DEPS
     fuzztest::io
     fuzztest::registration
     fuzztest::registry
@@ -253,7 +270,6 @@ fuzztest_cc_library(
     "internal/fixture_driver.cc"
   DEPS
     fuzztest::any
-    fuzztest::domain
     fuzztest::domain_core
     fuzztest::logging
     fuzztest::registration
@@ -324,7 +340,7 @@ fuzztest_cc_test(
   SRCS
     "internal/io_test.cc"
   DEPS
-    fuzztest::fuzztest
+    fuzztest::fuzztest_core
     fuzztest::io
     absl::strings
     GTest::gmock_main
@@ -371,7 +387,6 @@ fuzztest_cc_library(
   HDRS
     "internal/registration.h"
   DEPS
-    fuzztest::domain
     fuzztest::domain_core
     fuzztest::meta
     fuzztest::type_support
@@ -407,7 +422,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::coverage
-    fuzztest::domain
     fuzztest::domain_core
     fuzztest::fixture_driver
     fuzztest::io
@@ -435,7 +449,7 @@ fuzztest_cc_test(
   SRCS
     "internal/runtime_test.cc"
   DEPS
-    fuzztest::domain
+    fuzztest::domain_core
     fuzztest::runtime
     test_protobuf
     absl::time
@@ -552,7 +566,6 @@ fuzztest_cc_test(
   SRCS
     "internal/table_of_recent_compares_test.cc"
   DEPS
-    fuzztest::domain
     fuzztest::table_of_recent_compares
     absl::random_random
     GTest::gmock_main

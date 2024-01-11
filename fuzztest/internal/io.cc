@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -150,6 +151,21 @@ absl::string_view Basename(absl::string_view filename) {
   return last_slash_pos == absl::string_view::npos
              ? filename
              : filename.substr(last_slash_pos + 1);
+}
+
+std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
+    std::string_view dir) {
+  std::vector<FilePathAndData> files =
+      ReadFileOrDirectory({dir.data(), dir.size()});
+
+  std::vector<std::tuple<std::string>> out;
+  out.reserve(files.size());
+
+  for (const FilePathAndData& file : files) {
+    out.push_back(std::make_tuple(file.data));
+  }
+
+  return out;
 }
 
 }  // namespace fuzztest::internal

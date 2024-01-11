@@ -35,7 +35,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
-#include "./fuzztest/domain.h"  // IWYU pragma: keep
+#include "./fuzztest/domain_core.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"

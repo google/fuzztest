@@ -28,7 +28,7 @@ cc_test(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -60,7 +60,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//fuzztest:absl_helpers",
-        "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
@@ -78,7 +77,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",
     ],
@@ -93,7 +92,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:coverage",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",
     ],
@@ -173,7 +172,7 @@ cc_test(
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:meta",
         "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",
@@ -191,7 +190,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_googletest//:gtest_main",
     ],
@@ -203,7 +202,7 @@ cc_test(
     deps = [
         ":domain_testing",
         "@com_google_absl//absl/random",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -214,7 +213,7 @@ cc_test(
     deps = [
         ":domain_testing",
         "@com_google_absl//absl/random",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -228,7 +227,7 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -240,7 +239,7 @@ cc_test(
         ":domain_testing",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
-        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -39,10 +39,28 @@ config_setting(
 
 cc_library(
     name = "fuzztest",
-    srcs = ["fuzztest.cc"],
     hdrs = ["fuzztest.h"],
     deps = [
         ":domain",
+        ":fuzztest_macros",
+    ],
+)
+
+cc_library(
+    name = "fuzztest_core",
+    hdrs = ["fuzztest_core.h"],
+    deps = [
+        ":domain_core",
+        ":fuzztest_macros",
+    ],
+)
+
+cc_library(
+    name = "fuzztest_macros",
+    hdrs = [
+        "fuzztest_macros.h",
+    ],
+    deps = [
         ":io",
         ":registration",
         ":registry",
@@ -321,7 +339,6 @@ cc_library(
     hdrs = ["internal/fixture_driver.h"],
     deps = [
         ":any",
-        ":domain",
         ":domain_core",
         ":logging",
         ":registration",
@@ -394,7 +411,7 @@ cc_test(
     name = "io_test",
     srcs = ["internal/io_test.cc"],
     deps = [
-        ":fuzztest",
+        ":fuzztest_core",
         ":io",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
@@ -434,7 +451,6 @@ cc_library(
     name = "registration",
     hdrs = ["internal/registration.h"],
     deps = [
-        ":domain",
         ":domain_core",
         ":meta",
         ":type_support",
@@ -469,7 +485,6 @@ cc_library(
     deps = [
         ":configuration",
         ":coverage",
-        ":domain",
         ":domain_core",
         ":fixture_driver",
         ":flag_name",
@@ -497,7 +512,7 @@ cc_test(
     name = "runtime_test",
     srcs = ["internal/runtime_test.cc"],
     deps = [
-        ":domain",
+        ":domain_core",
         ":runtime",
         ":test_protobuf_cc_proto",
         "@com_google_absl//absl/time",
@@ -601,7 +616,6 @@ cc_test(
     name = "table_of_recent_compares_test",
     srcs = ["internal/table_of_recent_compares_test.cc"],
     deps = [
-        ":domain",
         ":table_of_recent_compares",
         "@com_google_absl//absl/random",
         "@com_google_googletest//:gtest_main",

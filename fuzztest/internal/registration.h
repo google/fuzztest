@@ -28,7 +28,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "./fuzztest/domain.h"
+#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/meta.h"

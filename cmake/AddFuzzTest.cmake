@@ -1,5 +1,4 @@
-function(link_fuzztest name)
-  target_link_libraries(${name} PRIVATE fuzztest::fuzztest_gtest_main)
+function(_link_fuzztest_compatibility_mode name)
   if (FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer")
     EXECUTE_PROCESS (
         COMMAND bash -c "command -v llvm-config || command -v llvm-config-16 || command -v llvm-config-15 || command -v llvm-config-14 || command -v llvm-config-13 || command -v llvm-config-12 || echo"
@@ -11,4 +10,24 @@ function(link_fuzztest name)
     )
     target_link_libraries(${name} PRIVATE ${FUZZER_NO_MAIN})
   endif ()
+endfunction()
+
+function(link_fuzztest name)
+  target_link_libraries(
+    ${name}
+    PRIVATE
+    fuzztest::fuzztest
+    fuzztest::fuzztest_gtest_main
+  )
+  _link_fuzztest_compatibility_mode(${name})
+endfunction()
+
+function(link_fuzztest_core name)
+  target_link_libraries(
+    ${name}
+    PRIVATE
+    fuzztest::fuzztest_core
+    fuzztest::fuzztest_gtest_main
+  )
+  _link_fuzztest_compatibility_mode(${name})
 endfunction()
