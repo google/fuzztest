@@ -142,6 +142,7 @@ cc_library(
         ":logging",
         ":pc_info",
         ":util",
+        "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

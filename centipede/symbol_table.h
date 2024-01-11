@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/node_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -41,16 +42,16 @@ class SymbolTable {
  public:
   // Defines a symbol table entry.
   struct Entry {
-    std::string func;
-    std::string file;
+    std::string_view func;
+    std::string_view file;
     int line = -1;
     int col = -1;
     bool operator==(const Entry &other) const = default;
     std::string file_line_col() const {
       if (absl::StrContains(file, "?")) {
-        return file;
+        return std::string{file};
       }
-      std::string ret = file;
+      std::string ret = std::string{file};
       if (line >= 0) {
         absl::StrAppend(&ret, ":", line);
       }
@@ -61,7 +62,13 @@ class SymbolTable {
     }
   };
 
+  SymbolTable() = default;
+  SymbolTable(const SymbolTable &) = delete;
+  SymbolTable(SymbolTable &&) = default;
+  SymbolTable &operator=(SymbolTable &&) = default;
+
   bool operator==(const SymbolTable &other) const;
+
   // Reads the symbols from a stream produced by `llvm-symbolizer --no-inlines`.
   // https://llvm.org/docs/CommandGuide/llvm-symbolizer.html.
   // The input consists of tuples of 3 lines each:
@@ -98,7 +105,7 @@ class SymbolTable {
   size_t size() const { return entries_.size(); }
 
   // Returns "FunctionName" for idx-th entry.
-  const std::string &func(size_t idx) const { return entries_[idx].func; }
+  std::string_view func(size_t idx) const { return entries_[idx].func; }
 
   Entry entry(size_t idx) const { return entries_[idx]; }
 
@@ -109,13 +116,27 @@ class SymbolTable {
 
   // Returns a full human-readable description for idx-th entry.
   std::string full_description(size_t idx) const {
-    return func(idx) + " " + location(idx);
+    return std::string{func(idx)} + " " + location(idx);
   }
 
   // Add function name and file location to symbol table.
   void AddEntry(std::string_view func, std::string_view file_line_col);
 
  private:
+  void AddEntryInternal(std::string_view func, std::string_view file,
+                        int line = -1, int col = -1);
+
+  std::string_view GetOrInsert(std::string_view str);
+
+  // Declaration order matters here, because we want `table_` to be deleted last
+  // in order to avoid having dangling ptrs in `entries_`.
+
+  // Holds the strings for files and function names of the stored symbols. This
+  // avoids storing duplicate values. `node_hash_set` was chosen in order to
+  // have pointer stability and not bother with storing strings in `unique_ptr`.
+  absl::node_hash_set<std::string> table_;
+
+  // Holds the the symbol entries.
   std::vector<Entry> entries_;
 };
 

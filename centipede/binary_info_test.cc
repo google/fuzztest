@@ -16,6 +16,7 @@
 
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "./centipede/pc_info.h"
@@ -38,7 +39,8 @@ TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
   std::istringstream input_stream(input_symbols);
   SymbolTable symbol_table;
   symbol_table.ReadFromLLVMSymbolizer(input_stream);
-  BinaryInfo input = {.pc_table = input_pcs, .symbols = symbol_table};
+  BinaryInfo input = {.pc_table = input_pcs,
+                      .symbols = std::move(symbol_table)};
 
   auto temp_dir = GetTestTempDir(test_info_->name());
   input.Write(temp_dir);

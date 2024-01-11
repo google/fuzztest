@@ -250,7 +250,7 @@ TEST(CFTable, GetCfTable) {
     if (pc_table_index.contains(current_pc)) {
       size_t index = pc_table_index[current_pc];
       if (pc_table[index].has_flag(PCInfo::kFuncEntry)) {
-        const std::string &current_function = symbols.func(index);
+        const std::string_view current_function = symbols.func(index);
         // Check for properties.
         SCOPED_TRACE(testing::Message()
                      << "Checking for " << VV(current_function)
