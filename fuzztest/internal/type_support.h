@@ -300,11 +300,10 @@ struct ProtobufPrinter {
     } else {
       switch (mode) {
         case PrintMode::kHumanReadable:
-          absl::Format(out, "(%s)", val.ShortDebugString());
+          absl::Format(out, "(%s)", absl::StrCat(val));
           break;
         case PrintMode::kSourceCode:
-          absl::Format(out, "ParseTestProto(R\"pb(%s)pb\")",
-                       val.ShortDebugString());
+          absl::Format(out, "ParseTestProto(R\"pb(%s)pb\")", absl::StrCat(val));
           break;
       }
     }

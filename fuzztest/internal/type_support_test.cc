@@ -217,10 +217,10 @@ TEST(ProtobufTest, Printer) {
   internal::TestProtobuf proto;
   proto.set_b(true);
   proto.add_rep_subproto()->set_subproto_i32(17);
-  EXPECT_THAT(TestPrintValue(proto),
-              ElementsAre(absl::StrCat("(", proto.ShortDebugString(), ")"),
-                          absl::StrCat("ParseTestProto(R\"pb(",
-                                       proto.ShortDebugString(), ")pb\")")));
+  EXPECT_THAT(
+      TestPrintValue(proto),
+      ElementsAre(absl::StrCat("(", proto, ")"),
+                  absl::StrCat("ParseTestProto(R\"pb(", proto, ")pb\")")));
 }
 
 TEST(ProtobufEnumTest, Printer) {
