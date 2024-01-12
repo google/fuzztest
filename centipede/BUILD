@@ -1293,7 +1293,6 @@ cc_test(
         ":test_util",
         ":util",
         ":workdir",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:reflection",
         "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",

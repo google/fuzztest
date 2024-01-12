@@ -23,7 +23,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/flags/declare.h"
 #include "absl/flags/reflection.h"
 #include "absl/log/check.h"
 #include "./centipede/blob_file.h"
@@ -34,10 +33,6 @@
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
-
-ABSL_DECLARE_FLAG(std::string, binary_hash);
-ABSL_DECLARE_FLAG(std::string, binary);
-ABSL_DECLARE_FLAG(std::string, workdir);
 
 namespace centipede {
 namespace {

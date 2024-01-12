@@ -38,10 +38,15 @@
 
 namespace centipede {
 
+using CorpusElt = std::pair<ByteArray, FeatureVec>;
+using CorpusEltVec = std::vector<CorpusElt>;
+
 void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
+  const std::string log_line =
+      absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
+
   const WorkDir wd{env};
-  std::string log_line = absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
   const auto corpus_path = wd.DistilledCorpusFiles().MyShardPath();
   const auto features_path = wd.DistilledFeaturesFiles().MyShardPath();
   LOG(INFO) << log_line << VV(env.total_shards) << VV(corpus_path)
@@ -56,22 +61,26 @@ void DistillTask(const Environment &env,
   FeatureSet feature_set(/*frequency_threshold=*/1,
                          env.MakeDomainDiscardMask());
 
-  const size_t num_total_shards = shard_indices.size();
-  size_t num_shards_read = 0;
-  size_t num_distilled_corpus_elements = 0;
+  const size_t num_shards = shard_indices.size();
+  size_t num_read_shards = 0;
+  size_t num_read_elements = 0;
+  size_t num_distilled_elements = 0;
   const auto corpus_files = wd.CorpusFiles();
   const auto features_files = wd.FeaturesFiles();
+
   for (size_t shard_idx : shard_indices) {
     const std::string corpus_path = corpus_files.ShardPath(shard_idx);
     const std::string features_path = features_files.ShardPath(shard_idx);
-    VLOG(2) << log_line << "reading shard " << shard_idx << " from:\n"
+
+    VLOG(2) << log_line << "reading input shard " << shard_idx << ":\n"
             << VV(corpus_path) << "\n"
             << VV(features_path);
-    // Read records from the current shard.
-    std::vector<std::pair<ByteArray, FeatureVec>> records;
+
+    // Read elements from the current shard.
+    CorpusEltVec shard_elts;
     ReadShard(corpus_path, features_path,
-              [&](const ByteArray &input, FeatureVec &input_features) {
-                records.emplace_back(input, std::move(input_features));
+              [&shard_elts](const ByteArray &input, FeatureVec &features) {
+                shard_elts.emplace_back(input, std::move(features));
               });
     // Reverse the order of inputs read from the current shard.
     // The intuition is as follows:
@@ -79,22 +88,27 @@ void DistillTask(const Environment &env,
     //   are closer to the end are more interesting, so we start there.
     // * If the shard resulted from somethening else, the reverse order is not
     //  any better or worse than any other order.
-    std::reverse(records.begin(), records.end());
-    // Iterate the records, add those that have new features.
+    std::reverse(shard_elts.begin(), shard_elts.end());
+    ++num_read_shards;
+
+    // Iterate the elts, add those that have new features.
     // This is a simple linear greedy set cover algorithm.
-    for (auto &&[input, features] : records) {
+    VLOG(1) << log_line << "appending elements from input shard " << shard_idx
+            << " to output shard";
+    for (auto &[input, features] : shard_elts) {
+      ++num_read_elements;
       feature_set.PruneDiscardedDomains(features);
       if (!feature_set.HasUnseenFeatures(features)) continue;
       feature_set.IncrementFrequencies(features);
       // Append to the distilled corpus and features files.
       CHECK_OK(corpus_writer->Write(input));
       CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));
-      num_distilled_corpus_elements++;
+      ++num_distilled_elements;
+      VLOG_EVERY_N(10, 1000) << VV(num_distilled_elements);
     }
-    num_shards_read++;
-    LOG(INFO) << log_line << feature_set << " shards: " << num_shards_read
-              << "/" << num_total_shards
-              << " corpus: " << num_distilled_corpus_elements;
+    LOG(INFO) << log_line << feature_set << " src_shards: " << num_read_shards
+              << "/" << num_shards << " src_elts: " << num_read_elements
+              << " dist_elts: " << num_distilled_elements;
   }
 }
 
