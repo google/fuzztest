@@ -25,8 +25,8 @@
 
 namespace centipede {
 
-using CorpusElt = std::pair<ByteArray, FeatureVec>;
-using InputAndFeaturesVec = std::vector<CorpusElt>;
+using InputAndFeatures = std::pair<ByteArray, FeatureVec>;
+using InputAndFeaturesVec = std::vector<InputAndFeatures>;
 
 // If a file with `config_spec` path exists, tries to parse it as a
 // `SeedCorpusConfig` textproto. Otherwise, tries to parse `config_spec` as a
