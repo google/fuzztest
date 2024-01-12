@@ -26,12 +26,14 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
+#include "./centipede/rusage_profiler.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -113,6 +115,11 @@ void DistillTask(const Environment &env,
 }
 
 int Distill(const Environment &env) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
+      /*enable=*/VLOG_IS_ON(1),                                       //
+      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
+      /*also_log_timelapses=*/VLOG_IS_ON(10));
+
   // Run `env.num_threads` independent distillation threads.
   std::vector<std::thread> threads(env.num_threads);
   std::vector<Environment> envs(env.num_threads, env);
