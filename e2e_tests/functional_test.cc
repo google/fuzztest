@@ -1406,7 +1406,7 @@ TEST_P(FuzzingModeCrashFindingTest, EnumClassTestFindsAbortInFuzzingMode) {
 
 TEST_P(FuzzingModeCrashFindingTest, ProtoTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Proto");
-  EXPECT_THAT(std_err, ContainsRegex(R"(argument 0: \((.*\n)?b:\s+true)"));
+  EXPECT_THAT(std_err, ContainsRegex(R"(argument 0: \((.*\n.*)?b:\s+true)"));
   ExpectTargetAbort(status, std_err);
 }
 
