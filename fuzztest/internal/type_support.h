@@ -174,7 +174,7 @@ struct StringPrinter {
         // embedded NULL character.
         const std::string input(v.data(), v.data() + v.size());
         const std::string escaped = absl::CEscape(input);
-        if constexpr (std::is_convertible_v<T, std::vector<uint8_t>>) {
+        if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
           absl::Format(out, "fuzztest::ToByteArray(\"%s\")", escaped);
         } else if (absl::StrContains(input, '\0')) {
           absl::Format(out, "std::string(\"%s\", %d)", escaped, v.size());
@@ -587,7 +587,7 @@ decltype(auto) AutodetectTypePrinter() {
     return FloatingPrinter{};
   } else if constexpr (std::is_convertible_v<T, absl::string_view> ||
                        std::is_convertible_v<T, std::string_view> ||
-                       std::is_convertible_v<T, std::vector<uint8_t>>) {
+                       std::is_same_v<T, std::vector<uint8_t>>) {
     return StringPrinter{};
   } else if constexpr (is_monostate_v<T>) {
     return MonostatePrinter{};
