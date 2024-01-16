@@ -18,6 +18,7 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <cstdint>
 #include <limits>
 #include <list>
 #include <map>
@@ -191,6 +192,12 @@ TEST(StringTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::string("printf(\"Hello, world!\");")),
               ElementsAre(R"("printf("Hello, world!");")",
                           R"("printf(\"Hello, world!\");")"));
+}
+
+TEST(ByteArrayTest, Printer) {
+  EXPECT_THAT(TestPrintValue(std::vector<uint8_t>{'\0', 'a', 0223, 'b', '\"'}),
+              ElementsAre(R"("\000a\223b"")",
+                          R"(fuzztest::ToByteArray("\000a\223b\""))"));
 }
 
 TEST(CompoundTest, Printer) {

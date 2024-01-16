@@ -15,6 +15,7 @@
 #ifndef FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_
 #define FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -124,6 +125,12 @@ namespace fuzztest {
 inline std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {
   return internal::ReadFilesFromDirectory({dir.data(), dir.size()});
+}
+
+// Converts string_view into a byte-array, useful when working with the LLVM
+// fuzzer interfaces.
+inline std::vector<uint8_t> ToByteArray(std::string_view str) {
+  return std::vector<uint8_t>(str.begin(), str.end());
 }
 
 }  // namespace fuzztest

@@ -23,7 +23,7 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
-#include <utility>
+#include <vector>
 
 #include "absl/debugging/symbolize.h"
 #include "absl/numeric/int128.h"
@@ -172,9 +172,11 @@ struct StringPrinter {
         // Make sure to properly C-escape strings when printing source code, and
         // explicitly construct a std::string of the right length if there is an
         // embedded NULL character.
-        const absl::string_view input(v.data(), v.size());
+        const std::string input(v.data(), v.data() + v.size());
         const std::string escaped = absl::CEscape(input);
-        if (absl::StrContains(input, '\0')) {
+        if constexpr (std::is_convertible_v<T, std::vector<uint8_t>>) {
+          absl::Format(out, "fuzztest::ToByteArray(\"%s\")", escaped);
+        } else if (absl::StrContains(input, '\0')) {
           absl::Format(out, "std::string(\"%s\", %d)", escaped, v.size());
         } else {
           absl::Format(out, "\"%s\"", escaped);
@@ -584,7 +586,8 @@ decltype(auto) AutodetectTypePrinter() {
   } else if constexpr (std::is_floating_point_v<T>) {
     return FloatingPrinter{};
   } else if constexpr (std::is_convertible_v<T, absl::string_view> ||
-                       std::is_convertible_v<T, std::string_view>) {
+                       std::is_convertible_v<T, std::string_view> ||
+                       std::is_convertible_v<T, std::vector<uint8_t>>) {
     return StringPrinter{};
   } else if constexpr (is_monostate_v<T>) {
     return MonostatePrinter{};

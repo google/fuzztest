@@ -247,7 +247,8 @@ class ContainerOfImplBase
   }
 
   auto GetPrinter() const {
-    if constexpr (std::is_same_v<value_type, std::string>) {
+    if constexpr (std::is_same_v<value_type, std::string> ||
+                  std::is_same_v<value_type, std::vector<uint8_t>>) {
       // std::string has special handling for better output
       return StringPrinter{};
     } else {
