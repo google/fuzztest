@@ -33,7 +33,7 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None):
     """
 
     output_file_name = name + ".h"
-    cmd = "$(location //tools:grammar_domain_code_generator)" + \
+    cmd = "$(location @com_google_fuzztest//tools:grammar_domain_code_generator)" + \
           " --output_header_file_path " + "$(@D)/" + output_file_name + \
           " --input_grammar_files " + "`echo $(SRCS) | tr ' ' ','`"
     if top_level_rule:
@@ -45,11 +45,11 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None):
         outs = [output_file_name],
         cmd = cmd,
         heuristic_label_expansion = False,
-        tools = ["//tools:grammar_domain_code_generator"],
+        tools = ["@com_google_fuzztest//tools:grammar_domain_code_generator"],
     )
 
     native.cc_library(
         name = name,
         hdrs = [output_file_name],
-        deps = ["//fuzztest:domain"],
+        deps = ["@com_google_fuzztest//fuzztest:domain"],
     )
