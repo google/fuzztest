@@ -154,7 +154,7 @@ absl::string_view Basename(absl::string_view filename) {
 }
 
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
-    std::string_view dir) {
+    absl::string_view dir) {
   std::vector<FilePathAndData> files =
       ReadFileOrDirectory({dir.data(), dir.size()});
 
