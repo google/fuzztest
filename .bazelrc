@@ -35,6 +35,9 @@ build --copt=-mcrc32
 # TODO(b/316067250): Remove when we know a better fix.
 build --noenable_bzlmod
 
+# Build GoogleTest with ABSL support.
+build --define absl=1
+
 # To create this file, please run:
 #
 #  bazel run //bazel:setup_configs > fuzztest.bazelrc
