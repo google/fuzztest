@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "absl/base/nullability.h"
 #include "./centipede/runner_utils.h"
 
 namespace centipede {
@@ -40,7 +41,8 @@ struct DlCallbackParam {
   DlInfo &result;
 };
 
-bool StringEndsWithSuffix(const char *string, const char *suffix) {
+bool StringEndsWithSuffix(const char *string,
+                          absl::Nonnull<const char *> suffix) {
   const char *pos = strstr(string, suffix);
   if (pos == nullptr) return false;
   return pos == string + strlen(string) - strlen(suffix);
@@ -51,7 +53,7 @@ int g_some_global;  // Used in DlIteratePhdrCallback.
 constexpr bool kDlDebug = false;  // we may want to make it a runtime flag.
 
 // Returns the size of the DL represented by `info`.
-size_t DlSize(struct dl_phdr_info *info) {
+size_t DlSize(absl::Nonnull<struct dl_phdr_info *> info) {
   size_t size = 0;
   // Iterate program headers.
   for (int j = 0; j < info->dlpi_phnum; ++j) {
@@ -88,8 +90,8 @@ size_t DlSize(struct dl_phdr_info *info) {
 // nullptr`. The code assumes that the main binary is the first one to be
 // iterated on. If the desired library is found, sets result.start_address and
 // result.size, otherwise leaves result unchanged.
-int DlIteratePhdrCallback(struct dl_phdr_info *info, size_t size,
-                          void *param_voidptr) {
+int DlIteratePhdrCallback(absl::Nonnull<struct dl_phdr_info *> info,
+                          size_t size, absl::Nonnull<void *> param_voidptr) {
   const DlCallbackParam *param = static_cast<DlCallbackParam *>(param_voidptr);
   DlInfo &result = param->result;
   RunnerCheck(!result.IsSet(), "result is already set");
@@ -138,8 +140,9 @@ int DlIteratePhdrCallback(struct dl_phdr_info *info, size_t size,
 // See man dl_iterate_phdr.
 // `param_voidptr` is cast to a `DlCallbackParam *param`.
 // Looks for the dynamic library who's address range contains `param->pc`.
-int DlIteratePhdrPCCallback(struct dl_phdr_info *info, size_t unused,
-                            void *param_voidptr) {
+int DlIteratePhdrPCCallback(absl::Nonnull<struct dl_phdr_info *> info,
+                            size_t unused,
+                            absl::Nonnull<void *> param_voidptr) {
   const DlCallbackParam *param = static_cast<DlCallbackParam *>(param_voidptr);
   DlInfo &result = param->result;
   if (param->pc < info->dlpi_addr) return 0;  // wrong DSO.
@@ -161,7 +164,7 @@ int DlIteratePhdrPCCallback(struct dl_phdr_info *info, size_t unused,
 
 }  // namespace
 
-DlInfo GetDlInfo(const char *dl_path_suffix) {
+DlInfo GetDlInfo(absl::Nullable<const char *> dl_path_suffix) {
   DlInfo result;
   result.Clear();
   DlCallbackParam callback_param = {dl_path_suffix, /*pc=*/0, result};

@@ -29,6 +29,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -180,7 +181,7 @@ class ProfileReportGenerator {
  public:
   ProfileReportGenerator(                                     //
       const std::deque<RUsageProfiler::Snapshot>& snapshots,  //
-      RUsageProfiler::ReportSink* report_sink)
+      absl::Nonnull<RUsageProfiler::ReportSink*> report_sink)
       : snapshots_{snapshots}, report_sink_{report_sink} {
     for (const auto& snapshot : snapshots_) {
       timing_low_ = RUsageTiming::LowWater(  //
@@ -530,7 +531,8 @@ void RUsageProfiler::PrintReport(  //
   GenerateReport(&report_logger);
 }
 
-void RUsageProfiler::GenerateReport(ReportSink* report_sink) const {
+void RUsageProfiler::GenerateReport(
+    absl::Nonnull<ReportSink*> report_sink) const {
   absl::ReaderMutexLock lock{&mutex_};
   // Prevent interleaved reports from multiple concurrent RUsageProfilers.
   ABSL_CONST_INIT static absl::Mutex report_generation_mutex_{absl::kConstInit};

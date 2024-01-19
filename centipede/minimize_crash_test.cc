@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/nullability.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
@@ -68,7 +69,7 @@ class MinimizerMock : public CentipedeCallbacks {
 // Factory that creates/destroys MinimizerMock.
 class MinimizerMockFactory : public CentipedeCallbacksFactory {
  public:
-  CentipedeCallbacks *create(const Environment &env) override {
+  absl::Nonnull<CentipedeCallbacks *> create(const Environment &env) override {
     return new MinimizerMock(env);
   }
   void destroy(CentipedeCallbacks *cb) override { delete cb; }

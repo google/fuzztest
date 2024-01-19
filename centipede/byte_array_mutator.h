@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
@@ -40,7 +41,7 @@ class DictEntry {
     if (size_ > kMaxEntrySize) __builtin_trap();
     memcpy(bytes_, bytes.data(), bytes.size());
   }
-  const uint8_t *begin() const { return bytes_; }
+  absl::Nonnull<const uint8_t *> begin() const { return bytes_; }
   const uint8_t *end() const { return bytes_ + size_; }
   size_t size() const { return size_; }
   bool operator<(const DictEntry &other) const {

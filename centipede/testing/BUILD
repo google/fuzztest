@@ -65,6 +65,7 @@ cc_binary(
         "notap",
     ],
     deps = [
+        "@com_google_absl//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:mutation_input",
@@ -153,6 +154,7 @@ cc_binary(
 cc_binary(
     name = "standalone_fuzz_target_with_main",
     srcs = ["standalone_fuzz_target_with_main.cc"],
+    deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 ################################################################################

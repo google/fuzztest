@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "absl/base/nullability.h"
 #include "./centipede/defs.h"
 
 namespace centipede {
@@ -45,7 +46,7 @@ struct DlInfo {
 // Returns DlInfo for the dynamic library who's exact path is `dl_path_suffix`.
 // If `dl_path_suffix` is `nullptr`, returns DlInfo for the main binary.
 // If the required library is not found, returns empty DlInfo (`!IsSet()`).
-DlInfo GetDlInfo(const char *dl_path_suffix);
+DlInfo GetDlInfo(absl::Nullable<const char *> dl_path_suffix);
 
 // Returns DlInfo for the dynamic library that contains `pc`.
 DlInfo GetDlInfo(uintptr_t pc);

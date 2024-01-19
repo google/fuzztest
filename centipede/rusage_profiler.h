@@ -215,6 +215,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/str_cat.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
@@ -228,7 +229,8 @@ namespace centipede::perf {
 // TODO(ussuri): Switch to absl::SourceLocation or std::source_location.
 struct SourceLocation {
   explicit SourceLocation() = default;
-  SourceLocation(const char* file, int line) : file{file}, line{line} {}
+  SourceLocation(absl::Nonnull<const char*> file, int line)
+      : file{file}, line{line} {}
 
   const char* const file = "<unknown>";
   const int line = 0;
@@ -390,7 +392,7 @@ class RUsageProfiler {
   // Prints to `sink` a report consisting of chronological charts for each of
   // the tracked metrics recorded since this profiler's construction up to this
   // point.
-  void GenerateReport(ReportSink* report_sink) const;
+  void GenerateReport(absl::Nonnull<ReportSink*> report_sink) const;
 
   // Logs the report returned by GenerateReport(). The log message's source
   // location is set to `location`: as a rule of thumb, pass

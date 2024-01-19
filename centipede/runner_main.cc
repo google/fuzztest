@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/base/nullability.h"
 #include "./centipede/runner_interface.h"
 
-int main(int argc, char **argv) {
+int main(int argc, absl::Nonnull<char **> argv) {
   return LLVMFuzzerRunDriver(&argc, &argv, LLVMFuzzerTestOneInput);
 }

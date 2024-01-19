@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/barrier.h"
@@ -63,12 +64,12 @@ class BigThing {
 // subsides too much.
 class CpuHog {
  public:
-  CpuHog(                                   //
-      absl::Duration idle_time,             //
-      absl::Duration hog_time,              //
-      int num_hogs,                         //
-      absl::Notification* hogging_started,  //
-      absl::Notification* hogging_stopped)
+  CpuHog(                                                  //
+      absl::Duration idle_time,                            //
+      absl::Duration hog_time,                             //
+      int num_hogs,                                        //
+      absl::Nonnull<absl::Notification*> hogging_started,  //
+      absl::Nonnull<absl::Notification*> hogging_stopped)
       : hog_barrier_{num_hogs}, hog_pool_{static_cast<size_t>(num_hogs)} {
     const auto hog_func = [=]() {
       const absl::Time start = absl::Now();

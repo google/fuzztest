@@ -24,6 +24,7 @@
 #include <functional>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/foreach_nonzero.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
@@ -31,7 +32,8 @@
 
 namespace centipede {
 
-void SanCovObjectArray::PCGuardInit(PCGuard *start, PCGuard *stop) {
+void SanCovObjectArray::PCGuardInit(absl::Nonnull<PCGuard *> start,
+                                    PCGuard *stop) {
   // Ignore repeated calls with the same arguments.
   if (size_ != 0 && objects_[size_ - 1].pc_guard_start == start) return;
   RunnerCheck(size_ < kMaxSize, "too many sancov objects");
@@ -57,7 +59,7 @@ void SanCovObjectArray::Inline8BitCountersInit(
   sancov_object.inline_8bit_counters_stop = inline_8bit_counters_stop;
 }
 
-void SanCovObjectArray::PCInfoInit(const PCInfo *pcs_beg,
+void SanCovObjectArray::PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg,
                                    const PCInfo *pcs_end) {
   const char *called_early =
       "__sanitizer_cov_pcs_init is called before either of "
