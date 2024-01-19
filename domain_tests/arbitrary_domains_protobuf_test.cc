@@ -169,11 +169,11 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallySet) {
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     if (val.user_value.has_i32()) break;
   }
 
@@ -187,14 +187,14 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldIsEventuallyUnset) {
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   // With the restricted domain, the probability of unsetting the field i32 is
   // at least 1/800. Hence, within 11000 iterations we'll fail to observe this
   // event with probability at most 10^(-6).
   for (int i = 0; i < 11000; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     if (!val.user_value.has_i32()) break;
   }
 
@@ -208,11 +208,11 @@ TEST(ProtocolBufferWithRequiredFields, OptionalFieldInSubprotoIsEventuallySet) {
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     if (val.user_value.has_req_sub() &&
         val.user_value.req_sub().has_subproto_i32())
       break;
@@ -230,14 +230,14 @@ TEST(ProtocolBufferWithRequiredFields,
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   // With the restricted domain, the probability of unsetting the field
   // req_sub.subproto_i32 is at least 1/800. Hence, within 11000 iterations
   // we'll fail to observe this event with probability at most 10^(-6).
   for (int i = 0; i < 11000; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     if (val.user_value.has_req_sub() &&
         !val.user_value.req_sub().has_subproto_i32())
       break;
@@ -265,14 +265,13 @@ TEST(ProtocolBufferWithRequiredFields,
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     if (val.user_value.has_sub_req()) {
-      ASSERT_TRUE(val.user_value.sub_req().IsInitialized())
-          << val.user_value.DebugString();
+      ASSERT_TRUE(val.user_value.sub_req().IsInitialized()) << val.user_value;
       break;
     }
   }
@@ -292,15 +291,15 @@ TEST(ProtocolBufferWithRequiredFields, MapFieldIsEventuallyPopulated) {
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   bool found = false;
   for (int i = 0; i < 1000 && !found; ++i) {
     val.Mutate(domain, bitgen, false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
     for (const auto& pair : val.user_value.map_sub_req()) {
       found = true;
-      ASSERT_TRUE(pair.second.IsInitialized()) << pair.second.DebugString();
+      ASSERT_TRUE(pair.second.IsInitialized()) << pair.second;
     }
   }
 
@@ -319,11 +318,11 @@ TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
   absl::BitGen bitgen;
   Value val(domain, bitgen);
 
-  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
 
   for (int i = 0; i < 1000; ++i) {
     val.Mutate(domain, bitgen, /*only_shrink=*/false);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
   }
 
   const auto is_minimal = [](const auto& v) {
@@ -334,7 +333,7 @@ TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
 
   while (!is_minimal(val.user_value)) {
     val.Mutate(domain, bitgen, /*only_shrink=*/true);
-    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value.DebugString();
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
   }
 }
 
