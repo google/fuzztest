@@ -1142,6 +1142,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "test_coverage_util",
+    testonly = True,
+    srcs = ["test_coverage_util.cc"],
+    hdrs = ["test_coverage_util.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":corpus",
+        ":defs",
+        ":environment",
+        ":feature",
+        ":mutation_input",
+        ":runner_result",
+        ":util",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
 sh_library(
     name = "test_fuzzing_util_sh",
     srcs = ["test_fuzzing_util.sh"],
@@ -1680,20 +1698,15 @@ cc_test(
     ],
     deps = [
         ":binary_info",
-        ":centipede_callbacks",
         ":control_flow",
         ":coverage",
-        ":defs",
         ":environment",
         ":feature",
-        ":mutation_input",
         ":pc_info",
-        ":runner_result",
         ":symbol_table",
+        ":test_coverage_util",
         ":test_util",
-        ":util",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
