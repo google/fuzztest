@@ -60,6 +60,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"  // NOLINT
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -342,10 +343,11 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
   return num_added_pairs;
 }
 
-bool Centipede::RunBatch(const std::vector<ByteArray> &input_vec,
-                         BlobFileWriter *corpus_file,
-                         BlobFileWriter *features_file,
-                         BlobFileWriter *unconditional_features_file) {
+bool Centipede::RunBatch(
+    const std::vector<ByteArray> &input_vec,
+    absl::Nullable<BlobFileWriter *> corpus_file,
+    absl::Nullable<BlobFileWriter *> features_file,
+    absl::Nullable<BlobFileWriter *> unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   CHECK_EQ(input_vec.size(), batch_result.results().size());

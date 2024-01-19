@@ -31,6 +31,7 @@
 #include <string>
 #include <thread>  // NOLINT
 
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -116,7 +117,8 @@ const ProcessTimer global_process_timer;
 //                      Read values from /proc/* files
 //------------------------------------------------------------------------------
 
-bool ReadProcFileFields(const std::string& path, const char* format, ...) {
+bool ReadProcFileFields(const std::string& path,
+                        absl::Nonnull<const char*> format, ...) {
   bool success = false;
   va_list value_list;
   va_start(value_list, format);

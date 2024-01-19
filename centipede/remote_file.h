@@ -28,6 +28,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/defs.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/reader.h"
@@ -41,22 +42,23 @@ struct RemoteFile {};
 
 // Opens a (potentially remote) file 'file_path' and returns a handle to it.
 // Supported modes: "r", "a", "w", same as in C FILE API.
-RemoteFile *RemoteFileOpen(std::string_view file_path, const char *mode);
+absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view file_path,
+                                            const char *mode);
 
 // Closes the file previously opened by RemoteFileOpen.
-void RemoteFileClose(RemoteFile *f);
+void RemoteFileClose(absl::Nonnull<RemoteFile *> f);
 
 // Appends bytes from 'ba' to 'f'.
-void RemoteFileAppend(RemoteFile *f, const ByteArray &ba);
+void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba);
 
 // Appends characters from 'contents' to 'f'.
 void RemoteFileAppend(RemoteFile *f, const std::string &contents);
 
 // Reads all current contents of 'f' into 'ba'.
-void RemoteFileRead(RemoteFile *f, ByteArray &ba);
+void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba);
 
 // Reads all current contents of 'f' into 'contents'.
-void RemoteFileRead(RemoteFile *f, std::string &contents);
+void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents);
 
 // Creates a (potentially remote) directory 'dir_path'.
 // No-op if the directory already exists.

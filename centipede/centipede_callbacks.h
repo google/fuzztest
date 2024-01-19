@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
@@ -198,7 +199,7 @@ class ScopedCentipedeCallbacks {
                            const Environment &env)
       : factory_(factory), callbacks_(factory_.create(env)) {}
   ~ScopedCentipedeCallbacks() { factory_.destroy(callbacks_); }
-  CentipedeCallbacks *callbacks() { return callbacks_; }
+  absl::Nonnull<CentipedeCallbacks *> callbacks() { return callbacks_; }
 
  private:
   CentipedeCallbacksFactory &factory_;

@@ -17,15 +17,17 @@
 
 #include <cstdint>
 
+#include "absl/base/nullability.h"
+
 namespace centipede {
 
 // If `condition` prints `error` and calls exit(1).
 // TODO(kcc): change all uses of PrintErrorAndExitIf() to RunnerCheck()
 // as it is a more common pattern.
-void PrintErrorAndExitIf(bool condition, const char *error);
+void PrintErrorAndExitIf(bool condition, absl::Nonnull<const char *> error);
 
 // A rough equivalent of "CHECK(condition) << error;".
-inline void RunnerCheck(bool condition, const char *error) {
+inline void RunnerCheck(bool condition, absl::Nonnull<const char *> error) {
   PrintErrorAndExitIf(!condition, error);
 }
 
