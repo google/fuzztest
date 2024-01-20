@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/defs.h"
 #include "./centipede/mutation_input.h"
 
@@ -40,7 +41,8 @@ using FuzzerCustomCrossOverCallback = size_t (*)(
 // https://llvm.org/docs/LibFuzzer.html.
 extern "C" {
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
-__attribute__((weak)) int LLVMFuzzerInitialize(int *argc, char ***argv);
+__attribute__((weak)) int LLVMFuzzerInitialize(absl::Nonnull<int *> argc,
+                                               absl::Nonnull<char ***> argv);
 __attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t *data, size_t size,
                                                      size_t max_size,
                                                      unsigned int seed);
@@ -51,7 +53,8 @@ __attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
 
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 extern "C" int LLVMFuzzerRunDriver(
-    int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb);
+    absl::Nonnull<int *> argc, absl::Nonnull<char ***> argv,
+    FuzzerTestOneInputCallback test_one_input_cb);
 
 // This interface can be used to detect presence of Centipede in the binary.
 // Also pretend we are LibFuzzer for compatibility.
@@ -76,7 +79,7 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input);
 //
 // It should return either a nullptr or a constant string that is valid
 // throughout the entire process life-time.
-extern "C" const char *CentipedeGetRunnerFlags();
+extern "C" absl::Nullable<const char *> CentipedeGetRunnerFlags();
 
 // Prepares to run a batch of test executions that ends with calling
 // `CentipedeEndExecutionBatch`.

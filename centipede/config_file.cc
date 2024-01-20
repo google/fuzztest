@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -230,7 +231,7 @@ $2 "$${flags[@]}"
   return path;
 }
 
-std::vector<std::string> InitCentipede(int argc, char** argv) {
+std::vector<std::string> InitCentipede(int argc, absl::Nonnull<char**> argv) {
   std::vector<std::string> leftover_argv;
 
   // main_runtime_init() is allowed to remove recognized flags from `argv`, so

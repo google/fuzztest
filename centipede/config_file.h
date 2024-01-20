@@ -21,6 +21,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
+
 // TODO(ussuri): Move implementation-only functions to .cc.
 
 namespace centipede::config {
@@ -98,7 +100,8 @@ std::filesystem::path MaybeSaveConfigToFile(
 //   and saves it to --save_config (or --update_config), if any.
 // - Logs the final resolved config.
 // - Returns the leftover positional command line arguments in
-[[nodiscard]] std::vector<std::string> InitCentipede(int argc, char** argv);
+[[nodiscard]] std::vector<std::string> InitCentipede(
+    int argc, absl::Nonnull<char**> argv);
 
 }  // namespace centipede::config
 

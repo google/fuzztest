@@ -56,6 +56,7 @@ cc_binary(
         ":centipede_interface",
         ":config_file",
         ":environment_flags",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:flags",
     ],
 )
@@ -76,6 +77,7 @@ cc_binary(
         ":seed_corpus_maker_flags",
         ":seed_corpus_maker_lib",
         ":util",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -92,6 +94,7 @@ cc_binary(
         ":logging",
         ":remote_file",
         ":rusage_profiler",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -248,6 +251,7 @@ cc_library(
         ":logging",
         ":remote_file",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -295,6 +299,7 @@ cc_library(
         ":logging",
         ":remote_file",
         ":util",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:reflection",
@@ -321,6 +326,7 @@ cc_library(
     hdrs = ["rusage_stats.h"],
     visibility = ["//visibility:public"],
     deps = [
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -336,6 +342,7 @@ cc_library(
     deps = [
         ":rusage_stats",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -443,6 +450,7 @@ cc_library(
     hdrs = ["shared_memory_blob_sequence.h"],
     linkopts = ["-lrt"],  # for shm_open.
     visibility = PUBLIC_API_VISIBILITY,
+    deps = ["@com_google_absl//absl/base:nullability"],
     # don't add any dependencies.
 )
 
@@ -509,6 +517,7 @@ cc_library(
         ":execution_metadata",
         ":knobs",
         ":mutation_input",
+        "@com_google_absl//absl/base:nullability",
     ],
 )
 
@@ -594,6 +603,7 @@ cc_library(
         ":defs",
         ":logging",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
     ] + select({
@@ -708,6 +718,7 @@ cc_library(
         ":shared_memory_blob_sequence",
         ":util",
         ":workdir",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
@@ -796,6 +807,7 @@ cc_library(
         ":util",
         ":workdir",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -940,6 +952,7 @@ cc_library(
     name = "runner_fork_server",
     srcs = ["runner_fork_server.cc"],
     visibility = PUBLIC_API_VISIBILITY,
+    deps = ["@com_google_absl//absl/base:nullability"],
     alwayslink = 1,  # Otherwise the linker drops the fork server.
 )
 
@@ -1045,7 +1058,7 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS,
+    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
 )
 
 # Same as :centipede_runner_no_main but as a DSO. Experimental.
@@ -1056,7 +1069,7 @@ cc_binary(
     linkopts = RUNNER_LINKOPTS,
     linkshared = 1,
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS,
+    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
 )
 
 # A full self-contained library archive that external clients should link to
@@ -1069,7 +1082,7 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS,
+    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
 )
 
 # Utilities for seed corpus generation.
@@ -1292,6 +1305,7 @@ cc_test(
     deps = [
         ":logging",
         ":rusage_stats",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
@@ -1365,6 +1379,7 @@ cc_test(
         ":test_util",
         ":util",
         ":workdir",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1514,6 +1529,7 @@ cc_test(
     deps = [
         ":callstack",
         ":defs",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1548,7 +1564,10 @@ cc_test(
 cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
-    deps = [":runner_fork_server"],
+    deps = [
+        ":runner_fork_server",
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_test(
@@ -1572,6 +1591,7 @@ cc_test(
     srcs = ["runner_cmp_trace_test.cc"],
     deps = [
         ":runner_cmp_trace",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1669,6 +1689,7 @@ cc_test(
         ":test_util",
         ":util",
         ":workdir",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

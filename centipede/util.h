@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "./centipede/defs.h"
@@ -146,9 +147,10 @@ ByteArray PackBytesForAppendFile(const ByteArray &data);
 // `packed_data` is multiple data packed by PackBytesForAppendFile()
 // and merged together.
 // `unpacked` or `hashes` can be nullptr.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
-                               std::vector<ByteArray> *unpacked,
-                               std::vector<std::string> *hashes = nullptr);
+void UnpackBytesFromAppendFile(
+    const ByteArray &packed_data,
+    absl::Nullable<std::vector<ByteArray> *> unpacked,
+    absl::Nullable<std::vector<std::string> *> hashes = nullptr);
 // Append the bytes from 'hash' to 'ba'.
 void AppendHashToArray(ByteArray &ba, std::string_view hash);
 // Reverse to AppendHashToArray.
@@ -164,7 +166,8 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
 
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
 // `features` and return the hash.
-std::string UnpackFeaturesAndHash(const ByteSpan &blob, FeatureVec *features);
+std::string UnpackFeaturesAndHash(const ByteSpan &blob,
+                                  absl::Nonnull<FeatureVec *> features);
 
 // Parses `dictionary_text` representing an AFL/libFuzzer dictionary.
 // https://github.com/google/AFL/blob/master/dictionaries/README.dictionaries

@@ -26,6 +26,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -124,7 +125,9 @@ class CentipedeMock : public CentipedeCallbacks {
 class MockFactory : public CentipedeCallbacksFactory {
  public:
   explicit MockFactory(CentipedeCallbacks &cb) : cb_(cb) {}
-  CentipedeCallbacks *create(const Environment &env) override { return &cb_; }
+  absl::Nonnull<CentipedeCallbacks *> create(const Environment &env) override {
+    return &cb_;
+  }
   void destroy(CentipedeCallbacks *cb) override { EXPECT_EQ(cb, &cb_); }
 
  private:

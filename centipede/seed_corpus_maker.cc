@@ -16,6 +16,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 
+#include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -25,7 +26,7 @@
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/util.h"
 
-int main(int argc, char** argv) {
+int main(int argc, absl::Nonnull<char**> argv) {
   (void)centipede::config::InitRuntime(argc, argv);
 
   const std::string config = absl::GetFlag(FLAGS_config);

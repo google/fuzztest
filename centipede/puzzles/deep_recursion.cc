@@ -22,12 +22,14 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/base/nullability.h"
+
 // Set the stack size to something small (64K).
 static struct rlimit rlim = {1 << 16, 1 << 16};
 static int unused = setrlimit(RLIMIT_STACK, &rlim);
 
 // Don't let the compiler be too smart.
-static inline void BreakOptimization(const void *arg) {
+static inline void BreakOptimization(absl::Nonnull<const void *> arg) {
   __asm__ __volatile__("" : : "r"(arg) : "memory");
 }
 

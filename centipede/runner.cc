@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
@@ -728,7 +729,7 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 
 // Dumps the pc table to `output_path`.
 // Requires that state.main_object is already computed.
-static void DumpPcTable(const char *output_path) {
+static void DumpPcTable(absl::Nonnull<const char *> output_path) {
   PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
@@ -744,7 +745,7 @@ static void DumpPcTable(const char *output_path) {
 
 // Dumps the control-flow table to `output_path`.
 // Requires that state.main_object is already computed.
-static void DumpCfTable(const char *output_path) {
+static void DumpCfTable(absl::Nonnull<const char *> output_path) {
   PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
@@ -760,7 +761,7 @@ static void DumpCfTable(const char *output_path) {
 
 // Dumps a DsoTable as a text file. Each line contains the file path and the
 // number of instrumented PCs.
-static void DumpDsoTable(const char *output_path) {
+static void DumpDsoTable(absl::Nonnull<const char *> output_path) {
   FILE *output_file = fopen(output_path, "w");
   RunnerCheck(output_file != nullptr, "DumpDsoTable: can't open output file");
   DsoTable dso_table = state.sancov_objects.CreateDsoTable();
@@ -1074,7 +1075,8 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
 }  // namespace centipede
 
 extern "C" int LLVMFuzzerRunDriver(
-    int *argc, char ***argv, FuzzerTestOneInputCallback test_one_input_cb) {
+    absl::Nonnull<int *> argc, absl::Nonnull<char ***> argv,
+    FuzzerTestOneInputCallback test_one_input_cb) {
   if (LLVMFuzzerInitialize) LLVMFuzzerInitialize(argc, argv);
   return RunnerMain(*argc, *argv,
                     *centipede::CreateLegacyRunnerCallbacks(
@@ -1105,7 +1107,8 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
   centipede::state.run_time_flags.timeout_per_input = timeout_per_input;
 }
 
-extern "C" __attribute__((weak)) const char *CentipedeGetRunnerFlags() {
+extern "C" __attribute__((weak)) absl::Nullable<const char *>
+CentipedeGetRunnerFlags() {
   if (const char *runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
     return strdup(runner_flags_env);
   return nullptr;

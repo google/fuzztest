@@ -26,6 +26,7 @@
 #include <cstdlib>
 
 #include "absl/base/const_init.h"
+#include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/callstack.h"
@@ -169,7 +170,8 @@ struct GlobalRunnerState {
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
-  bool HasFlag(const char *flag) const {
+  // TODO(ussuri): Refactor `char *` into a `string_view`.
+  bool HasFlag(absl::Nonnull<const char *> flag) const {
     if (!centipede_runner_flags) return false;
     return strstr(centipede_runner_flags, flag) != nullptr;
   }
@@ -177,7 +179,9 @@ struct GlobalRunnerState {
   // If a flag=value pair is present, returns value,
   // otherwise returns `default_value`.
   // Typical usage: pass ":some_flag=".
-  uint64_t HasIntFlag(const char *flag, uint64_t default_value) const {
+  // TODO(ussuri): Refactor `char *` into a `string_view`.
+  uint64_t HasIntFlag(absl::Nonnull<const char *> flag,
+                      uint64_t default_value) const {
     if (!centipede_runner_flags) return default_value;
     const char *beg = strstr(centipede_runner_flags, flag);
     if (!beg) return default_value;
@@ -188,7 +192,9 @@ struct GlobalRunnerState {
   // The result is obtained by calling strndup, so make sure to save
   // it in `this` to avoid a leak.
   // Typical usage: pass ":some_flag=".
-  const char *GetStringFlag(const char *flag) const {
+  // TODO(ussuri): Refactor `char *` into a `string_view`.
+  absl::Nullable<const char *> GetStringFlag(
+      absl::Nonnull<const char *> flag) const {
     if (!centipede_runner_flags) return nullptr;
     // Extract "value" from ":flag=value:" inside centipede_runner_flags.
     const char *beg = strstr(centipede_runner_flags, flag);

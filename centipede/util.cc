@@ -44,6 +44,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
+#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
@@ -234,9 +235,10 @@ ByteArray PackBytesForAppendFile(const ByteArray &data) {
 }
 
 // Reverse to a sequence of PackBytesForAppendFile() appended to each other.
-void UnpackBytesFromAppendFile(const ByteArray &packed_data,
-                               std::vector<ByteArray> *unpacked,
-                               std::vector<std::string> *hashes) {
+void UnpackBytesFromAppendFile(
+    const ByteArray &packed_data,
+    absl::Nullable<std::vector<ByteArray> *> unpacked,
+    absl::Nullable<std::vector<std::string> *> hashes) {
   auto pos = packed_data.cbegin();
   while (true) {
     pos = std::search(pos, packed_data.end(), &kPackBegMagic[0],
@@ -293,7 +295,8 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
   return feature_bytes_with_hash;
 }
 
-std::string UnpackFeaturesAndHash(const ByteSpan &blob, FeatureVec *features) {
+std::string UnpackFeaturesAndHash(const ByteSpan &blob,
+                                  absl::Nonnull<FeatureVec *> features) {
   size_t features_len_in_bytes = blob.size() - kHashLen;
   features->resize(features_len_in_bytes / sizeof(feature_t));
   memcpy(features->data(), blob.data(), features_len_in_bytes);

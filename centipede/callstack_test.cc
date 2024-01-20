@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/defs.h"
 
@@ -76,7 +77,7 @@ static void RecordCallStack() {
       PC, reinterpret_cast<uintptr_t>(__builtin_frame_address(0)))
 
 // Don't let the compiler be too smart.
-static inline void BreakOptimization(const void *arg) {
+static inline void BreakOptimization(absl::Nullable<const void *> arg) {
   __asm__ __volatile__("" : : "r"(arg) : "memory");
 }
 

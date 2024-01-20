@@ -58,6 +58,7 @@ cc_binary(
     srcs = ["customized_centipede_main.cc"],
     deps = [
         ":customized_centipede_lib",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:config_file",

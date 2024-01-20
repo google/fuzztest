@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "absl/base/nullability.h"
+
 // This library must not depend on anything other than libc,
 // so that it does not introduce any dependencies to its users.
 // Any such dependencies may get coverage-instrumented, introducing noise
@@ -38,7 +40,7 @@ namespace centipede {
 // TODO(kcc): [impl] consider making it a class.
 struct Blob {
   using SizeAndTagT = size_t;
-  Blob(SizeAndTagT tag, SizeAndTagT size, const uint8_t *data)
+  Blob(SizeAndTagT tag, SizeAndTagT size, absl::Nullable<const uint8_t *> data)
       : tag(tag), size(size), data(data) {}
   Blob() = default;  // Construct an invalid Blob.
   bool IsValid() const { return tag != 0; }
@@ -167,7 +169,8 @@ class SharedMemoryBlobSequence : public BlobSequence {
   size_t NumBytesUsed() const;
 
   // Gets the file path that can be used to create new instances.
-  const char *path() const { return path_; }
+  // TODO(ussuri): Refactor `char *` into a `string_view`.
+  absl::Nonnull<const char *> path() const { return path_; }
 
  private:
   // mmaps `size_` bytes from `fd_`, assigns to `data_`. Crashes if mmap failed.

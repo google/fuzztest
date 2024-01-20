@@ -24,9 +24,12 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "absl/base/nullability.h"
+
 namespace centipede {
 
-static void ErrorOnFailure(bool condition, const char *text) {
+// TODO(ussuri): Refactor `char *` into a `string_view`.
+static void ErrorOnFailure(bool condition, absl::Nonnull<const char *> text) {
   if (!condition) return;
   std::perror(text);
   abort();

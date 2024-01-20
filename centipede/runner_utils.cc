@@ -20,9 +20,11 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "absl/base/nullability.h"
+
 namespace centipede {
 
-void PrintErrorAndExitIf(bool condition, const char *error) {
+void PrintErrorAndExitIf(bool condition, absl::Nonnull<const char *> error) {
   if (!condition) return;
   fprintf(stderr, "error: %s\n", error);
   exit(1);

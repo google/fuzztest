@@ -20,6 +20,7 @@
 #include <functional>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 
@@ -50,10 +51,10 @@ struct SanCovObject {
 class SanCovObjectArray {
  public:
   // To be called in __sanitizer_cov_trace_pc_guard_init.
-  void PCGuardInit(PCGuard *start, PCGuard *stop);
+  void PCGuardInit(absl::Nonnull<PCGuard *> start, PCGuard *stop);
 
   // To be called in __sanitizer_cov_pcs_init.
-  void PCInfoInit(const PCInfo *pcs_beg, const PCInfo *pcs_end);
+  void PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg, const PCInfo *pcs_end);
 
   // To be called in __sanitizer_cov_cfs_init.
   void CFSInit(const uintptr_t *cfs_beg, const uintptr_t *cfs_end);
