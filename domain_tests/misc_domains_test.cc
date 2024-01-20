@@ -92,6 +92,18 @@ TEST(BitFlagCombinationOf, InvalidInputReportsErrors) {
       "BitFlagCombinationOf requires flags to be mutually exclusive.");
 }
 
+TEST(BitFlagCombinationOf, ValidationRejectsInvalidValue) {
+  auto domain = BitFlagCombinationOf({1, 4});
+  EXPECT_OK(domain.ValidateCorpusValue(0));
+  EXPECT_OK(domain.ValidateCorpusValue(1));
+  EXPECT_OK(domain.ValidateCorpusValue(4));
+  EXPECT_OK(domain.ValidateCorpusValue(5));
+  EXPECT_THAT(domain.ValidateCorpusValue(2),
+              IsInvalid("Invalid bit flag combination."));
+  EXPECT_THAT(domain.ValidateCorpusValue(17),
+              IsInvalid("Invalid bit flag combination."));
+}
+
 TEST(OneOf, InitGeneratesSeeds) {
   auto domain = OneOf(Negative<int>(), Positive<int>()).WithSeeds({-42, 42});
 

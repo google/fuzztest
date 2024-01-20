@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
@@ -33,7 +34,7 @@ class BitFlagCombinationOfImpl
   using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
-      : flags_(flags.begin(), flags.end()) {
+      : flags_(flags.begin(), flags.end()), all_flags_combo_{} {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         !flags.empty(), "BitFlagCombinationOf requires a non empty list.");
     // Make sure they are mutually exclusive options, and none are empty.
@@ -47,6 +48,7 @@ class BitFlagCombinationOfImpl
             BitAnd(v1, v2) == T{},
             "BitFlagCombinationOf requires flags to be mutually exclusive.");
       }
+      all_flags_combo_ = BitOr(all_flags_combo_, v1);
     }
   }
 
@@ -63,7 +65,10 @@ class BitFlagCombinationOfImpl
     }
   }
 
-  absl::Status ValidateCorpusValue(const value_type&) const {
+  absl::Status ValidateCorpusValue(const value_type& val) const {
+    if (BitOr(val, all_flags_combo_) != all_flags_combo_) {
+      return absl::InvalidArgumentError("Invalid bit flag combination.");
+    }
     return absl::OkStatus();
   }
 
@@ -81,6 +86,16 @@ class BitFlagCombinationOfImpl
   }
 
   template <typename U>
+  static value_type BitOr(U a, U b) {
+    if constexpr (std::is_enum_v<U>) {
+      return BitOr(static_cast<std::underlying_type_t<U>>(a),
+                   static_cast<std::underlying_type_t<U>>(b));
+    } else {
+      return static_cast<value_type>(a | b);
+    }
+  }
+
+  template <typename U>
   static value_type BitXor(U a, U b) {
     if constexpr (std::is_enum_v<U>) {
       return BitXor(static_cast<std::underlying_type_t<U>>(a),
@@ -91,6 +106,7 @@ class BitFlagCombinationOfImpl
   }
 
   std::vector<value_type> flags_;
+  value_type all_flags_combo_;
 };
 
 }  // namespace fuzztest::internal
