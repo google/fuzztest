@@ -32,6 +32,17 @@ struct AnalyzeCorporaResults {
   BinaryInfo binary_info;
 };
 
+// The result of analyzing a single corpus.
+struct CoverageResults {
+  std::vector<size_t> pcs;
+  BinaryInfo binary_info;
+};
+
+// Returns information on the corpus within `workdir`.
+CoverageResults GetCoverage(std::string_view binary_name,
+                            std::string_view binary_hash,
+                            std::string_view workdir);
+
 // Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view binary_hash,

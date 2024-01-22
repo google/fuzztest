@@ -137,6 +137,31 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
 
 }  // namespace
 
+CoverageResults GetCoverage(std::string_view binary_name,
+                            std::string_view binary_hash,
+                            std::string_view workdir) {
+  const std::vector<CorpusRecord> corpus_records =
+      ReadCorpora(binary_name, binary_hash, workdir);
+
+  absl::flat_hash_set<size_t> pcs;
+  for (const auto &record : corpus_records) {
+    for (const auto &feature : record.features) {
+      if (!feature_domains::kPCs.Contains(feature)) continue;
+      auto pc = ConvertPCFeatureToPcIndex(feature);
+      pcs.insert(pc);
+    }
+  }
+
+  BinaryInfo binary_info = ReadBinaryInfo(binary_name, binary_hash, workdir);
+  CoverageResults ret = {
+      .pcs = {pcs.begin(), pcs.end()},
+      .binary_info = std::move(binary_info),
+  };
+  // Sort PCs to put them in the canonical order, as in pc_table.
+  std::sort(ret.pcs.begin(), ret.pcs.end());
+  return ret;
+}
+
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view binary_hash,
                                      std::string_view workdir_a,
