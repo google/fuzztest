@@ -231,7 +231,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
 
   Command cmd(binary, {},
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
-                            output_dir.string(), ":")},
+                            output_dir.native(), ":")},
               /*out=*/execute_log_path_,
               /*err=*/execute_log_path_,
               /*timeout=*/absl::InfiniteDuration(),
@@ -250,7 +250,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                            num_seeds_read < seed_input_filenames.size();
        ++num_seeds_read) {
     ReadFromLocalFile(
-        (output_dir / seed_input_filenames[num_seeds_read]).string(),
+        (output_dir / seed_input_filenames[num_seeds_read]).native(),
         seeds[num_seeds_read]);
   }
   seeds.resize(num_seeds_read);

@@ -125,7 +125,7 @@ std::vector<FilePathAndData> ReadFileOrDirectory(
   if (std::filesystem::is_directory(file_or_dir_path)) {
     for (const auto& entry :
          std::filesystem::recursive_directory_iterator(file_or_dir_path)) {
-      try_append_file(entry.path().string());
+      try_append_file(entry.path().native());
     }
   } else {
     try_append_file(std::string(file_or_dir));
@@ -138,7 +138,7 @@ std::vector<std::string> ListDirectory(absl::string_view dir) {
   std::filesystem::path dir_path{std::string_view{dir.data(), dir.size()}};
   if (!std::filesystem::is_directory(dir_path)) return out;
   for (const auto& entry : std::filesystem::directory_iterator(dir_path)) {
-    out.push_back(entry.path().string());
+    out.push_back(entry.path().native());
   }
   return out;
 }

@@ -498,7 +498,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
 #else
       .riegeli = absl::GetFlag(FLAGS_riegeli),
 #endif  // CENTIPEDE_DISABLE_RIEGELI
-      .binary_name = std::filesystem::path(coverage_binary).filename().string(),
+      .binary_name = std::filesystem::path(coverage_binary).filename().native(),
       .binary_hash = absl::GetFlag(FLAGS_binary_hash).empty()
                          ? HashOfFileContents(coverage_binary)
                          : absl::GetFlag(FLAGS_binary_hash),

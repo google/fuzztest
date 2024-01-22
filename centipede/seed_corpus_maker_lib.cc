@@ -418,7 +418,7 @@ void WriteSeedCorpusElementsToDestination(  //
         // dirs (not really intended for that, but the end-user may do that).
         for (const auto& fname : {corpus_fname, features_fname}) {
           if (!fname.empty()) {
-            const auto dir = fs::path{fname}.parent_path().string();
+            const auto dir = fs::path{fname}.parent_path().native();
             if (!RemotePathExists(dir)) RemoteMkdir(dir);
           }
         }
@@ -502,7 +502,7 @@ void GenerateSeedCorpusFromConfig(          //
       /*my_shard_index=*/0,
   };
   const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
-  RemoteMkdir(debug_info_dir.string());
+  RemoteMkdir(debug_info_dir.native());
   RemoteFileSetContents(debug_info_dir / "seeding.cfg", config.DebugString());
 
   InputAndFeaturesVec elements;

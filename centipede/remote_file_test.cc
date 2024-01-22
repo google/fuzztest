@@ -42,36 +42,36 @@ TEST(RemoteListFilesRecursively, ListsFilesInRecursiveDirectories) {
   auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
 
   auto file1_path = temp_dir / "file_01";
-  ASSERT_TRUE(CreateFile(file1_path.string()));
+  ASSERT_TRUE(CreateFile(file1_path.native()));
   auto file2_path = temp_dir / "file_02";
-  ASSERT_TRUE(CreateFile(file2_path.string()));
+  ASSERT_TRUE(CreateFile(file2_path.native()));
 
   auto dir1_path = temp_dir / "dir_01";
   std::filesystem::create_directories(dir1_path);
   auto file3_path = dir1_path / "file_03";
-  ASSERT_TRUE(CreateFile(file3_path.string()));
+  ASSERT_TRUE(CreateFile(file3_path.native()));
 
   const std::vector<std::string> files =
-      RemoteListFilesRecursively(temp_dir.string());
+      RemoteListFilesRecursively(temp_dir.native());
   EXPECT_THAT(files,
-              UnorderedElementsAre(file1_path.string(), file2_path.string(),
-                                   file3_path.string()));
+              UnorderedElementsAre(file1_path.native(), file2_path.native(),
+                                   file3_path.native()));
 }
 
 TEST(RemoteListFilesRecursively, ReturnsAnEmptyResultWhenNoFilesAreFound) {
   auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
-  EXPECT_THAT(RemoteListFilesRecursively(temp_dir.string()), IsEmpty());
+  EXPECT_THAT(RemoteListFilesRecursively(temp_dir.native()), IsEmpty());
 }
 
 TEST(RemoteFilesListRecursively, ReturnsASingleFileWhenListingAFile) {
   auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
 
   auto file1_path = temp_dir / "file_01";
-  ASSERT_TRUE(CreateFile(file1_path.string()));
+  ASSERT_TRUE(CreateFile(file1_path.native()));
 
   const std::vector<std::string> files =
-      RemoteListFilesRecursively(temp_dir.string());
-  EXPECT_THAT(files, UnorderedElementsAre(file1_path.string()));
+      RemoteListFilesRecursively(temp_dir.native());
+  EXPECT_THAT(files, UnorderedElementsAre(file1_path.native()));
 }
 
 TEST(RemoteFilesListRecursively, ReturnsAnEmptyVectorWhenPathDoesNotExist) {
