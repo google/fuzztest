@@ -23,13 +23,8 @@
 #include <vector>
 
 #include "absl/container/node_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
@@ -83,8 +78,8 @@ class SymbolTable {
   void WriteToLLVMSymbolizer(std::ostream &out);
 
   // Invokes `symbolizer_path --no-inlines` on all binaries from `dso_table`,
-  // pipes through it all PCs in pc_table that correspond to each of the
-  // binaries and calls ReadFromLLVMSymbolizer() on the output.
+  // pipes through it all the PCs in `pc_table` that correspond to each of the
+  // binaries, and calls `ReadFromLLVMSymbolizer()` on the output.
   // Possibly uses files `tmp_path1` and `tmp_path2` for temporary storage.
   void GetSymbolsFromBinary(const PCTable &pc_table, const DsoTable &dso_table,
                             std::string_view symbolizer_path,

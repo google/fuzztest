@@ -132,7 +132,8 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
   // Iterate all DSOs, symbolize their respective PCs.
   size_t pc_idx_begin = 0;
   for (const auto &dso_info : dso_table) {
-    CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size());
+    CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size())
+        << VV(pc_idx_begin) << VV(dso_info.num_instrumented_pcs);
     const absl::Span<const PCInfo> pc_infos = {pc_table.data() + pc_idx_begin,
                                                dso_info.num_instrumented_pcs};
     GetSymbolsFromOneDso(pc_infos, dso_info.path, symbolizer_path, tmp_path1,
