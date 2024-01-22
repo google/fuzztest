@@ -167,6 +167,7 @@ bool ByteArrayMutator::MutateDecreaseSize(ByteArray &data) {
 }
 
 bool ByteArrayMutator::FlipBit(ByteArray &data) {
+  if (data.empty()) return false;
   uintptr_t random = rng_();
   size_t bit_idx = random % (data.size() * 8);
   size_t byte_idx = bit_idx / 8;
@@ -177,6 +178,7 @@ bool ByteArrayMutator::FlipBit(ByteArray &data) {
 }
 
 bool ByteArrayMutator::SwapBytes(ByteArray &data) {
+  if (data.empty()) return false;
   size_t idx1 = rng_() % data.size();
   size_t idx2 = rng_() % data.size();
   std::swap(data[idx1], data[idx2]);
@@ -184,6 +186,7 @@ bool ByteArrayMutator::SwapBytes(ByteArray &data) {
 }
 
 bool ByteArrayMutator::ChangeByte(ByteArray &data) {
+  if (data.empty()) return false;
   size_t idx = rng_() % data.size();
   data[idx] = rng_();
   return true;
@@ -201,7 +204,9 @@ bool ByteArrayMutator::InsertBytes(ByteArray &data) {
   size_t pos = rng_() % (data.size() + 1);
   // Fixed array to avoid memory allocation.
   std::array<uint8_t, kMaxInsertSize> new_bytes;
-  for (size_t i = 0; i < num_new_bytes; i++) new_bytes[i] = rng_();
+  for (size_t i = 0; i < num_new_bytes; ++i) {
+    new_bytes[i] = rng_();
+  }
   data.insert(data.begin() + pos, new_bytes.begin(),
               new_bytes.begin() + num_new_bytes);
   return true;
