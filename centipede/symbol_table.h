@@ -64,8 +64,8 @@ class SymbolTable {
 
   SymbolTable() = default;
   SymbolTable(const SymbolTable &) = delete;
-  SymbolTable(SymbolTable &&) = default;
-  SymbolTable &operator=(SymbolTable &&) = default;
+  SymbolTable(SymbolTable &&) = delete;
+  SymbolTable &operator=(SymbolTable &&) = delete;
 
   bool operator==(const SymbolTable &other) const;
 
@@ -102,15 +102,16 @@ class SymbolTable {
   void SetAllToUnknown(size_t size);
 
   // Returns the number of symbol entries.
-  size_t size() const { return entries_.size(); }
+  size_t size() const { absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; return entries_.size(); }
 
   // Returns "FunctionName" for idx-th entry.
-  std::string_view func(size_t idx) const { return entries_[idx].func; }
+  std::string func(size_t idx) const { absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; return std::string(entries_[idx].func); }
 
-  Entry entry(size_t idx) const { return entries_[idx]; }
+  Entry entry(size_t idx) const {  absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)};  return entries_[idx]; }
 
   // Returns source code location for idx-th entry,
   std::string location(size_t idx) const {
+    absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; 
     return entries_[idx].file_line_col();
   }
 
@@ -126,7 +127,7 @@ class SymbolTable {
   void AddEntryInternal(std::string_view func, std::string_view file,
                         int line = -1, int col = -1);
 
-  std::string_view GetOrInsert(std::string_view str);
+  std::string GetOrInsert(std::string_view str);
 
   // Declaration order matters here, because we want `table_` to be deleted last
   // in order to avoid having dangling ptrs in `entries_`.
@@ -134,10 +135,13 @@ class SymbolTable {
   // Holds the strings for files and function names of the stored symbols. This
   // avoids storing duplicate values. `node_hash_set` was chosen in order to
   // have pointer stability and not bother with storing strings in `unique_ptr`.
-  absl::node_hash_set<std::string> table_;
+  absl::node_hash_set<std::string> table_  ABSL_GUARDED_BY(mu_);
 
   // Holds the the symbol entries.
-  std::vector<Entry> entries_;
+  std::vector<Entry> entries_ ABSL_GUARDED_BY(mu_);
+
+  // A mutex to be claimed when accessing the table
+  absl::Mutex mu_;
 };
 
 }  // namespace centipede

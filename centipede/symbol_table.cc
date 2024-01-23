@@ -40,6 +40,8 @@
 namespace centipede {
 
 bool SymbolTable::operator==(const SymbolTable &other) const {
+  absl::MutexLock l{&mu_};
+  absl::MutexLock l{&other.mu_};
   return this->entries_ == other.entries_;
 }
 
@@ -63,6 +65,7 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
 }
 
 void SymbolTable::WriteToLLVMSymbolizer(std::ostream &out) {
+  absl::MutexLock l{&mu_};
   for (const Entry &entry : entries_) {
     out << entry.func << '\n';
     out << entry.file_line_col() << '\n';
@@ -114,6 +117,14 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
     LOG(ERROR) << "Symbolization failed: debug symbols will not be used";
 }
 
+static void SymbolizeOneDso(SymbolTable* self, absl::Span<const PCInfo> pc_infos,
+                                       std::string_view dso_path,
+                                       std::string_view symbolizer_path,
+                                       std::string_view tmp_path1,
+                                       std::string_view tmp_path2) {
+                                        self.GetSymbolsFromOneDso(pc_info, dso_path, symbolizer_path, tmp_path1, tmp_path2); // TODO check temp_path assumptions
+                                       }
+
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
                                        const DsoTable &dso_table,
                                        std::string_view symbolizer_path,
@@ -131,14 +142,20 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
 
   // Iterate all DSOs, symbolize their respective PCs.
   size_t pc_idx_begin = 0;
+  std::vector<std::thread> threads(dso_table.size());
+  size_t thread_idx = 0;
   for (const auto &dso_info : dso_table) {
     CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size());
     const absl::Span<const PCInfo> pc_infos = {pc_table.data() + pc_idx_begin,
                                                dso_info.num_instrumented_pcs};
-    GetSymbolsFromOneDso(pc_infos, dso_info.path, symbolizer_path, tmp_path1,
+    threads[thread_idx++] = std::thread(SymbolizeOneDso, this, pc_infos, dso_info.path, symbolizer_path, tmp_path1,
                          tmp_path2);
     pc_idx_begin += dso_info.num_instrumented_pcs;
   }
+  for (const auto& thread: threads) {
+    thread.join();
+  }
+
   CHECK_EQ(pc_idx_begin, pc_table.size());
 
   if (size() != pc_table.size()) {
@@ -149,6 +166,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
 }
 
 void SymbolTable::SetAllToUnknown(size_t size) {
+  absl::MutexLock l{&mu_};
   entries_.resize(size);
   for (auto &entry : entries_) {
     entry = {"?", "?"};
@@ -186,10 +204,12 @@ void SymbolTable::AddEntry(std::string_view func,
 
 void SymbolTable::AddEntryInternal(std::string_view func, std::string_view file,
                                    int line, int col) {
+  absl::MutexLock l{&mu_};
   entries_.emplace_back(Entry{GetOrInsert(func), GetOrInsert(file), line, col});
 }
 
-std::string_view SymbolTable::GetOrInsert(std::string_view str) {
+std::string SymbolTable::GetOrInsert(std::string_view str) {
+  absl::MutexLock l{&mu_};
   return *table_.insert(std::string{str}).first;
 }
 
