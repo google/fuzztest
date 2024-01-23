@@ -1386,8 +1386,20 @@ cc_test(
 cc_test(
     name = "analyze_corpora_test",
     srcs = ["analyze_corpora_test.cc"],
+    data = [
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
+        "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
+    ],
     deps = [
+        ":analyze_corpora",
+        ":binary_info",
+        ":environment",
+        ":symbol_table",
+        ":test_coverage_util",
+        ":test_util",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
     ],
 )
