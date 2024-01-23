@@ -21,6 +21,7 @@
 #include <limits>
 
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/googletest_fixture_adapter.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -117,5 +118,10 @@ void NonFatalFailureAllowsMinimization(const std::string& str) {
   ADD_FAILURE() << str;
 }
 FUZZ_TEST(MySuite, NonFatalFailureAllowsMinimization);
+
+void CrashOnFailingTestInput(const std::string& input) {
+  EXPECT_FALSE(absl::StartsWith(input, "crashing"));
+}
+FUZZ_TEST(MySuite, CrashOnFailingTestInput);
 
 }  // namespace

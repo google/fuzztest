@@ -151,8 +151,10 @@ internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_path) {
   const std::string binary_identifier =
       std::string(internal::Basename(binary_path));
-  std::string binary_corpus = absl::StrCat(
-      absl::GetFlag(FUZZTEST_FLAG(corpus_database)), "/", binary_identifier);
+  const std::string corpus_database =
+      absl::GetFlag(FUZZTEST_FLAG(corpus_database));
+  std::string binary_corpus =
+      absl::StrCat(corpus_database, "/", binary_identifier);
   if (getenv("TEST_SRCDIR")) {
     binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
   }
