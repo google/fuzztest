@@ -75,6 +75,10 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
 
   void Mutate(value_type&, absl::BitGenRef, bool) {}
 
+  value_type GetRandomCorpusValue(absl::BitGenRef prng) final {
+    return value_type{};
+  }
+
   absl::Status ValidateCorpusValue(const value_type&) const {
     return absl::OkStatus();  // Nothing to validate.
   }
@@ -97,6 +101,10 @@ class ArbitraryImpl<bool> : public DomainBase<ArbitraryImpl<bool>> {
     } else {
       val = !val;
     }
+  }
+
+  value_type GetRandomCorpusValue(absl::BitGenRef prng) final {
+    return Init(prng);
   }
 
   absl::Status ValidateCorpusValue(const value_type&) const {
@@ -122,13 +130,8 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
 
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const auto choose_from_all = [&] {
-      return absl::Uniform(absl::IntervalClosedClosed, prng,
-                           std::numeric_limits<T>::min(),
-                           std::numeric_limits<T>::max());
-    };
     if constexpr (sizeof(T) == 1) {
-      return choose_from_all();
+      return ChooseFromAll(prng);
     } else {
       static constexpr T special[] = {
           T{0}, T{1},
@@ -137,7 +140,7 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
           std::numeric_limits<T>::is_signed
               ? std::numeric_limits<T>::max()
               : std::numeric_limits<T>::max() >> 1};
-      return ChooseOneOr(special, prng, choose_from_all);
+      return ChooseOneOr(special, prng, [&] { return ChooseFromAll(prng); });
     }
   }
 
@@ -165,6 +168,11 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     } while (val == prev);
   }
 
+  value_type GetRandomCorpusValue(absl::BitGenRef prng) final {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return ChooseFromAll(prng);
+  }
+
   void UpdateMemoryDictionary(const value_type& val) {
     if constexpr (is_memory_dictionary_compatible_v) {
       if (GetExecutionCoverage() != nullptr) {
@@ -187,6 +195,12 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
   auto GetPrinter() const { return IntegralPrinter{}; }
 
  private:
+  static value_type ChooseFromAll(absl::BitGenRef prng) {
+    return absl::Uniform(absl::IntervalClosedClosed, prng,
+                         std::numeric_limits<T>::min(),
+                         std::numeric_limits<T>::max());
+  }
+
   // Matched snapshots from table of recent compares.
   // It's the "unverified" dictionary entries: the mutated
   // value matched something in this snapshot, but not sure
@@ -217,6 +231,10 @@ class ArbitraryImpl<std::byte> : public DomainBase<ArbitraryImpl<std::byte>> {
     unsigned char u8 = std::to_integer<unsigned char>(val);
     inner_.Mutate(u8, prng, only_shrink);
     val = std::byte{u8};
+  }
+
+  value_type GetRandomCorpusValue(absl::BitGenRef prng) final {
+    return Init(prng);
   }
 
   absl::Status ValidateCorpusValue(const corpus_type&) const {

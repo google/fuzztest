@@ -100,6 +100,21 @@ TEST(ArbitraryByteTest, InitGeneratesSeeds) {
               Contains(Value(domain, std::byte{42})).Times(Ge(350)));
 }
 
+TEST(ArbitraryByteTest, GetRandomValueYieldsEveryValue) {
+  Domain<std::byte> domain = Arbitrary<std::byte>();
+
+  absl::flat_hash_set<std::byte> values;
+  absl::BitGen prng;
+  for (int i = 0;
+       values.size() < 256 &&
+       i < IterationsToHitAll(/*num_cases=*/256, /*hit_probability=*/1.0 / 256);
+       ++i) {
+    values.insert(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(values, SizeIs(256));
+}
+
 struct MyStruct {
   int a;
   std::string s;

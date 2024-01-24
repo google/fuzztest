@@ -578,6 +578,16 @@ inline bool TowardsZero(const internal::TestProtobuf& prev,
   }
 }
 
+// Returns the number of iterations needed to hit `num_cases`, with the
+// probability of hitting a case given as `hit_probability`, so that the
+// probability of failure is upper-bounded by `10^(-confidence_level)`.
+inline int IterationsToHitAll(int num_cases, double hit_probability,
+                              int confidence_level = 15) {
+  return static_cast<int>(
+      -(confidence_level * std::log(10) + std::log(num_cases)) /
+      std::log(1.0 - hit_probability));
+}
+
 }  // namespace fuzztest
 
 #endif  // FUZZTEST_INTERNAL_DOMAIN_TESTING_H_

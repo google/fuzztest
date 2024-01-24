@@ -79,9 +79,8 @@ class Domain {
   static constexpr bool has_custom_corpus_type = true;
 
   // Intentionally not marked as explicit to allow implicit conversion from the
-  // internal domain implementations.
-  template <int&... ExplicitArgumentBarrier, typename Inner,
-            typename CorpusType>
+  // inner domain implementations.
+  template <typename Inner, typename CorpusType>
   Domain(const internal::DomainBase<Inner, T, CorpusType>& inner)
       : inner_(new auto(static_cast<const Inner&>(inner))) {}
 
@@ -92,6 +91,30 @@ class Domain {
     return *this;
   }
   // No default constructor or move operations to avoid a null state.
+
+  // GetRandomValue() returns a random user value from the domain. This is
+  // useful e.g., for generation-based black-box fuzzing, when coverage-guided
+  // fuzzing is not possible, or for other use cases when manually sampling the
+  // domain makes sense (e.g., getting random values for benchmarking). These
+  // are the only uses cases when the users should use domains directly, and
+  // this is the only method that the users should call.
+  //
+  // In general, GetRandomValue() doesn't provide any guarantees on the
+  // distribution of the returned values.
+  //
+  // Note about stability: GetRandomValue() doesn't guarantee stability of the
+  // generated values even if `prng` is seeded with a fixed seed. With a seeded
+  // `prng`, it is possible to reproduce the sequence of generated values by
+  // setting the environment variable FUZZTEST_PRNG_SEED to the value output to
+  // stderr on the first invocation. However, this is only guaranteed to work
+  // with the same version of the binary.
+  //
+  value_type GetRandomValue(absl::BitGenRef prng) {
+    return inner_->TypedGetRandomValue(prng);
+  }
+
+  // The methods below are used by the FuzzTest framework and custom domain
+  // implementations.
 
   // Init() generates a random value of corpus_type.
   //

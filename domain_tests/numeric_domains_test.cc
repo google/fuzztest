@@ -257,6 +257,28 @@ TYPED_TEST(NumericTest, NonZero) {
   for (auto v : values) ASSERT_THAT(v.user_value, Ne(0));
 }
 
+template <typename T>
+class CharTest : public testing::Test {};
+using CharTypes = testing::Types<char, signed char, unsigned char>;
+
+TYPED_TEST_SUITE(CharTest, CharTypes);
+
+TYPED_TEST(CharTest, GetRandomValueYieldsEveryValue) {
+  using T = TypeParam;
+  Domain<T> domain = Arbitrary<T>();
+
+  absl::flat_hash_set<T> values;
+  absl::BitGen prng;
+  for (int i = 0;
+       values.size() < 256 &&
+       i < IterationsToHitAll(/*num_cases=*/256, /*hit_probability=*/1.0 / 256);
+       ++i) {
+    values.insert(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(values, SizeIs(256));
+}
+
 TEST(Finite, CreatesFiniteFloatingPointValuesAndShrinksTowardsZero) {
   Domain<double> domain = Finite<double>();
   const auto values = GenerateValues(domain,
@@ -321,6 +343,23 @@ TEST(InRange, SupportsSingletonRange) {
   val.Mutate(domain, bitgen, /*only_shrink=*/false);
 
   EXPECT_EQ(val.user_value, 10);
+}
+
+TEST(InRange, GetRandomValueYieldsEveryValue) {
+  auto domain = InRange(1, 64);
+
+  absl::flat_hash_set<int> values;
+  absl::BitGen prng;
+  // InRange is biased towards extreme values. Conservatively, we use the
+  // probability to hit a non-extreme value for all values.
+  static constexpr double kHitProbability = 1.0 / 3 * 1.0 / 64;
+  for (int i = 0; values.size() < 64 &&
+                  i < IterationsToHitAll(/*num_cases=*/64, kHitProbability);
+       ++i) {
+    values.insert(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(values, SizeIs(64));
 }
 
 TEST(IllegalInputs, Numeric) {

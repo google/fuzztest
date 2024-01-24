@@ -99,6 +99,7 @@ class UntypedDomainInterface {
 template <typename ValueType>
 class TypedDomainInterface : public UntypedDomainInterface {
  public:
+  virtual ValueType TypedGetRandomValue(absl::BitGenRef prng) = 0;
   virtual ValueType TypedGetValue(const GenericDomainCorpusType& v) const = 0;
   virtual std::optional<GenericDomainCorpusType> TypedFromValue(
       const ValueType& v) const = 0;
@@ -107,6 +108,8 @@ class TypedDomainInterface : public UntypedDomainInterface {
     return MoveOnlyAny(std::in_place_type<ValueType>, TypedGetValue(v));
   }
 };
+
+void DestabilizeBitGen(absl::BitGenRef bitgen);
 
 template <typename Derived,
           typename ValueType = ExtractTemplateParameter<0, Derived>,
@@ -146,6 +149,10 @@ class DomainBase : public TypedDomainInterface<ValueType> {
 
   void UntypedUpdateMemoryDictionary(const GenericDomainCorpusType& val) final {
     derived().UpdateMemoryDictionary(val.GetAs<CorpusType>());
+  }
+
+  ValueType TypedGetRandomValue(absl::BitGenRef prng) final {
+    return derived().GetRandomValue(prng);
   }
 
   ValueType TypedGetValue(const GenericDomainCorpusType& v) const final {
@@ -201,6 +208,20 @@ class DomainBase : public TypedDomainInterface<ValueType> {
         "No tuple element should be specified for this override.");
     internal::PrintValue(derived(), val.GetAs<CorpusType>(), out, mode);
     return -1;
+  }
+
+  // Returns a random user value from the domain. In general, doesn't provide
+  // guarantees on the distribution of the returned values.
+  //
+  // Note about stability: To prevent the callers from relying on the stability
+  // of `prng`, the function intentionally destabilizes it. For a `prng` seeded
+  // with a fixed seed, it is possible to reproduce the sequence of generated
+  // values by setting the environment variable FUZZTEST_PRNG_SEED to the value
+  // output to stderr on the first invocation. However, this is only guaranteed
+  // to work with the same version of the binary.
+  ValueType GetRandomValue(absl::BitGenRef prng) {
+    DestabilizeBitGen(prng);
+    return derived().GetValue(GetRandomCorpusValue(prng));
   }
 
   // Default GetValue and FromValue functions for !has_custom_corpus_type
@@ -286,6 +307,22 @@ class DomainBase : public TypedDomainInterface<ValueType> {
       return std::nullopt;
     }
     return seeds_[ChooseOffset(seeds_.size(), prng)];
+  }
+
+  // Default implementation of GetRandomCorpusValue() without guarantees on the
+  // distribution of the returned values. If possible, the derived domain should
+  // override this with a better implementation.
+  virtual CorpusType GetRandomCorpusValue(absl::BitGenRef prng) {
+    auto corpus_val = derived().Init(prng);
+    // Mutate a random number of times (including zero times). This eliminates
+    // potential cyclicity issues (e.g., even number of mutations cancel out)
+    // and allows returning an initial value with small but positive
+    // probability.
+    constexpr int kMaxMutations = 1000;
+    for (int i = absl::Uniform(prng, 0, kMaxMutations); i > 0; --i) {
+      derived().Mutate(corpus_val, prng, /*only_shrink=*/false);
+    }
+    return corpus_val;
   }
 
  private:

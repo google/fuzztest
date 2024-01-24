@@ -237,12 +237,15 @@ fuzztest_cc_library(
     "internal/domains/unique_elements_container_of_impl.h"
     "internal/domains/value_mutation_helpers.h"
     "internal/domains/variant_of_impl.h"
+  SRCS
+    "internal/domains/domain_base.cc"
   DEPS
     fuzztest::absl_helpers
     fuzztest::any
     fuzztest::coverage
     fuzztest::logging
     fuzztest::meta
+    fuzztest::seed_seq
     fuzztest::serialization
     fuzztest::status
     fuzztest::table_of_recent_compares

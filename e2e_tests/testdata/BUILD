@@ -89,3 +89,14 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
+
+cc_binary(
+    name = "domain_tests",
+    testonly = 1,
+    srcs = ["domain_tests.cc"],
+    deps = [
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_fuzztest//fuzztest:fuzztest_core",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+    ],
+)

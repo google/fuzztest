@@ -102,7 +102,7 @@ cc_library(
     name = "domain_testing",
     testonly = 1,
     hdrs = ["domain_testing.h"],
-    visibility = ["@com_google_fuzztest//fuzztest:__subpackages__"],
+    visibility = ["@com_google_fuzztest//:__subpackages__"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/hash",

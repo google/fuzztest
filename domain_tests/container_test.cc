@@ -175,6 +175,29 @@ TYPED_TEST(ContainerTest, InitGeneratesSeeds) {
   EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
 }
 
+TEST(StringTest, GetRandomValueYieldsSeedsAndOtherValues) {
+  Domain<std::string> domain = Arbitrary<std::string>().WithSeeds({"seed"});
+
+  absl::BitGen prng;
+  bool seed_seen = false;
+  bool other_seen = false;
+  // To hit the seed, we need to first hit an initial value (p=1/1000) and
+  // then hit the actual seed (p=1/2).
+  static constexpr double kHitSeedProbability = 1.0 / 1000 * 1.0 / 2;
+  for (int i = 0; !(seed_seen && other_seen) &&
+                  i < IterationsToHitAll(/*num_cases=*/1, kHitSeedProbability);
+       ++i) {
+    auto val = domain.GetRandomValue(prng);
+    if (val == "seed") {
+      seed_seen = true;
+    } else {
+      other_seen = true;
+    }
+  }
+
+  EXPECT_TRUE(seed_seen && other_seen);
+}
+
 TEST(Container, ValidationRejectsInvalidSize) {
   absl::BitGen bitgen;
 

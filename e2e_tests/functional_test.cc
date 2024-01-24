@@ -36,6 +36,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
@@ -568,6 +569,48 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(std_err, HasSubstr("Configured limit is 1024000."));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+class GetRandomValueTest : public UnitTestModeTest {
+ protected:
+  int GetValueFromInnerTest(
+      const absl::flat_hash_map<std::string, std::string>& env = {}) {
+    auto [status, std_out, std_err] =
+        Run("DomainTest.GetRandomValue",
+            /*target_binary=*/"testdata/domain_tests", env);
+    int val = 0;
+    FUZZTEST_INTERNAL_CHECK(
+        RE2::PartialMatch(
+            std_out, R"re(==<domain\.GetRandomValue\(\): (-?\d+)>==)re", &val),
+        "Failed to match a value from DomainTest.GetRandomValue!");
+    return val;
+  }
+};
+
+TEST_F(GetRandomValueTest, DestabilizesBitGen) {
+  int val = GetValueFromInnerTest();
+  int other_val = val;
+  for (int i = 0;
+       i < IterationsToHitAll(/*num_cases=*/1, /*hit_probability=*/2.0 / 3);
+       ++i) {
+    other_val = GetValueFromInnerTest();
+    if (other_val != val) break;
+  }
+
+  EXPECT_NE(val, other_val);
+}
+
+TEST_F(GetRandomValueTest, SettingPrngSeedReproducesValue) {
+  int val =
+      GetValueFromInnerTest(/*env=*/
+                            {{"FUZZTEST_PRNG_SEED",
+                              "pJJCK_iNZeUJGe8M42hjOcQ8T2pCXSrQ4Y1dsU3M2_g"}});
+  int other_val =
+      GetValueFromInnerTest(/*env=*/
+                            {{"FUZZTEST_PRNG_SEED",
+                              "pJJCK_iNZeUJGe8M42hjOcQ8T2pCXSrQ4Y1dsU3M2_g"}});
+
+  EXPECT_EQ(val, other_val);
 }
 
 // Tests for the FuzzTest command line interface.
