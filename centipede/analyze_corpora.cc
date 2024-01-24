@@ -138,7 +138,7 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
 }  // namespace
 
 CoverageResults GetCoverage(const std::vector<CorpusRecord> &corpus_records,
-                            BinaryInfo &binary_info) {
+                            BinaryInfo binary_info) {
   absl::flat_hash_set<size_t> pcs;
   for (const auto &record : corpus_records) {
     for (const auto &feature : record.features) {
@@ -162,7 +162,7 @@ CoverageResults GetCoverage(std::string_view binary_name,
   const std::vector<CorpusRecord> corpus_records =
       ReadCorpora(binary_name, binary_hash, workdir);
   BinaryInfo binary_info = ReadBinaryInfo(binary_name, binary_hash, workdir);
-  return GetCoverage(corpus_records, binary_info);
+  return GetCoverage(corpus_records, std::move(binary_info));
 }
 
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,

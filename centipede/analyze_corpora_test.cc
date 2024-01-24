@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -55,7 +56,7 @@ TEST(GetCoverage, SimpleCoverageResults) {
   const SymbolTable &symbols = binary_info.symbols;
   // pc_table and symbols should have the same size.
   EXPECT_EQ(pc_table.size(), symbols.size());
-  CoverageResults res = GetCoverage(corpus_records, binary_info);
+  CoverageResults res = GetCoverage(corpus_records, std::move(binary_info));
   // Check that inputs cover LLVMFuzzerTestOneInput and SingleEdgeFunc, but not
   // MultiEdgeFunc.
   size_t llvm_fuzzer_test_one_input_num_edges = 0;

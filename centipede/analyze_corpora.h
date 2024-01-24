@@ -41,7 +41,7 @@ struct CoverageResults {
 
 // Returns information on the corpus within `workdir`.
 CoverageResults GetCoverage(const std::vector<CorpusRecord>& records,
-                            BinaryInfo& binary_info);
+                            BinaryInfo binary_info);
 
 // Returns information on the corpus within `workdir`.
 CoverageResults GetCoverage(std::string_view binary_name,
