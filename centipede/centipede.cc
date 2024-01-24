@@ -167,7 +167,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     size_t num_shard_bytes = 0;
     // Read the shard (if it exists), collect input hashes from it.
     absl::flat_hash_set<std::string> existing_hashes;
-    {
+    if (RemotePathExists(corpus_path)) {
       auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
       reader->Open(corpus_path).IgnoreError();
