@@ -172,9 +172,6 @@ cc_library(
     name = "centipede_adaptor",
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
-    data = select({
-        "//conditions:default": [],
-    }),
     defines = ["FUZZTEST_USE_CENTIPEDE"],
     linkopts = [
         # Needed for linking the Centipede engine with the runner, due to
