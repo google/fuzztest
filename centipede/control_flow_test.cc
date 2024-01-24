@@ -156,10 +156,10 @@ TEST(ControlFlowGraph, LazyReachability) {
       cfg.LazyGetReachabilityForPc(3);
       cfg.LazyGetReachabilityForPc(4);
     }
-    auto reach1 = cfg.LazyGetReachabilityForPc(1);
-    auto reach2 = cfg.LazyGetReachabilityForPc(2);
-    auto reach3 = cfg.LazyGetReachabilityForPc(3);
-    auto reach4 = cfg.LazyGetReachabilityForPc(4);
+    const auto &reach1 = cfg.LazyGetReachabilityForPc(1);
+    const auto &reach2 = cfg.LazyGetReachabilityForPc(2);
+    const auto &reach3 = cfg.LazyGetReachabilityForPc(3);
+    const auto &reach4 = cfg.LazyGetReachabilityForPc(4);
 
     EXPECT_THAT(reach1, testing::UnorderedElementsAre(1, 2, 3, 4));
     EXPECT_THAT(reach2, testing::UnorderedElementsAre(2, 4));
