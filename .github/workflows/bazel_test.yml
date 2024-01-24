@@ -35,7 +35,7 @@ jobs:
         compilation_mode: ['fastbuild', 'opt', 'dbg']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
@@ -44,7 +44,7 @@ jobs:
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
       - name: Restore latest cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
@@ -61,7 +61,7 @@ jobs:
             -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-${{ github.run_id }}

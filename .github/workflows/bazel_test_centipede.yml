@@ -34,13 +34,13 @@ jobs:
         config: ['default', 'noriegeli', 'asan']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang llvm libssl-dev
       - name: Restore latest cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-centipede-cache-${{ matrix.config }}
@@ -79,7 +79,7 @@ jobs:
           bazel test --no//centipede:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}

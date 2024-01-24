@@ -37,13 +37,13 @@ jobs:
         mode: ['default', 'fuzzing', 'codelab']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
       - name: Restore latest cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: cmake-cache-${{ matrix.mode }}
@@ -96,7 +96,7 @@ jobs:
           && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: cmake-cache-${{ matrix.mode }}-${{ github.run_id }}
