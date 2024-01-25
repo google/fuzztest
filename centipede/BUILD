@@ -395,6 +395,7 @@ cc_library(
     name = "analyze_corpora",
     srcs = ["analyze_corpora.cc"],
     hdrs = ["analyze_corpora.h"],
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":binary_info",
         ":control_flow",
