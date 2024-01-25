@@ -201,6 +201,15 @@ ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
 
 ScopedFile::~ScopedFile() { std::filesystem::remove_all(my_path_); }
 
+ScopedDir::ScopedDir(std::string_view dir_path, std::string_view subdir_name)
+    : my_path_(std::filesystem::path(dir_path) / subdir_name) {
+  if (!std::filesystem::exists(my_path_)) {
+    std::filesystem::create_directory(my_path_);
+  }
+}
+
+ScopedDir::~ScopedDir() { std::filesystem::remove_all(my_path_); }
+
 static const size_t kMagicLen = 11;
 static const uint8_t kPackBegMagic[] = "-Centipede-";
 static const uint8_t kPackEndMagic[] = "-edepitneC-";

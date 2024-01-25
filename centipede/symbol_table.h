@@ -80,11 +80,10 @@ class SymbolTable {
   // Invokes `symbolizer_path --no-inlines` on all binaries from `dso_table`,
   // pipes through it all the PCs in `pc_table` that correspond to each of the
   // binaries, and calls `ReadFromLLVMSymbolizer()` on the output.
-  // Possibly uses files `tmp_path1` and `tmp_path2` for temporary storage.
+  // Possibly uses dir `tmp_dir` for temporary storage.
   void GetSymbolsFromBinary(const PCTable &pc_table, const DsoTable &dso_table,
                             std::string_view symbolizer_path,
-                            std::string_view tmp_path1,
-                            std::string_view tmp_path2);
+                            std::string_view tmp_dir);
 
   // Helper for GetSymbolsFromBinary: symbolizes `pc_infos` for `dso_path`.
   void GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,

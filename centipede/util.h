@@ -87,6 +87,20 @@ class ScopedFile {
   std::string my_path_;
 };
 
+// In CTOR, creates dir_path.
+// In DTOR, removes the directory.
+class ScopedDir {
+ public:
+  ScopedDir(std::string_view dir_path, std::string_view subdir_name);
+  ~ScopedDir();
+
+  // Returns the path.
+  std::string_view path() const { return my_path_; }
+
+ private:
+  std::string my_path_;
+};
+
 // If `seed` != 0, returns `seed`, otherwise returns a random number
 // based on time, pid, tid, etc.
 size_t GetRandomSeed(size_t seed);

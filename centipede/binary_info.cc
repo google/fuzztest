@@ -113,10 +113,9 @@ void BinaryInfo::InitializeFromSanCovBinary(
 
   // Load symbols, if there is a PC table.
   if (!pc_table.empty()) {
-    ScopedFile sym_tmp1_path(tmp_dir_path, "symbols_tmp1");
-    ScopedFile sym_tmp2_path(tmp_dir_path, "symbols_tmp2");
+    ScopedDir sym_tmp_dir(tmp_dir_path, "symbols");
     symbols.GetSymbolsFromBinary(pc_table, dso_table, symbolizer_path,
-                                 sym_tmp1_path.path(), sym_tmp2_path.path());
+                                 sym_tmp_dir.path());
   }
 }
 

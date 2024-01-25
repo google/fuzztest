@@ -17,10 +17,13 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <ios>
 #include <istream>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <thread>  // NOLINT(build/c++11)
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -39,6 +42,16 @@
 
 namespace centipede {
 
+namespace {
+std::string_view GetLineAndAdvance(std::string_view &str) {
+  auto pos = str.find_first_of('\n');
+  CHECK(pos != str.npos) << "Wrong format, could not read an entire line!";
+  auto res = str.substr(0, pos);
+  str.remove_prefix(pos + 1);
+  return res;
+}
+}  // namespace
+
 bool SymbolTable::operator==(const SymbolTable &other) const {
   return this->entries_ == other.entries_;
 }
@@ -46,15 +59,17 @@ bool SymbolTable::operator==(const SymbolTable &other) const {
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   // We remove some useless file prefixes for better human readability.
   const std::string_view file_prefixes_to_remove[] = {"/proc/self/cwd/", "./"};
-  while (in) {
-    // We (mostly) blindly trust the input format is correct.
-    std::string func, file, empty;
-    std::getline(in, func);
-    std::getline(in, file);
-    std::getline(in, empty);
-    CHECK(empty.empty()) << "Unexpected symbolizer output format: " << VV(func)
-                         << VV(file) << VV(empty);
-    if (!in) break;
+  in.seekg(0, std::ios::end);
+  size_t size = in.tellg();
+  std::string str(size, '\0');
+  in.seekg(0);
+  CHECK(in.read(&str[0], size));
+  std::string_view file_content(str);
+  while (!file_content.empty()) {
+    auto func = GetLineAndAdvance(file_content);
+    auto file = GetLineAndAdvance(file_content);
+    GetLineAndAdvance(file_content);
+
     for (auto &bad_prefix : file_prefixes_to_remove) {
       file = absl::StripPrefix(file, bad_prefix);
     }
@@ -117,8 +132,7 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
                                        const DsoTable &dso_table,
                                        std::string_view symbolizer_path,
-                                       std::string_view tmp_path1,
-                                       std::string_view tmp_path2) {
+                                       std::string_view tmp_dir) {
   // NOTE: --symbolizer_path=/dev/null is a somewhat expected alternative to
   // "" that users might pass.
   if (symbolizer_path.empty() || symbolizer_path == "/dev/null") {
@@ -129,17 +143,33 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
 
   LOG(INFO) << "Symbolizing " << dso_table.size() << " instrumented DSOs";
 
-  // Iterate all DSOs, symbolize their respective PCs.
   size_t pc_idx_begin = 0;
-  for (const auto &dso_info : dso_table) {
-    CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size())
-        << VV(pc_idx_begin) << VV(dso_info.num_instrumented_pcs);
-    const absl::Span<const PCInfo> pc_infos = {pc_table.data() + pc_idx_begin,
-                                               dso_info.num_instrumented_pcs};
-    GetSymbolsFromOneDso(pc_infos, dso_info.path, symbolizer_path, tmp_path1,
-                         tmp_path2);
-    pc_idx_begin += dso_info.num_instrumented_pcs;
+  std::vector<std::thread> threads(dso_table.size());
+  std::vector<SymbolTable> tables(dso_table.size());
+  auto tmp1 = std::filesystem::path(tmp_dir) / "tmp1";
+  auto tmp2 = std::filesystem::path(tmp_dir) / "tmp2";
+
+  // Iterate all DSOs, symbolize their respective PCs.
+  for (size_t i = 0; i < dso_table.size(); i++) {
+    CHECK_LE(pc_idx_begin + dso_table[i].num_instrumented_pcs, pc_table.size());
+    const absl::Span<const PCInfo> pc_infos = {
+        pc_table.data() + pc_idx_begin, dso_table[i].num_instrumented_pcs};
+    threads[i] = std::thread(&SymbolTable::GetSymbolsFromOneDso, &tables[i],
+                             pc_infos, dso_table[i].path, symbolizer_path,
+                             std::string(tmp1) + std::to_string(i),
+                             std::string(tmp2) + std::to_string(i));
+    pc_idx_begin += dso_table[i].num_instrumented_pcs;
   }
+
+  // Join all threads and merge the symbol tables in order. Mind that the order
+  // is important, because the index are representing the PCs.
+  for (size_t i = 0; i < threads.size(); i++) {
+    threads[i].join();
+    for (const auto &entry : tables[i].entries_) {
+      AddEntryInternal(entry.func, entry.file, entry.line, entry.col);
+    }
+  }
+
   CHECK_EQ(pc_idx_begin, pc_table.size());
 
   if (size() != pc_table.size()) {
