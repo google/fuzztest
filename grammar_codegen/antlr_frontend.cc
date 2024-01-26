@@ -165,9 +165,9 @@ GrammarRule GrammarInfoBuilder::ConstructGrammarRule(
 }
 
 Range GrammarInfoBuilder::ParseRange(absl::string_view s) {
-  return (s == "?")   ? Range::kOptional
-         : (s == "+") ? Range::kNonEmpty
-         : (s == "*" || s == "+?" || s == "*?")
+  return (s == "?")                ? Range::kOptional
+         : (s == "+" || s == "+?") ? Range::kNonEmpty
+         : (s == "*" || s == "*?")
              ? Range::kUnlimited
              : (FUZZTEST_INTERNAL_CHECK(false,
                                         absl::StrCat("Unhandled case: ", s)),
