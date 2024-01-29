@@ -897,6 +897,7 @@ cc_library(
         ":logging",
         ":rusage_profiler",
         ":shard_reader",
+        ":thread_pool",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log",

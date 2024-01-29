@@ -35,6 +35,7 @@
 #include "./centipede/logging.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/shard_reader.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 
@@ -42,6 +43,15 @@ namespace centipede {
 
 using CorpusElt = std::pair<ByteArray, FeatureVec>;
 using CorpusEltVec = std::vector<CorpusElt>;
+
+namespace {
+
+// The maximum number of threads reading input shards concurrently. This is
+// mainly to prevent I/O congestion.
+// TODO(ussuri): Bump up significantly when RSS-gated mutexing is in.
+inline constexpr size_t kMaxReadingThreads = 1;
+
+}  // namespace
 
 void DistillTask(const Environment &env,
                  const std::vector<size_t> &shard_indices) {
@@ -60,9 +70,6 @@ void DistillTask(const Environment &env,
   CHECK_OK(corpus_writer->Open(corpus_path, "w"));
   CHECK_OK(features_writer->Open(features_path, "w"));
 
-  FeatureSet feature_set(/*frequency_threshold=*/1,
-                         env.MakeDomainDiscardMask());
-
   const size_t num_shards = shard_indices.size();
   size_t num_read_shards = 0;
   size_t num_read_elements = 0;
@@ -70,31 +77,43 @@ void DistillTask(const Environment &env,
   const auto corpus_files = wd.CorpusFiles();
   const auto features_files = wd.FeaturesFiles();
 
+  std::vector<CorpusEltVec> elts_per_shard(num_shards);
+  FeatureSet feature_set(/*frequency_threshold=*/1,
+                         env.MakeDomainDiscardMask());
+
+  // Read the shards in parallel.
+  {
+    ThreadPool threads{std::min<int>(kMaxReadingThreads, num_shards)};
+
+    for (size_t shard_idx : shard_indices) {
+      CHECK_LT(shard_idx, num_shards);
+      threads.Schedule([corpus_path = corpus_files.ShardPath(shard_idx),
+                        features_path = features_files.ShardPath(shard_idx),
+                        &shard_elts = elts_per_shard[shard_idx], shard_idx,
+                        &log_line] {
+        VLOG(2) << log_line << "reading shard " << shard_idx << " from:\n"
+                << VV(corpus_path) << "\n"
+                << VV(features_path);
+        // Read elements from the current shard.
+        ReadShard(corpus_path, features_path,
+                  [&shard_elts](const ByteArray &input, FeatureVec &features) {
+                    shard_elts.emplace_back(input, std::move(features));
+                  });
+        // Reverse the order of inputs read from the current shard.
+        // The intuition is as follows:
+        // * If the shard is the result of fuzzing with Centipede, the inputs
+        // that are closer to the end are more interesting, so we start there.
+        // * If the shard resulted from somethening else, the reverse order is
+        // not any better or worse than any other order.
+        std::reverse(shard_elts.begin(), shard_elts.end());
+      });
+    }
+  }  // The reading threads join here.
+
   for (size_t shard_idx : shard_indices) {
-    const std::string corpus_path = corpus_files.ShardPath(shard_idx);
-    const std::string features_path = features_files.ShardPath(shard_idx);
-
-    VLOG(2) << log_line << "reading input shard " << shard_idx << ":\n"
-            << VV(corpus_path) << "\n"
-            << VV(features_path);
-
-    // Read elements from the current shard.
-    CorpusEltVec shard_elts;
-    ReadShard(corpus_path, features_path,
-              [&shard_elts](const ByteArray &input, FeatureVec &features) {
-                shard_elts.emplace_back(input, std::move(features));
-              });
-    // Reverse the order of inputs read from the current shard.
-    // The intuition is as follows:
-    // * If the shard is the result of fuzzing with Centipede, the inputs that
-    //   are closer to the end are more interesting, so we start there.
-    // * If the shard resulted from somethening else, the reverse order is not
-    //  any better or worse than any other order.
-    std::reverse(shard_elts.begin(), shard_elts.end());
-    ++num_read_shards;
-
     // Iterate the elts, add those that have new features.
     // This is a simple linear greedy set cover algorithm.
+    auto &shard_elts = elts_per_shard[shard_idx];
     VLOG(1) << log_line << "appending elements from input shard " << shard_idx
             << " to output shard";
     for (auto &[input, features] : shard_elts) {
@@ -105,9 +124,13 @@ void DistillTask(const Environment &env,
       // Append to the distilled corpus and features files.
       CHECK_OK(corpus_writer->Write(input));
       CHECK_OK(features_writer->Write(PackFeaturesAndHash(input, features)));
+      input.clear();
+      features.clear();
       ++num_distilled_elements;
       VLOG_EVERY_N(10, 1000) << VV(num_distilled_elements);
     }
+    shard_elts.clear();
+    ++num_read_shards;
     LOG(INFO) << log_line << feature_set << " src_shards: " << num_read_shards
               << "/" << num_shards << " src_elts: " << num_read_elements
               << " dist_elts: " << num_distilled_elements;
