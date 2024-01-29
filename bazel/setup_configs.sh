@@ -53,11 +53,16 @@ build:fuzztest --copt=-DADDRESS_SANITIZER
 
 REPO_NAME="${1}"
 # When used in the fuzztest repo itself.
-if [ ${REPO_NAME} == "@" ]; then
+if [[ ${REPO_NAME} == "@" ]]; then
   FUZZTEST_FILTER="//fuzztest:"
   CENTIPEDE_FILTER="//centipede:"
-# When used in client repo.
-elif [ ${REPO_NAME} == "@com_google_fuzztest" ]; then
+# When used in client repo. This matches both `WORKSPACE` usage and
+# `MODULE.bazel` usage which will prepend information to the repo name to form
+# a canonical repo name.
+#
+# TODO: This will need to be adjusted when making `fuzztest` a native Bazel
+# module.
+elif [[ ${REPO_NAME} =~ ^@.*com_google_fuzztest$ ]]; then
   FUZZTEST_FILTER="fuzztest/.*"
   CENTIPEDE_FILTER="centipede/.*"
 else
