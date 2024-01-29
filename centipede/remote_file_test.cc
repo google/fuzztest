@@ -14,6 +14,7 @@
 
 #include "./centipede/remote_file.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <string>
@@ -22,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "./centipede/test_util.h"
 
 namespace centipede {
@@ -30,12 +32,30 @@ namespace {
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-bool CreateFile(std::string_view path) {
+bool CreateFile(std::string_view path, std::string_view contents = "") {
   std::ofstream f((std::string(path)));
   if (!f) {
     return false;
   }
+  f << contents;
   return true;
+}
+
+TEST(RemoteFile, GetSize) {
+  const std::filesystem::path temp_dir{GetTestTempDir(test_info_->name())};
+  const std::string file_path = temp_dir / "file_01";
+  {
+    const std::string file_contents1 = "abcd1234";
+    CHECK(CreateFile(file_path, file_contents1));
+    const int64_t size = RemoteFileGetSize(file_path);
+    EXPECT_EQ(size, file_contents1.size());
+  }
+  {
+    const std::string file_contents2 = "efg567";
+    RemoteFileSetContents(file_path, file_contents2);
+    const int64_t size = RemoteFileGetSize(file_path);
+    EXPECT_EQ(size, file_contents2.size());
+  }
 }
 
 TEST(RemoteListFilesRecursively, ListsFilesInRecursiveDirectories) {

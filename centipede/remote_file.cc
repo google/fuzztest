@@ -19,6 +19,7 @@
 
 #include <glob.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -136,6 +137,15 @@ void RemoteFileGetContents(const std::filesystem::path &path,
 
 ABSL_ATTRIBUTE_WEAK bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
+}
+
+ABSL_ATTRIBUTE_WEAK int64_t RemoteFileGetSize(std::string_view path) {
+  FILE *f = std::fopen(path.data(), "r");
+  CHECK(f != nullptr) << VV(path);
+  std::fseek(f, 0, SEEK_END);
+  const auto sz = std::ftell(f);
+  std::fclose(f);
+  return sz;
 }
 
 namespace {

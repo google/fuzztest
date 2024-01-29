@@ -22,6 +22,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 #define THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
@@ -74,6 +75,9 @@ void RemoteFileGetContents(const std::filesystem::path &path,
 
 // Returns true if `path` exists.
 bool RemotePathExists(std::string_view path);
+
+// Returns the size of the file at `path` in bytes. The file must exist.
+int64_t RemoteFileGetSize(std::string_view path);
 
 // Finds all files matching `glob` and appends them to `matches`.
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
