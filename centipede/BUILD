@@ -352,6 +352,22 @@ cc_library(
 )
 
 cc_library(
+    name = "resource_pool",
+    srcs = ["resource_pool.cc"],
+    hdrs = ["resource_pool.h"],
+    deps = [
+        ":rusage_stats",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "stats",
     srcs = ["stats.cc"],
     hdrs = ["stats.h"],
@@ -1744,6 +1760,21 @@ cc_test(
         ":test_util",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "resource_pool_test",
+    srcs = ["resource_pool_test.cc"],
+    deps = [
+        ":logging",
+        ":resource_pool",
+        ":rusage_stats",
+        ":thread_pool",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
