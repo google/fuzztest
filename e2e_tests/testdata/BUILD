@@ -38,6 +38,18 @@ cc_binary(
     ],
 )
 
+# This binary contains "puzzles" with proto inputs for benchmarking purposes.
+cc_binary(
+    name = "fuzz_tests_with_proto_inputs",
+    testonly = 1,
+    srcs = ["fuzz_tests_with_proto_inputs.cc"],
+    deps = [
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
+    ],
+)
+
 filegroup(
     name = "data",
     srcs = glob(["*/**"]),
