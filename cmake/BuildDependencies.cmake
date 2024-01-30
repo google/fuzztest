@@ -21,6 +21,11 @@ set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
 set(nlohmann_json_TAG v3.11.2)
 
+if(POLICY CMP0135)
+	cmake_policy(SET CMP0135 NEW)
+	set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
+endif()
+
 if (FUZZTEST_BUILD_TESTING)
   FetchContent_Declare(
     nlohmann_json
