@@ -14,7 +14,6 @@
 
 #include "./centipede/remote_file.h"
 
-#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <string>
@@ -24,74 +23,71 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "./centipede/logging.h"
 #include "./centipede/test_util.h"
 
 namespace centipede {
 namespace {
 
+namespace fs = std::filesystem;
+
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-bool CreateFile(std::string_view path, std::string_view contents = "") {
-  std::ofstream f((std::string(path)));
-  if (!f) {
-    return false;
-  }
+void CreateFileOrDie(std::string_view path, std::string_view contents = "") {
+  std::ofstream f{std::string(path)};
+  CHECK(f.good()) << VV(path);
   f << contents;
-  return true;
+  CHECK(f.good()) << VV(path);
 }
 
 TEST(RemoteFile, GetSize) {
-  const std::filesystem::path temp_dir{GetTestTempDir(test_info_->name())};
+  const fs::path temp_dir{GetTestTempDir(test_info_->name())};
   const std::string file_path = temp_dir / "file_01";
   {
     const std::string file_contents1 = "abcd1234";
-    CHECK(CreateFile(file_path, file_contents1));
-    const int64_t size = RemoteFileGetSize(file_path);
-    EXPECT_EQ(size, file_contents1.size());
+    CreateFileOrDie(file_path, file_contents1);
+    EXPECT_EQ(RemoteFileGetSize(file_path), file_contents1.size());
   }
   {
     const std::string file_contents2 = "efg567";
     RemoteFileSetContents(file_path, file_contents2);
-    const int64_t size = RemoteFileGetSize(file_path);
-    EXPECT_EQ(size, file_contents2.size());
+    EXPECT_EQ(RemoteFileGetSize(file_path), file_contents2.size());
   }
 }
 
 TEST(RemoteListFilesRecursively, ListsFilesInRecursiveDirectories) {
-  auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
+  const fs::path temp_dir = GetTestTempDir(test_info_->name());
 
-  auto file1_path = temp_dir / "file_01";
-  ASSERT_TRUE(CreateFile(file1_path.string()));
-  auto file2_path = temp_dir / "file_02";
-  ASSERT_TRUE(CreateFile(file2_path.string()));
+  const std::string file1_path = temp_dir / "file_01";
+  CreateFileOrDie(file1_path);
+  const std::string file2_path = temp_dir / "file_02";
+  CreateFileOrDie(file2_path);
 
-  auto dir1_path = temp_dir / "dir_01";
-  std::filesystem::create_directories(dir1_path);
-  auto file3_path = dir1_path / "file_03";
-  ASSERT_TRUE(CreateFile(file3_path.string()));
+  const fs::path dir1_path = temp_dir / "dir_01";
+  fs::create_directories(dir1_path);
+  const std::string file3_path = dir1_path / "file_03";
+  CreateFileOrDie(file3_path);
 
   const std::vector<std::string> files =
       RemoteListFilesRecursively(temp_dir.string());
-  EXPECT_THAT(files,
-              UnorderedElementsAre(file1_path.string(), file2_path.string(),
-                                   file3_path.string()));
+  EXPECT_THAT(files, UnorderedElementsAre(file1_path, file2_path, file3_path));
 }
 
 TEST(RemoteListFilesRecursively, ReturnsAnEmptyResultWhenNoFilesAreFound) {
-  auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
+  const fs::path temp_dir = GetTestTempDir(test_info_->name());
   EXPECT_THAT(RemoteListFilesRecursively(temp_dir.string()), IsEmpty());
 }
 
 TEST(RemoteFilesListRecursively, ReturnsASingleFileWhenListingAFile) {
-  auto temp_dir = std::filesystem::path(GetTestTempDir(test_info_->name()));
+  const fs::path temp_dir = GetTestTempDir(test_info_->name());
 
-  auto file1_path = temp_dir / "file_01";
-  ASSERT_TRUE(CreateFile(file1_path.string()));
+  const std::string file1_path = temp_dir / "file_01";
+  CreateFileOrDie(file1_path);
 
   const std::vector<std::string> files =
       RemoteListFilesRecursively(temp_dir.string());
-  EXPECT_THAT(files, UnorderedElementsAre(file1_path.string()));
+  EXPECT_THAT(files, UnorderedElementsAre(file1_path));
 }
 
 TEST(RemoteFilesListRecursively, ReturnsAnEmptyVectorWhenPathDoesNotExist) {
