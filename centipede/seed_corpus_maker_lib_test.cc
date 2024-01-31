@@ -103,7 +103,7 @@ void VerifyDumpedConfig(           //
 }
 
 TEST(SeedCorpusMakerLibTest, ResolveConfig) {
-  const std::string test_dir = fs::canonical(GetTestTempDir());
+  const std::string test_dir = GetTestTempDir(test_info_->name());
 
   // `ResolveSeedCorpusConfig()` should use the CWD to resolve relative paths.
   chdir(test_dir.c_str());
@@ -152,7 +152,7 @@ TEST(SeedCorpusMakerLibTest, ResolveConfig) {
 }
 
 TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
-  const fs::path test_dir = fs::canonical(GetTestTempDir());
+  const fs::path test_dir = GetTestTempDir(test_info_->name());
   // `ResolveSeedCorpusConfig()` should use the CWD to resolve relative paths.
   chdir(test_dir.c_str());
 

@@ -48,9 +48,9 @@ TEST(GetCoverage, SimpleCoverageResults) {
   // Get pc_table and symbols.
   bool uses_legacy_trace_pc_instrumentation = {};
   BinaryInfo binary_info;
-  binary_info.InitializeFromSanCovBinary(GetTargetPath(), GetObjDumpPath(),
-                                         GetLLVMSymbolizerPath(),
-                                         GetTestTempDir());
+  binary_info.InitializeFromSanCovBinary(
+      GetTargetPath(), GetObjDumpPath(), GetLLVMSymbolizerPath(),
+      GetTestTempDir(test_info_->name()).string());
   const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
   const SymbolTable &symbols = binary_info.symbols;

@@ -27,7 +27,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
@@ -173,12 +172,6 @@ TEST(ControlFlowGraph, LazyReachability) {
   t3.join();
 }
 
-// Returns a path for i-th temporary file.
-static std::string GetTempFilePath(size_t i) {
-  return std::filesystem::path(GetTestTempDir())
-      .append(absl::StrCat("coverage_test", i, "-", getpid()));
-}
-
 // Returns path to test_fuzz_target.
 static std::string GetTargetPath() {
   return GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
@@ -193,13 +186,14 @@ static std::string GetTracePCTargetPath() {
 // Tests GetCfTableFromBinary() on test_fuzz_target.
 TEST(CFTable, GetCfTable) {
   auto target_path = GetTargetPath();
-  std::string tmp_path1 = GetTempFilePath(1);
-  std::string tmp_path2 = GetTempFilePath(2);
+  std::string tmp_path1 = GetTempFilePath(test_info_->name(), 1);
+  std::string tmp_path2 = GetTempFilePath(test_info_->name(), 2);
 
   // Load the cf table.
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(
-      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(), GetTestTempDir());
+      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(),
+      GetTestTempDir(test_info_->name()).string());
   const auto &cf_table = binary_info.cf_table;
   LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
   if (cf_table.empty()) {
@@ -273,10 +267,11 @@ TEST(CFTable, GetCfTable) {
   }
 }
 
-static void SymbolizeBinary(std::string_view target_path, bool use_trace_pc) {
+static void SymbolizeBinary(std::string_view test_dir,
+                            std::string_view target_path, bool use_trace_pc) {
   BinaryInfo binary_info;
-  binary_info.InitializeFromSanCovBinary(
-      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(), GetTestTempDir());
+  binary_info.InitializeFromSanCovBinary(target_path, GetObjDumpPath(),
+                                         GetLLVMSymbolizerPath(), test_dir);
   // Load the pc table.
   const auto &pc_table = binary_info.pc_table;
   // Check that it's not empty.
@@ -319,14 +314,16 @@ static void SymbolizeBinary(std::string_view target_path, bool use_trace_pc) {
 
 // Tests GetPcTableFromBinary() and SymbolTable on test_fuzz_target.
 TEST(PCTable, GetPcTableFromBinary_And_SymbolTable_PCTable) {
-  EXPECT_NO_FATAL_FAILURE(
-      SymbolizeBinary(GetTargetPath(), /*use_trace_pc=*/false));
+  EXPECT_NO_FATAL_FAILURE(SymbolizeBinary(
+      GetTestTempDir(test_info_->name()).string(), GetTargetPath(),
+      /*use_trace_pc=*/false));
 }
 
 // Tests GetPcTableFromBinary() and SymbolTable on test_fuzz_target_trace_pc.
 TEST(PCTable, GetPcTableFromBinary_And_SymbolTable_TracePC) {
-  EXPECT_NO_FATAL_FAILURE(
-      SymbolizeBinary(GetTracePCTargetPath(), /*use_trace_pc=*/true));
+  EXPECT_NO_FATAL_FAILURE(SymbolizeBinary(
+      GetTestTempDir(test_info_->name()).string(), GetTracePCTargetPath(),
+      /*use_trace_pc=*/true));
 }
 
 }  // namespace

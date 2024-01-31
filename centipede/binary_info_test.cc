@@ -27,7 +27,9 @@ namespace centipede {
 namespace {
 
 TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
-  PCTable input_pcs = {{.pc = 0, .flags = 1}, {.pc = 2, .flags = 3}};
+  const std::string temp_dir = GetTestTempDir(test_info_->name());
+
+  const PCTable input_pcs = {{.pc = 0, .flags = 1}, {.pc = 2, .flags = 3}};
   std::string input_symbols =
       R"(FunctionOne
     source/location/one.cc:1:0
@@ -39,10 +41,10 @@ TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
   std::istringstream input_stream(input_symbols);
   SymbolTable symbol_table;
   symbol_table.ReadFromLLVMSymbolizer(input_stream);
-  BinaryInfo input = {.pc_table = input_pcs,
-                      .symbols = std::move(symbol_table)};
-
-  auto temp_dir = GetTestTempDir(test_info_->name());
+  BinaryInfo input = {
+      .pc_table = input_pcs,
+      .symbols = std::move(symbol_table),
+  };
   input.Write(temp_dir);
   BinaryInfo output;
   output.Read(temp_dir);

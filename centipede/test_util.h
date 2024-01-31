@@ -15,14 +15,17 @@
 #ifndef THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
 #define THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
 
+#include <cstddef>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
-#include "absl/strings/str_cat.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
-#include "./centipede/util.h"
 
 #include "./centipede/logging.h"
 
@@ -42,7 +45,10 @@ namespace centipede {
 // `test_into_->name()`, which returns the name of the test case.
 //
 // If the final dir doesn't exist, it gets created.
-std::string GetTestTempDir(std::string_view subdir = "");
+std::filesystem::path GetTestTempDir(std::string_view subdir);
+
+// Returns a path for i-th temporary file.
+std::string GetTempFilePath(std::string_view subdir, size_t i);
 
 // Returns the root directory filepath for a test's "runfiles".
 std::filesystem::path GetTestRunfilesDir();
@@ -63,7 +69,7 @@ void PrependDirToPathEnvvar(std::string_view dir);
 class TempDir {
  public:
   explicit TempDir(std::string_view leaf1, std::string_view leaf2 = "")
-      : path_{std::filesystem::path(GetTestTempDir()) / leaf1 / leaf2} {
+      : path_{GetTestTempDir(leaf1) / leaf2} {
     std::filesystem::remove_all(path_);
     std::filesystem::create_directories(path_);
   }

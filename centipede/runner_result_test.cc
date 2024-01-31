@@ -95,8 +95,7 @@ TEST(ExecutionResult, WriteThenRead) {
 }
 
 TEST(ExecutionResult, WriteIntoFileThenRead) {
-  const std::string temp_file =
-      std::filesystem::path(GetTestTempDir()).append(test_info_->name());
+  const std::string temp_file = GetTestTempDir(test_info_->name()) / "tmp.txt";
   std::ofstream output_stream(temp_file, std::ios::out);
   ASSERT_TRUE(output_stream.is_open());
 
