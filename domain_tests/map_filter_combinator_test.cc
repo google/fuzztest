@@ -313,6 +313,18 @@ TEST(FlatMap, FlatMapperWorksWithMoveOnlyTypes) {
   EXPECT_THAT(MutateUntilFoundN(domain, /*n=*/2), UnorderedElementsAre(0, 1));
 }
 
+TEST(FlatMap, ParseCorpusRejectsInvalidInputValues) {
+  absl::BitGen bitgen;
+
+  auto domain_a = FlatMap([](int a) { return Just(a); }, InRange(0, 9));
+  auto domain_b = FlatMap([](int a) { return Just(a); }, InRange(10, 19));
+
+  Value value(domain_a, bitgen);
+  auto serialized = domain_a.SerializeCorpus(value.corpus_value);
+
+  EXPECT_EQ(domain_b.ParseCorpus(serialized), std::nullopt);
+}
+
 TEST(Filter, CanFilterInitCalls) {
   Domain<int> domain = Filter([](int i) { return i % 2 == 0; }, InRange(1, 10));
   absl::BitGen bitgen;
