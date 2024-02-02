@@ -22,9 +22,9 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "com_google_absl",
-    sha256 = "0ddd37f347c58d89f449dd189a645bfd97bcd85c5284404a3af27a3ca3476f39",
-    strip_prefix = "abseil-cpp-fad946221cec37175e762c399760f54b9de9a9fa",
-    url = "https://github.com/abseil/abseil-cpp/archive/fad946221cec37175e762c399760f54b9de9a9fa.tar.gz",
+    sha256 = "338420448b140f0dfd1a1ea3c3ce71b3bc172071f24f4d9a57d59b45037da440",
+    strip_prefix = "abseil-cpp-20240116.0",
+    url = "https://github.com/abseil/abseil-cpp/releases/download/20240116.0/abseil-cpp-20240116.0.tar.gz"
 )
 
 ################################################################################
@@ -34,22 +34,20 @@ http_archive(
 # Required by com_google_absl.
 http_archive(
     name = "bazel_skylib",
-    sha256 = "66ffd9315665bfaafc96b52278f57c7e2dd09f5ede279ea6d39b2be471e7e3aa",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
-    ],
+    sha256 = "cd55a062e763b9349921f0f5db8c3933288dc8ba4f76dd9416aac68acee3cb94",
+    urls = ["https://github.com/bazelbuild/bazel-skylib/releases/download/1.5.0/bazel-skylib-1.5.0.tar.gz"],
 )
 
 ################################################################################
 # Direct dependencies required for full FuzzTest (//fuzztest:fuzztest)
 ################################################################################
 
+
 http_archive(
     name = "com_googlesource_code_re2",
-    sha256 = "5bb6875ae1cd1e9fedde98018c346db7260655f86fdb8837e3075103acd3649b",
-    strip_prefix = "re2-2023-09-01",
-    url = "https://github.com/google/re2/archive/refs/tags/2023-09-01.tar.gz",
+    sha256 = "cd191a311b84fcf37310e5cd876845b4bf5aee76fdd755008eef3b6478ce07bb",
+    strip_prefix = "re2-2024-02-01",
+    url = "https://github.com/google/re2/releases/download/2024-02-01/re2-2024-02-01.tar.gz",
 )
 
 http_archive(
@@ -107,9 +105,9 @@ http_archive(
 
 http_archive(
     name = "com_google_googletest",
-    sha256 = "2ebedb9330ff0e7e07abd77df9bd8c62692016a8138a4722f5259e7f657c89c1",
-    strip_prefix = "googletest-b3a9ba2b8e975550799838332803d468797ae2e1",
-    url = "https://github.com/google/googletest/archive/b3a9ba2b8e975550799838332803d468797ae2e1.tar.gz",
+    sha256 = "c12edde991f8346613d81ae34a78c4ddf36fc4275de12b0b0dd7eb5fa333c1a4",
+    strip_prefix = "googletest-456574145cf71a5375777cab58453acfd92a920b",
+    url = "https://github.com/google/googletest/archive/456574145cf71a5375777cab58453acfd92a920b.zip",
 )
 
 http_archive(

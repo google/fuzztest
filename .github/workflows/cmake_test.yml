@@ -59,7 +59,6 @@ jobs:
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" \
-            -D GTEST_HAS_ABSL=1 \
           && cmake --build build_codelab -j $(nproc)
       - name: Run all tests in default mode
         if: matrix.mode == 'default'
@@ -71,10 +70,7 @@ jobs:
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D RE2_BUILD_TESTING=off \
-            -D protobuf_BUILD_TESTS=off \
             -D FUZZTEST_BUILD_TESTING=on \
-            -D GTEST_HAS_ABSL=1 \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
@@ -87,11 +83,8 @@ jobs:
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D RE2_BUILD_TESTING=off \
-            -D protobuf_BUILD_TESTS=off \
             -D FUZZTEST_FUZZING_MODE=on \
             -D FUZZTEST_BUILD_TESTING=on \
-            -D GTEST_HAS_ABSL=1 \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main
