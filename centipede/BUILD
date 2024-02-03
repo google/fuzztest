@@ -144,6 +144,7 @@ cc_library(
         ":control_flow",
         ":logging",
         ":pc_info",
+        ":thread_pool",
         ":util",
         "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/log",

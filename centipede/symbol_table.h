@@ -83,15 +83,13 @@ class SymbolTable {
   // Possibly uses files `tmp_path1` and `tmp_path2` for temporary storage.
   void GetSymbolsFromBinary(const PCTable &pc_table, const DsoTable &dso_table,
                             std::string_view symbolizer_path,
-                            std::string_view tmp_path1,
-                            std::string_view tmp_path2);
+                            std::string_view tmp_dir_path);
 
   // Helper for GetSymbolsFromBinary: symbolizes `pc_infos` for `dso_path`.
   void GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                             std::string_view dso_path,
                             std::string_view symbolizer_path,
-                            std::string_view tmp_path1,
-                            std::string_view tmp_path2);
+                            std::string_view tmp_dir_path);
 
   // Sets the table to `size` symbols all of which are unknown.
   void SetAllToUnknown(size_t size);
@@ -116,6 +114,9 @@ class SymbolTable {
 
   // Add function name and file location to symbol table.
   void AddEntry(std::string_view func, std::string_view file_line_col);
+
+  // Add all the entries from the other symbol table into this one.
+  void AddEntries(const SymbolTable &other);
 
  private:
   void AddEntryInternal(std::string_view func, std::string_view file,

@@ -422,8 +422,7 @@ TEST(Coverage, FunctionFilter) {
   const DsoTable dso_table = {{GetTargetPath(), pc_table.size()}};
   SymbolTable symbols;
   symbols.GetSymbolsFromBinary(pc_table, dso_table, GetLLVMSymbolizerPath(),
-                               GetTempFilePath(test_info_->name(), 0),
-                               GetTempFilePath(test_info_->name(), 1));
+                               GetTestTempDir(test_info_->name()).string());
   // Empty filter.
   FunctionFilter empty_filter("", symbols);
   EXPECT_EQ(empty_filter.count(), 0);

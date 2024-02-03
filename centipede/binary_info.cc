@@ -116,7 +116,7 @@ void BinaryInfo::InitializeFromSanCovBinary(
     ScopedFile sym_tmp1_path(tmp_dir_path, "symbols_tmp1");
     ScopedFile sym_tmp2_path(tmp_dir_path, "symbols_tmp2");
     symbols.GetSymbolsFromBinary(pc_table, dso_table, symbolizer_path,
-                                 sym_tmp1_path.path(), sym_tmp2_path.path());
+                                 tmp_dir_path);
   }
 }
 
