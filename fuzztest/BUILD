@@ -295,6 +295,7 @@ cc_library(
         "internal/domains/container_mutation_helpers.h",
         "internal/domains/container_of_impl.h",
         "internal/domains/domain_base.h",
+        "internal/domains/domain_concept.h",
         "internal/domains/element_of_impl.h",
         "internal/domains/filter_impl.h",
         "internal/domains/flat_map_impl.h",
