@@ -1,0 +1,4 @@
+FUZZTESTv1
+sub {
+  s: "non-crashing input in crashing dir!"
+}

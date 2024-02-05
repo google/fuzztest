@@ -40,6 +40,12 @@ class GTest_TestAdaptor : public ::testing::Test {
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       if (configuration_.crashing_input_to_reproduce.has_value()) {
 #ifdef GTEST_HAS_DEATH_TEST
+        configuration_.preprocess_crash_reproducing = [] {
+          // EXPECT_EXIT disables event forwarding in gtest and as a result,
+          // EXPECT/ASSERT-s are disabled. Here, we overwrite this option.
+          testing::UnitTest::GetInstance()->listeners().SuppressEventForwarding(
+              false);
+        };
         // `RunInUnitTestMode` is supposed to fail and we wish to show the
         // failure to the user. Directly running the test would terminate the
         // process and using `EXPECT_DEATH` causes the test to pass. We use
