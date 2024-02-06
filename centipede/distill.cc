@@ -40,7 +40,10 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
+#include "./centipede/remote_file.h"
+#include "./centipede/resource_pool.h"
 #include "./centipede/rusage_profiler.h"
+#include "./centipede/rusage_stats.h"
 #include "./centipede/shard_reader.h"
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
@@ -70,10 +73,11 @@ struct CorpusElt {
 
 using CorpusEltVec = std::vector<CorpusElt>;
 
+inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
+
 // The maximum number of threads reading input shards concurrently. This is
 // mainly to prevent I/O congestion.
-// TODO(ussuri): Bump up significantly when RSS-gated mutexing is in.
-inline constexpr size_t kMaxReadingThreads = 1;
+inline constexpr size_t kMaxReadingThreads = 100;
 
 std::string LogPrefix(const Environment &env) {
   return absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
@@ -87,6 +91,22 @@ class InputCorpusShardReader {
  public:
   InputCorpusShardReader(const Environment &env)
       : workdir_{env}, log_prefix_{LogPrefix(env)} {}
+
+  perf::MemSize EstimateRamFootprint(size_t shard_idx) const {
+    const auto corpus_path = workdir_.CorpusFiles().ShardPath(shard_idx);
+    const auto features_path = workdir_.FeaturesFiles().ShardPath(shard_idx);
+    const perf::MemSize corpus_file_size = RemoteFileGetSize(corpus_path);
+    const perf::MemSize features_file_size = RemoteFileGetSize(features_path);
+    // Conservative compression factors for the two file types. These have been
+    // observed empirically for the Riegeli blob format. The legacy format is
+    // approximately 1:1, but use the stricter Riegeli numbers, as the legacy
+    // should be considered obsolete.
+    // TODO(b/322880269): Use the actual in-memory footprint once available.
+    constexpr double kMaxCorpusCompressionRatio = 5.0;
+    constexpr double kMaxFeaturesCompressionRatio = 10.0;
+    return corpus_file_size * kMaxCorpusCompressionRatio +
+           features_file_size * kMaxFeaturesCompressionRatio;
+  }
 
   // Reads and returns a single shard's elements. Thread-safe.
   CorpusEltVec ReadShard(size_t shard_idx) {
@@ -233,7 +253,9 @@ class DistilledCorpusShardWriter : public CorpusShardWriter {
 }  // namespace
 
 void DistillTask(const Environment &env,
-                 const std::vector<size_t> &shard_indices) {
+                 const std::vector<size_t> &shard_indices,
+                 perf::ResourcePool<perf::RUsageMemory> &ram_pool,
+                 int parallelism) {
   // Read and write the shards in parallel, but gate reading of each on the
   // availability of free RAM to keep the peak RAM usage under control.
   const size_t num_shards = shard_indices.size();
@@ -242,9 +264,17 @@ void DistillTask(const Environment &env,
   DistilledCorpusShardWriter writer{env, /*append=*/false};
 
   {
-    ThreadPool threads{kMaxReadingThreads};
+    ThreadPool threads{parallelism};
     for (size_t shard_idx : shard_indices) {
-      threads.Schedule([shard_idx, &reader, &writer, &env, num_shards] {
+      threads.Schedule([shard_idx, &reader, &writer, &env, num_shards,
+                        &ram_pool] {
+        const auto ram_lease = ram_pool.AcquireLeaseBlocking({
+            .id = absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
+            .amount = {.mem_rss = reader.EstimateRamFootprint(shard_idx)},
+            .timeout = absl::Minutes(30),
+        });
+        CHECK_OK(ram_lease.status());
+
         CorpusEltVec shard_elts = reader.ReadShard(shard_idx);
         // Reverse the order of elements. The intuition is as follows:
         // * If the shard is the result of fuzzing with Centipede, the inputs
@@ -270,6 +300,10 @@ int Distill(const Environment &env) {
       /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/VLOG_IS_ON(10));
 
+  // The RAM pool shared between all the threads, here and in `DistillTask`.
+  constexpr perf::RUsageMemory kRamQuota{.mem_rss = 25 * kGB};
+  perf::ResourcePool ram_pool{kRamQuota};
+
   // Run `env.num_threads` independent distillation threads.
   std::vector<std::thread> threads(env.num_threads);
   std::vector<Environment> envs(env.num_threads, env);
@@ -285,7 +319,8 @@ int Distill(const Environment &env) {
     std::shuffle(shard_indices.begin(), shard_indices.end(), rng);
     // Run the thread.
     threads[thread_idx] =
-        std::thread(DistillTask, std::ref(envs[thread_idx]), shard_indices);
+        std::thread(DistillTask, std::ref(envs[thread_idx]), shard_indices,
+                    std::ref(ram_pool), kMaxReadingThreads);
   }
   // Join threads.
   for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {

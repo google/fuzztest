@@ -19,6 +19,8 @@
 #include <vector>
 
 #include "./centipede/environment.h"
+#include "./centipede/resource_pool.h"
+#include "./centipede/rusage_stats.h"
 
 namespace centipede {
 
@@ -26,8 +28,13 @@ namespace centipede {
 // by `shard_indices`, distills inputs from them and writes the result to
 // `WorkDir{env}.DistilledPath()`. Every task gets its own `env.my_shard_index`,
 // and so every task creates its own independent distilled corpus file.
+// `parallelism` is the maximum number of concurrent reading/writing threads.
+// Values > 1 can cause non-determinism in which of the same-coverage inputs
+// get selected to be written to the output shard; set to 1 for tests.
 void DistillTask(const Environment &env,
-                 const std::vector<size_t> &shard_indices);
+                 const std::vector<size_t> &shard_indices,
+                 perf::ResourcePool<perf::RUsageMemory> &ram_pool,
+                 int parallelism = 100);
 
 // Runs `env.num_threads` independent distill tasks in separate threads.
 // Returns EXIT_SUCCESS.
