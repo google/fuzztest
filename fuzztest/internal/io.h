@@ -23,31 +23,15 @@
 
 namespace fuzztest::internal {
 
-// Writes `contents` to the file at `path`.  Returns true on success, false
-// otherwise.
-bool WriteFile(absl::string_view path, absl::string_view contents);
-
-// Returns the contents of the file at `path` or std::nullopt on failure.
-std::optional<std::string> ReadFile(absl::string_view path);
-
-// Returns true if `path` is a directory, false otherwise.
-bool IsDirectory(absl::string_view path);
-
-// Creates directory at `path`, *recursively* creating parent directories if
-// necessary. Returns true on success, false otherwise.
-bool CreateDirectory(absl::string_view path);
-
-// Returns a list of top-level paths under `path`. If `path` is not a directory,
-// returns an empty list.
-std::vector<std::string> ListDirectory(absl::string_view path);
-
-// Returns all paths under `path` *recursively*. If `path` is not a directory,
-// returns an empty list.
-std::vector<std::string> ListDirectoryRecursively(absl::string_view path);
+bool WriteFile(absl::string_view filename, absl::string_view contents);
 
 // Write `data` to its hash-based filename in `dir`. Returns the `dir`-appended
 // path to the file.
 std::string WriteDataToDir(absl::string_view data, absl::string_view dir);
+
+// Reads `file` and returns its content. If `file` is not a regular file or
+// reading it fails, returns `std::nullopt`.
+std::optional<std::string> ReadFile(absl::string_view file);
 
 struct FilePathAndData {
   std::string path;
@@ -55,9 +39,13 @@ struct FilePathAndData {
 };
 
 // If `file_or_dir` is a directory, returns a list of its files' paths and
-// contents *recursively*. If `file_or_dir` is a file, returns a singleton list
-// with its path and content. In all other cases, returns an empty list.
+// contents. If `file_or_dir` is a file, returns a singleton list with its path
+// and content. In all other cases, returns an empty list.
 std::vector<FilePathAndData> ReadFileOrDirectory(absl::string_view file_or_dir);
+
+// Returns a list of top-level paths in `dir`. If `dir` is not a directory,
+// returns an empty list.
+std::vector<std::string> ListDirectory(absl::string_view dir);
 
 // Returns the basename of `filename`.
 absl::string_view Basename(absl::string_view filename);
