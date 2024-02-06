@@ -395,6 +395,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     return true;
   }
   if (configuration.crashing_input_to_reproduce.has_value()) {
+    configuration.preprocess_crash_reproducing();
     ReplayInput(*configuration.crashing_input_to_reproduce);
     return true;
   }
