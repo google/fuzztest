@@ -14,11 +14,6 @@
 
 #include "./fuzztest/internal/io.h"
 
-#include <cerrno>
-#include <cstdio>
-#include <cstring>
-#include <filesystem>
-#include <fstream>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -30,6 +25,7 @@
 #include "absl/hash/hash.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./centipede/remote_file.h"
 #include "./fuzztest/internal/logging.h"
 
 #if defined(__APPLE__)
@@ -39,54 +35,80 @@
      __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0)
 // std::filesystem requires macOS 10.15+ or iOS 13+.
 // Just stub out these functions.
-#define STUB_FILESYSTEM
+#define FUZZTEST_STUB_FILESYSTEM
 #endif
 #endif
 
 namespace fuzztest::internal {
 
-#if defined(STUB_FILESYSTEM)
+#if defined(FUZZTEST_STUB_FILESYSTEM)
 
-bool WriteFile(absl::string_view filename, absl::string_view contents) {
-  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+bool WriteFile(absl::string_view path, absl::string_view contents) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
-std::string WriteDataToDir(absl::string_view data, absl::string_view dir) {
-  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+std::optional<std::string> ReadFile(absl::string_view path) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
-std::vector<FilePathAndData> ReadFileOrDirectory(
-    absl::string_view file_or_dir) {
-  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+bool IsDirectory(absl::string_view path) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
-std::optional<std::string> ReadFile(absl::string_view file) {
-  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+bool CreateDirectory(absl::string_view path) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
-std::vector<std::string> ListDirectory(absl::string_view dir) {
-  FUZZTEST_INTERNAL_CHECK(false, "Can't replay in iOS/MacOS");
+std::vector<std::string> ListDirectory(absl::string_view path) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
-#else  // defined(__APPLE__)
+std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
+  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+}
 
-bool WriteFile(absl::string_view filename, absl::string_view contents) {
-  std::filesystem::path file_path{
-      std::string_view{filename.data(), filename.size()}};
+#else  // FUZZTEST_STUB_FILESYSTEM
 
+bool WriteFile(absl::string_view path, absl::string_view contents) {
   // Just in case the directory does not currently exist.
-  // If it does, this is a noop.
-  std::filesystem::create_directories(file_path.parent_path());
-
-  std::ofstream file(file_path);
-  file << contents;
-  file.close();
-  if (!file.good()) {
-    absl::FPrintF(GetStderr(), "%s:%d: Error writing %s: (%d) %s\n", __FILE__,
-                  __LINE__, filename, errno, strerror(errno));
+  if (!CreateDirectory(Dirname(path))) {
+    absl::FPrintF(GetStderr(), "[!] %s:%d: Couldn't create directory: %s\n",
+                  __FILE__, __LINE__, path);
+    return false;
   }
-  return !file.fail();
+  centipede::RemoteFileSetContents(path, std::string(contents));
+  return true;
 }
+
+std::optional<std::string> ReadFile(absl::string_view path) {
+  std::string contents;
+  if (!centipede::RemotePathExists(path)) {
+    absl::FPrintF(GetStderr(), "[!] %s:%d: File doesn't exist: %s\n", __FILE__,
+                  __LINE__, path);
+    return std::nullopt;
+  }
+  centipede::RemoteFileGetContents(path, contents);
+  return contents;
+}
+
+bool IsDirectory(absl::string_view path) {
+  return centipede::RemotePathIsDirectory(path);
+}
+
+bool CreateDirectory(absl::string_view path) {
+  centipede::RemoteMkdir(path);
+  return true;
+}
+
+std::vector<std::string> ListDirectory(absl::string_view path) {
+  return centipede::RemoteListDirectory(path);
+}
+
+std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
+  return centipede::RemoteListFilesRecursively(path);
+}
+
+#endif  // FUZZTEST_STUB_FILESYSTEM
 
 std::string WriteDataToDir(absl::string_view data, absl::string_view outdir) {
   std::string filename(outdir);
@@ -97,35 +119,21 @@ std::string WriteDataToDir(absl::string_view data, absl::string_view outdir) {
   return filename;
 }
 
-std::optional<std::string> ReadFile(absl::string_view file) {
-  std::filesystem::path file_path{std::string_view{file.data(), file.size()}};
-  if (!std::filesystem::is_regular_file(file_path)) return std::nullopt;
-  std::ifstream stream(file_path);
-  if (!stream.good()) {
-    absl::FPrintF(stderr, "%s:%d: Error reading %s: (%d) %s\n", __FILE__,
-                  __LINE__, file, errno, strerror(errno));
-    return std::nullopt;
-  }
-  std::stringstream buffer;
-  buffer << stream.rdbuf();
-  return buffer.str();
-}
-
 std::vector<FilePathAndData> ReadFileOrDirectory(
     absl::string_view file_or_dir) {
   std::vector<FilePathAndData> out;
+
   const auto try_append_file = [&](std::string path) {
-    std::optional<std::string> data = ReadFile(path);
-    if (data.has_value()) {
-      out.push_back(FilePathAndData{std::move(path), *std::move(data)});
+    std::optional<std::string> contents = ReadFile(path);
+    if (contents.has_value()) {
+      out.push_back(FilePathAndData{std::move(path), *std::move(contents)});
     }
   };
-  std::filesystem::path file_or_dir_path{
-      std::string_view{file_or_dir.data(), file_or_dir.size()}};
-  if (std::filesystem::is_directory(file_or_dir_path)) {
-    for (const auto& entry :
-         std::filesystem::recursive_directory_iterator(file_or_dir_path)) {
-      try_append_file(entry.path().string());
+  if (IsDirectory(file_or_dir)) {
+    for (const auto& path : ListDirectoryRecursively(file_or_dir)) {
+      if (!IsDirectory(path)) {
+        try_append_file(path);
+      }
     }
   } else {
     try_append_file(std::string(file_or_dir));
@@ -133,17 +141,13 @@ std::vector<FilePathAndData> ReadFileOrDirectory(
   return out;
 }
 
-std::vector<std::string> ListDirectory(absl::string_view dir) {
-  std::vector<std::string> out;
-  std::filesystem::path dir_path{std::string_view{dir.data(), dir.size()}};
-  if (!std::filesystem::is_directory(dir_path)) return out;
-  for (const auto& entry : std::filesystem::directory_iterator(dir_path)) {
-    out.push_back(entry.path().string());
-  }
-  return out;
-}
+absl::string_view Dirname(absl::string_view filename) {
+  auto last_slash_pos = filename.find_last_of("/\\");
 
-#endif  // defined(STUB_FILESYSTEM)
+  return last_slash_pos == absl::string_view::npos
+             ? filename
+             : filename.substr(0, last_slash_pos);
+}
 
 absl::string_view Basename(absl::string_view filename) {
   auto last_slash_pos = filename.find_last_of("/\\");

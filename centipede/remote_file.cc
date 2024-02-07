@@ -139,6 +139,10 @@ ABSL_ATTRIBUTE_WEAK bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
 }
 
+ABSL_ATTRIBUTE_WEAK bool RemotePathIsDirectory(std::string_view path) {
+  return std::filesystem::is_directory(path);
+}
+
 ABSL_ATTRIBUTE_WEAK int64_t RemoteFileGetSize(std::string_view path) {
   FILE *f = std::fopen(path.data(), "r");
   CHECK(f != nullptr) << VV(path);
@@ -169,6 +173,16 @@ ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
     matches.emplace_back(glob_ret.gl_pathv[i]);
   }
   ::globfree(&glob_ret);
+}
+
+ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListDirectory(
+    std::string_view path) {
+  if (!std::filesystem::is_directory(path)) return {};
+  std::vector<std::string> ret;
+  for (const auto &entry : std::filesystem::directory_iterator(path)) {
+    ret.push_back(entry.path());
+  }
+  return ret;
 }
 
 ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFilesRecursively(
