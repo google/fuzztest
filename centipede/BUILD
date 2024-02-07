@@ -616,6 +616,7 @@ cc_library(
         ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":defs",
         ":logging",

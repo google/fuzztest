@@ -76,11 +76,18 @@ void RemoteFileGetContents(const std::filesystem::path &path,
 // Returns true if `path` exists.
 bool RemotePathExists(std::string_view path);
 
+// Returns true if `path` is a directory.
+bool RemotePathIsDirectory(std::string_view path);
+
 // Returns the size of the file at `path` in bytes. The file must exist.
 int64_t RemoteFileGetSize(std::string_view path);
 
 // Finds all files matching `glob` and appends them to `matches`.
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
+
+// Returns a list of top-level paths under `path`. If `path` is not a directory,
+// or it's an empty directory, returns an empty list.
+std::vector<std::string> RemoteListDirectory(std::string_view path);
 
 // Recursively lists all files within `path`. Does not return any directories.
 // Returns an empty vector if `path` is an empty directory, or `path` does not
