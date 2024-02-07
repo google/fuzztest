@@ -72,8 +72,6 @@ struct CorpusElt {
 
 using CorpusEltVec = std::vector<CorpusElt>;
 
-inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
-
 // The maximum number of threads reading input shards concurrently. This is
 // mainly to prevent I/O congestion.
 inline constexpr size_t kMaxReadingThreads = 100;
@@ -85,6 +83,14 @@ inline constexpr size_t kMaxWritingThreads = 10;
 // process.
 inline constexpr size_t kMaxTotalThreads = 1000;
 static_assert(kMaxReadingThreads * kMaxWritingThreads <= kMaxTotalThreads);
+
+inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
+// The total approximate amount of RAM to be shared by the concurrent threads.
+// TODO(ussuri): Replace by a function of free RSS on the system.
+inline constexpr perf::RUsageMemory kRamQuota{.mem_rss = 25 * kGB};
+// The amount of time that each thread will wait for enough RAM to be freed up
+// by its concurrent siblings.
+inline constexpr absl::Duration kRamLeaseTimeout = absl::Hours(5);
 
 std::string LogPrefix(const Environment &env) {
   return absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
@@ -278,7 +284,7 @@ void DistillTask(const Environment &env,
         const auto ram_lease = ram_pool.AcquireLeaseBlocking({
             .id = absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
             .amount = {.mem_rss = reader.EstimateRamFootprint(shard_idx)},
-            .timeout = absl::Minutes(30),
+            .timeout = kRamLeaseTimeout,
         });
         CHECK_OK(ram_lease.status());
 
@@ -308,7 +314,6 @@ int Distill(const Environment &env) {
       /*also_log_timelapses=*/VLOG_IS_ON(10));
 
   // The RAM pool shared between all the threads, here and in `DistillTask`.
-  constexpr perf::RUsageMemory kRamQuota{.mem_rss = 25 * kGB};
   perf::ResourcePool ram_pool{kRamQuota};
 
   std::vector<Environment> envs_per_thread(env.num_threads, env);
