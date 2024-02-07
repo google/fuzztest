@@ -1,6 +1,8 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_CONFIGURATION_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_CONFIGURATION_H_
 
+#include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -53,6 +55,9 @@ struct Configuration {
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
+
+  // Preprocessing step for reproducing crashing input
+  std::function<void()> preprocess_crash_reproducing = [] {};
 };
 
 }  // namespace fuzztest::internal
