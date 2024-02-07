@@ -15,7 +15,6 @@
 #include "./grammar_codegen/code_generation.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -28,6 +27,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 
 namespace {
 
@@ -38,7 +38,14 @@ std::string GetContents(const std::string& path) {
 }
 
 std::string RemoveWhiteSpace(absl::string_view s) {
-  return absl::StrReplaceAll(s, {{" ", ""}, {"\n", ""}});
+  return absl::StrReplaceAll(s,
+                             {{" ", ""}, {"\n", ""}, {"\r", ""}, {"\t", ""}});
+}
+
+std::string GetFuzzTestSrcDir() {
+  const std::string src_dir = ::testing::SrcDir();
+  return absl::StrCat(absl::StripSuffix(src_dir, "/"),
+                      "/com_google_fuzztest/");
 }
 
 // Removes lines that start with "//" from `s`.
@@ -62,8 +69,7 @@ not a comment again)");
 }
 
 TEST(CodeGeneration, GenerateValidJsonGrammarHeader) {
-  const std::string src_dir = absl::StrCat(
-      getenv("TEST_SRCDIR"), "/com_google_fuzztest/");
+  const std::string src_dir = GetFuzzTestSrcDir();
   const std::vector<std::string> input_files{
       GetContents(absl::StrCat(src_dir, "fuzztest/grammars/JSON.g4"))};
   const std::string generated_header =
@@ -75,4 +81,20 @@ TEST(CodeGeneration, GenerateValidJsonGrammarHeader) {
   EXPECT_EQ(RemoveWhiteSpace(RemoveCommentLines(generated_header)),
             RemoveWhiteSpace(RemoveCommentLines(ground_true_header)));
 }
+
+TEST(CodeGeneration, GenerateValidJsonGrammarHeaderWithSpaces) {
+  const std::string src_dir = GetFuzzTestSrcDir();
+  const std::vector<std::string> input_files{
+      GetContents(absl::StrCat(src_dir, "fuzztest/grammars/JSON.g4"))};
+  const std::string generated_header =
+      fuzztest::internal::grammar::GenerateGrammarHeader(
+          input_files, "json", /*insert_space_between_blocks=*/true);
+  const std::string ground_true_header = GetContents(absl::StrCat(
+      src_dir, "grammar_codegen/testdata/expected_json_grammar_with_spaces.h"));
+
+  // Check their contents are the same.
+  EXPECT_EQ(RemoveWhiteSpace(RemoveCommentLines(generated_header)),
+            RemoveWhiteSpace(RemoveCommentLines(ground_true_header)));
+}
+
 }  // namespace

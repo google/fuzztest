@@ -43,6 +43,12 @@ ABSL_FLAG(
     "generates strings of the grammar rule under this name. It is also in used"
     "the domain name.");
 
+ABSL_FLAG(bool, insert_whitespace, false,
+          "Optional. If true, spaces will be inserted between blocks of a "
+          "parser production rule. This is sometimes useful if the original "
+          "ANTLR grammar skips whitespaces. Generating whitespaces will help "
+          "the lexer disambiguate tokens like keywords vs identifiers.");
+
 namespace {
 
 std::string GetContents(const std::string& path) {
@@ -82,7 +88,8 @@ int main(int argc, char** argv) {
     input_grammar_specs.push_back(GetContents(input_file));
   }
   output_file << fuzztest::internal::grammar::GenerateGrammarHeader(
-      input_grammar_specs, grammar_name);
+      input_grammar_specs, grammar_name,
+      absl::GetFlag(FLAGS_insert_whitespace));
   output_file.close();
   return 0;
 }

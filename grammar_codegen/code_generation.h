@@ -29,7 +29,8 @@ namespace fuzztest::internal::grammar {
 // code from grammar information.
 std::string GenerateGrammarHeader(
     const std::vector<std::string>& input_grammar_specs,
-    std::optional<std::string> grammar_name = std::nullopt);
+    std::optional<std::string> grammar_name = std::nullopt,
+    bool insert_space_between_blocks = false);
 
 }  // namespace fuzztest::internal::grammar
 

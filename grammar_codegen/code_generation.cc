@@ -24,10 +24,10 @@ namespace fuzztest::internal::grammar {
 
 std::string GenerateGrammarHeader(
     const std::vector<std::string>& input_grammar_specs,
-    std::optional<std::string> grammar_name) {
+    std::optional<std::string> grammar_name, bool insert_space_between_blocks) {
   GrammarInfoBuilder builder;
-  CodeGenerator backend(
-      builder.BuildGrammarInfo(input_grammar_specs, grammar_name));
+  CodeGenerator backend(builder.BuildGrammarInfo(
+      input_grammar_specs, grammar_name, insert_space_between_blocks));
   return backend.Generate();
 }
 }  // namespace fuzztest::internal::grammar

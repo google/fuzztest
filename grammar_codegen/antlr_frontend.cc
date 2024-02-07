@@ -65,6 +65,16 @@ std::string ConstructCharSetString(absl::string_view raw_str,
   }
   return result;
 }
+
+// Returns a block representing a single space.
+Block SpaceBlock() {
+  Block block;
+  auto& terminal = block.element.emplace<kTerminal>();
+  terminal.type = TerminalType::kStringLiteral;
+  terminal.content = "\" \"";
+  return block;
+}
+
 }  // namespace
 
 void GrammarInfoBuilder::enterLexerRuleSpec(
@@ -240,8 +250,17 @@ Block GrammarInfoBuilder::ConstructBlock(
 ProductionRule GrammarInfoBuilder::ConstructProductionRule(
     ANTLRv4Parser::AlternativeContext* ctx) {
   ProductionRule prod_rule;
-  for (auto element : ctx->element()) {
-    prod_rule.blocks.push_back(ConstructBlock(element));
+  for (int i = 0; i < ctx->element().size(); ++i) {
+    prod_rule.blocks.push_back(ConstructBlock(ctx->element(i)));
+
+    // If configured, insert a white space between blocks for a production rule.
+    //
+    // This is sometimes desired if the original grammar skips whitespaces but
+    // we still want to generate whitespaces in the domain so that the lexer
+    // can disambiguate some tokens, like keywords v.s. identifiers.
+    if (insert_space_between_blocks_ && i != ctx->element().size() - 1) {
+      prod_rule.blocks.push_back(SpaceBlock());
+    }
   }
   return prod_rule;
 }
@@ -262,9 +281,12 @@ GrammarRule GrammarInfoBuilder::ConstructGrammarRule(
 
 Grammar GrammarInfoBuilder::BuildGrammarInfo(
     const std::vector<std::string>& input_grammar_specs,
-    std::optional<std::string> grammar_name) {
+    std::optional<std::string> grammar_name, bool insert_space_between_blocks) {
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(!input_grammar_specs.empty(),
                                        "No input files!");
+
+  insert_space_between_blocks_ = insert_space_between_blocks;
+
   for (auto& input_grammar_spec : input_grammar_specs) {
     antlr4::ANTLRInputStream input(input_grammar_spec);
     antlr4_grammar::ANTLRv4Lexer lexer(&input);

@@ -36,7 +36,8 @@ class GrammarInfoBuilder : public antlr4_grammar::ANTLRv4ParserBaseListener {
  public:
   Grammar BuildGrammarInfo(
       const std::vector<std::string>& input_grammar_specs,
-      std::optional<std::string> grammar_name = std::nullopt);
+      std::optional<std::string> grammar_name = std::nullopt,
+      bool insert_space_between_blocks = false);
 
   // Every symbol in the grammar has a handler function in the listener, which
   // will be called when such a symbol is visited during tree traversal. The
@@ -63,6 +64,8 @@ class GrammarInfoBuilder : public antlr4_grammar::ANTLRv4ParserBaseListener {
 
   std::string grammar_name_;
   std::vector<GrammarRule> rules_;
+
+  bool insert_space_between_blocks_;
 };
 
 }  // namespace fuzztest::internal::grammar

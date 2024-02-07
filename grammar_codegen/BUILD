@@ -76,6 +76,7 @@ cc_test(
     srcs = ["code_generation_test.cc"],
     data = [
         "testdata/expected_json_grammar.h",
+        "testdata/expected_json_grammar_with_spaces.h",
         "@com_google_fuzztest//fuzztest/grammars:JSON.g4",
     ],
     deps = [
