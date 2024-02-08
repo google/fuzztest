@@ -550,6 +550,17 @@ TEST_F(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+void ExpectStackLimitExceededMessage(absl::string_view std_err,
+                                     size_t limit_bytes) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat(
+                           "Stack limit exceeded: [0-9]+ > ", limit_bytes)));
+#else
+  EXPECT_THAT(std_err, HasSubstr(absl::StrCat("Configured limit is ",
+                                              limit_bytes, ".")));
+#endif
+}
+
 TEST_F(UnitTestModeTest, StackLimitWorks) {
 #if defined(__has_feature)
 #if !__has_feature(coverage_sanitizer)
@@ -558,18 +569,59 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
                   "enable these tests!";
 #endif
 #endif
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
 
   auto [status, std_out, std_err] =
       Run("MySuite.DataDependentStackOverflow", kDefaultTargetBinary,
           /*env=*/{}, /*fuzzer_flags=*/{{"stack_limit_kb", "1000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1024000."));
+  ExpectStackLimitExceededMessage(std_err, 1024000);
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
+
+#ifdef FUZZTEST_USE_CENTIPEDE
+
+TEST_F(UnitTestModeTest, RssLimitFlagWorks) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.LargeHeapAllocation", kDefaultTargetBinary,
+          /*env=*/{}, /*fuzzer_flags=*/{{"rss_limit_mb", "1024"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat(
+                           "RSS limit exceeded: [0-9]+ > 1024 \\(MB\\)")));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(UnitTestModeTest, TimeLimitFlagWorks) {
+  auto [status, std_out, std_err] = Run(
+      "MySuite.Sleep", kDefaultTargetBinary,
+      /*env=*/{},
+      /*fuzzer_flags=*/{{"fuzz_for", "10s"}, {"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, ContainsRegex(
+                           "Per-input timeout exceeded: [0-9]+ > 1 \\(sec\\)"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+#else
+
+TEST_F(UnitTestModeTest, RssLimitFlagExistsButIsDisabled) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.PassesWithPositiveInput", kDefaultTargetBinary, /*env=*/{},
+          /*fuzzer_flags=*/{{"rss_limit_mb", "1234"}});
+  EXPECT_THAT(std_err, HasSubstr("RSS limit is specified but will be ignored"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(UnitTestModeTest, TimeLimitFlagExistsButIsDisabled) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.PassesWithPositiveInput", kDefaultTargetBinary,
+          /*env=*/{}, /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(
+      std_err,
+      HasSubstr("Per-input time limit is specified but will be ignored"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+#endif
 
 class GetRandomValueTest : public UnitTestModeTest {
  protected:
@@ -1043,49 +1095,37 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
                {"stack_limit_kb", "1000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1024000."));
+  ExpectStackLimitExceededMessage(std_err, 1024000);
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ConfiguresStackLimitByEnvVarWithWarning) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"}},
-              {{"FUZZTEST_STACK_LIMIT", "1234567"}});
+              {{"FUZZTEST_STACK_LIMIT", "512000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(std_err,
               HasSubstr("Stack limit is set by FUZZTEST_STACK_LIMIT env var "
                         "- this is going to be deprecated soon. Consider "
                         "switching to --" FUZZTEST_FLAG_PREFIX_
                         "stack_limit_kb flag."));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
+  ExpectStackLimitExceededMessage(std_err, 512000);
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ConfiguresStackLimitByEnvVarAndOverridesFlag) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the stack limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
                {"stack_limit_kb", "1000"}},
-              {{"FUZZTEST_STACK_LIMIT", "1234567"}});
+              {{"FUZZTEST_STACK_LIMIT", "512000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, HasSubstr("Configured limit is 1234567."));
+  ExpectStackLimitExceededMessage(std_err, 512000);
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
@@ -1096,29 +1136,44 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               /*env=*/{},
               /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(std_err,
-              Not(HasSubstr("limit is specified but will be ignored for now")));
+              Not(HasSubstr("limit is specified but will be ignored")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagExistsButIsDisabled) {
 #ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the rss limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagWorks) {
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.LargeHeapAllocation"}, {"rss_limit_mb", "1024"}},
+      /*env=*/{}, /*timeout=*/absl::Seconds(1));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat(
+                           "RSS limit exceeded: [0-9]+ > 1024 \\(MB\\)")));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.Sleep"}, {"time_limit_per_input", "1s"}},
+              /*env=*/{});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT(std_err, ContainsRegex(
+                           "Per-input timeout exceeded: [0-9]+ > 1 \\(sec\\)"));
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+}
+
+#else
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagExistsButIsDisabled) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"rss_limit_mb", "1234"}},
       /*env=*/{},
       /*timeout=*/absl::Seconds(1));
-  EXPECT_THAT(std_err,
-              HasSubstr("RSS limit is specified but will be ignored for now"));
+  EXPECT_THAT(std_err, HasSubstr("RSS limit is specified but will be ignored"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagExistsButIsDisabled) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping the time limit test when running with Centipede. "
-                  "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"},
                {"time_limit_per_input", "1s"}},
@@ -1126,10 +1181,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagExistsButIsDisabled) {
               /*timeout=*/absl::Seconds(1));
   EXPECT_THAT(
       std_err,
-      HasSubstr(
-          "Per-input time limit is specified but will be ignored for now"));
+      HasSubstr("Per-input time limit is specified but will be ignored"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
+
+#endif  // FUZZTEST_USE_CENTIPEDE
 
 std::string CentipedePath() {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));

@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -30,6 +31,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -748,5 +750,20 @@ void CrashOnCrashingInput(const std::string& input) {
   if (absl::StartsWith(input, "crashing")) std::abort();
 }
 FUZZ_TEST(MySuite, CrashOnCrashingInput);
+
+void Sleep(unsigned int x) { absl::SleepFor(absl::Seconds(x)); }
+FUZZ_TEST(MySuite, Sleep).WithDomains(Just(10));
+
+void LargeHeapAllocation(size_t allocation_size) {
+  static volatile char byte_sink = 0;
+  auto* ptr = static_cast<char*>(malloc(allocation_size));
+  memset(ptr, 42, allocation_size);
+  byte_sink = ptr[0];
+  free(ptr);
+}
+FUZZ_TEST(MySuite, LargeHeapAllocation)
+    .WithDomains(Just(
+        // 1 GiB
+        1ULL << 30));
 
 }  // namespace

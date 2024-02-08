@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 
 #include <cerrno>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +27,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <system_error>  // NOLINT
@@ -35,6 +37,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -51,6 +54,7 @@
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
@@ -95,8 +99,10 @@ std::seed_seq GetRandomSeed() {
 
 centipede::Environment CreateDefaultCentipedeEnvironment() {
   centipede::Environment env;
-  // Skip input timeout as we don't yet support it in FuzzTest.
+  // Will be set later using the test configuration.
   env.timeout_per_input = 0;
+  // Will be set later using the test configuration.
+  env.rss_limit_mb = 0;
   // Do not limit the address space as the fuzzing engine needs a
   // lot of address space. rss_limit_mb will be used for OOM
   // detection.
@@ -223,6 +229,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   }
 
   ~CentipedeAdaptorRunnerCallbacks() override {
+    runtime_.UnsetCurrentArgs();
     if (GetExecutionCoverage() == execution_coverage_.get())
       SetExecutionCoverage(nullptr);
   }
@@ -294,9 +301,7 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
     for (const auto& input : inputs) {
       if (runtime_.termination_requested()) break;
       if (buffer_offset >= batch_result_buffer_size_) break;
-      CentipedePrepareProcessing();
       runner_callbacks_.Execute(input);
-      CentipedeFinalizeProcessing();
       buffer_offset += CentipedeGetExecutionResult(
           batch_result_buffer_ + buffer_offset,
           batch_result_buffer_size_ - buffer_offset);
@@ -373,22 +378,105 @@ class CentipedeAdaptorEngineCallbacksFactory
   const Configuration* configuration_;
 };
 
+void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
+  if (const size_t stack_limit =
+          GetStackLimitFromEnvOrConfiguration(configuration);
+      stack_limit > 0) {
+    absl::FPrintF(GetStderr(), "[.] Stack limit set to: %zu\n", stack_limit);
+    CentipedeSetStackLimit(/*stack_limit_kb=*/stack_limit >> 10);
+  }
+  if (configuration.rss_limit > 0) {
+    absl::FPrintF(GetStderr(), "[.] RSS limit set to: %zu\n",
+                  configuration.rss_limit);
+    CentipedeSetRssLimit(/*rss_limit_mb=*/configuration.rss_limit >> 20);
+  }
+  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
+    const int64_t time_limit_seconds =
+        absl::ToInt64Seconds(configuration.time_limit_per_input);
+    if (time_limit_seconds <= 0) {
+      absl::FPrintF(
+          GetStderr(),
+          "[!] Skip setting per-input time limit that is too short: %s\n",
+          absl::FormatDuration(configuration.time_limit_per_input));
+    } else {
+      absl::FPrintF(GetStderr(),
+                    "[.] Per-input time limit set to: %" PRId64 "s\n",
+                    time_limit_seconds);
+      CentipedeSetTimeoutPerInput(time_limit_seconds);
+    }
+  }
+}
+
 }  // namespace
+
+class CentipedeFixtureDriver : public UntypedFixtureDriver {
+ public:
+  CentipedeFixtureDriver(
+      std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver)
+      : orig_fixture_driver_(std::move(orig_fixture_driver)){};
+
+  void SetUpFuzzTest() override {
+    orig_fixture_driver_->SetUpFuzzTest();
+    FUZZTEST_INTERNAL_CHECK(configuration_ != nullptr,
+                            "Setting up a fuzz test without configuration!");
+    PopulateTestLimitsToCentipedeRunner(*configuration_);
+  }
+
+  void SetUpIteration() override {
+    if (!runner_mode) CentipedePrepareProcessing();
+    orig_fixture_driver_->SetUpIteration();
+  }
+
+  void TearDownIteration() override {
+    orig_fixture_driver_->TearDownIteration();
+    if (!runner_mode) CentipedeFinalizeProcessing();
+  }
+
+  void TearDownFuzzTest() override { orig_fixture_driver_->TearDownFuzzTest(); }
+
+  void Test(MoveOnlyAny&& args_untyped) const override {
+    orig_fixture_driver_->Test(std::move(args_untyped));
+  }
+
+  std::vector<GenericDomainCorpusType> GetSeeds() const override {
+    return orig_fixture_driver_->GetSeeds();
+  }
+
+  std::unique_ptr<UntypedDomainInterface> GetDomains() const override {
+    return orig_fixture_driver_->GetDomains();
+  }
+
+  void set_configuration(const Configuration* configuration) {
+    configuration_ = configuration;
+  }
+
+ private:
+  const Configuration* configuration_ = nullptr;
+  const bool runner_mode = getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
+  std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver_;
+};
 
 CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
-    : test_(test), fuzzer_impl_(test_, std::move(fixture_driver)) {}
+    : test_(test),
+      centipede_fixture_driver_(
+          new CentipedeFixtureDriver(std::move(fixture_driver))),
+      fuzzer_impl_(test_, absl::WrapUnique(centipede_fixture_driver_)) {
+  FUZZTEST_INTERNAL_CHECK(centipede_fixture_driver_ != nullptr,
+                          "Invalid fixture driver!");
+}
 
 void CentipedeFuzzerAdaptor::RunInUnitTestMode(
     const Configuration& configuration) {
-  // Run the unit test mode directly without using Centipede.
+  centipede_fixture_driver_->set_configuration(&configuration);
+  CentipedeBeginExecutionBatch();
   fuzzer_impl_.RunInUnitTestMode(configuration);
+  CentipedeEndExecutionBatch();
 }
 
 int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
-  FUZZTEST_INTERNAL_CHECK(fuzzer_impl_.fixture_driver_ != nullptr,
-                          "Invalid fixture driver!");
+  centipede_fixture_driver_->set_configuration(&configuration);
   runtime_.SetRunMode(RunMode::kFuzz);
   runtime_.SetCurrentTest(&test_);
   if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();

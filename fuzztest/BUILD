@@ -179,6 +179,7 @@ cc_library(
         "-Wl,--warn-backrefs-exclude=*/centipede/*",
     ],
     deps = [
+        ":any",
         ":configuration",
         ":coverage",
         ":domain_core",
@@ -187,6 +188,7 @@ cc_library(
         ":runtime",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
