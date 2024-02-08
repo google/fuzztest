@@ -565,7 +565,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
   const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
 
-  // `StatsCsvFileAppender` creates a brand-new fuzzing-stats file.
+  // `StatsCsvFileAppender` creates a brand-new fuzzing-stats file and writes
+  // the CSV header and a 1st stats line to it.
   {
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -579,8 +580,9 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     // Header + 1 stats line + empty line at EOF.
     EXPECT_EQ(lines.size(), 3);
   }
+
   // `StatsCsvFileAppender` finds an existing file with a CSV header matching
-  // the current version and appends to it.
+  // the current version and appends a 2nd stats line to it.
   {
     stats_vec[0].timestamp_unix_micros = 3000000;
     stats_vec[1].timestamp_unix_micros = 4000000;
@@ -594,13 +596,14 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     std::string contents;
     ReadFromLocalFile(kExpectedCsv, contents);
     const std::vector<std::string> lines = absl::StrSplit(contents, '\n');
-    // Header + 3 stats lines + empty line at EOF.
-    EXPECT_EQ(lines.size(), 5);
+    // Header + 2 stats lines + empty line at EOF.
+    EXPECT_EQ(lines.size(), 4);
   }
+
   // `StatsCsvFileAppender` finds an existing file with a CSV header not
   // matching the current version (ostensibly created by a previous version of
-  // Centipede), creates a backup copy of it, and overwrites the original from
-  // scratch.
+  // Centipede), creates a backup copy of it, and starts a new file scratch,
+  // writing the new CSV header and a 1st line to it.
   {
     // Fake a CSV with an outdated header and contents.
     const std::vector<std::string> kFakeOldCsvLines = {

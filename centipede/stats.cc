@@ -187,27 +187,26 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
   if (file == nullptr) {
     const std::string filename =
         WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
-    const char *mode = "w";
     // If a non-empty file already exists and has the same CVS header, then
     // keep appending new CSV lines to the file. If the file exists, but has a
-    // different CSV header, then rename the file and write from scratch.
+    // different CSV header (ostensibly because it was created by a different
+    // version of Centipede), then make a backup copy of the file and start a
+    // a new one from scratch.
+    bool append = false;
     if (RemotePathExists(filename)) {
       std::string contents;
       RemoteFileGetContents(filename, contents);
+      // NOTE: `csv_header_` ends with '\n', so the match is exact.
       if (absl::StartsWith(contents, csv_header_)) {
-        // Same CSV header: append to the old file.
-        mode = "a";
+        append = true;
       } else {
-        // Different CSV header: overwrite the old file...
-        mode = "w";
-        // ...but make a backup copy of the old file first.
-        const std::string backup_filename = GetBackupFilename(filename);
-        RemoteFileSetContents(backup_filename, contents);
+        append = false;
+        RemoteFileSetContents(GetBackupFilename(filename), contents);
       }
     }
-    file = RemoteFileOpen(filename, mode);
+    file = RemoteFileOpen(filename, append ? "a" : "w");
     CHECK(file != nullptr) << VV(filename);
-    RemoteFileAppend(file, csv_header_);
+    if (!append) RemoteFileAppend(file, csv_header_);
   }
   curr_file_ = file;
 }
