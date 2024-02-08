@@ -343,11 +343,20 @@ class StatsLogger : public StatsReporter {
 };
 
 // Takes a set of `Stats` objects and a corresponding set of `Environment`
-// objects `env_vec` and writes aggregate metrics of the current `Stats` values
+// objects `env_vec` and appends aggregate metrics of the current `Stats` values
 // to a CSV file on each invocation of `ReportCurrStats()`. If the environments
 // indicate the use of the --experiment flag, the stats for each of the
 // experiments are written to a separate correspondingly named CSV file. The
 // names of each output field are written to the file(s) as a CSV header.
+//
+// When the file already exists (e.g. Centipede runs in a previously populated
+// workdir):
+// - If the current CSV header matches the one in the file, then new CSV lines
+//   will be appended to the file.
+// - If the current CSV header doesn't match the one in the file (e.g. the
+//   Centipede version changed and the set of CSV fields changed with it), then
+//   the existing file will be renamed to `GetBackupFilename(filename)`, and a
+//   new file will be created from scratch.
 class StatsCsvFileAppender : public StatsReporter {
  public:
   using StatsReporter::StatsReporter;
@@ -362,6 +371,10 @@ class StatsCsvFileAppender : public StatsReporter {
   void DoneFieldSamplesBatch() override;
   void ReportFlags(const GroupToFlags &group_to_flags) override;
 
+  // Given a filename, should return a backup file filename for it. The default
+  // version appends the current timestamp as UNIX seconds. Intended for tests.
+  virtual std::string GetBackupFilename(const std::string &filename) const;
+
   std::string csv_header_;
   absl::flat_hash_map<std::string /*group_name*/, RemoteFile *> files_;
   RemoteFile *curr_file_;
@@ -374,4 +387,5 @@ class StatsCsvFileAppender : public StatsReporter {
 void PrintRewardValues(absl::Span<const Stats> stats_vec, std::ostream& os);
 
 }  // namespace centipede
+
 #endif  // THIRD_PARTY_CENTIPEDE_STATS_H_

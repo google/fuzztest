@@ -23,9 +23,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/civil_time.h"
@@ -36,6 +38,7 @@
 #include "./centipede/util.h"
 
 namespace centipede {
+namespace {
 
 using ::testing::ElementsAreArray;
 
@@ -533,9 +536,99 @@ TEST(Stats, DumpStatsToCsvFile) {
     ASSERT_TRUE(std::filesystem::exists(kExpectedCsvs[i]));
     std::string csv_contents;
     ReadFromLocalFile(kExpectedCsvs[i], csv_contents);
-
     const auto csv_lines = absl::StrSplit(csv_contents, '\n');
     EXPECT_THAT(csv_lines, ElementsAreArray(kExpectedCsvLines[i])) << VV(i);
+  }
+}
+
+TEST(Stats, DumpStatsToExistingCsvFile) {
+  class TestStatsCsvFileAppender : public StatsCsvFileAppender {
+    using StatsCsvFileAppender::StatsCsvFileAppender;
+
+   private:
+    std::string GetBackupFilename(const std::string &filename) const override {
+      return absl::StrCat(filename, ".bak");
+    }
+  };
+
+  const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
+
+  const std::vector<Environment> env_vec = {
+      {.workdir = workdir},
+      {.workdir = workdir},
+  };
+
+  std::vector<Stats> stats_vec(2);
+  stats_vec[0].timestamp_unix_micros = 1000000;
+  stats_vec[1].timestamp_unix_micros = 2000000;
+
+  const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
+  const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
+
+  // `StatsCsvFileAppender` creates a brand-new fuzzing-stats file.
+  {
+    TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
+    stats_csv_appender.ReportCurrStats();
+
+    ASSERT_TRUE(std::filesystem::exists(kExpectedCsv));
+    ASSERT_FALSE(std::filesystem::exists(kExpectedCsvBak));
+
+    std::string contents;
+    ReadFromLocalFile(kExpectedCsv, contents);
+    const std::vector<std::string> lines = absl::StrSplit(contents, '\n');
+    // Header + 1 stats line + empty line at EOF.
+    EXPECT_EQ(lines.size(), 3);
+  }
+  // `StatsCsvFileAppender` finds an existing file with a CSV header matching
+  // the current version and appends to it.
+  {
+    stats_vec[0].timestamp_unix_micros = 3000000;
+    stats_vec[1].timestamp_unix_micros = 4000000;
+
+    TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
+    stats_csv_appender.ReportCurrStats();
+
+    ASSERT_TRUE(std::filesystem::exists(kExpectedCsv));
+    ASSERT_FALSE(std::filesystem::exists(kExpectedCsvBak));
+
+    std::string contents;
+    ReadFromLocalFile(kExpectedCsv, contents);
+    const std::vector<std::string> lines = absl::StrSplit(contents, '\n');
+    // Header + 3 stats lines + empty line at EOF.
+    EXPECT_EQ(lines.size(), 5);
+  }
+  // `StatsCsvFileAppender` finds an existing file with a CSV header not
+  // matching the current version (ostensibly created by a previous version of
+  // Centipede), creates a backup copy of it, and overwrites the original from
+  // scratch.
+  {
+    // Fake a CSV with an outdated header and contents.
+    const std::vector<std::string> kFakeOldCsvLines = {
+        "Old,Csv,Header,", "0,1,2,", "10,11,12,", "20,21,22,", "",
+    };
+    WriteToLocalFile(kExpectedCsv, absl::StrJoin(kFakeOldCsvLines, "\n"));
+
+    stats_vec[0].timestamp_unix_micros = 5000000;
+    stats_vec[1].timestamp_unix_micros = 6000000;
+
+    TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
+    stats_csv_appender.ReportCurrStats();
+
+    ASSERT_TRUE(std::filesystem::exists(kExpectedCsv));
+    ASSERT_TRUE(std::filesystem::exists(kExpectedCsvBak));
+
+    std::string contents;
+    ReadFromLocalFile(kExpectedCsv, contents);
+    const std::vector<std::string> lines = absl::StrSplit(contents, '\n');
+    // Header + 1 stats line + empty line at EOF.
+    EXPECT_EQ(lines.size(), 3);
+
+    std::string contents_bak;
+    ReadFromLocalFile(kExpectedCsvBak, contents_bak);
+    const std::vector<std::string> lines_bak =
+        absl::StrSplit(contents_bak, '\n');
+    CHECK_NE(lines.size(), kFakeOldCsvLines.size());  // Prevent false positives
+    EXPECT_EQ(lines_bak.size(), kFakeOldCsvLines.size());
   }
 }
 
@@ -556,4 +649,5 @@ TEST(Stats, PrintRewardValues) {
   EXPECT_EQ(ss.str(), expected);
 }
 
+}  // namespace
 }  // namespace centipede

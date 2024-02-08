@@ -16,9 +16,11 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>  // NOLINT: C++17
 #include <initializer_list>
 #include <iomanip>
 #include <ios>
@@ -34,8 +36,11 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"
@@ -43,6 +48,8 @@
 #include "./centipede/workdir.h"
 
 namespace centipede {
+
+namespace fs = std::filesystem;
 
 using TraitBits = Stats::TraitBits;
 
@@ -180,9 +187,25 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
   if (file == nullptr) {
     const std::string filename =
         WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
-    // TODO(ussuri): Append, not overwrite, so restarts keep accumulating.
-    //  This will require writing the CSV header only if the file is brand new.
-    file = RemoteFileOpen(filename, "w");
+    const char *mode = "w";
+    // If a non-empty file already exists and has the same CVS header, then
+    // keep appending new CSV lines to the file. If the file exists, but has a
+    // different CSV header, then rename the file and write from scratch.
+    if (RemotePathExists(filename)) {
+      std::string contents;
+      RemoteFileGetContents(filename, contents);
+      if (absl::StartsWith(contents, csv_header_)) {
+        // Same CSV header: append to the old file.
+        mode = "a";
+      } else {
+        // Different CSV header: overwrite the old file...
+        mode = "w";
+        // ...but make a backup copy of the old file first.
+        const std::string backup_filename = GetBackupFilename(filename);
+        RemoteFileSetContents(backup_filename, contents);
+      }
+    }
+    file = RemoteFileOpen(filename, mode);
     CHECK(file != nullptr) << VV(filename);
     RemoteFileAppend(file, csv_header_);
   }
@@ -227,6 +250,16 @@ void StatsCsvFileAppender::DoneFieldSamplesBatch() {
   for (const auto &[group_name, file] : files_) {
     RemoteFileAppend(file, "\n");
   }
+}
+
+std::string StatsCsvFileAppender::GetBackupFilename(
+    const std::string &filename) const {
+  fs::path path{filename};
+  const auto timestamp = absl::ToUnixSeconds(absl::Now());
+  const auto new_extension =
+      absl::StrCat(path.extension().string(), ".", timestamp);
+  path.replace_extension(new_extension);
+  return path.string();
 }
 
 // -----------------------------------------------------------------------------
