@@ -1,6 +1,8 @@
 #include "./fuzztest/init_fuzztest.h"
 
+#include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -11,6 +13,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/flag_name.h"
@@ -148,12 +151,12 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
 namespace {
 
 internal::Configuration CreateConfigurationsFromFlags(
-    absl::string_view binary_path) {
-  const std::string binary_identifier =
-      std::string(internal::Basename(binary_path));
-  std::string binary_corpus = absl::StrCat(
-      absl::GetFlag(FUZZTEST_FLAG(corpus_database)), "/", binary_identifier);
-  if (getenv("TEST_SRCDIR")) {
+    absl::string_view binary_identifier) {
+  const std::string corpus_database =
+      absl::GetFlag(FUZZTEST_FLAG(corpus_database));
+  std::string binary_corpus =
+      absl::StrCat(corpus_database, "/", binary_identifier);
+  if (!absl::StartsWith(corpus_database, "/") && getenv("TEST_SRCDIR")) {
     binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
   }
   return internal::Configuration{
@@ -208,8 +211,9 @@ void InitFuzzTest(int* argc, char*** argv) {
     internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
 
+  std::string binary_identifier = std::string(internal::Basename(*argv[0]));
   internal::Configuration configuration =
-      CreateConfigurationsFromFlags(*argv[0]);
+      CreateConfigurationsFromFlags(binary_identifier);
   internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified
