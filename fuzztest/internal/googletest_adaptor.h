@@ -38,7 +38,8 @@ class GTest_TestAdaptor : public ::testing::Test {
   void TestBody() override {
     auto test = test_.make();
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
-      if (configuration_.crashing_input_to_reproduce.has_value()) {
+      if (configuration_.crashing_input_to_reproduce.has_value() &&
+          testing::UnitTest::GetInstance()->test_to_run_count() > 1) {
 #ifdef GTEST_HAS_DEATH_TEST
         configuration_.preprocess_crash_reproducing = [] {
           // EXPECT_EXIT disables event forwarding in gtest and as a result,
