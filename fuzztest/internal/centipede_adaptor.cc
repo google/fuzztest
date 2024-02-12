@@ -478,7 +478,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   runtime_.SetRunMode(RunMode::kFuzz);
-  runtime_.SetCurrentTest(&test_);
+  runtime_.SetCurrentTest(&test_, &configuration);
   if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
   runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();

@@ -45,7 +45,7 @@ TEST(OnFailureTest, Output) {
   GenericDomainCorpusType generic_args(
       std::in_place_type<std::tuple<int, std::string>>, args);
   Runtime::Args debug_args{generic_args, domain};
-  runtime.SetCurrentTest(&test);
+  runtime.SetCurrentTest(&test, nullptr);
   runtime.SetCurrentArgs(&debug_args);
   EXPECT_EQ(get_failure(), R"(
 =================================================================

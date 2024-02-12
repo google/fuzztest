@@ -14,6 +14,11 @@
 
 #include "./fuzztest/internal/runtime.h"
 
+#if !defined(_WIN32) && !defined(__Fuchsia__)
+#define FUZZTEST_HAS_RUSAGE
+#include <sys/resource.h>
+#endif
+
 #include <algorithm>
 #include <cerrno>
 #include <csignal>
@@ -21,10 +26,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <random>
 #include <string>
+#include <thread>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -157,6 +164,68 @@ void Runtime::PrintReport(absl::FormatRawSink out) const {
     }
   }
   absl::Format(out, "%s", separator);
+}
+
+void Runtime::StartWatchdog() {
+  // Centipede runner has its own watchdog.
+#ifndef FUZZTEST_USE_CENTIPEDE
+  auto watchdog_thread = std::thread(std::bind(&Runtime::Watchdog, this));
+  while (!watchdog_thread_started) std::this_thread::yield();
+  watchdog_thread.detach();
+#endif
+}
+
+void Runtime::Watchdog() {
+  watchdog_thread_started = true;
+  while (true) {
+    while (watchdog_spinlock_.test_and_set()) std::this_thread::yield();
+    if (test_iteration_started_) CheckWatchdogLimits();
+    watchdog_spinlock_.clear();
+    absl::SleepFor(absl::Seconds(1));
+  }
+}
+
+static size_t GetPeakRSSBytes() {
+#ifndef FUZZTEST_HAS_RUSAGE
+  return 0;
+#else
+  struct rusage usage = {};
+  if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
+  // On Linux, ru_maxrss is in KiB
+  return usage.ru_maxrss * 1024;
+#endif
+}
+
+void Runtime::CheckWatchdogLimits() {
+  // Centipede runner has its own watchdog.
+#ifndef FUZZTEST_USE_CENTIPEDE
+  if (current_configuration_ == nullptr) return;
+  const absl::Duration run_duration =
+      clock_fn_() - current_iteration_start_time_;
+  if (current_configuration_->time_limit_per_input > absl::ZeroDuration() &&
+      run_duration > current_configuration_->time_limit_per_input) {
+    absl::FPrintF(
+        GetStderr(), "[!] Per-input timeout exceeded: %s > %s - aborting\n",
+        absl::FormatDuration(run_duration),
+        absl::FormatDuration(current_configuration_->time_limit_per_input));
+    std::abort();
+  }
+  const size_t rss_usage = GetPeakRSSBytes();
+  if (current_configuration_->rss_limit > 0 &&
+      rss_usage > current_configuration_->rss_limit) {
+    absl::FPrintF(GetStderr(),
+                  "[!] RSS limit exceeded: %zu > %zu (bytes) - aborting\n",
+                  rss_usage, current_configuration_->rss_limit);
+    std::abort();
+  }
+#endif
+}
+
+void Runtime::OnTestIterationEnd() {
+  test_iteration_started_ = false;
+  while (watchdog_spinlock_.test_and_set()) std::this_thread::yield();
+  CheckWatchdogLimits();
+  watchdog_spinlock_.clear();
 }
 
 #if defined(__linux__)
@@ -696,24 +765,16 @@ void PopulateLimits(const Configuration& configuration,
   if (execution_coverage)
     execution_coverage->SetStackLimit(
         GetStackLimitFromEnvOrConfiguration(configuration));
-  if (configuration.rss_limit > 0) {
-    absl::FPrintF(GetStderr(),
-                  "[!] RSS limit is specified but will be ignored for now.\n");
-  }
-  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
-    absl::FPrintF(
-        GetStderr(),
-        "[!] Per-input time limit is specified but will be ignored for now.\n");
-  }
 #endif
 }
 
 void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
+  runtime_.StartWatchdog();
   PopulateLimits(configuration, execution_coverage_);
   [&] {
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
-    runtime_.SetCurrentTest(&test_);
+    runtime_.SetCurrentTest(&test_, &configuration);
 
     // TODO(sbenzaquen): Currently, some infrastructure code assumes that replay
     // works in unit test mode, so we support it. However, we would like to
@@ -774,7 +835,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
         break;
       }
     }
-    runtime_.SetCurrentTest(nullptr);
+    runtime_.SetCurrentTest(nullptr, nullptr);
   }();
   fixture_driver_->TearDownFuzzTest();
 }
@@ -793,6 +854,7 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     execution_coverage_->ResetState();
   }
   absl::Time start = absl::Now();
+  runtime_.OnTestIterationStart(start);
   // Set tracing after absl::Now(), otherwise it will make
   // FuzzingModeTest.MinimizesDuplicatedCorpustest flaky because
   // randomness in absl::Now() being traced by cmp coverage.
@@ -814,6 +876,8 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     stats_.max_stack_used =
         std::max(stats_.max_stack_used, execution_coverage_->MaxStackUsed());
   }
+
+  runtime_.OnTestIterationEnd();
   runtime_.UnsetCurrentArgs();
   return {new_coverage, run_time};
 }
@@ -863,6 +927,7 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
 int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
                                          const Configuration& configuration) {
   fixture_driver_->SetUpFuzzTest();
+  runtime_.StartWatchdog();
   PopulateLimits(configuration, execution_coverage_);
   const int exit_code = [&] {
     runtime_.SetRunMode(RunMode::kFuzz);
@@ -870,7 +935,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
 
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
-    runtime_.SetCurrentTest(&test_);
+    runtime_.SetCurrentTest(&test_, &configuration);
 
     if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
@@ -976,6 +1041,8 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
         try_input_and_process_counterexample(std::move(mutation));
       }
     }
+
+    runtime_.SetCurrentTest(nullptr, nullptr);
 
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
