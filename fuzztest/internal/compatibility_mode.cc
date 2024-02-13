@@ -115,7 +115,7 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
     // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
     std::_Exit(0);
   }
-  runtime_.SetCurrentTest(&impl.test_);
+  runtime_.SetCurrentTest(&impl.test_, nullptr);
   if (auto input = impl.TryParse(data)) {
     impl.RunOneInput({*std::move(input)});
   }
