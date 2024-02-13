@@ -156,3 +156,22 @@ message FoodMachineProcedure {
   // Actions for the food machine to take.
   repeated Action actions = 1;
 }
+
+// Represents an expression entered into a 4 function calculator
+message CalculatorExpression {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    ADD = 1;
+    SUB = 2;
+    MUL = 3;
+    DIV = 4;
+    VALUE = 5;
+  }
+  optional Type type = 1;
+  // Valid for non-VALUE operands.
+  optional CalculatorExpression left = 2;
+  // Valid for non-VALUE operands.
+  optional CalculatorExpression right = 3;
+  // Value only for VALUE types.
+  optional int32 value = 4;
+}

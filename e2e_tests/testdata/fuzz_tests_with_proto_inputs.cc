@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 #include "./fuzztest/fuzztest.h"
@@ -20,6 +21,7 @@
 
 namespace {
 
+using fuzztest::internal::CalculatorExpression;
 using fuzztest::internal::FoodMachineProcedure;
 using fuzztest::internal::TestProtobuf;
 
@@ -122,5 +124,40 @@ void RunFoodMachine(const FoodMachineProcedure& procedure) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, RunFoodMachine);
+
+int EvalCalculatorExpressionHelper(const CalculatorExpression& expression) {
+  switch (expression.type()) {
+    case CalculatorExpression::TYPE_UNSPECIFIED: {
+      return 0;
+    }
+    case CalculatorExpression::ADD: {
+      return EvalCalculatorExpressionHelper(expression.left()) +
+             EvalCalculatorExpressionHelper(expression.right());
+    }
+    case CalculatorExpression::SUB: {
+      return EvalCalculatorExpressionHelper(expression.left()) -
+             EvalCalculatorExpressionHelper(expression.right());
+    }
+    case CalculatorExpression::MUL: {
+      return EvalCalculatorExpressionHelper(expression.left()) *
+             EvalCalculatorExpressionHelper(expression.right());
+    }
+    case CalculatorExpression::DIV: {
+      int left = EvalCalculatorExpressionHelper(expression.left());
+      int right = EvalCalculatorExpressionHelper(expression.right());
+      if (right == 0) {
+        return std::numeric_limits<int>::max();
+      }
+      return left / right;
+    }
+    case CalculatorExpression::VALUE: {
+      return expression.value();
+    }
+  }
+}
+void EvalCalculatorExpression(const CalculatorExpression& expression) {
+  EvalCalculatorExpressionHelper(expression);
+}
+FUZZ_TEST(ProtoPuzzles, EvalCalculatorExpression);
 
 }  // namespace
