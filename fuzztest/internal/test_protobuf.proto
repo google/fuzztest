@@ -134,3 +134,25 @@ message MessageWithGroup {
     optional int64 field2 = 3;
   }
 }
+
+// Represents transitions through a food creation machine.
+message FoodMachineProcedure {
+  message Action {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      WARMUP = 1;
+      INSERT_RAW_MATERIALS = 3;
+      PREPARE_RAW_MATERIALS = 4;
+      COOK = 5;
+      PLATE = 6;
+      EMERGENCY_STOP = 7;
+    }
+    // The type of the action to perform. Determines the interpretation of
+    // fields within this message.
+    optional Type type = 1;
+    // The type of materials being added, for materials related `Type`s.
+    repeated string materials = 2;
+  }
+  // Actions for the food machine to take.
+  repeated Action actions = 1;
+}
