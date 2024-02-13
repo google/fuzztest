@@ -14,8 +14,10 @@
 
 #include "./centipede/config_init.h"
 
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -29,8 +31,11 @@
 
 namespace centipede::config {
 
-ABSL_ATTRIBUTE_WEAK std::vector<std::string> /*leftover_argv*/ InitRuntime(
-    int argc, char* argv[]) {
+RuntimeState::RuntimeState(std::vector<std::string> leftover_argv)
+    : leftover_argv_(std::move(leftover_argv)) {}
+
+ABSL_ATTRIBUTE_WEAK std::unique_ptr<RuntimeState> InitRuntime(int argc,
+                                                              char* argv[]) {
   // NB: The invocation order below is very important. Do not change.
   // Make `LOG(INFO)` to go to stderr by default. Note that an explicit
   // `--stderrthreshold=N` on the command line will override this.
@@ -47,7 +52,8 @@ ABSL_ATTRIBUTE_WEAK std::vector<std::string> /*leftover_argv*/ InitRuntime(
       CastArgv(absl::ParseCommandLine(argc, argv));
   // Initialize the logging system using the just-parsed log-related flags.
   absl::InitializeLog();
-  return leftover_argv;
+
+  return std::make_unique<RuntimeState>(leftover_argv);
 }
 
 }  // namespace centipede::config
