@@ -57,6 +57,31 @@ void PrefixIsMagicValue(const TestProtobuf& input) {
 }
 FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValue);
 
+void ContainsCharactersSpecifiedAtStartOfString(const TestProtobuf& input) {
+  if (input.str().size() < 2) {
+    return;
+  }
+  char quantity = input.str()[0];
+  char to_find = input.str()[1];
+
+  if (to_find == 0) {
+    return;
+  }
+
+  char num_found = 0;
+  for (int i = 2; i < input.str().size(); ++i) {
+    if (input.str()[i] == to_find) {
+      num_found++;
+    }
+  }
+  if (num_found == quantity) {
+    // [Hint] Reachable if the second character of the string appears the same
+    // number of times as the first character of the string within the suffix.
+    std::abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, ContainsCharactersSpecifiedAtStartOfString);
+
 enum class FoodMachineState {
   kOff,
   kWarm,
