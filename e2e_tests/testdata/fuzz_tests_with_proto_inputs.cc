@@ -23,6 +23,7 @@ namespace {
 
 using fuzztest::internal::CalculatorExpression;
 using fuzztest::internal::FoodMachineProcedure;
+using fuzztest::internal::RoboCourier560Plan;
 using fuzztest::internal::TestProtobuf;
 
 void BytesSummingToMagicValue(const TestProtobuf& input) {
@@ -159,5 +160,64 @@ void EvalCalculatorExpression(const CalculatorExpression& expression) {
   EvalCalculatorExpressionHelper(expression);
 }
 FUZZ_TEST(ProtoPuzzles, EvalCalculatorExpression);
+
+struct DeliveryResult {
+  std::string location_name;
+  std::string location_address;
+  std::string mail_name;
+  std::string mail_content;
+};
+
+std::vector<DeliveryResult> RoboCourierRun(const RoboCourier560Plan& plan) {
+  std::vector<DeliveryResult> results;
+  for (const RoboCourier560Plan::Mail& mail : plan.mail()) {
+    std::string name = mail.name();
+    if (mail.name().empty()) {
+      continue;
+    }
+    if (mail.address().empty()) {
+      continue;
+    }
+    if (plan.extra_actions().contains(mail.address())) {
+      const RoboCourier560Plan::ExtraAction extra_action =
+          plan.extra_actions().at(mail.address());
+      switch (extra_action.type()) {
+        case RoboCourier560Plan::ExtraAction::TYPE_UNSPECIFIED: {
+          break;
+        }
+        case RoboCourier560Plan::ExtraAction::CHANGE_NAME: {
+          name = extra_action.content();
+          break;
+        }
+        case RoboCourier560Plan::ExtraAction::POST_NOTICE: {
+          results.push_back(
+              DeliveryResult{.location_name = name,
+                             .location_address = mail.address(),
+                             .mail_name = mail.name(),
+                             .mail_content = extra_action.content()});
+          break;
+        }
+      }
+    }
+    results.push_back(DeliveryResult{.location_name = name,
+                                     .location_address = mail.address(),
+                                     .mail_name = mail.name(),
+                                     .mail_content = mail.content()});
+  }
+  return results;
+}
+
+void RunRoboCourier560(const RoboCourier560Plan& plan) {
+  const std::vector<DeliveryResult> results = RoboCourierRun(plan);
+
+  for (const DeliveryResult& result : results) {
+    if (result.location_name != result.mail_name) {
+      // [Hint] Mail delivered to the wrong name. Can happen if mail is
+      // delivered at before a `CHANGE_NAME` action.
+      std::abort();
+    }
+  }
+}
+FUZZ_TEST(ProtoPuzzles, RunRoboCourier560);
 
 }  // namespace

@@ -175,3 +175,29 @@ message CalculatorExpression {
   // Value only for VALUE types.
   optional int32 value = 4;
 }
+
+// Input to starting run of the (imaginary) Courier Robot CR-560.
+message RoboCourier560Plan {
+  message ExtraAction {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      CHANGE_NAME = 1;
+      POST_NOTICE = 2;
+    }
+    optional Type type = 1;
+    // The contents of the ExtraAction. Interpretation depends on the `type`.
+    optional string content = 2;
+  }
+  message Mail {
+    // The recipient's name
+    optional string name = 1;
+    // The recipient's address
+    optional string address = 2;
+    // Content of the mail.
+    optional string content = 3;
+  }
+  // Mail to deliver.
+  repeated Mail mail = 1;
+  // Any non-mail related actions to take at a address.
+  map<string, ExtraAction> extra_actions = 2;
+}
