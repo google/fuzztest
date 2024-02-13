@@ -109,6 +109,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     CallThisRecursively(100);
   }
 
+  // Stack overflow that triggers an instrumented SIGABRT handler in the current
+  // stack.
+  if (size == 4 && data[0] == 's' && data[1] == 't' && data[2] == 'k' &&
+      data[3] == '2') {
+    const auto signal_handler = +[](int sig_num) { SingleEdgeFunc(); };
+    struct sigaction act = {};
+    act.sa_handler = signal_handler;
+    if (sigaction(SIGABRT, &act, nullptr) != 0) {
+      printf("failed to set up the signal handler for SIGABRT\n");
+      abort();
+    }
+    CallThisRecursively(100);
+  }
+
   // Set up and trigger a signal handler with a separate stack and recursive
   // calls.
   if (size == 6 && data[0] == 's' && data[1] == 'i' && data[2] == 'g' &&

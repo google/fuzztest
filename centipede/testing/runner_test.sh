@@ -28,6 +28,7 @@ non_pie_target="$(centipede::get_centipede_test_srcdir)/testing/test_fuzz_target
 oom="${TEST_TMPDIR}/oom"
 slo="${TEST_TMPDIR}/slo"
 stk="${TEST_TMPDIR}/stk"
+stk2="${TEST_TMPDIR}/stk2"
 sigstk="${TEST_TMPDIR}/sigstk"
 f1="${TEST_TMPDIR}/f1"
 func1="${TEST_TMPDIR}/func1"
@@ -36,6 +37,7 @@ minus1="${TEST_TMPDIR}/minus1"
 echo -n oom > "${oom}"  # Triggers OOM
 echo -n slo > "${slo}"  # Triggers sleep(10)
 echo -n stk > "${stk}"  # Triggers stack limit excess
+echo -n stk2 > "${stk2}"  # Triggers stack limit excess with an instrumented abort handler, which would trigger infinite loop if there was no report limiting.
 echo -n sigstk > "${sigstk}"  # Triggers a large stack usage in signal stack, while the stack limit should not apply.
 echo -n f1 > "${f1}"    # Arbitrary input.
 echo -n func1 > "${func1}"  # Triggers a call to SingleEdgeFunc.
@@ -110,6 +112,10 @@ CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=200:" "${target}" "${stk
 
 CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${stk}" \
                       2>&1 | grep "Stack limit exceeded"
+
+CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${stk2}" \
+                      2>&1 | grep -e "Stack limit exceeded" > "${TEST_TMPDIR}"/stk2_logs
+((`cat "${TEST_TMPDIR}"/stk2_logs | wc -l` == 1))
 
 CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${sigstk}"  # must pass
 
