@@ -16,6 +16,7 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
@@ -231,7 +232,8 @@ $2 "$${flags[@]}"
   return path;
 }
 
-std::vector<std::string> InitCentipede(int argc, absl::Nonnull<char**> argv) {
+std::unique_ptr<RuntimeState> InitCentipede(  //
+    int argc, absl::Nonnull<char**> argv) {
   std::vector<std::string> leftover_argv;
 
   // main_runtime_init() is allowed to remove recognized flags from `argv`, so
@@ -239,7 +241,7 @@ std::vector<std::string> InitCentipede(int argc, absl::Nonnull<char**> argv) {
   const std::vector<std::string> saved_argv = CastArgv(argc, argv);
 
   // Among other things, this performs the initial command line parsing.
-  leftover_argv = InitRuntime(argc, argv);
+  std::unique_ptr<config::RuntimeState> runtime_state = InitRuntime(argc, argv);
 
   // If --config=<path> was passed, replace it with the Abseil Flags' built-in
   // --flagfile=<localized_path> and reparse the command line. NOTE: It would be
@@ -250,7 +252,7 @@ std::vector<std::string> InitCentipede(int argc, absl::Nonnull<char**> argv) {
       LocalizeConfigFilesInArgv(saved_argv);
   if (localized_argv.was_augmented()) {
     LOG(INFO) << "Command line was augmented; reparsing";
-    leftover_argv = CastArgv(absl::ParseCommandLine(
+    runtime_state->leftover_argv() = CastArgv(absl::ParseCommandLine(
         localized_argv.argc(), CastArgv(localized_argv.argv()).data()));
   }
 
@@ -272,7 +274,7 @@ std::vector<std::string> InitCentipede(int argc, absl::Nonnull<char**> argv) {
     exit(EXIT_SUCCESS);
   }
 
-  return leftover_argv;
+  return runtime_state;
 }
 
 }  // namespace centipede::config

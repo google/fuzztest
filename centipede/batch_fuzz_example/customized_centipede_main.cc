@@ -20,10 +20,10 @@
 #include "./centipede/environment_flags.h"
 
 int main(int argc, absl::Nonnull<char**> argv) {
-  const auto leftover_argv = centipede::config::InitCentipede(argc, argv);
-
-  // Reads flags; must happen after ParseCommandLine().
-  const auto env = centipede::CreateEnvironmentFromFlags(leftover_argv);
+  const auto runtime_state = centipede::config::InitCentipede(argc, argv);
+  // Reads flags; must happen after InitCentipede().
+  const auto env =
+      centipede::CreateEnvironmentFromFlags(runtime_state->leftover_argv());
   centipede::DefaultCallbacksFactory<centipede::CustomizedCallbacks>
       callbacks_factory;
   return CentipedeMain(env, callbacks_factory);

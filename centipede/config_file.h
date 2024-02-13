@@ -17,11 +17,13 @@
 
 #include <filesystem>  // NOLINT
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "./centipede/config_init.h"
 
 // TODO(ussuri): Move implementation-only functions to .cc.
 
@@ -99,8 +101,9 @@ std::filesystem::path MaybeSaveConfigToFile(
 // - Handles config-related flags: loads the config from --config, if any,
 //   and saves it to --save_config (or --update_config), if any.
 // - Logs the final resolved config.
-// - Returns the leftover positional command line arguments in
-[[nodiscard]] std::vector<std::string> InitCentipede(
+// - Returns the runtime state that the caller should take ownership of and
+//    keep alive the duration of the process.
+[[nodiscard]] std::unique_ptr<RuntimeState> InitCentipede(
     int argc, absl::Nonnull<char**> argv);
 
 }  // namespace centipede::config

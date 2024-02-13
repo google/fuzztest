@@ -15,10 +15,31 @@
 #ifndef THIRD_PARTY_CENTIPEDE_GOOGLE_CONFIG_INIT_H_
 #define THIRD_PARTY_CENTIPEDE_GOOGLE_CONFIG_INIT_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace centipede::config {
+
+// The runtime state returned by `InitRuntime()`. The caller should take over
+// the ownership of this and keep it alive for the duration of the process.
+class [[nodiscard]] RuntimeState {
+ public:
+  explicit RuntimeState(std::vector<std::string> leftover_argv);
+  virtual ~RuntimeState() = default;
+
+  // Not copyable nor movable for simplicity and maximum extensibility.
+  RuntimeState(const RuntimeState&) = delete;
+  RuntimeState& operator=(const RuntimeState&) = delete;
+  RuntimeState(RuntimeState&&) = delete;
+  RuntimeState& operator=(RuntimeState&&) = delete;
+
+  auto leftover_argv() const { return leftover_argv_; }
+  auto& leftover_argv() { return leftover_argv_; }
+
+ private:
+  std::vector<std::string> leftover_argv_;
+};
 
 // * Initializes the relevant runtime subsystems in the correct order.
 // * Directs all `LOG(INFO)`s to also to stderr (by default, only `LOG(ERROR)`s
@@ -26,8 +47,9 @@ namespace centipede::config {
 // * Tweaks --help behavior to print any flags defined by any Centipede source
 //   (by default, --help only prints flags defined in the source named
 //   <program>.cc or <program_main>.cc).
-// * Returns the leftover (unparsed) argv.
-[[nodiscard]] std::vector<std::string> InitRuntime(int argc, char* argv[]);
+// * Returns the runtime state, which the client should keep alive for the
+//   duration of the process.
+[[nodiscard]] std::unique_ptr<RuntimeState> InitRuntime(int argc, char* argv[]);
 
 }  // namespace centipede::config
 
