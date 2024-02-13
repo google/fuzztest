@@ -24,11 +24,24 @@ namespace {
 using fuzztest::internal::CalculatorExpression;
 using fuzztest::internal::FoodMachineProcedure;
 using fuzztest::internal::RoboCourier560Plan;
+using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
 
-void BytesSummingToMagicValueWithOverloadedProto(const TestProtobuf& input) {
+void BytesSummingToMagicValue(const SingleBytesField& input) {
   char sum = 0;
-  for (const char c : input.str()) {
+  for (const char c : input.data()) {
+    sum += c;
+  }
+  if (sum == 0x72) {
+    std::abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValue);
+
+void BytesSummingToMagicValueWithOverloadedProto(
+    const SingleBytesField& input) {
+  char sum = 0;
+  for (const char c : input.data()) {
     sum += c;
   }
   if (sum == 0x72) {
@@ -36,6 +49,16 @@ void BytesSummingToMagicValueWithOverloadedProto(const TestProtobuf& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValueWithOverloadedProto);
+
+void PrefixBytesSummingToMagicValue(const SingleBytesField& input) {
+  if (input.data().size() < 2) {
+    return;
+  }
+  if (input.data()[0] + input.data()[1] == 0x72) {
+    std::abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValue);
 
 void PrefixBytesSummingToMagicValueWithOverloadedProto(
     const TestProtobuf& input) {
@@ -48,6 +71,16 @@ void PrefixBytesSummingToMagicValueWithOverloadedProto(
 }
 FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValueWithOverloadedProto);
 
+void PrefixIsMagicValue(const SingleBytesField& input) {
+  if (input.data().size() < 2) {
+    return;
+  }
+  if (input.data()[0] + input.data()[1] == 0x72) {
+    std::abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValue);
+
 void PrefixIsMagicValueWithOverloadedProto(const TestProtobuf& input) {
   if (input.str().size() < 2) {
     return;
@@ -57,6 +90,29 @@ void PrefixIsMagicValueWithOverloadedProto(const TestProtobuf& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValueWithOverloadedProto);
+
+void ContainsCharactersSpecifiedAtStartOfString(const SingleBytesField& input) {
+  if (input.data().size() < 2) {
+    return;
+  }
+  char quantity = input.data()[0];
+  char to_find = input.data()[1];
+
+  if (to_find == 0) {
+    return;
+  }
+
+  char num_found = 0;
+  for (int i = 2; i < input.data().size(); ++i) {
+    if (input.data()[i] == to_find) {
+      num_found++;
+    }
+  }
+  if (num_found == quantity) {
+    abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, ContainsCharactersSpecifiedAtStartOfString);
 
 void ContainsCharactersSpecifiedAtStartOfStringWithOverloadedProto(
     const TestProtobuf& input) {
