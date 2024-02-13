@@ -26,7 +26,7 @@ using fuzztest::internal::FoodMachineProcedure;
 using fuzztest::internal::RoboCourier560Plan;
 using fuzztest::internal::TestProtobuf;
 
-void BytesSummingToMagicValue(const TestProtobuf& input) {
+void BytesSummingToMagicValueWithOverloadedProto(const TestProtobuf& input) {
   char sum = 0;
   for (const char c : input.str()) {
     sum += c;
@@ -35,9 +35,10 @@ void BytesSummingToMagicValue(const TestProtobuf& input) {
     std::abort();
   }
 }
-FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValue);
+FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValueWithOverloadedProto);
 
-void PrefixBytesSummingToMagicValue(const TestProtobuf& input) {
+void PrefixBytesSummingToMagicValueWithOverloadedProto(
+    const TestProtobuf& input) {
   if (input.str().size() < 2) {
     return;
   }
@@ -45,9 +46,9 @@ void PrefixBytesSummingToMagicValue(const TestProtobuf& input) {
     std::abort();
   }
 }
-FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValue);
+FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValueWithOverloadedProto);
 
-void PrefixIsMagicValue(const TestProtobuf& input) {
+void PrefixIsMagicValueWithOverloadedProto(const TestProtobuf& input) {
   if (input.str().size() < 2) {
     return;
   }
@@ -55,9 +56,10 @@ void PrefixIsMagicValue(const TestProtobuf& input) {
     std::abort();
   }
 }
-FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValue);
+FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValueWithOverloadedProto);
 
-void ContainsCharactersSpecifiedAtStartOfString(const TestProtobuf& input) {
+void ContainsCharactersSpecifiedAtStartOfStringWithOverloadedProto(
+    const TestProtobuf& input) {
   if (input.str().size() < 2) {
     return;
   }
@@ -80,7 +82,8 @@ void ContainsCharactersSpecifiedAtStartOfString(const TestProtobuf& input) {
     std::abort();
   }
 }
-FUZZ_TEST(ProtoPuzzles, ContainsCharactersSpecifiedAtStartOfString);
+FUZZ_TEST(ProtoPuzzles,
+          ContainsCharactersSpecifiedAtStartOfStringWithOverloadedProto);
 
 enum class FoodMachineState {
   kOff,
