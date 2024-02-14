@@ -1675,7 +1675,8 @@ TEST_P(FuzzingModeCrashFindingTest,
          "Please run with --config=fuzztest to enable these tests!";
 #endif
   auto [status, std_out, std_err] =
-      Run("MySuite.StackCalculationWorksWithAlternateStackForSignalHandlers");
+      Run("AlternateSignalStackFixture."
+          "StackCalculationWorksWithAlternateStackForSignalHandlers");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   EXPECT_THAT(std_err,
               Not(HasSubstr("You can change the limit by specifying")));

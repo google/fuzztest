@@ -689,14 +689,9 @@ void DataDependentStackOverflow(const std::string& s) {
 FUZZ_TEST(MySuite, DataDependentStackOverflow)
     .WithDomains(fuzztest::Arbitrary<std::string>().WithSize(100000));
 
-void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
-  static size_t dummy_to_trigger_cmp_in_handler;
-  static bool setup_signal_with_altstack = [] {
-    stack_t sigstk = {};
-    sigstk.ss_size = 1 << 20;
-    sigstk.ss_sp = malloc(sigstk.ss_size);
-    FUZZTEST_INTERNAL_CHECK(sigaltstack(&sigstk, nullptr) == 0, errno);
-
+class AlternateSignalStackFixture {
+ public:
+  AlternateSignalStackFixture() {
     struct sigaction new_sigact = {};
     sigemptyset(&new_sigact.sa_mask);
     new_sigact.sa_sigaction = [](auto...) {
@@ -713,28 +708,40 @@ void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
 
     FUZZTEST_INTERNAL_CHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0,
                             errno);
-
-    return true;
-  }();
-  (void)setup_signal_with_altstack;
-  // Raise the signal to get the handler running.
-  // If the stack calculations are done correctly, that code will not trigger
-  // "stack overflow" detection and we will continue here.
-  raise(SIGUSR1);
-  // Just make sure the signal handler ran.
-  FUZZTEST_INTERNAL_CHECK(dummy_to_trigger_cmp_in_handler != 0, "");
-  // Disable and free the previous signal stack.
-  stack_t sigstk = {};
-  sigstk.ss_flags = SS_DISABLE;
-  stack_t prev_sigstk;
-  FUZZTEST_INTERNAL_CHECK(sigaltstack(&sigstk, &prev_sigstk) == 0, errno);
-  free(prev_sigstk.ss_sp);
-
-  if (i == 123456789) {
-    std::abort();
+    stack_t test_stack = {};
+    test_stack.ss_size = 1 << 20;
+    test_stack.ss_sp = malloc(test_stack.ss_size);
+    FUZZTEST_INTERNAL_CHECK(sigaltstack(&test_stack, &old_stack) == 0, errno);
   }
-}
-FUZZ_TEST(MySuite, StackCalculationWorksWithAlternateStackForSignalHandlers);
+
+  void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
+    dummy_to_trigger_cmp_in_handler = 0;
+    // Raise the signal to get the handler running.
+    // If the stack calculations are done correctly, that code will not trigger
+    // "stack overflow" detection and we will continue here.
+    raise(SIGUSR1);
+    // Just make sure the signal handler ran.
+    FUZZTEST_INTERNAL_CHECK(dummy_to_trigger_cmp_in_handler != 0, "");
+
+    if (i == 123456789) {
+      std::abort();
+    }
+  }
+
+  ~AlternateSignalStackFixture() {
+    stack_t test_stack = {};
+    // Resume to the old signal stack.
+    FUZZTEST_INTERNAL_CHECK(sigaltstack(&old_stack, &test_stack) == 0, errno);
+    free(test_stack.ss_sp);
+  }
+
+ private:
+  stack_t old_stack = {};
+  static size_t dummy_to_trigger_cmp_in_handler;
+};
+size_t AlternateSignalStackFixture::dummy_to_trigger_cmp_in_handler = 0;
+FUZZ_TEST_F(AlternateSignalStackFixture,
+            StackCalculationWorksWithAlternateStackForSignalHandlers);
 
 void DetectRegressionAndCoverageInputs(const std::string& input) {
   if (absl::StartsWith(input, "regression")) {
