@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <ios>
 #include <istream>
 #include <ostream>
 #include <string>
@@ -48,21 +49,48 @@ bool SymbolTable::operator==(const SymbolTable &other) const {
 }
 
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
-  // We remove some useless file prefixes for better human readability.
-  const std::string_view file_prefixes_to_remove[] = {"/proc/self/cwd/", "./"};
-  while (in) {
-    // We (mostly) blindly trust the input format is correct.
-    std::string func, file, empty;
-    std::getline(in, func);
-    std::getline(in, file);
-    std::getline(in, empty);
+  // NOTE: This function is used in a multithreaded context. Reading the whole
+  // file at once prevents threads from being blocked by other threads' IO
+  // operations. This tremendously speeds up execution.
+  in.seekg(0, std::ios::end);
+  size_t size = in.tellg();
+  std::string buffer(size, ' ');
+  in.seekg(0);
+  in.read(&buffer[0], size);
+
+  std::vector<std::string_view> lines = absl::StrSplit(buffer, '\n');
+  absl::Span<std::string_view> lines_view{lines};
+
+  constexpr std::string_view file_prefixes_to_remove[] = {
+      "/proc/self/cwd/",
+      "./",
+  };
+
+  // Symbolizer output always ends with a '\n', let's strip that as well.
+  // Note that this is different than the mandatory blank line after each
+  // symbol, which means that a non-empty llvm-symbolizer output will end
+  // with two new lines.
+  if (!lines_view.empty() && lines_view.back().empty())
+    lines_view.remove_suffix(1);
+
+  // The symbolizer returned an empty output.
+  if (lines_view.size() == 1 && lines_view.back().empty()) return;
+
+  while (!lines_view.empty()) {
+    CHECK_GE(lines_view.size(), 3) << "Unexpected symbolizer output format.";
+
+    std::string_view func = lines_view[0];
+    std::string_view file = lines_view[1];
+    std::string_view empty = lines_view[2];
     CHECK(empty.empty()) << "Unexpected symbolizer output format: " << VV(func)
                          << VV(file) << VV(empty);
-    if (!in) break;
     for (auto &bad_prefix : file_prefixes_to_remove) {
       file = absl::StripPrefix(file, bad_prefix);
     }
     AddEntry(func, file);
+
+    // Advance the view to the next symbol.
+    lines_view.remove_prefix(3);
   }
 }
 
