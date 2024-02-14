@@ -413,7 +413,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
  public:
   CentipedeFixtureDriver(
       std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver)
-      : orig_fixture_driver_(std::move(orig_fixture_driver)){};
+      : orig_fixture_driver_(std::move(orig_fixture_driver)) {}
 
   void SetUpFuzzTest() override {
     orig_fixture_driver_->SetUpFuzzTest();
