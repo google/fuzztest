@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <cstdlib>
 #include <limits>
 #include <vector>
@@ -303,5 +304,37 @@ void RunRoboCourier560(const RoboCourier560Plan& plan) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, RunRoboCourier560);
+
+void IntegerConditionsOnTestProtobufLevel00(const TestProtobuf& input) {
+  int64_t integer_result;
+  if (input.b()) {
+    if (__builtin_add_overflow(input.i32(), input.i64(), &integer_result)) {
+      return;  // [Hint] Overflow detected
+    }
+  } else {
+    if (__builtin_sub_overflow(input.i32(), input.i64(), &integer_result)) {
+      return;  // [Hint] Overflow detected
+    }
+  }
+  if (integer_result < 1239291904) {
+    return;
+  }
+
+  if (input.rep_b().empty()) {
+    return;
+  }
+  uint64_t unsigned_result;
+  if (input.rep_b()[0]) {
+    unsigned_result = input.u32() + input.u64() + input.rep_b()[0];
+  } else {
+    unsigned_result = input.u32() - input.u64() - input.rep_b()[0];
+  }
+  if (unsigned_result != 2000) {
+    return;
+  }
+  // [Hint] Reachable if all of the early returns above are not taken.
+  std::abort();
+}
+FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel00);
 
 }  // namespace
