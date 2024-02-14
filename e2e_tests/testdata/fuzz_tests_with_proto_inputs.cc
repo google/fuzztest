@@ -337,4 +337,45 @@ void IntegerConditionsOnTestProtobufLevel00(const TestProtobuf& input) {
 }
 FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel00);
 
+void IntegerConditionsOnTestProtobufLevel01(const TestProtobuf& input) {
+  int64_t integer_result;
+  if (input.b()) {
+    if (__builtin_add_overflow(input.i32(), input.i64(), &integer_result)) {
+      return;  // [Hint] Overflow detected
+    }
+  } else {
+    if (__builtin_sub_overflow(input.i32(), input.i64(), &integer_result)) {
+      return;  // [Hint] Overflow detected
+    }
+  }
+  if (integer_result < 1239291904) {
+    return;
+  }
+
+  if (input.rep_b().empty()) {
+    return;
+  }
+  if (input.rep_b().size() < 5) {
+    return;
+  }
+  bool flip = false;
+  uint32_t num_trues = 0;
+  for (const bool& b : input.rep_b()) {
+    flip += b;
+    num_trues += b;
+  }
+  uint64_t unsigned_result;
+  if (flip) {
+    unsigned_result = input.u32() + input.u64() + num_trues;
+  } else {
+    unsigned_result = input.u32() - input.u64() + num_trues;
+  }
+  if (unsigned_result != 2000) {
+    return;
+  }
+  // [Hint] reachable if none of the early returns above are taken.
+  std::abort();
+}
+FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel01);
+
 }  // namespace
