@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -929,9 +930,40 @@ class ProtobufDomainUntypedImpl
     }
   };
 
+  absl::Status ValidateOneof(const corpus_type& corpus_value,
+                             const OneofDescriptor* oneof) const {
+    int set_fields_count = 0;
+    for (int i = 0; i < oneof->field_count(); ++i) {
+      auto field_number_value = corpus_value.find(oneof->field(i)->number());
+      if (field_number_value == corpus_value.end()) continue;
+      auto inner_corpus_value = field_number_value->second;
+      absl::Status status;
+      VisitProtobufField(oneof->field(i),
+                         ValidateVisitor{*this, inner_corpus_value, status});
+      if (!status.ok()) return status;
+      ++set_fields_count;
+    }
+    if (set_fields_count == 0 && IsOneofAlwaysSet(oneof->index())) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Oneof ", oneof->name(), " is not set"));
+    }
+    if (set_fields_count > 1) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Oneof ", oneof->name(), " has been set multiple times"));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    auto* descriptor = prototype_.Get()->GetDescriptor();
+    for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
+      auto oneof = descriptor->oneof_decl(i);
+      absl::Status status = ValidateOneof(corpus_value, oneof);
+      if (!status.ok()) return status;
+    }
     for (const FieldDescriptor* field :
          GetProtobufFields(prototype_.Get()->GetDescriptor())) {
+      if (field->containing_oneof()) continue;
       auto field_number_value = corpus_value.find(field->number());
       auto inner_corpus_value = (field_number_value != corpus_value.end())
                                     ? std::optional(field_number_value->second)
@@ -1108,7 +1140,7 @@ class ProtobufDomainUntypedImpl
     }
   }
 
-  bool IsOneofAlwaysSet(int oneof_index) {
+  bool IsOneofAlwaysSet(int oneof_index) const {
     return always_set_oneofs_.contains(oneof_index);
   }
 

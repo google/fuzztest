@@ -562,6 +562,35 @@ TEST(ProtocolBuffer, WithFieldsAlwaysSetResetsWithMaxRepeatedFieldsSize) {
                   Gt(1))));
 }
 
+TEST(ProtocolBuffer, ValidationRejectsIncorrectlySetOneofField) {
+  Domain<TestProtobuf> domain_a = Arbitrary<TestProtobuf>();
+  Domain<TestProtobuf> domain_b = Arbitrary<TestProtobuf>()
+                                      .WithOneofAlwaysSet("oneof_field")
+                                      .WithFieldUnset("oneof_u32");
+  TestProtobuf user_value;
+  user_value.set_oneof_u32(1);
+  auto corpus_value = domain_a.FromValue(user_value);
+
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(*corpus_value),
+      IsInvalid(
+          "Invalid value for field oneof_u32 >> Optional value must be null"));
+}
+
+TEST(ProtocolBuffer, ValidationRejectsUnsetOneofsWithOneofAlwaysSet) {
+  absl::BitGen bitgen;
+
+  Domain<TestProtobuf> domain_a = Arbitrary<TestProtobuf>();
+  Domain<TestProtobuf> domain_b =
+      Arbitrary<TestProtobuf>().WithOneofAlwaysSet("oneof_field");
+
+  TestProtobuf user_value;
+  auto corpus_value = domain_a.FromValue(user_value);
+
+  EXPECT_THAT(domain_b.ValidateCorpusValue(*corpus_value),
+              IsInvalid("Oneof oneof_field is not set"));
+}
+
 TEST(ProtocolBufferEnum, Arbitrary) {
   auto domain = Arbitrary<TestProtobuf_Enum>();
   absl::BitGen bitgen;
