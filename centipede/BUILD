@@ -449,11 +449,15 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
     ] + select({
         ":disable_riegeli": [],
         "//conditions:default": [
             "@com_google_riegeli//riegeli/base:object",
+            "@com_google_riegeli//riegeli/base:types",
             "@com_google_riegeli//riegeli/bytes:reader",
             "@com_google_riegeli//riegeli/bytes:writer",
             "@com_google_riegeli//riegeli/records:record_reader",
