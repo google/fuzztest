@@ -505,26 +505,12 @@ class ProtobufDomainUntypedImpl
     return oneof->field(fields[selected])->index();
   }
 
-  void SetOneofFieldsPoliciesToWithoutNullWhereNeeded(
-      const ProtobufDescriptor<Message>* descriptor) {
-    for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
-      auto* oneof = descriptor->oneof_decl(i);
-      if (!always_set_oneofs_.contains(oneof->index())) continue;
-      for (int j = 0; j < oneof->field_count(); ++j) {
-        if (GetOneofFieldPolicy(oneof->field(j)) == OptionalPolicy::kWithNull) {
-          SetOneofFieldPolicy(oneof->field(j), OptionalPolicy::kWithoutNull);
-        }
-      }
-    }
-  }
-
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     FUZZTEST_INTERNAL_CHECK(
         !customized_fields_.empty() || !IsNonTerminatingRecursive(),
         "Cannot set recursive fields by default.");
     const auto* descriptor = prototype_.Get()->GetDescriptor();
-    SetOneofFieldsPoliciesToWithoutNullWhereNeeded(descriptor);
     corpus_type val;
     absl::flat_hash_map<int, int> oneof_to_field;
 
@@ -1102,9 +1088,6 @@ class ProtobufDomainUntypedImpl
     auto* oneof = field->containing_oneof();
     if (!oneof) return;
     uncustomizable_oneofs_.insert(oneof->index());
-    if (always_set_oneofs_.contains(oneof->index())) {
-      SetOneofFieldPolicy(field, OptionalPolicy::kWithoutNull);
-    }
   }
 
   void WithOneofAlwaysSet(absl::string_view oneof_name) {
@@ -1120,6 +1103,9 @@ class ProtobufDomainUntypedImpl
         "WithOneofAlwaysSet(\"", name,
         "\") should be called before customizing sub-fields.");
     always_set_oneofs_.insert(oneof->index());
+    for (int i = 0; i < oneof->field_count(); ++i) {
+      SetOneofFieldPolicy(oneof->field(i), OptionalPolicy::kWithoutNull);
+    }
   }
 
   bool IsOneofAlwaysSet(int oneof_index) {
@@ -1238,7 +1224,7 @@ class ProtobufDomainUntypedImpl
 
   void SetOneofFieldPolicy(const FieldDescriptor* field,
                            OptionalPolicy policy) {
-    oneof_fields_policies_.insert({field->index(), policy});
+    oneof_fields_policies_[field->index()] = policy;
   }
 
   OptionalPolicy GetOneofFieldPolicy(const FieldDescriptor* field) const {
