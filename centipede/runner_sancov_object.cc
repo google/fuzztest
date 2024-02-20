@@ -32,12 +32,13 @@
 
 namespace centipede {
 
-void SanCovObjectArray::PCGuardInit(absl::Nonnull<PCGuard *> start,
-                                    PCGuard *stop) {
+void SanCovObjectArray::PCGuardInit(PCGuard *start, PCGuard *stop) {
   // Ignore repeated calls with the same arguments.
   if (size_ != 0 && objects_[size_ - 1].pc_guard_start == start) return;
+  RunnerCheck(start != nullptr || stop == nullptr, "invalid PC guard table");
   RunnerCheck(size_ < kMaxSize, "too many sancov objects");
   auto &sancov_object = objects_[size_++];
+  sancov_object.pc_guard_inited = true;
   sancov_object.pc_guard_start = start;
   sancov_object.pc_guard_stop = stop;
   for (PCGuard *guard = start; guard != stop; ++guard) {
@@ -53,19 +54,24 @@ void SanCovObjectArray::Inline8BitCountersInit(
                         inline_8bit_counters_start) {
     return;
   }
+  RunnerCheck(inline_8bit_counters_start != nullptr ||
+                  inline_8bit_counters_stop == nullptr,
+              "invalid 8-bit counter table");
   RunnerCheck(size_ < kMaxSize, "too many sancov objects");
   auto &sancov_object = objects_[size_++];
+  sancov_object.inline_8bit_counters_inited = true;
   sancov_object.inline_8bit_counters_start = inline_8bit_counters_start;
   sancov_object.inline_8bit_counters_stop = inline_8bit_counters_stop;
 }
 
-void SanCovObjectArray::PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg,
+void SanCovObjectArray::PCInfoInit(const PCInfo *pcs_beg,
                                    const PCInfo *pcs_end) {
   const char *called_early =
       "__sanitizer_cov_pcs_init is called before either of "
       "__sanitizer_cov_trace_pc_guard_init or "
       "__sanitizer_cov_8bit_counters_init";
   RunnerCheck(size_ != 0, called_early);
+  RunnerCheck(pcs_beg != nullptr || pcs_end == nullptr, "invalid PC table");
   // Assumes either __sanitizer_cov_trace_pc_guard_init or
   // sanitizer_cov_8bit_counters_init was already called on this object.
   auto &sancov_object = objects_[size_ - 1];
@@ -73,10 +79,17 @@ void SanCovObjectArray::PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg,
       sancov_object.pc_guard_stop - sancov_object.pc_guard_start;
   const size_t counter_size = sancov_object.inline_8bit_counters_stop -
                               sancov_object.inline_8bit_counters_start;
-  RunnerCheck(guard_size != 0 || counter_size != 0, called_early);
+  RunnerCheck(sancov_object.pc_guard_inited ||
+                  sancov_object.inline_8bit_counters_inited,
+              called_early);
   RunnerCheck(std::max(guard_size, counter_size) == pcs_end - pcs_beg,
               "__sanitizer_cov_pcs_init: mismatch between guard/counter size"
               " and pc table size");
+  if (pcs_beg == nullptr) {
+    // Ignore any DSO with empty PC table (which means it contains no code).
+    --size_;
+    return;
+  }
   sancov_object.pcs_beg = pcs_beg;
   sancov_object.pcs_end = pcs_end;
   sancov_object.dl_info = GetDlInfo(pcs_beg->pc);

@@ -20,7 +20,6 @@
 #include <functional>
 #include <vector>
 
-#include "absl/base/nullability.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 
@@ -36,12 +35,14 @@ namespace centipede {
 // These structs are created as globals and are linker-initialized to zero.
 struct SanCovObject {
   DlInfo dl_info;                       // Obtained via GetDlInfo.
+  bool pc_guard_inited;                 // __sanitizer_cov_trace_pc_guard_init.
   PCGuard *pc_guard_start;              // __sanitizer_cov_trace_pc_guard_init.
   PCGuard *pc_guard_stop;               // __sanitizer_cov_trace_pc_guard_init.
   const PCInfo *pcs_beg;                // __sanitizer_cov_pcs_init
   const PCInfo *pcs_end;                // __sanitizer_cov_pcs_init
   const uintptr_t *cfs_beg;             // __sanitizer_cov_cfs_init
   const uintptr_t *cfs_end;             // __sanitizer_cov_cfs_init
+  bool inline_8bit_counters_inited;     // __sanitizer_cov_8bit_counters_init
   uint8_t *inline_8bit_counters_start;  // __sanitizer_cov_8bit_counters_init
   uint8_t *inline_8bit_counters_stop;   // __sanitizer_cov_8bit_counters_init
 };
@@ -51,10 +52,10 @@ struct SanCovObject {
 class SanCovObjectArray {
  public:
   // To be called in __sanitizer_cov_trace_pc_guard_init.
-  void PCGuardInit(absl::Nonnull<PCGuard *> start, PCGuard *stop);
+  void PCGuardInit(PCGuard *start, PCGuard *stop);
 
   // To be called in __sanitizer_cov_pcs_init.
-  void PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg, const PCInfo *pcs_end);
+  void PCInfoInit(const PCInfo *pcs_beg, const PCInfo *pcs_end);
 
   // To be called in __sanitizer_cov_cfs_init.
   void CFSInit(const uintptr_t *cfs_beg, const uintptr_t *cfs_end);

@@ -150,6 +150,33 @@ cc_binary(
     ],
 )
 
+# Helper DSO for :data_only_dso_target
+cc_library(
+    name = "data_only_dso_target_lib",
+    srcs = ["data_only_dso_target_lib.cc"],
+    hdrs = ["data_only_dso_target_lib.h"],
+    copts = [
+        "-fsanitize-coverage=trace-pc-guard,pc-table,trace-cmp",
+        "-gline-tables-only",
+    ],
+    linkopts = ["-Wl,-gc-sections"],
+)
+
+# A fuzz target with an instrumented data-only DSO dependency (:data_only_dso_target_lib).
+cc_binary(
+    name = "data_only_dso_target",
+    srcs = ["data_only_dso_target_main.cc"],
+    copts = [
+        "-fsanitize-coverage=trace-pc-guard,pc-table",
+        "-gline-tables-only",
+    ],
+    linkstatic = False,
+    deps = [
+        ":data_only_dso_target_lib",
+        "@com_google_fuzztest//centipede:centipede_runner",
+    ],
+)
+
 # A standalone binary with main() that is worth fuzzing.
 cc_binary(
     name = "standalone_fuzz_target_with_main",
@@ -226,6 +253,16 @@ sh_test(
     srcs = ["multi_dso_test.sh"],
     data = [
         ":multi_dso_target",
+        "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
+    name = "data_only_dso_test",
+    srcs = ["data_only_dso_test.sh"],
+    data = [
+        ":data_only_dso_target",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
