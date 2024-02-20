@@ -1136,7 +1136,11 @@ class ProtobufDomainUntypedImpl
         "\") should be called before customizing sub-fields.");
     always_set_oneofs_.insert(oneof->index());
     for (int i = 0; i < oneof->field_count(); ++i) {
-      SetOneofFieldPolicy(oneof->field(i), OptionalPolicy::kWithoutNull);
+      // Don't set previously unset fields.
+      if (GetPolicy().GetOptionalPolicy(oneof->field(i)) !=
+          OptionalPolicy::kAlwaysNull) {
+        SetOneofFieldPolicy(oneof->field(i), OptionalPolicy::kWithoutNull);
+      }
     }
   }
 
@@ -1227,7 +1231,6 @@ class ProtobufDomainUntypedImpl
   }
 
   ProtoPolicy<Message>& GetPolicy() {
-    CheckIfPolicyCanBeUpdated();
     return policy_;
   }
 

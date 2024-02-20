@@ -562,19 +562,33 @@ TEST(ProtocolBuffer, WithFieldsAlwaysSetResetsWithMaxRepeatedFieldsSize) {
                   Gt(1))));
 }
 
+bool IsInt64(const FieldDescriptor* field) {
+  return field->type() == FieldDescriptor::TYPE_INT64;
+}
+
 TEST(ProtocolBuffer, ValidationRejectsIncorrectlySetOneofField) {
   Domain<TestProtobuf> domain_a = Arbitrary<TestProtobuf>();
   Domain<TestProtobuf> domain_b = Arbitrary<TestProtobuf>()
+                                      .WithFieldsUnset(IsInt64)
                                       .WithOneofAlwaysSet("oneof_field")
                                       .WithFieldUnset("oneof_u32");
-  TestProtobuf user_value;
-  user_value.set_oneof_u32(1);
-  auto corpus_value = domain_a.FromValue(user_value);
+  TestProtobuf user_value_1;
+  user_value_1.set_oneof_u32(1);
+  auto corpus_value_1 = domain_a.FromValue(user_value_1);
 
   EXPECT_THAT(
-      domain_b.ValidateCorpusValue(*corpus_value),
+      domain_b.ValidateCorpusValue(*corpus_value_1),
       IsInvalid(
           "Invalid value for field oneof_u32 >> Optional value must be null"));
+
+  TestProtobuf user_value_2;
+  user_value_2.set_oneof_i64(1);
+  auto corpus_value_2 = domain_a.FromValue(user_value_2);
+
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(*corpus_value_2),
+      IsInvalid(
+          "Invalid value for field oneof_i64 >> Optional value must be null"));
 }
 
 TEST(ProtocolBuffer, ValidationRejectsUnsetOneofsWithOneofAlwaysSet) {
