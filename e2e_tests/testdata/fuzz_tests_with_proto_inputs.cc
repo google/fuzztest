@@ -15,10 +15,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <unordered_set>
 #include <vector>
 
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
+#include "re2/re2.h"
 
 namespace {
 
@@ -27,6 +29,7 @@ using fuzztest::internal::FoodMachineProcedure;
 using fuzztest::internal::RoboCourier560Plan;
 using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
+using fuzztest::internal::WebSearchResult;
 
 void BytesSummingToMagicValue(const SingleBytesField& input) {
   char sum = 0;
@@ -433,5 +436,51 @@ void IntegerConditionsOnTestProtobufLevel02(const TestProtobuf& input) {
   std::abort();
 }
 FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel02);
+
+static bool IsValidUrl(const std::string& url) {
+  const std::string url_pattern =
+      R"(^(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]$)";
+  return RE2::FullMatch(url, url_pattern);
+}
+
+void ValidateUrls(const WebSearchResult& search_result) {
+  // Search result must contain at least 1 URL.
+  if (search_result.count() <= 0) {
+    return;
+  }
+
+  // Search result must contain at most 10 URLs.
+  if (search_result.count() > 10) {
+    return;
+  }
+
+  // Query should be at least 2 letters in size.
+  if (search_result.query().empty() || search_result.query().size() < 2) {
+    return;
+  }
+
+  // Search result must contain exactly `count` URLs.
+  if (search_result.urls_size() != search_result.count()) {
+    return;
+  }
+
+  int valid_urls = 0;
+  std::unordered_set<std::string> unique_urls;
+
+  for (const auto& url : search_result.urls()) {
+    // Check if url is a valid url.
+    if (IsValidUrl(url)) {
+      valid_urls++;
+      unique_urls.insert(url);
+    }
+  }
+
+  // Ensure that all valid URLs are unique.
+  if (unique_urls.size() != search_result.urls_size()) {
+    return;
+  }
+  std::abort();
+}
+FUZZ_TEST(ProtoPuzzles, ValidateUrls);
 
 }  // namespace

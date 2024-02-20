@@ -47,6 +47,7 @@ cc_binary(
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 

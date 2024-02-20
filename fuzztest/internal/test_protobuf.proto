@@ -205,3 +205,11 @@ message RoboCourier560Plan {
   // Any non-mail related actions to take at a address.
   map<string, ExtraAction> extra_actions = 2;
 }
+
+message WebSearchResult {
+  // Number of URLs in the search result.
+  optional int64 count = 1;
+  optional string query = 2;
+  // A list of size `count` containing valid URLs.
+  repeated string urls = 3;
+}
