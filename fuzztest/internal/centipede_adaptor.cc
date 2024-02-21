@@ -54,6 +54,7 @@
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./centipede/workdir.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
@@ -486,6 +487,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   // failures here. (e.g. Ineffective Filter)
   FuzzTestFuzzerImpl::PRNG prng;
   fuzzer_impl_.params_domain_->UntypedInit(prng);
+  bool print_final_stats = true;
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
   // and we should not run CentipedeMain in this process.
@@ -494,6 +496,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     if (runner_mode) {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
+      print_final_stats = false;
       return centipede::RunnerMain(argc != nullptr ? *argc : 0,
                                    argv != nullptr ? *argv : nullptr,
                                    runner_callbacks);
@@ -503,23 +506,67 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     // This is fine because it does not require coverage instrumentation.
     if (fuzzer_impl_.ReplayInputsIfAvailable(configuration)) return 0;
     // Run as the fuzzing engine.
-    if (getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
-      absl::FPrintF(GetStderr(),
-                    "[!] Corpus minimization is not supported in the "
-                    "single-process mode. Consider using the Centipede binary "
-                    "in corpus distillation mode - see centipede/README.md.");
-      return 1;
-    }
     TempDir workdir("/tmp/fuzztest-workdir-");
     const auto env = CreateCentipedeEnvironmentFromFuzzTestFlags(
         runtime_, workdir.path(), test_.full_name());
     CentipedeAdaptorEngineCallbacksFactory factory(&runtime_, &fuzzer_impl_,
                                                    &configuration);
+    if (const char* minimize_dir_chars =
+            std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
+      print_final_stats = false;
+      const std::string minimize_dir = minimize_dir_chars;
+      const char* corpus_out_dir_chars =
+          std::getenv("FUZZTEST_TESTSUITE_OUT_DIR");
+      FUZZTEST_INTERNAL_CHECK(corpus_out_dir_chars != nullptr,
+                              "FUZZTEST_TESTSUITE_OUT_DIR must be specified "
+                              "when minimizing testsuite");
+      const std::string corpus_out_dir = corpus_out_dir_chars;
+      absl::FPrintF(
+          GetStderr(),
+          "[!] WARNING: Minimization via FUZZTEST_MINIMIZE_TESTSUITE_DIR is "
+          "intended for compatibility with certain fuzzing infrastructures. "
+          "End users are strongly advised against using it directly.\n");
+      // Minimization with Centipede takes multiple steps:
+      // 1. Import the corpus into the Centipede shard by replaying the corpus.
+      auto replay_env = env;
+      // The first empty path means no output dir.
+      replay_env.corpus_dir = {"", minimize_dir};
+      replay_env.num_runs = 0;
+      FUZZTEST_INTERNAL_CHECK(
+          centipede::CentipedeMain(replay_env, factory) == 0,
+          "Failed to replaying the testsuite for minimization");
+      absl::FPrintF(GetStderr(), "[.] Imported the corpus from %s.\n",
+                    minimize_dir);
+      // 2. Run Centipede distillation on the shard.
+      auto distill_env = env;
+      distill_env.distill = true;
+      FUZZTEST_INTERNAL_CHECK(
+          centipede::CentipedeMain(distill_env, factory) == 0,
+          "Failed to minimize the testsuite");
+      absl::FPrintF(GetStderr(),
+                    "[.] Minimized the corpus using Centipede distillation.\n");
+      // 3. Replace the shard corpus data with the distillation result.
+      auto workdir = centipede::WorkDir(distill_env);
+      FUZZTEST_INTERNAL_CHECK(
+          std::rename(workdir.DistilledCorpusFiles().MyShardPath().c_str(),
+                      workdir.CorpusFiles().MyShardPath().c_str()) == 0,
+          "Failed to replace the corpus data with the minimized result");
+      // 4. Export the corpus of the shard.
+      auto export_env = env;
+      export_env.corpus_to_files = corpus_out_dir;
+      FUZZTEST_INTERNAL_CHECK(
+          centipede::CentipedeMain(export_env, factory) == 0,
+          "Failed to export the corpus to FUZZTEST_MINIMIZE_TESTSUITE_DIR");
+      absl::FPrintF(GetStderr(),
+                    "[.] Exported the minimized the corpus to %s.\n",
+                    corpus_out_dir);
+      return 0;
+    }
     return centipede::CentipedeMain(env, factory);
   })();
   fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
   if (result) std::exit(result);
-  if (!runner_mode) {
+  if (print_final_stats) {
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");

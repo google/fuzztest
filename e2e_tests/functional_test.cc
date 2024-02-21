@@ -784,15 +784,40 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
   EXPECT_THAT(corpus_files, Not(IsEmpty())) << std_err;
 }
 
+void ExpectCorpusInputMessageInLogs(absl::string_view logs, int num_inputs) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT(logs,
+              HasSubstr(absl::StrFormat("%d inputs to rerun", num_inputs)))
+      << logs;
+#else
+  EXPECT_THAT(logs, HasSubstr(absl::StrFormat(
+                        "Parsed %d inputs and ignored 0 inputs", num_inputs)))
+      << logs;
+#endif
+}
+
+void ExpectMinimizationOutputMessageInLogs(absl::string_view logs,
+                                           int num_outputs,
+                                           int num_allowed_dups = 0) {
+  std::vector<testing::Matcher<std::string>> matchers;
+  for (int i = 0; i <= num_allowed_dups; ++i) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+    matchers.push_back(
+        HasSubstr(absl::StrFormat("distilled: %d", num_outputs + i)));
+#else
+    matchers.push_back(HasSubstr(absl::StrFormat(
+        "Selected %d corpus inputs in minimization mode", num_outputs + i)));
+#endif
+  }
+  EXPECT_THAT(logs, AnyOfArray(matchers)) << logs;
+}
+
 TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
   TempDir corpus_dir;
-  // We cannot use a non-crashing test since there is no easy way to limit the
-  // run time here.
-  //
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
@@ -800,32 +825,18 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
 
   auto [consumer_status, consumer_std_out, consumer_std_err] =
       RunWith({{"fuzz", "MySuite.String"}},
-              {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.dirname()}});
-#ifdef FUZZTEST_USE_CENTIPEDE
-  EXPECT_THAT(consumer_std_err, HasSubstr(absl::StrFormat(
-                                    "inputs_added: %d", corpus_files.size())));
-#else
-  EXPECT_THAT(consumer_std_err,
-              HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
-                                        corpus_files.size())));
-#endif  // FUZZTEST_USE_CENTIPEDE
+              {{"FUZZTEST_TESTSUITE_IN_DIR", corpus_dir.dirname()},
+               {"FUZZTEST_MAX_FUZZING_RUNS", "0"}});
+  ExpectCorpusInputMessageInLogs(consumer_std_err, corpus_files.size());
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP()
-      << "Skipping tests for corpus minimization when running with Centipede. "
-         "Please run with --config=fuzztest to enable these tests!";
-#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
-  // We cannot use a non-crashing test since there is no easy way to limit the
-  // run time here.
-  //
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
@@ -851,21 +862,12 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
   }
   EXPECT_THAT(minimized_corpus_data, IsSubsetOf(corpus_data));
 
-  EXPECT_THAT(
-      minimizer_std_err,
-      AllOf(HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
-                                      corpus_files.size())),
-            HasSubstr(absl::StrFormat(
-                "Selected %d corpus inputs in minimization mode",
-                minimized_corpus_files.size()))));
+  ExpectCorpusInputMessageInLogs(minimizer_std_err, corpus_files.size());
+  ExpectMinimizationOutputMessageInLogs(minimizer_std_err,
+                                        minimized_corpus_files.size());
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP()
-      << "Skipping tests for corpus minimization when running with Centipede. "
-         "Please run with --config=fuzztest to enable these tests!";
-#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
   // We cannot use a non-crashing test since there is no easy way to limit the
@@ -874,7 +876,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.dirname());
@@ -894,23 +896,13 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
               AllOf(Not(IsEmpty()), SizeIs(Le(corpus_files.size()))))
       << minimizer_std_err;
 
-  EXPECT_THAT(
-      minimizer_std_err,
-      AllOf(HasSubstr(absl::StrFormat("Parsed %d inputs and ignored 0 inputs",
-                                      corpus_files.size() * 2)),
-            // TODO(b/207375007): Due to non-determinism, sometimes duplicated
-            // input can reach new coverage and thus be counted into the corpus
-            // (but not reflected in the files since they are
-            // content-addressed). We use AnyOf to mitigate the flakiness.
-            AnyOf(HasSubstr(absl::StrFormat(
-                      "Selected %d corpus inputs in minimization mode",
-                      minimized_corpus_files.size())),
-                  HasSubstr(absl::StrFormat(
-                      "Selected %d corpus inputs in minimization mode",
-                      minimized_corpus_files.size() + 1)),
-                  HasSubstr(absl::StrFormat(
-                      "Selected %d corpus inputs in minimization mode",
-                      minimized_corpus_files.size() + 2)))));
+  ExpectCorpusInputMessageInLogs(minimizer_std_err, corpus_files.size() * 2);
+  // TODO(b/207375007): Due to non-determinism, sometimes duplicated
+  // input can reach new coverage and thus be counted into the corpus
+  // (but not reflected in the files since they are
+  // content-addressed). We use `num_allowed_dups` to mitigate the flakiness.
+  ExpectMinimizationOutputMessageInLogs(
+      minimizer_std_err, minimized_corpus_files.size(), /*num_allowed_dups=*/2);
 }
 
 class ReplayFile {
