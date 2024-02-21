@@ -1081,6 +1081,13 @@ will be wasted.
 
 ### Recursive Domains
 
+**WARNING**: Recursion limit for recursive domains is not implemented yet
+. If the probability of recursion is high in the domain, the initial input
+generation might "blow up", leading to resource exhaustion. Note that this is
+not an issue in case of protobuf domains (when there's recursion in the protobuf
+definition), because recursion is avoided during the initial input generation
+and only happens during mutating the inputs.
+
 Recursive data structures need recursive domains. We can use the `DomainBuilder`
 to build such domains. Here are some examples:
 
