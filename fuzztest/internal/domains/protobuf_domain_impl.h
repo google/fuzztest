@@ -439,7 +439,7 @@ class ProtobufDomainUntypedImpl
         customized_fields_(),
         always_set_oneofs_(),
         uncustomizable_oneofs_(),
-        oneof_fields_policies_() {}
+        unset_oneof_fields_() {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
       : prototype_(other.prototype_),
@@ -450,7 +450,7 @@ class ProtobufDomainUntypedImpl
     customized_fields_ = other.customized_fields_;
     always_set_oneofs_ = other.always_set_oneofs_;
     uncustomizable_oneofs_ = other.uncustomizable_oneofs_;
-    oneof_fields_policies_ = other.oneof_fields_policies_;
+    unset_oneof_fields_ = other.unset_oneof_fields_;
   }
 
   template <typename T>
@@ -1110,7 +1110,7 @@ class ProtobufDomainUntypedImpl
         "Cannot always set oneof field ", field_name,
         " (try using WithOneofAlwaysSet).");
     if (policy == OptionalPolicy::kAlwaysNull) {
-      SetOneofFieldPolicy(field, policy);
+      MarkOneofFieldAsUnset(field);
     }
   }
 
@@ -1135,13 +1135,6 @@ class ProtobufDomainUntypedImpl
         "WithOneofAlwaysSet(\"", name,
         "\") should be called before customizing sub-fields.");
     always_set_oneofs_.insert(oneof->index());
-    for (int i = 0; i < oneof->field_count(); ++i) {
-      // Don't set previously unset fields.
-      if (GetPolicy().GetOptionalPolicy(oneof->field(i)) !=
-          OptionalPolicy::kAlwaysNull) {
-        SetOneofFieldPolicy(oneof->field(i), OptionalPolicy::kWithoutNull);
-      }
-    }
   }
 
   bool IsOneofAlwaysSet(int oneof_index) const {
@@ -1231,6 +1224,7 @@ class ProtobufDomainUntypedImpl
   }
 
   ProtoPolicy<Message>& GetPolicy() {
+    CheckIfPolicyCanBeUpdated();
     return policy_;
   }
 
@@ -1257,9 +1251,8 @@ class ProtobufDomainUntypedImpl
     }
   }
 
-  void SetOneofFieldPolicy(const FieldDescriptor* field,
-                           OptionalPolicy policy) {
-    oneof_fields_policies_[field->index()] = policy;
+  void MarkOneofFieldAsUnset(const FieldDescriptor* field) {
+    unset_oneof_fields_.insert(field->index());
   }
 
   OptionalPolicy GetOneofFieldPolicy(const FieldDescriptor* field) const {
@@ -1267,11 +1260,17 @@ class ProtobufDomainUntypedImpl
         field->containing_oneof(),
         "GetOneofFieldPolicy should apply to oneof fields only! ",
         field->full_name());
-    auto result = oneof_fields_policies_.find(field->index());
-    if (result != oneof_fields_policies_.end()) {
-      return result->second;
+    auto field_policy = policy_.GetOptionalPolicy(field);
+    // Field being unset via a policy overwrites the oneof policy.
+    if (field_policy == OptionalPolicy::kAlwaysNull) return field_policy;
+    auto result = unset_oneof_fields_.find(field->index());
+    // Field being unset via field customization overwrites the oneof policy.
+    if (result != unset_oneof_fields_.end()) return OptionalPolicy::kAlwaysNull;
+    // Policy is set at oneof level.
+    if (IsOneofAlwaysSet(field->containing_oneof()->index())) {
+      return OptionalPolicy::kWithoutNull;
     }
-    return policy_.GetOptionalPolicy(field);
+    return field_policy;
   }
 
  private:
@@ -1542,7 +1541,7 @@ class ProtobufDomainUntypedImpl
   absl::flat_hash_set<int> customized_fields_;
   absl::flat_hash_set<int> always_set_oneofs_;
   absl::flat_hash_set<int> uncustomizable_oneofs_;
-  absl::flat_hash_map<int, OptionalPolicy> oneof_fields_policies_;
+  absl::flat_hash_set<int> unset_oneof_fields_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.

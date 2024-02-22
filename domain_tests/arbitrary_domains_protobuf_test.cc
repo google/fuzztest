@@ -569,8 +569,8 @@ bool IsInt64(const FieldDescriptor* field) {
 TEST(ProtocolBuffer, ValidationRejectsIncorrectlySetOneofField) {
   Domain<TestProtobuf> domain_a = Arbitrary<TestProtobuf>();
   Domain<TestProtobuf> domain_b = Arbitrary<TestProtobuf>()
-                                      .WithFieldsUnset(IsInt64)
                                       .WithOneofAlwaysSet("oneof_field")
+                                      .WithFieldsUnset(IsInt64)
                                       .WithFieldUnset("oneof_u32");
   TestProtobuf user_value_1;
   user_value_1.set_oneof_u32(1);
