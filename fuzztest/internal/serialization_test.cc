@@ -231,6 +231,24 @@ TEST(SerializerTest, ExtraWhitespaceIsFine) {
               Optional(SubsAre(ValueIs<uint64_t>(0))));
 }
 
+IRObject CreateRecursiveObject(int depth) {
+  IRObject obj;
+  if (depth > 0) {
+    obj.MutableSubs().push_back(CreateRecursiveObject(depth - 1));
+  }
+  return obj;
+}
+
+TEST(SerializerTest, RecursiveStructureBelowDepthLimitGetsParsed) {
+  std::string serialized = CreateRecursiveObject(/*depth=*/100).ToString();
+  EXPECT_TRUE(IRObject::FromString(serialized).has_value());
+}
+
+TEST(SerializerTest, RecursiveStructureAboveDepthLimitDoesNotGetParsed) {
+  std::string serialized = CreateRecursiveObject(/*depth=*/150).ToString();
+  EXPECT_FALSE(IRObject::FromString(serialized).has_value());
+}
+
 template <typename T>
 void TestScalarRoundTrips(T value) {
   EXPECT_THAT(IRObject(value).GetScalar<T>(), Optional(value));

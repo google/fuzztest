@@ -130,7 +130,9 @@ bool ReadScalar(std::string& out, absl::string_view value) {
   return true;
 }
 
-bool ParseImpl(IRObject& obj, absl::string_view& str) {
+bool ParseImpl(IRObject& obj, absl::string_view& str, int recursion_depth) {
+  static constexpr int kMaxRecursionDepth = 128;
+  if (recursion_depth > kMaxRecursionDepth) return false;
   absl::string_view key = ReadToken(str);
   if (key.empty() || key == "}") {
     // The object is empty. Put the token back and return.
@@ -142,7 +144,7 @@ bool ParseImpl(IRObject& obj, absl::string_view& str) {
     auto& v = obj.value.emplace<std::vector<IRObject>>();
     do {
       if (ReadToken(str) != "{") return false;
-      if (!ParseImpl(v.emplace_back(), str)) return false;
+      if (!ParseImpl(v.emplace_back(), str, recursion_depth + 1)) return false;
       if (ReadToken(str) != "}") return false;
       key = ReadToken(str);
     } while (key == "sub");
@@ -179,7 +181,8 @@ std::string IRObject::ToString() const {
 std::optional<IRObject> IRObject::FromString(absl::string_view str) {
   IRObject object;
   if (ReadToken(str) != kHeader) return std::nullopt;
-  if (!ParseImpl(object, str) || !ReadToken(str).empty()) return std::nullopt;
+  if (!ParseImpl(object, str, /*recursion_depth=*/0) || !ReadToken(str).empty())
+    return std::nullopt;
   return object;
 }
 
