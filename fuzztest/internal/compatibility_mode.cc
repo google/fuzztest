@@ -105,6 +105,14 @@ int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
 
 // External engine callbacks.
 
+static bool IsEnginePlaceholderInput(absl::string_view data) {
+  // https://github.com/llvm/llvm-project/blob/5840aa95e3c2d93f400e638e7cbf167a693c75f5/compiler-rt/lib/fuzzer/FuzzerLoop.cpp#L807
+  if (data.size() == 0) return true;
+  // https://github.com/llvm/llvm-project/blob/5840aa95e3c2d93f400e638e7cbf167a693c75f5/compiler-rt/lib/fuzzer/FuzzerLoop.cpp#L811
+  if (data.size() == 1 && data[0] == '\n') return true;
+  return false;
+}
+
 void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
   auto& impl = GetFuzzerImpl();
   if (impl.ShouldStop()) {
@@ -116,9 +124,10 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
     std::_Exit(0);
   }
   runtime_.SetCurrentTest(&impl.test_, nullptr);
-  if (auto input = impl.TryParse(data)) {
-    impl.RunOneInput({*std::move(input)});
-  }
+  if (IsEnginePlaceholderInput(data)) return;
+  auto input = impl.TryParse(data);
+  if (!input) return;
+  impl.RunOneInput({*std::move(input)});
 }
 
 std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
@@ -126,7 +135,10 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
                                                       unsigned int seed) {
   auto& impl = GetFuzzerImpl();
   typename FuzzerImpl::PRNG prng(seed);
-  auto input = impl.TryParse(data);
+  std::optional<GenericDomainCorpusType> input = std::nullopt;
+  if (!IsEnginePlaceholderInput(data)) {
+    input = impl.TryParse(data);
+  }
   if (!input) input = impl.params_domain_->UntypedInit(prng);
   constexpr int kNumAttempts = 10;
   std::string result;
