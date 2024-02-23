@@ -14,9 +14,13 @@ The library can work in several different modes.
 *   Fuzzing mode (controlled by `-DFUZZTEST_FUZZING_MODE=on`): FUZZ_TESTs are
     built with coverage instrumentation and run individually and indefinitely or
     for specified amount of time.
-*   Compatibility mode (controlled by `-DFUZZTEST_COMPATIBILITY_MODE=libfuzzer`): like Fuzzing mode, but an
+*   Compatibility mode (controlled by
+    `-DFUZZTEST_COMPATIBILITY_MODE=libfuzzer`): like Fuzzing mode, but an
     external engine is used instead FuzzTest's built in engine. Currently
     [libFuzzer](https://llvm.org/docs/LibFuzzer.html) is supported.
+
+    **Warning:** compatibility mode is experimental and does not guarantee full
+    FuzzTest features.
 
 ## Overall rules
 
@@ -208,6 +212,9 @@ Note: Google Test filter = MyTestSuite.IntegerAdditionCommutes
 Congratulations! You're now all set for fuzzing with FuzzTest.
 
 ### Compatibility mode
+
+**Warning:** compatibility mode is experimental and does not guarantee full
+FuzzTest features.
 
 Linking FuzzTest using `link_fuzztest()` enables linking with external fuzzing engines, when built with `-DFUZZTEST_COMPATIBILITY_MODE`.
 
