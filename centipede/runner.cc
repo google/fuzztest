@@ -272,10 +272,12 @@ static void CheckWatchdogLimits() {
 }
 
 __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
+  static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
   const size_t stack_limit = state.run_time_flags.stack_limit_kb.load() << 10;
   // Check for the stack limit only if sp is inside the stack region.
   if (stack_limit > 0 && tls.stack_region_low &&
       tls.top_frame_sp - sp > stack_limit) {
+    if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
             "========= Stack limit exceeded: %" PRIuPTR " > %" PRIu64
             " (byte); aborting\n",
