@@ -36,7 +36,9 @@ namespace fuzztest::internal {
 
 using DFAPath = std::vector<RegexpDFA::Edge>;
 
-class InRegexpImpl : public DomainBase<InRegexpImpl, std::string, DFAPath> {
+class InRegexpImpl
+    : public domain_implementor::DomainBase<InRegexpImpl, std::string,
+                                            DFAPath> {
  public:
   explicit InRegexpImpl(std::string_view regex_str)
       : regex_str_(regex_str), dfa_(RegexpDFA::Create(regex_str_)) {}

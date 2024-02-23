@@ -21,6 +21,7 @@
 #include <type_traits>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
@@ -33,7 +34,7 @@ namespace fuzztest::internal {
 
 template <typename Mapper, typename... Inner>
 class MapImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           MapImpl<Mapper, Inner...>,
           std::decay_t<std::invoke_result_t<Mapper, value_type_t<Inner>...>>,
           std::tuple<corpus_type_t<Inner>...>> {
@@ -108,7 +109,7 @@ class MapImpl
 
 template <typename Mapper, typename InvMapper, typename... Inner>
 class ReversibleMapImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           ReversibleMapImpl<Mapper, InvMapper, Inner...>,
           std::decay_t<std::invoke_result_t<Mapper, value_type_t<Inner>...>>,
           std::tuple<corpus_type_t<Inner>...>> {

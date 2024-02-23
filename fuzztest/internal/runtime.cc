@@ -54,8 +54,8 @@
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/type_support.h"
 
 #ifdef ADDRESS_SANITIZER
 #include <sanitizer/asan_interface.h>
@@ -67,11 +67,14 @@ inline constexpr int TRAP_PERF = 6;
 
 namespace fuzztest::internal {
 
+using ::fuzztest::domain_implementor::PrintMode;
+using ::fuzztest::domain_implementor::RawSink;
+
 void (*crash_handler_hook)();
 
 void Runtime::DumpReproducer(absl::string_view outdir) const {
   const std::string content =
-      current_args_->domain.UntypedSerializeCorpus(current_args_->corpus_value)
+      current_args_->domain.SerializeCorpus(current_args_->corpus_value)
           .ToString();
   const std::string filename = WriteDataToDir(content, outdir);
 
@@ -83,7 +86,7 @@ void Runtime::DumpReproducer(absl::string_view outdir) const {
   }
 }
 
-void Runtime::PrintFinalStats(absl::FormatRawSink out) const {
+void Runtime::PrintFinalStats(RawSink out) const {
   const std::string separator = '\n' + std::string(65, '=') + '\n';
   absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
 
@@ -96,7 +99,7 @@ void Runtime::PrintFinalStats(absl::FormatRawSink out) const {
   absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
 }
 
-void Runtime::PrintReport(absl::FormatRawSink out) const {
+void Runtime::PrintReport(RawSink out) const {
   // We don't want to try and print a fuzz report when we are not running a fuzz
   // test, even if we got a crash.
   if (!reporter_enabled_) return;
@@ -128,16 +131,14 @@ void Runtime::PrintReport(absl::FormatRawSink out) const {
     absl::Format(out, "%s:%d: Counterexample found for %s.%s.\n",
                  current_test_->file(), current_test_->line(),
                  current_test_->suite_name(), current_test_->test_name());
-    absl::Format(out, "The test fails with input:\n");
-    const int num_args = current_args_->domain.UntypedPrintCorpusValue(
-        current_args_->corpus_value, out, PrintMode::kHumanReadable, -1);
-
-    for (size_t i = 0; i < num_args; ++i) {
-      absl::Format(out, "argument %d: ", i);
-      current_args_->domain.UntypedPrintCorpusValue(
-          current_args_->corpus_value, out, PrintMode::kHumanReadable, i);
-      absl::Format(out, "\n");
-    }
+    auto printer = current_args_->domain.GetPrinter();
+    printer.PrintFormattedAggregateValue(
+        current_args_->corpus_value, out, PrintMode::kHumanReadable,
+        /*prefix=*/"The test fails with input:", /*suffix=*/"\n",
+        /*element_formatter=*/
+        [](RawSink out, size_t idx, absl::string_view element) {
+          absl::Format(out, "\nargument %d: %s", idx, element);
+        });
 
     // There doesn't seem to be a good way to generate a reproducer test when
     // the test uses a fixture (see b/241271658).
@@ -145,12 +146,14 @@ void Runtime::PrintReport(absl::FormatRawSink out) const {
       absl::Format(out, "%s=== Reproducer test\n\n", separator);
       absl::Format(out, "TEST(%1$s, %2$sRegression) {\n  %2$s(\n",
                    current_test_->suite_name(), current_test_->test_name());
-      for (size_t i = 0; i < num_args; ++i) {
-        if (i != 0) absl::Format(out, ",\n");
-        absl::Format(out, "    ");
-        current_args_->domain.UntypedPrintCorpusValue(
-            current_args_->corpus_value, out, PrintMode::kSourceCode, i);
-      }
+      printer.PrintFormattedAggregateValue(
+          current_args_->corpus_value, out, PrintMode::kSourceCode,
+          /*prefix=*/"", /*suffix=*/"",
+          /*element_formatter=*/
+          [](RawSink out, size_t idx, absl::string_view element) {
+            if (idx != 0) absl::Format(out, ",\n");
+            absl::Format(out, "    %s", element);
+          });
       absl::Format(out, "\n  );\n");
       absl::Format(out, "}\n");
     }
@@ -410,14 +413,13 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::TryParse(
     absl::FPrintF(GetStderr(), "[!] Unexpected file format.\n");
     return std::nullopt;
   }
-  auto corpus_value = params_domain_->UntypedParseCorpus(*ir_value);
+  auto corpus_value = params_domain_.ParseCorpus(*ir_value);
   if (!corpus_value) {
     absl::FPrintF(GetStderr(), "[!] Unexpected intermediate representation.\n");
     return std::nullopt;
   }
 
-  absl::Status is_valid =
-      params_domain_->UntypedValidateCorpusValue(*corpus_value);
+  absl::Status is_valid = params_domain_.ValidateCorpusValue(*corpus_value);
   if (!is_valid.ok()) {
     absl::FPrintF(GetStderr(), "[!] Invalid corpus value: %s\n",
                   is_valid.ToString());
@@ -477,7 +479,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
-        params_domain_->UntypedSerializeCorpus(*to_minimize).ToString();
+        params_domain_.SerializeCorpus(*to_minimize).ToString();
 
     // In minimize mode we keep mutating the given reproducer value with
     // `only_shrink=true` until we crash. We drop mutations that don't
@@ -491,12 +493,12 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     while (!ShouldStop()) {
       auto copy = *to_minimize;
       for (int i = 0; i < num_mutations; ++i) {
-        params_domain_->UntypedMutate(copy, prng, true);
+        params_domain_.Mutate(copy, prng, true);
       }
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
       // now.
-      if (params_domain_->UntypedSerializeCorpus(copy).ToString() ==
+      if (params_domain_.SerializeCorpus(copy).ToString() ==
           original_serialized) {
         continue;
       }
@@ -566,7 +568,7 @@ void FuzzTestFuzzerImpl::MutateValue(Input& input, absl::BitGenRef prng) {
   // optimized in any significant way.
   for (int mutations_at_once = absl::Poisson<int>(prng) + 1;
        mutations_at_once > 0; --mutations_at_once) {
-    params_domain_->UntypedMutate(input.args, prng, /* only_shrink= */ false);
+    params_domain_.Mutate(input.args, prng, /* only_shrink= */ false);
   }
 }
 
@@ -634,7 +636,7 @@ void FuzzTestFuzzerImpl::TrySampleAndUpdateInMemoryCorpus(Input sample,
   auto [new_coverage, run_time] = TrySample(sample, write_to_file);
   if (execution_coverage_ != nullptr &&
       (stats_.runs % 4096 == 0 || new_coverage)) {
-    params_domain_->UntypedUpdateMemoryDictionary(sample.args);
+    params_domain_.UpdateMemoryDictionary(sample.args);
   }
   if (!new_coverage) return;
   // New coverage, update corpus and weights.
@@ -692,9 +694,8 @@ FuzzTestFuzzerImpl::TryReadCorpusFromFiles() {
 
 void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   if (corpus_out_dir_.empty()) return;
-  if (WriteDataToDir(
-          params_domain_->UntypedSerializeCorpus(input.args).ToString(),
-          corpus_out_dir_)
+  if (WriteDataToDir(params_domain_.SerializeCorpus(input.args).ToString(),
+                     corpus_out_dir_)
           .empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write corpus file.\n");
   }
@@ -710,7 +711,7 @@ void FuzzTestFuzzerImpl::InitializeCorpus(absl::BitGenRef prng) {
                                      /*write_to_file=*/false);
   }
   if (corpus_.empty()) {
-    TrySampleAndUpdateInMemoryCorpus(Input{params_domain_->UntypedInit(prng)});
+    TrySampleAndUpdateInMemoryCorpus(Input{params_domain_.Init(prng)});
   }
 }
 
@@ -811,7 +812,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     }
     const auto time_limit = stats_.start_time + duration;
     PRNG prng(seed_sequence_);
-    Input mutation{params_domain_->UntypedInit(prng)};
+    Input mutation{params_domain_.Init(prng)};
     constexpr size_t max_iterations = 10000;
     for (int i = 0; i < max_iterations; ++i) {
       runtime_.SetExternalFailureDetected(false);
@@ -825,7 +826,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
       if (i % num_mutations_per_value < num_mutations_per_value - 1) {
         MutateValue(mutation, prng);
       } else {
-        mutation.args = params_domain_->UntypedInit(prng);
+        mutation.args = params_domain_.Init(prng);
       }
 
       if (absl::Now() > time_limit) {
@@ -843,8 +844,8 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
 FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     const Input& input) {
   ++stats_.runs;
-  auto untyped_args = params_domain_->UntypedGetValue(input.args);
-  Runtime::Args debug_args{input.args, *params_domain_};
+  auto untyped_args = params_domain_.GetValue(input.args);
+  Runtime::Args debug_args{input.args, params_domain_};
   runtime_.SetCurrentArgs(&debug_args);
 
   // Reset and observe the coverage map and start tracing in
@@ -902,15 +903,14 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // reach another failure, but prefer a low number of mutations (thus Zipf).
     for (int num_mutations = absl::Zipf(prng, 10); num_mutations >= 0;
          --num_mutations) {
-      params_domain_->UntypedMutate(copy.args, prng, /* only_shrink= */ true);
+      params_domain_.Mutate(copy.args, prng, /* only_shrink= */ true);
     }
     // Only run it if it actually is different. Random mutations might
     // not actually change the value, or we have reached a minimum that can't be
     // minimized anymore.
-    if (params_domain_
-            ->UntypedSerializeCorpus(minimal_non_fatal_counterexample_->args)
+    if (params_domain_.SerializeCorpus(minimal_non_fatal_counterexample_->args)
             .ToString() !=
-        params_domain_->UntypedSerializeCorpus(copy.args).ToString()) {
+        params_domain_.SerializeCorpus(copy.args).ToString()) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {
@@ -1015,7 +1015,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
     // possible special values.
     constexpr int kInitialValuesToTry = 32;
     for (int i = 0; i < kInitialValuesToTry && !ShouldStop(); ++i) {
-      try_input_and_process_counterexample({params_domain_->UntypedInit(prng)});
+      try_input_and_process_counterexample({params_domain_.Init(prng)});
     }
 
     // Fuzz corpus elements in round robin fashion.
@@ -1025,7 +1025,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
         // Otherwise, go to next corpus element in queue.
         if (stats_.runs > next_init) {
           next_init = stats_.runs + kRunsPerInit;
-          return {params_domain_->UntypedInit(prng)};
+          return {params_domain_.Init(prng)};
         } else {
           size_t idx = static_cast<size_t>(corpus_distribution_(prng));
           FUZZTEST_INTERNAL_CHECK(0 <= idx && idx < corpus_.size(),

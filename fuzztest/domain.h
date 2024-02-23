@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// IWYU pragma: private, include "fuzztest/fuzztest.h"
+// IWYU pragma: friend fuzztest/.*
+
 #ifndef FUZZTEST_FUZZTEST_DOMAIN_H_
 #define FUZZTEST_FUZZTEST_DOMAIN_H_
 

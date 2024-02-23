@@ -21,6 +21,7 @@
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
@@ -139,18 +140,17 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
   if (!IsEnginePlaceholderInput(data)) {
     input = impl.TryParse(data);
   }
-  if (!input) input = impl.params_domain_->UntypedInit(prng);
+  if (!input) input = impl.params_domain_.Init(prng);
   constexpr int kNumAttempts = 10;
   std::string result;
   for (int i = 0; i < kNumAttempts; ++i) {
     auto copy = *input;
     for (int mutations_at_once = absl::Poisson<int>(prng) + 1;
          mutations_at_once > 0; --mutations_at_once) {
-      impl.params_domain_->UntypedMutate(
-          copy, prng,
-          /*only_shrink=*/max_size < data.size());
+      impl.params_domain_.Mutate(copy, prng,
+                                 /*only_shrink=*/max_size < data.size());
     }
-    result = impl.params_domain_->UntypedSerializeCorpus(copy).ToString();
+    result = impl.params_domain_.SerializeCorpus(copy).ToString();
     if (result.size() <= max_size) break;
   }
   return result;

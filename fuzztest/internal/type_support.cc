@@ -25,10 +25,13 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./fuzztest/internal/printer.h"
 
 namespace fuzztest::internal {
-
 namespace {
+
+using ::fuzztest::domain_implementor::PrintMode;
+using ::fuzztest::domain_implementor::RawSink;
 
 template <typename T>
 void PrintFloatingPointLiteral(T v, RawSink out, absl::string_view suffix) {

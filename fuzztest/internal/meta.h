@@ -592,7 +592,7 @@ constexpr std::optional<int> DetectBindableFieldCount() {
     return std::is_invocable_v<decltype(no_two_bases_impl), decltype(I)...>;
   };
 
-  // Check for multiple inheritence. This condition also triggers if we have a
+  // Check for multiple inheritance. This condition also triggers if we have a
   // struct whose first field is its base class. The latter case should be
   // somewhat rare, because:
   // - We don't currently support structs with a non-empty parent class
@@ -668,6 +668,19 @@ using DropConst = typename DropConstImpl<T>::type;
 // See https://en.cppreference.com/w/cpp/language/two-phase_lookup
 template <typename T, typename... Dependent>
 using MakeDependentType = std::enable_if_t<(always_true<Dependent> && ...), T>;
+
+// We use this to get a nice compiler error when `T` and `U` don't match instead
+// of just "false".
+template <typename T, typename U>
+constexpr void CheckIsSame() {
+  static_assert(std::is_same_v<T, U>);
+}
+
+template <typename Domain>
+using value_type_t = typename Domain::value_type;
+
+template <typename Domain>
+using corpus_type_t = typename Domain::corpus_type;
 
 }  // namespace fuzztest::internal
 

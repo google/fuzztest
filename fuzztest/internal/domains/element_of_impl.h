@@ -35,7 +35,8 @@ enum class ElementOfImplCorpusType : size_t;
 
 template <typename T>
 class ElementOfImpl
-    : public DomainBase<ElementOfImpl<T>, T, ElementOfImplCorpusType> {
+    : public domain_implementor::DomainBase<ElementOfImpl<T>, T,
+                                            ElementOfImplCorpusType> {
  public:
   using typename ElementOfImpl::DomainBase::corpus_type;
   using typename ElementOfImpl::DomainBase::value_type;

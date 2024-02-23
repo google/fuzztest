@@ -211,6 +211,7 @@ cc_library(
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
     deps = [
+        ":domain_core",
         ":fixture_driver",
         ":logging",
         ":runtime",
@@ -298,8 +299,9 @@ cc_library(
         "internal/domains/bit_flag_combination_of_impl.h",
         "internal/domains/container_mutation_helpers.h",
         "internal/domains/container_of_impl.h",
+        "internal/domains/domain.h",
         "internal/domains/domain_base.h",
-        "internal/domains/domain_concept.h",
+        "internal/domains/domain_type_erasure.h",
         "internal/domains/element_of_impl.h",
         "internal/domains/filter_impl.h",
         "internal/domains/flat_map_impl.h",
@@ -320,6 +322,7 @@ cc_library(
         ":coverage",
         ":logging",
         ":meta",
+        ":printer",
         ":seed_seq",
         ":serialization",
         ":status",
@@ -327,6 +330,7 @@ cc_library(
         ":type_support",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/random",
@@ -348,9 +352,11 @@ cc_library(
         ":any",
         ":domain_core",
         ":logging",
+        ":meta",
+        ":printer",
         ":registration",
         ":type_support",
-        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
@@ -443,6 +449,15 @@ cc_library(
 )
 
 cc_library(
+    name = "printer",
+    hdrs = ["internal/printer.h"],
+    deps = [
+        ":meta",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "regexp_dfa",
     srcs = ["internal/domains/regexp_dfa.cc"],
     hdrs = ["internal/domains/regexp_dfa.h"],
@@ -462,8 +477,10 @@ cc_library(
     deps = [
         ":domain_core",
         ":meta",
+        ":printer",
         ":type_support",
         "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
@@ -500,6 +517,7 @@ cc_library(
         ":io",
         ":logging",
         ":meta",
+        ":printer",
         ":registration",
         ":seed_seq",
         ":serialization",
@@ -648,7 +666,9 @@ cc_library(
     deps = [
         ":absl_helpers",
         ":meta",
+        ":printer",
         "@com_google_absl//absl/debugging:symbolize",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -661,6 +681,8 @@ cc_test(
     srcs = ["internal/type_support_test.cc"],
     deps = [
         ":domain",
+        ":meta",
+        ":printer",
         ":test_protobuf_cc_proto",
         ":type_support",
         "@com_google_absl//absl/numeric:int128",

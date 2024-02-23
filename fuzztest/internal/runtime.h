@@ -37,9 +37,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
@@ -163,7 +163,7 @@ class Runtime {
 
   struct Args {
     const GenericDomainCorpusType& corpus_value;
-    UntypedDomainInterface& domain;
+    UntypedDomain& domain;
   };
 
   void SetCurrentTest(const FuzzTest* test,
@@ -320,7 +320,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   const FuzzTest& test_;
   std::unique_ptr<UntypedFixtureDriver> fixture_driver_;
-  std::unique_ptr<UntypedDomainInterface> params_domain_;
+  UntypedDomain params_domain_;
   std::seed_seq seed_sequence_ = GetFromEnvOrMakeSeedSeq(std::cerr);
   ExecutionCoverage* execution_coverage_;
   CorpusCoverage corpus_coverage_;

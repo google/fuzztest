@@ -21,11 +21,12 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
+#include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 
@@ -36,7 +37,7 @@ template <typename T, typename Inner,
           // itself by value.
           typename RealInner = Domain<typename T::element_type>>
 class SmartPointerOfImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           SmartPointerOfImpl<T, Inner>, T,
           std::variant<std::monostate, corpus_type_t<RealInner>>> {
   using InnerFn = const RealInner& (*)();

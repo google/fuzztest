@@ -24,8 +24,8 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <set>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -42,11 +42,15 @@
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"
+#include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {
 namespace {
 
+using ::fuzztest::domain_implementor::PrintMode;
+using ::fuzztest::domain_implementor::PrintValue;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Each;

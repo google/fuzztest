@@ -27,7 +27,6 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -36,10 +35,10 @@ enum class OptionalPolicy { kWithNull, kWithoutNull, kAlwaysNull };
 
 template <typename T, typename InnerDomain>
 class OptionalOfImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           OptionalOfImpl<T, InnerDomain>, T,
-          // `T` might be a custom optional type.
-          // We use std::variant unconditionally to make it simpler.
+          // `T` might be a custom optional type. We use std::variant
+          // unconditionally to make it simpler.
           std::variant<std::monostate, corpus_type_t<InnerDomain>>> {
  public:
   using typename OptionalOfImpl::DomainBase::corpus_type;

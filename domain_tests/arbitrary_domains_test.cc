@@ -48,6 +48,8 @@
 namespace fuzztest {
 namespace {
 
+using ::fuzztest::domain_implementor::DomainBase;
+using ::fuzztest::internal::IRObject;
 using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Ge;
@@ -210,10 +212,10 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
 }
 
 struct StatefulIncrementDomain
-    : public internal::DomainBase<StatefulIncrementDomain, int,
-                                  // Just to make sure we don't mix value_type
-                                  // with corpus_type
-                                  std::tuple<int>> {
+    : public DomainBase<StatefulIncrementDomain, int,
+                        // Just to make sure we don't mix value_type with
+                        // corpus_type
+                        std::tuple<int>> {
   corpus_type Init(absl::BitGenRef prng) {
     // Minimal code to exercise prng.
     corpus_type result = {absl::Uniform<value_type>(prng, i, i + 1)};
@@ -231,12 +233,12 @@ struct StatefulIncrementDomain
     return std::tuple{v};
   }
 
-  std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
     return obj.ToCorpus<corpus_type>();
   }
 
-  internal::IRObject SerializeCorpus(const corpus_type& v) const {
-    return internal::IRObject::FromCorpus(v);
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return IRObject::FromCorpus(v);
   }
 
   absl::Status ValidateCorpusValue(const corpus_type&) const {

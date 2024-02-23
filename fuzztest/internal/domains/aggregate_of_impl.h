@@ -24,7 +24,6 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
-#include "absl/strings/str_format.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
@@ -46,7 +45,7 @@ using AggregateOfImplCorpusType =
 
 template <typename T, RequireCustomCorpusType require_custom, typename... Inner>
 class AggregateOfImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           AggregateOfImpl<T, require_custom, Inner...>, T,
           AggregateOfImplCorpusType<T, require_custom, Inner...>> {
  public:
@@ -102,25 +101,6 @@ class AggregateOfImpl
          ...);
       });
     }
-  }
-
-  int UntypedPrintCorpusValue(const GenericDomainCorpusType& val,
-                              absl::FormatRawSink out, internal::PrintMode mode,
-                              std::optional<int> tuple_elem) const final {
-    if (tuple_elem.has_value()) {
-      if constexpr (sizeof...(Inner) != 0) {
-        if (*tuple_elem >= 0 && *tuple_elem < sizeof...(Inner)) {
-          Switch<sizeof...(Inner)>(*tuple_elem, [&](auto I) {
-            PrintValue(std::get<I>(inner_),
-                       std::get<I>(val.GetAs<corpus_type>()), out, mode);
-          });
-        }
-      }
-    } else {
-      AggregateOfImpl::DomainBase::UntypedPrintCorpusValue(val, out, mode,
-                                                           std::nullopt);
-    }
-    return sizeof...(Inner);
   }
 
   auto GetPrinter() const { return AggregatePrinter<Inner...>{inner_}; }

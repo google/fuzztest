@@ -183,7 +183,6 @@ fuzztest_cc_test(
     absl::random_random
     absl::status
     absl::strings
-    absl::span
     fuzztest::domain_core
     fuzztest::serialization
     GTest::gmock_main

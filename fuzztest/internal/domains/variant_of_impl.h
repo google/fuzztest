@@ -23,6 +23,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
@@ -33,11 +34,11 @@
 namespace fuzztest::internal {
 
 template <typename T, typename... Inner>
-class VariantOfImpl : public DomainBase<VariantOfImpl<T, Inner...>, T,
-                                        // `T` might be a custom variant type.
-                                        // We use std::variant unconditionally
-                                        // to make it simpler.
-                                        std::variant<corpus_type_t<Inner>...>> {
+class VariantOfImpl : public domain_implementor::DomainBase<
+                          VariantOfImpl<T, Inner...>, T,
+                          // `T` might be a custom variant type. We use
+                          // std::variant unconditionally to make it simpler.
+                          std::variant<corpus_type_t<Inner>...>> {
  public:
   using typename VariantOfImpl::DomainBase::corpus_type;
   using typename VariantOfImpl::DomainBase::value_type;

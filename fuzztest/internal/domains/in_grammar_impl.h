@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -50,8 +51,7 @@ using ASTTypeId = int;
 struct ASTNode {
   ASTTypeId type_id;
   std::variant<std::monostate,        // If the node is a string terminal.
-               DFAPath,               // If the node is a regex
-                                      // terminal.
+               DFAPath,               // If the node is a regex terminal.
                std::vector<ASTNode>>  // If the node is a non-terminal.
       children;
 
@@ -634,7 +634,8 @@ void GroupElementByASTType(
 
 template <typename TopDomain>
 class InGrammarImpl
-    : public DomainBase<InGrammarImpl<TopDomain>, std::string, ASTNode> {
+    : public domain_implementor::DomainBase<InGrammarImpl<TopDomain>,
+                                            std::string, ASTNode> {
  public:
   using typename InGrammarImpl::DomainBase::corpus_type;
   using typename InGrammarImpl::DomainBase::value_type;

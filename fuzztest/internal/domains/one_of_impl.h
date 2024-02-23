@@ -34,7 +34,7 @@ namespace fuzztest::internal {
 
 template <typename... Inner>
 class OneOfImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           OneOfImpl<Inner...>,
           value_type_t<std::tuple_element_t<0, std::tuple<Inner...>>>,
           std::variant<corpus_type_t<Inner>...>> {

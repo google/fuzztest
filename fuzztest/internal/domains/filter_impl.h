@@ -19,19 +19,19 @@
 #include <optional>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/status.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 
 template <typename Pred, typename Inner>
 class FilterImpl
-    : public DomainBase<FilterImpl<Pred, Inner>, value_type_t<Inner>,
-                        corpus_type_t<Inner>> {
+    : public domain_implementor::DomainBase<
+          FilterImpl<Pred, Inner>, value_type_t<Inner>, corpus_type_t<Inner>> {
  public:
   using typename FilterImpl::DomainBase::corpus_type;
   using typename FilterImpl::DomainBase::value_type;

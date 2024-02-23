@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// IWYU pragma: private, include "fuzztest/fuzztest.h"
+// IWYU pragma: friend fuzztest/.*
+
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_DOMAIN_BASE_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_DOMAIN_BASE_H_
 
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <optional>
 #include <type_traits>
 #include <vector>
@@ -29,92 +30,81 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "./fuzztest/internal/any.h"
-#include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/domains/domain_type_erasure.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
-namespace fuzztest {
-template <typename>
-class Domain;
-}  // namespace fuzztest
-
 namespace fuzztest::internal {
-
-// We use this to get a nice compiler error when `T` and `U` don't match instead
-// of just "false".
-template <typename T, typename U>
-constexpr void CheckIsSame() {
-  static_assert(std::is_same_v<T, U>);
-}
-
-// Corpus value type used by Domain<T> template, regardless of T.
-using GenericDomainCorpusType = CopyableAny;
-
-// Base class for all domains.
-//
-// It is "untyped" in that it erases all value_type/corpus_type inputs and
-// outputs. This allows code sharing of the runtime.
-// All the `Untyped[Name]` functions implement the same API as the `[Name]`
-// function but marshalls the inputs and output through the generic types.
-class UntypedDomainInterface {
- public:
-  virtual ~UntypedDomainInterface() {}
-
-  virtual std::unique_ptr<UntypedDomainInterface> Clone() const = 0;
-  virtual GenericDomainCorpusType UntypedInit(absl::BitGenRef) = 0;
-  virtual void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
-                             bool only_shrink) = 0;
-  virtual void UntypedUpdateMemoryDictionary(
-      const GenericDomainCorpusType& val) = 0;
-  virtual std::optional<GenericDomainCorpusType> UntypedParseCorpus(
-      const IRObject& obj) const = 0;
-  virtual absl::Status UntypedValidateCorpusValue(
-      const GenericDomainCorpusType& corpus_value) const = 0;
-  virtual IRObject UntypedSerializeCorpus(
-      const GenericDomainCorpusType& v) const = 0;
-  virtual uint64_t UntypedCountNumberOfFields(
-      const GenericDomainCorpusType&) = 0;
-  virtual uint64_t UntypedMutateSelectedField(GenericDomainCorpusType&,
-                                              absl::BitGenRef, bool,
-                                              uint64_t) = 0;
-  virtual MoveOnlyAny UntypedGetValue(
-      const GenericDomainCorpusType& v) const = 0;
-  // UntypedPrintCorpusValue is special in that it has an extra parameter
-  // `tuple_elem`. This is used to instruct the `std::tuple` domain to print one
-  // particular element instead of the whole tuple. This is what the runtime
-  // uses to print out the arguments when a counterexample is found.
-  // In the `std::tuple` case, it also returns the number of elements in the
-  // tuple.
-  virtual int UntypedPrintCorpusValue(
-      const GenericDomainCorpusType& val, absl::FormatRawSink out,
-      internal::PrintMode mode,
-      std::optional<int> tuple_elem = std::nullopt) const = 0;
-};
-
-// A typed subinterface that provides the methods to handle `value_type`
-// inputs/outputs. Some callers require the actual `value_type`.
-template <typename ValueType>
-class TypedDomainInterface : public UntypedDomainInterface {
- public:
-  virtual ValueType TypedGetRandomValue(absl::BitGenRef prng) = 0;
-  virtual ValueType TypedGetValue(const GenericDomainCorpusType& v) const = 0;
-  virtual std::optional<GenericDomainCorpusType> TypedFromValue(
-      const ValueType& v) const = 0;
-
-  MoveOnlyAny UntypedGetValue(const GenericDomainCorpusType& v) const final {
-    return MoveOnlyAny(std::in_place_type<ValueType>, TypedGetValue(v));
-  }
-};
 
 void DestabilizeBitGen(absl::BitGenRef bitgen);
 
+}  // namespace fuzztest::internal
+
+namespace fuzztest::domain_implementor {
+
+// `DomainBase` is the base class for all domain implementations.
+//
+// The type parameters are as follows:
+//
+// - `Derived`: Instead of virtual inheritance, the domain hierarchy uses the
+//   Curiously Recurring Template Pattern (CRTP). A class `X` deriving from
+//   `DomainBase` needs to instantiate the template with `Derived = X`.
+// - `ValueType`: The type of the user-facing values the domain represents.
+//   If the deriving class is itself a template parameterized by its user value
+//   type (as the first type parameter), you may omit this parameter.
+// - `CorpusType`: The type of the corpus values that the domain implementation
+//   uses internally. Typically this is the same as `ValueType` (which is the
+//   default), but sometimes the domain may need to maintain different or
+//   additional information to be able to efficiently perform value mutation.
+//
+// The domain implementation can access `ValueType` and `CorpusType` through
+// the type members `DomainBase::value_type` and `DomainBase::corpus_type`.
+//
+// To implement a domain, a deriving class should implement at least the
+// following methods. See the documentation of the interface class `Domain<T>`
+// for a detailed description of each method.
+//
+// - corpus_type Init(absl::BitGenRef prng)
+//
+//   The method that returns an initial value. To support seeding, this function
+//   may first call `MaybeGetRandomSeed()` and return its non-nullopt result.
+//   TODO(b/303324603): Move the call to `MaybeGetRandomSeed()` to a wrapper.
+//
+// - void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink)
+//
+//   The method that mutates the corpus value.
+//
+// - absl::Status ValidateCorpusValue(const corpus_type& val) const
+//
+//   The method to validate that the corpus value satisfies the domain's
+//   constraints.
+//
+// - auto GetPrinter() const
+//
+//   The method that returns the domain's printer---a class that provides one of
+//   the following two methods for printing user/corpus values.
+//   TODO(b/303324603): Add more documentation about printers.
+//
+//     void PrintUserValue(const value_type& val,
+//                         RawSink out,
+//                         PrintMode mode) const
+//
+//     void PrintCorpusValue(const corpus_type& val,
+//                           RawSink out,
+//                           PrintMode mode) const
+//
+// In addition, if the domain has a custom `CorpusType`, it will need to
+// override (by shadowing) the methods `GetValue()`, `FromValue()`,
+// `ParseCorpus()`, and `SerializeCorpus()`. See the default implementations of
+// these methods below.
 template <typename Derived,
-          typename ValueType = ExtractTemplateParameter<0, Derived>,
+          typename ValueType =
+              fuzztest::internal::ExtractTemplateParameter<0, Derived>,
           typename CorpusType = ValueType>
-class DomainBase : public TypedDomainInterface<ValueType> {
+class DomainBase {
  public:
   using value_type = ValueType;
   using corpus_type = CorpusType;
@@ -127,87 +117,17 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     // `DomainBase`, where `Derived` is already fully defined. If we try to
     // check them at class scope we would see an incomplete `Derived` class and
     // the checks would not work.
-
-    CheckIsSame<ValueType, value_type_t<Derived>>();
-    CheckIsSame<CorpusType, corpus_type_t<Derived>>();
+    fuzztest::internal::CheckIsSame<
+        ValueType, fuzztest::internal::value_type_t<Derived>>();
+    fuzztest::internal::CheckIsSame<
+        CorpusType, fuzztest::internal::corpus_type_t<Derived>>();
     static_assert(has_custom_corpus_type == Derived::has_custom_corpus_type);
-  }
 
-  std::unique_ptr<UntypedDomainInterface> Clone() const final {
-    return std::make_unique<Derived>(derived());
-  }
-
-  GenericDomainCorpusType UntypedInit(absl::BitGenRef prng) final {
-    return GenericDomainCorpusType(std::in_place_type<CorpusType>,
-                                   derived().Init(prng));
-  }
-
-  void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
-                     bool only_shrink) final {
-    derived().Mutate(val.GetAs<CorpusType>(), prng, only_shrink);
-  }
-
-  void UntypedUpdateMemoryDictionary(const GenericDomainCorpusType& val) final {
-    derived().UpdateMemoryDictionary(val.GetAs<CorpusType>());
-  }
-
-  ValueType TypedGetRandomValue(absl::BitGenRef prng) final {
-    return derived().GetRandomValue(prng);
-  }
-
-  ValueType TypedGetValue(const GenericDomainCorpusType& v) const final {
-    return derived().GetValue(v.GetAs<CorpusType>());
-  }
-
-  std::optional<GenericDomainCorpusType> TypedFromValue(
-      const ValueType& v) const final {
-    if (auto c = derived().FromValue(v)) {
-      return GenericDomainCorpusType(std::in_place_type<CorpusType>,
-                                     *std::move(c));
-    } else {
-      return std::nullopt;
+    // Check that `Derived` type-checks against the type-erased `Domain<T>`
+    // interface by forcing the `DomainModel` template specialization.
+    if (Derived* domain = nullptr) {
+      (void)fuzztest::internal::DomainModel<Derived>{*domain};
     }
-  }
-
-  std::optional<GenericDomainCorpusType> UntypedParseCorpus(
-      const IRObject& obj) const final {
-    if (auto res = derived().ParseCorpus(obj)) {
-      return GenericDomainCorpusType(std::in_place_type<CorpusType>,
-                                     *std::move(res));
-    } else {
-      return std::nullopt;
-    }
-  }
-
-  IRObject UntypedSerializeCorpus(
-      const GenericDomainCorpusType& v) const final {
-    return derived().SerializeCorpus(v.template GetAs<CorpusType>());
-  }
-
-  absl::Status UntypedValidateCorpusValue(
-      const GenericDomainCorpusType& corpus_value) const final {
-    return derived().ValidateCorpusValue(corpus_value.GetAs<CorpusType>());
-  }
-
-  uint64_t UntypedCountNumberOfFields(const GenericDomainCorpusType& v) final {
-    return derived().CountNumberOfFields(v.GetAs<CorpusType>());
-  }
-
-  uint64_t UntypedMutateSelectedField(GenericDomainCorpusType& v,
-                                      absl::BitGenRef prng, bool only_shrink,
-                                      uint64_t selected_field_index) final {
-    return derived().MutateSelectedField(v.GetAs<CorpusType>(), prng,
-                                         only_shrink, selected_field_index);
-  }
-
-  int UntypedPrintCorpusValue(const GenericDomainCorpusType& val,
-                              absl::FormatRawSink out, internal::PrintMode mode,
-                              std::optional<int> tuple_elem) const override {
-    FUZZTEST_INTERNAL_CHECK(
-        !tuple_elem.has_value(),
-        "No tuple element should be specified for this override.");
-    internal::PrintValue(derived(), val.GetAs<CorpusType>(), out, mode);
-    return -1;
   }
 
   // Returns a random user value from the domain. In general, doesn't provide
@@ -220,8 +140,8 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   // output to stderr on the first invocation. However, this is only guaranteed
   // to work with the same version of the binary.
   ValueType GetRandomValue(absl::BitGenRef prng) {
-    DestabilizeBitGen(prng);
-    return derived().GetValue(GetRandomCorpusValue(prng));
+    internal::DestabilizeBitGen(prng);
+    return derived().GetValue(derived().GetRandomCorpusValue(prng));
   }
 
   // Default GetValue and FromValue functions for !has_custom_corpus_type
@@ -235,14 +155,14 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     return v;
   }
 
-  std::optional<CorpusType> ParseCorpus(const IRObject& obj) const {
+  std::optional<CorpusType> ParseCorpus(const internal::IRObject& obj) const {
     static_assert(!has_custom_corpus_type);
     return obj.ToCorpus<CorpusType>();
   }
 
-  IRObject SerializeCorpus(const CorpusType& v) const {
+  internal::IRObject SerializeCorpus(const CorpusType& v) const {
     static_assert(!has_custom_corpus_type);
-    return IRObject::FromCorpus(v);
+    return internal::IRObject::FromCorpus(v);
   }
 
   void UpdateMemoryDictionary(const CorpusType& val) {}
@@ -306,13 +226,13 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     if (seeds_.empty() || !absl::Bernoulli(prng, kProbabilityToReturnSeed)) {
       return std::nullopt;
     }
-    return seeds_[ChooseOffset(seeds_.size(), prng)];
+    return seeds_[fuzztest::internal::ChooseOffset(seeds_.size(), prng)];
   }
 
   // Default implementation of GetRandomCorpusValue() without guarantees on the
   // distribution of the returned values. If possible, the derived domain should
   // override this with a better implementation.
-  virtual CorpusType GetRandomCorpusValue(absl::BitGenRef prng) {
+  CorpusType GetRandomCorpusValue(absl::BitGenRef prng) {
     auto corpus_val = derived().Init(prng);
     // Mutate a random number of times (including zero times). This eliminates
     // potential cyclicity issues (e.g., even number of mutations cancel out)
@@ -335,7 +255,7 @@ class DomainBase : public TypedDomainInterface<ValueType> {
     // initialization), so we can't use `GetStderr()`.
     absl::FPrintF(stderr, "[!] Invalid seed value (%s):\n\n{",
                   status.ToString());
-    AutodetectTypePrinter<ValueType>().PrintUserValue(
+    fuzztest::internal::AutodetectTypePrinter<ValueType>().PrintUserValue(
         seed, &std::cerr, PrintMode::kHumanReadable);
     absl::FPrintF(stderr, "}\n");
     std::exit(1);
@@ -345,6 +265,6 @@ class DomainBase : public TypedDomainInterface<ValueType> {
   SeedProvider seed_provider_;
 };
 
-}  //  namespace fuzztest::internal
+}  //  namespace fuzztest::domain_implementor
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_DOMAIN_BASE_H_

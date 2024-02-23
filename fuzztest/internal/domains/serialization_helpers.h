@@ -25,7 +25,6 @@
 #include "absl/types/span.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 

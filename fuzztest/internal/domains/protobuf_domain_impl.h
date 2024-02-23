@@ -38,10 +38,9 @@
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/element_of_impl.h"
-#include "./fuzztest/internal/domains/in_range_impl.h"
-#include "./fuzztest/internal/domains/map_impl.h"
 #include "./fuzztest/internal/domains/optional_of_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -420,9 +419,9 @@ class PrototypePtr {
 // constructor argument.
 template <typename Message>
 class ProtobufDomainUntypedImpl
-    : public DomainBase<ProtobufDomainUntypedImpl<Message>,
-                        std::unique_ptr<Message>,
-                        absl::flat_hash_map<int, GenericDomainCorpusType>> {
+    : public domain_implementor::DomainBase<
+          ProtobufDomainUntypedImpl<Message>, std::unique_ptr<Message>,
+          absl::flat_hash_map<int, GenericDomainCorpusType>> {
   using Descriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
   using OneofDescriptor = ProtobufOneofDescriptor<Message>;
@@ -1550,7 +1549,8 @@ class ProtobufDomainUntypedImpl
 template <typename T,
           typename UntypedImpl = ProtobufDomainUntypedImpl<typename T::Message>>
 class ProtobufDomainImpl
-    : public DomainBase<ProtobufDomainImpl<T>, T, corpus_type_t<UntypedImpl>> {
+    : public domain_implementor::DomainBase<ProtobufDomainImpl<T>, T,
+                                            corpus_type_t<UntypedImpl>> {
  public:
   using typename ProtobufDomainImpl::DomainBase::corpus_type;
   using typename ProtobufDomainImpl::DomainBase::value_type;
@@ -2021,7 +2021,7 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_v<T>>>
 
 template <typename T>
 class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
-    : public DomainBase<ArbitraryImpl<T>> {
+    : public domain_implementor::DomainBase<ArbitraryImpl<T>> {
  public:
   using typename ArbitraryImpl::DomainBase::value_type;
 

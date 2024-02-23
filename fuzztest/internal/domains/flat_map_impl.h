@@ -46,7 +46,7 @@ using FlatMapOutputDomain = std::decay_t<
 
 template <typename FlatMapper, typename... InputDomain>
 class FlatMapImpl
-    : public DomainBase<
+    : public domain_implementor::DomainBase<
           FlatMapImpl<FlatMapper, InputDomain...>,
           // The user value is the user value of the output domain.
           value_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,

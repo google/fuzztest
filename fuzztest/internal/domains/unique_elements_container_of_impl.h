@@ -20,8 +20,10 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
+#include "absl/status/status.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 
 namespace fuzztest::internal {
@@ -40,8 +42,9 @@ using UniqueDomain =
 // which is (effectively) produced by `UnorderedSetOf(inner)`.
 template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
-    : public DomainBase<UniqueElementsContainerImpl<T, InnerDomain>, T,
-                        corpus_type_t<UniqueDomain<InnerDomain>>> {
+    : public domain_implementor::DomainBase<
+          UniqueElementsContainerImpl<T, InnerDomain>, T,
+          corpus_type_t<UniqueDomain<InnerDomain>>> {
   using InnerUniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
   using InnerUniqueDomain = UniqueDomain<InnerDomain>;
 

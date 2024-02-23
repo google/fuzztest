@@ -29,7 +29,7 @@ namespace fuzztest::internal {
 
 template <typename T>
 class BitFlagCombinationOfImpl
-    : public DomainBase<BitFlagCombinationOfImpl<T>> {
+    : public domain_implementor::DomainBase<BitFlagCombinationOfImpl<T>> {
  public:
   using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 

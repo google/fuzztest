@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/debugging/symbolize.h"
+#include "absl/functional/function_ref.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/has_absl_stringify.h"
@@ -36,14 +37,9 @@
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 
 namespace fuzztest::internal {
-
-template <typename Domain>
-using value_type_t = typename Domain::value_type;
-
-template <typename Domain>
-using corpus_type_t = typename Domain::corpus_type;
 
 // Return a best effort printer for type `T`.
 // This is useful for cases where the domain can't figure out how to print the
@@ -89,47 +85,27 @@ absl::string_view GetTypeName() {
 template <typename T>
 inline constexpr bool has_absl_stringify_v = absl::HasAbslStringify<T>::value;
 
-using RawSink = absl::FormatRawSink;
-
-enum class PrintMode { kHumanReadable, kSourceCode };
-
-// Invokes PrintCorpusValue or PrintUserValue from the domain's type printer,
-// depending on what's available.
-// It will automatically call GetValue if needed for the PrintUserValue call. It
-// simplifies as few of the Print implementations.
-template <typename Domain>
-void PrintValue(const Domain& domain, const corpus_type_t<Domain>& corpus_value,
-                RawSink out, PrintMode mode) {
-  auto printer = domain.GetPrinter();
-  if constexpr (Requires<decltype(printer)>(
-                    [&](auto t) -> decltype(t.PrintCorpusValue(
-                                    corpus_value, out, mode)) {})) {
-    printer.PrintCorpusValue(corpus_value, out, mode);
-  } else {
-    printer.PrintUserValue(domain.GetValue(corpus_value), out, mode);
-  }
-}
-
 struct IntegralPrinter {
   template <typename T>
-  void PrintUserValue(T v, RawSink out, PrintMode mode) const {
+  void PrintUserValue(T v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const {
     if constexpr (std::is_enum_v<T>) {
       // TODO(sbenzaquen): Try to use enum labels where possible.
       // Use static_cast<> when printing source code to avoid init conversion.
       switch (mode) {
-        case PrintMode::kHumanReadable:
+        case domain_implementor::PrintMode::kHumanReadable:
           absl::Format(out, "%s{", GetTypeName<T>());
           break;
-        case PrintMode::kSourceCode:
+        case domain_implementor::PrintMode::kSourceCode:
           absl::Format(out, "static_cast<%s>(", GetTypeName<T>());
           break;
       }
       PrintUserValue(static_cast<std::underlying_type_t<T>>(v), out, mode);
       switch (mode) {
-        case PrintMode::kHumanReadable:
+        case domain_implementor::PrintMode::kHumanReadable:
           absl::Format(out, "}");
           break;
-        case PrintMode::kSourceCode:
+        case domain_implementor::PrintMode::kSourceCode:
           absl::Format(out, ")");
           break;
       }
@@ -141,23 +117,31 @@ struct IntegralPrinter {
     }
   }
 
-  void PrintUserValue(bool v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(char v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(absl::uint128 v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(absl::int128 v, RawSink out, PrintMode mode) const;
+  void PrintUserValue(bool v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
+  void PrintUserValue(char v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
+  void PrintUserValue(absl::uint128 v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
+  void PrintUserValue(absl::int128 v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
 };
 
 struct FloatingPrinter {
-  void PrintUserValue(float v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(double v, RawSink out, PrintMode mode) const;
-  void PrintUserValue(long double v, RawSink out, PrintMode mode) const;
+  void PrintUserValue(float v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
+  void PrintUserValue(double v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
+  void PrintUserValue(long double v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const;
 };
 
 struct StringPrinter {
   template <typename T>
-  void PrintUserValue(const T& v, RawSink out, PrintMode mode) const {
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const {
     switch (mode) {
-      case PrintMode::kHumanReadable:
+      case domain_implementor::PrintMode::kHumanReadable:
         absl::Format(out, "\"");
         for (char c : v) {
           if (std::isprint(c)) {
@@ -168,7 +152,7 @@ struct StringPrinter {
         }
         absl::Format(out, "\"");
         break;
-      case PrintMode::kSourceCode: {
+      case domain_implementor::PrintMode::kSourceCode: {
         // Make sure to properly C-escape strings when printing source code, and
         // explicitly construct a std::string of the right length if there is an
         // embedded NULL character.
@@ -192,17 +176,36 @@ struct AggregatePrinter {
   const std::tuple<Inner...>& inner;
 
   template <typename T>
-  void PrintCorpusValue(const T& v, RawSink out, PrintMode mode) const {
+  void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
+    PrintFormattedAggregateValue(
+        v, out, mode, "{", "}",
+        [](absl::FormatRawSink out, size_t idx, absl::string_view element) {
+          if (idx > 0) absl::Format(out, ", ");
+          absl::Format(out, "%s", element);
+        });
+  }
+
+  template <typename T>
+  void PrintFormattedAggregateValue(
+      const T& v, domain_implementor::RawSink out,
+      domain_implementor::PrintMode mode, absl::string_view prefix,
+      absl::string_view suffix,
+      absl::FunctionRef<void(absl::FormatRawSink, size_t, absl::string_view)>
+          element_formatter) const {
     auto bound = internal::BindAggregate(
         v, std::integral_constant<int, sizeof...(Inner)>{});
 
     const auto print_one = [&](auto I) {
-      if (I > 0) absl::Format(out, ", ");
-      PrintValue(std::get<I>(inner), std::get<I>(bound), out, mode);
+      std::string str_out;
+      domain_implementor::PrintValue(std::get<I>(inner), std::get<I>(bound),
+                                     &str_out, mode);
+      element_formatter(out, I, str_out);
     };
-    absl::Format(out, "{");
+
+    absl::Format(out, "%s", prefix);
     ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
-    absl::Format(out, "}");
+    absl::Format(out, "%s", suffix);
   }
 };
 
@@ -211,17 +214,19 @@ struct VariantPrinter {
   const std::tuple<Inner...>& inner;
 
   template <typename T>
-  void PrintCorpusValue(const T& v, RawSink out, PrintMode mode) const {
-    if (mode == PrintMode::kHumanReadable) {
+  void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
       absl::Format(out, "(index=%d, value=", v.index());
     }
     // The source code version will work as long as the types are unambiguous.
     // Printing the whole variant type to call the explicit constructor might be
     // an issue.
     Switch<sizeof...(Inner)>(v.index(), [&](auto I) {
-      PrintValue(std::get<I>(inner), std::get<I>(v), out, mode);
+      domain_implementor::PrintValue(std::get<I>(inner), std::get<I>(v), out,
+                                     mode);
     });
-    if (mode == PrintMode::kHumanReadable) {
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
       absl::Format(out, ")");
     }
   }
@@ -232,9 +237,11 @@ struct OneOfPrinter {
   const std::tuple<Inner...>& inner;
 
   template <typename T>
-  void PrintCorpusValue(const T& v, RawSink out, PrintMode mode) const {
+  void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
     Switch<sizeof...(Inner)>(v.index(), [&](auto I) {
-      PrintValue(std::get<I>(inner), std::get<I>(v), out, mode);
+      domain_implementor::PrintValue(std::get<I>(inner), std::get<I>(v), out,
+                                     mode);
     });
   }
 };
@@ -244,20 +251,22 @@ struct OptionalPrinter {
   const Domain& domain;
   const Inner& inner_domain;
 
-  void PrintCorpusValue(const corpus_type_t<Domain>& v, RawSink out,
-                        PrintMode mode) const {
+  void PrintCorpusValue(const corpus_type_t<Domain>& v,
+                        domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
     using value_type = value_type_t<Domain>;
     constexpr bool is_pointer = Requires<value_type>(
         [](auto probe)
             -> std::enable_if_t<std::is_pointer_v<decltype(probe.get())>> {});
     if (v.index() == 1) {
       switch (mode) {
-        case PrintMode::kHumanReadable:
+        case domain_implementor::PrintMode::kHumanReadable:
           absl::Format(out, "(");
-          PrintValue(inner_domain, std::get<1>(v), out, mode);
+          domain_implementor::PrintValue(inner_domain, std::get<1>(v), out,
+                                         mode);
           absl::Format(out, ")");
           break;
-        case PrintMode::kSourceCode: {
+        case domain_implementor::PrintMode::kSourceCode: {
           // The source code version will work as long as the expression is
           // unambiguous.
           if constexpr (is_pointer) {
@@ -268,7 +277,8 @@ struct OptionalPrinter {
             absl::Format(out, "%s<%s>(", maker,
                          GetTypeName<typename value_type::element_type>());
           }
-          PrintValue(inner_domain, std::get<1>(v), out, mode);
+          domain_implementor::PrintValue(inner_domain, std::get<1>(v), out,
+                                         mode);
           if (is_pointer) absl::Format(out, ")");
           break;
         }
@@ -295,16 +305,17 @@ struct OptionalPrinter {
 
 struct ProtobufPrinter {
   template <typename T>
-  void PrintUserValue(const T& val, RawSink out, PrintMode mode) const {
+  void PrintUserValue(const T& val, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const {
     if constexpr (Requires<T>([](auto v) -> decltype(*v) {})) {
       // Deref if necessary.
       return PrintUserValue(*val, out, mode);
     } else {
       switch (mode) {
-        case PrintMode::kHumanReadable:
+        case domain_implementor::PrintMode::kHumanReadable:
           absl::Format(out, "(%s)", absl::StrCat(val));
           break;
-        case PrintMode::kSourceCode:
+        case domain_implementor::PrintMode::kSourceCode:
           absl::Format(out, "ParseTestProto(R\"pb(%s)pb\")", absl::StrCat(val));
           break;
       }
@@ -317,7 +328,8 @@ struct ProtobufEnumPrinter {
   D descriptor;
 
   template <typename T>
-  void PrintUserValue(const T& v, RawSink out, PrintMode mode) const {
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) const {
     if (auto vd = descriptor->FindValueByNumber(v); vd != nullptr) {
       // For enums nested inside a message, protoc generates an enum named
       // `<MessageName>_<EnumName>` and aliases for each label of the form
@@ -332,7 +344,7 @@ struct ProtobufEnumPrinter {
         type_name.remove_suffix(enum_name.size() + 1);
       }
       absl::Format(out, "%s::%s", type_name, vd->name());
-      if (mode == PrintMode::kHumanReadable) {
+      if (mode == domain_implementor::PrintMode::kHumanReadable) {
         absl::Format(out, " (");
         IntegralPrinter{}.PrintUserValue(static_cast<int64_t>(v), out, mode);
         absl::Format(out, ")");
@@ -346,7 +358,8 @@ struct ProtobufEnumPrinter {
 
 struct MonostatePrinter {
   template <typename T>
-  void PrintUserValue(const T&, RawSink out, PrintMode) const {
+  void PrintUserValue(const T&, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode) const {
     absl::Format(out, "{}");
   }
 };
@@ -355,14 +368,15 @@ template <typename Domain, typename Inner>
 struct ContainerPrinter {
   const Inner& inner_domain;
 
-  void PrintCorpusValue(const corpus_type_t<Domain>& val, RawSink out,
-                        PrintMode mode) const {
+  void PrintCorpusValue(const corpus_type_t<Domain>& val,
+                        domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
     absl::Format(out, "{");
     bool first = true;
     for (const auto& v : val) {
       if (!first) absl::Format(out, ", ");
       first = false;
-      PrintValue(inner_domain, v, out, mode);
+      domain_implementor::PrintValue(inner_domain, v, out, mode);
     }
     absl::Format(out, "}");
   }
@@ -395,20 +409,21 @@ struct MappedPrinter {
   absl::string_view map_fn_name;
 
   template <typename CorpusT>
-  void PrintCorpusValue(const CorpusT& corpus_value, RawSink out,
-                        PrintMode mode) const {
+  void PrintCorpusValue(const CorpusT& corpus_value,
+                        domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
     auto value = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
       return mapper(std::get<I>(inner).GetValue(std::get<I>(corpus_value))...);
     });
 
     switch (mode) {
-      case PrintMode::kHumanReadable: {
+      case domain_implementor::PrintMode::kHumanReadable: {
         // In human readable mode we try and print the user value.
         AutodetectTypePrinter<decltype(value)>().PrintUserValue(value, out,
                                                                 mode);
         break;
       }
-      case PrintMode::kSourceCode:
+      case domain_implementor::PrintMode::kSourceCode:
         if constexpr (!HasFunctionName<Mapper>() &&
                       HasKnownPrinter<decltype(value)>()) {
           if (map_fn_name.empty()) {
@@ -429,7 +444,8 @@ struct MappedPrinter {
         absl::Format(out, "%s(", GetFunctionName(mapper, default_name));
         const auto print_one = [&](auto I) {
           if (I != 0) absl::Format(out, ", ");
-          PrintValue(std::get<I>(inner), std::get<I>(corpus_value), out, mode);
+          domain_implementor::PrintValue(std::get<I>(inner),
+                                         std::get<I>(corpus_value), out, mode);
         };
         ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
         absl::Format(out, ")");
@@ -443,8 +459,9 @@ struct FlatMappedPrinter {
   const std::tuple<Inner...>& inner;
 
   template <typename CorpusT>
-  void PrintCorpusValue(const CorpusT& corpus_value, RawSink out,
-                        PrintMode mode) const {
+  void PrintCorpusValue(const CorpusT& corpus_value,
+                        domain_implementor::RawSink out,
+                        domain_implementor::PrintMode mode) const {
     auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
       return mapper(
           // the first field of `corpus_value` is the output value, so skip it
@@ -452,14 +469,16 @@ struct FlatMappedPrinter {
     });
 
     switch (mode) {
-      case PrintMode::kHumanReadable: {
+      case domain_implementor::PrintMode::kHumanReadable: {
         // Delegate to the output domain's printer.
-        PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
+        domain_implementor::PrintValue(output_domain, std::get<0>(corpus_value),
+                                       out, mode);
         break;
       }
-      case PrintMode::kSourceCode:
+      case domain_implementor::PrintMode::kSourceCode:
         if constexpr (!HasFunctionName<FlatMapper>()) {
-          PrintValue(output_domain, std::get<0>(corpus_value), out, mode);
+          domain_implementor::PrintValue(output_domain,
+                                         std::get<0>(corpus_value), out, mode);
           break;
         }
 
@@ -471,8 +490,8 @@ struct FlatMappedPrinter {
                      GetFunctionName(mapper, "<FLAT_MAP_FUNCTION>"));
         const auto print_one = [&](auto I) {
           if (I != 0) absl::Format(out, ", ");
-          PrintValue(std::get<I>(inner), std::get<I + 1>(corpus_value), out,
-                     mode);
+          domain_implementor::PrintValue(
+              std::get<I>(inner), std::get<I + 1>(corpus_value), out, mode);
         };
         ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
         absl::Format(out, ")");
@@ -482,8 +501,9 @@ struct FlatMappedPrinter {
 
 struct AutodetectAggregatePrinter {
   template <typename T>
-  void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
-    if (mode == PrintMode::kHumanReadable) {
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) {
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
       // In human-readable mode, prefer formatting with Abseil if possible.
       if constexpr (has_absl_stringify_v<T>) {
         absl::Format(out, "%v", v);
@@ -505,13 +525,14 @@ struct AutodetectAggregatePrinter {
 };
 
 struct DurationPrinter {
-  void PrintUserValue(const absl::Duration duration, RawSink out,
-                      PrintMode mode) {
+  void PrintUserValue(const absl::Duration duration,
+                      domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) {
     switch (mode) {
-      case PrintMode::kHumanReadable:
+      case domain_implementor::PrintMode::kHumanReadable:
         absl::Format(out, "%s", absl::FormatDuration(duration));
         break;
-      case PrintMode::kSourceCode:
+      case domain_implementor::PrintMode::kSourceCode:
         if (duration == absl::InfiniteDuration()) {
           absl::Format(out, "absl::InfiniteDuration()");
         } else if (duration == -absl::InfiniteDuration()) {
@@ -538,12 +559,13 @@ struct DurationPrinter {
 };
 
 struct TimePrinter {
-  void PrintUserValue(const absl::Time time, RawSink out, PrintMode mode) {
+  void PrintUserValue(const absl::Time time, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) {
     switch (mode) {
-      case PrintMode::kHumanReadable:
+      case domain_implementor::PrintMode::kHumanReadable:
         absl::Format(out, "%s", absl::FormatTime(time, absl::UTCTimeZone()));
         break;
-      case PrintMode::kSourceCode:
+      case domain_implementor::PrintMode::kSourceCode:
         if (time == absl::InfinitePast()) {
           absl::Format(out, "absl::InfinitePast()");
         } else if (time == absl::InfiniteFuture()) {
@@ -561,8 +583,9 @@ struct TimePrinter {
 
 struct UnknownPrinter {
   template <typename T>
-  void PrintUserValue(const T& v, RawSink out, PrintMode mode) {
-    if (mode == PrintMode::kHumanReadable) {
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) {
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
       // Try formatting with Abseil. We can't guarantee a good source code
       // result, but it should be ok for human readable.
       if constexpr (has_absl_stringify_v<T>) {

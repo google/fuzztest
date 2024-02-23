@@ -14,6 +14,7 @@ target_link_libraries(
   fuzztest_domain_testing
   fuzztest_io
   fuzztest_logging
+  fuzztest_printer
   fuzztest_serialization
   fuzztest_subprocess
   fuzztest_type_support

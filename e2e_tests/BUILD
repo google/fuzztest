@@ -45,6 +45,7 @@ cc_test(
         "@com_google_fuzztest//domain_tests:domain_testing",
         "@com_google_fuzztest//fuzztest:io",
         "@com_google_fuzztest//fuzztest:logging",
+        "@com_google_fuzztest//fuzztest:printer",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest:subprocess",
         "@com_google_fuzztest//fuzztest:type_support",

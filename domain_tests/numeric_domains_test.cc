@@ -32,7 +32,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
-#include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/serialization.h"
@@ -40,6 +39,7 @@
 namespace fuzztest {
 namespace {
 
+using ::fuzztest::internal::IRObject;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Each;
@@ -230,17 +230,15 @@ TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
       : is_at_most_64_bit_integer      ? "i: $0"
                                        : R"(sub { i: 0 } sub { i: $0 })";
 
-  auto corpus_value =
-      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
-          "FUZZTESTv1 ",
-          absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
+  auto corpus_value = domain.ParseCorpus(*IRObject::FromString(absl::StrCat(
+      "FUZZTESTv1 ",
+      absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
   ASSERT_TRUE(corpus_value.has_value());
   EXPECT_OK(domain.ValidateCorpusValue(*corpus_value));
 
-  corpus_value =
-      domain.ParseCorpus(*internal::IRObject::FromString(absl::StrCat(
-          "FUZZTESTv1 ",
-          absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
+  corpus_value = domain.ParseCorpus(*IRObject::FromString(absl::StrCat(
+      "FUZZTESTv1 ",
+      absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
   // Greater than max should be parsed, but rejected by validation.
   ASSERT_TRUE(corpus_value.has_value());
   EXPECT_THAT(

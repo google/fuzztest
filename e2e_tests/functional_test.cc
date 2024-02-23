@@ -21,7 +21,6 @@
 #include <optional>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -31,7 +30,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
@@ -39,6 +37,7 @@
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/type_support.h"
@@ -49,6 +48,7 @@ namespace {
 
 #define FUZZTEST_FLAG_PREFIX_ ""
 
+using ::fuzztest::domain_implementor::PrintMode;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyOf;

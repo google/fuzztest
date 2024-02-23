@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// IWYU pragma: private, include "fuzztest/fuzztest.h"
+// IWYU pragma: friend fuzztest/.*
+
 #ifndef FUZZTEST_FUZZTEST_DOMAIN_CORE_H_
 #define FUZZTEST_FUZZTEST_DOMAIN_CORE_H_
 
 #include <array>
 #include <cmath>
-#include <cstdint>
 #include <deque>
 #include <initializer_list>
 #include <limits>
@@ -38,18 +40,16 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/bit_gen_ref.h"
-#include "absl/random/random.h"
-#include "absl/strings/str_format.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/bit_flag_combination_of_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
-#include "./fuzztest/internal/domains/domain_base.h"
-#include "./fuzztest/internal/domains/domain_concept.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/domain.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/domain_base.h"  // IWYU pragma: export
 #include "./fuzztest/internal/domains/element_of_impl.h"
 #include "./fuzztest/internal/domains/filter_impl.h"
 #include "./fuzztest/internal/domains/flat_map_impl.h"
@@ -62,6 +62,7 @@
 #include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"  // IWYU pragma: export
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -146,9 +147,9 @@ class DomainBuilder {
   // for recursive data structures.
   template <typename T>
   class IndirectDomain
-      : public internal::DomainBase<IndirectDomain<T>,
-                                    internal::value_type_t<Domain<T>>,
-                                    internal::corpus_type_t<Domain<T>>> {
+      : public domain_implementor::DomainBase<
+            IndirectDomain<T>, internal::value_type_t<Domain<T>>,
+            internal::corpus_type_t<Domain<T>>> {
    public:
     using typename IndirectDomain::DomainBase::corpus_type;
     using typename IndirectDomain::DomainBase::value_type;
@@ -201,10 +202,9 @@ class DomainBuilder {
   // Same as Domain<T>, but also holds ownership of the lookup table.
   // This is for toplevel domains.
   template <typename T>
-  class OwningDomain
-      : public internal::DomainBase<OwningDomain<T>,
-                                    internal::value_type_t<Domain<T>>,
-                                    internal::corpus_type_t<Domain<T>>> {
+  class OwningDomain : public domain_implementor::DomainBase<
+                           OwningDomain<T>, internal::value_type_t<Domain<T>>,
+                           internal::corpus_type_t<Domain<T>>> {
    public:
     using typename OwningDomain::DomainBase::corpus_type;
     using typename OwningDomain::DomainBase::value_type;
@@ -379,8 +379,8 @@ auto NonNegative() {
 template <typename T>
 auto Negative() {
   static_assert(!std::is_unsigned_v<T>,
-                "Negative<T>() can only be used with with signed T-s! "
-                "For char, consider using signed char.");
+                "Negative<T>() can only be used with signed T-s! For char, "
+                "consider using signed char.");
   if constexpr (std::is_floating_point_v<T>) {
     return InRange<T>(std::numeric_limits<T>::lowest(),
                       -std::numeric_limits<T>::denorm_min());
@@ -398,8 +398,8 @@ auto Negative() {
 template <typename T>
 auto NonPositive() {
   static_assert(!std::is_unsigned_v<T>,
-                "NonPositive<T>() can only be used with with signed T-s! "
-                "For char, consider using signed char.");
+                "NonPositive<T>() can only be used with signed T-s! For char, "
+                "consider using signed char.");
   return InRange<T>(std::numeric_limits<T>::lowest(), T{});
 }
 

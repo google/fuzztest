@@ -37,15 +37,14 @@
 namespace fuzztest::internal {
 namespace {
 
-using testing::_;
-using testing::ElementsAre;
-using testing::Eq;
-using testing::FieldsAre;
-using testing::NanSensitiveDoubleEq;
-using testing::Not;
-using testing::Optional;
-using testing::Pair;
-using testing::VariantWith;
+using ::testing::_;
+using ::testing::ElementsAre;
+using ::testing::FieldsAre;
+using ::testing::NanSensitiveDoubleEq;
+using ::testing::Not;
+using ::testing::Optional;
+using ::testing::Pair;
+using ::testing::VariantWith;
 
 template <typename T>
 auto ValueIs(const T& v) {

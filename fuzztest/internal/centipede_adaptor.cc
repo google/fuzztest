@@ -58,7 +58,7 @@
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/coverage.h"
-#include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -184,11 +184,10 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       seeds.push_back(*corpus_value);
     }
     absl::c_shuffle(seeds, prng_);
-    if (seeds.empty())
-      seeds.push_back(fuzzer_impl_.params_domain_->UntypedInit(prng_));
+    if (seeds.empty()) seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
     for (const auto& seed : seeds) {
       const auto seed_serialized =
-          fuzzer_impl_.params_domain_->UntypedSerializeCorpus(seed).ToString();
+          fuzzer_impl_.params_domain_.SerializeCorpus(seed).ToString();
       seed_callback(
           {reinterpret_cast<const unsigned char*>(seed_serialized.data()),
            seed_serialized.size()});
@@ -206,22 +205,21 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       std::string mutant_data;
       constexpr double kDomainInitRatio = 0.0001;
       if (choice < kDomainInitRatio) {
-        mutant_data = fuzzer_impl_.params_domain_
-                          ->UntypedSerializeCorpus(
-                              fuzzer_impl_.params_domain_->UntypedInit(prng_))
-                          .ToString();
+        mutant_data =
+            fuzzer_impl_.params_domain_
+                .SerializeCorpus(fuzzer_impl_.params_domain_.Init(prng_))
+                .ToString();
       } else {
         const auto& origin =
             inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
         auto parsed_origin =
             fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
         if (!parsed_origin)
-          parsed_origin = fuzzer_impl_.params_domain_->UntypedInit(prng_);
+          parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
         auto mutant = FuzzTestFuzzerImpl::Input{*parsed_origin};
         fuzzer_impl_.MutateValue(mutant, prng_);
         mutant_data =
-            fuzzer_impl_.params_domain_->UntypedSerializeCorpus(mutant.args)
-                .ToString();
+            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }
       new_mutant_callback(
           {(unsigned char*)mutant_data.data(), mutant_data.size()});
@@ -461,7 +459,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
     return orig_fixture_driver_->GetSeeds();
   }
 
-  std::unique_ptr<UntypedDomainInterface> GetDomains() const override {
+  UntypedDomain GetDomains() const override {
     return orig_fixture_driver_->GetDomains();
   }
 
@@ -504,7 +502,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   // Always create a new domain input to trigger any domain setup
   // failures here. (e.g. Ineffective Filter)
   FuzzTestFuzzerImpl::PRNG prng;
-  fuzzer_impl_.params_domain_->UntypedInit(prng);
+  fuzzer_impl_.params_domain_.Init(prng);
   bool print_final_stats = true;
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
