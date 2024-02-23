@@ -236,6 +236,19 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   }
 
  private:
+  template <typename T>
+  static void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a,
+                                                  const uint8_t* b) {
+    T a_int;
+    T b_int;
+    memcpy(&a_int, a, sizeof(T));
+    memcpy(&b_int, b, sizeof(T));
+    GetExecutionCoverage()
+        ->GetTablesOfRecentCompares()
+        .GetMutable<sizeof(T)>()
+        .Insert(a_int, b_int);
+  }
+
   void SetMetadata(const centipede::ExecutionMetadata* metadata) {
     if (metadata == nullptr) return;
     metadata->ForEachCmpEntry([](centipede::ByteSpan a, centipede::ByteSpan b) {
@@ -244,8 +257,13 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       const size_t size = a.size();
       if (size < kMinCmpEntrySize) return;
       if (size > kMaxCmpEntrySize) return;
-      // TODO(xinhaoyuan): Consider handling integer comparison and
-      // memcmp entries differently.
+      if (size == 2) {
+        InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data());
+      } else if (size == 4) {
+        InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data());
+      } else if (size == 8) {
+        InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
+      }
       GetExecutionCoverage()
           ->GetTablesOfRecentCompares()
           .GetMutable<0>()

@@ -1378,6 +1378,13 @@ TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
 #endif
 }
 
+TEST_P(FuzzingModeCrashFindingTest, Int32ValueTestFindsAbortInFuzzingMode) {
+  auto [status, std_out, std_err] = Run("MySuite.Int32ValueTest");
+  // -559038737 is 0xdeadbeef in int32_t.
+  EXPECT_THAT(std_err, HasSubstr("argument 0: -559038737"));
+  ExpectTargetAbort(status, std_err);
+}
+
 TEST_P(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Coverage");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 'F'"));
