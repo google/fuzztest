@@ -1647,38 +1647,19 @@ TEST_P(FuzzingModeCrashFindingTest,
 }
 
 TEST_P(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
-  // TODO(b/302012926): Consolidate the stack overflow checking between FuzzTest
-  // and Centipede.
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP()
-      << "Skipping the stack calculation tests when running with Centipede. "
-         "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] = Run("MySuite.DataDependentStackOverflow");
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(
-      std_err,
-      ContainsRegex("Code under test used [0-9]* bytes of stack. Configured "
-                    "limit is 131072. You can change the limit by specifying "
-                    "--" FUZZTEST_FLAG_PREFIX_ "stack_limit_kb flag."));
+  // 128 KiB is the default stack limit.
+  ExpectStackLimitExceededMessage(std_err, 128 * 1024);
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
        StackCalculationWorksWithAlternateStackForSignalHandlers) {
-  // TODO(b/302012926): Consolidate the stack overflow checking between FuzzTest
-  // and Centipede.
-#ifdef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP()
-      << "Skipping the stack calculation tests when running with Centipede. "
-         "Please run with --config=fuzztest to enable these tests!";
-#endif
   auto [status, std_out, std_err] =
       Run("AlternateSignalStackFixture."
           "StackCalculationWorksWithAlternateStackForSignalHandlers");
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
-  EXPECT_THAT(std_err,
-              Not(HasSubstr("You can change the limit by specifying")));
   ExpectTargetAbort(status, std_err);
 }
 
