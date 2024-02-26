@@ -135,8 +135,9 @@ so that each fuzz test iteration starts in the same state.
 
 ## Using existing GoogleTest fixtures in fuzz tests
 
-Note: Only use GoogleTest fixtures if they are shared with existing unit tests.
-Otherwise, prefer fixtureless code with
+Note: Only use GoogleTest fixtures if they are shared with existing unit tests,
+or if you need static per-fixture setup and teardown (via `SetUpTestSuite` and
+`TearDownTestSuite`). Otherwise, prefer fixtureless code with
 [standalone initialization functions](https://abseil.io/tips/122).
 
 If you already use a GoogleTest fixture derived from `::testing::Test` in your
