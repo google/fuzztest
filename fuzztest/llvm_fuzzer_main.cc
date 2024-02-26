@@ -6,8 +6,8 @@
 #include "absl/flags/parse.h"
 #include "./fuzztest/init_fuzztest.h"
 
-extern "C" int __attribute__((weak))
-LLVMFuzzerInitialize(int* argc, char*** argv);
+extern "C" int __attribute__((weak)) LLVMFuzzerInitialize(int* argc,
+                                                          char*** argv);
 
 ABSL_FLAG(std::string, llvm_fuzzer_wrapper_dict_file, "",
           "Path to dictionary file used by the wrapped legacy LLVMFuzzer "
