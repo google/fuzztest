@@ -64,13 +64,11 @@ ABSL_ATTRIBUTE_WEAK absl::Nullable<RemoteFile *> RemoteFileOpen(
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
-  CHECK(f != nullptr);
   std::fclose(reinterpret_cast<FILE *>(f));
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
                                           const ByteArray &ba) {
-  CHECK(f != nullptr);
   auto *file = reinterpret_cast<FILE *>(f);
   constexpr auto elt_size = sizeof(ba[0]);
   const auto elts_to_write = ba.size();
@@ -85,15 +83,14 @@ ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
 
 // Does not need weak attribute as the implementation depends on
 // RemoteFileAppend(RemoteFile *, ByteArray).
-void RemoteFileAppend(RemoteFile *f, const std::string &contents) {
-  CHECK(f != nullptr);
+void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
+                      const std::string &contents) {
   ByteArray contents_ba{contents.cbegin(), contents.cend()};
   RemoteFileAppend(f, contents_ba);
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileRead(absl::Nonnull<RemoteFile *> f,
                                         ByteArray &ba) {
-  CHECK(f != nullptr);
   auto *file = reinterpret_cast<FILE *>(f);
   std::fseek(file, 0, SEEK_END);  // seek to end
   const auto file_size = std::ftell(file);
@@ -109,7 +106,6 @@ ABSL_ATTRIBUTE_WEAK void RemoteFileRead(absl::Nonnull<RemoteFile *> f,
 // Does not need weak attribute as the implementation depends on
 // RemoteFileRead(RemoteFile *, ByteArray).
 void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
-  CHECK(f != nullptr);
   ByteArray contents_ba;
   RemoteFileRead(f, contents_ba);
   contents.assign(contents_ba.cbegin(), contents_ba.cend());
