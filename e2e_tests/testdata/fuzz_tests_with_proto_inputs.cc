@@ -483,4 +483,12 @@ void ValidateUrls(const WebSearchResult& search_result) {
 }
 FUZZ_TEST(ProtoPuzzles, ValidateUrls);
 
+void QueryOfDeath(const WebSearchResult& input) {
+  if (input.query() == "QoD") {
+    std::abort();
+  }
+}
+
+FUZZ_TEST(ProtoPuzzles, QueryOfDeath);
+
 }  // namespace
