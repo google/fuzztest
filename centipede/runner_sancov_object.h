@@ -51,10 +51,11 @@ struct SanCovObject {
 class SanCovObjectArray {
  public:
   // To be called in __sanitizer_cov_trace_pc_guard_init.
-  void PCGuardInit(absl::Nonnull<PCGuard *> start, PCGuard *stop);
+  void PCGuardInit(absl::Nullable<PCGuard *> start, PCGuard *stop);
 
   // To be called in __sanitizer_cov_pcs_init.
-  void PCInfoInit(absl::Nonnull<const PCInfo *> pcs_beg, const PCInfo *pcs_end);
+  void PCInfoInit(absl::Nullable<const PCInfo *> pcs_beg,
+                  const PCInfo *pcs_end);
 
   // To be called in __sanitizer_cov_cfs_init.
   void CFSInit(const uintptr_t *cfs_beg, const uintptr_t *cfs_end);
@@ -98,6 +99,13 @@ class SanCovObjectArray {
 
  private:
   static constexpr size_t kMaxSize = 1024;
+  // Set by `PCGuardInit`/`Inline8BitCountersInit` if the current DSO has an
+  // empty PC guard/counter table, which should not be tracked in a
+  // SanCovObject.
+  //
+  // TODO(b/326950832): Clean up the SanCov init handling to check assumptions
+  // (e.g. callback ordering) in a cleaner way.
+  bool skipping_no_code_dso_;
   size_t size_;
   SanCovObject objects_[kMaxSize];
   size_t num_instrumented_pcs_;  // Total number of instrumented PCs.
