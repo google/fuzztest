@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -490,5 +491,27 @@ void QueryOfDeath(const WebSearchResult& input) {
 }
 
 FUZZ_TEST(ProtoPuzzles, QueryOfDeath);
+
+void StringsReverseEqual(const TestProtobuf& input) {
+  if (input.rep_str().size() < 2) {
+    return;
+  }
+  const std::string left = input.rep_str()[0];
+  const std::string right = input.rep_str()[1];
+  if (left.size() < 2) {
+    return;
+  }
+  if (right.size() < 2) {
+    return;
+  }
+  if (left == right) {
+    return;
+  }
+  if (std::equal(left.begin(), left.end(), right.rbegin(), right.rend())) {
+    // [Hint] Reachable if the strings are "reverse equal" to each other.
+    std::abort();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, StringsReverseEqual);
 
 }  // namespace
