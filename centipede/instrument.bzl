@@ -78,9 +78,6 @@ target cc_binary.
             cfg = strip_instrumentation_transition,
             mandatory = True,
         ),
-        "_allowlist_function_transition": attr.label(
-            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
-        ),
     },
     executable = True,
 )
