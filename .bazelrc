@@ -29,11 +29,7 @@ build --host_cxxopt=-std=c++17
 # Use the builtin crc32 for fast integer hashing.
 build --copt=-mcrc32
 
-# Disable Bazel module support, which breaks compilation of protobuf with
-# Bazel 7.0.0: it pulls in a version of protobuf that is older than the one
-# specified in WORKSPACE, and the two versions clash.
-# TODO(b/316067250): Remove when we know a better fix.
-build --noenable_bzlmod
+common --enable_bzlmod
 
 # Build GoogleTest with ABSL support.
 build --define absl=1
