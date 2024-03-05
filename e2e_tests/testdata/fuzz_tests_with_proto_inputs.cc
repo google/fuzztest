@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <limits>
 #include <unordered_set>
 #include <vector>
@@ -32,13 +33,15 @@ using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
 using fuzztest::internal::WebSearchResult;
 
+void Target() { std::cout << "[¡Target Reached!]" << std::endl; }
+
 void BytesSummingToMagicValue(const SingleBytesField& input) {
   char sum = 0;
   for (const char c : input.data()) {
     sum += c;
   }
   if (sum == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValue);
@@ -50,7 +53,7 @@ void BytesSummingToMagicValueWithOverloadedProto(
     sum += c;
   }
   if (sum == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValueWithOverloadedProto);
@@ -60,7 +63,7 @@ void PrefixBytesSummingToMagicValue(const SingleBytesField& input) {
     return;
   }
   if (input.data()[0] + input.data()[1] == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValue);
@@ -71,7 +74,7 @@ void PrefixBytesSummingToMagicValueWithOverloadedProto(
     return;
   }
   if (input.str()[0] + input.str()[1] == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, PrefixBytesSummingToMagicValueWithOverloadedProto);
@@ -81,7 +84,7 @@ void PrefixIsMagicValue(const SingleBytesField& input) {
     return;
   }
   if (input.data()[0] + input.data()[1] == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValue);
@@ -91,7 +94,7 @@ void PrefixIsMagicValueWithOverloadedProto(const TestProtobuf& input) {
     return;
   }
   if (input.str()[0] + input.str()[1] == 0x72) {
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, PrefixIsMagicValueWithOverloadedProto);
@@ -114,7 +117,7 @@ void ContainsCharactersSpecifiedAtStartOfString(const SingleBytesField& input) {
     }
   }
   if (num_found == quantity) {
-    abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, ContainsCharactersSpecifiedAtStartOfString);
@@ -140,7 +143,7 @@ void ContainsCharactersSpecifiedAtStartOfStringWithOverloadedProto(
   if (num_found == quantity) {
     // [Hint] Reachable if the second character of the string appears the same
     // number of times as the first character of the string within the suffix.
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles,
@@ -188,7 +191,9 @@ FoodMachineState UpdateFoodMachineState(
       return curr_state;
     case FoodMachineProcedure::Action::PLATE:
       if (curr_state == FoodMachineState::kFoodCooked) {
-        if (machine_contents.empty()) std::abort();
+        if (machine_contents.empty()) {
+          Target();
+        }
         machine_contents.clear();
         return FoodMachineState::kOff;
       }
@@ -303,7 +308,7 @@ void RunRoboCourier560(const RoboCourier560Plan& plan) {
     if (result.location_name != result.mail_name) {
       // [Hint] Mail delivered to the wrong name. Can happen if mail is
       // delivered at before a `CHANGE_NAME` action.
-      std::abort();
+      Target();
     }
   }
 }
@@ -337,7 +342,7 @@ void IntegerConditionsOnTestProtobufLevel00(const TestProtobuf& input) {
     return;
   }
   // [Hint] Reachable if all of the early returns above are not taken.
-  std::abort();
+  Target();
 }
 FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel00);
 
@@ -378,7 +383,7 @@ void IntegerConditionsOnTestProtobufLevel01(const TestProtobuf& input) {
     return;
   }
   // [Hint] reachable if none of the early returns above are taken.
-  std::abort();
+  Target();
 }
 FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel01);
 
@@ -434,7 +439,7 @@ void IntegerConditionsOnTestProtobufLevel02(const TestProtobuf& input) {
     return;
   }
   // [Hint] Can happen if none of the early returns above are taken.
-  std::abort();
+  Target();
 }
 FUZZ_TEST(ProtoPuzzles, IntegerConditionsOnTestProtobufLevel02);
 
@@ -480,13 +485,13 @@ void ValidateUrls(const WebSearchResult& search_result) {
   if (unique_urls.size() != search_result.urls_size()) {
     return;
   }
-  std::abort();
+  Target();
 }
 FUZZ_TEST(ProtoPuzzles, ValidateUrls);
 
 void QueryOfDeath(const WebSearchResult& input) {
   if (input.query() == "QoD") {
-    std::abort();
+    Target();
   }
 }
 
@@ -509,7 +514,7 @@ void StringsReverseEqual(const TestProtobuf& input) {
   }
   if (std::equal(left.begin(), left.end(), right.rbegin(), right.rend())) {
     // [Hint] Reachable if the strings are "reverse equal" to each other.
-    std::abort();
+    Target();
   }
 }
 FUZZ_TEST(ProtoPuzzles, StringsReverseEqual);
