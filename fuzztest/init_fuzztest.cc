@@ -159,10 +159,12 @@ internal::Configuration CreateConfigurationsFromFlags(
   if (!absl::StartsWith(corpus_database, "/") && getenv("TEST_SRCDIR")) {
     binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
   }
+  bool reproduce_findings =
+      absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests));
   return internal::Configuration{
       .corpus_database = internal::CorpusDatabase(
           binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
-          absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests))),
+          reproduce_findings),
       .stack_limit = absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       .rss_limit = absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       .time_limit_per_input =
