@@ -46,10 +46,9 @@ void BytesSummingToMagicValue(const SingleBytesField& input) {
 }
 FUZZ_TEST(ProtoPuzzles, BytesSummingToMagicValue);
 
-void BytesSummingToMagicValueWithOverloadedProto(
-    const SingleBytesField& input) {
+void BytesSummingToMagicValueWithOverloadedProto(const TestProtobuf& input) {
   char sum = 0;
-  for (const char c : input.data()) {
+  for (const char c : input.str()) {
     sum += c;
   }
   if (sum == 0x72) {
