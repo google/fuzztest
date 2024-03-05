@@ -337,7 +337,10 @@ ABSL_FLAG(std::string, experiment, default_env->experiment,
           "number of flag combinations.");
 ABSL_FLAG(bool, analyze, default_env->analyze,
           "If set, Centipede will read the corpora from the work dirs provided"
-          " as argv and analyze differences between those corpora."
+          " as argv. If two corpora are provided, then analyze differences"
+          " between those corpora. If one corpus is provided, then save the"
+          " coverage report to a file within workdir with prefix"
+          " 'coverage-report-'."
           " Used by the Centipede developers to improve the engine. "
           " TODO(kcc) implement. ");
 ABSL_FLAG(std::vector<std::string>, dictionary, default_env->dictionary,

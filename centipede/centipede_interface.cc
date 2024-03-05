@@ -161,15 +161,26 @@ void ReportStatsThread(const std::atomic<bool> &continue_running,
   }
 }
 
-// Loads corpora from work dirs provided in `env.args`, analyzes differences.
-// Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
+// Loads corpora from work dirs provided in `env.args`, if there are two args
+// provided, analyzes differences. If there is one arg provided, reports the
+// function coverage. Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
 int Analyze(const Environment &env) {
   LOG(INFO) << "Analyze " << absl::StrJoin(env.args, ",");
-  CHECK_EQ(env.args.size(), 2) << "for now, Analyze supports only 2 work dirs";
   CHECK(!env.binary.empty()) << "--binary must be used";
-  std::vector<std::vector<CorpusRecord>> corpora;
-  AnalyzeCorporaToLog(env.binary_name, env.binary_hash, env.args[0],
-                      env.args[1]);
+  if (env.args.size() == 1) {
+    const CoverageResults coverage_results =
+        GetCoverage(env.binary_name, env.binary_hash, env.args[0]);
+    WorkDir workdir{env};
+    const std::string coverage_report_path =
+        workdir.CoverageReportPath(/*annotation=*/"");
+    DumpCoverageReport(coverage_results, coverage_report_path);
+  } else if (env.args.size() == 2) {
+    AnalyzeCorporaToLog(env.binary_name, env.binary_hash, env.args[0],
+                        env.args[1]);
+  } else {
+    LOG(FATAL) << "for now, --analyze supports only 1 or 2 work dirs; got "
+               << env.args.size();
+  }
   return EXIT_SUCCESS;
 }
 
