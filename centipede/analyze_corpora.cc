@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -163,6 +164,27 @@ CoverageResults GetCoverage(std::string_view binary_name,
       ReadCorpora(binary_name, binary_hash, workdir);
   BinaryInfo binary_info = ReadBinaryInfo(binary_name, binary_hash, workdir);
   return GetCoverage(corpus_records, std::move(binary_info));
+}
+
+void DumpCoverageReport(const CoverageResults &coverage_results,
+                        std::string_view coverage_report_path) {
+  LOG(INFO) << "Dump coverage to file: " << coverage_report_path;
+
+  const centipede::PCTable &pc_table = coverage_results.binary_info.pc_table;
+  const centipede::SymbolTable &symbols = coverage_results.binary_info.symbols;
+
+  centipede::SymbolTable coverage_symbol_table;
+  for (const PCIndex pc : coverage_results.pcs) {
+    CHECK_LE(pc, symbols.size());
+    if (!pc_table[pc].has_flag(centipede::PCInfo::kFuncEntry)) continue;
+    const SymbolTable::Entry entry = symbols.entry(pc);
+    coverage_symbol_table.AddEntry(entry.func, entry.file_line_col());
+  }
+
+  std::ostringstream symbol_table_stream;
+  coverage_symbol_table.WriteToLLVMSymbolizer(symbol_table_stream);
+
+  RemoteFileSetContents(coverage_report_path, symbol_table_stream.str());
 }
 
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,

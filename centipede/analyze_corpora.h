@@ -48,6 +48,11 @@ CoverageResults GetCoverage(std::string_view binary_name,
                             std::string_view binary_hash,
                             std::string_view workdir);
 
+// Dumps `coverage_results` to `coverage_report_path` in the same format as read
+// by `SymbolTable::ReadFromLLVMSymbolizer`.
+void DumpCoverageReport(const CoverageResults& coverage_results,
+                        std::string_view coverage_report_path);
+
 // Compares the corpus within `workdir_a` with the corpus in `workdir_b`.
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view binary_hash,

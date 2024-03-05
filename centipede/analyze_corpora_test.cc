@@ -15,22 +15,30 @@
 #include "./centipede/analyze_corpora.h"
 
 #include <cstdlib>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/environment.h"
+#include "./centipede/remote_file.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
 #include "./centipede/test_util.h"
 
 namespace centipede {
 namespace {
+
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::IsSupersetOf;
+using ::testing::Not;
 
 // Returns path to test_fuzz_target.
 static std::string GetTargetPath() {
@@ -75,6 +83,40 @@ TEST(GetCoverage, SimpleCoverageResults) {
   EXPECT_GT(llvm_fuzzer_test_one_input_num_edges, 1);
   EXPECT_EQ(single_edge_func_num_edges, 1);
   EXPECT_EQ(multi_edge_func_num_edges, 0);
+}
+
+TEST(DumpCoverageReport, SimpleCoverageResults) {
+  Environment env;
+  env.binary = GetTargetPath();
+  auto corpus_records = RunInputsAndCollectCorpusRecords(env, {"func1"});
+  ASSERT_EQ(corpus_records.size(), 1);
+
+  const std::string test_tmpdir = GetTestTempDir(test_info_->name());
+  BinaryInfo binary_info;
+  binary_info.InitializeFromSanCovBinary(GetTargetPath(), GetObjDumpPath(),
+                                         GetLLVMSymbolizerPath(), test_tmpdir);
+  CoverageResults coverage_results =
+      GetCoverage(corpus_records, std::move(binary_info));
+
+  const std::string coverage_report_path =
+      std::filesystem::path{test_tmpdir} / "covered_symbol_table";
+  DumpCoverageReport(coverage_results, coverage_report_path);
+  std::string symbol_table_contents;
+  RemoteFileGetContents(coverage_report_path, symbol_table_contents);
+
+  std::istringstream symbol_table_stream(symbol_table_contents);
+  SymbolTable symbols;
+  symbols.ReadFromLLVMSymbolizer(symbol_table_stream);
+
+  std::vector<std::string_view> functions;
+  for (size_t index = 0; index < symbols.size(); ++index) {
+    functions.push_back(symbols.func(index));
+  }
+  // Check that inputs cover LLVMFuzzerTestOneInput and SingleEdgeFunc, but not
+  // MultiEdgeFunc.
+  EXPECT_THAT(functions,
+              AllOf(IsSupersetOf({"LLVMFuzzerTestOneInput", "SingleEdgeFunc"}),
+                    Not(Contains("MultiEdgeFunc"))));
 }
 
 }  // namespace

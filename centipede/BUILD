@@ -1428,6 +1428,7 @@ cc_test(
         ":analyze_corpora",
         ":binary_info",
         ":environment",
+        ":remote_file",
         ":symbol_table",
         ":test_coverage_util",
         ":test_util",
