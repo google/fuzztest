@@ -646,10 +646,15 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
       const absl::flat_hash_map<std::string, std::string>& flags,
       const absl::flat_hash_map<std::string, std::string>& env = {},
       absl::Duration timeout = absl::Minutes(10),
-      absl::string_view binary = kDefaultTargetBinary) {
+      absl::string_view binary = kDefaultTargetBinary,
+      const absl::flat_hash_map<std::string, std::string>& non_fuzztest_flags =
+          {}) {
     std::vector<std::string> args = {BinaryPath(binary)};
     for (const auto& [key, value] : flags) {
       args.push_back(CreateFuzzTestFlag(key, value));
+    }
+    for (const auto& [key, value] : non_fuzztest_flags) {
+      args.push_back(absl::StrCat("--", key, "=", value));
     }
     return RunCommand(args, WithTestSanitizerOptions(env), timeout);
   }
