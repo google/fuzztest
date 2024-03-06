@@ -133,6 +133,10 @@ class InplaceVector {
   std::size_t size_;
 };
 
+// Centipede runner also provides LLVMFuzzerMutate to support libFuzzer targets
+// on its own. So we do not define it when integrating with Centipede.
+#ifndef FUZZTEST_USE_CENTIPEDE
+
 extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
   static auto domain = fuzztest::internal::SequenceContainerOfImpl<
@@ -143,6 +147,8 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   domain.Mutate(val, bitgen, false);
   return val.size();
 }
+
+#endif
 
 class ArbitraryByteVector
     : public fuzztest::internal::SequenceContainerOfImpl<
