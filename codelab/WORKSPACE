@@ -51,9 +51,9 @@ http_archive(
 
 http_archive(
     name = "com_google_googletest",
-    sha256 = "c12edde991f8346613d81ae34a78c4ddf36fc4275de12b0b0dd7eb5fa333c1a4",
-    strip_prefix = "googletest-456574145cf71a5375777cab58453acfd92a920b",
-    url = "https://github.com/google/googletest/archive/456574145cf71a5375777cab58453acfd92a920b.zip",
+    sha256 = "8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7",
+    strip_prefix = "googletest-1.14.0",
+    url = "https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz",
 )
 
 # TODO(fniksic): Replace this with an http_archive after we release FuzzTest.
