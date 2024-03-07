@@ -246,63 +246,6 @@ struct OneOfPrinter {
   }
 };
 
-template <typename Domain, typename Inner>
-struct OptionalPrinter {
-  const Domain& domain;
-  const Inner& inner_domain;
-
-  void PrintCorpusValue(const corpus_type_t<Domain>& v,
-                        domain_implementor::RawSink out,
-                        domain_implementor::PrintMode mode) const {
-    using value_type = value_type_t<Domain>;
-    constexpr bool is_pointer = Requires<value_type>(
-        [](auto probe)
-            -> std::enable_if_t<std::is_pointer_v<decltype(probe.get())>> {});
-    if (v.index() == 1) {
-      switch (mode) {
-        case domain_implementor::PrintMode::kHumanReadable:
-          absl::Format(out, "(");
-          domain_implementor::PrintValue(inner_domain, std::get<1>(v), out,
-                                         mode);
-          absl::Format(out, ")");
-          break;
-        case domain_implementor::PrintMode::kSourceCode: {
-          // The source code version will work as long as the expression is
-          // unambiguous.
-          if constexpr (is_pointer) {
-            absl::string_view maker =
-                is_unique_ptr_v<value_type>   ? "std::make_unique"
-                : is_shared_ptr_v<value_type> ? "std::make_shared"
-                                              : "<MAKE_SMART_POINTER>";
-            absl::Format(out, "%s<%s>(", maker,
-                         GetTypeName<typename value_type::element_type>());
-          }
-          domain_implementor::PrintValue(inner_domain, std::get<1>(v), out,
-                                         mode);
-          if (is_pointer) absl::Format(out, ")");
-          break;
-        }
-      }
-    } else {
-      if (is_pointer) {
-        absl::Format(out, "%s", "nullptr");
-      } else {
-        auto type_name = GetTypeName<value_type>();
-        size_t pos = type_name.find("::");
-        if (pos != type_name.npos) {
-          type_name = type_name.substr(0, pos + 2);
-        }
-
-        if (type_name == "std::" || type_name == "absl::") {
-          absl::Format(out, "%s", type_name);
-        }
-
-        absl::Format(out, "%s", "nullopt");
-      }
-    }
-  }
-};
-
 struct ProtobufPrinter {
   template <typename T>
   void PrintUserValue(const T& val, domain_implementor::RawSink out,

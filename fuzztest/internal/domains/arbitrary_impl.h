@@ -491,7 +491,7 @@ class ArbitraryImpl<std::variant<T...>>
 // Arbitrary for std::optional.
 template <typename T>
 class ArbitraryImpl<std::optional<T>>
-    : public OptionalOfImpl<std::optional<T>, ArbitraryImpl<T>> {
+    : public OptionalOfImpl<std::optional<T>> {
  public:
   ArbitraryImpl() : ArbitraryImpl::OptionalOfImpl(ArbitraryImpl<T>()) {}
 };
@@ -506,7 +506,7 @@ const Domain<T>& GetGlobalDomainDefaultInstance() {
 // Arbitrary for std::unique_ptr.
 template <typename T>
 class ArbitraryImpl<std::unique_ptr<T>>
-    : public SmartPointerOfImpl<std::unique_ptr<T>, ArbitraryImpl<T>> {
+    : public SmartPointerOfImpl<std::unique_ptr<T>> {
  public:
   ArbitraryImpl()
       : ArbitraryImpl::SmartPointerOfImpl(GetGlobalDomainDefaultInstance) {}
@@ -515,7 +515,7 @@ class ArbitraryImpl<std::unique_ptr<T>>
 // Arbitrary for std::shared_ptr.
 template <typename T>
 class ArbitraryImpl<std::shared_ptr<T>>
-    : public SmartPointerOfImpl<std::shared_ptr<T>, ArbitraryImpl<T>> {
+    : public SmartPointerOfImpl<std::shared_ptr<T>> {
  public:
   ArbitraryImpl()
       : ArbitraryImpl::SmartPointerOfImpl(GetGlobalDomainDefaultInstance) {}

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 
@@ -61,10 +62,10 @@ std::optional<ReturnT> ParseWithDomainVariant(
       });
 }
 
-template <typename Domain>
+template <typename T>
 auto SerializeWithDomainOptional(
-    const Domain& domain,
-    const std::variant<std::monostate, corpus_type_t<Domain>>& v) {
+    const Domain<T>& domain,
+    const std::variant<std::monostate, GenericDomainCorpusType>& v) {
   IRObject obj;
   auto& subs = obj.MutableSubs();
   subs.push_back(IRObject(v.index()));
@@ -74,9 +75,9 @@ auto SerializeWithDomainOptional(
   return obj;
 }
 
-template <typename Domain, typename ReturnT = std::variant<
-                               std::monostate, corpus_type_t<Domain>>>
-std::optional<ReturnT> ParseWithDomainOptional(const Domain& domain,
+template <typename T, typename ReturnT =
+                          std::variant<std::monostate, GenericDomainCorpusType>>
+std::optional<ReturnT> ParseWithDomainOptional(const Domain<T>& domain,
                                                const IRObject& obj) {
   auto subs = obj.Subs();
   if (!subs || subs->empty()) return std::nullopt;

@@ -1317,7 +1317,7 @@ class ProtobufDomainUntypedImpl
   template <typename T>
   static auto ModifyDomainForOptionalFieldRule(const Domain<T>& d,
                                                OptionalPolicy optional_policy) {
-    auto result = OptionalOfImpl<std::optional<T>, Domain<T>>(d);
+    auto result = OptionalOfImpl<std::optional<T>>(d);
     if (optional_policy == OptionalPolicy::kWithoutNull) {
       result.SetWithoutNull();
     } else if (optional_policy == OptionalPolicy::kAlwaysNull) {
@@ -1328,7 +1328,7 @@ class ProtobufDomainUntypedImpl
 
   template <typename T>
   static auto ModifyDomainForRequiredFieldRule(const Domain<T>& d) {
-    return OptionalOfImpl<std::optional<T>, Domain<T>>(d).SetWithoutNull();
+    return OptionalOfImpl<std::optional<T>>(d).SetWithoutNull();
   }
 
   // Returns the default "base domain" for a `field` solely based on its type
@@ -1757,8 +1757,7 @@ class ProtobufDomainImpl
     } else {                                                                   \
       inner_.WithOneofField(field, OptionalPolicy::kWithoutNull);              \
       inner_.WithField(                                                        \
-          field, OptionalOfImpl<std::optional<Camel##type>, decltype(domain)>( \
-                     std::move(domain))                                        \
+          field, OptionalOfImpl<std::optional<Camel##type>>(std::move(domain)) \
                      .SetWithoutNull());                                       \
     }                                                                          \
     return std::move(*this);                                                   \
@@ -1769,11 +1768,9 @@ class ProtobufDomainImpl
     auto default_domain =                                                      \
         inner_.template GetFieldTypeDefaultDomain<TAG>(field);                 \
     inner_.WithOneofField(field, OptionalPolicy::kAlwaysNull);                 \
-    inner_.WithField(                                                          \
-        field,                                                                 \
-        OptionalOfImpl<std::optional<Camel##type>, decltype(default_domain)>(  \
-            std::move(default_domain))                                         \
-            .SetAlwaysNull());                                                 \
+    inner_.WithField(field, OptionalOfImpl<std::optional<Camel##type>>(        \
+                                std::move(default_domain))                     \
+                                .SetAlwaysNull());                             \
     return std::move(*this);                                                   \
   }                                                                            \
   ProtobufDomainImpl&& With##Camel##FieldAlwaysSet(                            \

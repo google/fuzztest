@@ -16,35 +16,42 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_SMART_POINTER_OF_IMPL_H_
 
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
 namespace fuzztest::internal {
 
-template <typename T, typename Inner,
-          // We use the type erased version here to allow for recursion in smart
-          // pointer domains. It helps cut the recursion in type traits (like
-          // corpus_type) and the indirection avoids having the domain contain
-          // itself by value.
-          typename RealInner = Domain<typename T::element_type>>
+template <typename T>
 class SmartPointerOfImpl
     : public domain_implementor::DomainBase<
-          SmartPointerOfImpl<T, Inner>, T,
-          std::variant<std::monostate, corpus_type_t<RealInner>>> {
-  using InnerFn = const RealInner& (*)();
+          SmartPointerOfImpl<T>, T,
+          std::variant<std::monostate, GenericDomainCorpusType>> {
+  using Inner = Domain<typename T::element_type>;
+  using InnerFn = const Inner& (*)();
 
  public:
   using typename SmartPointerOfImpl::DomainBase::corpus_type;
   using typename SmartPointerOfImpl::DomainBase::value_type;
+
+  static_assert(
+      Requires<T>(
+          [](auto x) -> std::enable_if_t<std::is_pointer_v<decltype(x.get())>,
+                                         decltype(!x, *x)> {}),
+      "T must be a smart pointer type.");
 
   // Since we allow for recursion in this domain, we want to delay the
   // construction of the inner domain. Otherwise we would have an infinite
@@ -73,10 +80,7 @@ class SmartPointerOfImpl
     }
   }
 
-  auto GetPrinter() const {
-    return OptionalPrinter<SmartPointerOfImpl, RealInner>{
-        *this, GetOrMakeInnerConst()};
-  }
+  auto GetPrinter() const { return Printer{GetOrMakeInnerConst()}; }
 
   value_type GetValue(const corpus_type& v) const {
     if (v.index() == 0) return value_type();
@@ -108,20 +112,43 @@ class SmartPointerOfImpl
   }
 
  private:
-  RealInner& GetOrMakeInner() {
+  struct Printer {
+    const Inner& inner;
+
+    void PrintCorpusValue(const corpus_type& v, domain_implementor::RawSink out,
+                          domain_implementor::PrintMode mode) const {
+      if (v.index() == 0) {
+        absl::Format(out, "nullptr");
+        return;
+      }
+      if (mode == domain_implementor::PrintMode::kSourceCode) {
+        absl::string_view maker =
+            is_unique_ptr_v<value_type>   ? "std::make_unique"
+            : is_shared_ptr_v<value_type> ? "std::make_shared"
+                                          : "<MAKE_SMART_POINTER>";
+        absl::Format(out, "%s<%s>", maker,
+                     GetTypeName<typename value_type::element_type>());
+      }
+      absl::Format(out, "(");
+      PrintValue(inner, std::get<1>(v), out, mode);
+      absl::Format(out, ")");
+    }
+  };
+
+  Inner& GetOrMakeInner() {
     if (inner_.index() == 0) {
       inner_.template emplace<1>(std::get<0>(inner_)());
     }
     return std::get<1>(inner_);
   }
 
-  const RealInner& GetOrMakeInnerConst() const {
+  const Inner& GetOrMakeInnerConst() const {
     return inner_.index() == 0 ? std::get<0>(inner_)() : std::get<1>(inner_);
   }
 
   // We don't construct it eagerly to avoid an infinite recursion during
   // default construction. We only construct the sub domain on demand.
-  std::variant<InnerFn, RealInner> inner_;
+  std::variant<InnerFn, Inner> inner_;
 };
 
 }  // namespace fuzztest::internal

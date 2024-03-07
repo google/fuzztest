@@ -316,11 +316,16 @@ TEST(VariantTest, Printer) {
 TEST(OptionalTest, Printer) {
   auto optional_int_domain = OptionalOf(Arbitrary<int>());
   EXPECT_THAT(TestPrintValue({}, optional_int_domain), Each("std::nullopt"));
-  EXPECT_THAT(TestPrintValue(1, optional_int_domain), ElementsAre("(1)", "1"));
+  EXPECT_THAT(
+      TestPrintValue(Domain<int>::corpus_type(std::in_place_type<int>, 1),
+                     optional_int_domain),
+      ElementsAre("(1)", "1"));
 
   auto optional_string_domain = OptionalOf(Arbitrary<std::string>());
   EXPECT_THAT(TestPrintValue({}, optional_string_domain), Each("std::nullopt"));
-  EXPECT_THAT(TestPrintValue("ABC", optional_string_domain),
+  EXPECT_THAT(TestPrintValue(Domain<std::string>::corpus_type(
+                                 std::in_place_type<std::string>, "ABC"),
+                             optional_string_domain),
               ElementsAre("(\"ABC\")", "\"ABC\""));
 }
 

@@ -61,6 +61,8 @@ struct MyCustomSmartPointer {
 
   int operator*() const { return *i; }
   explicit operator bool() const { return static_cast<bool>(i); }
+  const int* get() const { return i.get(); }
+  int* get() { return i.get(); }
 
   std::unique_ptr<int> i;
 };

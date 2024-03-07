@@ -604,17 +604,19 @@ auto VariantOf(Inner... inner) {
 //   OptionalOf(InRange(0, 10))
 //
 //
-// OptionalOf<T>(inner) allows specifying a custom optional type `T`.
+// OptionalOf<OptionalT>(inner) allows specifying a custom optional type
+// `OptionalT`.
 //
 // Example usage:
 //
 //   OptionalOf<absl::optional<int>>(InRange(0, 10))
 //
-// `T` can be an instantiation of `std::optional` or any other class that
-// matches its API. E.g., `absl::optional`.
-template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
+// `OptionalT` can be an instantiation of `std::optional` or any other class
+// that matches its API. E.g., `absl::optional`.
+
+template <typename OptionalT, int&... ExplicitArgumentBarrier, typename Inner>
 auto OptionalOf(Inner inner) {
-  return internal::OptionalOfImpl<T, Inner>(std::move(inner));
+  return internal::OptionalOfImpl<OptionalT>(std::move(inner));
 }
 
 template <int&... ExplicitArgumentBarrier, typename Inner>
@@ -626,9 +628,7 @@ auto OptionalOf(Inner inner) {
 // NullOpt<T>() creates an optional<T> domain with a single value std::nullopt.
 template <typename T>
 auto NullOpt() {
-  return internal::OptionalOfImpl<std::optional<T>, internal::ArbitraryImpl<T>>(
-             internal::ArbitraryImpl<T>())
-      .SetAlwaysNull();
+  return OptionalOf(internal::ArbitraryImpl<T>()).SetAlwaysNull();
 }
 
 // NonNull(inner) excludes `std::nullopt` from `inner` which needs to be
@@ -643,8 +643,8 @@ auto NonNull(Inner inner) {
   return inner.SetWithoutNull();
 }
 
-// SmartPointerOf<T>(inner) combinator creates a domain for a smart pointer type
-// `T` to the object of `inner` domain.
+// SmartPointerOf<Ptr>(inner) combinator creates a domain for a smart pointer
+// type `Ptr` to the object of `inner` domain.
 //
 // Example usage:
 //
@@ -657,7 +657,7 @@ auto NonNull(Inner inner) {
 // SharedPtrOf() instead.
 template <typename Ptr, int&... ExplicitArgumentBarrier, typename Inner>
 auto SmartPointerOf(Inner inner) {
-  return internal::SmartPointerOfImpl<Ptr, Inner>(std::move(inner));
+  return internal::SmartPointerOfImpl<Ptr>(std::move(inner));
 }
 
 // UniquePtrOf(inner) combinator creates a `std::unique_ptr` domain with the

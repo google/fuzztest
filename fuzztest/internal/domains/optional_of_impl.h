@@ -15,17 +15,24 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_OPTIONAL_OF_IMPL_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_OPTIONAL_OF_IMPL_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -33,21 +40,25 @@ namespace fuzztest::internal {
 
 enum class OptionalPolicy { kWithNull, kWithoutNull, kAlwaysNull };
 
-template <typename T, typename InnerDomain>
+template <typename T>
 class OptionalOfImpl
     : public domain_implementor::DomainBase<
-          OptionalOfImpl<T, InnerDomain>, T,
+          OptionalOfImpl<T>, T,
           // `T` might be a custom optional type. We use std::variant
           // unconditionally to make it simpler.
-          std::variant<std::monostate, corpus_type_t<InnerDomain>>> {
+          std::variant<std::monostate, GenericDomainCorpusType>> {
+  using Inner = Domain<typename T::value_type>;
+
  public:
   using typename OptionalOfImpl::DomainBase::corpus_type;
   using typename OptionalOfImpl::DomainBase::value_type;
 
-  static_assert(Requires<T>([](auto x) -> decltype(!x, *x) {}),
+  static_assert(Requires<T>([](auto x) -> std::void_t<decltype(!x, *x),
+                                                      typename T::value_type> {
+                }),
                 "T must be an optional type.");
 
-  explicit OptionalOfImpl(InnerDomain inner)
+  explicit OptionalOfImpl(Inner inner)
       : inner_(std::move(inner)), policy_(OptionalPolicy::kWithNull) {}
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -81,9 +92,7 @@ class OptionalOfImpl
     }
   }
 
-  auto GetPrinter() const {
-    return OptionalPrinter<OptionalOfImpl, InnerDomain>{*this, inner_};
-  }
+  auto GetPrinter() const { return Printer{inner_}; }
 
   value_type GetValue(const corpus_type& v) const {
     if (v.index() == 0) {
@@ -156,10 +165,38 @@ class OptionalOfImpl
     return 0;
   }
 
-  InnerDomain Inner() const { return inner_; }
-
  private:
-  InnerDomain inner_;
+  struct Printer {
+    const Inner& inner;
+
+    void PrintCorpusValue(const corpus_type& v, domain_implementor::RawSink out,
+                          domain_implementor::PrintMode mode) const {
+      if (v.index() == 1) {
+        // `v` contains a value.
+        if (mode == domain_implementor::PrintMode::kHumanReadable) {
+          absl::Format(out, "(");
+        }
+        PrintValue(inner, std::get<1>(v), out, mode);
+        if (mode == domain_implementor::PrintMode::kHumanReadable) {
+          absl::Format(out, ")");
+        }
+        return;
+      }
+
+      // `v` represents nullopt.
+      auto type_name = GetTypeName<value_type>();
+      size_t pos = type_name.find("::");
+      if (pos != type_name.npos) {
+        type_name = type_name.substr(0, pos + 2);
+      }
+      if (type_name == "std::" || type_name == "absl::") {
+        absl::Format(out, "%s", type_name);
+      }
+      absl::Format(out, "%s", "nullopt");
+    }
+  };
+
+  Inner inner_;
   OptionalPolicy policy_;
 };
 
