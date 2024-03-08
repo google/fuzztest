@@ -297,7 +297,8 @@ TEST(FixtureDriverTest, InvalidSeedsFromSeedProviderAreSkipped) {
                  Arbitrary<std::tuple<int>>()),
           {}, GetSeeds);
 
-  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(
+                  UnpackGenericValues<CopyableAny>(fixture_driver.GetSeeds())),
               UnorderedElementsAre(std::tuple{42}));
 }
 

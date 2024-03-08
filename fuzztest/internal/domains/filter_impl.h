@@ -16,28 +16,29 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_FILTER_IMPL_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
-#include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 
 namespace fuzztest::internal {
 
-template <typename Pred, typename Inner>
+template <typename T>
 class FilterImpl
-    : public domain_implementor::DomainBase<
-          FilterImpl<Pred, Inner>, value_type_t<Inner>, corpus_type_t<Inner>> {
+    : public domain_implementor::DomainBase<FilterImpl<T>, T,
+                                            GenericDomainCorpusType> {
  public:
   using typename FilterImpl::DomainBase::corpus_type;
   using typename FilterImpl::DomainBase::value_type;
 
   FilterImpl() = default;
-  explicit FilterImpl(Pred predicate, Inner inner)
+  explicit FilterImpl(std::function<bool(const T&)> predicate, Domain<T> inner)
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -104,8 +105,8 @@ See more details in the User Guide.
     return res;
   }
 
-  Pred predicate_;
-  Inner inner_;
+  std::function<bool(const T&)> predicate_;
+  Domain<T> inner_;
   uint64_t num_values_ = 0;
   uint64_t num_skips_ = 0;
 };

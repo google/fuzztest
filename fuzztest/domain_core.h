@@ -314,8 +314,8 @@ auto OneOf(Inner... domains) {
 //
 template <int&... ExplicitArgumentBarrier, typename Inner, typename Pred>
 auto Filter(Pred predicate, Inner inner) {
-  return internal::FilterImpl<Pred, Inner>(std::move(predicate),
-                                           std::move(inner));
+  return internal::FilterImpl<internal::value_type_t<Inner>>(
+      std::move(predicate), std::move(inner));
 }
 
 // InRange(min, max) represents any value between [min, max], closed interval.
