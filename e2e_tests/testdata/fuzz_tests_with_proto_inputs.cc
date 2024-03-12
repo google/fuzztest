@@ -22,6 +22,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "re2/re2.h"
@@ -30,6 +31,7 @@ namespace {
 
 using fuzztest::internal::CalculatorExpression;
 using fuzztest::internal::FoodMachineProcedure;
+using fuzztest::internal::MazePath;
 using fuzztest::internal::RoboCourier560Plan;
 using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
@@ -541,5 +543,98 @@ void StdCharacterFunctions(const SingleBytesField& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, StdCharacterFunctions);
+
+void RunMaze(const MazePath& path) {
+  constexpr int kMaxPathLength = 32;
+  constexpr int kHeight = 7;
+  constexpr int kWidth = 11;
+  // clang-format off
+  constexpr char kMaze[kHeight][kWidth+1] = {
+    "+-+---+---+",
+    "| |     |#|",
+    "| | --+ | |",
+    "| |   | | |",
+    "| +-- | | |",
+    "|     |   |",
+    "+-----+---+"};
+  // clang-format on
+
+  int x = 1, y = 1;    // Current position.
+  int prev_x, prev_y;  // Previous position.
+
+  for (int i = 0; i < path.direction_size() && i < kMaxPathLength; ++i) {
+    prev_x = x;
+    prev_y = y;
+
+    switch (path.direction(i)) {
+      case MazePath::UP:
+        y--;
+        break;
+      case MazePath::DOWN:
+        y++;
+        break;
+      case MazePath::LEFT:
+        x--;
+        break;
+      case MazePath::RIGHT:
+        x++;
+        break;
+      case MazePath::UNSPECIFIED:
+      default:
+        std::cout << "Invalid input!\n";
+        return;
+    }
+
+    if (kMaze[y][x] == '#') {
+      std::cout << "You won!\n";
+      Target();
+      return;
+    }
+
+    if (kMaze[y][x] != ' ') {
+      std::cout << "Cannot go there!\n";
+      x = prev_x;
+      y = prev_y;
+      break;
+    }
+  }
+
+  // Lose if we didn't reach the target.
+  std::cout << "You lost.\n";
+}
+FUZZ_TEST(ProtoPuzzles, RunMaze);
+
+TEST(ProtoPuzzles, RunMazeReproducer) {
+  MazePath path;
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::LEFT);
+  path.add_direction(MazePath::LEFT);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::DOWN);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::RIGHT);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::UP);
+  path.add_direction(MazePath::UP);
+  EXPECT_DEATH(RunMaze(path), "SIGABRT");
+}
 
 }  // namespace

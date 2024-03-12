@@ -213,3 +213,14 @@ message WebSearchResult {
   // A list of size `count` containing valid URLs.
   repeated string urls = 3;
 }
+
+message MazePath {
+  enum Direction {
+    UNSPECIFIED = 0;
+    UP = 1;
+    DOWN = 2;
+    LEFT = 3;
+    RIGHT = 4;
+  }
+  repeated Direction direction = 1 [packed = true];
+}
