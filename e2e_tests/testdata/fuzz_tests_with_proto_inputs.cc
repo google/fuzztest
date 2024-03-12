@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -517,5 +518,22 @@ void StringsReverseEqual(const TestProtobuf& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, StringsReverseEqual);
+
+void StdCharacterFunctions(const SingleBytesField& input) {
+  if (input.data().size() < 16) return;
+  if (std::isalnum(input.data()[0]) && std::isalpha(input.data()[1]) &&
+      std::isdigit(input.data()[2]) && std::isblank(input.data()[3]) &&
+      std::iscntrl(input.data()[4]) && std::isdigit(input.data()[5]) &&
+      std::isgraph(input.data()[6]) && std::islower(input.data()[7]) &&
+      std::isprint(input.data()[8]) && std::ispunct(input.data()[9]) &&
+      std::isspace(input.data()[10]) && std::isupper(input.data()[11]) &&
+      std::isxdigit(input.data()[12]) &&
+      'Q' == std::toupper(input.data()[13]) &&
+      'o' == std::tolower(input.data()[14]) &&
+      'D' == std::toupper(input.data()[15])) {
+    Target();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, StdCharacterFunctions);
 
 }  // namespace
