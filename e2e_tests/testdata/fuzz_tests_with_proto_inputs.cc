@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -34,7 +35,12 @@ using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
 using fuzztest::internal::WebSearchResult;
 
-void Target() { std::cout << "[¡Target Reached!]" << std::endl; }
+void Target() {
+  std::cout << "[¡Target Reached!]" << std::endl;
+#ifndef FUZZTEST_INTERNAL_DO_NOT_CRASH_ON_TARGET
+  std::abort();
+#endif
+}
 
 void BytesSummingToMagicValue(const SingleBytesField& input) {
   char sum = 0;
