@@ -17,9 +17,12 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
+#include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "re2/re2.h"
@@ -517,5 +520,16 @@ void StringsReverseEqual(const TestProtobuf& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, StringsReverseEqual);
+
+void FindUnicornFile(const TestProtobuf& input) {
+  constexpr std::string_view kUnicornFilePath =
+      R"("/top_directory/sensitive_data/unicorn.key)";
+  std::string file_path = "";
+  for (const std::string& dir : input.rep_str()) {
+    absl::StrAppend(&file_path, "/", dir);
+  }
+  EXPECT_NE(file_path, kUnicornFilePath);
+}
+FUZZ_TEST(ProtoPuzzles, FindUnicornFile);
 
 }  // namespace
