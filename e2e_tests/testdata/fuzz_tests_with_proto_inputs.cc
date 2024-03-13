@@ -25,8 +25,10 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/types/span.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/text_format.h"
@@ -35,6 +37,7 @@
 namespace {
 
 using ::fuzztest::internal::CalculatorExpression;
+using ::fuzztest::internal::DataColumnFilter;
 using ::fuzztest::internal::FoodMachineProcedure;
 using ::fuzztest::internal::MazePath;
 using ::fuzztest::internal::NodeGraph;
@@ -725,5 +728,72 @@ void RemainderEquations(const TestProtobuf& input) {
   Target();
 }
 FUZZ_TEST(ProtoPuzzles, RemainderEquations);
+
+void ValidateFiltersNotEmptyHelper(
+    const DataColumnFilter& data_column_filter,
+    std::vector<DataColumnFilter::FilterCase>& case_stack) {
+  if (absl::c_equal(case_stack,
+                    absl::MakeConstSpan({DataColumnFilter::kAndFilter,
+                                         DataColumnFilter::kOrFilter,
+                                         DataColumnFilter::kNotFilter}))) {
+    Target();
+  }
+  switch (data_column_filter.filter_case()) {
+    case DataColumnFilter::kAndFilter: {
+      case_stack.push_back(DataColumnFilter::kAndFilter);
+      if (data_column_filter.and_filter().filters_size() >= 2) {
+        for (const DataColumnFilter& sub_filter :
+             data_column_filter.and_filter().filters()) {
+          ValidateFiltersNotEmptyHelper(sub_filter, case_stack);
+        }
+      }
+      break;
+    }
+    case DataColumnFilter::kOrFilter: {
+      case_stack.push_back(DataColumnFilter::kOrFilter);
+      if (data_column_filter.or_filter().filters_size() >= 2) {
+        for (const DataColumnFilter& sub_filter :
+             data_column_filter.or_filter().filters()) {
+          ValidateFiltersNotEmptyHelper(sub_filter, case_stack);
+        }
+      }
+      break;
+    }
+    case DataColumnFilter::kNotFilter: {
+      case_stack.push_back(DataColumnFilter::kNotFilter);
+      if (data_column_filter.not_filter().has_filter()) {
+        ValidateFiltersNotEmptyHelper(data_column_filter.not_filter().filter(),
+                                      case_stack);
+      }
+      break;
+    }
+    case DataColumnFilter::FILTER_NOT_SET:
+      break;
+  }
+}
+
+void ValidateFiltersNotEmpty(const DataColumnFilter& data_column_filter) {
+  std::vector<DataColumnFilter::FilterCase> case_stack;
+  ValidateFiltersNotEmptyHelper(data_column_filter, case_stack);
+}
+FUZZ_TEST(ProtoPuzzles, ValidateFiltersNotEmpty);
+
+TEST(ProtoPuzzles, ValidateFiltersNotEmptyReproducer) {
+  DataColumnFilter data_column_filter;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"textpb(
+        and_filter {
+          filters {
+            or_filter {
+              filters { not_filter {} }
+              filters { not_filter {} }
+            }
+          }
+          filters { not_filter {} }
+        }
+      )textpb",
+      &data_column_filter));
+  EXPECT_DEATH(ValidateFiltersNotEmpty(data_column_filter), "SIGABRT");
+}
 
 }  // namespace

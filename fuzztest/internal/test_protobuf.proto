@@ -244,3 +244,20 @@ message NodeGraph {
   // The name of the start node in the graph.
   optional string start = 2;
 }
+
+message DataColumnFilter {
+  message AndFilter {
+    repeated DataColumnFilter filters = 1;  // must have length > 1
+  }
+  message OrFilter {
+    repeated DataColumnFilter filters = 1;  // must have length > 1
+  }
+  message NotFilter {
+    optional DataColumnFilter filter = 1;
+  }
+  oneof filter {
+    AndFilter and_filter = 1;
+    OrFilter or_filter = 2;
+    NotFilter not_filter = 3;
+  }
+}
