@@ -108,9 +108,9 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
       << "Couldn't parse config: " << VV(config_str);
   CHECK_EQ(config.sources_size() > 0, config.has_destination())
       << "Non-empty config must have both source(s) and destination: "
-      << VV(config_spec) << VV(config.DebugString());
+      << VV(config_spec) << VV(config);
 
-  LOG(INFO) << "Parsed config:\n" << config.DebugString();
+  LOG(INFO) << "Parsed config:\n" << config;
 
   // Resolve relative `source.dir_glob`s in the config to absolute ones.
   for (auto& src : *config.mutable_sources()) {
@@ -136,7 +136,7 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
         WorkDir::kDigitsInShardIndex);
   }
 
-  LOG(INFO) << "Resolved config:\n" << config.DebugString();
+  LOG(INFO) << "Resolved config:\n" << config;
 
   return config;
 }
@@ -152,8 +152,7 @@ void SampleSeedCorpusElementsFromSource(    //
       /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/VLOG_IS_ON(10));
 
-  LOG(INFO) << "Reading/sampling seed corpus elements from source:\n"
-            << source.DebugString();
+  LOG(INFO) << "Reading/sampling seed corpus elements from source:\n" << source;
 
   // Find `source.dir_glob()`-matching dirs and pick at most
   // `source.num_recent_dirs()` most recent ones.
@@ -283,7 +282,7 @@ void SampleSeedCorpusElementsFromSource(    //
   switch (source.sample_size_case()) {
     case SeedCorpusSource::kSampledFraction:
       CHECK(source.sampled_fraction() > 0.0 && source.sampled_fraction() <= 1.0)
-          << VV(source.DebugString());
+          << VV(source);
       sample_size = std::llrint(src_elts.size() * source.sampled_fraction());
       break;
     case SeedCorpusSource::kSampledCount:
@@ -339,7 +338,7 @@ void WriteSeedCorpusElementsToDestination(  //
 
   LOG(INFO) << "Writing " << elements.size()
             << " seed corpus elements to destination:\n"
-            << destination.DebugString();
+            << destination;
 
   CHECK_GT(destination.num_shards(), 0)
       << "Requested number of shards can't be 0";
@@ -503,7 +502,7 @@ void GenerateSeedCorpusFromConfig(          //
   };
   const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
   RemoteMkdir(debug_info_dir.string());
-  RemoteFileSetContents(debug_info_dir / "seeding.cfg", config.DebugString());
+  RemoteFileSetContents(debug_info_dir / "seeding.cfg", absl::StrCat(config));
 
   InputAndFeaturesVec elements;
 
