@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdlib.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -23,6 +25,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
+#include "absl/time/civil_time.h"
+#include "absl/types/span.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "re2/re2.h"
@@ -30,11 +35,13 @@
 namespace {
 
 using fuzztest::internal::CalculatorExpression;
+using fuzztest::internal::DataColumnFilter;
 using fuzztest::internal::FoodMachineProcedure;
 using fuzztest::internal::MazePath;
 using fuzztest::internal::RoboCourier560Plan;
 using fuzztest::internal::SingleBytesField;
 using fuzztest::internal::TestProtobuf;
+using fuzztest::internal::TimeSeries;
 using fuzztest::internal::WebSearchResult;
 
 void Target() {
@@ -636,5 +643,57 @@ TEST(ProtoPuzzles, RunMazeReproducer) {
   path.add_direction(MazePath::UP);
   EXPECT_DEATH(RunMaze(path), "SIGABRT");
 }
+
+void ValidateFiltersNotEmpty(const DataColumnFilter& data_column_filter) {
+  static std::vector<DataColumnFilter::FilterCase> case_stack;
+
+  if (absl::c_equal(case_stack,
+                    absl::MakeConstSpan({DataColumnFilter::kAndFilter,
+                                         DataColumnFilter::kOrFilter,
+                                         DataColumnFilter::kNotFilter}))) {
+    Target();
+  }
+  switch (data_column_filter.filter_case()) {
+    case DataColumnFilter::kAndFilter: {
+      case_stack.push_back(DataColumnFilter::kAndFilter);
+      if (data_column_filter.and_filter().filters_size() >= 2) {
+        for (const DataColumnFilter& sub_filter :
+             data_column_filter.and_filter().filters()) {
+          ValidateFiltersNotEmpty(sub_filter);
+        }
+      }
+      break;
+    }
+    case DataColumnFilter::kOrFilter: {
+      case_stack.push_back(DataColumnFilter::kOrFilter);
+      if (data_column_filter.or_filter().filters_size() >= 2) {
+        for (const DataColumnFilter& sub_filter :
+             data_column_filter.or_filter().filters()) {
+          ValidateFiltersNotEmpty(sub_filter);
+        }
+      }
+      break;
+    }
+    case DataColumnFilter::kNotFilter: {
+      case_stack.push_back(DataColumnFilter::kNotFilter);
+      if (data_column_filter.not_filter().has_filter()) {
+        ValidateFiltersNotEmpty(data_column_filter.not_filter().filter());
+      }
+      break;
+    }
+    case DataColumnFilter::FILTER_NOT_SET:
+      break;
+  }
+}
+FUZZ_TEST(ProtoPuzzles, ValidateFiltersNotEmpty);
+
+void ValidateTimeSeries(const TimeSeries& time_series) {
+  absl::CivilSecond start_second, end_second;
+  if (!absl::ParseCivilTime(time_series.start_timestamp(), &start_second))
+    return;
+  if (!absl::ParseCivilTime(time_series.end_timestamp(), &end_second)) return;
+  if (start_second == end_second) Target();
+}
+FUZZ_TEST(ProtoPuzzles, ValidateTimeSeries);
 
 }  // namespace

@@ -224,3 +224,26 @@ message MazePath {
   }
   repeated Direction direction = 1 [packed = true];
 }
+
+message DataColumnFilter {
+  message AndFilter {
+    repeated DataColumnFilter filters = 1;  // must have length > 1
+  }
+  message OrFilter {
+    repeated DataColumnFilter filters = 1;  // must have length > 1
+  }
+  message NotFilter {
+    optional DataColumnFilter filter = 1;
+  }
+  oneof filter {
+    AndFilter and_filter = 1;
+    OrFilter or_filter = 2;
+    NotFilter not_filter = 3;
+  }
+}
+
+message TimeSeries {
+  // Start and end time since epoch.
+  optional string start_timestamp = 1;
+  optional string end_timestamp = 2;
+}
