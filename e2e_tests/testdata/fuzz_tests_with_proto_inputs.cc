@@ -719,4 +719,11 @@ TEST(ProtoPuzzles, GraphReachabilityReproducer) {
   EXPECT_DEATH(GraphReachability(graph), "SIGABRT");
 }
 
+void RemainderEquations(const TestProtobuf& input) {
+  if (input.u32() % 56807 != 1) return;
+  if (input.u32() % 56809 != 2) return;
+  Target();
+}
+FUZZ_TEST(ProtoPuzzles, RemainderEquations);
+
 }  // namespace
