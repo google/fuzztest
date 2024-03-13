@@ -16,26 +16,32 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
+#include "google/protobuf/text_format.h"
 #include "re2/re2.h"
 
 namespace {
 
-using fuzztest::internal::CalculatorExpression;
-using fuzztest::internal::FoodMachineProcedure;
-using fuzztest::internal::MazePath;
-using fuzztest::internal::RoboCourier560Plan;
-using fuzztest::internal::SingleBytesField;
-using fuzztest::internal::TestProtobuf;
-using fuzztest::internal::WebSearchResult;
+using ::fuzztest::internal::CalculatorExpression;
+using ::fuzztest::internal::FoodMachineProcedure;
+using ::fuzztest::internal::MazePath;
+using ::fuzztest::internal::NodeGraph;
+using ::fuzztest::internal::RoboCourier560Plan;
+using ::fuzztest::internal::SingleBytesField;
+using ::fuzztest::internal::TestProtobuf;
+using ::fuzztest::internal::WebSearchResult;
 
 void Target() {
   std::cout << "[¡Target Reached!]" << std::endl;
@@ -635,6 +641,82 @@ TEST(ProtoPuzzles, RunMazeReproducer) {
   path.add_direction(MazePath::UP);
   path.add_direction(MazePath::UP);
   EXPECT_DEATH(RunMaze(path), "SIGABRT");
+}
+
+// Check that all nodes in the graphs are reachable from the start node.
+void GraphReachability(const NodeGraph& graph) {
+  if (graph.node_size() < 5) {
+    // We constrain the inputs to reasonably-sized graphs.
+    return;
+  }
+
+  // Build a node index first, so they can be looked up efficiently using their
+  // names.
+  absl::flat_hash_map<std::string, const NodeGraph::Node*> node_map;
+  for (const NodeGraph::Node& node : graph.node()) {
+    if (node.name().empty() || !node_map.insert({node.name(), &node}).second) {
+      // Malformed graph: invalid node names.
+      return;
+    }
+  }
+
+  // Traverse the graph in a BFS manner starting from the start node.
+  absl::flat_hash_set<std::string> reached_nodes;
+  std::deque<std::string> node_frontier{graph.start()};
+  while (!node_frontier.empty()) {
+    const std::string node_name = std::move(node_frontier.front());
+    node_frontier.pop_front();
+
+    // Whereas the reached nodes are resolved, the frontier of nodes are just
+    // strings that need to be validated first.
+    if (auto it = node_map.find(node_name); it != node_map.end()) {
+      if (reached_nodes.insert(it->second->name()).second) {
+        for (const auto& successor : it->second->successor()) {
+          node_frontier.push_back(successor);
+        }
+      }
+    } else {
+      // Malformed graph: invalid start or successor names.
+      return;
+    }
+  }
+  if (reached_nodes.size() == graph.node_size()) {
+    Target();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, GraphReachability);
+
+TEST(ProtoPuzzles, GraphReachabilityReproducer) {
+  NodeGraph graph;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"textpb(
+        node {
+          name: "a"
+          successor: "b"
+          successor: "c"
+        }
+        node {
+          name: "b"
+          successor: "d"
+        }
+        node {
+          name: "c"
+          successor: "a"
+          successor: "b"
+          successor: "e"
+        }
+        node {
+          name: "d"
+          successor: "b"
+        }
+        node {
+          name: "e"
+          successor: "e"
+        }
+        start: "a"
+      )textpb",
+      &graph));
+  EXPECT_DEATH(GraphReachability(graph), "SIGABRT");
 }
 
 }  // namespace

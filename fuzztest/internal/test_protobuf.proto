@@ -224,3 +224,23 @@ message MazePath {
   }
   repeated Direction direction = 1 [packed = true];
 }
+
+// Represents a directed graph of nodes, alongside a specially designated start
+// node.
+message NodeGraph {
+  // A node in the graph.
+  message Node {
+    // The name of the node. Must be non-empty and unique among all nodes.
+    optional string name = 1;
+
+    // The names of zero or more successors of the node. Each successor must
+    // refer to an existing node in the graph (including the current node).
+    repeated string successor = 2;
+  }
+
+  // All nodes in the graph.
+  repeated Node node = 1;
+
+  // The name of the start node in the graph.
+  optional string start = 2;
+}
