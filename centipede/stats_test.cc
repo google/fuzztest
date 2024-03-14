@@ -75,33 +75,36 @@ TEST(Stats, PrintStatsToLog) {
   for (uint64_t i = 0; i < stats_vec.size(); ++i) {
     const uint64_t j = i + 1;
     stats_vec[i].store(Stats{
-        .timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i),
-
-        .fuzz_time_sec = 10 * j,
-        .num_executions = 12 * j,
-        .num_target_crashes = 13 * j,
-
-        .num_covered_pcs = 21 * j,
-        .num_8bit_counter_features = 22 * j,
-        .num_data_flow_features = 23 * j,
-        .num_cmp_features = 24 * j,
-        .num_call_stack_features = 25 * j,
-        .num_bounded_path_features = 26 * j,
-        .num_pc_pair_features = 27 * j,
-        .num_user_features = 28 * j,
-        .num_unknown_features = 29 * j,
-
-        .num_funcs_in_frontier = 31 * j,
-
-        .active_corpus_size = 101 * j,
-        .total_corpus_size = 102 * j,
-        .max_corpus_element_size = 103 * j,
-        .avg_corpus_element_size = 104 * j,
-
-        .engine_rusage_avg_millicores = 201 * j,
-        .engine_rusage_cpu_percent = 202 * j,
-        .engine_rusage_rss_mb = 203 * j,
-        .engine_rusage_vsize_mb = 204 * j,
+        ExecStats{
+            .timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i),
+            .fuzz_time_sec = 10 * j,
+            .num_executions = 12 * j,
+            .num_target_crashes = 13 * j,
+        },
+        CovStats{
+            .num_covered_pcs = 21 * j,
+            .num_8bit_counter_features = 22 * j,
+            .num_data_flow_features = 23 * j,
+            .num_cmp_features = 24 * j,
+            .num_call_stack_features = 25 * j,
+            .num_bounded_path_features = 26 * j,
+            .num_pc_pair_features = 27 * j,
+            .num_user_features = 28 * j,
+            .num_unknown_features = 29 * j,
+            .num_funcs_in_frontier = 31 * j,
+        },
+        CorpusStats{
+            .active_corpus_size = 101 * j,
+            .total_corpus_size = 102 * j,
+            .max_corpus_element_size = 103 * j,
+            .avg_corpus_element_size = 104 * j,
+        },
+        RusageStats{
+            .engine_rusage_avg_millicores = 201 * j,
+            .engine_rusage_cpu_percent = 202 * j,
+            .engine_rusage_rss_mb = 203 * j,
+            .engine_rusage_vsize_mb = 204 * j,
+        },
     });
   }
 
@@ -289,33 +292,36 @@ TEST(Stats, DumpStatsToCsvFile) {
   for (uint64_t i = 0; i < stats_vec.size(); ++i) {
     const uint64_t j = i + 1;
     stats_vec[i].store(Stats{
-        .timestamp_unix_micros = 1000000 * j,
-
-        .fuzz_time_sec = 10 * j,
-        .num_executions = 12 * j,
-        .num_target_crashes = 13 * j,
-
-        .num_covered_pcs = 21 * j,
-        .num_8bit_counter_features = 22 * j,
-        .num_data_flow_features = 23 * j,
-        .num_cmp_features = 24 * j,
-        .num_call_stack_features = 25 * j,
-        .num_bounded_path_features = 26 * j,
-        .num_pc_pair_features = 27 * j,
-        .num_user_features = 28 * j,
-        .num_unknown_features = 29 * j,
-
-        .num_funcs_in_frontier = 31 * j,
-
-        .active_corpus_size = 101 * j,
-        .total_corpus_size = 102 * j,
-        .max_corpus_element_size = 103 * j,
-        .avg_corpus_element_size = 104 * j,
-
-        .engine_rusage_avg_millicores = 201 * j,
-        .engine_rusage_cpu_percent = 202 * j,
-        .engine_rusage_rss_mb = 203 * j,
-        .engine_rusage_vsize_mb = 204 * j,
+        ExecStats{
+            .timestamp_unix_micros = 1000000 * j,
+            .fuzz_time_sec = 10 * j,
+            .num_executions = 12 * j,
+            .num_target_crashes = 13 * j,
+        },
+        CovStats{
+            .num_covered_pcs = 21 * j,
+            .num_8bit_counter_features = 22 * j,
+            .num_data_flow_features = 23 * j,
+            .num_cmp_features = 24 * j,
+            .num_call_stack_features = 25 * j,
+            .num_bounded_path_features = 26 * j,
+            .num_pc_pair_features = 27 * j,
+            .num_user_features = 28 * j,
+            .num_unknown_features = 29 * j,
+            .num_funcs_in_frontier = 31 * j,
+        },
+        CorpusStats{
+            .active_corpus_size = 101 * j,
+            .total_corpus_size = 102 * j,
+            .max_corpus_element_size = 103 * j,
+            .avg_corpus_element_size = 104 * j,
+        },
+        RusageStats{
+            .engine_rusage_avg_millicores = 201 * j,
+            .engine_rusage_cpu_percent = 202 * j,
+            .engine_rusage_rss_mb = 203 * j,
+            .engine_rusage_vsize_mb = 204 * j,
+        },
     });
   }
 
@@ -562,8 +568,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   };
 
   std::vector<std::atomic<Stats>> stats_vec(2);
-  stats_vec[0].store({.timestamp_unix_micros = 1000000});
-  stats_vec[1].store({.timestamp_unix_micros = 2000000});
+  stats_vec[0].store({ExecStats{.timestamp_unix_micros = 1000000}});
+  stats_vec[1].store({ExecStats{.timestamp_unix_micros = 2000000}});
 
   const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
   const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
@@ -587,8 +593,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   // `StatsCsvFileAppender` finds an existing file with a CSV header matching
   // the current version and appends a 2nd stats line to it.
   {
-    stats_vec[0].store({.timestamp_unix_micros = 3000000});
-    stats_vec[1].store({.timestamp_unix_micros = 4000000});
+    stats_vec[0].store({ExecStats{.timestamp_unix_micros = 3000000}});
+    stats_vec[1].store({ExecStats{.timestamp_unix_micros = 4000000}});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -614,8 +620,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     };
     WriteToLocalFile(kExpectedCsv, absl::StrJoin(kFakeOldCsvLines, "\n"));
 
-    stats_vec[0].store({.timestamp_unix_micros = 5000000});
-    stats_vec[1].store({.timestamp_unix_micros = 6000000});
+    stats_vec[0].store({ExecStats{.timestamp_unix_micros = 5000000}});
+    stats_vec[1].store({ExecStats{.timestamp_unix_micros = 6000000}});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -641,10 +647,10 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
 TEST(Stats, PrintRewardValues) {
   std::stringstream ss;
   std::vector<std::atomic<Stats>> stats_vec(4);
-  stats_vec[0].store({.num_covered_pcs = 15});
-  stats_vec[1].store({.num_covered_pcs = 10});
-  stats_vec[2].store({.num_covered_pcs = 40});
-  stats_vec[3].store({.num_covered_pcs = 25});
+  stats_vec[0].store({ExecStats{}, CovStats{.num_covered_pcs = 15}});
+  stats_vec[1].store({ExecStats{}, CovStats{.num_covered_pcs = 10}});
+  stats_vec[2].store({ExecStats{}, CovStats{.num_covered_pcs = 40}});
+  stats_vec[3].store({ExecStats{}, CovStats{.num_covered_pcs = 25}});
   PrintRewardValues(stats_vec, ss);
   const char *expected =
       "REWARD_MAX 40\n"
