@@ -181,7 +181,24 @@ fuzztest_cc_library(
   SRCS
     "internal/configuration.cc"
   DEPS
+    absl::check
+    absl::status
+    absl::statusor
+    absl::strings
+    absl::string_view
     absl::time
+)
+
+fuzztest_cc_test(
+  NAME
+    configuration_test
+  SRCS
+    "internal/configuration_test.cc"
+  DEPS
+    fuzztest::configuration
+    absl::statusor
+    absl::time
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(

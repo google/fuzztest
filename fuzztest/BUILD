@@ -229,7 +229,25 @@ cc_library(
     name = "configuration",
     srcs = ["internal/configuration.cc"],
     hdrs = ["internal/configuration.h"],
-    deps = ["@com_google_absl//absl/time"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_test(
+    name = "configuration_test",
+    srcs = ["internal/configuration_test.cc"],
+    deps = [
+        ":configuration",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_library(
