@@ -36,7 +36,10 @@ cc_test(
         "@com_google_fuzztest//fuzztest:use_centipede": ["FUZZTEST_USE_CENTIPEDE"],
         "//conditions:default": [],
     }),
-    shard_count = 50,
+    # TODO(b/329542318): Either fix the underlying probem, as explained in the bug,
+    #  or remove `shard_count` altogether. Without it, the test takes perfectly
+    #  reasonable 40 seconds to complete.
+    # shard_count = 50,
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
