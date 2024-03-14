@@ -43,3 +43,8 @@ build --define absl=1
 #  bazel run //bazel:setup_configs > fuzztest.bazelrc
 #
 try-import %workspace%/fuzztest.bazelrc
+
+# Temporarily disable Bazel error message about e2e_tests:functional_test not
+# sharded correctly.
+# TODO(b/329542318): Remove once we have a proper fix.
+test --noincompatible_check_sharding_support
