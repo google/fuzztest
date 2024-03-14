@@ -372,6 +372,7 @@ cc_library(
     name = "stats",
     srcs = ["stats.cc"],
     hdrs = ["stats.h"],
+    linkopts = ["-latomic"],  # for std::atomic::load()/store().
     deps = [
         ":environment",
         ":logging",

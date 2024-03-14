@@ -34,44 +34,43 @@
 namespace centipede {
 
 // A set of statistics about the fuzzing progress.
-// Each worker thread has its own Stats object and updates it periodically.
-// The updates must not be frequent for performance reasons.
-// All such objects may be read synchronously by another thread,
-// hence the use of atomics.
-// These objects may also be accessed after all worker threads have joined.
-// TODO(ussuri): Too many atomics now: danger of grabbing stats half-way
-//  through updating in centipede.cc. Replace with a mutex instead.
+// - Each worker thread has its own `std::atomic<Stats>` object and updates it
+//   periodically. Another special thread reads all such objects periodically
+//   and concurrently to report the current stats to log and/or files on disk.
+// - The updates must not be frequent for performance reasons.
+// - These objects may also be accessed after all worker threads have joined.
+
 struct Stats {
-  std::atomic<uint64_t> timestamp_unix_micros = 0;
+  uint64_t timestamp_unix_micros = 0;
 
   // Performance.
-  std::atomic<uint64_t> fuzz_time_sec = 0;
-  std::atomic<uint64_t> num_executions = 0;
-  std::atomic<uint64_t> num_target_crashes = 0;
+  uint64_t fuzz_time_sec = 0;
+  uint64_t num_executions = 0;
+  uint64_t num_target_crashes = 0;
 
   // Coverage.
-  std::atomic<uint64_t> num_covered_pcs = 0;
-  std::atomic<uint64_t> num_8bit_counter_features = 0;
-  std::atomic<uint64_t> num_data_flow_features = 0;
-  std::atomic<uint64_t> num_cmp_features = 0;
-  std::atomic<uint64_t> num_call_stack_features = 0;
-  std::atomic<uint64_t> num_bounded_path_features = 0;
-  std::atomic<uint64_t> num_pc_pair_features = 0;
-  std::atomic<uint64_t> num_user_features = 0;
-  std::atomic<uint64_t> num_unknown_features = 0;
-  std::atomic<uint64_t> num_funcs_in_frontier = 0;
+  uint64_t num_covered_pcs = 0;
+  uint64_t num_8bit_counter_features = 0;
+  uint64_t num_data_flow_features = 0;
+  uint64_t num_cmp_features = 0;
+  uint64_t num_call_stack_features = 0;
+  uint64_t num_bounded_path_features = 0;
+  uint64_t num_pc_pair_features = 0;
+  uint64_t num_user_features = 0;
+  uint64_t num_unknown_features = 0;
+  uint64_t num_funcs_in_frontier = 0;
 
   // Corpus & element sizes.
-  std::atomic<uint64_t> active_corpus_size = 0;
-  std::atomic<uint64_t> total_corpus_size = 0;
-  std::atomic<uint64_t> max_corpus_element_size = 0;
-  std::atomic<uint64_t> avg_corpus_element_size = 0;
+  uint64_t active_corpus_size = 0;
+  uint64_t total_corpus_size = 0;
+  uint64_t max_corpus_element_size = 0;
+  uint64_t avg_corpus_element_size = 0;
 
   // Rusage.
-  std::atomic<uint64_t> engine_rusage_avg_millicores = 0;
-  std::atomic<uint64_t> engine_rusage_cpu_percent = 0;
-  std::atomic<uint64_t> engine_rusage_rss_mb = 0;
-  std::atomic<uint64_t> engine_rusage_vsize_mb = 0;
+  uint64_t engine_rusage_avg_millicores = 0;
+  uint64_t engine_rusage_cpu_percent = 0;
+  uint64_t engine_rusage_rss_mb = 0;
+  uint64_t engine_rusage_vsize_mb = 0;
 
   using Traits = uint32_t;
   enum TraitBits : Traits {
@@ -89,7 +88,7 @@ struct Stats {
 
   // Ascribes some properties to each stat. Used in `StatReporter` & subclasses.
   struct FieldInfo {
-    std::atomic<uint64_t> Stats::*field;
+    uint64_t Stats::*field;
     // The machine-readable name of the field. Used in the CSV header.
     std::string_view name;
     // The human-readable description of the field. Used in logging.
@@ -256,7 +255,7 @@ struct Stats {
 // classes by overriding the virtual API.
 class StatsReporter {
  public:
-  StatsReporter(const std::vector<Stats> &stats_vec,
+  StatsReporter(const std::vector<std::atomic<Stats>> &stats_vec,
                 const std::vector<Environment> &env_vec);
 
   virtual ~StatsReporter() = default;
@@ -304,7 +303,7 @@ class StatsReporter {
 
  private:
   // Cached external sets of stats and environments to observe.
-  const std::vector<Stats> &stats_vec_;
+  const std::vector<std::atomic<Stats>> &stats_vec_;
   const std::vector<Environment> &env_vec_;
 
   // Maps group names to indices in `env_vec_` / `stats_vec_`. If there is
@@ -384,7 +383,8 @@ class StatsCsvFileAppender : public StatsReporter {
 // Takes a span of Stats objects `stats_vec` and prints a summary of the results
 // to `os`, such that it can be ingested as a reward function by an ML system.
 // To be used with knobs.
-void PrintRewardValues(absl::Span<const Stats> stats_vec, std::ostream& os);
+void PrintRewardValues(absl::Span<const std::atomic<Stats>> stats_vec,
+                       std::ostream &os);
 
 }  // namespace centipede
 

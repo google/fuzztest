@@ -136,7 +136,7 @@ int ForEachBlob(const Environment &env) {
 // Stops when `continue_running` becomes false.
 // Exits immediately if --experiment flag is not used.
 void ReportStatsThread(const std::atomic<bool> &continue_running,
-                       const std::vector<Stats> &stats_vec,
+                       const std::vector<std::atomic<Stats>> &stats_vec,
                        const std::vector<Environment> &envs) {
   CHECK(!envs.empty());
 
@@ -264,7 +264,7 @@ int CentipedeMain(const Environment &env,
   }
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
-  auto thread_callback = [&](Environment &my_env, Stats &stats) {
+  auto thread_callback = [&](Environment &my_env, std::atomic<Stats> &stats) {
     CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());  // creates temp dir.
     my_env.seed = GetRandomSeed(env.seed);  // uses TID, call in this thread.
     my_env.pcs_file_path = pcs_file_path;   // same for all threads.
@@ -278,7 +278,7 @@ int CentipedeMain(const Environment &env,
   };
 
   std::vector<Environment> envs(env.num_threads, env);
-  std::vector<Stats> stats_vec(env.num_threads);
+  std::vector<std::atomic<Stats>> stats_vec(env.num_threads);
   std::vector<std::thread> threads(env.num_threads);
   std::atomic<bool> stats_thread_continue_running(true);
 

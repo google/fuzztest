@@ -14,6 +14,8 @@
 
 #include "./centipede/stats.h"
 
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <sstream>
@@ -69,15 +71,10 @@ uint64_t CivilTimeToUnixMicros(  //
 }  // namespace
 
 TEST(Stats, PrintStatsToLog) {
-  std::vector<Stats> stats_vec(4);
-  for (int i = 0; i < stats_vec.size(); ++i) {
-    const auto j = i + 1;
-    auto &stats = stats_vec[i];
-    // NOTE: Use placement-new because `Stats` is not copyable nor moveable but
-    // we want designated initializers, for convenience and to compile-enforce
-    // the order as in the declaration. This is safe, because `~Stats` is
-    // trivial.
-    new (&stats) Stats{
+  std::vector<std::atomic<Stats>> stats_vec(4);
+  for (uint64_t i = 0; i < stats_vec.size(); ++i) {
+    const uint64_t j = i + 1;
+    stats_vec[i].store(Stats{
         .timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i),
 
         .fuzz_time_sec = 10 * j,
@@ -105,7 +102,7 @@ TEST(Stats, PrintStatsToLog) {
         .engine_rusage_cpu_percent = 202 * j,
         .engine_rusage_rss_mb = 203 * j,
         .engine_rusage_vsize_mb = 204 * j,
-    };
+    });
   }
 
   const std::vector<Environment> env_vec = {
@@ -187,32 +184,36 @@ TEST(Stats, PrintStatsToLog) {
 
   {
     for (auto &stats : stats_vec) {
-      stats.timestamp_unix_micros += 1000000;
+      auto new_stats = stats.load();
 
-      stats.fuzz_time_sec += 1;
-      stats.num_executions += 1;
-      stats.num_target_crashes += 1;
+      new_stats.timestamp_unix_micros += 1000000;
 
-      stats.num_covered_pcs += 1;
-      stats.num_8bit_counter_features += 1;
-      stats.num_data_flow_features += 1;
-      stats.num_cmp_features += 1;
-      stats.num_call_stack_features += 1;
-      stats.num_bounded_path_features += 1;
-      stats.num_pc_pair_features += 1;
-      stats.num_user_features += 1;
-      stats.num_unknown_features += 1;
-      stats.num_funcs_in_frontier += 1;
+      new_stats.fuzz_time_sec += 1;
+      new_stats.num_executions += 1;
+      new_stats.num_target_crashes += 1;
 
-      stats.active_corpus_size += 1;
-      stats.total_corpus_size += 1;
-      stats.max_corpus_element_size += 1;
-      stats.avg_corpus_element_size += 1;
+      new_stats.num_covered_pcs += 1;
+      new_stats.num_8bit_counter_features += 1;
+      new_stats.num_data_flow_features += 1;
+      new_stats.num_cmp_features += 1;
+      new_stats.num_call_stack_features += 1;
+      new_stats.num_bounded_path_features += 1;
+      new_stats.num_pc_pair_features += 1;
+      new_stats.num_user_features += 1;
+      new_stats.num_unknown_features += 1;
+      new_stats.num_funcs_in_frontier += 1;
 
-      stats.engine_rusage_avg_millicores += 1;
-      stats.engine_rusage_cpu_percent += 1;
-      stats.engine_rusage_rss_mb += 1;
-      stats.engine_rusage_vsize_mb += 1;
+      new_stats.active_corpus_size += 1;
+      new_stats.total_corpus_size += 1;
+      new_stats.max_corpus_element_size += 1;
+      new_stats.avg_corpus_element_size += 1;
+
+      new_stats.engine_rusage_avg_millicores += 1;
+      new_stats.engine_rusage_cpu_percent += 1;
+      new_stats.engine_rusage_rss_mb += 1;
+      new_stats.engine_rusage_vsize_mb += 1;
+
+      stats.store(new_stats);
     }
 
     const std::vector<std::string_view> kExpectedLogLines = {
@@ -284,15 +285,10 @@ TEST(Stats, PrintStatsToLog) {
 TEST(Stats, DumpStatsToCsvFile) {
   const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
 
-  std::vector<Stats> stats_vec(4);
-  for (int i = 0; i < stats_vec.size(); ++i) {
-    const auto j = i + 1;
-    auto &stats = stats_vec[i];
-    // NOTE: Use placement-new because `Stats` is not copyable nor moveable but
-    // we want designated initializers, for convenience and to compile-enforce
-    // the order as in the declaration. This is safe, because `~Stats` is
-    // trivial.
-    new (&stats) Stats{
+  std::vector<std::atomic<Stats>> stats_vec(4);
+  for (uint64_t i = 0; i < stats_vec.size(); ++i) {
+    const uint64_t j = i + 1;
+    stats_vec[i].store(Stats{
         .timestamp_unix_micros = 1000000 * j,
 
         .fuzz_time_sec = 10 * j,
@@ -320,7 +316,7 @@ TEST(Stats, DumpStatsToCsvFile) {
         .engine_rusage_cpu_percent = 202 * j,
         .engine_rusage_rss_mb = 203 * j,
         .engine_rusage_vsize_mb = 204 * j,
-    };
+    });
   }
 
   const std::vector<Environment> env_vec = {
@@ -355,33 +351,36 @@ TEST(Stats, DumpStatsToCsvFile) {
     // should increase by 0.5.
     for (int i = 2; i < stats_vec.size(); ++i) {
       auto &stats = stats_vec[i];
+      auto new_stats = stats.load();
 
-      stats.timestamp_unix_micros += 1;
+      new_stats.timestamp_unix_micros += 1;
 
-      stats.fuzz_time_sec += 1;
-      stats.num_executions += 1;
-      stats.num_target_crashes += 1;
+      new_stats.fuzz_time_sec += 1;
+      new_stats.num_executions += 1;
+      new_stats.num_target_crashes += 1;
 
-      stats.num_covered_pcs += 1;
-      stats.num_8bit_counter_features += 1;
-      stats.num_data_flow_features += 1;
-      stats.num_cmp_features += 1;
-      stats.num_call_stack_features += 1;
-      stats.num_bounded_path_features += 1;
-      stats.num_pc_pair_features += 1;
-      stats.num_user_features += 1;
-      stats.num_unknown_features += 1;
-      stats.num_funcs_in_frontier += 1;
+      new_stats.num_covered_pcs += 1;
+      new_stats.num_8bit_counter_features += 1;
+      new_stats.num_data_flow_features += 1;
+      new_stats.num_cmp_features += 1;
+      new_stats.num_call_stack_features += 1;
+      new_stats.num_bounded_path_features += 1;
+      new_stats.num_pc_pair_features += 1;
+      new_stats.num_user_features += 1;
+      new_stats.num_unknown_features += 1;
+      new_stats.num_funcs_in_frontier += 1;
 
-      stats.active_corpus_size += 1;
-      stats.total_corpus_size += 1;
-      stats.max_corpus_element_size += 1;
-      stats.avg_corpus_element_size += 1;
+      new_stats.active_corpus_size += 1;
+      new_stats.total_corpus_size += 1;
+      new_stats.max_corpus_element_size += 1;
+      new_stats.avg_corpus_element_size += 1;
 
-      stats.engine_rusage_avg_millicores += 1;
-      stats.engine_rusage_cpu_percent += 1;
-      stats.engine_rusage_rss_mb += 1;
-      stats.engine_rusage_vsize_mb += 1;
+      new_stats.engine_rusage_avg_millicores += 1;
+      new_stats.engine_rusage_cpu_percent += 1;
+      new_stats.engine_rusage_rss_mb += 1;
+      new_stats.engine_rusage_vsize_mb += 1;
+
+      stats.store(new_stats);
     }
 
     stats_csv_appender.ReportCurrStats();
@@ -536,8 +535,12 @@ TEST(Stats, DumpStatsToCsvFile) {
     ASSERT_TRUE(std::filesystem::exists(kExpectedCsvs[i]));
     std::string csv_contents;
     ReadFromLocalFile(kExpectedCsvs[i], csv_contents);
-    const auto csv_lines = absl::StrSplit(csv_contents, '\n');
-    EXPECT_THAT(csv_lines, ElementsAreArray(kExpectedCsvLines[i])) << VV(i);
+    const std::vector<std::string_view> csv_lines =
+        absl::StrSplit(csv_contents, '\n');
+    ASSERT_EQ(csv_lines.size(), kExpectedCsvLines[i].size());
+    for (size_t j = 0; j < csv_lines.size(); ++j) {
+      EXPECT_EQ(csv_lines[j], kExpectedCsvLines[i][j]) << VV(i) << VV(j);
+    }
   }
 }
 
@@ -558,9 +561,9 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
       {.workdir = workdir},
   };
 
-  std::vector<Stats> stats_vec(2);
-  stats_vec[0].timestamp_unix_micros = 1000000;
-  stats_vec[1].timestamp_unix_micros = 2000000;
+  std::vector<std::atomic<Stats>> stats_vec(2);
+  stats_vec[0].store({.timestamp_unix_micros = 1000000});
+  stats_vec[1].store({.timestamp_unix_micros = 2000000});
 
   const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
   const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
@@ -584,8 +587,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   // `StatsCsvFileAppender` finds an existing file with a CSV header matching
   // the current version and appends a 2nd stats line to it.
   {
-    stats_vec[0].timestamp_unix_micros = 3000000;
-    stats_vec[1].timestamp_unix_micros = 4000000;
+    stats_vec[0].store({.timestamp_unix_micros = 3000000});
+    stats_vec[1].store({.timestamp_unix_micros = 4000000});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -611,8 +614,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     };
     WriteToLocalFile(kExpectedCsv, absl::StrJoin(kFakeOldCsvLines, "\n"));
 
-    stats_vec[0].timestamp_unix_micros = 5000000;
-    stats_vec[1].timestamp_unix_micros = 6000000;
+    stats_vec[0].store({.timestamp_unix_micros = 5000000});
+    stats_vec[1].store({.timestamp_unix_micros = 6000000});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -637,11 +640,11 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
 
 TEST(Stats, PrintRewardValues) {
   std::stringstream ss;
-  std::vector<Stats> stats_vec(4);
-  stats_vec[0].num_covered_pcs = 15;
-  stats_vec[1].num_covered_pcs = 10;
-  stats_vec[2].num_covered_pcs = 40;
-  stats_vec[3].num_covered_pcs = 25;
+  std::vector<std::atomic<Stats>> stats_vec(4);
+  stats_vec[0].store({.num_covered_pcs = 15});
+  stats_vec[1].store({.num_covered_pcs = 10});
+  stats_vec[2].store({.num_covered_pcs = 40});
+  stats_vec[3].store({.num_covered_pcs = 25});
   PrintRewardValues(stats_vec, ss);
   const char *expected =
       "REWARD_MAX 40\n"

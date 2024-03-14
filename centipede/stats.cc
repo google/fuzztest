@@ -15,6 +15,7 @@
 #include "./centipede/stats.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -56,7 +57,7 @@ using TraitBits = Stats::TraitBits;
 // -----------------------------------------------------------------------------
 //                               StatsReporter
 
-StatsReporter::StatsReporter(const std::vector<Stats> &stats_vec,
+StatsReporter::StatsReporter(const std::vector<std::atomic<Stats>> &stats_vec,
                              const std::vector<Environment> &env_vec)
     : stats_vec_{stats_vec}, env_vec_{env_vec} {
   CHECK_EQ(stats_vec.size(), env_vec.size());
@@ -70,6 +71,16 @@ StatsReporter::StatsReporter(const std::vector<Stats> &stats_vec,
 }
 
 void StatsReporter::ReportCurrStats() {
+  // Collect snapshots of the current elements of `stats_vec_`: the elements
+  // are `std::atomic`s; snapshotting them is required, and also provides
+  // temporal consistency between the fields of each `Stats` object, even
+  // as it is being modified by a different thread.
+  std::vector<Stats> stats_snapshots;
+  stats_snapshots.reserve(stats_vec_.size());
+  for (const auto &stats : stats_vec_) {
+    stats_snapshots.push_back(stats.load());
+  }
+
   PreAnnounceFields(Stats::kFieldInfos);
   for (const Stats::FieldInfo &field_info : Stats::kFieldInfos) {
     if (!ShouldReportThisField(field_info)) continue;
@@ -80,7 +91,7 @@ void StatsReporter::ReportCurrStats() {
       std::vector<uint64_t> stat_values;
       stat_values.reserve(group_indices.size());
       for (const auto idx : group_indices) {
-        stat_values.push_back(stats_vec_.at(idx).*(field_info.field));
+        stat_values.push_back(stats_snapshots.at(idx).*(field_info.field));
       }
       ReportCurrFieldSample(std::move(stat_values));
     }
@@ -263,12 +274,13 @@ std::string StatsCsvFileAppender::GetBackupFilename(
 
 // -----------------------------------------------------------------------------
 
-void PrintRewardValues(absl::Span<const Stats> stats_vec, std::ostream &os) {
+void PrintRewardValues(absl::Span<const std::atomic<Stats>> stats_vec,
+                       std::ostream &os) {
   size_t n = stats_vec.size();
   CHECK_GT(n, 0);
   std::vector<size_t> num_covered_pcs(n);
   for (size_t i = 0; i < n; ++i) {
-    num_covered_pcs[i] = stats_vec[i].num_covered_pcs;
+    num_covered_pcs[i] = stats_vec[i].load().num_covered_pcs;
   }
   std::sort(num_covered_pcs.begin(), num_covered_pcs.end());
   os << "REWARD_MAX " << num_covered_pcs.back() << "\n";

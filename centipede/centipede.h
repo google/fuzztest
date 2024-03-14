@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_CENTIPEDE_H_
 #define THIRD_PARTY_CENTIPEDE_CENTIPEDE_H_
 
+#include <atomic>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -47,7 +48,7 @@ class Centipede {
  public:
   Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
             const BinaryInfo &binary_info, CoverageLogger &coverage_logger,
-            Stats &stats);
+            std::atomic<Stats> &stats);
   virtual ~Centipede() = default;
 
   // Non-copyable and non-movable.
@@ -194,7 +195,7 @@ class Centipede {
   CoverageLogger &coverage_logger_;
 
   // Statistics of the current run.
-  Stats &stats_;
+  std::atomic<Stats> &stats_;
 
   // Counts the number of crashes reported so far.
   int num_crashes_ = 0;
