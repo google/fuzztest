@@ -18,6 +18,7 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <ostream>
 #include <string>
 
@@ -65,6 +66,21 @@ class FeatureSet {
 
   // Returns the number of features in `this` from the given feature domain.
   size_t CountFeatures(feature_domains::Domain domain) const;
+  // Returns the number of features in `this` from the given feature domains.
+  template <typename DomainListT>
+  size_t CountFeatures(const DomainListT &domains) const {
+    size_t count = 0;
+    for (auto domain : domains) {
+      count += features_per_domain_[domain.domain_id()];
+    }
+    return count;
+  }
+  // The same for an `initializer_list`, to enable usages like
+  // `CountFeatures({kPCs, kCMP})`.
+  size_t CountFeatures(
+      std::initializer_list<feature_domains::Domain> domains) const {
+    return CountFeatures<>(domains);
+  }
 
   // Returns the frequency associated with `feature`.
   size_t Frequency(feature_t feature) const { return frequencies_[feature]; }

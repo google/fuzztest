@@ -35,6 +35,7 @@
 // include it into runner.
 // <vector> is an exception, because it's too clumsy w/o it, and it introduces
 // minimal code footprint.
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -138,7 +139,6 @@ inline constexpr Domain k8bitCounters = {__COUNTER__};
 inline constexpr Domain kDataFlow = {__COUNTER__};
 // Features derived from instrumenting CMP instructions. TODO(kcc): remove.
 inline constexpr Domain kCMP = {__COUNTER__};
-
 // Features in the following domains are created for comparison instructions
 // 'a CMP b'. One component of the feature is the context, i.e. where the
 // comparison happened. Another component depends on {a,b}.
@@ -152,7 +152,14 @@ inline constexpr Domain kCMPModDiff = {__COUNTER__};
 inline constexpr Domain kCMPHamming = {__COUNTER__};
 // log2(a > b ? a - b : b - a), see ABToCmpDiffLog.
 inline constexpr Domain kCMPDiffLog = {__COUNTER__};
-
+// A list of all the CMP domains.
+inline constexpr std::array<Domain, 5> kCMPDomains = {{
+    kCMP,
+    kCMPEq,
+    kCMPModDiff,
+    kCMPHamming,
+    kCMPDiffLog,
+}};
 // Features derived from observing function call stacks.
 inline constexpr Domain kCallStack = {__COUNTER__};
 // Features derived from computing (bounded) control flow paths.
@@ -163,13 +170,24 @@ inline constexpr Domain kPCPair = {__COUNTER__};
 // __attribute__((section("__centipede_extra_features"))).
 // There is no hard guarantee how many user domains are available, feel free to
 // add or remove domains as needed.
-inline constexpr Domain kUserDomains[] = {
-    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
-    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
-    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
-    {__COUNTER__}, {__COUNTER__}, {__COUNTER__}, {__COUNTER__},
-};
-
+inline constexpr std::array<Domain, 16> kUserDomains = {{
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+    {__COUNTER__},
+}};
 // A fake domain, not actually used, must be last.
 inline constexpr Domain kLastDomain = {__COUNTER__};
 // For now, check that all domains (except maybe for kLastDomain) fit

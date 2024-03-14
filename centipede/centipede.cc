@@ -231,20 +231,11 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   stats_.num_covered_pcs = fs_.CountFeatures(fd::kPCs);
   stats_.num_8bit_counter_features = fs_.CountFeatures(fd::k8bitCounters);
   stats_.num_data_flow_features = fs_.CountFeatures(fd::kDataFlow);
-  stats_.num_cmp_features =                 //
-      fs_.CountFeatures(fd::kCMP) +         //
-      fs_.CountFeatures(fd::kCMPEq) +       //
-      fs_.CountFeatures(fd::kCMPModDiff) +  //
-      fs_.CountFeatures(fd::kCMPHamming) +  //
-      fs_.CountFeatures(fd::kCMPDiffLog);
+  stats_.num_cmp_features = fs_.CountFeatures(fd::kCMPDomains);
   stats_.num_call_stack_features = fs_.CountFeatures(fd::kCallStack);
   stats_.num_bounded_path_features = fs_.CountFeatures(fd::kBoundedPath);
   stats_.num_pc_pair_features = fs_.CountFeatures(fd::kPCPair);
-  uint64_t num_user_fts = 0;
-  for (size_t i = 0; i < std::size(fd::kUserDomains); ++i) {
-    num_user_fts += fs_.CountFeatures(fd::kUserDomains[i]);
-  }
-  stats_.num_user_features = num_user_fts;
+  stats_.num_user_features = fs_.CountFeatures(fd::kUserDomains);
   stats_.num_unknown_features = fs_.CountFeatures(fd::kUnknown);
   stats_.num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier();
 
