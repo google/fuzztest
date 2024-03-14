@@ -219,37 +219,43 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   namespace fd = feature_domains;
 
   stats_.store(Stats{
-      .timestamp_unix_micros =
-          static_cast<uint64_t>(absl::ToUnixMicros(absl::Now())),
-
-      .fuzz_time_sec = static_cast<uint64_t>(std::ceil(fuzz_time_secs)),
-      .num_executions = num_runs_,
-      .num_target_crashes = static_cast<uint64_t>(num_crashes_),
-
-      .num_covered_pcs = fs_.CountFeatures(fd::kPCs),
-      .num_8bit_counter_features = fs_.CountFeatures(fd::k8bitCounters),
-      .num_data_flow_features = fs_.CountFeatures(fd::kDataFlow),
-      .num_cmp_features = fs_.CountFeatures(fd::kCMPDomains),
-      .num_call_stack_features = fs_.CountFeatures(fd::kCallStack),
-      .num_bounded_path_features = fs_.CountFeatures(fd::kBoundedPath),
-      .num_pc_pair_features = fs_.CountFeatures(fd::kPCPair),
-      .num_user_features = fs_.CountFeatures(fd::kUserDomains),
-      .num_unknown_features = fs_.CountFeatures(fd::kUnknown),
-      .num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier(),
-
-      .active_corpus_size = corpus_.NumActive(),
-      .total_corpus_size = corpus_.NumTotal(),
-      .max_corpus_element_size = max_corpus_size,
-      .avg_corpus_element_size = avg_corpus_size,
-
-      .engine_rusage_avg_millicores = static_cast<uint64_t>(
-          std::lround(rusage_timing.cpu_hyper_cores * 1000)),
-      .engine_rusage_cpu_percent = static_cast<uint64_t>(
-          std::lround(rusage_timing.cpu_utilization * 100)),
-      .engine_rusage_rss_mb =
-          static_cast<uint64_t>(rusage_memory.mem_rss >> 20),
-      .engine_rusage_vsize_mb =
-          static_cast<uint64_t>(rusage_memory.mem_vsize >> 20),
+      StatsMeta{
+          .timestamp_unix_micros =
+              static_cast<uint64_t>(absl::ToUnixMicros(absl::Now())),
+      },
+      ExecStats{
+          .fuzz_time_sec = static_cast<uint64_t>(std::ceil(fuzz_time_secs)),
+          .num_executions = num_runs_,
+          .num_target_crashes = static_cast<uint64_t>(num_crashes_),
+      },
+      CovStats{
+          .num_covered_pcs = fs_.CountFeatures(fd::kPCs),
+          .num_8bit_counter_features = fs_.CountFeatures(fd::k8bitCounters),
+          .num_data_flow_features = fs_.CountFeatures(fd::kDataFlow),
+          .num_cmp_features = fs_.CountFeatures(fd::kCMPDomains),
+          .num_call_stack_features = fs_.CountFeatures(fd::kCallStack),
+          .num_bounded_path_features = fs_.CountFeatures(fd::kBoundedPath),
+          .num_pc_pair_features = fs_.CountFeatures(fd::kPCPair),
+          .num_user_features = fs_.CountFeatures(fd::kUserDomains),
+          .num_unknown_features = fs_.CountFeatures(fd::kUnknown),
+          .num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier(),
+      },
+      CorpusStats{
+          .active_corpus_size = corpus_.NumActive(),
+          .total_corpus_size = corpus_.NumTotal(),
+          .max_corpus_element_size = max_corpus_size,
+          .avg_corpus_element_size = avg_corpus_size,
+      },
+      RusageStats{
+          .engine_rusage_avg_millicores = static_cast<uint64_t>(
+              std::lround(rusage_timing.cpu_hyper_cores * 1000)),
+          .engine_rusage_cpu_percent = static_cast<uint64_t>(
+              std::lround(rusage_timing.cpu_utilization * 100)),
+          .engine_rusage_rss_mb =
+              static_cast<uint64_t>(rusage_memory.mem_rss >> 20),
+          .engine_rusage_vsize_mb =
+              static_cast<uint64_t>(rusage_memory.mem_vsize >> 20),
+      },
   });
 
   if (env_.log_level < min_log_level) return;
