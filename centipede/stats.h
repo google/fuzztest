@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_STATS_H_
 #define THIRD_PARTY_CENTIPEDE_STATS_H_
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
@@ -39,23 +40,15 @@ namespace centipede {
 // - The updates must not be frequent for performance reasons.
 // - These objects may also be accessed after all worker threads have joined.
 
-struct StatsMeta {
+struct Stats {
   uint64_t timestamp_unix_micros = 0;
 
-  // NOTE: Ordering in general won't be applicable to metadata, so define
-  // equality only.
-  friend bool operator==(const StatsMeta &, const StatsMeta &) = default;
-};
-
-struct ExecStats {
+  // Performance.
   uint64_t fuzz_time_sec = 0;
   uint64_t num_executions = 0;
   uint64_t num_target_crashes = 0;
 
-  friend auto operator<=>(const ExecStats &, const ExecStats &) = default;
-};
-
-struct CovStats {
+  // Coverage.
   uint64_t num_covered_pcs = 0;
   uint64_t num_8bit_counter_features = 0;
   uint64_t num_data_flow_features = 0;
@@ -67,28 +60,18 @@ struct CovStats {
   uint64_t num_unknown_features = 0;
   uint64_t num_funcs_in_frontier = 0;
 
-  friend auto operator<=>(const CovStats &, const CovStats &) = default;
-};
-
-struct CorpusStats {
+  // Corpus & element sizes.
   uint64_t active_corpus_size = 0;
   uint64_t total_corpus_size = 0;
   uint64_t max_corpus_element_size = 0;
   uint64_t avg_corpus_element_size = 0;
 
-  friend auto operator<=>(const CorpusStats &, const CorpusStats &) = default;
-};
-
-struct RusageStats {
+  // Rusage.
   uint64_t engine_rusage_avg_millicores = 0;
   uint64_t engine_rusage_cpu_percent = 0;
   uint64_t engine_rusage_rss_mb = 0;
   uint64_t engine_rusage_vsize_mb = 0;
 
-  friend auto operator<=>(const RusageStats &, const RusageStats &) = default;
-};
-
-struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
   using Traits = uint32_t;
   enum TraitBits : Traits {
     // The kind of the stat.
