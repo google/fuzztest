@@ -58,7 +58,7 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
     LOG(INFO) << "Reading features at: " << features_paths[i];
     ReadShard(corpus_paths[i], features_paths[i],
               [&corpus](ByteArray input, FeatureVec features) {
-                corpus.emplace_back(std::move(input), std::move(features));
+                corpus.push_back({std::move(input), std::move(features)});
               });
   }
   return corpus;
