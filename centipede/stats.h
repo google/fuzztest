@@ -52,7 +52,7 @@ struct ExecStats {
   uint64_t num_executions = 0;
   uint64_t num_target_crashes = 0;
 
-  friend auto operator<=>(const ExecStats &, const ExecStats &) = default;
+  friend bool operator==(const ExecStats &, const ExecStats &) = default;
 };
 
 struct CovStats {
@@ -67,7 +67,7 @@ struct CovStats {
   uint64_t num_unknown_features = 0;
   uint64_t num_funcs_in_frontier = 0;
 
-  friend auto operator<=>(const CovStats &, const CovStats &) = default;
+  friend bool operator==(const CovStats &, const CovStats &) = default;
 };
 
 struct CorpusStats {
@@ -76,7 +76,7 @@ struct CorpusStats {
   uint64_t max_corpus_element_size = 0;
   uint64_t avg_corpus_element_size = 0;
 
-  friend auto operator<=>(const CorpusStats &, const CorpusStats &) = default;
+  friend bool operator==(const CorpusStats &, const CorpusStats &) = default;
 };
 
 struct RusageStats {
@@ -85,7 +85,7 @@ struct RusageStats {
   uint64_t engine_rusage_rss_mb = 0;
   uint64_t engine_rusage_vsize_mb = 0;
 
-  friend auto operator<=>(const RusageStats &, const RusageStats &) = default;
+  friend bool operator==(const RusageStats &, const RusageStats &) = default;
 };
 
 struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
