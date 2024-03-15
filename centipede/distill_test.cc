@@ -88,7 +88,7 @@ std::vector<TestCorpusRecord> ReadFromDistilled(const WorkDir &wd) {
 
   std::vector<TestCorpusRecord> result;
   auto shard_reader_callback = [&result](ByteArray input, FeatureVec features) {
-    result.emplace_back(std::move(input), std::move(features));
+    result.push_back({std::move(input), std::move(features)});
   };
   ReadShard(distilled_corpus_path, distilled_features_path,
             shard_reader_callback);
