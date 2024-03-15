@@ -53,7 +53,7 @@ jobs:
         if: matrix.config == 'default'
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
+            -c ${{ matrix.compilation_mode }} --subcommands -- //... -//centipede/...
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
