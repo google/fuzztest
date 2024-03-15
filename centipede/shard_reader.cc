@@ -40,9 +40,8 @@ namespace centipede {
 //    params when calling it.
 //  * When the above is done, stop inserting empty `FeatureVec`s into
 //    `hash_to_features` when invoking the callback, just pass {}.
-void ReadShard(
-    std::string_view corpus_path, std::string_view features_path,
-    const std::function<void(const ByteArray &, FeatureVec &)> &callback) {
+void ReadShard(std::string_view corpus_path, std::string_view features_path,
+               const std::function<void(ByteArray, FeatureVec)> &callback) {
   const bool good_corpus_path =
       !corpus_path.empty() && RemotePathExists(corpus_path);
   const bool good_features_path =
@@ -95,7 +94,7 @@ void ReadShard(
     // a truly empty value into `hash_to_features`, allowing the client to
     // discern these two cases.
     FeatureVec &features = hash_to_features[Hash(blob)];
-    callback(input, features);
+    callback(std::move(input), std::move(features));
   }
 }
 

@@ -57,6 +57,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -415,12 +416,12 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   size_t num_added_inputs = 0;
   size_t num_skipped_inputs = 0;
   std::vector<ByteArray> inputs_to_rerun;
-  auto input_features_callback = [&](const ByteArray &input,
-                                     FeatureVec &input_features) {
+  auto input_features_callback = [&](ByteArray input,
+                                     FeatureVec input_features) {
     if (EarlyExitRequested()) return;
     if (input_features.empty()) {
       if (rerun) {
-        inputs_to_rerun.push_back(input);
+        inputs_to_rerun.emplace_back(std::move(input));
       }
     } else {
       LogFeaturesAsSymbols(input_features);

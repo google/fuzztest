@@ -38,9 +38,8 @@ namespace centipede {
 //
 // If features are found for a given input but are empty,
 // then callback's 2nd argument is {feature_domains::kNoFeature}.
-void ReadShard(
-    std::string_view corpus_path, std::string_view features_path,
-    const std::function<void(const ByteArray &, FeatureVec &)> &callback);
+void ReadShard(std::string_view corpus_path, std::string_view features_path,
+               const std::function<void(ByteArray, FeatureVec)> &callback);
 
 }  // namespace centipede
 

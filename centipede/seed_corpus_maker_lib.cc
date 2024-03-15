@@ -225,7 +225,7 @@ void SampleSeedCorpusElementsFromSource(    //
 
         ReadShard(corpus_fname, features_fname,
                   [shard, &shard_elts, &shard_elts_with_features](  //
-                      const ByteArray& input, FeatureVec& features) {
+                      ByteArray input, FeatureVec features) {
                     // `ReadShard()` indicates "features not computed/found" as
                     // `{}` and "features computed/found, but empty" as
                     // `{feature_domains::kNoFeature}`. We're interested in how

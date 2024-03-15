@@ -132,8 +132,8 @@ class InputCorpusShardReader {
     // Read elements from the current shard.
     centipede::ReadShard(  //
         corpus_path, features_path,
-        [&elts](const ByteArray &input, FeatureVec &features) {
-          elts.emplace_back(input, std::move(features));
+        [&elts](ByteArray input, FeatureVec features) {
+          elts.emplace_back(std::move(input), std::move(features));
         });
     return elts;
   }
