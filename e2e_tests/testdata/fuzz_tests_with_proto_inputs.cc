@@ -42,6 +42,7 @@ using ::fuzztest::internal::DataColumnFilter;
 using ::fuzztest::internal::FoodMachineProcedure;
 using ::fuzztest::internal::MazePath;
 using ::fuzztest::internal::NodeGraph;
+using ::fuzztest::internal::Person;
 using ::fuzztest::internal::RoboCourier560Plan;
 using ::fuzztest::internal::SingleBytesField;
 using ::fuzztest::internal::TestProtobuf;
@@ -977,5 +978,53 @@ TEST(ProtoPuzzles, IncreasingQuadraticSequenceReproducer) {
   input.add_rep_u32(100);
   EXPECT_DEATH(IncreasingQuadraticSequence(input), "SIGABRT");
 }
+
+bool NeedsValidSupervisor(const Person& person) {
+  return person.age() < 18 || person.age() > 80;
+}
+
+bool CanSupervise(const Person& person1, const Person& person2) {
+  if (!NeedsValidSupervisor(person2)) return false;
+  // For an old person, the supervisor should be younger.
+  if (person2.age() > 80 && person1.age() < person2.age() &&
+      person1.age() >= 18) {
+    return true;
+  }
+  // For a young person, the supervisor should be older.
+  if (person2.age() < 18 && person1.age() > person2.age() &&
+      person1.age() <= 80) {
+    return true;
+  }
+  return false;
+}
+
+// Determine wether `input` has at least two direct or indirect legal
+// supervisor (18 <= supervisor.age <= 80), one of which is local.
+void HasLegalSupervisors(const Person& input) {
+  if (!NeedsValidSupervisor(input)) return;
+  std::vector<Person> persons;
+  std::vector<Person> legal_supervisors;
+  persons.push_back(input);
+  while (!persons.empty()) {
+    Person person = persons.back();
+    persons.pop_back();
+    if (!NeedsValidSupervisor(person)) {
+      legal_supervisors.push_back(person);
+      continue;
+    }
+    for (const auto& emergency_contact : person.emergency_contacts()) {
+      if (CanSupervise(emergency_contact, person)) {
+        persons.push_back(emergency_contact);
+      }
+    }
+  }
+  if (legal_supervisors.size() < 2) return;
+  for (const auto& supervisor : legal_supervisors) {
+    if (supervisor.zipcode() == 10014) {  // Need a local supervisor
+      Target();
+    }
+  }
+}
+FUZZ_TEST(ProtoPuzzles, HasLegalSupervisors);
 
 }  // namespace
