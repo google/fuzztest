@@ -152,23 +152,16 @@ namespace {
 
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
-  const std::string corpus_database =
-      absl::GetFlag(FUZZTEST_FLAG(corpus_database));
-  std::string binary_corpus =
-      absl::StrCat(corpus_database, "/", binary_identifier);
-  if (!absl::StartsWith(corpus_database, "/") && getenv("TEST_SRCDIR")) {
-    binary_corpus = absl::StrCat(getenv("TEST_SRCDIR"), "/", binary_corpus);
-  }
-  bool reproduce_findings =
+  bool reproduce_findings_as_separate_tests =
       absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests));
   return internal::Configuration{
-      .corpus_database = internal::CorpusDatabase(
-          binary_corpus, absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
-          reproduce_findings),
-      .stack_limit = absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
-      .rss_limit = absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
-      .time_limit_per_input =
-          absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
+      absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
+      std::string(binary_identifier),
+      reproduce_findings_as_separate_tests,
+      absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
+      /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
+      /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
+      absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
   };
 }
 

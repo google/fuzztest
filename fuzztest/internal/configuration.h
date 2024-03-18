@@ -1,3 +1,17 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_CONFIGURATION_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_CONFIGURATION_H_
 
@@ -5,53 +19,32 @@
 #include <functional>
 #include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
-#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
 
-class CorpusDatabase {
- public:
-  explicit CorpusDatabase(absl::string_view database_path,
-                          bool use_coverage_inputs, bool use_crashing_inputs)
-      : database_path_(std::string(database_path)),
-        use_coverage_inputs_(use_coverage_inputs),
-        use_crashing_inputs_(use_crashing_inputs) {}
-
-  // Returns set of all regression inputs from `corpus_database` for a fuzz
-  // test.
-  std::vector<std::string> GetRegressionInputs(
-      absl::string_view test_name) const;
-
-  // Returns set of all corpus inputs from `corpus_database` for a fuzz test.
-  // Returns an empty set when `use_coverage_inputs_` is false.
-  std::vector<std::string> GetCoverageInputsIfAny(
-      absl::string_view test_name) const;
-
-  // Returns set of all crashing inputs from `corpus_database` for a fuzz test.
-  // Returns an empty set when `use_crashing_inputs_` is false.
-  std::vector<std::string> GetCrashingInputsIfAny(
-      absl::string_view test_name) const;
-
- private:
-  std::string database_path_;
-  bool use_coverage_inputs_ = false;
-  bool use_crashing_inputs_ = false;
-};
-
-// All the configurations consumed by a fuzz test
+// The configuration of a fuzz test.
 struct Configuration {
-  CorpusDatabase corpus_database;
+  // The location of the database that contains coverage, regression, and
+  // crashing inputs for each test binary and fuzz test in the project (eg.,
+  // ~/.cache/fuzztest).
+  std::string corpus_database;
+  // The identifier of the test binary in the corpus database (eg.,
+  // relative/path/to/binary).
+  std::string binary_identifier;
+  // Generate separate TESTs that replay crashing inputs for the selected fuzz
+  // tests.
+  bool reproduce_findings_as_separate_tests = false;
+  // Replay coverage inputs for the selected fuzz tests.
+  bool replay_coverage_inputs = false;
 
   // Stack limit in bytes.
-  size_t stack_limit;
-  // RSS limit in bytes.
-  size_t rss_limit;
+  size_t stack_limit = 128 * 1024;
+  // RSS limit in bytes. Zero indicates no limit.
+  size_t rss_limit = 0;
   // Time limit per test input.
-  absl::Duration time_limit_per_input;
+  absl::Duration time_limit_per_input = absl::InfiniteDuration();
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;

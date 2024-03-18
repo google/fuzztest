@@ -8,6 +8,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
@@ -35,8 +36,9 @@ template <typename T>
 void RegisterSeparateRegressionTestForEachCrashingInput(
     int* argc, char*** argv, FuzzTest& test,
     const Configuration& configuration) {
+  CorpusDatabase corpus_database(configuration);
   for (const std::string& input :
-       configuration.corpus_database.GetCrashingInputsIfAny(test.full_name())) {
+       corpus_database.GetCrashingInputsIfAny(test.full_name())) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
     const std::string suffix =

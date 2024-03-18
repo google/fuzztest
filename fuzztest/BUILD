@@ -181,6 +181,7 @@ cc_library(
     deps = [
         ":any",
         ":configuration",
+        ":corpus_database",
         ":coverage",
         ":domain_core",
         ":fixture_driver",
@@ -228,11 +229,18 @@ cc_library(
     name = "configuration",
     srcs = ["internal/configuration.cc"],
     hdrs = ["internal/configuration.h"],
+    deps = ["@com_google_absl//absl/time"],
+)
+
+cc_library(
+    name = "corpus_database",
+    srcs = ["internal/corpus_database.cc"],
+    hdrs = ["internal/corpus_database.h"],
     deps = [
+        ":configuration",
         ":io",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
     ],
 )
 
@@ -389,6 +397,7 @@ cc_library(
     hdrs = ["internal/googletest_adaptor.h"],
     deps = [
         ":configuration",
+        ":corpus_database",
         ":io",
         ":registry",
         ":runtime",
@@ -510,6 +519,7 @@ cc_library(
     hdrs = ["internal/runtime.h"],
     deps = [
         ":configuration",
+        ":corpus_database",
         ":coverage",
         ":domain_core",
         ":fixture_driver",

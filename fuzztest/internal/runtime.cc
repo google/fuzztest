@@ -48,6 +48,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/fixture_driver.h"
@@ -789,13 +790,13 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
       return;
     }
 
+    CorpusDatabase corpus_database(configuration);
     for (const std::string& file :
-         configuration.corpus_database.GetRegressionInputs(test_.full_name())) {
+         corpus_database.GetRegressionInputs(test_.full_name())) {
       ReplayInput(file);
     }
     for (const std::string& file :
-         configuration.corpus_database.GetCoverageInputsIfAny(
-             test_.full_name())) {
+         corpus_database.GetCoverageInputsIfAny(test_.full_name())) {
       ReplayInput(file);
     }
 
@@ -962,8 +963,9 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       return 0;
     }
 
-    PopulateFromSeeds(configuration.corpus_database.GetCoverageInputsIfAny(
-        test_.full_name()));
+    CorpusDatabase corpus_database(configuration);
+    PopulateFromSeeds(
+        corpus_database.GetCoverageInputsIfAny(test_.full_name()));
     InitializeCorpus(prng);
 
     FUZZTEST_INTERNAL_CHECK(!corpus_.empty(),

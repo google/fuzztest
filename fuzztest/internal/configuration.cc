@@ -1,38 +1,21 @@
-#include "./fuzztest/internal/configuration.h"
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include <string>
-#include <vector>
-
-#include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
-#include "./fuzztest/internal/io.h"
+#include "./fuzztest/internal/configuration.h"  // IWYU pragma: keep
 
 namespace fuzztest::internal {
 
-namespace {
-std::vector<std::string> GetInputs(absl::string_view database_path,
-                                   absl::string_view test_name,
-                                   absl::string_view subdir) {
-  return ListDirectory(
-      absl::StrCat(database_path, "/", test_name, "/", subdir));
-}
-}  // namespace
-
-std::vector<std::string> CorpusDatabase::GetRegressionInputs(
-    absl::string_view test_name) const {
-  return GetInputs(database_path_, test_name, "regression");
-}
-
-std::vector<std::string> CorpusDatabase::GetCrashingInputsIfAny(
-    absl::string_view test_name) const {
-  if (!use_crashing_inputs_) return {};
-  return GetInputs(database_path_, test_name, "crashing");
-}
-
-std::vector<std::string> CorpusDatabase::GetCoverageInputsIfAny(
-    absl::string_view test_name) const {
-  if (!use_coverage_inputs_) return {};
-  return GetInputs(database_path_, test_name, "coverage");
-}
+// TODO(fniksic): Implement serialization/deserialization of `Configuration`.
 
 }  // namespace fuzztest::internal

@@ -57,6 +57,7 @@
 #include "./centipede/workdir.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/logging.h"
@@ -176,8 +177,9 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       std::function<void(centipede::ByteSpan)> seed_callback) override {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
+    CorpusDatabase corpus_database(configuration_);
     for (const std::string& corpus_file :
-         configuration_.corpus_database.GetCoverageInputsIfAny(
+         corpus_database.GetCoverageInputsIfAny(
              fuzzer_impl_.test_.full_name())) {
       auto corpus_value = fuzzer_impl_.GetCorpusValueFromFile(corpus_file);
       if (!corpus_value) continue;

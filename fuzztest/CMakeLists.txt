@@ -181,6 +181,18 @@ fuzztest_cc_library(
   SRCS
     "internal/configuration.cc"
   DEPS
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
+    corpus_database
+  HDRS
+    "internal/corpus_database.h"
+  SRCS
+    "internal/corpus_database.cc"
+  DEPS
+    fuzztest::configuration
     fuzztest::io
     absl::strings
     absl::string_view
@@ -330,6 +342,7 @@ fuzztest_cc_library(
     "internal/googletest_adaptor.cc"
   DEPS
     fuzztest::configuration
+    fuzztest::corpus_database
     fuzztest::io
     fuzztest::registry
     fuzztest::runtime
@@ -460,6 +473,7 @@ fuzztest_cc_library(
     "internal/runtime.cc"
   DEPS
     fuzztest::configuration
+    fuzztest::corpus_database
     fuzztest::coverage
     fuzztest::domain_core
     fuzztest::fixture_driver
