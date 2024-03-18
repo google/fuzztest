@@ -1146,4 +1146,50 @@ void IsValidSymmetricMatrix(const Matrix& matrix) {
 }
 FUZZ_TEST(ProtoPuzzles, IsValidSymmetricMatrix);
 
+void DetectShift(const TestProtobuf& input) {
+  constexpr size_t kExpectedLoopLength = 10;
+  const size_t rep_size = input.rep_u32_size();
+  if (rep_size < kExpectedLoopLength) return;
+  if (input.rep_u64_size() != rep_size) return;
+
+  for (size_t shift = 0; shift < rep_size; ++shift) {
+    bool succeeds = true;
+    for (size_t index = 0; index < rep_size; ++index) {
+      succeeds &=
+          (input.rep_u32(index) == input.rep_u64((index + shift) % rep_size));
+    }
+    if (succeeds) Target();
+  }
+}
+FUZZ_TEST(ProtoPuzzels, DetectShift);
+
+TEST(ProtoPuzzels, DetectShiftReproducer) {
+  TestProtobuf input;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"textpb(
+        rep_u32: 1
+        rep_u32: 2
+        rep_u32: 3
+        rep_u32: 4
+        rep_u32: 5
+        rep_u32: 6
+        rep_u32: 7
+        rep_u32: 8
+        rep_u32: 9
+        rep_u32: 0
+        rep_u64: 2
+        rep_u64: 3
+        rep_u64: 4
+        rep_u64: 5
+        rep_u64: 6
+        rep_u64: 7
+        rep_u64: 8
+        rep_u64: 9
+        rep_u64: 0
+        rep_u64: 1
+      )textpb",
+      &input));
+  EXPECT_DEATH(DetectShift(input), "SIGABRT");
+}
+
 }  // namespace
