@@ -29,6 +29,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -42,6 +43,7 @@ namespace {
 using ::fuzztest::internal::CalculatorExpression;
 using ::fuzztest::internal::DataColumnFilter;
 using ::fuzztest::internal::FoodMachineProcedure;
+using ::fuzztest::internal::Matrix;
 using ::fuzztest::internal::MazeKeys;
 using ::fuzztest::internal::MazePath;
 using ::fuzztest::internal::NodeGraph;
@@ -1115,5 +1117,33 @@ TEST(ProtoPuzzles, CheckingPalindromicPrimesIsFastReproducer) {
   input.set_i64(3'791'454'766'674'541'973LL);
   EXPECT_DEATH(CheckingPalindromicPrimesIsFast(input), "SIGABRT");
 }
+
+// Check whether the matrix (> 3x3) is symmetric and does not have 0 elements.
+void IsValidSymmetricMatrix(const Matrix& matrix) {
+  const int size = matrix.columns_size();
+  if (size <= 3) return;  // Not interested in small matrices.
+  for (int i = 0; i < size; ++i) {
+    if (matrix.columns(i).rows_size() != size) return;  // Not a square matrix.
+  }
+  for (int i = 0; i < size; ++i) {
+    if (matrix.columns(i).rows(i) == 0) {
+      // Not valid when has elements 0.
+      return;
+    }
+    for (int j = i + 1; j < size; ++j) {
+      if (matrix.columns(i).rows(j) == 0) {
+        // Not valid when has elements 0.
+        return;
+      }
+      if (matrix.columns(i).rows(j) != matrix.columns(j).rows(i)) {
+        // Not a symmetric matrix.
+        return;
+      }
+    }
+  }
+  std::cout << absl::StrCat("Matrix: ", matrix, "\n");
+  Target();
+}
+FUZZ_TEST(ProtoPuzzles, IsValidSymmetricMatrix);
 
 }  // namespace

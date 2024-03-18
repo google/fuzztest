@@ -273,3 +273,10 @@ message Person {
   optional uint32 age = 3;
   repeated Person emergency_contacts = 5;
 }
+
+message Vector {
+  repeated uint32 rows = 1 [packed = true];
+}
+message Matrix {
+  repeated Vector columns = 1;
+}
