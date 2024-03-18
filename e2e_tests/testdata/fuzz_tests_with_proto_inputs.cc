@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
@@ -552,6 +553,99 @@ void StdCharacterFunctions(const SingleBytesField& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, StdCharacterFunctions);
+
+void MathFunctions(const TestProtobuf& input) {
+  // Doubles.
+  if (input.rep_d_size() < 92) return;
+  const auto& d = input.rep_d();
+
+  // Integers.
+  if (input.rep_i64_size() < 6) return;
+  const auto& i = input.rep_i64();
+
+  // Temporary output values.
+  double d_tmp;
+  int i_tmp;
+
+  if (
+      // Basic operations.
+      d[0] < 0                    // Negative.
+      && i[0] > 0                 // Postive.
+      && std::fabs(d[0]) == i[0]  // |x|.
+
+      // Remainder and qoutient functions.
+      && d[1] == std::fmod(d[2], 4.9)        // Remainder of division.
+      && d[3] == std::remainder(d[4], 3.12)  // Signed remainder.
+      && d[5] == std::remquo(d[6], 1.1,
+                             &i_tmp)  // Signed remainder and 3 last bits.
+
+      // Exponential functions.
+      && d[7] == std::exp(d[8])      // e^x.
+      && d[9] == std::exp2(d[10])    // 2^x.
+      && d[11] == std::expm1(d[12])  // e^x - 1.
+
+      // Logarithmic functions.
+      && d[13] == std::log(d[14])    // ln x.
+      && d[15] == std::log10(d[16])  // log_10(x).
+      && d[17] == std::log2(d[18])   // log_2(x).
+      && d[19] == std::log1p(d[20])  // ln(x + 1).
+
+      // Power functions.
+      && d[21] == std::pow(6, d[22])        // 6^x.
+      && d[23] == std::sqrt(d[24])          // Square root.
+      && d[25] == std::cbrt(d[26])          // Cubic root.
+      && d[27] == std::hypot(d[28], d[29])  // Euclidean distance.
+
+      // Trigonometric functions.
+      && d[30] == std::sin(d[31])           // Sine.
+      && d[32] == std::cos(d[33])           // Cosine.
+      && d[33] == std::tan(d[35])           // Tangent.
+      && d[36] == std::asin(d[37] - 1)      // Arc sine.
+      && d[38] == std::acos(d[39] - 1)      // Arc cosine.
+      && d[40] == std::atan(d[41])          // Arc tangent.
+      && d[42] == std::atan2(d[43], d[44])  // Use signs to determine quadrants.
+
+      // Hyperbolic functions.
+      && d[45] == std::sinh(d[46])       // Hyperbolic sine.
+      && d[47] == std::cosh(d[48])       // Hyperbolic cosine.
+      && d[49] == std::tanh(d[50])       // Hyperbolic tangent.
+      && d[51] == std::asinh(d[52] - 1)  // Inverse hyperbolic sine.
+      && d[53] == std::acosh(d[54] - 1)  // Inverse hyperbolic cosine.
+      && d[55] == std::atanh(d[56])      // Inverse hyperbolic tangent.
+
+      // Nearest integer floating point operations.
+      && d[57] == std::ceil(d[58])    // Nearest int, not less than.
+      && d[59] == std::floor(d[60])   // Nearest int, not greater than.
+      && d[61] == std::trunc(d[62])   // Nearest int, not greater in magnitude.
+      && d[63] == std::round(d[64])   // Round away from 0 in halfway cases.
+      && i[1] == std::lround(d[65])   // Round to long.
+      && i[2] == std::llround(d[66])  // Round to long long.
+      && d[67] == std::nearbyint(d[68])  // Using current rounding mode.
+      && d[69] == std::rint(d[70])       // Using current rounding mode,
+                                         // except if the result differs.
+      && i[3] == std::lrint(d[71])       // Round to long.
+      && i[4] == std::llrint(d[72])      // Round to long long.
+
+      // Floating point manipulation functions.
+      && d[73] == std::frexp(d[74], &i_tmp)  // Significand and pow of 2.
+      && d[75] == std::ldexp(d[76], 3)       // Multiplies by 2^x.
+      && d[77] == std::modf(d[78], &d_tmp)   // Return fractional part.
+      && d[79] == std::scalbn(d[80], 3)      // Multiply by radix^x.
+      && d[81] == std::scalbln(d[82], 3)     // Long exponent.
+      && i[5] == std::ilogb(d[83])           // Extracts exponent of the number.
+      && d[84] == std::logb(d[85])           // Extracts exponent of the number.
+
+      // Classification and comparison.
+      && std::fpclassify(d[86]) == FP_SUBNORMAL  // Too small to be represented.
+      && !std::isfinite(d[87])                   // Not a finate value.
+      && std::isinf(d[89])                       // Is infinate.
+      && std::isnan(d[90])                       // Is "not a number".
+      && !std::isnormal(d[91])  // Not a normal floating number.
+  ) {
+    Target();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, MathFunctions);
 
 void RunMaze(const MazePath& path) {
   constexpr int kMaxPathLength = 32;
