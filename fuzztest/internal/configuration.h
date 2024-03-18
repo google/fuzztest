@@ -20,6 +20,8 @@
 #include <optional>
 #include <string>
 
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
@@ -49,8 +51,14 @@ struct Configuration {
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
 
-  // Preprocessing step for reproducing crashing input
+  // Preprocessing step for reproducing crashing input.
+  // Note: This field is not serialized and deserialized.
+  // TODO(b/329709054): Consider eliminating the field.
   std::function<void()> preprocess_crash_reproducing = [] {};
+
+  std::string Serialize() const;
+  static absl::StatusOr<Configuration> Deserialize(
+      absl::string_view serialized);
 };
 
 }  // namespace fuzztest::internal
