@@ -225,6 +225,11 @@ message MazePath {
   repeated Direction direction = 1 [packed = true];
 }
 
+// Represents a sequence of numbered keys that open the doors along a maze path.
+message MazeKeys {
+  repeated int32 key = 1 [packed = true];
+}
+
 // Represents a directed graph of nodes, alongside a specially designated start
 // node.
 message NodeGraph {

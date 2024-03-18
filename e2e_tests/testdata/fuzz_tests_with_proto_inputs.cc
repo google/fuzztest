@@ -40,6 +40,7 @@ namespace {
 using ::fuzztest::internal::CalculatorExpression;
 using ::fuzztest::internal::DataColumnFilter;
 using ::fuzztest::internal::FoodMachineProcedure;
+using ::fuzztest::internal::MazeKeys;
 using ::fuzztest::internal::MazePath;
 using ::fuzztest::internal::NodeGraph;
 using ::fuzztest::internal::Person;
@@ -648,23 +649,25 @@ void MathFunctions(const TestProtobuf& input) {
 }
 FUZZ_TEST(ProtoPuzzles, MathFunctions);
 
-void RunMaze(const MazePath& path) {
+void RunMaze(const MazePath& path, const MazeKeys& keys) {
   constexpr int kMaxPathLength = 32;
   constexpr int kHeight = 7;
   constexpr int kWidth = 11;
   // clang-format off
+  // Numbers represent doors that need to be unlocked by the corresponding keys.
   constexpr char kMaze[kHeight][kWidth+1] = {
     "+-+---+---+",
-    "| |     |#|",
-    "| | --+ | |",
-    "| |   | | |",
-    "| +-- | | |",
-    "|     |   |",
+    "| | 4   |#|",
+    "|2| --+ |5|",
+    "| |   |3| |",
+    "|7+--6| |9|",
+    "|   1 | 8 |",
     "+-----+---+"};
   // clang-format on
 
   int x = 1, y = 1;    // Current position.
   int prev_x, prev_y;  // Previous position.
+  int key_idx = 0;     // The next unused key.
 
   for (int i = 0; i < path.direction_size() && i < kMaxPathLength; ++i) {
     prev_x = x;
@@ -695,7 +698,17 @@ void RunMaze(const MazePath& path) {
       return;
     }
 
-    if (kMaze[y][x] != ' ') {
+    if (std::isdigit(kMaze[y][x])) {
+      const bool is_locked =
+          key_idx >= keys.key_size() || keys.key(key_idx) != kMaze[y][x] - '0';
+      if (is_locked) {
+        std::cout << "The door is locked!\n";
+        x = prev_x;
+        y = prev_y;
+        break;
+      }
+      ++key_idx;
+    } else if (kMaze[y][x] != ' ') {
       std::cout << "Cannot go there!\n";
       x = prev_x;
       y = prev_y;
@@ -706,9 +719,8 @@ void RunMaze(const MazePath& path) {
   // Lose if we didn't reach the target.
   std::cout << "You lost.\n";
 }
-FUZZ_TEST(ProtoPuzzles, RunMaze);
 
-TEST(ProtoPuzzles, RunMazeReproducer) {
+MazePath GetCorrectMazePath() {
   MazePath path;
   path.add_direction(MazePath::DOWN);
   path.add_direction(MazePath::DOWN);
@@ -738,7 +750,35 @@ TEST(ProtoPuzzles, RunMazeReproducer) {
   path.add_direction(MazePath::UP);
   path.add_direction(MazePath::UP);
   path.add_direction(MazePath::UP);
-  EXPECT_DEATH(RunMaze(path), "SIGABRT");
+  return path;
+}
+
+MazeKeys GetCorrectMazeKeys() {
+  MazeKeys keys;
+  keys.add_key(2);
+  keys.add_key(7);
+  keys.add_key(1);
+  keys.add_key(6);
+  keys.add_key(4);
+  keys.add_key(3);
+  keys.add_key(8);
+  keys.add_key(9);
+  keys.add_key(5);
+  return keys;
+}
+
+void RunMazeWithPath(const MazePath& path) {
+  RunMaze(path, GetCorrectMazeKeys());
+}
+FUZZ_TEST(ProtoPuzzles, RunMazeWithPath);
+
+void RunMazeWithKeys(const MazeKeys& keys) {
+  RunMaze(GetCorrectMazePath(), keys);
+}
+FUZZ_TEST(ProtoPuzzles, RunMazeWithKeys);
+
+TEST(ProtoPuzzles, RunMazeReproducer) {
+  EXPECT_DEATH(RunMaze(GetCorrectMazePath(), GetCorrectMazeKeys()), "SIGABRT");
 }
 
 // Check that all nodes in the graphs are reachable from the start node.
