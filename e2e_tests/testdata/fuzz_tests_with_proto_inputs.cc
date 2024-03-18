@@ -29,6 +29,8 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -1066,5 +1068,52 @@ void HasLegalSupervisors(const Person& input) {
   }
 }
 FUZZ_TEST(ProtoPuzzles, HasLegalSupervisors);
+
+bool IsPrime(int64_t n) {
+  if (n < 2) return false;
+  if (n == 2 || n == 3) return true;
+  if (n % 2 == 0 || n % 3 == 0) return false;
+
+  constexpr int64_t kDivisorOverflowBound = 3'037'000'499LL;
+  // Checks divisors of the form 6k-1 and 6k+1, as these include all the primes.
+  for (int64_t d = 5; d <= kDivisorOverflowBound && d * d <= n; d += 6) {
+    if (n % d == 0) return false;
+    if (n % (d + 2) == 0) return false;
+  }
+  return true;
+}
+
+bool IsPalindrome(int64_t n) {
+  if (n < 0) return false;
+  std::vector<int64_t> digits;
+  while (n > 0) {
+    digits.push_back(n % 10);
+    n /= 10;
+  }
+  for (int i = 0; i < digits.size() / 2; ++i) {
+    if (digits[i] != digits[digits.size() - i - 1]) return false;
+  }
+  return true;
+}
+
+void CheckingPalindromicPrimesIsFast(const TestProtobuf& input) {
+  absl::Time start = absl::Now();
+  bool is_palindromic_prime = IsPalindrome(input.i64()) && IsPrime(input.i64());
+  absl::Duration elapsed = absl::Now() - start;
+  if (elapsed > absl::Seconds(1)) {
+    std::cout << "It took " << absl::FormatDuration(elapsed)
+              << " to check whether " << input.i64()
+              << " is a palindromic prime! (It is"
+              << (is_palindromic_prime ? "" : " not") << ".)\n";
+    Target();
+  }
+}
+FUZZ_TEST(ProtoPuzzles, CheckingPalindromicPrimesIsFast);
+
+TEST(ProtoPuzzles, CheckingPalindromicPrimesIsFastReproducer) {
+  TestProtobuf input;
+  input.set_i64(3'791'454'766'674'541'973LL);
+  EXPECT_DEATH(CheckingPalindromicPrimesIsFast(input), "SIGABRT");
+}
 
 }  // namespace
