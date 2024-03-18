@@ -1192,4 +1192,44 @@ TEST(ProtoPuzzels, DetectShiftReproducer) {
   EXPECT_DEATH(DetectShift(input), "SIGABRT");
 }
 
+void LongestCommonPrefix(const TestProtobuf& input) {
+  if (input.rep_str_size() < 10) return;
+
+  std::string prefix = input.rep_str(0);
+  for (const std::string& str : input.rep_str()) {
+    prefix = prefix.substr(0, std::min(prefix.size(), str.size()));
+    for (size_t idx = 0; idx < str.size() && idx < prefix.size(); ++idx) {
+      if (str[idx] != prefix[idx]) {
+        prefix = prefix.substr(0, idx);
+        break;
+      }
+    }
+  }
+
+  if (!prefix.empty()) {
+    Target();
+  }
+}
+
+FUZZ_TEST(ProtoPuzzles, LongestCommonPrefix);
+
+TEST(ProtoPuzzels, LongestCommonPrefixReproducer) {
+  TestProtobuf input;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"textpb(
+        rep_str: "12321"
+        rep_str: "1234321"
+        rep_str: "123454321"
+        rep_str: "12345654321"
+        rep_str: "1234567654321"
+        rep_str: "123456787654321"
+        rep_str: "12345678987654321"
+        rep_str: "1235321"
+        rep_str: "12354321"
+        rep_str: "123321"
+      )textpb",
+      &input));
+  EXPECT_DEATH(LongestCommonPrefix(input), "SIGABRT");
+}
+
 }  // namespace
