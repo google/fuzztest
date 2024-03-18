@@ -823,6 +823,12 @@ void RemainderEquations(const TestProtobuf& input) {
 }
 FUZZ_TEST(ProtoPuzzles, RemainderEquations);
 
+TEST(ProtoPuzzles, RemainderEquationsReproducer) {
+  TestProtobuf input;
+  input.set_u32(1613546029);
+  EXPECT_DEATH(RemainderEquations(input), "SIGABRT");
+}
+
 void ValidateFiltersNotEmptyHelper(
     const DataColumnFilter& data_column_filter,
     std::vector<DataColumnFilter::FilterCase>& case_stack) {
@@ -888,6 +894,48 @@ TEST(ProtoPuzzles, ValidateFiltersNotEmptyReproducer) {
       )textpb",
       &data_column_filter));
   EXPECT_DEATH(ValidateFiltersNotEmpty(data_column_filter), "SIGABRT");
+}
+
+void SingleCycle(const TestProtobuf& input) {
+  if (input.rep_u32_size() < 10) return;
+  // Floyd's cycle-finding algorithm.
+  size_t cycle_size = 0;  // 0 means cycle is not found.
+  size_t slow_cursor = 0;
+  size_t fast_cursor = 0;
+  while (true) {
+    // The fast cursor moves two steps at a time.
+    fast_cursor = input.rep_u32()[fast_cursor];
+    if (fast_cursor >= input.rep_u32_size()) break;
+    fast_cursor = input.rep_u32()[fast_cursor];
+    if (fast_cursor >= input.rep_u32_size()) break;
+    // The slow cursor moves one step at a time. No need for bound checking.
+    slow_cursor = input.rep_u32()[slow_cursor];
+    if (fast_cursor == slow_cursor) {
+      // This will eventually happen as long as the cursors stay in the range.
+      if (cycle_size > 0) break;
+      cycle_size = 1;
+    } else {
+      if (cycle_size > 0) ++cycle_size;
+    }
+  }
+  if (cycle_size != input.rep_u32_size()) return;
+  Target();
+}
+FUZZ_TEST(ProtoPuzzles, SingleCycle);
+
+TEST(ProtoPuzzles, SingleCycleReproducer) {
+  TestProtobuf input;
+  input.add_rep_u32(1);
+  input.add_rep_u32(2);
+  input.add_rep_u32(3);
+  input.add_rep_u32(4);
+  input.add_rep_u32(5);
+  input.add_rep_u32(6);
+  input.add_rep_u32(7);
+  input.add_rep_u32(8);
+  input.add_rep_u32(9);
+  input.add_rep_u32(0);
+  EXPECT_DEATH(SingleCycle(input), "SIGABRT");
 }
 
 }  // namespace
