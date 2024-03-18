@@ -938,4 +938,44 @@ TEST(ProtoPuzzles, SingleCycleReproducer) {
   EXPECT_DEATH(SingleCycle(input), "SIGABRT");
 }
 
+static std::vector<uint32_t> AdjacentDifference(
+    absl::Span<const uint32_t> seq) {
+  if (seq.size() <= 1) return {};
+  std::vector<uint32_t> result;
+  result.reserve(seq.size() - 1);
+  for (size_t i = 1; i < seq.size(); ++i) {
+    result.push_back(seq[i] - seq[i - 1]);
+  }
+  return result;
+}
+
+void IncreasingQuadraticSequence(const TestProtobuf& input) {
+  if (input.rep_u32().size() < 10) return;
+  for (size_t i = 0; i < input.rep_u32().size() - 1; ++i) {
+    if (input.rep_u32()[i] >= input.rep_u32()[i + 1]) return;
+  }
+  const auto diff2 = AdjacentDifference(AdjacentDifference(input.rep_u32()));
+  if (diff2[0] == 0) return;
+  for (size_t i = 1; i < diff2.size(); ++i) {
+    if (diff2[i] != diff2[0]) return;
+  }
+  Target();
+}
+FUZZ_TEST(ProtoPuzzles, IncreasingQuadraticSequence);
+
+TEST(ProtoPuzzles, IncreasingQuadraticSequenceReproducer) {
+  TestProtobuf input;
+  input.add_rep_u32(1);
+  input.add_rep_u32(4);
+  input.add_rep_u32(9);
+  input.add_rep_u32(16);
+  input.add_rep_u32(25);
+  input.add_rep_u32(36);
+  input.add_rep_u32(49);
+  input.add_rep_u32(64);
+  input.add_rep_u32(81);
+  input.add_rep_u32(100);
+  EXPECT_DEATH(IncreasingQuadraticSequence(input), "SIGABRT");
+}
+
 }  // namespace
