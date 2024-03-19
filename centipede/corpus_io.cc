@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "./centipede/corpus_io.h"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -23,11 +24,13 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./centipede/rusage_profiler.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -48,11 +51,15 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       !features_path.empty() && RemotePathExists(features_path);
 
   if (!good_corpus_path) {
-    VLOG(1) << __func__
-            << "(): Corpus file path empty or not found - returning: "
-            << corpus_path;
+    LOG(WARNING) << "Corpus file path empty or not found - returning: "
+                 << corpus_path;
     return;
   }
+
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(            //
+      /*enable=*/VLOG_IS_ON(10),                 //
+      /*timelapse_interval=*/absl::Seconds(30),  //
+      /*also_log_timelapses=*/false);
 
   // Maps features to input's hash.
   absl::flat_hash_map<std::string, FeatureVec> hash_to_features;
@@ -60,9 +67,8 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
   // Read all features, populate hash_to_features.
   // If the file is not passed or doesn't exist, simply ignore it.
   if (!good_features_path) {
-    VLOG(1) << __func__
-            << "(): Features file path empty or not found - ignoring: "
-            << features_path;
+    LOG(WARNING) << "Features file path empty or not found - ignoring: "
+                 << features_path;
   } else {
     auto features_reader = DefaultBlobFileReaderFactory();
     CHECK_OK(features_reader->Open(features_path)) << VV(features_path);
@@ -81,7 +87,15 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       }
       hash_to_features.emplace(std::move(hash), std::move(features));
     }
+
+    RPROF_SNAPSHOT("Read features");
   }
+
+  // Input counts of various kinds (for logging).
+  const size_t num_all_inputs = hash_to_features.size();
+  size_t num_inputs_missing_features = num_all_inputs;
+  size_t num_inputs_empty_features = 0;
+  size_t num_inputs_non_empty_features = 0;
 
   // Read the corpus. Call `callback` for every {input, features} pair.
   auto corpus_reader = DefaultBlobFileReaderFactory();
@@ -94,8 +108,27 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
     // a truly empty value into `hash_to_features`, allowing the client to
     // discern these two cases.
     FeatureVec &features = hash_to_features[Hash(blob)];
+    if (features.empty()) {
+      ++num_inputs_missing_features;
+    } else if (features == FeatureVec{feature_domains::kNoFeature}) {
+      ++num_inputs_empty_features;
+    } else {
+      ++num_inputs_non_empty_features;
+    }
     callback(std::move(input), std::move(features));
   }
+
+  RPROF_SNAPSHOT("Read inputs & reported input/features pairs");
+
+  VLOG(1)  //
+      << "Finished shard reading:\n"
+      << "Corpus path                : " << corpus_path << "\n"
+      << "Features path              : " << features_path << "\n"
+      << "Inputs                     : " << num_all_inputs << "\n"
+      << "Inputs, non-empty features : " << num_inputs_non_empty_features
+      << "\n"
+      << "Inputs, empty features     : " << num_inputs_empty_features << "\n"
+      << "Inputs, no features        : " << num_inputs_missing_features;
 }
 
 }  // namespace centipede

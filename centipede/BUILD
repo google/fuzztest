@@ -760,11 +760,13 @@ cc_library(
         ":feature",
         ":logging",
         ":remote_file",
+        ":rusage_profiler",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
     ],
 )
 
