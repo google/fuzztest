@@ -93,7 +93,7 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
 
   // Input counts of various kinds (for logging).
   const size_t num_all_inputs = hash_to_features.size();
-  size_t num_inputs_missing_features = num_all_inputs;
+  size_t num_inputs_missing_features = 0;
   size_t num_inputs_empty_features = 0;
   size_t num_inputs_non_empty_features = 0;
 
