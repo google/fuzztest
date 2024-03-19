@@ -29,6 +29,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -51,6 +52,7 @@ using ::fuzztest::internal::Person;
 using ::fuzztest::internal::RoboCourier560Plan;
 using ::fuzztest::internal::SingleBytesField;
 using ::fuzztest::internal::TestProtobuf;
+using ::fuzztest::internal::Vector;
 using ::fuzztest::internal::WebSearchResult;
 
 void Target() {
@@ -1231,5 +1233,48 @@ TEST(ProtoPuzzels, LongestCommonPrefixReproducer) {
       &input));
   EXPECT_DEATH(LongestCommonPrefix(input), "SIGABRT");
 }
+
+int LargestPowerOfTwoLessThan(int n) {
+  CHECK_GT(n, 0);
+  while ((n & (n - 1))) {
+    n -= n & -n;
+  }
+  return n;
+}
+
+// Nim is an iterative game played by two players on a stack of marbles. Given
+// `n > 1` marbles, each player at their turn can remove `[1, n/2]` marbles from
+// the stack. The player that remains with only one marble loses.
+//
+// Player strategy is a map where the player removes `strategy.row(i)` marbles
+// when there are `i` marbles left.
+void PlayNim(const Vector& strategy) {
+  // Initial number of marbles, used to adjust the difficulty.
+  int n = 150;
+  if (n >= strategy.rows_size()) return;  // Invalid strategy.
+  while (true) {
+    // Player turn
+    if (n <= 1) return;  // Player lost
+    int to_remove = strategy.rows(n);
+    if (to_remove < 1 || to_remove > n / 2) return;  // Invalid strategy.
+    n -= to_remove;
+
+    // Opponent turn
+    if (n <= 1) {
+      std::cout << absl::StrCat("Strategy: ", strategy, "\n");
+      Target();  // Player won.
+    }
+    if (!(n & (n + 1))) {  // n = 2^p -1
+      // No winning strategy. Picking an arbitrary value.
+      to_remove = 1;
+    } else {
+      // Keep 2^p -1 marbles
+      to_remove = n - (LargestPowerOfTwoLessThan(n) - 1);
+    }
+    CHECK(to_remove >= 1 && to_remove <= n / 2);  // Invalid move.
+    n -= to_remove;
+  }
+}
+FUZZ_TEST(ProtoPuzzles, PlayNim);
 
 }  // namespace
