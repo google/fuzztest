@@ -1367,4 +1367,65 @@ TEST(ProtoPuzzles, TcpProcessEventsReproducer) {
   state_machine.add_event(TcpStateMachine::RCV_ACK);
   EXPECT_DEATH(TcpProcessEvents(state_machine), "SIGABRT");
 }
+
+void IsValidMinesweeperBoard(const Matrix& board) {
+  // Check if the board is at least 3x3 in size.
+  const int rows = board.columns_size();
+  if (rows <= 3) return;
+  const int cols = board.columns(0).rows_size();
+  if (cols <= 3) return;
+
+  for (int i = 0; i < rows; ++i) {
+    if (board.columns(i).rows_size() != cols) {
+      // Rows are not the same size.
+      return;
+    }
+  }
+
+  // Check if the number of bombs is within range of the expected number of
+  // bombs.
+  const int min_bomb_count = rows * cols * 0.15;
+  const int max_bomb_count = rows * cols * 0.25;
+  int num_bombs = 0;
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      if (board.columns(i).rows(j) == -1) {
+        num_bombs++;
+      }
+    }
+  }
+  if (num_bombs < min_bomb_count || num_bombs > max_bomb_count) {
+    // Either too little or too many bombs.
+    return;
+  }
+
+  // Check if the board is valid.
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      if (board.columns(i).rows(j) == -1) {
+        continue;
+      }
+
+      // Count the number of bombs around a cell.
+      int count = 0;
+      for (int x = i - 1; x <= i + 1; x++) {
+        for (int y = j - 1; y <= j + 1; y++) {
+          // Make sure we stay within the bounds of the board and check for the
+          // presence of surrounding bombs.
+          if (x >= 0 && x < rows && y >= 0 && y < cols &&
+              board.columns(x).rows(y) == -1) {
+            count++;
+          }
+        }
+      }
+
+      if (board.columns(i).rows(j) != count) {
+        // Incorrect number of bombs surrounding cell.
+        return;
+      }
+    }
+  }
+  Target();
+}
+FUZZ_TEST(ProtoPuzzles, IsValidMinesweeperBoard);
 }  // namespace
