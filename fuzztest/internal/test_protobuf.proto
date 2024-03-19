@@ -280,3 +280,26 @@ message Vector {
 message Matrix {
   repeated Vector columns = 1;
 }
+
+// A partial TCP state machine, modeling connection establishment
+message TcpStateMachine {
+  enum State {
+    INVALID_STATE = 0;
+    CLOSED = 1;
+    LISTEN = 2;
+    SYN_RCVD = 3;
+    SYN_SENT = 4;
+    ESTABLISHED = 5;
+  }
+
+  enum Event {
+    INVALID_EVENT = 0;
+    USER_LISTEN = 1;
+    USER_CONNECT = 2;
+    RCV_SYN = 3;
+    RCV_SYN_ACK = 4;
+    RCV_ACK = 5;
+  }
+  repeated Event event = 1 [packed = true];
+  optional State start_state = 2;
+}

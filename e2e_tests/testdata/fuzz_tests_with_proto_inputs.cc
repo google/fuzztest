@@ -51,6 +51,7 @@ using ::fuzztest::internal::NodeGraph;
 using ::fuzztest::internal::Person;
 using ::fuzztest::internal::RoboCourier560Plan;
 using ::fuzztest::internal::SingleBytesField;
+using ::fuzztest::internal::TcpStateMachine;
 using ::fuzztest::internal::TestProtobuf;
 using ::fuzztest::internal::Vector;
 using ::fuzztest::internal::WebSearchResult;
@@ -1277,4 +1278,93 @@ void PlayNim(const Vector& strategy) {
 }
 FUZZ_TEST(ProtoPuzzles, PlayNim);
 
+TcpStateMachine::State ClosedStateEventHandler(TcpStateMachine::Event event) {
+  switch (event) {
+    case TcpStateMachine::USER_LISTEN:
+      return TcpStateMachine::LISTEN;
+    case TcpStateMachine::USER_CONNECT:
+      return TcpStateMachine::SYN_SENT;
+    default:
+      return TcpStateMachine::CLOSED;
+  }
+}
+
+TcpStateMachine::State ListenStateEventHandler(TcpStateMachine::Event event) {
+  switch (event) {
+    case TcpStateMachine::RCV_SYN:
+      return TcpStateMachine::SYN_RCVD;
+    default:
+      return TcpStateMachine::LISTEN;
+  }
+}
+
+TcpStateMachine::State SynRcvdStateEventHandler(TcpStateMachine::Event event) {
+  switch (event) {
+    case TcpStateMachine::RCV_ACK:
+      return TcpStateMachine::ESTABLISHED;
+    default:
+      return TcpStateMachine::SYN_RCVD;
+  }
+}
+
+TcpStateMachine::State SynSentStateEventHandler(TcpStateMachine::Event event) {
+  switch (event) {
+    case TcpStateMachine::RCV_SYN_ACK:
+      return TcpStateMachine::ESTABLISHED;
+    default:
+      return TcpStateMachine::SYN_SENT;
+  }
+}
+
+TcpStateMachine::State EstablishedStateEventHandler(
+    TcpStateMachine::Event event) {
+  return TcpStateMachine::ESTABLISHED;
+}
+
+void TcpProcessEvents(const TcpStateMachine& state_machine) {
+  auto state = state_machine.start_state();
+
+  if (state == TcpStateMachine::ESTABLISHED ||
+      state == TcpStateMachine::INVALID_STATE) {
+    return;
+  }
+
+  for (int i = 0; i < state_machine.event_size(); ++i) {
+    auto event = state_machine.event(i);
+    switch (state) {
+      case TcpStateMachine::CLOSED:
+        state = ClosedStateEventHandler(event);
+        break;
+      case TcpStateMachine::LISTEN:
+        state = ListenStateEventHandler(event);
+        break;
+      case TcpStateMachine::SYN_RCVD:
+        state = SynRcvdStateEventHandler(event);
+        break;
+      case TcpStateMachine::SYN_SENT:
+        state = SynSentStateEventHandler(event);
+        break;
+      case TcpStateMachine::ESTABLISHED:
+        state = EstablishedStateEventHandler(event);
+        break;
+      case TcpStateMachine::INVALID_STATE:
+        break;
+    }
+    if (state == TcpStateMachine::ESTABLISHED) {
+      Target();
+    }
+  }
+}
+
+FUZZ_TEST(ProtoPuzzles, TcpProcessEvents);
+
+TEST(ProtoPuzzles, TcpProcessEventsReproducer) {
+  TcpStateMachine state_machine;
+
+  state_machine.set_start_state(TcpStateMachine::CLOSED);
+  state_machine.add_event(TcpStateMachine::USER_LISTEN);
+  state_machine.add_event(TcpStateMachine::RCV_SYN);
+  state_machine.add_event(TcpStateMachine::RCV_ACK);
+  EXPECT_DEATH(TcpProcessEvents(state_machine), "SIGABRT");
+}
 }  // namespace
