@@ -59,21 +59,14 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
   //  it (but doesn't really need it). Investigate and switch to
   //  `absl::flat_hash_map`.
   std::multimap<std::string /*hash*/, ByteArray /*input*/> hash_to_input;
+
   // Read inputs from the corpus file into `hash_to_input`.
   auto corpus_reader = DefaultBlobFileReaderFactory();
   CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
-  ByteSpan blob;
-  while (corpus_reader->Read(blob).ok()) {
-    std::string hash = Hash(blob);
-    ByteArray input{blob.begin(), blob.end()};
-    hash_to_input.emplace(std::move(hash), std::move(input));
-  }
-
-  RPROF_SNAPSHOT("Read inputs");
 
   // Input counts of various kinds (for logging).
-  const size_t num_inputs = hash_to_input.size();
-  size_t num_inputs_missing_features = num_inputs;
+  size_t num_inputs = 0;
+  size_t num_inputs_missing_features = 0;
   size_t num_inputs_empty_features = 0;
   size_t num_inputs_non_empty_features = 0;
 
@@ -88,34 +81,62 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
     // only inputs without matching features.
     auto features_reader = DefaultBlobFileReaderFactory();
     CHECK_OK(features_reader->Open(features_path)) << VV(features_path);
-    ByteSpan hash_and_features;
-    while (features_reader->Read(hash_and_features).ok()) {
+    ByteSpan features_blob;
+    while (features_reader->Read(features_blob).ok()) {
       // Every valid feature record must contain the hash at the end.
       // Ignore this record if it is too short.
-      if (hash_and_features.size() < kHashLen) continue;
+      if (features_blob.size() < kHashLen) continue;
+
       FeatureVec features;
-      std::string hash = UnpackFeaturesAndHash(hash_and_features, &features);
-      auto input_node = hash_to_input.extract(hash);
-      if (!input_node.empty()) {
-        --num_inputs_missing_features;
-        if (features.empty()) {
-          // When the features file got created, Centipede did compute features
-          // for the input, but they came up empty. Indicate to the client that
-          // there is no need to recompute by passing this special value.
+      const std::string feature_hash =
+          UnpackFeaturesAndHash(features_blob, &features);
+
+      ByteArray matching_input;
+      if (auto input_node = hash_to_input.extract(feature_hash);
+          !input_node.empty()) {
+        // A matching input has already been scanned in during one of the
+        // previous lookaheads: use it.
+        matching_input = std::move(input_node.mapped());
+      } else {
+        // A matching input has not been found during the previous lookaheads:
+        // perform a new one, storing mismatching inputs into the has map along
+        // the way.
+        ByteSpan input_blob;
+        while (corpus_reader->Read(input_blob).ok()) {
+          ++num_inputs;
+          std::string input_hash = Hash(input_blob);
+          ByteArray input{input_blob.begin(), input_blob.end()};
+          if (input_hash == feature_hash) {
+            matching_input = std::move(input);
+            break;
+          } else {
+            hash_to_input.emplace(std::move(input_hash), std::move(input));
+          }
+        }
+      }
+
+      if (!matching_input.empty()) {
+        if (!features.empty()) {
+          // A "normal" input with non-empty features.
+          ++num_inputs_non_empty_features;
+        } else {
+          // Centipede computed empty features for this input previously.
+          // Indicate to the client that it doesn't need to recompute them by
+          // passing this special value.
           features = {feature_domains::kNoFeature};
           ++num_inputs_empty_features;
-        } else {
-          ++num_inputs_non_empty_features;
         }
-        callback(std::move(input_node.mapped()), std::move(features));
+        callback(std::move(matching_input), std::move(features));
       }
     }
 
     RPROF_SNAPSHOT("Read features & reported input/features pairs");
   }
 
-  // Finally, call `callback` on the remaining inputs without matching features.
-  // This also automatically covers the features file not passed or missing.
+  // Finally, call `callback` on the inputs without matching features, which we
+  // have accumulated during lookaheads. This also automatically covers the case
+  // of a features file not passed or missing.
+  num_inputs_missing_features = hash_to_input.size();
   for (auto &&[hash, input] : hash_to_input) {
     // Indicate to the client that it needs to recompute features for this input
     // by passing an empty value.
