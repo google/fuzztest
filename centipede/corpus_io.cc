@@ -15,12 +15,12 @@
 
 #include <cstddef>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -35,14 +35,6 @@
 
 namespace centipede {
 
-// TODO(kcc): fix this function in the following ways:
-//  * Allocate as little temporary heap memory as possible.
-//  * Maybe check if certain feature sets can be rejected before loading
-//    the corresponding input (again, in order to reduce temporary allocations).
-//  * Change the callback signature to take two r-values and std::move both
-//    params when calling it.
-//  * When the above is done, stop inserting empty `FeatureVec`s into
-//    `hash_to_features` when invoking the callback, just pass {}.
 void ReadShard(std::string_view corpus_path, std::string_view features_path,
                const std::function<void(ByteArray, FeatureVec)> &callback) {
   const bool good_corpus_path =
@@ -61,15 +53,39 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       /*timelapse_interval=*/absl::Seconds(30),  //
       /*also_log_timelapses=*/false);
 
-  // Maps features to input's hash.
-  absl::flat_hash_map<std::string, FeatureVec> hash_to_features;
+  // Maps input hashes to inputs.
+  // NOTE: Using `std::multimap` to prevent auto-deduplication of inputs.
+  // TODO(ussuri): This is the legacy behavior. At least one test relies on
+  //  it (but doesn't really need it). Investigate and switch to
+  //  `absl::flat_hash_map`.
+  std::multimap<std::string /*hash*/, ByteArray /*input*/> hash_to_input;
+  // Read inputs from the corpus file into `hash_to_input`.
+  auto corpus_reader = DefaultBlobFileReaderFactory();
+  CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
+  ByteSpan blob;
+  while (corpus_reader->Read(blob).ok()) {
+    std::string hash = Hash(blob);
+    ByteArray input{blob.begin(), blob.end()};
+    hash_to_input.emplace(std::move(hash), std::move(input));
+  }
 
-  // Read all features, populate hash_to_features.
-  // If the file is not passed or doesn't exist, simply ignore it.
+  RPROF_SNAPSHOT("Read inputs");
+
+  // Input counts of various kinds (for logging).
+  const size_t num_inputs = hash_to_input.size();
+  size_t num_inputs_missing_features = num_inputs;
+  size_t num_inputs_empty_features = 0;
+  size_t num_inputs_non_empty_features = 0;
+
+  // If the features file is not passed or doesn't exist, simply ignore it.
   if (!good_features_path) {
     LOG(WARNING) << "Features file path empty or not found - ignoring: "
                  << features_path;
   } else {
+    // Read features from the features file. For each feature, find a matching
+    // input in `hash_to_input`, call `callback` for the pair, and remove the
+    // entry from `hash_to_input`. In the end, `hash_to_input` will contain
+    // only inputs without matching features.
     auto features_reader = DefaultBlobFileReaderFactory();
     CHECK_OK(features_reader->Open(features_path)) << VV(features_path);
     ByteSpan hash_and_features;
@@ -79,56 +95,44 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       if (hash_and_features.size() < kHashLen) continue;
       FeatureVec features;
       std::string hash = UnpackFeaturesAndHash(hash_and_features, &features);
-      if (features.empty()) {
-        // When the features file got created, Centipede did compute features
-        // for the input, but they came up empty. Indicate to the client that
-        // there is no need to recompute by returning this special value.
-        features = {feature_domains::kNoFeature};
+      auto input_node = hash_to_input.extract(hash);
+      if (!input_node.empty()) {
+        --num_inputs_missing_features;
+        if (features.empty()) {
+          // When the features file got created, Centipede did compute features
+          // for the input, but they came up empty. Indicate to the client that
+          // there is no need to recompute by passing this special value.
+          features = {feature_domains::kNoFeature};
+          ++num_inputs_empty_features;
+        } else {
+          ++num_inputs_non_empty_features;
+        }
+        callback(std::move(input_node.mapped()), std::move(features));
       }
-      hash_to_features.emplace(std::move(hash), std::move(features));
     }
 
-    RPROF_SNAPSHOT("Read features");
+    RPROF_SNAPSHOT("Read features & reported input/features pairs");
   }
 
-  // Input counts of various kinds (for logging).
-  const size_t num_all_inputs = hash_to_features.size();
-  size_t num_inputs_missing_features = 0;
-  size_t num_inputs_empty_features = 0;
-  size_t num_inputs_non_empty_features = 0;
-
-  // Read the corpus. Call `callback` for every {input, features} pair.
-  auto corpus_reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
-  ByteSpan blob;
-  while (corpus_reader->Read(blob).ok()) {
-    ByteArray input{blob.begin(), blob.end()};
-    // In contrast to `{feature_domains::kNoFeature}` above, if features for
-    // this input were not computed or recorded, the line below will insert
-    // a truly empty value into `hash_to_features`, allowing the client to
-    // discern these two cases.
-    FeatureVec &features = hash_to_features[Hash(blob)];
-    if (features.empty()) {
-      ++num_inputs_missing_features;
-    } else if (features == FeatureVec{feature_domains::kNoFeature}) {
-      ++num_inputs_empty_features;
-    } else {
-      ++num_inputs_non_empty_features;
-    }
-    callback(std::move(input), std::move(features));
+  // Finally, call `callback` on the remaining inputs without matching features.
+  // This also automatically covers the features file not passed or missing.
+  for (auto &&[hash, input] : hash_to_input) {
+    // Indicate to the client that it needs to recompute features for this input
+    // by passing an empty value.
+    callback(std::move(input), {});
   }
 
-  RPROF_SNAPSHOT("Read inputs & reported input/features pairs");
+  RPROF_SNAPSHOT("Reported inputs with no matching features");
 
   VLOG(1)  //
       << "Finished shard reading:\n"
       << "Corpus path                : " << corpus_path << "\n"
       << "Features path              : " << features_path << "\n"
-      << "Inputs                     : " << num_all_inputs << "\n"
+      << "Inputs                     : " << num_inputs << "\n"
       << "Inputs, non-empty features : " << num_inputs_non_empty_features
       << "\n"
       << "Inputs, empty features     : " << num_inputs_empty_features << "\n"
-      << "Inputs, no features        : " << num_inputs_missing_features;
+      << "Inputs, missing features   : " << num_inputs_missing_features;
 }
 
 }  // namespace centipede
