@@ -48,7 +48,8 @@ class Coverage {
            const PCIndexVec &pci_vec);
 
   // Prints in human-readable form to `out` using `symbols`.
-  void Print(const SymbolTable &symbols, std::ostream &out);
+  void DumpReportToFile(const SymbolTable &symbols, std::string_view filepath,
+                        std::string_view description = "");
 
   // Returns true if the function is fully covered. pc_index is for a function
   // entry.
