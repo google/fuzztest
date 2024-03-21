@@ -172,7 +172,7 @@ void StatsLogger::DoneFieldSamplesBatch() {
 
 StatsCsvFileAppender::~StatsCsvFileAppender() {
   for (const auto &[group_name, file] : files_) {
-    RemoteFileClose(file);
+    RemoteFileClose(file.file);
   }
 }
 
@@ -194,8 +194,8 @@ void StatsCsvFileAppender::PreAnnounceFields(
 }
 
 void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
-  RemoteFile *&file = files_[master_env.experiment_name];
-  if (file == nullptr) {
+  BufferedRemoteFile &file = files_[master_env.experiment_name];
+  if (file.file == nullptr) {
     const std::string filename =
         WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
     // If a non-empty file already exists and has the same CVS header, then
@@ -215,11 +215,11 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
         RemoteFileSetContents(GetBackupFilename(filename), contents);
       }
     }
-    file = RemoteFileOpen(filename, append ? "a" : "w");
-    CHECK(file != nullptr) << VV(filename);
-    if (!append) RemoteFileAppend(file, csv_header_);
+    file.file = RemoteFileOpen(filename, append ? "a" : "w");
+    CHECK(file.file != nullptr) << VV(filename);
+    if (!append) RemoteFileAppend(file.file, csv_header_);
   }
-  curr_file_ = file;
+  curr_file_ = &file;
 }
 
 void StatsCsvFileAppender::SetCurrField(const Stats::FieldInfo &field_info) {
@@ -238,7 +238,8 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
   }
   double avg = !values.empty() ? (1.0 * sum / values.size()) : 0;
 
-  std::string values_str;
+  CHECK(curr_file_ != nullptr);
+  std::string &values_str = curr_file_->buffer;
   if (curr_field_info_.traits & TraitBits::kMin)
     absl::StrAppendFormat(&values_str, "%" PRIu64 ",", min);
   if (curr_field_info_.traits & TraitBits::kMax)
@@ -247,8 +248,6 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
     absl::StrAppendFormat(&values_str, "%.1lf,", avg);
   if (curr_field_info_.traits & TraitBits::kSum)
     absl::StrAppendFormat(&values_str, "%" PRIu64 ",", sum);
-
-  RemoteFileAppend(curr_file_, values_str);
 }
 
 void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
@@ -257,8 +256,9 @@ void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
 }
 
 void StatsCsvFileAppender::DoneFieldSamplesBatch() {
-  for (const auto &[group_name, file] : files_) {
-    RemoteFileAppend(file, "\n");
+  for (auto &&[group_name, file] : files_) {
+    RemoteFileAppend(file.file, absl::StrCat(file.buffer, "\n"));
+    file.buffer.clear();
   }
 }
 

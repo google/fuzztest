@@ -15,6 +15,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_STATS_H_
 #define THIRD_PARTY_CENTIPEDE_STATS_H_
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
@@ -24,6 +25,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
@@ -379,6 +381,11 @@ class StatsCsvFileAppender : public StatsReporter {
   ~StatsCsvFileAppender() override;
 
  private:
+  struct BufferedRemoteFile {
+    RemoteFile *file = nullptr;
+    std::string buffer;
+  };
+
   void PreAnnounceFields(
       std::initializer_list<Stats::FieldInfo> fields) override;
   void SetCurrGroup(const Environment &master_env) override;
@@ -392,8 +399,8 @@ class StatsCsvFileAppender : public StatsReporter {
   virtual std::string GetBackupFilename(const std::string &filename) const;
 
   std::string csv_header_;
-  absl::flat_hash_map<std::string /*group_name*/, RemoteFile *> files_;
-  RemoteFile *curr_file_;
+  absl::flat_hash_map<std::string /*group_name*/, BufferedRemoteFile> files_;
+  absl::Nullable<BufferedRemoteFile *> curr_file_ = nullptr;
   Stats::FieldInfo curr_field_info_;
 };
 
