@@ -14,9 +14,12 @@
 
 load(":build_defs.bzl", "centipede_fuzz_target")
 
-package(default_visibility = [
-    "@com_google_fuzztest//centipede:__subpackages__",
-])
+package(
+    default_visibility = [
+        "@com_google_fuzztest//centipede:__subpackages__",
+    ],
+    features = ["-enable_relr"],
+)
 
 licenses(["notice"])
 
