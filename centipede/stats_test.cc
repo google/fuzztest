@@ -92,6 +92,10 @@ TEST(Stats, PrintStatsToLog) {
             .num_bounded_path_features = 26 * j,
             .num_pc_pair_features = 27 * j,
             .num_user_features = 28 * j,
+            // NOTE: These two don't add up to `num_user_features`, but that's
+            // ok for the purposes of this test.
+            .num_user0_features = 28 * j + 1,
+            .num_user10_features = 28 * j + 2,
             .num_unknown_features = 29 * j,
             .num_funcs_in_frontier = 31 * j,
         },
@@ -173,6 +177,54 @@ TEST(Stats, PrintStatsToLog) {
         "Num funcs in frontier:",
         "  Experiment A: min:\t31\tmax:\t93\tavg:\t62.0\t--\t31\t93",
         "  Experiment B: min:\t62\tmax:\t124\tavg:\t93.0\t--\t62\t124",
+        "Num user0 features:",
+        "  Experiment A: min:\t29\tmax:\t85\tavg:\t57.0\t--\t29\t85",
+        "  Experiment B: min:\t57\tmax:\t113\tavg:\t85.0\t--\t57\t113",
+        "Num user1 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user2 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user3 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user4 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user5 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user6 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user7 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user8 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user9 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user10 features:",
+        "  Experiment A: min:\t30\tmax:\t86\tavg:\t58.0\t--\t30\t86",
+        "  Experiment B: min:\t58\tmax:\t114\tavg:\t86.0\t--\t58\t114",
+        "Num user11 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user12 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user13 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user14 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user15 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
         "Flags:",
         "  Experiment A: AAA",
         "  Experiment B: BBB",
@@ -205,6 +257,8 @@ TEST(Stats, PrintStatsToLog) {
       new_stats.num_bounded_path_features += 1;
       new_stats.num_pc_pair_features += 1;
       new_stats.num_user_features += 1;
+      new_stats.num_user0_features += 1;
+      new_stats.num_user10_features += 1;
       new_stats.num_unknown_features += 1;
       new_stats.num_funcs_in_frontier += 1;
 
@@ -274,6 +328,54 @@ TEST(Stats, PrintStatsToLog) {
         "Num funcs in frontier:",
         "  Experiment A: min:\t32\tmax:\t94\tavg:\t63.0\t--\t32\t94",
         "  Experiment B: min:\t63\tmax:\t125\tavg:\t94.0\t--\t63\t125",
+        "Num user0 features:",
+        "  Experiment A: min:\t30\tmax:\t86\tavg:\t58.0\t--\t30\t86",
+        "  Experiment B: min:\t58\tmax:\t114\tavg:\t86.0\t--\t58\t114",
+        "Num user1 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user2 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user3 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user4 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user5 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user6 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user7 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user8 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user9 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user10 features:",
+        "  Experiment A: min:\t31\tmax:\t87\tavg:\t59.0\t--\t31\t87",
+        "  Experiment B: min:\t59\tmax:\t115\tavg:\t87.0\t--\t59\t115",
+        "Num user11 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user12 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user13 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user14 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "Num user15 features:",
+        "  Experiment A: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
+        "  Experiment B: min:\t0\tmax:\t0\tavg:\t0.0\t--\t0\t0",
         "Flags:",
         "  Experiment A: AAA",
         "  Experiment B: BBB",
@@ -311,6 +413,10 @@ TEST(Stats, DumpStatsToCsvFile) {
             .num_bounded_path_features = 26 * j,
             .num_pc_pair_features = 27 * j,
             .num_user_features = 28 * j,
+            // NOTE: These two don't add up to `num_user_features`, but that's
+            // ok for the purposes of this test.
+            .num_user0_features = 28 * j + 1,
+            .num_user10_features = 28 * j + 2,
             .num_unknown_features = 29 * j,
             .num_funcs_in_frontier = 31 * j,
         },
@@ -377,6 +483,8 @@ TEST(Stats, DumpStatsToCsvFile) {
       new_stats.num_bounded_path_features += 1;
       new_stats.num_pc_pair_features += 1;
       new_stats.num_user_features += 1;
+      new_stats.num_user0_features += 1;
+      new_stats.num_user10_features += 1;
       new_stats.num_unknown_features += 1;
       new_stats.num_funcs_in_frontier += 1;
 
@@ -424,7 +532,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "NumUnknownFts_Min,NumUnknownFts_Max,NumUnknownFts_Avg,"
           "NumFuncsInFrontier_Min,NumFuncsInFrontier_Max,NumFuncsInFrontier_Avg,"  // NOLINT
           "EngineRusageAvgCores_Max,EngineRusageCpuPct_Max,"
-          "EngineRusageRssMb_Max,EngineRusageVSizeMb_Max,",
+          "EngineRusageRssMb_Max,EngineRusageVSizeMb_Max,"
+          "NumUser0Fts_Min,NumUser0Fts_Max,NumUser0Fts_Avg,"
+          "NumUser1Fts_Min,NumUser1Fts_Max,NumUser1Fts_Avg,"
+          "NumUser2Fts_Min,NumUser2Fts_Max,NumUser2Fts_Avg,"
+          "NumUser3Fts_Min,NumUser3Fts_Max,NumUser3Fts_Avg,"
+          "NumUser4Fts_Min,NumUser4Fts_Max,NumUser4Fts_Avg,"
+          "NumUser5Fts_Min,NumUser5Fts_Max,NumUser5Fts_Avg,"
+          "NumUser6Fts_Min,NumUser6Fts_Max,NumUser6Fts_Avg,"
+          "NumUser7Fts_Min,NumUser7Fts_Max,NumUser7Fts_Avg,"
+          "NumUser8Fts_Min,NumUser8Fts_Max,NumUser8Fts_Avg,"
+          "NumUser9Fts_Min,NumUser9Fts_Max,NumUser9Fts_Avg,"
+          "NumUser10Fts_Min,NumUser10Fts_Max,NumUser10Fts_Avg,"
+          "NumUser11Fts_Min,NumUser11Fts_Max,NumUser11Fts_Avg,"
+          "NumUser12Fts_Min,NumUser12Fts_Max,NumUser12Fts_Avg,"
+          "NumUser13Fts_Min,NumUser13Fts_Max,NumUser13Fts_Avg,"
+          "NumUser14Fts_Min,NumUser14Fts_Max,NumUser14Fts_Avg,"
+          "NumUser15Fts_Min,NumUser15Fts_Max,NumUser15Fts_Avg,",
           // Line 1.
           "21,63,42.0,"
           "12,36,24.0,"
@@ -445,7 +569,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "29,87,58.0,"
           "31,93,62.0,"
           "603,606,"
-          "609,612,",
+          "609,612,"
+          "29,85,57.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "30,86,58.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,",
           // Line 2.
           "21,64,42.5,"
           "12,37,24.5,"
@@ -466,7 +606,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "29,88,58.5,"
           "31,94,62.5,"
           "604,607,"
-          "610,613,",
+          "610,613,"
+          "29,86,57.5,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "30,87,58.5,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,",
           "",  // empty line at EOF
           // clang-format on
       },
@@ -493,7 +649,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "NumUnknownFts_Min,NumUnknownFts_Max,NumUnknownFts_Avg,"
           "NumFuncsInFrontier_Min,NumFuncsInFrontier_Max,NumFuncsInFrontier_Avg,"  // NOLINT
           "EngineRusageAvgCores_Max,EngineRusageCpuPct_Max,"
-          "EngineRusageRssMb_Max,EngineRusageVSizeMb_Max,",
+          "EngineRusageRssMb_Max,EngineRusageVSizeMb_Max,"
+          "NumUser0Fts_Min,NumUser0Fts_Max,NumUser0Fts_Avg,"
+          "NumUser1Fts_Min,NumUser1Fts_Max,NumUser1Fts_Avg,"
+          "NumUser2Fts_Min,NumUser2Fts_Max,NumUser2Fts_Avg,"
+          "NumUser3Fts_Min,NumUser3Fts_Max,NumUser3Fts_Avg,"
+          "NumUser4Fts_Min,NumUser4Fts_Max,NumUser4Fts_Avg,"
+          "NumUser5Fts_Min,NumUser5Fts_Max,NumUser5Fts_Avg,"
+          "NumUser6Fts_Min,NumUser6Fts_Max,NumUser6Fts_Avg,"
+          "NumUser7Fts_Min,NumUser7Fts_Max,NumUser7Fts_Avg,"
+          "NumUser8Fts_Min,NumUser8Fts_Max,NumUser8Fts_Avg,"
+          "NumUser9Fts_Min,NumUser9Fts_Max,NumUser9Fts_Avg,"
+          "NumUser10Fts_Min,NumUser10Fts_Max,NumUser10Fts_Avg,"
+          "NumUser11Fts_Min,NumUser11Fts_Max,NumUser11Fts_Avg,"
+          "NumUser12Fts_Min,NumUser12Fts_Max,NumUser12Fts_Avg,"
+          "NumUser13Fts_Min,NumUser13Fts_Max,NumUser13Fts_Avg,"
+          "NumUser14Fts_Min,NumUser14Fts_Max,NumUser14Fts_Avg,"
+          "NumUser15Fts_Min,NumUser15Fts_Max,NumUser15Fts_Avg,",
           // Line 1.
           "42,84,63.0,"
           "24,48,36.0,"
@@ -514,7 +686,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "58,116,87.0,"
           "62,124,93.0,"
           "804,808,"
-          "812,816,",
+          "812,816,"
+          "57,113,85.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "58,114,86.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,",
           // Line 2.
           "42,85,63.5,"
           "24,49,36.5,"
@@ -535,7 +723,23 @@ TEST(Stats, DumpStatsToCsvFile) {
           "58,117,87.5,"
           "62,125,93.5,"
           "805,809,"
-          "813,817,",
+          "813,817,"
+          "57,114,85.5,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "58,115,86.5,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,"
+          "0,0,0.0,",
           "",  // empty line at EOF
           // clang-format on
       },

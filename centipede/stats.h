@@ -66,6 +66,22 @@ struct CovStats {
   uint64_t num_bounded_path_features = 0;
   uint64_t num_pc_pair_features = 0;
   uint64_t num_user_features = 0;
+  uint64_t num_user0_features = 0;
+  uint64_t num_user1_features = 0;
+  uint64_t num_user2_features = 0;
+  uint64_t num_user3_features = 0;
+  uint64_t num_user4_features = 0;
+  uint64_t num_user5_features = 0;
+  uint64_t num_user6_features = 0;
+  uint64_t num_user7_features = 0;
+  uint64_t num_user8_features = 0;
+  uint64_t num_user9_features = 0;
+  uint64_t num_user10_features = 0;
+  uint64_t num_user11_features = 0;
+  uint64_t num_user12_features = 0;
+  uint64_t num_user13_features = 0;
+  uint64_t num_user14_features = 0;
+  uint64_t num_user15_features = 0;
   uint64_t num_unknown_features = 0;
   uint64_t num_funcs_in_frontier = 0;
 
@@ -124,18 +140,23 @@ struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
   // In other words: do not change the names or the order of the old fields
   // without a very good reason.
   static constexpr std::initializer_list<FieldInfo> kFieldInfos = {
+      // Coverage 1.
       {
           &Stats::num_covered_pcs,
           "NumCoveredPcs",
           "Coverage",
           kFuzzStat | kMin | kMax | kAvg,
       },
+
+      // Execution.
       {
           &Stats::num_executions,
           "NumExecs",
           "Number of executions",
           kFuzzStat | kMin | kMax | kAvg,
       },
+
+      // Corpus.
       {
           &Stats::active_corpus_size,
           "ActiveCorpusSize",
@@ -154,18 +175,24 @@ struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
           "Avg element size",
           kFuzzStat | kMin | kMax | kAvg,
       },
+
+      // Metadata.
       {
           &Stats::timestamp_unix_micros,
           "UnixMicros",
           "Timestamp",
           kTimestamp | kMin | kMax,
       },
+
+      // Execution 2.
       {
           &Stats::fuzz_time_sec,
           "FuzzTimeSec",
           "Fuzz time (sec)",
           kFuzzStat | kMin | kMax | kAvg,
       },
+
+      // Coverage 2.
       {
           &Stats::num_target_crashes,
           "NumProxyCrashes",
@@ -232,6 +259,7 @@ struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
           "Num funcs in frontier",
           kFuzzStat | kMin | kMax | kAvg,
       },
+
       // Rusage. Each shard of a run is a thread of the same process, but it
       // measures the following metrics for the whole process. That means that
       // all the shards should return more or less the same number for the same
@@ -262,6 +290,105 @@ struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
           "EngineRusageVSizeMb",
           "Engine rusage VSize (MB)",
           kRUsageStat | kMax,
+      },
+
+      // Coverage 3. A breakdown of the total in `Stats::num_user_features` by
+      // individual feature types.
+      {
+          &Stats::num_user0_features,
+          "NumUser0Fts",
+          "Num user0 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user1_features,
+          "NumUser1Fts",
+          "Num user1 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user2_features,
+          "NumUser2Fts",
+          "Num user2 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user3_features,
+          "NumUser3Fts",
+          "Num user3 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user4_features,
+          "NumUser4Fts",
+          "Num user4 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user5_features,
+          "NumUser5Fts",
+          "Num user5 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user6_features,
+          "NumUser6Fts",
+          "Num user6 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user7_features,
+          "NumUser7Fts",
+          "Num user7 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user8_features,
+          "NumUser8Fts",
+          "Num user8 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user9_features,
+          "NumUser9Fts",
+          "Num user9 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user10_features,
+          "NumUser10Fts",
+          "Num user10 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user11_features,
+          "NumUser11Fts",
+          "Num user11 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user12_features,
+          "NumUser12Fts",
+          "Num user12 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user13_features,
+          "NumUser13Fts",
+          "Num user13 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user14_features,
+          "NumUser14Fts",
+          "Num user14 features",
+          kFuzzStat | kMin | kMax | kAvg,
+      },
+      {
+          &Stats::num_user15_features,
+          "NumUser15Fts",
+          "Num user15 features",
+          kFuzzStat | kMin | kMax | kAvg,
       },
   };
 };
