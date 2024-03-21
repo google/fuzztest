@@ -35,25 +35,37 @@ centipede::maybe_set_var_to_executable_path \
 batch_fuzz() {
   set -x
   "${CENTIPEDE_BINARY}" \
-    --binary="${TARGET_BINARY}" --symbolizer_path=/dev/null \
+    --binary="${TARGET_BINARY}" \
+    --symbolizer_path=/dev/null \
     --print_runner_log \
     "$@" 2>&1
   set +x
 }
 
+echo -e "\n=== Sanity test\n"
 centipede::run_some_fuzzing batch_fuzz
+
+echo -e "\n=== Crash test\n"
 centipede::test_crashing_target batch_fuzz "foo" "fuz" "Catch you"
 
-CENTIPEDE_RUNNER_FLAGS=":use_pc_features:use_cmp_features" \
-centipede::test_replaying_target batch_fuzz "Ratio of inputs with features: 2/2" "foo" "foo"
+export CENTIPEDE_RUNNER_FLAGS=":use_pc_features:use_cmp_features"
+echo -e "\n=== Fuzz test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
+centipede::test_replaying_target \
+  batch_fuzz "Ratio of inputs with features: 2/2" "foo" "foo"
 
 export CENTIPEDE_RUNNER_FLAGS=":use_pc_features:use_cmp_features:skip_seen_features:"
-centipede::test_replaying_target batch_fuzz "Ratio of inputs with features: 1/2" "foo" "foo"
+echo -e "\n=== Fuzz test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
+centipede::test_replaying_target \
+  batch_fuzz "Ratio of inputs with features: 1/2" "foo" "foo"
 
 export CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=1024:"
-centipede::test_replaying_target batch_fuzz 'RSS limit exceeded: [0-9][0-9]* > 1024' "oom"
+echo -e "\n=== OOM test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
+centipede::test_replaying_target \
+  batch_fuzz 'RSS limit exceeded: [0-9][0-9]* > 1024' "oom"
 
 export CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=1:"
-centipede::test_replaying_target batch_fuzz 'Per-input timeout exceeded: [0-9][0-9]* > 1' "slp"
+echo -e "\n=== Timeout test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
+centipede::test_replaying_target \
+  batch_fuzz 'Per-input timeout exceeded: [0-9][0-9]* > 1' "slp"
 
 echo "PASS"
