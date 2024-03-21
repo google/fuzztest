@@ -90,7 +90,7 @@ ResourcePool<ResourceT>::ResourcePool(const ResourceT& quota)
 template <typename ResourceT>
 typename ResourcePool<ResourceT>::LeaseToken
 ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     absl::ReaderMutexLock lock{&pool_mu_};
     VLOG(1) << "Received lease request " << request.id           //
             << "\nrequested: " << request.amount.FormattedStr()  //

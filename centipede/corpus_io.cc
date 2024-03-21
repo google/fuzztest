@@ -57,7 +57,7 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
   }
 
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(            //
-      /*enable=*/VLOG_IS_ON(10),                 //
+      /*enable=*/ABSL_VLOG_IS_ON(10),            //
       /*timelapse_interval=*/absl::Seconds(30),  //
       /*also_log_timelapses=*/false);
 

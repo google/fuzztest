@@ -143,7 +143,7 @@ void ReportStatsThread(const std::atomic<bool> &continue_running,
   std::vector<std::unique_ptr<StatsReporter>> reporters;
   reporters.emplace_back(
       std::make_unique<StatsCsvFileAppender>(stats_vec, envs));
-  if (!envs.front().experiment.empty() || VLOG_IS_ON(1)) {
+  if (!envs.front().experiment.empty() || ABSL_VLOG_IS_ON(1)) {
     reporters.emplace_back(std::make_unique<StatsLogger>(stats_vec, envs));
   }
 

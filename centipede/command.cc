@@ -429,7 +429,7 @@ void Command::LogProblemInfo(std::string_view message) const {
 }
 
 void Command::VlogProblemInfo(std::string_view message, int vlog_level) const {
-  if (VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
+  if (ABSL_VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
 }
 
 }  // namespace centipede

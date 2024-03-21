@@ -59,7 +59,7 @@ class StatsLogger {
     const std::string stats = absl::StrFormat(
         "blobs: %9lld | blobs/s: %5.0f | bytes: %12lld | bytes/s: %8.0f",
         num_blobs_, num_blobs_ / secs, num_bytes_, num_bytes_ / secs);
-    if (VLOG_IS_ON(3)) {
+    if (ABSL_VLOG_IS_ON(3)) {
       const perf::RUsageProfiler::Snapshot& snapshot = RPROF_SNAPSHOT(stats);
       LOG(INFO) << stats << " | " << snapshot.memory.ShortStr();
     } else {
@@ -90,7 +90,7 @@ class StatsLogger {
 void Convert(               //
     const std::string& in,  //
     const std::string& out, const std::string& out_format) {
-  RPROF_THIS_FUNCTION_WITH_REPORT(/*enable=*/VLOG_IS_ON(1));
+  RPROF_THIS_FUNCTION_WITH_REPORT(/*enable=*/ABSL_VLOG_IS_ON(1));
 
   LOG(INFO) << "Converting:\n" << VV(in) << "\n" << VV(out) << VV(out_format);
 
@@ -104,7 +104,7 @@ void Convert(               //
   // Open blob file reader and writer.
 
   RPROF_START_TIMELAPSE(  //
-      absl::Seconds(20), /*also_log=*/VLOG_IS_ON(3), "Opening --in");
+      absl::Seconds(20), /*also_log=*/ABSL_VLOG_IS_ON(3), "Opening --in");
   const auto in_reader = DefaultBlobFileReaderFactory();
   CHECK_OK(in_reader->Open(in)) << VV(in);
   RPROF_STOP_TIMELAPSE();
@@ -118,7 +118,7 @@ void Convert(               //
   ByteSpan blob;
   absl::Status read_status = absl::OkStatus();
   StatsLogger stats_logger{
-      absl::Seconds(VLOG_IS_ON(1) ? 20 : 60),
+      absl::Seconds(ABSL_VLOG_IS_ON(1) ? 20 : 60),
       FUNCTION_LEVEL_RPROF_NAME,
   };
   while ((read_status = in_reader->Read(blob)).ok()) {

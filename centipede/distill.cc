@@ -308,10 +308,10 @@ void DistillTask(const Environment &env,
 }
 
 int Distill(const Environment &env) {
-  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                 //
-      /*enable=*/VLOG_IS_ON(1),                                       //
-      /*timelapse_interval=*/absl::Seconds(VLOG_IS_ON(2) ? 10 : 60),  //
-      /*also_log_timelapses=*/VLOG_IS_ON(10));
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
+      /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
+      /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
+      /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
 
   // The RAM pool shared between all the threads, here and in `DistillTask`.
   perf::ResourcePool ram_pool{kRamQuota};
