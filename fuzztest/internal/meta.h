@@ -131,6 +131,18 @@ template <>
 inline constexpr bool is_bitvector_v<std::vector<bool>> = true;
 
 template <typename T>
+inline constexpr bool is_bytevector_v = false;
+
+template <>
+inline constexpr bool is_bytevector_v<std::vector<int8_t>> = true;
+
+template <>
+inline constexpr bool is_bytevector_v<std::vector<uint8_t>> = true;
+
+template <>
+inline constexpr bool is_bytevector_v<std::vector<std::byte>> = true;
+
+template <typename T>
 inline constexpr bool is_vector_v = false;
 
 template <typename T>
@@ -199,6 +211,10 @@ constexpr bool IsProtocolBufferEnumImpl(...) {
 template <typename T>
 inline constexpr bool is_protocol_buffer_enum_v =
     IsProtocolBufferEnumImpl<T>(true);
+
+template <typename T>
+inline constexpr bool is_sized_v =
+    Requires<T>([](auto v) -> decltype(v.size()) {});
 
 template <typename T>
 inline constexpr bool is_dynamic_container_v =
