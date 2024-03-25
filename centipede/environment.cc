@@ -92,7 +92,8 @@ static bool GetBoolFlag(std::string_view value) {
 // Returns `value` as a size_t, CHECK-fails on parse error.
 static size_t GetIntFlag(std::string_view value) {
   size_t result{};
-  CHECK(std::from_chars(value.begin(), value.end(), result).ec == std::errc())
+  CHECK(std::from_chars(value.data(), value.data() + value.size(), result).ec ==
+        std::errc())
       << value;
   return result;
 }
