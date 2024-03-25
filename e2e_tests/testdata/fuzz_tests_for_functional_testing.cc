@@ -16,14 +16,18 @@
 //
 // Specifically, used by `functional_test` only.
 
-#include <signal.h>
-
+#include <cerrno>
+#include <csignal>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -34,6 +38,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./fuzztest/fuzztest.h"
+#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
 
@@ -49,7 +54,6 @@ using ::fuzztest::StringOf;
 using ::fuzztest::StructOf;
 using ::fuzztest::TupleOf;
 using ::fuzztest::VectorOf;
-using ::fuzztest::internal::IRObjectTestProto;
 using ::fuzztest::internal::ProtoExtender;
 using ::fuzztest::internal::TestProtobuf;
 using ::fuzztest::internal::TestProtobufWithExtension;
@@ -70,7 +74,7 @@ void Aborts(int foo, int bar) {
 FUZZ_TEST(MySuite, Aborts);
 
 void PassesString(const std::string& v) {
-  fprintf(stderr, "==<<Saw size=%zu>>==\n", v.size());
+  absl::FPrintF(stderr, "==<<Saw size=%zu>>==\n", v.size());
 }
 FUZZ_TEST(MySuite, PassesString);
 
@@ -94,7 +98,7 @@ FUZZ_TEST(MySuite, UsesUnprintableType)
 
 void OneIterationTakesTooMuchTime(int) {
   absl::SleepFor(absl::Milliseconds(100));
-  fprintf(stderr, "Takes a very long time for one iter...\n");
+  absl::FPrintF(stderr, "Takes a very long time for one iter...\n");
 }
 FUZZ_TEST(MySuite, OneIterationTakesTooMuchTime);
 
@@ -131,7 +135,7 @@ std::vector<std::tuple<TestProtobufWithExtension>> ProtoSeeds() {
 
 void CheckProtoExtensions(const TestProtobufWithExtension proto) {
   if (proto.HasExtension(fuzztest::internal::ProtoExtender::ext)) {
-    fprintf(stderr, "Uses proto extensions!\n");
+    absl::FPrintF(stderr, "Uses proto extensions!\n");
     std::abort();
   }
 }
@@ -141,8 +145,8 @@ FUZZ_TEST(MySuite, CheckProtoExtensions).WithSeeds(ProtoSeeds());
 void TargetPrintSomethingThenAbrt(int a) {
   absl::FPrintF(stdout, "Hello World from target stdout\n");
   absl::FPrintF(stderr, "Hello World from target stderr\n");
-  fflush(stdout);
-  fflush(stderr);
+  std::fflush(stdout);
+  std::fflush(stderr);
   if (a > 42) {
     std::abort();
   }
@@ -151,8 +155,8 @@ FUZZ_TEST(MySuite, TargetPrintSomethingThenAbrt);
 
 class FixtureTest {
  public:
-  FixtureTest() { fprintf(stderr, "<<FixtureTest::FixtureTest()>>\n"); }
-  ~FixtureTest() { fprintf(stderr, "<<FixtureTest::~FixtureTest()>>\n"); }
+  FixtureTest() { absl::FPrintF(stderr, "<<FixtureTest::FixtureTest()>>\n"); }
+  ~FixtureTest() { absl::FPrintF(stderr, "<<FixtureTest::~FixtureTest()>>\n"); }
 
   void NeverFails(int) {}
 };
@@ -551,22 +555,20 @@ struct HasConstructor {
   HasConstructor(int a, std::string b) : a(a), b(b) {}
 };
 
-void FailsWhenI32ContainsTheSecretNumber(
-    const std::unique_ptr<google::protobuf::Message>& m) {
+void FailsWhenI32IsSet(const std::unique_ptr<google::protobuf::Message>& m) {
   if (m->GetDescriptor()->full_name() != "fuzztest.internal.TestProtobuf") {
-    std::abort();
+    return;
   }
   auto* proto =
       google::protobuf::DynamicCastToGenerated<fuzztest::internal::TestProtobuf>(&*m);
-  if (proto->i32() == /*secret number*/ -1) {
-    std::cerr << "Secret number is found !" << std::endl;
+  if (proto->has_i32()) {
+    absl::FPrintF(stderr, "The field i32 is set!\n");
     std::abort();
   }
 }
-FUZZ_TEST(MySuite, FailsWhenI32ContainsTheSecretNumber)
-    .WithDomains(fuzztest::ProtobufOf([]() {
-      return &fuzztest::internal::TestProtobuf::default_instance();
-    }));
+FUZZ_TEST(MySuite, FailsWhenI32IsSet).WithDomains(fuzztest::ProtobufOf([]() {
+  return &fuzztest::internal::TestProtobuf::default_instance();
+}));
 
 void WorksWithStructsWithConstructors(const HasConstructor& h) {
   if (h.a == 1 && h.b == "abc") {

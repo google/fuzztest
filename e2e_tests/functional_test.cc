@@ -362,10 +362,9 @@ TEST_F(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
 }
 
 TEST_F(UnitTestModeTest, ProtobufOfMutatesTheProto) {
-  auto [status, std_out, std_err] =
-      Run("MySuite.FailsWhenI32ContainsTheSecretNumber");
+  auto [status, std_out, std_err] = Run("MySuite.FailsWhenI32IsSet");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("Secret number is found"));
+  EXPECT_THAT(std_err, HasSubstr("The field i32 is set!"));
 }
 
 TEST_F(UnitTestModeTest, ProtobufEnumEqualsLabel4) {

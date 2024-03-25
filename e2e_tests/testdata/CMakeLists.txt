@@ -32,6 +32,7 @@ target_link_libraries(
   absl::str_format
   absl::time
   fuzztest_googletest_fixture_adapter
+  fuzztest_logging
   fuzztest_status
 )
 link_fuzztest(fuzz_tests_for_functional_testing.stripped)
