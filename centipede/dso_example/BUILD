@@ -61,3 +61,19 @@ sh_test(
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
 )
+
+sh_test(
+    name = "dso_example_sanitizer_symbolize_test",
+    srcs = ["dso_example_sanitizer_symbolize_test.sh"],
+    data = [
+        ":main",
+    ],
+    tags = [
+        "external",
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
