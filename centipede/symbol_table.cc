@@ -27,11 +27,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
@@ -43,6 +45,16 @@
 #include "./centipede/util.h"
 
 namespace centipede {
+
+namespace {
+
+struct PCInfoToHexString {
+  void operator()(absl::Nonnull<std::string *> out, const PCInfo &info) {
+    *out = absl::StrCat("0x", absl::Hex(info.pc));
+  }
+};
+
+}  // namespace
 
 bool SymbolTable::operator==(const SymbolTable &other) const {
   return this->entries_ == other.entries_;
@@ -108,39 +120,41 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                                        std::string_view tmp_dir_path) {
   static std::atomic_size_t unique_id = 0;
   size_t unique_id_value = unique_id.fetch_add(1);
-  std::string dso_basename = std::filesystem::path{dso_path}.filename();
-  ScopedFile pcs_file{tmp_dir_path,
-                      absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
-  ScopedFile symbols_file{
+  const std::string dso_basename = std::filesystem::path{dso_path}.filename();
+  const ScopedFile pcs_file{
+      tmp_dir_path, absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
+  const ScopedFile symbols_file{
       tmp_dir_path, absl::StrCat(dso_basename, ".symbols.", unique_id_value)};
 
   // Create the input file (one PC per line).
-  std::string pcs_string;
-  for (const auto &pc_info : pc_infos) {
-    absl::StrAppend(&pcs_string, "0x", absl::Hex(pc_info.pc), "\n");
-  }
+  const std::string pcs_string =
+      absl::StrJoin(pc_infos, "\n", PCInfoToHexString{});
   WriteToLocalFile(pcs_file.path(), pcs_string);
-  // Run the symbolizer.
-  Command cmd(symbolizer_path,
-              {
-                  "--no-inlines",
-                  "-e",
-                  std::string(dso_path),
-                  "<",
-                  std::string(pcs_file.path()),
-              },
-              /*env=*/{}, symbols_file.path());
 
+  // Run the symbolizer.
   LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
             << dso_basename;
-
+  Command cmd{
+      symbolizer_path,
+      {
+          "--no-inlines",
+          "-e",
+          std::string(dso_path),
+          "<",
+          std::string(pcs_file.path()),
+      },
+      /*env=*/{},
+      symbols_file.path(),
+  };
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "system() failed: " << VV(cmd.ToString()) << VV(exit_code);
+    LOG(ERROR) << "Symbolization failed, debug symbols will not be used: "
+               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code);
     return;
   }
+
   // Get and process the symbolizer output.
-  std::ifstream symbolizer_output(std::string{symbols_file.path()});
+  std::ifstream symbolizer_output{std::string{symbols_file.path()}};
   size_t old_size = size();
   ReadFromLLVMSymbolizer(symbolizer_output);
   size_t new_size = size();
@@ -237,6 +251,12 @@ void SymbolTable::AddEntry(std::string_view func,
   AddEntryInternal(func, file_line_col_split[0], line, col);
 }
 
+void SymbolTable::AddEntries(const SymbolTable &other) {
+  for (const auto &entry : other.entries_) {
+    AddEntryInternal(entry.func, entry.file, entry.line, entry.col);
+  }
+}
+
 void SymbolTable::AddEntryInternal(std::string_view func, std::string_view file,
                                    int line, int col) {
   entries_.emplace_back(Entry{GetOrInsert(func), GetOrInsert(file), line, col});
@@ -244,12 +264,6 @@ void SymbolTable::AddEntryInternal(std::string_view func, std::string_view file,
 
 std::string_view SymbolTable::GetOrInsert(std::string_view str) {
   return *table_.insert(std::string{str}).first;
-}
-
-void SymbolTable::AddEntries(const SymbolTable &other) {
-  for (const auto &entry : other.entries_) {
-    AddEntryInternal(entry.func, entry.file, entry.line, entry.col);
-  }
 }
 
 }  // namespace centipede

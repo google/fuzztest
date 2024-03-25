@@ -80,12 +80,15 @@ class SymbolTable {
   // Invokes `symbolizer_path --no-inlines` on all binaries from `dso_table`,
   // pipes through it all the PCs in `pc_table` that correspond to each of the
   // binaries, and calls `ReadFromLLVMSymbolizer()` on the output.
-  // Possibly uses files `tmp_path1` and `tmp_path2` for temporary storage.
+  // Possibly uses files `pcs_tmp_path` and `symbols_tmp_path` for temporary
+  // storage.
   void GetSymbolsFromBinary(const PCTable &pc_table, const DsoTable &dso_table,
                             std::string_view symbolizer_path,
                             std::string_view tmp_dir_path);
 
-  // Helper for GetSymbolsFromBinary: symbolizes `pc_infos` for `dso_path`.
+  // Helper for `GetSymbolsFromBinary()`: symbolizes `pc_infos` for `dso_path`.
+  // Possibly uses files `pcs_tmp_path` and `symbols_tmp_path` for temporary
+  // storage.
   void GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                             std::string_view dso_path,
                             std::string_view symbolizer_path,
@@ -97,7 +100,7 @@ class SymbolTable {
   // Returns the number of symbol entries.
   size_t size() const { return entries_.size(); }
 
-  // Returns "FunctionName" for idx-th entry.
+  // Returns the function name for idx-th entry.
   std::string_view func(size_t idx) const { return entries_[idx].func; }
 
   Entry entry(size_t idx) const { return entries_[idx]; }
