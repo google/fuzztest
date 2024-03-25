@@ -352,7 +352,7 @@ bool ParseAFLDictionary(std::string_view dictionary_text,
     if (stop == start) return false;  // no closing "
     // Replace special characters and hex values.
     std::string replaced = absl::StrReplaceAll(
-        std::string_view(line.begin() + start, stop - start), replacements);
+        std::string_view(line.data() + start, stop - start), replacements);
     dictionary_entries.emplace_back(replaced.begin(), replaced.end());
   }
   return true;
