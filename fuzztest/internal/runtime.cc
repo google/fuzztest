@@ -802,6 +802,9 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
 
     runtime_.SetRunMode(RunMode::kUnitTest);
 
+    // If crashing inputs are reported, there's no need for a smoke test.
+    if (corpus_database.use_crashing_inputs()) return;
+
     PopulateFromSeeds(/*corpus_files=*/{});
 
     auto duration = absl::Seconds(1);

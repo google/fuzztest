@@ -57,6 +57,8 @@ class CorpusDatabase {
   std::vector<std::string> GetCrashingInputsIfAny(
       absl::string_view test_name) const;
 
+  bool use_crashing_inputs() const { return use_crashing_inputs_; }
+
  private:
   std::string corpus_path_for_test_binary_;
   bool use_coverage_inputs_ = false;
