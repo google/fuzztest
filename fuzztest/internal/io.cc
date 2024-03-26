@@ -75,7 +75,7 @@ std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
 
 #else
 
-bool WriteFile(absl::string_view path, absl::string_view contents) {
+bool WriteFileStd(absl::string_view path, absl::string_view contents) {
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
 
@@ -93,7 +93,7 @@ bool WriteFile(absl::string_view path, absl::string_view contents) {
   return !file.fail();
 }
 
-std::optional<std::string> ReadFile(absl::string_view path) {
+std::optional<std::string> ReadFileStd(absl::string_view path) {
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
 
@@ -102,8 +102,8 @@ std::optional<std::string> ReadFile(absl::string_view path) {
     // Using stderr instead of GetStderr() to avoid initialization-order-fiasco
     // when reading files at static init time with
     // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
-    absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n",
-                  __FILE__, __LINE__, path, errno, strerror(errno));
+    absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
+                  __LINE__, path, errno, strerror(errno));
     return std::nullopt;
   }
   std::stringstream buffer;
@@ -111,21 +111,21 @@ std::optional<std::string> ReadFile(absl::string_view path) {
   return buffer.str();
 }
 
-bool IsDirectory(absl::string_view path) {
+bool IsDirectoryStd(absl::string_view path) {
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
 
   return std::filesystem::is_directory(fs_path);
 }
 
-bool CreateDirectory(absl::string_view path) {
+bool CreateDirectoryStd(absl::string_view path) {
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
 
   return std::filesystem::create_directories(fs_path);
 }
 
-std::vector<std::string> ListDirectory(absl::string_view path) {
+std::vector<std::string> ListDirectoryStd(absl::string_view path) {
   std::vector<std::string> output_paths;
 
   const std::filesystem::path fs_path{
@@ -137,7 +137,7 @@ std::vector<std::string> ListDirectory(absl::string_view path) {
   return output_paths;
 }
 
-std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
+std::vector<std::string> ListDirectoryRecursivelyStd(absl::string_view path) {
   std::vector<std::string> output_paths;
 
   const std::filesystem::path fs_path{
@@ -147,6 +147,28 @@ std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
     output_paths.push_back(entry.path().string());
   }
   return output_paths;
+}
+
+bool WriteFile(absl::string_view path, absl::string_view contents) {
+  return WriteFileStd(path, contents);
+}
+
+std::optional<std::string> ReadFile(absl::string_view path) {
+  return ReadFileStd(path);
+}
+
+bool IsDirectory(absl::string_view path) { return IsDirectoryStd(path); }
+
+bool CreateDirectory(absl::string_view path) {
+  return CreateDirectoryStd(path);
+}
+
+std::vector<std::string> ListDirectory(absl::string_view path) {
+  return ListDirectoryStd(path);
+}
+
+std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
+  return ListDirectoryRecursivelyStd(path);
 }
 
 #endif  // FUZZTEST_STUB_FILESYSTEM
@@ -165,14 +187,14 @@ std::vector<FilePathAndData> ReadFileOrDirectory(
   std::vector<FilePathAndData> out;
 
   const auto try_append_file = [&](std::string path) {
-    std::optional<std::string> contents = ReadFile(path);
+    std::optional<std::string> contents = ReadFileStd(path);
     if (contents.has_value()) {
       out.push_back(FilePathAndData{std::move(path), *std::move(contents)});
     }
   };
-  if (IsDirectory(file_or_dir)) {
-    for (const auto& path : ListDirectoryRecursively(file_or_dir)) {
-      if (!IsDirectory(path)) {
+  if (IsDirectoryStd(file_or_dir)) {
+    for (const auto& path : ListDirectoryRecursivelyStd(file_or_dir)) {
+      if (!IsDirectoryStd(path)) {
         try_append_file(path);
       }
     }
