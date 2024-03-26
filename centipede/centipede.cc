@@ -516,27 +516,25 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
 void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
                                        std::string_view description) {
   if (pc_table_.empty()) return;
-
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(true, absl::Seconds(1), true);
   auto coverage_path = wd_.CoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate coverage report: " << description << " "
+  LOG(INFO) << "Generate coverage report [" << description << "]; "
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
-  Coverage coverage(pc_table_, pci_vec);
-  std::stringstream out;
-  out << "# " << description << ":\n\n";
-  coverage.Print(symbols_, out);
-  RemoteFileSetContents(coverage_path, out.str());
+  RPROF_SNAPSHOT_AND_LOG("");
+  Coverage coverage{pc_table_, pci_vec};
+  coverage.DumpReportToFile(symbols_, coverage_path, description);
+  RPROF_SNAPSHOT_AND_LOG(absl::StrCat(__func__, " file written"));
 }
 
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(true, absl::Seconds(1), true);
   auto stats_path = wd_.CorpusStatsPath(filename_annotation);
-  LOG(INFO) << "Generate corpus stats: " << description << " "
+  LOG(INFO) << "Generate corpus stats [" << description << "]; "
             << VV(stats_path);
-  std::ostringstream os;
-  os << "# " << description << ":\n\n";
-  corpus_.PrintStats(os, fs_);
-  RemoteFileSetContents(stats_path, os.str());
+  corpus_.DumpStatsToFile(fs_, stats_path, description);
+  RPROF_SNAPSHOT_AND_LOG(absl::StrCat(__func__, " file written"));
 }
 
 // TODO(nedwill): add integration test once tests are refactored per b/255660879
@@ -615,6 +613,7 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
 
 void Centipede::MaybeGenerateTelemetry(std::string_view filename_annotation,
                                        std::string_view description) {
+  rusage_profiler_.TakeSnapshot({__FILE__, __LINE__}, "Before telemetry");
   if (env_.DumpCorpusTelemetryInThisShard()) {
     GenerateCoverageReport(filename_annotation, description);
     GenerateCorpusStats(filename_annotation, description);

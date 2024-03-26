@@ -74,10 +74,6 @@ ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
   const auto elts_to_write = ba.size();
   const auto elts_written =
       std::fwrite(ba.data(), elt_size, elts_to_write, file);
-  // Dynamic results of a running pipeline are consumed by itself (shard
-  // cross-pollination) and can be consumed by external processes (monitoring):
-  // ensure files are in valid and readable state after each write.
-  std::fflush(file);
   CHECK_EQ(elts_written, elts_to_write);
 }
 
@@ -87,6 +83,11 @@ void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
                       const std::string &contents) {
   ByteArray contents_ba{contents.cbegin(), contents.cend()};
   RemoteFileAppend(f, contents_ba);
+}
+
+ABSL_ATTRIBUTE_WEAK void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
+  auto *file = reinterpret_cast<FILE *>(f);
+  std::fflush(file);
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileRead(absl::Nonnull<RemoteFile *> f,
