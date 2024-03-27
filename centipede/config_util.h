@@ -51,10 +51,10 @@ using FlagInfosPerSource =
     std::map<std::string /*source_filename*/, std::set<FlagInfo>>;
 
 // Returns a per-source map of all compiled-in flags defined by sources whose
-// relative workspace paths start with `source_prefix`. An empty `source_prefix`
-// returns flags from all sources.
+// relative workspace paths contain `source_fragment`. An empty
+// `source_fragment` returns flags from all sources.
 FlagInfosPerSource GetFlagsPerSource(
-    std::string_view source_prefix = "",
+    std::string_view source_fragment = "",
     const std::set<std::string_view>& exclude_flags = {});
 
 // Returns a string with newline-separated --flag=value tokens for all
