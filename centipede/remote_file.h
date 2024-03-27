@@ -53,7 +53,14 @@ void RemoteFileClose(absl::Nonnull<RemoteFile *> f);
 void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba);
 
 // Appends characters from 'contents' to 'f'.
-void RemoteFileAppend(RemoteFile *f, const std::string &contents);
+void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
+                      const std::string &contents);
+
+// Flushes the file's internal buffer. Some dynamic results of a running
+// pipeline are consumed by itself (e.g. shard cross-pollination) and can be
+// consumed by external processes (e.g. monitoring): for such files, call this
+// API after every write to ensure that they are in a valid state.
+void RemoteFileFlush(absl::Nonnull<RemoteFile *> f);
 
 // Reads all current contents of 'f' into 'ba'.
 void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba);

@@ -217,7 +217,10 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
     }
     file.file = RemoteFileOpen(filename, append ? "a" : "w");
     CHECK(file.file != nullptr) << VV(filename);
-    if (!append) RemoteFileAppend(file.file, csv_header_);
+    if (!append) {
+      RemoteFileAppend(file.file, csv_header_);
+      RemoteFileFlush(file.file);
+    }
   }
   curr_file_ = &file;
 }
@@ -258,6 +261,7 @@ void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
 void StatsCsvFileAppender::DoneFieldSamplesBatch() {
   for (auto &&[group_name, file] : files_) {
     RemoteFileAppend(file.file, absl::StrCat(file.buffer, "\n"));
+    RemoteFileFlush(file.file);
     file.buffer.clear();
   }
 }

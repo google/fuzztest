@@ -132,6 +132,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     ByteArray bytes(blob.begin(), blob.end());
     ByteArray packed = PackBytesForAppendFile(bytes);
     RemoteFileAppend(file_, packed);
+    RemoteFileFlush(file_);
     return absl::OkStatus();
   }
 
