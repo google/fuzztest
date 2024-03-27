@@ -16,6 +16,7 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {
   std::vector<std::tuple<std::string>> out;
   const std::filesystem::path fs_dir(dir);
+  if (!std::filesystem::is_directory(fs_dir)) return out;
   for (const auto& entry :
        std::filesystem::recursive_directory_iterator(fs_dir)) {
     if (std::filesystem::is_directory(entry)) continue;
