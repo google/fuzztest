@@ -365,6 +365,7 @@ fuzztest_cc_library(
     fuzztest::runtime
     absl::strings
     absl::string_view
+    absl::str_format
     GTest::gtest
 )
 

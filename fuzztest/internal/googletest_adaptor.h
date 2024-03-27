@@ -123,6 +123,10 @@ class GTest_EventListener : public Base {
 void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv,
                                     const Configuration& configuration);
 
+// Set listing mode validator for GoogleTest to check that fuzz test listing was
+// properly handled.
+void SetFuzzTestListingModeValidatorForGoogleTest(bool listing_mode);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_

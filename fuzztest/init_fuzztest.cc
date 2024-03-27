@@ -29,7 +29,11 @@ FUZZTEST_DEFINE_FLAG(
     bool, list_fuzz_tests, false,
     "Prints (to stdout) the list of all available FUZZ_TEST-s in the "
     "binary and exits. I.e., prints the test names that can be run with "
-    "the flag `--" FUZZTEST_FLAG_PREFIX "fuzz=<test name>`.");
+    "the flag `--" FUZZTEST_FLAG_PREFIX "fuzz=<test name>`.")
+    .OnUpdate([]() {
+      fuzztest::internal::SetFuzzTestListingModeValidatorForGoogleTest(
+          absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests)));
+    });
 
 static constexpr absl::string_view kUnspecified = "<unspecified>";
 

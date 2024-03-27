@@ -416,10 +416,12 @@ cc_library(
     deps = [
         ":configuration",
         ":corpus_database",
+        ":flag_name",
         ":io",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest",
     ],

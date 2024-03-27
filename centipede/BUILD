@@ -15,8 +15,8 @@
 # Description:
 #   Centipede: an experimental distributed fuzzing engine.
 
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
 VISIBILITY = ["//visibility:public"]
