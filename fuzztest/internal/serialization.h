@@ -17,7 +17,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -32,20 +31,6 @@
 #include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
-
-// Template predicates for special handling in serialziation. The definitions
-// here may be too specific to put into meta.h.
-template <typename T>
-inline constexpr bool is_bytevector_v = false;
-
-template <>
-inline constexpr bool is_bytevector_v<std::vector<int8_t>> = true;
-
-template <>
-inline constexpr bool is_bytevector_v<std::vector<uint8_t>> = true;
-
-template <>
-inline constexpr bool is_bytevector_v<std::vector<std::byte>> = true;
 
 struct IRObject;
 
@@ -169,7 +154,6 @@ struct IRObject {
     } else if constexpr (is_variant_v<T>) {
       IRObject obj;
       auto& v = obj.MutableSubs();
-      v.reserve(2);
       v.emplace_back(value.index());
       v.push_back(
           std::visit([](const auto& v) { return FromCorpus(v); }, value));
@@ -183,20 +167,15 @@ struct IRObject {
     } else if constexpr (is_bitvector_v<T>) {
       IRObject obj;
       auto& v = obj.MutableSubs();
-      v.reserve(value.size());
       // Force conversion to bool. The `is_dynamic_container_v` case allows elem
       // to keep the bit iterator type, which IRObject doesn't understand.
       for (bool elem : value) {
         v.push_back(IRObject(elem));
       }
       return obj;
-    } else if constexpr (is_bytevector_v<T>) {
-      return IRObject(std::string(reinterpret_cast<const char*>(value.data()),
-                                  value.size()));
     } else if constexpr (is_dynamic_container_v<T>) {
       IRObject obj;
       auto& v = obj.MutableSubs();
-      if constexpr (has_size_v<T>) v.reserve(value.size());
       for (const auto& elem : value) {
         v.push_back(FromCorpus(elem));
       }
@@ -207,7 +186,6 @@ struct IRObject {
           [](const auto&... elem) {
             IRObject obj;
             auto& v = obj.MutableSubs();
-            v.reserve(sizeof...(elem));
             (v.push_back(FromCorpus(elem)), ...);
             return obj;
           },
@@ -253,16 +231,6 @@ struct IRObject {
       if (v && out.ParseFromString(*v)) return out;
       return std::nullopt;
     } else if constexpr (is_dynamic_container_v<T>) {
-      if constexpr (is_bytevector_v<T>) {
-        const std::string* v = std::get_if<std::string>(&value);
-        if (v) {
-          T out;
-          out.resize(v->size());
-          std::memcpy(out.data(), v->data(), v->size());
-          return out;
-        }
-      }
-
       auto elems = Subs();
       if (!elems) return std::nullopt;
 
@@ -294,7 +262,7 @@ struct IRObject {
 
   // Serialize the object as a string. This is used to persist the object on
   // files for reproducing bugs later.
-  std::string ToString(bool binary_format = false) const;
+  std::string ToString() const;
   static std::optional<IRObject> FromString(absl::string_view str);
 
  private:
