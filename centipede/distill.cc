@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -199,6 +200,9 @@ class CorpusShardWriter {
 
  private:
   void WriteEltImpl(CorpusElt elt) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+    const std::string hash = Hash(elt.input);
+    const auto [iter, inserted] = input_hashes_.insert(hash);
+    if (!inserted) return;
     ++stats_.num_total_elts;
     const auto preprocessed_elt = PreprocessElt(std::move(elt));
     if (preprocessed_elt.has_value()) {
@@ -219,6 +223,7 @@ class CorpusShardWriter {
   mutable absl::Mutex mu_;
   std::unique_ptr<BlobFileWriter> corpus_writer_ ABSL_GUARDED_BY(mu_);
   std::unique_ptr<BlobFileWriter> feature_writer_ ABSL_GUARDED_BY(mu_);
+  absl::flat_hash_set<std::string> input_hashes_ ABSL_GUARDED_BY(mu_);
   Stats stats_ ABSL_GUARDED_BY(mu_);
 };
 
