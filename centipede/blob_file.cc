@@ -127,10 +127,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   absl::Status Write(ByteSpan blob) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
-    // TODO(kcc): [as-needed] This copy from a span to vector is clumsy. Change
-    //  RemoteFileAppend to accept a span.
-    ByteArray bytes(blob.begin(), blob.end());
-    ByteArray packed = PackBytesForAppendFile(bytes);
+    ByteArray packed = PackBytesForAppendFile(blob);
     RemoteFileAppend(file_, packed);
     RemoteFileFlush(file_);
     return absl::OkStatus();

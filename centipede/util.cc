@@ -219,17 +219,17 @@ static_assert(sizeof(kPackEndMagic) == kMagicLen + 1);
 //
 // This is simple and efficient, but I wonder if there is a ready-to-use
 // standard open-source alternative. Or should we just use tar?
-ByteArray PackBytesForAppendFile(const ByteArray &data) {
+ByteArray PackBytesForAppendFile(ByteSpan blob) {
   ByteArray res;
-  auto hash = Hash(data);
+  auto hash = Hash(blob);
   CHECK_EQ(hash.size(), kHashLen);
-  size_t size = data.size();
+  size_t size = blob.size();
   uint8_t size_bytes[sizeof(size)];
   memcpy(size_bytes, &size, sizeof(size));
   res.insert(res.end(), &kPackBegMagic[0], &kPackBegMagic[kMagicLen]);
   res.insert(res.end(), hash.begin(), hash.end());
   res.insert(res.end(), &size_bytes[0], &size_bytes[sizeof(size_bytes)]);
-  res.insert(res.end(), data.begin(), data.end());
+  res.insert(res.end(), blob.begin(), blob.end());
   res.insert(res.end(), &kPackEndMagic[0], &kPackEndMagic[kMagicLen]);
   return res;
 }
@@ -295,7 +295,7 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
   return feature_bytes_with_hash;
 }
 
-std::string UnpackFeaturesAndHash(const ByteSpan &blob,
+std::string UnpackFeaturesAndHash(ByteSpan blob,
                                   absl::Nonnull<FeatureVec *> features) {
   size_t features_len_in_bytes = blob.size() - kHashLen;
   features->resize(features_len_in_bytes / sizeof(feature_t));

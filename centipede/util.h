@@ -139,10 +139,10 @@ void RemoveSubset(const std::vector<size_t> &subset_indices,
 // appended to another such packed data and then the operation can be reversed.
 // The purpose is to allow appending blobs of data to a (possibly remote) file
 // such that when reading this file we can separate the blobs.
-// TODO(kcc): [impl] is there a lightweight equivalent in the open-source world?
-//  tar sounds too heavy.
-// TODO(kcc): [impl] investigate https://github.com/google/riegeli.
-ByteArray PackBytesForAppendFile(const ByteArray &data);
+// NOTE: The now-default blob file format (Riegeli) doesn't need this, but some
+// external clients continue to use plain blob files and are unlikely to switch
+// (e.g. Chromium).
+ByteArray PackBytesForAppendFile(ByteSpan blob);
 // Unpacks `packed_data` into `unpacked` and `hashes`.
 // `packed_data` is multiple data packed by PackBytesForAppendFile()
 // and merged together.
@@ -166,7 +166,7 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
 
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
 // `features` and return the hash.
-std::string UnpackFeaturesAndHash(const ByteSpan &blob,
+std::string UnpackFeaturesAndHash(ByteSpan blob,
                                   absl::Nonnull<FeatureVec *> features);
 
 // Parses `dictionary_text` representing an AFL/libFuzzer dictionary.
