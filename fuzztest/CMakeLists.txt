@@ -45,6 +45,8 @@ fuzztest_cc_library(
     fuzztest_macros
   HDRS
     "fuzztest_macros.h"
+  SRCS
+    "fuzztest_macros.cc"
   DEPS
     fuzztest::io
     fuzztest::registration

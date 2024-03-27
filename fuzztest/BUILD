@@ -57,6 +57,7 @@ cc_library(
 
 cc_library(
     name = "fuzztest_macros",
+    srcs = ["fuzztest_macros.cc"],
     hdrs = [
         "fuzztest_macros.h",
     ],
@@ -64,6 +65,7 @@ cc_library(
         ":io",
         ":registration",
         ":registry",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
