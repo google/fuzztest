@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -129,10 +130,14 @@ class InputCorpusShardReader {
             << VV(corpus_path) << "\n"
             << VV(features_path);
     CorpusEltVec elts;
+    absl::flat_hash_set<std::string> input_hashes;
     // Read elements from the current shard.
     centipede::ReadShard(  //
         corpus_path, features_path,
-        [&elts](ByteArray input, FeatureVec features) {
+        [&elts, &input_hashes](ByteArray input, FeatureVec features) {
+          const std::string hash = Hash(input);
+          if (input_hashes.contains(hash)) return;
+          input_hashes.insert(hash);
           elts.emplace_back(std::move(input), std::move(features));
         });
     return elts;
