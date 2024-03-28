@@ -190,8 +190,8 @@ std::filesystem::path MaybeSaveConfigToFile(
         FLAGS_update_config.Name(),
         FLAGS_print_config.Name(),
     };
-    const FlagInfosPerSource flags = GetFlagsPerSource(
-        "third_party/googlefuzztest/centipede/", excluded_flags);
+    const FlagInfosPerSource flags =
+        GetFlagsPerSource("centipede", excluded_flags);
     const std::string flags_str = FormatFlagfileString(
         flags, DefaultedFlags::kCommentedOut, FlagComments::kHelpAndDefault);
     std::string file_contents;
@@ -258,8 +258,7 @@ std::unique_ptr<RuntimeState> InitCentipede(  //
 
   // Log the final resolved config.
   if (absl::GetFlag(FLAGS_print_config)) {
-    const FlagInfosPerSource flags =
-        GetFlagsPerSource("third_party/googlefuzztest/centipede/");
+    const FlagInfosPerSource flags = GetFlagsPerSource("centipede");
     const std::string flags_str = FormatFlagfileString(
         flags, DefaultedFlags::kCommentedOut, FlagComments::kNone);
     LOG(INFO) << "Final resolved config:\n" << flags_str;
