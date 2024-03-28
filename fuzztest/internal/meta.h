@@ -201,6 +201,10 @@ inline constexpr bool is_protocol_buffer_enum_v =
     IsProtocolBufferEnumImpl<T>(true);
 
 template <typename T>
+inline constexpr bool has_size_v =
+    Requires<T>([](auto v) -> decltype(v.size()) {});
+
+template <typename T>
 inline constexpr bool is_dynamic_container_v =
     Requires<T>([](auto v) -> decltype(v.insert(v.end(), *v.begin())) {});
 
