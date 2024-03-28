@@ -44,10 +44,6 @@
 
 namespace centipede {
 
-bool SymbolTable::operator==(const SymbolTable &other) const {
-  return this->entries_ == other.entries_;
-}
-
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   // NOTE: This function is used in a multithreaded context. Reading the whole
   // file at once prevents threads from being blocked by other threads' IO
@@ -60,11 +56,6 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
 
   std::vector<std::string_view> lines = absl::StrSplit(buffer, '\n');
   absl::Span<std::string_view> lines_view{lines};
-
-  constexpr std::string_view file_prefixes_to_remove[] = {
-      "/proc/self/cwd/",
-      "./",
-  };
 
   // Symbolizer output always ends with a '\n', let's strip that as well.
   // Note that this is different than the mandatory blank line after each
@@ -84,8 +75,8 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
     std::string_view empty = lines_view[2];
     CHECK(empty.empty()) << "Unexpected symbolizer output format: " << VV(func)
                          << VV(file) << VV(empty);
-    for (auto &bad_prefix : file_prefixes_to_remove) {
-      file = absl::StripPrefix(file, bad_prefix);
+    for (auto &useless_prefix : {"/proc/self/cwd/", "./"}) {
+      file = absl::StripPrefix(file, useless_prefix);
     }
     AddEntry(func, file);
 
@@ -108,10 +99,10 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                                        std::string_view tmp_dir_path) {
   static std::atomic_size_t unique_id = 0;
   size_t unique_id_value = unique_id.fetch_add(1);
-  std::string dso_basename = std::filesystem::path{dso_path}.filename();
-  ScopedFile pcs_file{tmp_dir_path,
-                      absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
-  ScopedFile symbols_file{
+  const std::string dso_basename = std::filesystem::path{dso_path}.filename();
+  const ScopedFile pcs_file{
+      tmp_dir_path, absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
+  const ScopedFile symbols_file{
       tmp_dir_path, absl::StrCat(dso_basename, ".symbols.", unique_id_value)};
 
   // Create the input file (one PC per line).
@@ -120,33 +111,40 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
     absl::StrAppend(&pcs_string, "0x", absl::Hex(pc_info.pc), "\n");
   }
   WriteToLocalFile(pcs_file.path(), pcs_string);
-  // Run the symbolizer.
-  Command cmd(symbolizer_path,
-              {
-                  "--no-inlines",
-                  "-e",
-                  std::string(dso_path),
-                  "<",
-                  std::string(pcs_file.path()),
-              },
-              /*env=*/{}, symbols_file.path());
 
+  // Run the symbolizer.
   LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
             << dso_basename;
-
+  Command cmd{
+      symbolizer_path,
+      {
+          "--no-inlines",
+          "-e",
+          std::string(dso_path),
+          "<",
+          std::string(pcs_file.path()),
+      },
+      /*env=*/{},
+      symbols_file.path(),
+  };
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "system() failed: " << VV(cmd.ToString()) << VV(exit_code);
+    LOG(ERROR) << "Symbolization failed, debug symbols will not be used: "
+               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code);
     return;
   }
+
   // Get and process the symbolizer output.
-  std::ifstream symbolizer_output(std::string{symbols_file.path()});
+  std::ifstream symbolizer_output{std::string{symbols_file.path()}};
   size_t old_size = size();
   ReadFromLLVMSymbolizer(symbolizer_output);
   size_t new_size = size();
   size_t added_size = new_size - old_size;
-  if (added_size != pc_infos.size())
-    LOG(ERROR) << "Symbolization failed: debug symbols will not be used";
+  if (added_size != pc_infos.size()) {
+    LOG(ERROR) << "Symbolization failed: debug symbols will not be used: "
+               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code)
+               << VV(pc_infos.size()) << VV(added_size);
+  }
 }
 
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
@@ -237,6 +235,12 @@ void SymbolTable::AddEntry(std::string_view func,
   AddEntryInternal(func, file_line_col_split[0], line, col);
 }
 
+void SymbolTable::AddEntries(const SymbolTable &other) {
+  for (const auto &entry : other.entries_) {
+    AddEntryInternal(entry.func, entry.file, entry.line, entry.col);
+  }
+}
+
 void SymbolTable::AddEntryInternal(std::string_view func, std::string_view file,
                                    int line, int col) {
   entries_.emplace_back(Entry{GetOrInsert(func), GetOrInsert(file), line, col});
@@ -244,12 +248,6 @@ void SymbolTable::AddEntryInternal(std::string_view func, std::string_view file,
 
 std::string_view SymbolTable::GetOrInsert(std::string_view str) {
   return *table_.insert(std::string{str}).first;
-}
-
-void SymbolTable::AddEntries(const SymbolTable &other) {
-  for (const auto &entry : other.entries_) {
-    AddEntryInternal(entry.func, entry.file, entry.line, entry.col);
-  }
 }
 
 }  // namespace centipede
