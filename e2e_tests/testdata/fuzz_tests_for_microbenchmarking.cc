@@ -141,7 +141,8 @@ __attribute__((optnone)) void StringView(std::string_view in) {
     std::abort();
   }
 }
-FUZZ_TEST(MySuite, StringView);
+FUZZ_TEST(MySuite, StringView)
+    .WithDomains(fuzztest::Arbitrary<std::string>().WithMaxSize(20));
 
 __attribute__((optnone)) void StrCmp(const std::string& s) {
   if (strcmp(s.c_str(), "Hello!") == 0) {
