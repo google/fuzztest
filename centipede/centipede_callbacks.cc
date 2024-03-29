@@ -220,22 +220,23 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   return retval;
 }
 
-// See also: DumpSeedsToDir().
+// See also: `DumpSeedsToDir()`.
 bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     std::string_view binary, size_t &num_avail_seeds,
     std::vector<ByteArray> &seeds) {
-  const auto output_dir = std::filesystem::path(temp_dir_) / "seed_inputs";
+  const auto output_dir = std::filesystem::path{temp_dir_} / "seed_inputs";
   std::error_code error;
   CHECK(std::filesystem::create_directories(output_dir, error));
   CHECK(!error);
 
-  Command cmd(binary, {},
+  Command cmd{binary,
+              {},
               {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
                             output_dir.string(), ":")},
               /*out=*/execute_log_path_,
               /*err=*/execute_log_path_,
               /*timeout=*/absl::InfiniteDuration(),
-              /*temp_file_path=*/temp_input_file_path_);
+              /*temp_file_path=*/temp_input_file_path_};
   const int retval = cmd.Execute();
 
   std::vector<std::string> seed_input_filenames;
@@ -257,6 +258,35 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   std::filesystem::remove_all(output_dir);
 
   return retval == 0;
+}
+
+// See also: `DumpSerializedTargetConfigToFile()`.
+bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
+    std::string_view binary, std::string &serialized_config) {
+  const auto config_file_path =
+      std::filesystem::path{temp_dir_} / "configuration";
+  Command cmd{binary,
+              {},
+              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
+                            config_file_path.string(), ":")},
+              /*out=*/execute_log_path_,
+              /*err=*/execute_log_path_,
+              /*timeout=*/absl::InfiniteDuration(),
+              /*temp_file_path=*/temp_input_file_path_};
+  const bool is_success = cmd.Execute() == 0;
+
+  if (is_success) {
+    if (std::filesystem::exists(config_file_path)) {
+      ReadFromLocalFile(config_file_path.string(), serialized_config);
+    } else {
+      serialized_config = "";
+    }
+  }
+  std::error_code error;
+  std::filesystem::remove(config_file_path, error);
+  CHECK(!error);
+
+  return is_success;
 }
 
 // See also: MutateInputsFromShmem().

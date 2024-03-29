@@ -15,6 +15,7 @@
 #include "./centipede/centipede_default_callbacks.h"
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -55,6 +56,15 @@ size_t CentipedeDefaultCallbacks::GetSeeds(size_t num_seeds,
     return num_seeds;
   else
     return CentipedeCallbacks::GetSeeds(num_seeds, seeds);
+}
+
+std::string CentipedeDefaultCallbacks::GetSerializedTargetConfig() {
+  std::string serialized_target_config;
+  if (GetSerializedTargetConfigViaExternalBinary(env_.binary,
+                                                 serialized_target_config)) {
+    return serialized_target_config;
+  }
+  return CentipedeCallbacks::GetSerializedTargetConfig();
 }
 
 void CentipedeDefaultCallbacks::Mutate(

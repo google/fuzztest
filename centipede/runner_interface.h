@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -125,6 +126,9 @@ class RunnerCallbacks {
   // Generates seed inputs by calling `seed_callback` for each input.
   // The default implementation generates a single-byte input {0}.
   virtual void GetSeeds(std::function<void(ByteSpan)> seed_callback);
+  // Returns the serialized configuration from the test target. The default
+  // implementation returns the empty string.
+  virtual std::string GetSerializedTargetConfig();
   // Generates at most `num_mutants` mutants by calling `new_mutant_callback`
   // for each mutant. Returns true on success, false otherwise.
   //

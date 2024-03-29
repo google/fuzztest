@@ -41,6 +41,7 @@
 #include <ctime>
 #include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -536,6 +537,8 @@ void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
   seed_callback({0});
 }
 
+std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
+
 class LegacyRunnerCallbacks : public RunnerCallbacks {
  public:
   LegacyRunnerCallbacks(FuzzerTestOneInputCallback test_one_input_cb,
@@ -774,7 +777,7 @@ static void DumpDsoTable(absl::Nonnull<const char *> output_path) {
   fclose(output_file);
 }
 
-// Dumps seed inputs to `output_dir`. Also see GetSeedsViaExternalBinary().
+// Dumps seed inputs to `output_dir`. Also see `GetSeedsViaExternalBinary()`.
 static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
   size_t seed_index = 0;
   callbacks.GetSeeds([&](ByteSpan seed) {
@@ -794,6 +797,20 @@ static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
     fclose(output_file);
     ++seed_index;
   });
+}
+
+// Dumps serialized target config to `output_file_path`. Also see
+// `GetSerializedTargetConfigViaExternalBinary()`.
+static void DumpSerializedTargetConfigToFile(RunnerCallbacks &callbacks,
+                                             const char *output_file_path) {
+  const std::string config = callbacks.GetSerializedTargetConfig();
+  FILE *output_file = fopen(output_file_path, "w");
+  const size_t num_bytes_written =
+      fwrite(config.data(), 1, config.size(), output_file);
+  PrintErrorAndExitIf(
+      num_bytes_written != config.size(),
+      "wrong number of bytes written for serialized target configuration");
+  fclose(output_file);
 }
 
 // Returns a random seed. No need for a more sophisticated seed.
@@ -1030,6 +1047,12 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
           argv[0], state.centipede_runner_flags);
+
+  if (state.HasFlag(":dump_configuration:")) {
+    DumpSerializedTargetConfigToFile(callbacks,
+                                     /*output_file_path=*/state.arg1);
+    return EXIT_SUCCESS;
+  }
 
   if (state.HasFlag(":dump_seed_inputs:")) {
     // Seed request.

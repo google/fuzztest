@@ -1717,6 +1717,7 @@ cc_test(
     data = [
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
         "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:fuzz_target_with_config",
         "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",

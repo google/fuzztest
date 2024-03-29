@@ -867,6 +867,14 @@ TEST(Centipede, GetsSeedInputs) {
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
+TEST(Centipede, GetsSerializedTargetConfig) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
+  CentipedeDefaultCallbacks callbacks(env);
+  EXPECT_EQ(callbacks.GetSerializedTargetConfig(), "fake serialized config");
+}
+
 TEST(Centipede, CleansUpMetadataAfterStartup) {
   Environment env;
   env.binary = GetDataDependencyFilepath(

@@ -44,6 +44,29 @@ centipede_fuzz_target(
     name = "expensive_startup_fuzz_target",
 )
 
+# Fuzz target that uses the C++ RunnerCallbacks API to return serialized config.
+cc_binary(
+    name = "_fuzz_target_with_config",
+    srcs = ["fuzz_target_with_config.cc"],
+    # Cannot be built directly - build :fuzz_target_with_config instead.
+    tags = [
+        "local",
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_fuzztest//centipede:centipede_runner_no_main",
+        "@com_google_fuzztest//centipede:defs",
+        "@com_google_fuzztest//centipede:mutation_input",
+    ],
+)
+
+centipede_fuzz_target(
+    name = "fuzz_target_with_config",
+    fuzz_target = "_fuzz_target_with_config",
+)
+
 centipede_fuzz_target(
     name = "minimize_me_fuzz_target",
 )

@@ -196,6 +196,10 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     }
   }
 
+  std::string GetSerializedTargetConfig() override {
+    return configuration_.Serialize();
+  }
+
   bool Mutate(
       const std::vector<centipede::MutationInputRef>& inputs,
       size_t num_mutants,
@@ -349,6 +353,10 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
       }
     });
     return num_avail_seeds;
+  }
+
+  std::string GetSerializedTargetConfig() override {
+    return runner_callbacks_.GetSerializedTargetConfig();
   }
 
   void Mutate(const std::vector<centipede::MutationInputRef>& inputs,
