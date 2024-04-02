@@ -294,7 +294,7 @@ struct IRObject {
 
   // Serialize the object as a string. This is used to persist the object on
   // files for reproducing bugs later.
-  std::string ToString(bool binary_format = false) const;
+  std::string ToString(bool binary_format = true) const;
   static std::optional<IRObject> FromString(absl::string_view str);
 
  private:
