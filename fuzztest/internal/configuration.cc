@@ -124,7 +124,8 @@ std::string Configuration::Serialize() const {
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(stack_limit) +
              SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
-             SpaceFor(crashing_input_to_reproduce));
+             SpaceFor(crashing_input_to_reproduce) +
+             SpaceFor(reproduction_command_template));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, binary_identifier);
@@ -134,6 +135,7 @@ std::string Configuration::Serialize() const {
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
+  offset = WriteOptionalString(out, offset, reproduction_command_template);
   CHECK_EQ(offset, out.size());
   return out;
 }
@@ -150,6 +152,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(crashing_input_to_reproduce,
+                     ConsumeOptionalString(serialized));
+    ASSIGN_OR_RETURN(reproduction_command_template,
                      ConsumeOptionalString(serialized));
     if (!serialized.empty()) {
       return absl::InvalidArgumentError(
@@ -168,7 +172,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *stack_limit,
                          *rss_limit,
                          time_limit_per_input,
-                         *std::move(crashing_input_to_reproduce)};
+                         *std::move(crashing_input_to_reproduce),
+                         *std::move(reproduction_command_template)};
   }();
 }
 

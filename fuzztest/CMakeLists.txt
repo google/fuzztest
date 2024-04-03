@@ -79,6 +79,7 @@ fuzztest_cc_library(
     fuzztest::registry
     fuzztest::runtime
     absl::flags
+    absl::flags_reflection
     absl::strings
     absl::str_format
     absl::time
@@ -507,6 +508,7 @@ fuzztest_cc_library(
     fuzztest::type_support
     absl::any_invocable
     absl::function_ref
+    absl::check
     absl::random_random
     absl::random_bit_gen_ref
     absl::random_distributions

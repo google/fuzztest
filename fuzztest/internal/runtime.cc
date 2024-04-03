@@ -36,13 +36,16 @@
 #include <vector>
 
 #include "absl/functional/function_ref.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -99,6 +102,30 @@ void Runtime::PrintFinalStats(RawSink out) const {
   absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
   absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
 }
+
+namespace {
+
+// Returns a reproduction command for replaying
+// `configuration.crashing_input_to_reproduce` from a command line, using the
+// `configuration.reproduction_command_template`.
+std::optional<std::string> GetReproductionCommand(
+    const Configuration& configuration) {
+  if (!configuration.reproduction_command_template.has_value()) {
+    return std::nullopt;
+  }
+  if (!configuration.crashing_input_to_reproduce.has_value()) {
+    return std::nullopt;
+  }
+  CHECK(absl::StrContains(*configuration.reproduction_command_template,
+                          kTestFilterPlaceholder));
+  return absl::StrReplaceAll(
+      *configuration.reproduction_command_template,
+      {{kTestFilterPlaceholder,
+        absl::StrCat("*",
+                     Basename(*configuration.crashing_input_to_reproduce))}});
+}
+
+}  // namespace
 
 void Runtime::PrintReport(RawSink out) const {
   // We don't want to try and print a fuzz report when we are not running a fuzz
@@ -157,6 +184,14 @@ void Runtime::PrintReport(RawSink out) const {
           });
       absl::Format(out, "\n  );\n");
       absl::Format(out, "}\n");
+    }
+    if (current_configuration_ != nullptr) {
+      const auto reproduction_command =
+          GetReproductionCommand(*current_configuration_);
+      if (reproduction_command.has_value()) {
+        absl::Format(out, "%s=== Reproduction command\n\n", separator);
+        absl::Format(out, "%s\n\n", *reproduction_command);
+      }
     }
   } else {
     absl::Format(out, "%s=== SETUP FAILURE!\n\n", separator);

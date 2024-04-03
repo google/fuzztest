@@ -25,7 +25,8 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->crashing_input_to_reproduce;
 }
 
-TEST(ConfigurationTest, DeserializeYieldsSerializedConfiguration) {
+TEST(ConfigurationTest,
+     DeserializeYieldsSerializedConfigurationWithoutOptionalValues) {
   Configuration configuration{"corpus_database",
                               "binary_identifier",
                               /*reproduce_findings_as_separate_tests=*/true,
@@ -33,14 +34,15 @@ TEST(ConfigurationTest, DeserializeYieldsSerializedConfiguration) {
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
-                              /*crashing_input_to_reproduce=*/std::nullopt};
+                              /*crashing_input_to_reproduce=*/std::nullopt,
+                              /*reproduction_command_template=*/std::nullopt};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));
 }
 
 TEST(ConfigurationTest,
-     DeserializeYieldsSerializedConfigurationWithCrashingInput) {
+     DeserializeYieldsSerializedConfigurationWithOptionalValues) {
   Configuration configuration{"corpus_database",
                               "binary_identifier",
                               /*reproduce_findings_as_separate_tests=*/true,
@@ -48,7 +50,8 @@ TEST(ConfigurationTest,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
-                              "crashing_input_to_reproduce"};
+                              "crashing_input_to_reproduce",
+                              "reproduction_command_template"};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));

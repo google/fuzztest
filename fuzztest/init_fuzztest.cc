@@ -3,15 +3,18 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
@@ -211,8 +214,10 @@ void InitFuzzTest(int* argc, char*** argv) {
   }
 
   std::string binary_identifier = std::string(internal::Basename(*argv[0]));
+  std::optional<std::string> reproduction_command_template;
   internal::Configuration configuration =
       CreateConfigurationsFromFlags(binary_identifier);
+  configuration.reproduction_command_template = reproduction_command_template;
   internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified

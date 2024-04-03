@@ -51,6 +51,11 @@ struct Configuration {
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
 
+  // A command template that could be used to replay a crashing input.
+  // The reproduction command template must have the following place holders:
+  // - $TEST_FILTER: for replaying only a subset of the tests in a binary.
+  std::optional<std::string> reproduction_command_template;
+
   // Preprocessing step for reproducing crashing input.
   // Note: This field is not serialized and deserialized.
   // TODO(b/329709054): Consider eliminating the field.
