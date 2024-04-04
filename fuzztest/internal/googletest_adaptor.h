@@ -65,8 +65,12 @@ class GTest_TestAdaptor : public ::testing::Test {
         // `EXPECT_EXIT` so that the test exit unsuccessfully, meaning that the
         // test below fails without terminating the process.
 #ifdef GTEST_HAS_DEATH_TEST
-        EXPECT_EXIT((test->RunInUnitTestMode(configuration_), std::exit(0)),
-                    ::testing::ExitedWithCode(0), "");
+        EXPECT_EXIT(
+            (test->RunInUnitTestMode(configuration_),
+             void(
+                 R"( FuzzTest failure! Please see 'actual message' below for the crash report. )"),
+             std::exit(0)),
+            ::testing::ExitedWithCode(0), "");
 #else
         EXPECT_TRUE(false) << "Death test is not supported.";
 #endif
