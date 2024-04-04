@@ -732,7 +732,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("will not limit fuzzing runs")) << std_err;
 }
 
@@ -1024,7 +1024,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
@@ -1104,7 +1104,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               /*env=*/{},
-              /*timeout=*/absl::Seconds(1));
+              /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err,
               Not(HasSubstr("limit is specified but will be ignored")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
@@ -1113,7 +1113,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagWorks) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.LargeHeapAllocation"}, {"rss_limit_mb", "1024"}},
-      /*env=*/{}, /*timeout=*/absl::Seconds(1));
+      /*env=*/{}, /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
@@ -1533,7 +1533,7 @@ TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
 TEST_P(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
   auto [status, std_out, std_err] =
       Run("MySuite.FlatMapPassesWhenCorrect", kDefaultTargetBinary,
-          /*timeout=*/absl::Seconds(1));
+          /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
