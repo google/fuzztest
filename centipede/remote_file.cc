@@ -67,6 +67,11 @@ ABSL_ATTRIBUTE_WEAK void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
   std::fclose(reinterpret_cast<FILE *>(f));
 }
 
+ABSL_ATTRIBUTE_WEAK void RemoteFileSetWriteBufferSize(
+    absl::Nonnull<RemoteFile *> f, size_t size) {
+  // NOTE: A no-op for now.
+}
+
 ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
                                           const ByteArray &ba) {
   auto *file = reinterpret_cast<FILE *>(f);
