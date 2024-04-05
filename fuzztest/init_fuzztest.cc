@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -164,6 +165,7 @@ internal::Configuration CreateConfigurationsFromFlags(
   return internal::Configuration{
       absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
       std::string(binary_identifier),
+      /*fuzz_tests=*/ListRegisteredTests(),
       reproduce_findings_as_separate_tests,
       absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,

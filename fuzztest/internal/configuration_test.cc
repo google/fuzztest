@@ -15,6 +15,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
   const absl::StatusOr<Configuration>& other = arg;
   return other.ok() && config.corpus_database == other->corpus_database &&
          config.binary_identifier == other->binary_identifier &&
+         config.fuzz_tests == other->fuzz_tests &&
          config.reproduce_findings_as_separate_tests ==
              other->reproduce_findings_as_separate_tests &&
          config.replay_coverage_inputs == other->replay_coverage_inputs &&
@@ -22,13 +23,16 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.rss_limit == other->rss_limit &&
          config.time_limit_per_input == other->time_limit_per_input &&
          config.crashing_input_to_reproduce ==
-             other->crashing_input_to_reproduce;
+             other->crashing_input_to_reproduce &&
+         config.reproduction_command_template ==
+             other->reproduction_command_template;
 }
 
 TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithoutOptionalValues) {
   Configuration configuration{"corpus_database",
                               "binary_identifier",
+                              /*fuzz_tests=*/{},
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/false,
                               /*stack_limit=*/100,
@@ -45,6 +49,7 @@ TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithOptionalValues) {
   Configuration configuration{"corpus_database",
                               "binary_identifier",
+                              {"FuzzTest1", "FuzzTest2"},
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/false,
                               /*stack_limit=*/100,
