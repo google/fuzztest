@@ -39,7 +39,7 @@ cc_binary(
 )
 
 # This binary contains "puzzles" with proto inputs for benchmarking purposes.
-cc_binary(
+cc_test(
     name = "fuzz_tests_with_proto_inputs",
     testonly = 1,
     srcs = ["fuzz_tests_with_proto_inputs.cc"],
