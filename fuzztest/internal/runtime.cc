@@ -97,10 +97,12 @@ void Runtime::PrintFinalStats(RawSink out) const {
   const absl::Duration fuzzing_time = clock_fn_() - stats_->start_time;
   absl::Format(out, "Elapsed time: %s\n", absl::FormatDuration(fuzzing_time));
   absl::Format(out, "Total runs: %d\n", stats_->runs);
+#ifndef FUZZTEST_USE_CENTIPEDE
   absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
   absl::Format(out, "Total edges: %d\n", stats_->total_edges);
   absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
   absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
+#endif
 }
 
 namespace {
