@@ -1026,7 +1026,6 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               /*env=*/{},
               /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
-  EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
   EXPECT_THAT(std_err, HasSubstr("Total runs:"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
@@ -1036,7 +1035,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SilenceTargetWorking) {
       RunWith({{"fuzz", "MySuite.TargetPrintSomethingThenAbrt"}},
               /*env=*/{{"FUZZTEST_SILENCE_TARGET", "1"}});
   EXPECT_THAT(std_out, Not(HasSubstr("Hello World from target stdout")));
-  EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
+  EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
   EXPECT_THAT(std_err, Not(HasSubstr("Hello World from target stderr")));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }

@@ -513,7 +513,6 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   // failures here. (e.g. Ineffective Filter)
   FuzzTestFuzzerImpl::PRNG prng;
   fuzzer_impl_.params_domain_.Init(prng);
-  bool print_final_stats = true;
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
   // and we should not run CentipedeMain in this process.
@@ -522,7 +521,6 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     if (runner_mode) {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
-      print_final_stats = false;
       return centipede::RunnerMain(argc != nullptr ? *argc : 0,
                                    argv != nullptr ? *argv : nullptr,
                                    runner_callbacks);
@@ -539,7 +537,6 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
                                                    &configuration);
     if (const char* minimize_dir_chars =
             std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
-      print_final_stats = false;
       const std::string minimize_dir = minimize_dir_chars;
       const char* corpus_out_dir_chars =
           std::getenv("FUZZTEST_TESTSUITE_OUT_DIR");
@@ -592,11 +589,8 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   })();
   fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
   if (result) std::exit(result);
-  if (print_final_stats) {
+  if (!runner_mode)
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
-    runtime_.PrintFinalStatsOnDefaultSink();
-    absl::FPrintF(GetStderr(), "\n");
-  }
   return 0;
 }
 
