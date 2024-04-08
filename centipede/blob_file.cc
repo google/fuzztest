@@ -121,6 +121,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     if (file_) return absl::FailedPreconditionError("already open");
     file_ = RemoteFileOpen(path, mode.data());
     if (file_ == nullptr) return absl::UnknownError("can't open file");
+    RemoteFileSetWriteBufferSize(file_, kMaxBufferedBytes);
     return absl::OkStatus();
   }
 
@@ -142,6 +143,9 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   }
 
  private:
+  static constexpr uint64_t kMB = 1024UL * 1024UL;
+  static constexpr uint64_t kMaxBufferedBytes = 100 * kMB;
+
   RemoteFile *file_ = nullptr;
   bool closed_ = false;
 };
