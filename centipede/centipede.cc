@@ -522,10 +522,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
-  std::stringstream out;
-  out << "# " << description << ":\n\n";
-  coverage.Print(symbols_, out);
-  RemoteFileSetContents(coverage_path, out.str());
+  coverage.DumpReportToFile(symbols_, coverage_path, description);
 }
 
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
@@ -533,10 +530,7 @@ void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
   auto stats_path = wd_.CorpusStatsPath(filename_annotation);
   LOG(INFO) << "Generate corpus stats: " << description << " "
             << VV(stats_path);
-  std::ostringstream os;
-  os << "# " << description << ":\n\n";
-  corpus_.PrintStats(os, fs_);
-  RemoteFileSetContents(stats_path, os.str());
+  corpus_.DumpStatsToFile(fs_, stats_path, description);
 }
 
 // TODO(nedwill): add integration test once tests are refactored per b/255660879

@@ -19,12 +19,15 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
@@ -32,6 +35,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
+#include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 
 namespace centipede {
@@ -130,25 +134,39 @@ const CorpusRecord &Corpus::UniformRandom(size_t random) const {
   return records_[random % records_.size()];
 }
 
-void Corpus::PrintStats(std::ostream &out, const FeatureSet &fs) {
-  out << "{\n";
-  out << "  \"num_inputs\": " << records_.size() << ",\n";
-  out << "  \"corpus_stats\": [\n";
+void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
+                             std::string_view description) {
+  auto *file = RemoteFileOpen(filepath, "w");
+  CHECK(file != nullptr) << "Failed to open file: " << filepath;
+  RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024);
+  static constexpr std::string_view kHeaderStub = R"(# $0
+{
+  "num_inputs": $1,
+  "corpus_stats": [)";
+  static constexpr std::string_view kRecordStub = R"($0
+    {"size": $1, "frequencies": [$2]})";
+  static constexpr std::string_view kFooter = R"(
+  ]
+}
+)";
+  const std::string header_str =
+      absl::Substitute(kHeaderStub, description, records_.size());
+  RemoteFileAppend(file, header_str);
   std::string before_record;
   for (const auto &record : records_) {
-    out << before_record;
-    before_record = ",\n";
-    out << "    {\"size\": " << record.data.size() << ", ";
-    out << "\"frequencies\": [";
-    std::string before_feature;
+    std::vector<size_t> frequencies;
+    frequencies.reserve(record.features.size());
     for (const auto feature : record.features) {
-      out << before_feature;
-      before_feature = ", ";
-      out << fs.Frequency(feature);
+      frequencies.push_back(fs.Frequency(feature));
     }
-    out << "]}";
+    const std::string frequencies_str = absl::StrJoin(frequencies, ", ");
+    const std::string record_str = absl::Substitute(
+        kRecordStub, before_record, record.data.size(), frequencies_str);
+    RemoteFileAppend(file, record_str);
+    before_record = ",";
   }
-  out << "\n  ]\n}\n";
+  RemoteFileAppend(file, std::string{kFooter});
+  RemoteFileClose(file);
 }
 
 std::string Corpus::MemoryUsageString() const {

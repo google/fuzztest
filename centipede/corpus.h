@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -140,8 +141,10 @@ class Corpus {
 
   // Logging.
 
-  // Prints corpus stats in JSON format to `out` using `fs` for frequencies.
-  void PrintStats(std::ostream &out, const FeatureSet &fs);
+  // Saves the corpus stats in JSON format to the `filepath` file, using `fs`
+  // for feature frequencies.
+  void DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
+                       std::string_view description);
   // Returns a string used for logging the corpus memory usage.
   std::string MemoryUsageString() const;
 

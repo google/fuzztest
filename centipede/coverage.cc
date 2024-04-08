@@ -31,6 +31,7 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
+#include "./centipede/remote_file.h"
 #include "./centipede/symbol_table.h"
 
 namespace centipede {
@@ -86,29 +87,52 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
   }
 }
 
-void Coverage::Print(const SymbolTable &symbols, std::ostream &out) {
+void Coverage::DumpReportToFile(const SymbolTable &symbols,
+                                std::string_view filepath,
+                                std::string_view description) {
+  auto *file = RemoteFileOpen(filepath, "w");
+  CHECK(file != nullptr) << "Failed to open file: " << filepath;
+  RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024);
+  if (!description.empty()) {
+    RemoteFileAppend(file, "# ");
+    RemoteFileAppend(file, std::string{description});
+    RemoteFileAppend(file, ":\n\n");
+  }
   // Print symbolized function names for all covered functions.
   for (auto pc_index : fully_covered_funcs) {
-    out << "FULL: " << symbols.full_description(pc_index) << "\n";
+    RemoteFileAppend(file, "FULL: ");
+    RemoteFileAppend(file, symbols.full_description(pc_index));
+    RemoteFileAppend(file, "\n");
   }
+  RemoteFileFlush(file);
   // Same for uncovered functions.
   for (auto pc_index : uncovered_funcs) {
-    out << "NONE: " << symbols.full_description(pc_index) << "\n";
+    RemoteFileAppend(file, "NONE: ");
+    RemoteFileAppend(file, symbols.full_description(pc_index));
+    RemoteFileAppend(file, "\n");
   }
+  RemoteFileFlush(file);
   // For every partially covered function, first print its name,
   // then print its covered edges, then uncovered edges.
   for (auto &pcf : partially_covered_funcs) {
-    out << "PARTIAL: " << symbols.full_description(pcf.covered[0]) << "\n";
+    RemoteFileAppend(file, "PARTIAL: ");
+    RemoteFileAppend(file, symbols.full_description(pcf.covered[0]));
+    RemoteFileAppend(file, "\n");
     for (auto pc_index : pcf.covered) {
-      out << "  + " << symbols.full_description(pc_index) << "\n";
+      RemoteFileAppend(file, "  + ");
+      RemoteFileAppend(file, symbols.full_description(pc_index));
+      RemoteFileAppend(file, "\n");
     }
     for (auto pc_index : pcf.uncovered) {
-      out << "  - " << symbols.full_description(pc_index) << "\n";
+      RemoteFileAppend(file, "  - ");
+      RemoteFileAppend(file, symbols.full_description(pc_index));
+      RemoteFileAppend(file, "\n");
     }
   }
+  RemoteFileFlush(file);
+  RemoteFileClose(file);
 }
 
-//---------------------- NewCoverageLogger
 std::string CoverageLogger::ObserveAndDescribeIfNew(PCIndex pc_index) {
   if (pc_table_.empty()) return "";  // Fast-path return (symbolization is off).
   absl::MutexLock l(&mu_);

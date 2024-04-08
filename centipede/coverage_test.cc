@@ -39,6 +39,7 @@
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
 #include "./centipede/test_util.h"
+#include "./centipede/util.h"
 
 namespace centipede {
 namespace {
@@ -79,6 +80,8 @@ static const PCTable g_pc_table = {
 
 // Tests Coverage and SymbolTable together.
 TEST(Coverage, SymbolTable) {
+  const std::filesystem::path test_dir = GetTestTempDir(test_info_->name());
+
   // Initialize and test SymbolTable.
   SymbolTable symbols;
   std::istringstream iss(symbolizer_output);
@@ -93,10 +96,9 @@ TEST(Coverage, SymbolTable) {
     // Tests coverage output for PCIndexVec = {0, 2},
     // i.e. the covered edges are 'A' and the entry of 'CCC'.
     Coverage cov(g_pc_table, {0, 2});
-    cov.Print(symbols, std::cout);
-    std::ostringstream os;
-    cov.Print(symbols, os);
-    std::string str = os.str();
+    cov.DumpReportToFile(symbols, (test_dir / "coverage.txt").string());
+    std::string str;
+    ReadFromLocalFile((test_dir / "coverage.txt").string(), str);
     EXPECT_THAT(str, testing::HasSubstr("FULL: A a.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("NONE: BB bb.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("PARTIAL: CCC ccc.cc:1:0"));
@@ -107,9 +109,9 @@ TEST(Coverage, SymbolTable) {
   {
     // Same as above, but for PCIndexVec = {1, 2, 3},
     Coverage cov(g_pc_table, {1, 2, 3});
-    std::ostringstream os;
-    cov.Print(symbols, os);
-    std::string str = os.str();
+    cov.DumpReportToFile(symbols, (test_dir / "coverage.txt").string());
+    std::string str;
+    ReadFromLocalFile((test_dir / "coverage.txt").string(), str);
     EXPECT_THAT(str, testing::HasSubstr("FULL: BB bb.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("NONE: A a.cc:1:0"));
     EXPECT_THAT(str, testing::HasSubstr("PARTIAL: CCC ccc.cc:1:0"));
