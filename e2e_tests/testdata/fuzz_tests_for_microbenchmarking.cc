@@ -331,24 +331,20 @@ void ConstructorWithDomains(const std::string& s) {
 }
 FUZZ_TEST(MySuite, ConstructorWithDomains).WithDomains(RepeatedStringDomain());
 
-constexpr bool IsSafeMul(uint32_t m, uint32_t n) {
-  return n == 0 || m <= std::numeric_limits<uint32_t>::max() / n;
-}
-
 auto SeedInputIsUsedForMutation(const std::vector<uint32_t>& s) {
-  // Make it very hard for coverage to find the value.
-  // Will only abort() if seed input is mutated, i.e., if element `0xbad` is
-  // removed.
-  if (s.size() != 4) return;
+  // Make it very hard for coverage to find the value without mutating from the
+  // seed. Will only abort() if seed input is mutated, i.e., if the 5th element
+  // `0xbad` is removed/changed.
+  if (s.size() < 4) return;
   if (s[0] == 0 || s[1] == 0 || s[2] == 0 || s[3] == 0) return;
-  if (!(IsSafeMul(s[0], 19) && IsSafeMul(s[1], 1979) && IsSafeMul(s[2], 5678) &&
-        IsSafeMul(s[3], 1234))) {
-    return;
-  }
-  if (s[0] * 19 == 1979 * s[1] && 1234 * s[3] == s[2] * 5678) std::abort();
+  if (s[0] >= 10000 || s[1] >= 10000 || s[2] >= 10000 || s[3] >= 10000) return;
+  if (s[0] * 9791 != 1979 * s[1]) return;
+  if (1234 * s[3] != s[2] * 6789) return;
+  if (s.size() > 4 && s[4] == 0xbad) return;
+  std::abort();
 }
 FUZZ_TEST(MySuite, SeedInputIsUsedForMutation)
-    .WithSeeds({{{1979, 19, 1234, 0xbad, 5678}}});
+    .WithSeeds({{{1979, 9791, 1234, 6789, 0xbad}}});
 
 // Testing cmp coverage.
 // Matching magic values for cmp instructions.

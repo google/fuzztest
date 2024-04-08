@@ -1604,7 +1604,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsedForMutation");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 19, 1234, 5678}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 9791, 1234, 6789"));
   ExpectTargetAbort(status, std_err);
 }
 
