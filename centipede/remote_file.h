@@ -22,6 +22,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 #define THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -48,6 +49,12 @@ absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view file_path,
 
 // Closes the file previously opened by RemoteFileOpen.
 void RemoteFileClose(absl::Nonnull<RemoteFile *> f);
+
+// Adjusts the buffered I/O capacity for a file opened for writing. By default,
+// the internal buffer of size `BUFSIZ` is used. May only be used after opening
+// a file, but before performing any other operations on it. Violating this
+// requirement in general can cause undefined behavior.
+void RemoteFileSetWriteBufferSize(absl::Nonnull<RemoteFile *> f, size_t size);
 
 // Appends bytes from 'ba' to 'f'.
 void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba);
