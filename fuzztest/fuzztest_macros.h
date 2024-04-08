@@ -126,6 +126,20 @@ namespace fuzztest {
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir);
 
+// Reads entries from `dictionary_file` and returns a vector usable by
+// .WithDictionary().
+//
+// Example:
+//
+//   void MyThingNeverCrashes(const std::string& s) {
+//     DoThingsWith(s);
+//   }
+//   FUZZ_TEST(MySuite, MyThingNeverCrashes)
+//     .WithDomains(String().WithDictionary(
+//       ReadDictionaryFromFile(kDictionaryPath)));
+std::vector<std::string> ReadDictionaryFromFile(
+    std::string_view dictionary_file);
+
 // Converts string_view into a byte-array, useful when working with the LLVM
 // fuzzer interfaces.
 inline std::vector<uint8_t> ToByteArray(std::string_view str) {
