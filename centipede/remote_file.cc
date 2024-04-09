@@ -18,6 +18,7 @@
 #include "./centipede/remote_file.h"
 
 #include <glob.h>
+#include <sys/stat.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -43,6 +44,84 @@
 
 namespace centipede {
 
+namespace {
+
+// A basic version of "remote file" that can only actually handle local files.
+// This provides a polyfill that enables running Centipede on local filesystems.
+// It can be replaced by an implementation for an actual remote filesystem by
+// overriding some of the weak symbols below (the ones that either return or
+// take a `RemoteFile *` param).
+// TODO(ussuri): This stops just one step away from making `RemoteFile` an
+//  abstract virtual base. Measure the performance of doing so and maybe switch.
+class LocalRemoteFile : public RemoteFile {
+ public:
+  static LocalRemoteFile *Create(std::string_view path, std::string_view mode) {
+    FILE *file = std::fopen(path.data(), mode.data());
+    if (file == nullptr) {
+      LOG(ERROR) << "Failed to open file: " << VV(path);
+      return nullptr;
+    }
+    return new LocalRemoteFile{path, file};
+  }
+
+  ~LocalRemoteFile() {
+    CHECK(file_ == nullptr) << "Dtor called before Close(): " << VV(path_);
+  }
+
+  // Movable but not copyable.
+  LocalRemoteFile(const LocalRemoteFile &) = delete;
+  LocalRemoteFile &operator=(const LocalRemoteFile &) = delete;
+  LocalRemoteFile(LocalRemoteFile &&) = default;
+  LocalRemoteFile &operator=(LocalRemoteFile &&) = default;
+
+  void SetWriteBufSize(size_t size) {
+    CHECK(write_buf_ == nullptr) << "SetWriteBufCapacity called twice";
+    write_buf_ = std::make_unique<char[]>(size);
+    CHECK_EQ(std::setvbuf(file_, write_buf_.get(), _IOFBF, size), 0)
+        << VV(path_);
+  }
+
+  void Write(const ByteArray &ba) {
+    static constexpr auto elt_size = sizeof(ba[0]);
+    const auto elts_to_write = ba.size();
+    const auto elts_written =
+        std::fwrite(ba.data(), elt_size, elts_to_write, file_);
+    CHECK_EQ(elts_written, elts_to_write) << VV(path_);
+  }
+
+  void Flush() { std::fflush(file_); }
+
+  void Read(ByteArray &ba) {
+    // Compute the file size as a difference between the end and start offsets.
+    CHECK_EQ(std::fseek(file_, 0, SEEK_END), 0) << VV(path_);
+    const auto file_size = std::ftell(file_);
+    CHECK_EQ(std::fseek(file_, 0, SEEK_SET), 0) << VV(path_);
+    static constexpr auto elt_size = sizeof(ba[0]);
+    CHECK_EQ(file_size % elt_size, 0)
+        << VV(file_size) << VV(elt_size) << VV(path_);
+    const auto elts_to_read = file_size / elt_size;
+    ba.resize(elts_to_read);
+    const auto elts_read = std::fread(ba.data(), elt_size, elts_to_read, file_);
+    CHECK_EQ(elts_read, elts_to_read) << VV(path_);
+  }
+
+  void Close() {
+    CHECK_EQ(std::fclose(file_), 0) << VV(path_);
+    file_ = nullptr;
+    write_buf_ = nullptr;
+  }
+
+ private:
+  LocalRemoteFile(std::string_view path, FILE *file)
+      : path_{path}, file_{file} {}
+
+  std::string_view path_;
+  FILE *file_;
+  std::unique_ptr<char[]> write_buf_;
+};
+
+}  // namespace
+
 // NOTE: We use weak symbols for the main API definitions in this source so that
 // alternative implementations could easily override them with their own
 // versions at link time.
@@ -56,30 +135,28 @@ ABSL_ATTRIBUTE_WEAK void RemoteMkdir(std::string_view path) {
   CHECK(!error) << VV(path) << VV(error);
 }
 
+// TODO(ussuri): For now, simulate the old behavior, where a failure to open
+//  a file returned nullptr. Adjust the clients to expect non-null and use a
+//  normal ctor with a CHECK instead of `Create()` here instead.
 ABSL_ATTRIBUTE_WEAK absl::Nullable<RemoteFile *> RemoteFileOpen(
     std::string_view path, const char *mode) {
-  CHECK(!path.empty());
-  FILE *f = std::fopen(path.data(), mode);
-  return reinterpret_cast<RemoteFile *>(f);
+  return LocalRemoteFile::Create(path, mode);
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
-  std::fclose(reinterpret_cast<FILE *>(f));
+  auto *file = static_cast<LocalRemoteFile *>(f);
+  file->Close();
+  delete file;
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileSetWriteBufferSize(
     absl::Nonnull<RemoteFile *> f, size_t size) {
-  // NOTE: A no-op for now.
+  static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
                                           const ByteArray &ba) {
-  auto *file = reinterpret_cast<FILE *>(f);
-  constexpr auto elt_size = sizeof(ba[0]);
-  const auto elts_to_write = ba.size();
-  const auto elts_written =
-      std::fwrite(ba.data(), elt_size, elts_to_write, file);
-  CHECK_EQ(elts_written, elts_to_write);
+  static_cast<LocalRemoteFile *>(f)->Write(ba);
 }
 
 // Does not need weak attribute as the implementation depends on
@@ -91,22 +168,12 @@ void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
-  auto *file = reinterpret_cast<FILE *>(f);
-  std::fflush(file);
+  static_cast<LocalRemoteFile *>(f)->Flush();
 }
 
 ABSL_ATTRIBUTE_WEAK void RemoteFileRead(absl::Nonnull<RemoteFile *> f,
                                         ByteArray &ba) {
-  auto *file = reinterpret_cast<FILE *>(f);
-  std::fseek(file, 0, SEEK_END);  // seek to end
-  const auto file_size = std::ftell(file);
-  std::fseek(file, 0, SEEK_SET);  // seek back to start
-  constexpr auto elt_size = sizeof(ba[0]);
-  CHECK_EQ(file_size % elt_size, 0) << VV(file_size) << VV(elt_size);
-  const auto elts_to_read = file_size / elt_size;
-  ba.resize(elts_to_read);
-  const auto elts_read = std::fread(ba.data(), elt_size, elts_to_read, file);
-  CHECK_EQ(elts_read, elts_to_read);
+  static_cast<LocalRemoteFile *>(f)->Read(ba);
 }
 
 // Does not need weak attribute as the implementation depends on
