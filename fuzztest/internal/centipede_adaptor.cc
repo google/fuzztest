@@ -185,8 +185,11 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       if (!corpus_value) continue;
       seeds.push_back(*corpus_value);
     }
+    constexpr int kInitialValuesInSeeds = 32;
+    for (int i = 0; i < kInitialValuesInSeeds; ++i) {
+      seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
+    }
     absl::c_shuffle(seeds, prng_);
-    if (seeds.empty()) seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
     for (const auto& seed : seeds) {
       const auto seed_serialized =
           fuzzer_impl_.params_domain_.SerializeCorpus(seed).ToString();
