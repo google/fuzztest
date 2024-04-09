@@ -584,6 +584,7 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
     explicit ReportDumper(std::string_view path)
         : file_{RemoteFileOpen(path, "w")} {
       CHECK(file_ != nullptr) << VV(path);
+      RemoteFileSetWriteBufferSize(file_, 10UL * 1024 * 1024);
     }
 
     ~ReportDumper() override { RemoteFileClose(file_); }
