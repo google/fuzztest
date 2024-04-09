@@ -39,6 +39,9 @@ centipede::maybe_set_var_to_executable_path \
 centipede::maybe_set_var_to_executable_path \
   TARGET_DSO "${CENTIPEDE_TEST_SRCDIR}/dso_example/fuzz_me.so"
 
+centipede::maybe_set_var_to_executable_path \
+  OBJDUMP "$(centipede::get_objdump_path)"
+
 echo "Running the dso_example binary with dl_path_suffix; expecting it to pass"
 CENTIPEDE_RUNNER_FLAGS=":dl_path_suffix=/fuzz_me.so:" "${TARGET_BINARY}"
 
@@ -48,6 +51,7 @@ LOG="${TEST_TMPDIR}/log2"
 centipede::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --workdir "${WD}" --binary "${TARGET_BINARY} @@" \
   --runner_dl_path_suffix "/fuzz_me.so" --coverage_binary "${TARGET_DSO}" \
+  --objdump_path="${OBJDUMP}" \
   --num_runs=100  2>&1 | tee "${LOG}"
 centipede::assert_fuzzing_success "${LOG}"
 
@@ -63,6 +67,7 @@ centipede::ensure_empty_dir "${WD}"
   --binary \
   "LD_PRELOAD=${CENTIPEDE_RUNNER_NO_MAIN_SO} ${TARGET_BINARY_DLOPEN} @@" \
   --runner_dl_path_suffix "/fuzz_me.so" --coverage_binary "${TARGET_DSO}" \
+  --objdump_path="${OBJDUMP}" \
   --num_runs=100 --fork_server=0 2>&1 | tee "${LOG}"
 centipede::assert_fuzzing_success "${LOG}"
 

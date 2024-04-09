@@ -28,11 +28,16 @@ centipede::maybe_set_var_to_executable_path \
 centipede::maybe_set_var_to_executable_path \
   TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/abort_fuzz_target_trace_pc"
 
+centipede::maybe_set_var_to_executable_path \
+  OBJDUMP "$(centipede::get_objdump_path)"
+
+
 # Run fuzzing until the first crash.
 WD="${TEST_TMPDIR}/WD"
 LOG="${TEST_TMPDIR}/log"
 centipede::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
+  --objdump_path="${OBJDUMP}" \
   --exit_on_crash=1 --seed=1 \
   2>&1 |tee "${LOG}"
 
