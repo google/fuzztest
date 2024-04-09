@@ -33,7 +33,9 @@
 #include "./centipede/logging.h"
 #include "./centipede/util.h"
 
-static const auto *default_env = new centipede::Environment();
+namespace {
+const auto *default_env = new centipede::Environment();
+}  // namespace
 
 // TODO(kcc): document usage of standalone binaries and how to use @@ wildcard.
 // If the "binary" contains @@, it means the binary can only accept inputs
@@ -160,14 +162,10 @@ ABSL_FLAG(absl::Time, stop_at, default_env->stop_at,
           "supported. Tip: `date` is useful for conversion of mostly free "
           "format human readable date/time strings, e.g. "
           "--stop_at=$(date --date='next Monday 6pm' --utc --iso-8601=seconds) "
-          ". Also see --stop_after. If both are specified, the last one wins.");
+          ". Also see --stop_after. These two flags are mutually exclusive.");
 ABSL_FLAG(absl::Duration, stop_after, absl::InfiniteDuration(),
           "Equivalent to setting --stop_at to the current date/time + this "
-          "duration. If both flags are specified, the last one wins.")
-    .OnUpdate([]() {
-      absl::SetFlag(  //
-          &FLAGS_stop_at, absl::Now() + absl::GetFlag(FLAGS_stop_after));
-    });
+          "duration. These two flags are mutually exclusive.");
 ABSL_FLAG(bool, fork_server, default_env->fork_server,
           "If true (default) tries to execute the target(s) via the fork "
           "server, if supported by the target(s). Prepend the binary path with "
@@ -356,12 +354,11 @@ ABSL_FLAG(std::string, function_filter, default_env->function_filter,
 ABSL_FLAG(size_t, shmem_size_mb, default_env->shmem_size_mb,
           "Size of the shared memory regions used to communicate between the "
           "ending and the runner.");
-ABSL_FLAG(
-    bool, use_posix_shmem, default_env->use_posix_shmem,
-    "[INTERNAL] When true, uses shm_open/shm_unlink instead of memfd_create to "
-    "allocate shared memory. You may want this if your target doesn't have "
-    "access to /proc/<arbitrary_pid> subdirs or the memfd_create syscall is "
-    "not supported.");
+ABSL_FLAG(bool, use_posix_shmem, default_env->use_posix_shmem,
+          "[INTERNAL] When true, uses shm_open/shm_unlink instead of "
+          "memfd_create to allocate shared memory. You may want this if your "
+          "target doesn't have access to /proc/<arbitrary_pid> subdirs or the "
+          "memfd_create syscall is not supported.");
 ABSL_FLAG(bool, dry_run, default_env->dry_run,
           "Initializes as much of Centipede as possible without actually "
           "running any fuzzing. Useful to validate the rest of the command "
@@ -369,9 +366,9 @@ ABSL_FLAG(bool, dry_run, default_env->dry_run,
           "etc. Also useful in combination with --save_config or "
           "--update_config to stop execution immediately after writing the "
           "(updated) config file.");
-ABSL_FLAG(
-    bool, save_binary_info, default_env->save_binary_info,
-    "Save the BinaryInfo from the fuzzing run within the working directory.");
+ABSL_FLAG(bool, save_binary_info, default_env->save_binary_info,
+          "Save the BinaryInfo from the fuzzing run within the working "
+          "directory.");
 ABSL_FLAG(bool, populate_binary_info, default_env->populate_binary_info,
           "Get binary info from a coverage instrumented binary. This should "
           "only be turned off when coverage is not based on instrumenting some "
@@ -385,6 +382,24 @@ ABSL_FLAG(bool, riegeli, default_env->riegeli,
 namespace centipede {
 
 namespace {
+
+// Computes the final stop-at time based on the possibly user-provided inputs.
+absl::Time GetStopAtTime(absl::Time stop_at, absl::Duration stop_after) {
+  const bool stop_at_is_non_default = stop_at != absl::InfiniteFuture();
+  const bool stop_after_is_non_default = stop_after != absl::InfiniteDuration();
+  CHECK_LE(stop_at_is_non_default + stop_after_is_non_default, 1)
+      << "At most one of --stop_at and --stop_after should be specified, "
+         "including via --config file: "
+      << VV(stop_at) << VV(stop_after);
+  if (stop_at_is_non_default) {
+    return stop_at;
+  } else if (stop_after_is_non_default) {
+    return absl::Now() + stop_after;
+  } else {
+    return absl::InfiniteFuture();
+  }
+}
+
 // If the passed `timeout_per_batch` is 0, computes its value as a function of
 // `timeout_per_input` and `batch_size` and returns it. Otherwise, just returns
 // the `timeout_per_batch`.
@@ -415,6 +430,7 @@ size_t ComputeTimeoutPerBatch(  //
   }
   return timeout_per_batch;
 }
+
 }  // namespace
 
 Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
@@ -452,7 +468,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
           ComputeTimeoutPerBatch(absl::GetFlag(FLAGS_timeout_per_batch),
                                  absl::GetFlag(FLAGS_timeout_per_input),
                                  absl::GetFlag(FLAGS_batch_size)),
-      .stop_at = absl::GetFlag(FLAGS_stop_at),
+      .stop_at = GetStopAtTime(absl::GetFlag(FLAGS_stop_at),
+                               absl::GetFlag(FLAGS_stop_after)),
       .fork_server = absl::GetFlag(FLAGS_fork_server),
       .full_sync = absl::GetFlag(FLAGS_full_sync),
       .use_corpus_weights = absl::GetFlag(FLAGS_use_corpus_weights),
