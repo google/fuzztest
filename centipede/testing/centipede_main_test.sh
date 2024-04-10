@@ -90,7 +90,7 @@ test_debug_symbols() {
   echo "============ ${FUNC}: checking the coverage report"
   for COV_REPORT_TYPE in "initial" "latest"; do
     COV_REPORT="${WD}/coverage-report-$(basename "${TEST_TARGET_BINARY}").000000.${COV_REPORT_TYPE}.txt"
-    centipede::assert_regex_in_file "Generate coverage report:.*${COV_REPORT}" "${LOG}"
+    centipede::assert_regex_in_file "Generate coverage report.*${COV_REPORT}" "${LOG}"
     centipede::assert_regex_in_file "FULL: SingleEdgeFunc" "${COV_REPORT}"
     centipede::assert_regex_in_file "PARTIAL: LLVMFuzzerTestOneInput" "${COV_REPORT}"
   done

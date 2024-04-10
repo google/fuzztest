@@ -518,7 +518,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
   if (pc_table_.empty()) return;
 
   auto coverage_path = wd_.CoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate coverage report: " << description << " "
+  LOG(INFO) << "Generate coverage report [" << description << "]; "
             << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
@@ -528,7 +528,7 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
   auto stats_path = wd_.CorpusStatsPath(filename_annotation);
-  LOG(INFO) << "Generate corpus stats: " << description << " "
+  LOG(INFO) << "Generate corpus stats [" << description << "]; "
             << VV(stats_path);
   corpus_.DumpStatsToFile(fs_, stats_path, description);
 }
@@ -539,7 +539,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
   if (env_.clang_coverage_binary.empty()) return;
 
   auto report_path = wd_.SourceBasedCoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate source based coverage report: " << description << " "
+  LOG(INFO) << "Generate source based coverage report [" << description << "]; "
             << VV(report_path);
   RemoteMkdir(report_path);
 
