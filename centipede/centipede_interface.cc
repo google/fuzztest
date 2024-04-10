@@ -264,8 +264,18 @@ int CentipedeMain(const Environment &env,
   }
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
-  auto thread_callback = [&](Environment &my_env, std::atomic<Stats> &stats) {
-    CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());  // creates temp dir.
+  std::vector<Environment> envs(env.num_threads, env);
+  std::vector<std::atomic<Stats>> stats_vec(env.num_threads);
+  std::atomic<bool> stats_thread_continue_running = true;
+
+  std::thread stats_thread(ReportStatsThread,
+                           std::ref(stats_thread_continue_running),
+                           std::ref(stats_vec), std::ref(envs));
+
+  auto fuzzing_worker = [&](Environment &my_env, std::atomic<Stats> &stats,
+                            bool create_tmpdir) {
+    if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+    my_env.UpdateForExperiment();
     my_env.seed = GetRandomSeed(env.seed);  // uses TID, call in this thread.
     my_env.pcs_file_path = pcs_file_path;   // same for all threads.
 
@@ -277,28 +287,29 @@ int CentipedeMain(const Environment &env,
     centipede.FuzzingLoop();
   };
 
-  std::vector<Environment> envs(env.num_threads, env);
-  std::vector<std::atomic<Stats>> stats_vec(env.num_threads);
-  std::vector<std::thread> threads(env.num_threads);
-  std::atomic<bool> stats_thread_continue_running(true);
-
-  // Create threads.
-  for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
-    Environment &my_env = envs[thread_idx];
-    my_env.my_shard_index = env.my_shard_index + thread_idx;
-    my_env.UpdateForExperiment();
-    threads[thread_idx] = std::thread(thread_callback, std::ref(my_env),
-                                      std::ref(stats_vec[thread_idx]));
+  if (env.num_threads == 1) {
+    // When fuzzing with one thread, run fuzzing loop in the current
+    // thread. This is because FuzzTest/Centipede's single-process
+    // fuzzing requires the test body, which is invoked by the fuzzing
+    // loop, to run in the main thread.
+    //
+    // Here, the fuzzing worker should not re-create the tmpdir since the path
+    // is thread-local and it has been created in the current function.
+    fuzzing_worker(envs[0], stats_vec[0], /*create_tmpdir=*/false);
+  } else {
+    std::vector<std::thread> fuzzing_worker_threads(env.num_threads);
+    for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
+      Environment &my_env = envs[thread_idx];
+      my_env.my_shard_index = env.my_shard_index + thread_idx;
+      fuzzing_worker_threads[thread_idx] =
+          std::thread(fuzzing_worker, std::ref(my_env),
+                      std::ref(stats_vec[thread_idx]), /*create_tmpdir=*/true);
+    }
+    for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
+      fuzzing_worker_threads[thread_idx].join();
+    }
   }
 
-  std::thread stats_thread(ReportStatsThread,
-                           std::ref(stats_thread_continue_running),
-                           std::ref(stats_vec), std::ref(envs));
-
-  // Join threads.
-  for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
-    threads[thread_idx].join();
-  }
   stats_thread_continue_running = false;
   stats_thread.join();
 

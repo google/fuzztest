@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -891,6 +892,52 @@ TEST(Centipede, CleansUpMetadataAfterStartup) {
         if (b == ByteArray{'F', 'u', 'z', 'z'}) found_startup_cmp_entry = true;
       });
   EXPECT_FALSE(found_startup_cmp_entry);
+}
+
+namespace {
+
+class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
+ public:
+  FakeCentipedeCallbacksForThreadChecking(const Environment &env,
+                                          std::thread::id execute_thread_id)
+      : CentipedeCallbacks(env), execute_thread_id_(execute_thread_id) {}
+
+  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
+               BatchResult &batch_result) override {
+    batch_result.ClearAndResize(inputs.size());
+    thread_check_passed_ = thread_check_passed_ &&
+                           std::this_thread::get_id() == execute_thread_id_;
+    return true;
+  }
+
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
+              std::vector<ByteArray> &mutants) override {
+    mutants.resize(num_mutants, {0});
+  }
+
+  bool thread_check_passed() { return thread_check_passed_; }
+
+ private:
+  std::thread::id execute_thread_id_;
+  bool thread_check_passed_ = true;
+};
+
+}  // namespace
+
+TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = temp_dir.path();
+  env.require_pc_table = false;
+  ASSERT_EQ(env.num_threads, 1);
+  FakeCentipedeCallbacksForThreadChecking callbacks(env,
+                                                    std::this_thread::get_id());
+  BatchResult batch_result;
+  const std::vector<ByteArray> inputs = {{0}};
+  env.num_runs = 100;
+  MockFactory factory(callbacks);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  EXPECT_TRUE(callbacks.thread_check_passed());
 }
 
 }  // namespace centipede
