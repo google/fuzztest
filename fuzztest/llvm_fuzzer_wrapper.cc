@@ -10,10 +10,10 @@
 #include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/fuzztest.h"
+#include "./fuzztest/fuzztest_macros.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
@@ -73,15 +73,19 @@ std::vector<std::vector<uint8_t>> ReadByteArrayDictionaryFromFile() {
       "\\\"(.+)\\\""  // Must be enclosed in quotes.
       "[^\\\"]*";     // Skip an arbitrary suffix.
   for (const fuzztest::internal::FilePathAndData& file : files) {
+    int line_number = 0;
     for (absl::string_view line : absl::StrSplit(file.data, '\n')) {
+      ++line_number;
       if (line.empty() || line[0] == '#') continue;
       std::string entry;
       CHECK(RE2::FullMatch(line, kLineRegex, &entry))
           << "Invalid dictionary entry: " << line;
-      std::string unescaped_entry;
-      CHECK(absl::CUnescape(entry, &unescaped_entry))
-          << "Could not unescape: " << entry;
-      out.emplace_back(unescaped_entry.begin(), unescaped_entry.end());
+      absl::StatusOr<std::string> unescaped_entry =
+          fuzztest::internal::UnescapeDictionaryEntry(entry);
+      CHECK(unescaped_entry.ok())
+          << unescaped_entry.status().message()
+          << "; dictionary file: " << file.path << ":" << line_number;
+      out.emplace_back(unescaped_entry->begin(), unescaped_entry->end());
     }
   }
   return out;

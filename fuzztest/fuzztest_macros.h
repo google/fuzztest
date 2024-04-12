@@ -22,7 +22,9 @@
 #include <vector>
 
 // IWYU pragma: begin_exports
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/registry.h"
@@ -145,6 +147,11 @@ std::vector<std::string> ReadDictionaryFromFile(
 inline std::vector<uint8_t> ToByteArray(std::string_view str) {
   return std::vector<uint8_t>(str.begin(), str.end());
 }
+
+namespace internal {
+// Unescape a dictionary entry.
+absl::StatusOr<std::string> UnescapeDictionaryEntry(absl::string_view entry);
+}  // namespace internal
 
 }  // namespace fuzztest
 

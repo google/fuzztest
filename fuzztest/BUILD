@@ -66,9 +66,21 @@ cc_library(
         ":registration",
         ":registry",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "fuzztest_macros_test",
+    srcs = ["fuzztest_macros_test.cc"],
+    deps = [
+        ":fuzztest_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -127,6 +139,7 @@ cc_library(
     deps = [
         ":domain_core",
         ":fuzztest",
+        ":fuzztest_macros",
         ":io",
         ":llvm_fuzzer_main",
         "@com_google_absl//absl/flags:flag",
