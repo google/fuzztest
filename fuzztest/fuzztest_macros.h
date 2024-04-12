@@ -22,7 +22,9 @@
 #include <vector>
 
 // IWYU pragma: begin_exports
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/registry.h"
@@ -125,6 +127,12 @@ namespace fuzztest {
 //     .WithSeeds(ReadFilesFromDirectory(kCorpusPath));
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir);
+
+// Returns parsed dictionary entries from fuzzer dictionary definition in the
+// format specified at https://llvm.org/docs/LibFuzzer.html#dictionaries.
+// If dictionary is in wrong format, return error status.
+absl::StatusOr<std::vector<std::string>> ParseDictionary(
+    absl::string_view text);
 
 // Reads entries from `dictionary_file` and returns a vector usable by
 // .WithDictionary().
