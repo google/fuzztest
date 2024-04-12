@@ -325,6 +325,18 @@ TEST(TextFormatSerializerTest, ExtraWhitespaceIsFine) {
               Optional(SubsAre(ValueIs<uint64_t>(0))));
 }
 
+TEST(BinaryFormatSerializerTest, MalformedObjectSizeIsRejectedWithoutOOM) {
+  static constexpr char kGoodInput[] =
+      "FUZZTESTv1b\x04\x01\x00\x00\x00\x00\x00\x00\x00\x00";
+  static constexpr char kBadInput[] =
+      "FUZZTESTv1b\x04\xff\xff\xff\xff\xff\xff\xff\xff\x00";
+  EXPECT_THAT(IRObject::FromString({kGoodInput, sizeof(kGoodInput) - 1}),
+              Optional(SubsAre(ValueIs<std::monostate>({}))));
+  // Expect grace failure instead of OOM error.
+  EXPECT_EQ(IRObject::FromString({kBadInput, sizeof(kBadInput) - 1}),
+            std::nullopt);
+}
+
 TEST(IRToCorpus, SpecializationIsBackwardCompatible) {
   EXPECT_THAT(
       (IRObject{std::vector<IRObject>{IRObject{1}, IRObject{2}, IRObject{3}}}

@@ -285,6 +285,8 @@ bool BinaryParse(IRObject& obj, BinaryParseBuf& buf, int recursion_depth) {
       uint64_t vec_size;
       std::memcpy(&vec_size, buf.str, sizeof(vec_size));
       buf.Advance(sizeof(vec_size));
+      // This could happen for malformed inputs.
+      if (vec_size > buf.size) return false;
       auto& v = obj.value.emplace<std::vector<IRObject>>();
       v.reserve(vec_size);
       for (uint64_t i = 0; i < vec_size; ++i) {
