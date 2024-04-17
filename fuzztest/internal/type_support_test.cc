@@ -228,10 +228,11 @@ TEST(ProtobufTest, Printer) {
   internal::TestProtobuf proto;
   proto.set_b(true);
   proto.add_rep_subproto()->set_subproto_i32(17);
-  EXPECT_THAT(
-      TestPrintValue(proto),
-      ElementsAre(absl::StrCat("(", proto, ")"),
-                  absl::StrCat("ParseTestProto(R\"pb(", proto, ")pb\")")));
+  EXPECT_THAT(TestPrintValue(proto),
+              ElementsAre(absl::StrCat("(", proto, ")"),
+                          MatchesRegex(absl::StrCat(
+                              R"re(.*ParseTe[sx]tProto.*\(R"pb\()re", proto,
+                              R"re(\)pb"\))re"))));
 }
 
 TEST(ProtobufEnumTest, Printer) {

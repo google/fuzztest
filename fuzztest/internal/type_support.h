@@ -254,12 +254,14 @@ struct ProtobufPrinter {
       // Deref if necessary.
       return PrintUserValue(*val, out, mode);
     } else {
+      static constexpr absl::string_view kProtoParser = "ParseTestProto";
       switch (mode) {
         case domain_implementor::PrintMode::kHumanReadable:
           absl::Format(out, "(%s)", absl::StrCat(val));
           break;
         case domain_implementor::PrintMode::kSourceCode:
-          absl::Format(out, "ParseTestProto(R\"pb(%s)pb\")", absl::StrCat(val));
+          absl::Format(out, "%s(R\"pb(%s)pb\")", kProtoParser,
+                       absl::StrCat(val));
           break;
       }
     }
