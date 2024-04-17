@@ -121,15 +121,11 @@ void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
 
 void WriteToLocalFile(std::string_view file_path, std::string_view data) {
   static_assert(sizeof(decltype(data)::value_type) == sizeof(uint8_t));
-  WriteToLocalFile(
-      file_path,
-      ByteSpan(reinterpret_cast<const uint8_t *>(data.data()), data.size()));
+  WriteToLocalFile(file_path, AsByteSpan(data));
 }
 
 void WriteToLocalFile(std::string_view file_path, const FeatureVec &data) {
-  WriteToLocalFile(file_path,
-                   ByteSpan(reinterpret_cast<const uint8_t *>(data.data()),
-                            sizeof(data[0]) * data.size()));
+  WriteToLocalFile(file_path, AsByteSpan(data));
 }
 
 void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
@@ -279,9 +275,7 @@ std::string ExtractHashFromArray(ByteArray &ba) {
 
 ByteArray PackFeaturesAndHash(const ByteArray &data,
                               const FeatureVec &features) {
-  ByteSpan feature_bytes(reinterpret_cast<const uint8_t *>(features.data()),
-                         features.size() * sizeof(feature_t));
-  return PackFeaturesAndHashAsRawBytes(data, feature_bytes);
+  return PackFeaturesAndHashAsRawBytes(data, AsByteSpan(features));
 }
 
 ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,

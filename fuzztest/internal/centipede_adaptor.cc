@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <limits>
@@ -31,13 +32,15 @@
 #include <random>
 #include <string>
 #include <system_error>  // NOLINT
-#include <thread>
+#include <thread>        // NOLINT
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -51,6 +54,7 @@
 #include "./centipede/defs.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -60,6 +64,7 @@
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain.h"
+#include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -193,9 +198,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     for (const auto& seed : seeds) {
       const auto seed_serialized =
           fuzzer_impl_.params_domain_.SerializeCorpus(seed).ToString();
-      seed_callback(
-          {reinterpret_cast<const unsigned char*>(seed_serialized.data()),
-           seed_serialized.size()});
+      seed_callback(centipede::AsByteSpan(seed_serialized));
     }
   }
 

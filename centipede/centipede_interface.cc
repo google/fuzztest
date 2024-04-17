@@ -185,9 +185,7 @@ int Analyze(const Environment &env) {
 }
 
 void SavePCTableToFile(const PCTable &pc_table, std::string_view file_path) {
-  ByteSpan bytes = {reinterpret_cast<const uint8_t *>(pc_table.data()),
-                    pc_table.size() * sizeof(pc_table[0])};
-  WriteToLocalFile(file_path, bytes);
+  WriteToLocalFile(file_path, AsByteSpan(pc_table));
 }
 
 }  // namespace

@@ -33,10 +33,16 @@ using Rng = std::mt19937_64;
 using ByteArray = std::vector<uint8_t>;
 using ByteSpan = absl::Span<const uint8_t>;
 
-inline ByteSpan AsByteSpan(std::string_view str) {
-  return ByteSpan(reinterpret_cast<const uint8_t *>(str.data()), str.size());
+// Wraps a container's data into a `ByteSpan`. The lifetime of `blob` should be
+// >= that of the returned object.
+template <typename Container>
+ByteSpan AsByteSpan(const Container &blob) {
+  return ByteSpan(reinterpret_cast<const uint8_t *>(blob.data()),
+                  blob.size() * sizeof(blob[0]));
 }
 
+// Reinterprets a `ByteSpan` as a string_view pointing at the same data. The
+// lifetime of `str` should be >= that of the returned object.
 inline std::string_view AsStringView(ByteSpan str) {
   return std::string_view(reinterpret_cast<const char *>(str.data()),
                           str.size());
