@@ -15,7 +15,7 @@
 licenses(["notice"])
 
 cc_library(
-    name = "antlr_cpp",
+    name = "antlr4-cpp-runtime",
     srcs = glob(["runtime/src/**/*.cpp"]),
     hdrs = ["runtime/src/antlr4-runtime.h"],
     copts = ["-fexceptions"],

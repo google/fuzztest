@@ -51,7 +51,7 @@ http_archive(
 )
 
 http_archive(
-    name = "antlr_cpp",
+    name = "antlr4-cpp-runtime",
     build_file = "//bazel:antlr_cpp_runtime.BUILD",
     sha256 = "642d59854ddc0cebb5b23b2233ad0a8723eef20e66ef78b5b898d0a67556893b",
     url = "https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip",

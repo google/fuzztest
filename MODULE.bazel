@@ -1,0 +1,52 @@
+module(
+    name = "fuzztest",
+    version = "",
+    repo_name = "com_google_fuzztest",
+)
+
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20240116.0",
+    repo_name = "com_google_absl",
+)
+bazel_dep(
+    name = "antlr4-cpp-runtime",
+    version = "4.12.0",
+)
+bazel_dep(
+    name = "bazel_skylib",
+    version = "1.5.0",
+)
+
+bazel_dep(
+    name = "googletest",
+    version = "1.14.0.bcr.1",
+    dev_dependency = True,
+    repo_name = "com_google_googletest",
+)
+bazel_dep(
+    name = "nlohmann_json",
+    version = "3.11.2",
+    dev_dependency = True,
+    repo_name = "com_nlohmann_json",
+)
+
+bazel_dep(
+    name = "protobuf",
+    version = "26.0.bcr.1",
+    repo_name = "com_google_protobuf",
+)
+bazel_dep(
+    name = "re2",
+    version = "2024-02-01",
+    repo_name = "com_googlesource_code_re2",
+)
+bazel_dep(
+    name = "riegeli",
+    version = "0.0.0-20231123-411cda7",
+    repo_name = "com_google_riegeli",
+)
+bazel_dep(
+    name = "rules_proto",
+    version = "5.3.0-21.7",
+)
