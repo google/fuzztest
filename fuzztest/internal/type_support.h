@@ -31,6 +31,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
@@ -38,6 +39,7 @@
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
+#include "google/protobuf/text_format.h"
 
 namespace fuzztest::internal {
 
@@ -255,13 +257,18 @@ struct ProtobufPrinter {
       return PrintUserValue(*val, out, mode);
     } else {
       static constexpr absl::string_view kProtoParser = "ParseTestProto";
+      std::string textproto;
+      if (!google::protobuf::TextFormat::PrintToString(val, &textproto)) {
+        // Fall-back to debug printing, which is on purpose not parseable but at
+        // least gives some idea about the contents of the proto.
+        textproto = absl::StrCat(val);
+      }
       switch (mode) {
         case domain_implementor::PrintMode::kHumanReadable:
-          absl::Format(out, "(%s)", absl::StrCat(val));
+          absl::Format(out, "(%s)", textproto);
           break;
         case domain_implementor::PrintMode::kSourceCode:
-          absl::Format(out, "%s(R\"pb(%s)pb\")", kProtoParser,
-                       absl::StrCat(val));
+          absl::Format(out, "%s(R\"pb(%s)pb\")", kProtoParser, textproto);
           break;
       }
     }
