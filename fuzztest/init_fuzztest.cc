@@ -11,6 +11,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -227,6 +228,12 @@ void InitFuzzTest(int* argc, char*** argv) {
                                : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
+}
+
+void ParseAbslFlags(int argc, char** argv) {
+  std::vector<char*> positional_args;
+  std::vector<absl::UnrecognizedFlag> unrecognized_flags;
+  absl::ParseAbseilFlagsOnly(argc, argv, positional_args, unrecognized_flags);
 }
 
 }  // namespace fuzztest

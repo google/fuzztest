@@ -8,6 +8,18 @@
 
 namespace fuzztest {
 
+// Initializes Abseil flags such that FuzzTest can rely upon them.
+// It initializes all Abseil flags (not just FuzzTest ones).
+// It does not do anything with non-Abseil flags and will not result
+// in an error or failure if there are other flags on the command line
+// (as there might be especially if you are using a non-centipede
+// fuzzing engine).
+// This should be called only if you have no other code initializing
+// Abseil flags from the command line elsewhere (such as
+// absl::ParseCommandLine()).
+// It does not change the command line (argv); only reads it.
+void ParseAbslFlags(int argc, char** argv);
+
 // Initializes FuzzTest. Handles the FuzzTest related flags and registers
 // FUZZ_TEST-s in the binary as GoogleTest TEST-s.
 //
@@ -17,6 +29,8 @@ namespace fuzztest {
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 //
 // REQUIRES: `main()` has started before calling this function.
+// REQUIRES: Abseil flags have been inited, either using
+//           ParseAbslFlags or some other means
 void InitFuzzTest(int* argc, char*** argv);
 
 // Returns a list of all registered fuzz test names in the form of
