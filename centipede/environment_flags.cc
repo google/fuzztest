@@ -338,9 +338,7 @@ ABSL_FLAG(bool, analyze, default_env->analyze,
           " as argv. If two corpora are provided, then analyze differences"
           " between those corpora. If one corpus is provided, then save the"
           " coverage report to a file within workdir with prefix"
-          " 'coverage-report-'."
-          " Used by the Centipede developers to improve the engine. "
-          " TODO(kcc) implement. ");
+          " 'coverage-report-'.");
 ABSL_FLAG(std::vector<std::string>, dictionary, default_env->dictionary,
           "A comma-separated list of paths to dictionary files. The dictionary "
           "file is either in AFL/libFuzzer plain text format or in the binary "

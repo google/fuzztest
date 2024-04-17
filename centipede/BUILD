@@ -1160,6 +1160,7 @@ cc_library(
 
 cc_library(
     name = "test_util",
+    testonly = True,
     srcs = ["test_util.cc"],
     hdrs = ["test_util.h"],
     deps = [
@@ -1170,6 +1171,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -18,6 +18,7 @@
 #include <string_view>
 #include <system_error>  // NOLINT
 
+#include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -26,11 +27,10 @@
 namespace centipede {
 
 std::filesystem::path GetTestTempDir(std::string_view subdir) {
-  std::filesystem::path dir;
-  dir = std::getenv("TEST_TMPDIR");
-  if (dir.empty()) dir = std::getenv("TMPDIR");
-  if (dir.empty()) dir = "/tmp";
-  dir.append(subdir);
+  const std::filesystem::path test_tempdir = ::testing::TempDir();
+  CHECK(!test_tempdir.empty())
+      << "testing::TempDir() is expected to always return non-empty path";
+  const auto dir = test_tempdir / subdir;
   if (!std::filesystem::exists(dir)) {
     std::error_code error;
     std::filesystem::create_directories(dir, error);
@@ -44,9 +44,9 @@ std::string GetTempFilePath(std::string_view subdir, size_t i) {
 }
 
 std::filesystem::path GetTestRunfilesDir() {
-  const char* test_srcdir = std::getenv("TEST_SRCDIR");
-  CHECK(test_srcdir != nullptr)
-      << "TEST_SRCDIR envvar is expected to be set by build system";
+  const auto test_srcdir = ::testing::SrcDir();
+  CHECK(!test_srcdir.empty())
+      << "testing::SrcDir() is expected to always return non-empty path";
   const char* test_workspace = std::getenv("TEST_WORKSPACE");
   CHECK(test_workspace != nullptr)
       << "TEST_WORKSPACE envvar is expected to be set by build system";
