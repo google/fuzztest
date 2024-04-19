@@ -39,7 +39,7 @@ static void FuzzMe(const char* data, size_t size) {
     absl::SleepFor(absl::Seconds(10));
   }
   if (size == 3 && data[0] == 'o' && data[1] == 'o' && data[2] == 'm') {
-    static volatile void* ptr_sink = nullptr;
+    [[maybe_unused]] static volatile void* ptr_sink = nullptr;
     const size_t oom_allocation_size = 1ULL << 32;
     void* ptr = malloc(oom_allocation_size);
     memset(ptr, 42, oom_allocation_size);

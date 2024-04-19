@@ -403,7 +403,9 @@ class CentipedeAdaptorEngineCallbacksFactory
                                                configuration_);
   }
 
-  void destroy(centipede::CentipedeCallbacks* callbacks) { delete callbacks; }
+  void destroy(centipede::CentipedeCallbacks* callbacks) override {
+    delete callbacks;
+  }
 
  private:
   Runtime* runtime_;

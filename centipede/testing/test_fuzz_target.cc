@@ -49,10 +49,10 @@ __attribute__((noinline)) extern "C" void IndirectCallFunc(uint8_t input) {
 }
 
 __attribute__((noinline)) extern "C" void CallThisRecursively(int times) {
-    static volatile int sink;
-    [[maybe_unused]] volatile char stack_usage[1024] = {};
-    if (times > 0) CallThisRecursively(times - 1);
-    sink = 0;
+  [[maybe_unused]] static volatile int sink;
+  [[maybe_unused]] volatile char stack_usage[1024] = {};
+  if (times > 0) CallThisRecursively(times - 1);
+  sink = 0;
 }
 
 // Used to test data flow instrumentation.

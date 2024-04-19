@@ -497,7 +497,7 @@ void ValidateUrls(const WebSearchResult& search_result) {
     return;
   }
 
-  int valid_urls = 0;
+  [[maybe_unused]] int valid_urls = 0;
   std::unordered_set<std::string> unique_urls;
 
   for (const auto& url : search_result.urls()) {
