@@ -192,6 +192,7 @@ void SavePCTableToFile(const PCTable &pc_table, std::string_view file_path) {
 
 int CentipedeMain(const Environment &env,
                   CentipedeCallbacksFactory &callbacks_factory) {
+  ClearEarlyExitRequest();
   SetSignalHandlers(env.stop_at);
 
   if (!env.corpus_to_files.empty()) {

@@ -776,6 +776,7 @@ cc_library(
     name = "early_exit",
     srcs = ["early_exit.cc"],
     hdrs = ["early_exit.h"],
+    linkopts = ["-latomic"],  # for std::atomic::load()/store().
     visibility = PUBLIC_API_VISIBILITY,
 )
 

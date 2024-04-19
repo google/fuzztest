@@ -16,15 +16,29 @@
 #define THIRD_PARTY_CENTIPEDE_EARLY_EXIT_H_
 
 namespace centipede {
+
 // Requests that the process exits soon, with `exit_code`.
-// `exit_code` must be non-zero (!= EXIT_SUCCESS).
 // Async-signal-safe.
 void RequestEarlyExit(int exit_code);
-// Returns true iff RequestEarlyExit() was called.
+
+// Clears the request to exit early.
+//
+// Note: Typically it doesn't make much sense to concurrently both request early
+// exit and clear the request, so the normal usage is to invoke this function
+// before starting concurrent threads that invoke the other related functions.
+// Otherwise, a specific problem that may arise is that this function clears the
+// request between checking `EarlyExitRequested()` and obtaining `ExitCode()`.
+void ClearEarlyExitRequest();
+
+// Returns true iff `RequestEarlyExit()` was called since the most recent call
+// to `ClearEarlyExitRequest()` (if any).
 bool EarlyExitRequested();
-// Returns the value most recently passed to RequestEarlyExit()
-// or 0 if RequestEarlyExit() was not called.
+
+// Returns the value most recently passed to `RequestEarlyExit()` or 0 if
+// `RequestEarlyExit()` was not called since the most recent call to
+// `ClearEarlyExitRequest()` (if any).
 int ExitCode();
+
 }  // namespace centipede
 
 #endif

@@ -19,16 +19,27 @@
 
 namespace centipede {
 namespace {
-std::atomic<int> requested_exit_code = EXIT_SUCCESS;
-std::atomic<bool> early_exit_requested = false;
+
+struct EarlyExit {
+  int exit_code = EXIT_SUCCESS;
+  bool is_requested = false;
+};
+std::atomic<EarlyExit> early_exit;
+
 }  // namespace
 
 void RequestEarlyExit(int exit_code) {
-  requested_exit_code = exit_code;
-  early_exit_requested = true;
+  early_exit.store({exit_code, true}, std::memory_order_release);
 }
 
-bool EarlyExitRequested() { return early_exit_requested; }
+void ClearEarlyExitRequest() {
+  early_exit.store({}, std::memory_order_release);
+}
 
-int ExitCode() { return requested_exit_code; }
+bool EarlyExitRequested() {
+  return early_exit.load(std::memory_order_acquire).is_requested;
+}
+
+int ExitCode() { return early_exit.load(std::memory_order_acquire).exit_code; }
+
 }  // namespace centipede
