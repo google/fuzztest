@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -79,11 +80,13 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
                                      const std::vector<CorpusRecord> &b) {
   // `a_pcs` will contain all PCs covered by `a`.
   absl::flat_hash_set<size_t> a_pcs;
+  absl::flat_hash_map<size_t, CorpusRecord> a_pc_to_corpus;
   for (const auto &record : a) {
     for (const auto &feature : record.features) {
       if (!feature_domains::kPCs.Contains(feature)) continue;
       auto pc = ConvertPCFeatureToPcIndex(feature);
       a_pcs.insert(pc);
+      a_pc_to_corpus[pc] = record;
     }
   }
 
@@ -92,6 +95,7 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
   // `b_shared_indices` are indices of all other inputs from `b`.
   absl::flat_hash_set<size_t> b_only_pcs;
   absl::flat_hash_set<size_t> b_pcs;
+  absl::flat_hash_map<size_t, CorpusRecord> b_pc_to_corpus;
   std::vector<size_t> b_shared_indices, b_unique_indices;
   for (size_t i = 0; i < b.size(); ++i) {
     const auto &record = b[i];
@@ -100,6 +104,7 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
       if (!feature_domains::kPCs.Contains(feature)) continue;
       auto pc = ConvertPCFeatureToPcIndex(feature);
       b_pcs.insert(pc);
+      b_pc_to_corpus[pc] = record;
       if (a_pcs.contains(pc)) continue;
       b_only_pcs.insert(pc);
       has_b_only = true;
@@ -133,6 +138,9 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
   std::sort(ret.a_only_pcs.begin(), ret.a_only_pcs.end());
   ret.b_only_pcs = std::vector<size_t>{b_only_pcs.begin(), b_only_pcs.end()};
   std::sort(ret.b_only_pcs.begin(), ret.b_only_pcs.end());
+  ret.a_pc_to_corpus_record = a_pc_to_corpus;
+  ret.b_pc_to_corpus_record = b_pc_to_corpus;
+
   return ret;
 }
 
