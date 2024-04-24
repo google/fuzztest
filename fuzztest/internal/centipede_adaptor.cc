@@ -118,17 +118,17 @@ centipede::Environment CreateDefaultCentipedeEnvironment() {
 }
 
 centipede::Environment CreateCentipedeEnvironmentFromFuzzTestFlags(
-    const Runtime& runtime, absl::string_view workdir,
+    const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name) {
   centipede::Environment env = CreateDefaultCentipedeEnvironment();
   env.workdir = workdir;
   env.exit_on_crash = true;
   // Populating the PC table in single-process mode is not implemented.
   env.require_pc_table = false;
-  if (runtime.fuzz_time_limit() != absl::InfiniteDuration()) {
+  if (configuration.time_limit_per_test != absl::InfiniteDuration()) {
     absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
-                  absl::FormatDuration(runtime.fuzz_time_limit()));
-    env.stop_at = absl::Now() + runtime.fuzz_time_limit();
+                  absl::FormatDuration(configuration.time_limit_per_test));
+    env.stop_at = absl::Now() + configuration.time_limit_per_test;
   }
   env.first_corpus_dir_output_only = true;
   if (const char* corpus_out_dir_chars = getenv("FUZZTEST_TESTSUITE_OUT_DIR")) {
@@ -542,7 +542,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     // Run as the fuzzing engine.
     TempDir workdir("/tmp/fuzztest-workdir-");
     const auto env = CreateCentipedeEnvironmentFromFuzzTestFlags(
-        runtime_, workdir.path(), test_.full_name());
+        configuration, workdir.path(), test_.full_name());
     CentipedeAdaptorEngineCallbacksFactory factory(&runtime_, &fuzzer_impl_,
                                                    &configuration);
     if (const char* minimize_dir_chars =

@@ -79,6 +79,7 @@ fuzztest_cc_library(
     fuzztest::registry
     fuzztest::runtime
     absl::flags
+    absl::flags_parse
     absl::flags_reflection
     absl::strings
     absl::str_format

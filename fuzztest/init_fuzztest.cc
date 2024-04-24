@@ -163,6 +163,10 @@ internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
   bool reproduce_findings_as_separate_tests =
       absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests));
+  absl::Duration time_limit_per_test = absl::GetFlag(FUZZTEST_FLAG(fuzz_for));
+  if (time_limit_per_test <= absl::ZeroDuration()) {
+    time_limit_per_test = absl::InfiniteDuration();
+  }
   return internal::Configuration{
       absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
       std::string(binary_identifier),
@@ -172,7 +176,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
-  };
+      time_limit_per_test};
 }
 
 }  // namespace
@@ -208,14 +212,6 @@ void InitFuzzTest(int* argc, char*** argv) {
     GTEST_FLAG_SET(filter, matching_fuzz_test);
   }
 
-  const auto duration = absl::GetFlag(FUZZTEST_FLAG(fuzz_for));
-  const bool is_duration_specified =
-      absl::ZeroDuration() < duration && duration < absl::InfiniteDuration();
-  if (is_duration_specified) {
-    // TODO(b/307513669): Use the Configuration class instead of Runtime.
-    internal::Runtime::instance().SetFuzzTimeLimit(duration);
-  }
-
   std::string binary_identifier = std::string(internal::Basename(*argv[0]));
   std::optional<std::string> reproduction_command_template;
   internal::Configuration configuration =
@@ -223,7 +219,9 @@ void InitFuzzTest(int* argc, char*** argv) {
   configuration.reproduction_command_template = reproduction_command_template;
   internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
-  const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified
+  const bool has_time_limit_per_test =
+      configuration.time_limit_per_test < absl::InfiniteDuration();
+  const RunMode run_mode = is_test_to_fuzz_specified || has_time_limit_per_test
                                ? RunMode::kFuzz
                                : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.

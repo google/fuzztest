@@ -22,6 +22,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.stack_limit == other->stack_limit &&
          config.rss_limit == other->rss_limit &&
          config.time_limit_per_input == other->time_limit_per_input &&
+         config.time_limit_per_test == other->time_limit_per_test &&
          config.crashing_input_to_reproduce ==
              other->crashing_input_to_reproduce &&
          config.reproduction_command_template ==
@@ -38,6 +39,7 @@ TEST(ConfigurationTest,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
+                              /*time_limit_per_test=*/absl::Minutes(42),
                               /*crashing_input_to_reproduce=*/std::nullopt,
                               /*reproduction_command_template=*/std::nullopt};
 
@@ -55,6 +57,7 @@ TEST(ConfigurationTest,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
+                              /*time_limit_per_test=*/absl::Minutes(42),
                               "crashing_input_to_reproduce",
                               "reproduction_command_template"};
 

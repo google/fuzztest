@@ -147,11 +147,6 @@ class Runtime {
   void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
   RunMode run_mode() const { return run_mode_; }
 
-  void SetFuzzTimeLimit(absl::Duration fuzz_time_limit) {
-    fuzz_time_limit_ = fuzz_time_limit;
-  }
-  absl::Duration fuzz_time_limit() const { return fuzz_time_limit_; }
-
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
     reporter_enabled_ = true;
     stats_ = stats;
@@ -212,7 +207,6 @@ class Runtime {
   std::atomic<bool> termination_requested_{false};
 
   RunMode run_mode_ = RunMode::kUnitTest;
-  absl::Duration fuzz_time_limit_ = absl::InfiniteDuration();
   std::atomic<bool> watchdog_thread_started = false;
 
   bool reporter_enabled_ = false;

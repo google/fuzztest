@@ -150,17 +150,29 @@ absl::StatusOr<std::vector<std::string>> ConsumeVectorOfStrings(
   return vec;
 }
 
+absl::StatusOr<absl::Duration> ParseDuration(absl::string_view duration) {
+  absl::Duration result;
+  if (!absl::ParseDuration(duration, &result)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Couldn't parse a duration: ", duration));
+  }
+  return result;
+}
+
 }  // namespace
 
 std::string Configuration::Serialize() const {
   std::string time_limit_per_input_str =
       absl::FormatDuration(time_limit_per_input);
+  std::string time_limit_per_test_str =
+      absl::FormatDuration(time_limit_per_test);
   std::string out;
   out.resize(SpaceFor(corpus_database) + SpaceFor(binary_identifier) +
              SpaceFor(fuzz_tests) +
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(stack_limit) +
              SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
+             SpaceFor(time_limit_per_test_str) +
              SpaceFor(crashing_input_to_reproduce) +
              SpaceFor(reproduction_command_template));
   size_t offset = 0;
@@ -172,6 +184,7 @@ std::string Configuration::Serialize() const {
   offset = WriteIntegral(out, offset, stack_limit);
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
+  offset = WriteString(out, offset, time_limit_per_test_str);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
   CHECK_EQ(offset, out.size());
@@ -190,6 +203,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(stack_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(time_limit_per_test_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(crashing_input_to_reproduce,
                      ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
@@ -198,12 +212,10 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
     }
-    absl::Duration time_limit_per_input;
-    if (!absl::ParseDuration(*time_limit_per_input_str,
-                             &time_limit_per_input)) {
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Couldn't parse a duration: ", *time_limit_per_input_str));
-    }
+    ASSIGN_OR_RETURN(time_limit_per_input,
+                     ParseDuration(*time_limit_per_input_str));
+    ASSIGN_OR_RETURN(time_limit_per_test,
+                     ParseDuration(*time_limit_per_test_str));
     return Configuration{*std::move(corpus_database),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
@@ -211,7 +223,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *replay_coverage_inputs,
                          *stack_limit,
                          *rss_limit,
-                         time_limit_per_input,
+                         *time_limit_per_input,
+                         *time_limit_per_test,
                          *std::move(crashing_input_to_reproduce),
                          *std::move(reproduction_command_template)};
   }();

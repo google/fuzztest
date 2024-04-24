@@ -50,6 +50,8 @@ struct Configuration {
   size_t rss_limit = 0;
   // Time limit per test input.
   absl::Duration time_limit_per_input = absl::InfiniteDuration();
+  // Fuzzing time limit per test.
+  absl::Duration time_limit_per_test = absl::InfiniteDuration();
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;

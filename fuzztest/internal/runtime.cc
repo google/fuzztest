@@ -1028,10 +1028,10 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       }
     }
 
-    if (runtime_.fuzz_time_limit() != absl::InfiniteDuration()) {
+    if (configuration.time_limit_per_test != absl::InfiniteDuration()) {
       absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
-                    absl::FormatDuration(runtime_.fuzz_time_limit()));
-      time_limit_ = stats_.start_time + runtime_.fuzz_time_limit();
+                    absl::FormatDuration(configuration.time_limit_per_test));
+      time_limit_ = stats_.start_time + configuration.time_limit_per_test;
     }
 
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
