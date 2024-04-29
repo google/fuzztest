@@ -185,12 +185,32 @@ void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
 }
 
 // Does not need weak attribute as the implementation depends on
+// RemoteFileAppend(RemoteFile *, ByteArray).
+void RemoteFileSetContents(const std::filesystem::path &path,
+                           const ByteArray &contents) {
+  auto *file = RemoteFileOpen(path.c_str(), "w");
+  CHECK(file != nullptr) << VV(path);
+  RemoteFileAppend(file, contents);
+  RemoteFileClose(file);
+}
+
+// Does not need weak attribute as the implementation depends on
 // RemoteFileAppend(RemoteFile *, std::string).
 void RemoteFileSetContents(const std::filesystem::path &path,
                            const std::string &contents) {
   auto *file = RemoteFileOpen(path.c_str(), "w");
   CHECK(file != nullptr) << VV(path);
   RemoteFileAppend(file, contents);
+  RemoteFileClose(file);
+}
+
+// Does not need weak attribute as the implementation depends on
+// RemoteFileRead(RemoteFile *, ByteArray).
+void RemoteFileGetContents(const std::filesystem::path &path,
+                           ByteArray &contents) {
+  auto *file = RemoteFileOpen(path.c_str(), "r");
+  CHECK(file != nullptr) << VV(path);
+  RemoteFileRead(file, contents);
   RemoteFileClose(file);
 }
 
@@ -240,16 +260,38 @@ ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
   ::globfree(&glob_ret);
 }
 
-ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFilesRecursively(
-    std::string_view path) {
+ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFiles(
+    std::string_view path, bool recursively) {
   if (!std::filesystem::exists(path)) return {};
-  std::vector<std::string> ret;
-  for (const auto &entry :
-       std::filesystem::recursive_directory_iterator(path)) {
-    if (entry.is_directory()) continue;
-    ret.push_back(entry.path());
+  auto list_files = [](auto dir_iter) {
+    std::vector<std::string> ret;
+    for (const auto &entry : dir_iter) {
+      if (entry.is_directory()) continue;
+      ret.push_back(entry.path());
+    }
+    return ret;
+  };
+  return recursively
+             ? list_files(std::filesystem::recursive_directory_iterator(path))
+             : list_files(std::filesystem::directory_iterator(path));
+}
+
+ABSL_ATTRIBUTE_WEAK void RemotePathRename(std::string_view from,
+                                          std::string_view to) {
+  std::error_code error;
+  std::filesystem::rename(from, to, error);
+  CHECK(!error) << VV(from) << VV(to) << VV(error);
+}
+
+ABSL_ATTRIBUTE_WEAK void RemotePathDelete(std::string_view path,
+                                          bool recursively) {
+  std::error_code error;
+  if (recursively) {
+    std::filesystem::remove_all(path, error);
+  } else {
+    std::filesystem::remove(path, error);
   }
-  return ret;
+  CHECK(!error) << VV(path) << VV(error);
 }
 
 #ifndef CENTIPEDE_DISABLE_RIEGELI

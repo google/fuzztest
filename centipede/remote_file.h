@@ -75,13 +75,21 @@ void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba);
 // Reads all current contents of 'f' into 'contents'.
 void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents);
 
-// Creates a (potentially remote) directory 'dir_path'.
-// No-op if the directory already exists.
+// Creates a (potentially remote) directory 'dir_path', as well as any missing
+// parent directories. No-op if the directory already exists.
 void RemoteMkdir(std::string_view dir_path);
 
 // Sets the contents of the file at 'path' to 'contents'.
 void RemoteFileSetContents(const std::filesystem::path &path,
+                           const ByteArray &contents);
+
+// Sets the contents of the file at 'path' to 'contents'.
+void RemoteFileSetContents(const std::filesystem::path &path,
                            const std::string &contents);
+
+// Reads the contents of the file at 'path' into 'contents'.
+void RemoteFileGetContents(const std::filesystem::path &path,
+                           ByteArray &contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
 void RemoteFileGetContents(const std::filesystem::path &path,
@@ -96,10 +104,19 @@ int64_t RemoteFileGetSize(std::string_view path);
 // Finds all files matching `glob` and appends them to `matches`.
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 
-// Recursively lists all files within `path`. Does not return any directories.
-// Returns an empty vector if `path` is an empty directory, or `path` does not
-// exist. Returns `{path}` if `path` is a non-directory.
-std::vector<std::string> RemoteListFilesRecursively(std::string_view path);
+// Lists all files within `path`, recursively expanding subdirectories if
+// `recursively` is true. Does not return any directories. Returns an empty
+// vector if `path` is an empty directory, or `path` does not exist. Returns
+// `{path}` if `path` is a non-directory.
+std::vector<std::string> RemoteListFiles(std::string_view path,
+                                         bool recursively);
+
+// Renames `from` to `to`.
+void RemotePathRename(std::string_view from, std::string_view to);
+
+// Deletes `path`. If `path` is a directory and `recursively` is true,
+// recursively deletes all files and subdirectories within `path`.
+void RemotePathDelete(std::string_view path, bool recursively);
 
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 // Returns a reader for the file at `file_path`.

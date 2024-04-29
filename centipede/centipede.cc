@@ -155,7 +155,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   std::vector<std::vector<std::string>> sharded_paths(env.total_shards);
   std::vector<std::string> paths;
   size_t total_paths = 0;
-  for (const std::string &path : RemoteListFilesRecursively(dir)) {
+  for (const std::string &path : RemoteListFiles(dir, /*recursively=*/true)) {
     size_t filename_hash = std::hash<std::string>{}(path);
     sharded_paths[filename_hash % env.total_shards].push_back(path);
     ++total_paths;
@@ -876,7 +876,7 @@ void Centipede::ReportCrash(std::string_view binary,
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
                 << "\nSaving input to: " << file_path;
-      RemoteFileSetContents(file_path, AsString(one_input));
+      RemoteFileSetContents(file_path, one_input);
       return;
     }
   }
@@ -906,7 +906,7 @@ void Centipede::ReportCrash(std::string_view binary,
     auto hash = Hash(one_input);
     std::string file_path = std::filesystem::path(save_dir).append(
         absl::StrFormat("input-%010d-%s", i, hash));
-    RemoteFileSetContents(file_path, AsString(one_input));
+    RemoteFileSetContents(file_path, one_input);
   }
 }
 
