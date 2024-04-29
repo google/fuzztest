@@ -43,7 +43,7 @@ FILE* stderr_file_ ABSL_GUARDED_BY(stderr_file_guard_);  // Zero-initialized.
 
 namespace {
 
-FILE* stdout_file_ = stdout;
+FILE* stdout_file_ = stdout;  // Never accessed concurrently.
 
 void Silence(int fd) {
   FILE* tmp = fopen("/dev/null", "w");
@@ -59,7 +59,6 @@ void Silence(int fd) {
 // If it's a stderr, silence it after duping it as the global stderr, which
 // will be used internally to log and be used when restoring the stderr.
 void DupAndSilence(int fd) {
-  absl::MutexLock lock(&stderr_file_guard_);
   FUZZTEST_INTERNAL_CHECK(fd == STDOUT_FILENO || fd == STDERR_FILENO,
                           "DupAndSilence only accepts stderr or stdout.");
   int new_fd = dup(fd);
@@ -70,6 +69,7 @@ void DupAndSilence(int fd) {
     if (fd == STDOUT_FILENO) {
       stdout_file_ = new_output_file;
     } else {
+      absl::MutexLock lock(&stderr_file_guard_);
       stderr_file_ = new_output_file;
     }
     Silence(fd);
@@ -83,21 +83,27 @@ void SilenceTargetStdoutAndStderr() {
 }
 
 void RestoreTargetStdoutAndStderr() {
-  absl::MutexLock lock(&stderr_file_guard_);
-  FUZZTEST_INTERNAL_CHECK(stderr_file_ != stderr,
+  // The CHECK-s below call GetStderr(), which accesses stderr_file_, which
+  // would lead to a deadlock if we kept the guard locked and the CHECK-s
+  // failed. To avoid this, we use a local variable.
+  stderr_file_guard_.Lock();
+  FILE* silenced_stderr = stderr_file_;
+  stderr_file_ = stderr;
+  stderr_file_guard_.Unlock();
+  FUZZTEST_INTERNAL_CHECK(silenced_stderr != stderr,
                           "Error, calling RestoreStderr without calling"
                           "DupandSilenceStderr first.");
+  FUZZTEST_INTERNAL_CHECK(dup2(fileno(silenced_stderr), STDERR_FILENO) != -1,
+                          "dup2 error:", strerror(errno));
+  FUZZTEST_INTERNAL_CHECK(fclose(silenced_stderr) == 0,
+                          "close() error:", strerror(errno));
+
   FUZZTEST_INTERNAL_CHECK(stdout_file_ != stdout,
                           "Error, calling RestoreStdout without calling"
                           "DupandSilenceStdout first.");
-  FUZZTEST_INTERNAL_CHECK(dup2(fileno(stderr_file_), STDERR_FILENO) != -1,
-                          "dup2 error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(close(fileno(stderr_file_)) == 0,
-                          "close() error:", strerror(errno));
-  stderr_file_ = stderr;
   FUZZTEST_INTERNAL_CHECK(dup2(fileno(stdout_file_), STDOUT_FILENO) != -1,
                           "dup2() error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(close(fileno(stdout_file_)) == 0,
+  FUZZTEST_INTERNAL_CHECK(fclose(stdout_file_) == 0,
                           "close() error:", strerror(errno));
   stdout_file_ = stdout;
 }
