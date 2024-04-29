@@ -17,6 +17,11 @@
 #include <errno.h>
 #include <string.h>
 
+#include "absl/base/attributes.h"
+#include "absl/base/const_init.h"
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 #if defined(__linux__)
 #include <unistd.h>
 #endif
@@ -29,7 +34,8 @@ namespace fuzztest::internal {
 
 namespace {
 
-FILE* stderr_file_ = stderr;
+ABSL_CONST_INIT absl::Mutex stderr_file_guard_(absl::kConstInit);
+FILE* stderr_file_ ABSL_GUARDED_BY(stderr_file_guard_);  // Zero-initialized.
 
 }  // namespace
 
@@ -53,6 +59,7 @@ void Silence(int fd) {
 // If it's a stderr, silence it after duping it as the global stderr, which
 // will be used internally to log and be used when restoring the stderr.
 void DupAndSilence(int fd) {
+  absl::MutexLock lock(&stderr_file_guard_);
   FUZZTEST_INTERNAL_CHECK(fd == STDOUT_FILENO || fd == STDERR_FILENO,
                           "DupAndSilence only accepts stderr or stdout.");
   int new_fd = dup(fd);
@@ -76,6 +83,7 @@ void SilenceTargetStdoutAndStderr() {
 }
 
 void RestoreTargetStdoutAndStderr() {
+  absl::MutexLock lock(&stderr_file_guard_);
   FUZZTEST_INTERNAL_CHECK(stderr_file_ != stderr,
                           "Error, calling RestoreStderr without calling"
                           "DupandSilenceStderr first.");
@@ -108,7 +116,13 @@ bool IsSilenceTargetEnabled() { return false; }
 
 #endif  // defined(__linux__)
 
-FILE* GetStderr() { return stderr_file_; }
+FILE* GetStderr() {
+  absl::MutexLock lock(&stderr_file_guard_);
+  if (!stderr_file_) {
+    stderr_file_ = stderr;
+  }
+  return stderr_file_;
+}
 
 void Abort(const char* file, int line, const std::string& message) {
   fprintf(GetStderr(), "%s:%d: %s\n", file, line, message.c_str());

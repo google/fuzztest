@@ -487,7 +487,9 @@ cc_library(
     srcs = ["internal/logging.cc"],
     hdrs = ["internal/logging.h"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
     ],
 )
 
