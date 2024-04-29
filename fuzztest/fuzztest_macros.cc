@@ -11,12 +11,12 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "./fuzztest/internal/logging.h"
 
 namespace fuzztest {
 
@@ -66,19 +66,15 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {
   std::vector<std::tuple<std::string>> out;
   const std::filesystem::path fs_dir(dir);
-  if (!std::filesystem::is_directory(fs_dir)) return out;
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(std::filesystem::is_directory(fs_dir),
+                                       "Not a directory: ", fs_dir.string());
   for (const auto& entry :
        std::filesystem::recursive_directory_iterator(fs_dir)) {
     if (std::filesystem::is_directory(entry)) continue;
     std::ifstream stream(entry.path().string());
-    if (!stream.good()) {
-      // Using stderr instead of GetStderr() to avoid
-      // initialization-order-fiasco when reading files at static init time with
-      // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
-      absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
-                    __LINE__, entry.path().string(), errno, strerror(errno));
-      continue;
-    }
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        stream.good(), "Cannot read input file: ", entry.path().string(), ": ",
+        strerror(errno));
     std::stringstream buffer;
     buffer << stream.rdbuf();
     out.push_back({buffer.str()});
@@ -123,22 +119,20 @@ absl::StatusOr<std::vector<std::string>> ParseDictionary(
 
 std::vector<std::string> ReadDictionaryFromFile(
     std::string_view dictionary_file) {
-  std::vector<fuzztest::internal::FilePathAndData> files =
-      fuzztest::internal::ReadFileOrDirectory(
-          {dictionary_file.data(), dictionary_file.size()});
-
-  std::vector<std::string> out;
-  // Dictionary must be in the format specified at
-  // https://llvm.org/docs/LibFuzzer.html#dictionaries
-  for (const fuzztest::internal::FilePathAndData& file : files) {
-    absl::StatusOr<std::vector<std::string>> parsed_entries =
-        ParseDictionary(file.data);
-    CHECK(parsed_entries.status().ok())
-        << "Could not parse dictionary file " << file.path << ": "
-        << parsed_entries.status();
-    out.insert(out.end(), parsed_entries->begin(), parsed_entries->end());
-  }
-  return out;
+  const std::filesystem::path fs_path(dictionary_file);
+  std::ifstream stream(fs_path);
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      stream.good(), "Cannot read dictionary file: ", fs_path.string(), ": ",
+      strerror(errno));
+  std::stringstream buffer;
+  buffer << stream.rdbuf();
+  absl::StatusOr<std::vector<std::string>> parsed_entries =
+      ParseDictionary(buffer.str());
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      parsed_entries.status().ok(),
+      "Cannot parse dictionary file: ", fs_path.string(), ": ",
+      parsed_entries.status());
+  return *parsed_entries;
 }
 
 }  // namespace fuzztest
