@@ -1362,8 +1362,6 @@ cc_test(
         ":distill",
         ":environment",
         ":feature",
-        ":resource_pool",
-        ":rusage_stats",
         ":test_util",
         ":util",
         ":workdir",

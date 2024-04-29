@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <memory>
@@ -32,6 +33,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "./centipede/blob_file.h"
@@ -53,6 +55,7 @@ namespace centipede {
 
 namespace {
 
+// A corpus element. Consists of a fuzz test input and its matching features.
 struct CorpusElt {
   ByteArray input;
   FeatureVec features;
@@ -75,14 +78,14 @@ using CorpusEltVec = std::vector<CorpusElt>;
 
 // The maximum number of threads reading input shards concurrently. This is
 // mainly to prevent I/O congestion.
-inline constexpr size_t kMaxReadingThreads = 100;
+inline constexpr size_t kMaxReadingThreads = 50;
 // The maximum number of threads writing shards concurrently. These in turn
 // launch up to `kMaxReadingThreads` reading threads.
-inline constexpr size_t kMaxWritingThreads = 10;
+inline constexpr size_t kMaxWritingThreads = 100;
 // A global cap on the total number of threads, both writing and reading. Unlike
 // the other two limits, this one is purely to prevent too many threads in the
 // process.
-inline constexpr size_t kMaxTotalThreads = 1000;
+inline constexpr size_t kMaxTotalThreads = 5000;
 static_assert(kMaxReadingThreads * kMaxWritingThreads <= kMaxTotalThreads);
 
 inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
@@ -96,6 +99,8 @@ inline constexpr absl::Duration kRamLeaseTimeout = absl::Hours(5);
 std::string LogPrefix(const Environment &env) {
   return absl::StrCat("DISTILL[S.", env.my_shard_index, "]: ");
 }
+
+std::string LogPrefix() { return absl::StrCat("DISTILL[ALL]: "); }
 
 // TODO(ussuri): Move the reader/writer classes to shard_reader.cc, rename it
 //  to corpus_io.cc, and reuse the new APIs where useful in the code base.
@@ -200,9 +205,6 @@ class CorpusShardWriter {
 
  private:
   void WriteEltImpl(CorpusElt elt) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    const std::string hash = Hash(elt.input);
-    const auto [iter, inserted] = input_hashes_.insert(hash);
-    if (!inserted) return;
     ++stats_.num_total_elts;
     const auto preprocessed_elt = PreprocessElt(std::move(elt));
     if (preprocessed_elt.has_value()) {
@@ -223,7 +225,73 @@ class CorpusShardWriter {
   mutable absl::Mutex mu_;
   std::unique_ptr<BlobFileWriter> corpus_writer_ ABSL_GUARDED_BY(mu_);
   std::unique_ptr<BlobFileWriter> feature_writer_ ABSL_GUARDED_BY(mu_);
-  absl::flat_hash_set<std::string> input_hashes_ ABSL_GUARDED_BY(mu_);
+  Stats stats_ ABSL_GUARDED_BY(mu_);
+};
+
+// A distilling input filter:
+// - Deduplicates byte-identical inputs: only the first one is allowed to pass.
+// - Deduplicates feature-equivalent inputs: up to N from each equivalency set
+//   are allowed to pass.
+// - Discards the specified set of "uninteresting" feature domains from the
+//   feature sets of filtered inputs.
+class DistillingInputFilter {
+ public:
+  // An extension to the parent class's `Stats`.
+  struct Stats {
+    size_t num_total_elts = 0;
+    size_t num_byte_unique_elts = 0;
+    size_t num_feature_unique_elts = 0;
+    // The accumulated features of the distilled corpus so far, represents in
+    // the same compact textual form that Centipede uses in its fuzzing progress
+    // log messages, e.g.: "ft: 96331 cov: 81793 usr1: 5045 ...".
+    std::string coverage_str;
+  };
+
+  // `feature_equiv_redundancy` specifies how many inputs with equivalent
+  // feature sets are allowed to pass the filter. Any subsequent inputs with the
+  // equivalent set will be rejected.
+  // `should_discard_domains` specifies the domains that should be discarded
+  // from the feature set of a filtered input.
+  DistillingInputFilter(  //
+      uint8_t feature_frequency_threshold,
+      const FeatureSet::FeatureDomainSet &domains_to_discard)
+      : seen_inputs_{},
+        seen_features_{
+            /*frequency_threshold=*/feature_frequency_threshold,
+            /*should_discard_domain=*/domains_to_discard,
+        } {}
+
+  std::optional<CorpusElt> FilterElt(CorpusElt elt) {
+    absl::MutexLock lock{&mu_};
+
+    ++stats_.num_total_elts;
+
+    // Filter out approximately byte-identical inputs ("approximately" because
+    // we use hashes).
+    std::string hash = Hash(elt.input);
+    const auto [iter, inserted] = seen_inputs_.insert(std::move(hash));
+    if (!inserted) return std::nullopt;
+    ++stats_.num_byte_unique_elts;
+
+    // Filter out feature-equivalent inputs.
+    seen_features_.PruneDiscardedDomains(elt.features);
+    if (!seen_features_.HasUnseenFeatures(elt.features)) return std::nullopt;
+    seen_features_.IncrementFrequencies(elt.features);
+    ++stats_.num_feature_unique_elts;
+
+    return std::move(elt);
+  }
+
+  Stats GetStats() {
+    absl::MutexLock lock{&mu_};
+    stats_.coverage_str = (std::stringstream{} << seen_features_).str();
+    return stats_;
+  }
+
+ private:
+  absl::Mutex mu_;
+  absl::flat_hash_set<std::string /*hash*/> seen_inputs_ ABSL_GUARDED_BY(mu_);
+  FeatureSet seen_features_ ABSL_GUARDED_BY(mu_);
   Stats stats_ ABSL_GUARDED_BY(mu_);
 };
 
@@ -231,61 +299,53 @@ class CorpusShardWriter {
 // all writes go to a single file.
 class DistilledCorpusShardWriter : public CorpusShardWriter {
  public:
-  // An extension to the parent class's `Stats`.
-  struct DistilledStats {
-    // The accumulated features of the distilled corpus so far, represents in
-    // the same compact textual form that Centipede uses in its fuzzing progress
-    // log messages, e.g.: "ft: 96331 cov: 81793 usr1: 5045 ...".
-    std::string coverage_str;
-  };
-
-  DistilledCorpusShardWriter(const Environment &env, bool append)
-      : CorpusShardWriter{env, append},
-        feature_set_{/*frequency_threshold=*/1, env.MakeDomainDiscardMask()} {}
+  DistilledCorpusShardWriter(  //
+      const Environment &env, bool append, DistillingInputFilter &filter)
+      : CorpusShardWriter{env, append}, input_filter_{filter} {}
 
   ~DistilledCorpusShardWriter() override = default;
 
-  DistilledStats GetDistilledStats() const {
-    absl::MutexLock lock(&mu_);
-    DistilledStats stats;
-    std::stringstream coverage_ss;
-    coverage_ss << feature_set_;
-    stats.coverage_str = coverage_ss.str();
-    return stats;
-  }
-
  protected:
   std::optional<CorpusElt> PreprocessElt(CorpusElt elt) override {
-    absl::MutexLock lock(&mu_);
-    feature_set_.PruneDiscardedDomains(elt.features);
-    if (!feature_set_.HasUnseenFeatures(elt.features)) return std::nullopt;
-    feature_set_.IncrementFrequencies(elt.features);
-    return std::move(elt);
+    return input_filter_.FilterElt(std::move(elt));
   }
 
  private:
-  mutable absl::Mutex mu_;
-  FeatureSet feature_set_ ABSL_GUARDED_BY(mu_);
+  DistillingInputFilter &input_filter_;
 };
 
 }  // namespace
 
-void DistillTask(const Environment &env,
-                 const std::vector<size_t> &shard_indices,
-                 perf::ResourcePool<perf::RUsageMemory> &ram_pool,
-                 int parallelism) {
+// Runs one independent distillation task. Reads shards in the order specified
+// by `shard_indices`, distills inputs from them using `input_filter`, and
+// writes the result to `WorkDir{env}.DistilledPath()`. Every task gets its own
+// `env.my_shard_index`, and so every task creates its own independent distilled
+// corpus file. `parallelism` is the maximum number of concurrent
+// reading/writing threads. Values > 1 can cause non-determinism in which of the
+// same-coverage inputs gets selected to be written to the output shard; set to
+// 1 for tests.
+void DistillToOneOutputShard(                          //
+    const Environment &env,                            //
+    const std::vector<size_t> &shard_indices,          //
+    DistillingInputFilter &input_filter,               //
+    perf::ResourcePool<perf::RUsageMemory> &ram_pool,  //
+    int parallelism) {
+  LOG(INFO) << LogPrefix(env) << "Distilling to output shard "
+            << env.my_shard_index << "; input shard indices:\n"
+            << absl::StrJoin(shard_indices, ", ");
+
   // Read and write the shards in parallel, but gate reading of each on the
   // availability of free RAM to keep the peak RAM usage under control.
   const size_t num_shards = shard_indices.size();
   InputCorpusShardReader reader{env};
   // NOTE: Always overwrite corpus and features files, never append.
-  DistilledCorpusShardWriter writer{env, /*append=*/false};
+  DistilledCorpusShardWriter writer{env, /*append=*/false, input_filter};
 
   {
     ThreadPool threads{parallelism};
     for (size_t shard_idx : shard_indices) {
-      threads.Schedule([shard_idx, &reader, &writer, &env, num_shards,
-                        &ram_pool] {
+      threads.Schedule([shard_idx, &reader, &writer, &input_filter, &env,
+                        num_shards, &ram_pool] {
         const auto ram_lease = ram_pool.AcquireLeaseBlocking({
             .id = absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
             .amount = {.mem_rss = reader.EstimateRamFootprint(shard_idx)},
@@ -301,55 +361,91 @@ void DistillTask(const Environment &env,
         //   not any better or worse than any other order.
         std::reverse(shard_elts.begin(), shard_elts.end());
         writer.WriteBatch(std::move(shard_elts));
-        const auto stats = writer.GetStats();
-        const auto distilled_stats = writer.GetDistilledStats();
-        LOG(INFO) << LogPrefix(env) << distilled_stats.coverage_str
-                  << " batches: " << stats.num_written_batches << "/"
-                  << num_shards << " inputs: " << stats.num_total_elts
-                  << " distilled: " << stats.num_written_elts;
+        const CorpusShardWriter::Stats shard_stats = writer.GetStats();
+        LOG(INFO) << LogPrefix(env)
+                  << "batches: " << shard_stats.num_written_batches << "/"
+                  << num_shards << " inputs: " << shard_stats.num_total_elts
+                  << " written: " << shard_stats.num_written_elts;
+        const DistillingInputFilter::Stats distill_stats =
+            input_filter.GetStats();
+        LOG(INFO) << LogPrefix() << distill_stats.coverage_str
+                  << " inputs: " << distill_stats.num_total_elts
+                  << " unique: " << distill_stats.num_byte_unique_elts
+                  << " distilled: " << distill_stats.num_feature_unique_elts;
       });
     }
-  }  // The reading threads join here.
+  }  // The threads join here.
+
+  LOG(INFO) << LogPrefix(env) << "Done distilling to output shard "
+            << env.my_shard_index;
 }
 
-int Distill(const Environment &env) {
+int Distill(const Environment &env, const DistillOptions &opts) {
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
       /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
       /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
 
-  // The RAM pool shared between all the threads, here and in `DistillTask`.
-  perf::ResourcePool ram_pool{kRamQuota};
-
+  // Prepare the per-thread envs.
   std::vector<Environment> envs_per_thread(env.num_threads, env);
-  std::vector<std::vector<size_t>> shard_indices_per_thread(env.num_threads);
-  // Prepare per-thread envs and input shard indices.
   for (size_t thread_idx = 0; thread_idx < env.num_threads; ++thread_idx) {
     envs_per_thread[thread_idx].my_shard_index += thread_idx;
-    // Shuffle the shards, so that every thread produces different result.
-    Rng rng(GetRandomSeed(env.seed + thread_idx));
-    auto &shard_indices = shard_indices_per_thread[thread_idx];
-    shard_indices.resize(env.total_shards);
-    std::iota(shard_indices.begin(), shard_indices.end(), 0);
-    std::shuffle(shard_indices.begin(), shard_indices.end(), rng);
+  }
+
+  // Prepare the per-thread input shard indices. This assigns a randomized and
+  // shuffled subset of the input shards to each output shard writer. The subset
+  // sizes are roughly equal between the writers.
+  std::vector<std::vector<size_t>> shard_indices_per_thread(env.num_threads);
+  std::vector<size_t> all_shard_indices(env.total_shards);
+  std::iota(all_shard_indices.begin(), all_shard_indices.end(), 0);
+  Rng rng{GetRandomSeed(env.seed)};
+  std::shuffle(all_shard_indices.begin(), all_shard_indices.end(), rng);
+  size_t thread_idx = 0;
+  for (size_t shard_idx : all_shard_indices) {
+    shard_indices_per_thread[thread_idx].push_back(shard_idx);
+    thread_idx = (thread_idx + 1) % env.num_threads;
   }
 
   // Run the distillation threads in parallel.
   {
+    // A global input filter shared by all output shard writers. The output
+    // shards will collectively contain a deduplicated set of byte- and
+    // feature-unique inputs.
+    DistillingInputFilter input_filter{
+        opts.feature_frequency_threshold,
+        env.MakeDomainDiscardMask(),
+    };
+    // The RAM pool shared between all the `DistillTask()` threads.
+    perf::ResourcePool ram_pool{kRamQuota};
     const size_t num_threads = std::min(env.num_threads, kMaxWritingThreads);
     ThreadPool threads{static_cast<int>(num_threads)};
     for (size_t thread_idx = 0; thread_idx < env.num_threads; ++thread_idx) {
       threads.Schedule(
           [&thread_env = envs_per_thread[thread_idx],
            &thread_shard_indices = shard_indices_per_thread[thread_idx],
-           &ram_pool]() {
-            DistillTask(  //
-                thread_env, thread_shard_indices, ram_pool, kMaxReadingThreads);
+           &input_filter, &ram_pool]() {
+            DistillToOneOutputShard(  //
+                thread_env, thread_shard_indices, input_filter, ram_pool,
+                kMaxReadingThreads);
           });
     }
-  }  // The writing threads join here.
+  }  // The threads join here.
 
   return EXIT_SUCCESS;
+}
+
+void DistillForTests(const Environment &env,
+                     const std::vector<size_t> &shard_indices) {
+  DistillingInputFilter input_filter{
+      /*feature_frequency_threshold=*/1,
+      env.MakeDomainDiscardMask(),
+  };
+  // Do not limit the max RAM.
+  perf::ResourcePool ram_pool{perf::RUsageMemory::Max()};
+  // Read the input shards sequentially and in order to ensure deterministic
+  // outputs.
+  DistillToOneOutputShard(  //
+      env, shard_indices, input_filter, ram_pool, /*parallelism=*/1);
 }
 
 }  // namespace centipede

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -293,21 +294,22 @@ TEST(Centipede, ShardsAndDistillTest) {
   MockFactory factory(mock);
   CentipedeMain(env, factory);  // Run distilling in shard `shard_index`.
   EXPECT_EQ(CountFilesInDir(env.corpus_dir[0]), 0);
+  size_t distilled_size = 0;
   for (size_t shard_index = 0; shard_index < env.total_shards; shard_index++) {
     SCOPED_TRACE(absl::StrCat("Shard ", shard_index));
-    auto distilled_size =
+    const auto shard_distilled_size =
         tmp_dir.CountElementsInCorpusFile(shard_index, "distilled-.");
     if (shard_index == env.total_shards - 1) {
       // Didn't distill in the last shard.
-      EXPECT_EQ(distilled_size, 0);
-    } else {
-      // Distillation is expected to find more inputs than any individual shard.
-      EXPECT_GT(distilled_size, max_shard_size);
-      // And since we are expecting 512 features, with 2-byte inputs,
-      // we get at least 512/2 corpus elements after distillation.
-      EXPECT_GT(distilled_size, 256);
+      EXPECT_EQ(shard_distilled_size, 0);
     }
+    distilled_size += shard_distilled_size;
   }
+  // Distillation is expected to find more inputs than any individual shard.
+  EXPECT_GT(distilled_size, max_shard_size);
+  // And since we are expecting 512 features, with 2-byte inputs,
+  // we get at least 512/2 corpus elements after distillation.
+  EXPECT_GT(distilled_size, 256);
 }
 
 // Tests --input_filter. test_input_filter filters out inputs with 'b' in them.

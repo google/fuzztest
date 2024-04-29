@@ -31,8 +31,6 @@
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/resource_pool.h"
-#include "./centipede/rusage_stats.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -117,11 +115,6 @@ std::vector<TestCorpusRecord> TestDistill(
   const WorkDir wd{env};
   std::filesystem::create_directories(wd.CoverageDirPath());
 
-  // Do not limit the max RAM.
-  perf::ResourcePool ram_pool{perf::RUsageMemory::Max()};
-  // Turn off parallel writes to ensure deterministic outputs.
-  constexpr int kParallelism = 1;
-
   // Write the shards.
   for (size_t shard_index = 0; shard_index < shards.size(); ++shard_index) {
     for (const auto &record : shards[shard_index]) {
@@ -129,7 +122,7 @@ std::vector<TestCorpusRecord> TestDistill(
     }
   }
   // Distill.
-  DistillTask(env, shard_indices, ram_pool, kParallelism);
+  DistillForTests(env, shard_indices);
   // Read the result back.
   return ReadFromDistilled(wd);
 }
