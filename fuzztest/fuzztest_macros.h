@@ -137,9 +137,6 @@ absl::StatusOr<std::vector<std::string>> ParseDictionary(
 // Reads entries from `dictionary_file` and returns a vector usable by
 // .WithDictionary().
 //
-// The dictionary must be in the format specified at:
-// https://llvm.org/docs/LibFuzzer.html#dictionaries
-//
 // Example:
 //
 //   void MyThingNeverCrashes(const std::string& s) {
