@@ -40,7 +40,7 @@ inline constexpr size_t kHashLen = 40;
 // being remote. Returns an empty string if the `file_path` is empty.
 std::string HashOfFileContents(std::string_view file_path);
 // Returns a printable string representing at most `max_len` bytes of `data`.
-std::string AsString(const ByteArray &data, size_t max_len = 16);
+std::string AsPrintableString(const ByteArray &data, size_t max_len);
 // Reads from a local file `file_path` into `data`.
 // Crashes on any error.
 void ReadFromLocalFile(std::string_view file_path, ByteArray &data);

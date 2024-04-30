@@ -128,7 +128,7 @@ static void MinimizeCrash(const Environment &env,
       CHECK_LT(crash_inputs_idx, smaller_mutants.size());
       const auto &new_crasher = smaller_mutants[crash_inputs_idx];
       LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
-                << AsString(new_crasher, 40);
+                << AsPrintableString(new_crasher, /*max_len=*/40);
       queue.AddCrasher(new_crasher);
     }
   }

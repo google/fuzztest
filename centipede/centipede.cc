@@ -870,8 +870,8 @@ void Centipede::ReportCrash(std::string_view binary,
       RemoteMkdir(crash_dir);
       std::string file_path = std::filesystem::path(crash_dir).append(hash);
       LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
-                << "\nInput index    : " << input_idx
-                << "\nInput bytes    : " << AsString(one_input, /*max_len=*/32)
+                << "\nInput index    : " << input_idx << "\nInput bytes    : "
+                << AsPrintableString(one_input, /*max_len=*/32)
                 << "\nExit code      : " << one_input_batch_result.exit_code()
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()

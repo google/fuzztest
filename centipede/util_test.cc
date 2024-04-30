@@ -59,16 +59,16 @@ TEST(UtilTest, Hash) {
 }
 
 TEST(UtilTest, AsString) {
-  EXPECT_EQ(AsString({'a', 'b', 'c'}, 3), "abc");
-  EXPECT_EQ(AsString({'a', 'b', 'C'}, 4), "abC");
-  EXPECT_EQ(AsString({'a', 'b', 'c'}, 2), "ab");
+  EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 3), "abc");
+  EXPECT_EQ(AsPrintableString({'a', 'b', 'C'}, 4), "abC");
+  EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 2), "ab");
   // NOTE: Test both int (0xAB) and char ('\xAB') literals as ByteArray
   // initializers: the latter used to cause compilation failures with
   // Bazel/Clang default setup (without --cxxopt=--fno-signed-char in .bazelrc).
-  EXPECT_EQ(AsString({'a', 0xAB, 0xCD}, 3), "a\\xAB\\xCD");
-  EXPECT_EQ(AsString({'a', 0xAB, 0xCD}, 4), "a\\xAB\\xCD");
-  EXPECT_EQ(AsString({'a', '\xAB', '\xCD'}, 2), "a\\xAB");
-  EXPECT_EQ(AsString({'a', '\xAB', '\xCD', 'z'}, 5), "a\\xAB\\xCDz");
+  EXPECT_EQ(AsPrintableString({'a', 0xAB, 0xCD}, 3), "a\\xAB\\xCD");
+  EXPECT_EQ(AsPrintableString({'a', 0xAB, 0xCD}, 4), "a\\xAB\\xCD");
+  EXPECT_EQ(AsPrintableString({'a', '\xAB', '\xCD'}, 2), "a\\xAB");
+  EXPECT_EQ(AsPrintableString({'a', '\xAB', '\xCD', 'z'}, 5), "a\\xAB\\xCDz");
 }
 
 TEST(UtilTest, ExtractHashFromArray) {
