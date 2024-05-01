@@ -1,5 +1,9 @@
 #include "./fuzztest/init_fuzztest.h"
 
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -26,6 +30,10 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
+
+#if !defined(__linux__)
+#include "./fuzztest/internal/logging.h"
+#endif  // !defined(__linux__)
 
 #define FUZZTEST_DEFINE_FLAG(type, name, default_value, description) \
   ABSL_FLAG(type, FUZZTEST_FLAG_NAME(name), default_value, description)
@@ -179,6 +187,39 @@ internal::Configuration CreateConfigurationsFromFlags(
       time_limit_per_test};
 }
 
+#if defined(__linux__)
+
+void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
+  std::string binary_arg = absl::StrCat("--binary=", argv[0]);
+  for (int i = 1; i < argc; ++i) {
+    absl::StrAppend(&binary_arg, " ", argv[i]);
+  }
+  for (auto [flag_name, flag] : absl::GetAllFlags()) {
+    if (flag->CurrentValue() == flag->DefaultValue()) continue;
+    absl::StrAppend(&binary_arg, " --", flag_name, "=", flag->CurrentValue());
+  }
+  // `execv` guarantees it will not modify the passed arguments, so the
+  // const_casts are OK.
+  char* args[] = {
+      const_cast<char*>(centipede_binary),
+      const_cast<char*>(binary_arg.c_str()),
+      nullptr,
+  };
+  execv(centipede_binary, args);
+}
+
+#else
+
+void ExecvToCentipede(const char*, int, char**) {
+  absl::FPrintF(internal::GetStderr(),
+                "Switching to Centipede via FUZZTEST_CENTIPEDE_BINARY only "
+                "works on Linux. Please run Centipede manually and use the "
+                "--binary flag to pass the current binary.");
+  std::exit(1);
+}
+
+#endif  // defined(__linux__)
+
 }  // namespace
 
 void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name) {
@@ -195,6 +236,12 @@ void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name) {
 }
 
 void InitFuzzTest(int* argc, char*** argv) {
+  const char* centipede_binary = std::getenv("FUZZTEST_CENTIPEDE_BINARY");
+  const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS");
+  if (centipede_binary != nullptr && !is_runner_mode) {
+    ExecvToCentipede(centipede_binary, *argc, *argv);
+  }
+
   const bool is_listing = absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests));
   if (is_listing) {
     for (const auto& name : ListRegisteredTests()) {

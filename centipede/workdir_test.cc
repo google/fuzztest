@@ -125,6 +125,8 @@ TEST(WorkDirTest, Api) {
             "/dir/rusage-report-bin.000003.txt");
   EXPECT_EQ(wd.RUsageReportPath("anno"),  //
             "/dir/rusage-report-bin.000003.anno.txt");
+  EXPECT_EQ(wd.CurrentFuzzTestPath(),  //
+            "/dir/current_fuzztest");
 }
 
 }  // namespace centipede

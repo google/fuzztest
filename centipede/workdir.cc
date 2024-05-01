@@ -214,6 +214,10 @@ std::string WorkDir::RUsageReportPath(std::string_view annotation) const {
                           NormalizeAnnotation(annotation)));
 }
 
+std::string WorkDir::CurrentFuzzTestPath() const {
+  return std::filesystem::path(workdir_) / "current_fuzztest";
+}
+
 std::vector<std::string> WorkDir::EnumerateRawCoverageProfiles() const {
   // Unfortunately we have to enumerate the profiles from the filesystem since
   // clang-coverage generates its own hash of the binary to avoid collisions

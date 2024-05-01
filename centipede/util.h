@@ -51,6 +51,8 @@ void ReadFromLocalFile(std::string_view file_path, std::string &data);
 void ReadFromLocalFile(std::string_view file_path, FeatureVec &data);
 // Same as above but for vector<uint32_t>.
 void ReadFromLocalFile(std::string_view file_path, std::vector<uint32_t> &data);
+// Clears the content of the file `file_path`. Crashes on any error.
+void ClearLocalFileContents(std::string_view file_path);
 // Writes the contents of `data` to a local file `file_path`.
 // Crashes on any error.
 void WriteToLocalFile(std::string_view file_path, ByteSpan data);

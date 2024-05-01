@@ -146,6 +146,10 @@ class WorkDir {
   // `annotation` must not start with a '.'.
   std::string RUsageReportPath(std::string_view annotation = "") const;
 
+  // Returns the path to the file containing the name of the fuzz test to which
+  // the workdir relates to.
+  std::string CurrentFuzzTestPath() const;
+
  private:
   // Internal value holders for when the object is constructed from direct
   // values rather than an `Environment` object.

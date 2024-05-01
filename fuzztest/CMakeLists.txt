@@ -76,6 +76,7 @@ fuzztest_cc_library(
     fuzztest::configuration
     fuzztest::googletest_adaptor
     fuzztest::io
+    fuzztest::logging
     fuzztest::registry
     fuzztest::runtime
     absl::flags
