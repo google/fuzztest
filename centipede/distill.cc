@@ -43,6 +43,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"
+#include "./centipede/periodic_action.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/resource_pool.h"
 #include "./centipede/rusage_profiler.h"
@@ -366,12 +367,6 @@ void DistillToOneOutputShard(                          //
                   << "batches: " << shard_stats.num_written_batches << "/"
                   << num_shards << " inputs: " << shard_stats.num_total_elts
                   << " written: " << shard_stats.num_written_elts;
-        const DistillingInputFilter::Stats distill_stats =
-            input_filter.GetStats();
-        LOG(INFO) << LogPrefix() << distill_stats.coverage_str
-                  << " inputs: " << distill_stats.num_total_elts
-                  << " unique: " << distill_stats.num_byte_unique_elts
-                  << " distilled: " << distill_stats.num_feature_unique_elts;
       });
     }
   }  // The threads join here.
@@ -415,6 +410,23 @@ int Distill(const Environment &env, const DistillOptions &opts) {
         opts.feature_frequency_threshold,
         env.MakeDomainDiscardMask(),
     };
+    // A periodic logger of the global distillation progress. Runs on a separate
+    // thread.
+    PeriodicAction progress_logger{
+        [&input_filter]() {
+          const auto stats = input_filter.GetStats();
+          LOG(INFO) << LogPrefix() << stats.coverage_str
+                    << " inputs: " << stats.num_total_elts
+                    << " unique: " << stats.num_byte_unique_elts
+                    << " distilled: " << stats.num_feature_unique_elts;
+        },
+        {
+            // Seeing 0's at the beginning is not interesting, unless debugging.
+            .delay = absl::Seconds(VLOG_IS_ON(1) ? 0 : 60),
+            // Again, increase the frequency with --v >= 1 to aid debugging.
+            .interval = absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),
+        },
+    };
     // The RAM pool shared between all the `DistillTask()` threads.
     perf::ResourcePool ram_pool{kRamQuota};
     const size_t num_threads = std::min(env.num_threads, kMaxWritingThreads);
@@ -423,10 +435,13 @@ int Distill(const Environment &env, const DistillOptions &opts) {
       threads.Schedule(
           [&thread_env = envs_per_thread[thread_idx],
            &thread_shard_indices = shard_indices_per_thread[thread_idx],
-           &input_filter, &ram_pool]() {
+           &input_filter, &progress_logger, &ram_pool]() {
             DistillToOneOutputShard(  //
                 thread_env, thread_shard_indices, input_filter, ram_pool,
                 kMaxReadingThreads);
+            // In addition to periodic progress reports, also log the progress
+            // after writing each output shard.
+            progress_logger.Nudge();
           });
     }
   }  // The threads join here.

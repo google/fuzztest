@@ -938,6 +938,7 @@ cc_library(
         ":feature",
         ":feature_set",
         ":logging",
+        ":periodic_action",
         ":remote_file",
         ":resource_pool",
         ":rusage_profiler",
