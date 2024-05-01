@@ -154,6 +154,11 @@ ABSL_ATTRIBUTE_WEAK void RemoteFileSetWriteBufferSize(
   static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
 }
 
+ABSL_ATTRIBUTE_WEAK void RemoteFileSetWriteBufferSize(
+    absl::Nonnull<RemoteFile *> f, size_t size) {
+  // NOTE: A no-op for now.
+}
+
 ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
                                           const ByteArray &ba) {
   static_cast<LocalRemoteFile *>(f)->Write(ba);
