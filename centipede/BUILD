@@ -369,6 +369,19 @@ cc_library(
 )
 
 cc_library(
+    name = "periodic_action",
+    srcs = ["periodic_action.cc"],
+    hdrs = ["periodic_action.h"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "stats",
     srcs = ["stats.cc"],
     hdrs = ["stats.h"],
@@ -1798,6 +1811,17 @@ cc_test(
         ":thread_pool",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "periodic_action_test",
+    srcs = ["periodic_action_test.cc"],
+    deps = [
+        ":logging",
+        ":periodic_action",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
