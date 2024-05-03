@@ -106,6 +106,7 @@ cc_library(
         ":flag_name",
         ":googletest_adaptor",
         ":io",
+        ":logging",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/flags:flag",
