@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <atomic>
 #include <csignal>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <functional>
@@ -34,17 +33,20 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/analyze_corpora.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/centipede.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
-#include "./centipede/corpus.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/distill.h"
@@ -54,20 +56,20 @@
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/remote_file.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
 
 namespace {
 
-// Sets signal handler for SIGINT.
+// Sets signal handler for SIGINT and SIGALRM.
 void SetSignalHandlers(absl::Time stop_at) {
   for (int signum : {SIGINT, SIGALRM}) {
     struct sigaction sigact = {};
-    // Reset the handler to SIG_DFL upon entry into our custom handler.
-    sigact.sa_flags = SA_RESETHAND;
     sigact.sa_handler = [](int received_signum) {
       if (received_signum == SIGINT) {
         ABSL_RAW_LOG(INFO, "Ctrl-C pressed: winding down");
@@ -188,52 +190,9 @@ void SavePCTableToFile(const PCTable &pc_table, std::string_view file_path) {
   WriteToLocalFile(file_path, AsByteSpan(pc_table));
 }
 
-}  // namespace
-
-int CentipedeMain(const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory) {
-  ClearEarlyExitRequest();
-  SetSignalHandlers(env.stop_at);
-
-  if (!env.corpus_to_files.empty()) {
-    Centipede::CorpusToFiles(env, env.corpus_to_files);
-    return EXIT_SUCCESS;
-  }
-
-  if (!env.for_each_blob.empty()) return ForEachBlob(env);
-
-  if (!env.minimize_crash_file_path.empty()) {
-    ByteArray crashy_input;
-    ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    return MinimizeCrash(crashy_input, env, callbacks_factory);
-  }
-
-  // Just export the corpus from a local dir and exit.
-  if (!env.corpus_from_files.empty()) {
-    Centipede::CorpusFromFiles(env, env.corpus_from_files);
-    return EXIT_SUCCESS;
-  }
-
-  // Export the corpus from a local dir and then fuzz.
-  if (!env.corpus_dir.empty()) {
-    for (size_t i = 0; i < env.corpus_dir.size(); ++i) {
-      const auto &corpus_dir = env.corpus_dir[i];
-      if (i > 0 || !env.first_corpus_dir_output_only)
-        Centipede::CorpusFromFiles(env, corpus_dir);
-    }
-  }
-
-  if (env.distill) return Distill(env);
-
-  // Create the local temporary dir and remote coverage dirs once, before
-  // creating any threads.
-  const auto coverage_dir = WorkDir{env}.CoverageDirPath();
-  RemoteMkdir(coverage_dir);
-  const auto tmpdir = TemporaryLocalDirPath();
-  CreateLocalDirRemovedAtExit(tmpdir);
-  LOG(INFO) << "Coverage dir: " << coverage_dir
-            << "; temporary dir: " << tmpdir;
-
+BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
+    const Environment &env, CentipedeCallbacksFactory &callbacks_factory,
+    std::string &pcs_file_path) {
   BinaryInfo binary_info;
   // Some fuzz targets have coverage not based on instrumenting binaries.
   // For those target, we should not populate binary info.
@@ -241,26 +200,26 @@ int CentipedeMain(const Environment &env,
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }
-
   if (env.save_binary_info) {
     const std::string binary_info_dir = WorkDir{env}.BinaryInfoDirPath();
     RemoteMkdir(binary_info_dir);
     LOG(INFO) << "Serializing binary info to: " << binary_info_dir;
     binary_info.Write(binary_info_dir);
   }
-
-  std::string pcs_file_path;
   if (binary_info.uses_legacy_trace_pc_instrumentation) {
-    pcs_file_path = std::filesystem::path(tmpdir).append("pcs");
+    pcs_file_path = std::filesystem::path(TemporaryLocalDirPath()) / "pcs";
     SavePCTableToFile(binary_info.pc_table, pcs_file_path);
   }
-
-  if (env.analyze) return Analyze(env);
-
   if (env.use_pcpair_features) {
     CHECK(!binary_info.pc_table.empty())
         << "--use_pcpair_features requires non-empty pc_table";
   }
+  return binary_info;
+}
+
+int Fuzz(const Environment &env, const BinaryInfo &binary_info,
+         std::string_view pcs_file_path,
+         CentipedeCallbacksFactory &callbacks_factory) {
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
   std::vector<Environment> envs(env.num_threads, env);
@@ -315,6 +274,238 @@ int CentipedeMain(const Environment &env,
   if (!env.knobs_file.empty()) PrintRewardValues(stats_vec, std::cerr);
 
   return ExitCode();
+}
+
+struct TestShard {
+  int index = 0;
+  int total_shards = 1;
+};
+
+TestShard SetUpTestSharding() {
+  TestShard test_shard;
+  if (const char *test_total_shards_env = std::getenv("TEST_TOTAL_SHARDS");
+      test_total_shards_env != nullptr) {
+    CHECK(absl::SimpleAtoi(test_total_shards_env, &test_shard.total_shards))
+        << "Failed to parse TEST_TOTAL_SHARDS as an integer: \""
+        << test_total_shards_env << "\"";
+    CHECK_GT(test_shard.total_shards, 0)
+        << "TEST_TOTAL_SHARDS must be greater than 0.";
+  }
+  if (const char *test_shard_index_env = std::getenv("TEST_SHARD_INDEX");
+      test_shard_index_env != nullptr) {
+    CHECK(absl::SimpleAtoi(test_shard_index_env, &test_shard.index))
+        << "Failed to parse TEST_SHARD_INDEX as an integer: \""
+        << test_shard_index_env << "\"";
+    CHECK(0 <= test_shard.index && test_shard.index < test_shard.total_shards)
+        << "TEST_SHARD_INDEX must be in the range [0, "
+        << test_shard.total_shards << ").";
+  }
+  // Update the shard status file to indicate that we support test sharding.
+  // It suffices to update the file's modification time, but we clear the
+  // contents for simplicity. This is also what the GoogleTest framework does.
+  if (const char *test_shard_status_file =
+          std::getenv("TEST_SHARD_STATUS_FILE");
+      test_shard_status_file != nullptr) {
+    ClearLocalFileContents(test_shard_status_file);
+  }
+  return test_shard;
+}
+
+int PruneNonreproducibleAndCountRemainingCrashes(
+    const Environment &env, absl::Span<const std::string> crashing_input_files,
+    CentipedeCallbacksFactory &callbacks_factory) {
+  ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+  BatchResult batch_result;
+  int num_remaining_crashes = 0;
+
+  for (const std::string &crashing_input_file : crashing_input_files) {
+    ByteArray crashing_input;
+    RemoteFileGetContents(crashing_input_file, crashing_input);
+    if (scoped_callbacks.callbacks()->Execute(env.binary, {crashing_input},
+                                              batch_result)) {
+      // The crash is not reproducible.
+      RemotePathDelete(crashing_input_file, /*recursively=*/false);
+    } else {
+      ++num_remaining_crashes;
+    }
+  }
+  return num_remaining_crashes;
+}
+
+int UpdateCorpusDatabaseForFuzzTests(
+    Environment env, const fuzztest::internal::Configuration &fuzztest_config,
+    CentipedeCallbacksFactory &callbacks_factory) {
+  LOG(INFO) << "Starting the update of the corpus database for fuzz tests:"
+            << "\nBinary: " << env.binary
+            << "\nCorpus database: " << fuzztest_config.corpus_database
+            << "\nFuzz tests: "
+            << absl::StrJoin(fuzztest_config.fuzz_tests, ", ");
+
+  // Step 1: Preliminary set up of test sharding, binary info, etc.
+  const auto [test_shard_index, total_test_shards] = SetUpTestSharding();
+  const auto corpus_database_path =
+      std::filesystem::path(fuzztest_config.corpus_database) /
+      fuzztest_config.binary_identifier;
+  // The full workdir paths will be formed by appending the fuzz test names to
+  // the base workdir path.
+  const auto base_workdir_path =
+      corpus_database_path / absl::StrFormat("workdir.%03d", test_shard_index);
+  // There's no point in saving the binary info to the workdir, since the
+  // workdir is deleted at the end.
+  env.save_binary_info = false;
+  std::string pcs_file_path;
+  BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
+      env, callbacks_factory, pcs_file_path);
+  // We limit the number of crash reports until we have crash deduplication.
+  env.max_num_crash_reports = 1;
+
+  // Step 2: Are we resuming from a previously terminated run?
+  // Find the last index of a fuzz test for which we already have a workdir.
+  bool is_resuming = false;
+  int resuming_fuzztest_idx = 0;
+  for (int i = 0; i < fuzztest_config.fuzz_tests.size(); ++i) {
+    if (i % total_test_shards != test_shard_index) continue;
+    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+    // Check the existence of the coverage path to not only make sure the
+    // workdir exists, but also that it was created for the same binary as in
+    // this run.
+    if (RemotePathExists(WorkDir{env}.CoverageDirPath())) {
+      is_resuming = true;
+      resuming_fuzztest_idx = i;
+    }
+  }
+
+  // Step 3: Iterate over the fuzz tests and run them.
+  const std::string binary = env.binary;
+  for (int i = resuming_fuzztest_idx; i < fuzztest_config.fuzz_tests.size();
+       ++i) {
+    if (i % total_test_shards != test_shard_index) continue;
+    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+    if (RemotePathExists(env.workdir) && !is_resuming) {
+      // This could be a workdir from a failed run that used a different version
+      // of the binary. We delete it so that we don't have to deal with the
+      // assumptions under which it is safe to reuse an old workdir.
+      RemotePathDelete(env.workdir, /*recursively=*/true);
+    }
+    is_resuming = false;
+    const WorkDir workdir{env};
+    RemoteMkdir(workdir.CoverageDirPath());  // Implicitly creates the workdir.
+    // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
+    constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
+    env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
+                              fuzztest_config.fuzz_tests[i]);
+    ClearEarlyExitRequest();
+    alarm(absl::ToInt64Seconds(fuzztest_config.time_limit_per_test));
+    Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+
+    const std::filesystem::path crashing_dir =
+        corpus_database_path / fuzztest_config.fuzz_tests[i] / "crashing";
+    const std::vector<std::string> crashing_input_files =
+        // The corpus database layout assumes the crash input files are located
+        // directly in the crashing subdirectory, so we don't list recursively.
+        RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false);
+    const int num_remaining_crashes =
+        PruneNonreproducibleAndCountRemainingCrashes(env, crashing_input_files,
+                                                     callbacks_factory);
+
+    // Before we implement crash deduplication, we only save a single newly
+    // found crashing input, and only if there were no previously found crashes.
+    if (num_remaining_crashes == 0) {
+      const std::vector<std::string> new_crashing_input_files =
+          // The crash reproducer directory may contain subdirectories with
+          // input files that don't individually cause a crash. We ignore those
+          // for now and don't list the files recursively.
+          RemoteListFiles(workdir.CrashReproducerDirPath(),
+                          /*recursively=*/false);
+      if (!new_crashing_input_files.empty()) {
+        const std::string crashing_input_file_name =
+            std::filesystem::path(new_crashing_input_files[0]).filename();
+        RemoteMkdir(crashing_dir.c_str());
+        RemotePathRename(new_crashing_input_files[0],
+                         (crashing_dir / crashing_input_file_name).c_str());
+      }
+    }
+  }
+  RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true);
+
+  return EXIT_SUCCESS;
+}
+
+}  // namespace
+
+int CentipedeMain(const Environment &env,
+                  CentipedeCallbacksFactory &callbacks_factory) {
+  ClearEarlyExitRequest();
+  SetSignalHandlers(env.stop_at);
+
+  if (!env.corpus_to_files.empty()) {
+    Centipede::CorpusToFiles(env, env.corpus_to_files);
+    return EXIT_SUCCESS;
+  }
+
+  if (!env.for_each_blob.empty()) return ForEachBlob(env);
+
+  if (!env.minimize_crash_file_path.empty()) {
+    ByteArray crashy_input;
+    ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
+    return MinimizeCrash(crashy_input, env, callbacks_factory);
+  }
+
+  // Just export the corpus from a local dir and exit.
+  if (!env.corpus_from_files.empty()) {
+    Centipede::CorpusFromFiles(env, env.corpus_from_files);
+    return EXIT_SUCCESS;
+  }
+
+  // Export the corpus from a local dir and then fuzz.
+  if (!env.corpus_dir.empty()) {
+    for (size_t i = 0; i < env.corpus_dir.size(); ++i) {
+      const auto &corpus_dir = env.corpus_dir[i];
+      if (i > 0 || !env.first_corpus_dir_output_only)
+        Centipede::CorpusFromFiles(env, corpus_dir);
+    }
+  }
+
+  if (env.distill) return Distill(env);
+
+  // Create the local temporary dir once, before creating any threads. The
+  // temporary dir must typically exist before `CentipedeCallbacks` can be used.
+  const auto tmpdir = TemporaryLocalDirPath();
+  CreateLocalDirRemovedAtExit(tmpdir);
+
+  const std::string serialized_target_config = [&] {
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
+  }();
+  if (!serialized_target_config.empty()) {
+    const auto target_config = fuzztest::internal::Configuration::Deserialize(
+        serialized_target_config);
+    CHECK_OK(target_config.status())
+        << "Failed to deserialize target configuration";
+    if (!target_config->corpus_database.empty()) {
+      CHECK(target_config->time_limit_per_test < absl::InfiniteDuration())
+          << "Updating corpus database requires specifying time limit per fuzz "
+             "test.";
+      CHECK(target_config->time_limit_per_test >= absl::Seconds(1))
+          << "Time limit per fuzz test must be at least 1 second.";
+      return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
+                                              callbacks_factory);
+    }
+  }
+
+  // Create the remote coverage dirs once, before creating any threads.
+  const auto coverage_dir = WorkDir{env}.CoverageDirPath();
+  RemoteMkdir(coverage_dir);
+  LOG(INFO) << "Coverage dir: " << coverage_dir
+            << "; temporary dir: " << tmpdir;
+
+  std::string pcs_file_path;
+  BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
+      env, callbacks_factory, pcs_file_path);
+
+  if (env.analyze) return Analyze(env);
+
+  return Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
 }
 
 }  // namespace centipede
