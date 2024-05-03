@@ -340,6 +340,7 @@ cc_library(
     hdrs = ["rusage_profiler.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":periodic_action",
         ":rusage_stats",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",

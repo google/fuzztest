@@ -24,7 +24,6 @@
 #include <ostream>
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -35,9 +34,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./centipede/periodic_action.h"
 #include "./centipede/rusage_stats.h"
 
 namespace centipede::perf {
@@ -116,57 +115,6 @@ std::ostream& operator<<(std::ostream& os, const RUsageProfiler::Snapshot& ss) {
   return os << ss.title << ": " << ss.ShortWhereStr() << " @ "
             << ss.ShortWhenStr() << ": " << ss.ShortMetricsStr();
 }
-
-//------------------------------------------------------------------------------
-//                            TimelapseThread
-//
-// Starts a new thread that periodically takes a profiling snapshot using the
-// passed parent profiler. The thread is auto-started at construction and
-// terminated at destruction.
-//------------------------------------------------------------------------------
-
-class RUsageProfiler::TimelapseThread {
- public:
-  TimelapseThread(              //
-      RUsageProfiler* parent,   //
-      SourceLocation loc,       //
-      absl::Duration interval,  //
-      bool also_log,            //
-      std::string title)
-      : parent_{parent},
-        loc_{loc},
-        interval_{interval},
-        also_log_{also_log},
-        title_{std::move(title)},
-        stop_loop_{},
-        loop_thread_{[this]() { RunLoop(); }} {}
-
-  ~TimelapseThread() { StopLoop(); }
-
- private:
-  void RunLoop() {
-    while (!stop_loop_.HasBeenNotified()) {
-      const auto& s = parent_->TakeSnapshot(loc_, title_);
-      if (also_log_) s.Log();
-      absl::SleepFor(interval_);
-    }
-  }
-
-  void StopLoop() {
-    stop_loop_.Notify();
-    loop_thread_.join();
-  }
-
-  RUsageProfiler* parent_;
-  const SourceLocation loc_;
-  const absl::Duration interval_;
-  const bool also_log_;
-  const std::string title_;
-
-  // NOTE: The order is important.
-  absl::Notification stop_loop_;
-  std::thread loop_thread_;
-};
 
 namespace {
 
@@ -403,7 +351,7 @@ RUsageProfiler::~RUsageProfiler() {
   if (metrics_ == kMetricsOff) return;
 
   // In case the caller hasn't done this.
-  if (timelapse_thread_) {
+  if (timelapse_recorder_) {
     StopTimelapse();
   }
   if (raii_actions_ & kDtorSnapshot) {
@@ -476,15 +424,23 @@ void RUsageProfiler::StartTimelapse(  //
     bool also_log,                    //
     std::string title) {
   absl::WriterMutexLock lock{&mutex_};
-  CHECK(!timelapse_thread_) << "StopTimelapse() wasn't called";
-  timelapse_thread_ = std::make_unique<TimelapseThread>(
-      this, loc, interval, also_log, std::move(title));
+  CHECK(!timelapse_recorder_) << "StopTimelapse() wasn't called";
+  const PeriodicAction::Options periodic_options{
+      .delay = absl::ZeroDuration(),
+      .interval = interval,
+  };
+  timelapse_recorder_ = std::make_unique<PeriodicAction>(
+      [this, loc = std::move(loc), title = std::move(title), also_log]() {
+        const auto& s = TakeSnapshot(loc, title);
+        if (also_log) s.Log();
+      },
+      periodic_options);
 }
 
 void RUsageProfiler::StopTimelapse() {
   absl::WriterMutexLock lock{&mutex_};
-  CHECK(timelapse_thread_) << "StartTimelapse() wasn't called";
-  timelapse_thread_.reset();  // ~TimelapseThread() runs
+  CHECK(timelapse_recorder_) << "StartTimelapse() wasn't called";
+  timelapse_recorder_.reset();
 }
 
 void RUsageProfiler::PrintReport(  //

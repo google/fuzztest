@@ -220,6 +220,7 @@
 #include "absl/strings/str_cat.h"  // IWYU pragma: keep
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+#include "./centipede/periodic_action.h"
 #include "./centipede/rusage_stats.h"
 
 namespace centipede::perf {
@@ -430,11 +431,10 @@ class RUsageProfiler {
   // average insertion speed, preserves iterators across insertions, and strikes
   // a balance between vector's and list's additional storage.
   std::deque<Snapshot> snapshots_ ABSL_GUARDED_BY(mutex_);
-  // A temporarily lived thread that records and optionally logs timelapse
-  // snapshots. (Re)created by each new call to StartTimelapse() and terminated
-  // by StopTimelapse() or the dtor, whichever comes first.
-  class TimelapseThread;  // Defined in the .cc.
-  std::unique_ptr<TimelapseThread> timelapse_thread_ ABSL_GUARDED_BY(mutex_);
+  // A temporarily lived periodic action that records and optionally logs
+  // timelapse snapshots. (Re)created by each new call to StartTimelapse() and
+  // terminated by StopTimelapse() or the dtor, whichever comes first.
+  std::unique_ptr<PeriodicAction> timelapse_recorder_ ABSL_GUARDED_BY(mutex_);
 
   // An auto-starting timer passed to RUsageTiming::Snapshot() in order to track
   // this RUsageProfiler object's lifetime stats rather than the process's
