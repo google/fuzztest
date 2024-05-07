@@ -277,6 +277,10 @@ cc_library(
     deps = [
         ":configuration",
         ":io",
+        ":logging",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ],
