@@ -89,7 +89,6 @@ cc_library(
     testonly = 1,
     srcs = ["fuzztest_gtest_main.cc"],
     deps = [
-        "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@com_google_googletest//:gtest",
