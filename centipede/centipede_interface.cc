@@ -14,12 +14,15 @@
 
 #include "./centipede/centipede_interface.h"
 
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
 #include <csignal>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <iostream>
@@ -308,6 +311,15 @@ TestShard SetUpTestSharding() {
       test_shard_status_file != nullptr) {
     ClearLocalFileContents(test_shard_status_file);
   }
+
+  // Unset the environment variables so they don't affect the child processes.
+  CHECK_EQ(unsetenv("TEST_TOTAL_SHARDS"), 0)
+      << "Failed to unset TEST_TOTAL_SHARDS: " << std::strerror(errno);
+  CHECK_EQ(unsetenv("TEST_SHARD_INDEX"), 0)
+      << "Failed to unset TEST_SHARD_INDEX: " << std::strerror(errno);
+  CHECK_EQ(unsetenv("TEST_SHARD_STATUS_FILE"), 0)
+      << "Failed to unset TEST_SHARD_STATUS_FILE: " << std::strerror(errno);
+
   return test_shard;
 }
 
@@ -359,6 +371,9 @@ int UpdateCorpusDatabaseForFuzzTests(
   // We limit the number of crash reports until we have crash deduplication.
   env.max_num_crash_reports = 1;
 
+  LOG(INFO) << "Test shard index: " << test_shard_index
+            << " Total test shards: " << total_test_shards;
+
   // Step 2: Are we resuming from a previously terminated run?
   // Find the last index of a fuzz test for which we already have a workdir.
   bool is_resuming = false;
@@ -374,6 +389,10 @@ int UpdateCorpusDatabaseForFuzzTests(
       resuming_fuzztest_idx = i;
     }
   }
+
+  LOG_IF(INFO, is_resuming) << "Resuming from the fuzz test "
+                            << fuzztest_config.fuzz_tests[resuming_fuzztest_idx]
+                            << " (index: " << resuming_fuzztest_idx << ")";
 
   // Step 3: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
@@ -394,6 +413,10 @@ int UpdateCorpusDatabaseForFuzzTests(
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
     env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
                               fuzztest_config.fuzz_tests[i]);
+
+    LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i]
+              << "\n\tTest binary: " << env.binary;
+
     ClearEarlyExitRequest();
     alarm(absl::ToInt64Seconds(fuzztest_config.time_limit_per_test));
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
