@@ -14,15 +14,22 @@
 
 #include "./fuzztest/internal/corpus_database.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <string>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/io.h"
+#include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -30,8 +37,17 @@ namespace {
 std::vector<std::string> GetInputs(
     absl::string_view corpus_path_for_test_binary, absl::string_view test_name,
     absl::string_view subdir) {
+  if (corpus_path_for_test_binary.empty()) return {};
   return ListDirectory(
       absl::StrCat(corpus_path_for_test_binary, "/", test_name, "/", subdir));
+}
+
+bool IsValidBinaryName(std::string_view binary_name) {
+  static const absl::NoDestructor<absl::flat_hash_set<char>> kValidChars(
+      {'_', '-', '.'});
+  return absl::c_all_of(binary_name, [](const char c) {
+    return std::isalnum(c) || kValidChars->contains(c);
+  });
 }
 
 }  // namespace
@@ -40,9 +56,14 @@ CorpusDatabase::CorpusDatabase(absl::string_view database_path,
                                absl::string_view binary_identifier,
                                bool use_coverage_inputs,
                                bool use_crashing_inputs)
-    : corpus_path_for_test_binary_([=] {
+    : corpus_path_for_test_binary_([=] () -> std::string {
+        if (database_path.empty()) return "";
+        std::string binary_id = std::string(binary_identifier);
+        std::string binary_name = std::string(internal::Basename(binary_id));
+        FUZZTEST_INTERNAL_CHECK(IsValidBinaryName(binary_name),
+                                "Invalid binary name: ", binary_name);
         std::string corpus_path_for_test_binary =
-            absl::StrCat(database_path, "/", binary_identifier);
+            absl::StrCat(database_path, "/", binary_id);
         if (!absl::StartsWith(corpus_path_for_test_binary, "/") &&
             std::getenv("TEST_SRCDIR")) {
           corpus_path_for_test_binary = absl::StrCat(
