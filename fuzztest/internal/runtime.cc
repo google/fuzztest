@@ -127,6 +127,9 @@ std::optional<std::string> GetReproductionCommand(
                      Basename(*configuration.crashing_input_to_reproduce))}});
 }
 
+constexpr size_t kValueMaxPrintLength = 2048;
+constexpr absl::string_view kTrimIndicator = " ...<value too long>";
+
 }  // namespace
 
 void Runtime::PrintReport(RawSink out) const {
@@ -167,7 +170,10 @@ void Runtime::PrintReport(RawSink out) const {
         /*prefix=*/"The test fails with input:", /*suffix=*/"\n",
         /*element_formatter=*/
         [](RawSink out, size_t idx, absl::string_view element) {
-          absl::Format(out, "\nargument %d: %s", idx, element);
+          bool trim = element.size() > kValueMaxPrintLength;
+          absl::Format(out, "\nargument %d: %s%s", idx,
+                       trim ? element.substr(0, kValueMaxPrintLength) : element,
+                       trim ? kTrimIndicator : "");
         });
 
     // There doesn't seem to be a good way to generate a reproducer test when
@@ -182,7 +188,11 @@ void Runtime::PrintReport(RawSink out) const {
           /*element_formatter=*/
           [](RawSink out, size_t idx, absl::string_view element) {
             if (idx != 0) absl::Format(out, ",\n");
-            absl::Format(out, "    %s", element);
+            bool trim = element.size() > kValueMaxPrintLength;
+            absl::Format(
+                out, "    %s%s",
+                trim ? element.substr(0, kValueMaxPrintLength) : element,
+                trim ? kTrimIndicator : "");
           });
       absl::Format(out, "\n  );\n");
       absl::Format(out, "}\n");

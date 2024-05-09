@@ -433,6 +433,13 @@ TEST_F(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0: 3")));
 }
 
+TEST_F(UnitTestModeTest, PrintsVeryLongInputsTrimmed) {
+  auto [status, std_out, std_err] = Run("MySuite.LongInput");
+  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  EXPECT_THAT(std_err, HasSubstr("65 ...<value too long>"));
+  EXPECT_THAT(std_err, HasSubstr("A ...<value too long>"));
+}
+
 TEST_F(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsSingleParameter) {
   auto [status, std_out, std_err] = Run("MySuite.UnpacksTupleOfOne");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));

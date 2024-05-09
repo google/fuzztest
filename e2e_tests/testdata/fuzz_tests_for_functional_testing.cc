@@ -107,6 +107,13 @@ auto SeedInputIsUsed(const std::vector<int>& s) {
 }
 FUZZ_TEST(MySuite, SeedInputIsUsed).WithSeeds({{{0x90091E, 0x15, 0xC001}}});
 
+void LongInput(const std::vector<char>& input) {
+  if (input.size() == 5000) std::abort();
+}
+FUZZ_TEST(MySuite, LongInput)
+    .WithDomains(Arbitrary<std::vector<char>>().WithMaxSize(5000))
+    .WithSeeds({std::vector(5000, 'A')});
+
 TestProtobuf GetMagicalProto() {
   TestProtobuf result;
   result.add_rep_subproto()->set_subproto_i32(9439518);
