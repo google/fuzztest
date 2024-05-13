@@ -5,6 +5,7 @@
 #endif
 
 #include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -15,6 +16,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
+#include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"

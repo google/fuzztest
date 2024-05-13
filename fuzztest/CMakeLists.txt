@@ -79,9 +79,12 @@ fuzztest_cc_library(
     fuzztest::logging
     fuzztest::registry
     fuzztest::runtime
+    absl::algorithm_container
     absl::flags
     absl::flags_parse
     absl::flags_reflection
+    absl::flat_hash_set
+    absl::no_destructor
     absl::strings
     absl::str_format
     absl::time
