@@ -75,10 +75,9 @@ FUZZTEST_DEFINE_FLAG(
     absl::Duration, fuzz_for, absl::InfiniteDuration(),
     "Runs all fuzz tests in fuzzing mode for the specified duration. Can "
     "be combined with --" FUZZTEST_FLAG_PREFIX
-    "fuzz to select a single fuzz tests, or "
-    "with --" FUZZTEST_FLAG_PREFIX
-    "filter to select a subset of fuzz tests. Recommended "
-    "to use with test sharding.");
+    "fuzz to select a single fuzz tests, or with --" GTEST_FLAG_PREFIX_
+    "filter to select a subset of fuzz tests. Recommended to use with test "
+    "sharding.");
 
 FUZZTEST_DEFINE_FLAG(
     std::string, corpus_database,
@@ -277,6 +276,20 @@ void InitFuzzTest(int* argc, char*** argv) {
   const RunMode run_mode = is_test_to_fuzz_specified || has_time_limit_per_test
                                ? RunMode::kFuzz
                                : RunMode::kUnitTest;
+
+  if (run_mode == RunMode::kFuzz && !is_test_to_fuzz_specified &&
+      GTEST_FLAG_GET(filter) == "*") {
+    // Run only the fuzz tests, and not the unit tests when the user doesn't
+    // set the test filter.
+    // TODO: b/340232436 -- This is needed because we currently rely on a fuzz
+    // test being the first test to run so that Centipede can get the serialized
+    // configuration from the binary. For simplicity, we don't restrict the
+    // filter to fuzz tests when the user explicitly sets the filter. Instead of
+    // improving the logic here, once we fix b/340232436 we will remove this
+    // altogether and allow a mix of fuzz tests and unit tests in all cases.
+    GTEST_FLAG_SET(filter, absl::StrJoin(configuration.fuzz_tests, ":"));
+  }
+
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
 }

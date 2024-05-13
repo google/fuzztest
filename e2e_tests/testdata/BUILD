@@ -122,3 +122,13 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
+
+cc_binary(
+    name = "unit_test_and_fuzz_tests",
+    testonly = 1,
+    srcs = ["unit_test_and_fuzz_tests.cc"],
+    deps = [
+        "@com_google_fuzztest//fuzztest:fuzztest_core",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+    ],
+)

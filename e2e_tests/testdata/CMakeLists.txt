@@ -84,3 +84,14 @@ set_target_properties(
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${CMAKE_BINARY_DIR}/com_google_fuzztest/e2e_tests/testdata"
 )
+
+add_executable(
+  unit_test_and_fuzz_tests.stripped
+  unit_test_and_fuzz_tests.cc
+)
+link_fuzztest(unit_test_and_fuzz_tests.stripped)
+set_target_properties(
+  unit_test_and_fuzz_tests.stripped
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${CMAKE_BINARY_DIR}/com_google_fuzztest/e2e_tests/testdata"
+)
