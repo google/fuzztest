@@ -20,11 +20,13 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
@@ -133,6 +135,22 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       << "\n"
       << "Inputs, empty features     : " << num_inputs_empty_features << "\n"
       << "Inputs, missing features   : " << num_inputs_missing_features;
+}
+
+void ExportCorpus(absl::Span<const std::string> sharded_file_paths,
+                  std::string_view out_dir) {
+  LOG(INFO) << "Exporting corpus to " << out_dir;
+  for (const std::string &file : sharded_file_paths) {
+    auto reader = DefaultBlobFileReaderFactory();
+    CHECK_OK(reader->Open(file)) << VV(file);
+    ByteSpan blob;
+    size_t num_read = 0;
+    while (reader->Read(blob).ok()) {
+      ++num_read;
+      WriteToRemoteHashedFileInDir(out_dir, blob);
+    }
+    LOG(INFO) << "Exported " << num_read << " inputs from " << file;
+  }
 }
 
 }  // namespace centipede

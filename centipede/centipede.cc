@@ -133,19 +133,10 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 }
 
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
-  const auto corpus_files = WorkDir{env}.CorpusFiles();
-  for (size_t shard = 0; shard < env.total_shards; shard++) {
-    auto reader = DefaultBlobFileReaderFactory();
-    auto corpus_path = corpus_files.ShardPath(shard);
-    reader->Open(corpus_path).IgnoreError();  // may not exist.
-    ByteSpan blob;
-    size_t num_read = 0;
-    while (reader->Read(blob).ok()) {
-      ++num_read;
-      WriteToRemoteHashedFileInDir(dir, blob);
-    }
-    LOG(INFO) << "Read " << num_read << " from " << corpus_path;
-  }
+  std::vector<std::string> sharded_corpus_files;
+  RemoteGlobMatch(WorkDir{env}.CorpusFiles().AllShardsGlob(),
+                  sharded_corpus_files);
+  ExportCorpus(sharded_corpus_files, dir);
 }
 
 void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {

@@ -33,12 +33,9 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
-#include "./centipede/corpus.h"
-#include "./centipede/corpus_io.h"
 #include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
@@ -793,64 +790,6 @@ TEST(Centipede, UndetectedCrashingInput) {
   }
   // TODO(ussuri): Verify exact names/contents of the files, not just count.
   ASSERT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
-}
-
-static void WriteBlobsToFile(const std::vector<ByteArray> &blobs,
-                             const std::string_view path) {
-  auto appender = DefaultBlobFileWriterFactory();
-  CHECK_OK(appender->Open(path, "a"));
-  for (const auto &blob : blobs) {
-    CHECK_OK(appender->Write(blob));
-  }
-}
-
-TEST(Centipede, ShardReader) {
-  ByteArray data1 = {1, 2, 3};
-  ByteArray data2 = {3, 4, 5, 6};
-  ByteArray data3 = {7, 8, 9, 10, 11};
-  ByteArray data4 = {12, 13, 14};
-  ByteArray data5 = {15, 16};
-  FeatureVec fv1 = {100, 200, 300};
-  FeatureVec fv2 = {300, 400, 500, 600};
-  FeatureVec fv3 = {700, 800, 900, 1000, 1100};
-  FeatureVec fv4 = {};  // empty.
-
-  std::vector<ByteArray> corpus_blobs;
-  corpus_blobs.push_back(data1);
-  corpus_blobs.push_back(data2);
-  corpus_blobs.push_back(data3);
-  corpus_blobs.push_back(data4);
-  corpus_blobs.push_back(data5);
-
-  std::vector<ByteArray> features_blobs;
-  features_blobs.push_back(PackFeaturesAndHash(data1, fv1));
-  features_blobs.push_back(PackFeaturesAndHash(data2, fv2));
-  features_blobs.push_back(PackFeaturesAndHash(data3, fv3));
-  features_blobs.push_back(PackFeaturesAndHash(data4, fv4));
-
-  TempDir tmp_dir{test_info_->name()};
-  std::string corpus_path = tmp_dir.GetFilePath("corpus");
-  std::string features_path = tmp_dir.GetFilePath("features");
-  WriteBlobsToFile(corpus_blobs, corpus_path);
-  WriteBlobsToFile(features_blobs, features_path);
-
-  std::vector<CorpusRecord> res;
-  ReadShard(corpus_path, features_path,
-            [&res](const ByteArray &input, const FeatureVec &features) {
-              res.push_back(CorpusRecord{input, features});
-            });
-
-  EXPECT_EQ(res.size(), 5UL);
-  EXPECT_EQ(res[0].data, data1);
-  EXPECT_EQ(res[1].data, data2);
-  EXPECT_EQ(res[2].data, data3);
-  EXPECT_EQ(res[3].data, data4);
-  EXPECT_EQ(res[4].data, data5);
-  EXPECT_EQ(res[0].features, fv1);
-  EXPECT_EQ(res[1].features, fv2);
-  EXPECT_EQ(res[2].features, fv3);
-  EXPECT_EQ(res[3].features, FeatureVec{feature_domains::kNoFeature});
-  EXPECT_EQ(res[4].features, FeatureVec());
 }
 
 TEST(Centipede, GetsSeedInputs) {

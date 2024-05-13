@@ -771,7 +771,6 @@ cc_library(
     name = "corpus_io",
     srcs = ["corpus_io.cc"],
     hdrs = ["corpus_io.h"],
-    # TODO(kcc): move corpus_io test from testing/centipede_test.cc into a dedicated test.
     deps = [
         ":blob_file",
         ":defs",
@@ -784,6 +783,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1617,6 +1617,24 @@ cc_test(
 )
 
 cc_test(
+    name = "corpus_io_test",
+    srcs = ["corpus_io_test.cc"],
+    deps = [
+        ":blob_file",
+        ":corpus",
+        ":corpus_io",
+        ":defs",
+        ":feature",
+        ":test_util",
+        ":util",
+        ":workdir",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "corpus_test",
     srcs = ["corpus_test.cc"],
     deps = [
@@ -1747,12 +1765,9 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_input_filter",
     ],
     deps = [
-        ":blob_file",
         ":centipede_callbacks",
         ":centipede_default_callbacks",
         ":centipede_interface",
-        ":corpus",
-        ":corpus_io",
         ":defs",
         ":environment",
         ":feature",

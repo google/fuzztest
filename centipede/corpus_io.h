@@ -16,8 +16,10 @@
 #define THIRD_PARTY_CENTIPEDE_SHARD_READER_H_
 
 #include <functional>
+#include <string>
 #include <string_view>
 
+#include "absl/types/span.h"
 #include "./centipede/defs.h"
 #include "./centipede/feature.h"
 
@@ -40,6 +42,11 @@ namespace centipede {
 // then callback's 2nd argument is {feature_domains::kNoFeature}.
 void ReadShard(std::string_view corpus_path, std::string_view features_path,
                const std::function<void(ByteArray, FeatureVec)> &callback);
+
+// Unpacks the corpus from `sharded_file_paths` and writes each input to an
+// individual file in `out_dir`. The file names are the inputs' hashes.
+void ExportCorpus(absl::Span<const std::string> sharded_file_paths,
+                  std::string_view out_dir);
 
 }  // namespace centipede
 
