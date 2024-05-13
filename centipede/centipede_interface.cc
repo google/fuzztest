@@ -50,6 +50,7 @@
 #include "./centipede/centipede.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
+#include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
 #include "./centipede/defs.h"
 #include "./centipede/distill.h"
@@ -421,8 +422,23 @@ int UpdateCorpusDatabaseForFuzzTests(
     alarm(absl::ToInt64Seconds(fuzztest_config.time_limit_per_test));
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
 
-    const std::filesystem::path crashing_dir =
-        corpus_database_path / fuzztest_config.fuzz_tests[i] / "crashing";
+    // Distill and store the coverage corpus.
+    Distill(env);
+    const std::filesystem::path fuzztest_db_path =
+        corpus_database_path / fuzztest_config.fuzz_tests[i];
+    const std::string coverage_dir = fuzztest_db_path / "coverage" / "latest";
+    if (RemotePathExists(coverage_dir)) {
+      // In the future, we will store k latest coverage corpora for some k, but
+      // for now we only keep the latest one.
+      RemotePathDelete(coverage_dir, /*recursively=*/true);
+    }
+    RemoteMkdir(coverage_dir);
+    std::vector<std::string> distilled_corpus_files;
+    RemoteGlobMatch(workdir.DistilledCorpusFiles().AllShardsGlob(),
+                    distilled_corpus_files);
+    ExportCorpus(distilled_corpus_files, coverage_dir);
+
+    const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
     const std::vector<std::string> crashing_input_files =
         // The corpus database layout assumes the crash input files are located
         // directly in the crashing subdirectory, so we don't list recursively.
