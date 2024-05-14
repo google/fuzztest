@@ -574,6 +574,7 @@ std::optional<std::vector<std::string>> FuzzTestFuzzerImpl::GetFilesToReplay() {
   if (files.empty()) {
     files.push_back(std::string(file_or_dir));
   }
+  std::sort(files.begin(), files.end());
   return files;
 }
 
