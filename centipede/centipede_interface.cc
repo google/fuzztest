@@ -426,7 +426,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     Distill(env);
     const std::filesystem::path fuzztest_db_path =
         corpus_database_path / fuzztest_config.fuzz_tests[i];
-    const std::string coverage_dir = fuzztest_db_path / "coverage" / "latest";
+    const std::string coverage_dir = fuzztest_db_path / "coverage";
     if (RemotePathExists(coverage_dir)) {
       // In the future, we will store k latest coverage corpora for some k, but
       // for now we only keep the latest one.
