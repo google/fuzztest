@@ -98,7 +98,7 @@ class SanCovObjectArray {
   DsoTable CreateDsoTable() const;
 
  private:
-  static constexpr size_t kMaxSize = 1024;
+  static constexpr size_t kMaxSize = 64 * 1024;
   // Set by `PCGuardInit`/`Inline8BitCountersInit` if the current DSO has an
   // empty PC guard/counter table, which should not be tracked in a
   // SanCovObject.
