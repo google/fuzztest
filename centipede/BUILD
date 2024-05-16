@@ -1133,6 +1133,7 @@ cc_binary(
 cc_library(
     name = "centipede_runner",
     srcs = RUNNER_SOURCES_WITH_MAIN,
+    hdrs = ["runner_interface.h"],
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.

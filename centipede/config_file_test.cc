@@ -24,23 +24,25 @@ namespace {
 
 TEST(ConfigFileTest, AugmentedArgv) {
   const std::vector<std::string> kOrigArgv = {
-      "--foo=bar",
-      "--baz",
-      "qux",
+      "--foo=bar", "-baz", "-bazz", "baz", "qux",
   };
 
   // None of the replacements match.
   {
     const AugmentedArgvWithCleanup augmented_argv{
         kOrigArgv,
+        /*flag_replacements*/ {},
+        /*replacements*/
         {
-            {"--mismatching", "--mod_mismatching"},
+            {"mismatching", "mod_mismatching"},
         },
         nullptr};
     EXPECT_FALSE(augmented_argv.was_augmented());
     EXPECT_EQ(augmented_argv.argv()[0], kOrigArgv[0]);
     EXPECT_EQ(augmented_argv.argv()[1], kOrigArgv[1]);
     EXPECT_EQ(augmented_argv.argv()[2], kOrigArgv[2]);
+    EXPECT_EQ(augmented_argv.argv()[3], kOrigArgv[3]);
+    EXPECT_EQ(augmented_argv.argv()[4], kOrigArgv[4]);
   }
 
   // The replacements match and the cleanup runs as a result.
@@ -49,22 +51,33 @@ TEST(ConfigFileTest, AugmentedArgv) {
     {
       const AugmentedArgvWithCleanup augmented_argv{
           kOrigArgv,
+          /*flag_replacements=*/
           {
-              {"--foo", "--mod_foo"},
+              {"foo", "mod_foo"},
+              {"baz", "mod_baz"},
+          },
+          /*replacements=*/
+          {
               {"bar", "mod_bar"},
-              {"--baz", "--mod_baz"},
               {"qux", "mod_qux"},
           },
           [&cleanup_worked]() { cleanup_worked = true; }};
       const std::vector<std::string> kExpectedArgv = {
           "--mod_foo=mod_bar",
-          "--mod_baz",
+          "-mod_baz",
+          // Flag replacement should skip this item because the flag name
+          // does not match as a whole.
+          "-bazz",
+          // Flag replacement should skip this item because it's not a flag.
+          "baz",
           "mod_qux",
       };
       EXPECT_TRUE(augmented_argv.was_augmented());
       EXPECT_EQ(augmented_argv.argv()[0], kExpectedArgv[0]);
       EXPECT_EQ(augmented_argv.argv()[1], kExpectedArgv[1]);
       EXPECT_EQ(augmented_argv.argv()[2], kExpectedArgv[2]);
+      EXPECT_EQ(augmented_argv.argv()[3], kExpectedArgv[3]);
+      EXPECT_EQ(augmented_argv.argv()[4], kExpectedArgv[4]);
     }
     EXPECT_TRUE(cleanup_worked);
   }
