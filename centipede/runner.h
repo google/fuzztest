@@ -205,6 +205,9 @@ struct GlobalRunnerState {
     return strndup(value_beg, end - value_beg);
   }
 
+  pthread_mutex_t execution_result_override_mu;
+  BatchResult *execution_result_override;
+
   // Doubly linked list of TLSs of all live threads.
   ThreadLocalRunnerState *tls_list;
   // Doubly linked list of detached TLSs.
