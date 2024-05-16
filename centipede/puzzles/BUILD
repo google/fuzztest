@@ -35,6 +35,7 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "memcmp_4_may_inline",
     "memcmp_3",
     "strcmp",
+    "strncmp",
     "uint32_cmp_1",
     "oom",
     "per_input_timeout",

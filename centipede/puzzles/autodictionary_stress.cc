@@ -14,7 +14,7 @@
 
 // Centipede puzzle: stress test for --use_auto_dictionary=1.
 // RUN: Run --use_auto_dictionary=1 --use_cmp_features=0 -j 5
-// RUN: ExpectInLog "Input bytes.*: abcdxyzVeryLongString"
+// RUN: ExpectInLog "Input bytes.*: abcdxyzVeryLongStringKeyword"
 
 // TODO(kcc): we currently use --use_cmp_features=0 because otherwise
 // the corpus gets too large and the puzzle does not get solved quickly.
@@ -54,8 +54,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     return false;
   };
 
+  auto strncmp_and_forward = [&](const char *str, size_t n) {
+    if (end - beg >= n &&
+        strncmp(reinterpret_cast<const char *>(beg), str, n) == 0) {
+      beg += n;
+      return true;
+    }
+    return false;
+  };
+
   if (memcmp_and_forward("abcd") && memcmp_and_forward("xyz") &&
-      strcmp_and_forward("VeryLongString")) {
+      strcmp_and_forward("VeryLongString") &&
+      strncmp_and_forward("KeywordAndStuff", 7)) {
     abort();
   }
 

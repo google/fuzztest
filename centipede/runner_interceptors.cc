@@ -17,6 +17,7 @@
 #include <dlfcn.h>  // for dlsym()
 #include <pthread.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -110,6 +111,8 @@ void RunnerInterceptor() {}  // to be referenced in runner.cc
 DECLARE_CENTIPEDE_ORIG_FUNC(int, memcmp,
                             (const void *s1, const void *s2, size_t n));
 DECLARE_CENTIPEDE_ORIG_FUNC(int, strcmp, (const char *s1, const char *s2));
+DECLARE_CENTIPEDE_ORIG_FUNC(int, strncmp,
+                            (const char *s1, const char *s2, size_t n));
 DECLARE_CENTIPEDE_ORIG_FUNC(int, pthread_create,
                             (pthread_t * thread, const pthread_attr_t *attr,
                              void *(*start_routine)(void *), void *arg));
@@ -137,15 +140,42 @@ extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
   return NormalizeCmpResult(result);
 }
 
+// TODO(b/341111359): Investigate inefficiencies in the `strcmp`/`strncmp`
+// interceptors and `TraceMemCmp`.
+
 // strcmp interceptor.
 // Calls the real strcmp() and possibly modifies state.cmp_feature_set.
 extern "C" int strcmp(const char *s1, const char *s2) {
+  // Find the length of the shorter string, as this determines the actual number
+  // of bytes that are compared. Note that this is needed even if we call
+  // `strcmp_orig` because we're passing it to `TraceMemCmp()`.
   size_t len = 0;
   while (s1[len] && s2[len]) ++len;
   const int result =
       // Need to include one more byte than the shorter string length
       // when falling back to memcmp e.g. "foo" < "foobar".
       strcmp_orig ? strcmp_orig(s1, s2) : memcmp_fallback(s1, s2, len + 1);
+  // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t *>(s1),
+                  reinterpret_cast<const uint8_t *>(s2), len, result == 0);
+  return NormalizeCmpResult(result);
+}
+
+// strncmp interceptor.
+// Calls the real strncmp() and possibly modifies state.cmp_feature_set.
+extern "C" int strncmp(const char *s1, const char *s2, size_t n) {
+  // Find the length of the shorter string, as this determines the actual number
+  // of bytes that are compared. Note that this is needed even if we call
+  // `strncmp_orig` because we're passing it to `TraceMemCmp()`.
+  size_t len = 0;
+  while (len < n && s1[len] && s2[len]) ++len;
+  // Need to include '\0' in the comparison if the shorter string is shorter
+  // than `n`, hence we add 1 to the length.
+  n = std::min(n, len + 1);
+  const int result =
+      strncmp_orig ? strncmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
+  // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
                   reinterpret_cast<const uint8_t *>(s1),
                   reinterpret_cast<const uint8_t *>(s2), len, result == 0);
