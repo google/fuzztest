@@ -345,8 +345,8 @@ void DistillToOneOutputShard(                          //
   {
     ThreadPool threads{parallelism};
     for (size_t shard_idx : shard_indices) {
-      threads.Schedule([shard_idx, &reader, &writer, &input_filter, &env,
-                        num_shards, &ram_pool] {
+      threads.Schedule([shard_idx, &reader, &writer, &env, num_shards,
+                        &ram_pool] {
         const auto ram_lease = ram_pool.AcquireLeaseBlocking({
             .id = absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
             .amount = {.mem_rss = reader.EstimateRamFootprint(shard_idx)},
@@ -422,9 +422,9 @@ int Distill(const Environment &env, const DistillOptions &opts) {
         },
         {
             // Seeing 0's at the beginning is not interesting, unless debugging.
-            .delay = absl::Seconds(VLOG_IS_ON(1) ? 0 : 60),
+            .delay = absl::Seconds(ABSL_VLOG_IS_ON(1) ? 0 : 60),
             // Again, increase the frequency with --v >= 1 to aid debugging.
-            .interval = absl::Seconds(VLOG_IS_ON(1) ? 10 : 60),
+            .interval = absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60),
         },
     };
     // The RAM pool shared between all the `DistillTask()` threads.
