@@ -40,12 +40,15 @@ class AugmentedArgvWithCleanup final {
   using BackingResourcesCleanup = std::function<void()>;
 
   // Ctor. The `orig_argc` and `orig_argv` are compatible with those passed to a
-  // main(). The `replacements` map should map an old substring to a new one.
-  // Only simple, one-stage string replacement is performed: no regexes,
-  // placeholders, envvars or recursion. The `cleanup` callback should clean up
-  // any temporary resources backing the modified flags, such as temporary
-  // files.
+  // main(). Each item in `orig_argv` is first processed with
+  // `flag_replacements` if the item has the format "-flag", "-flag=...",
+  // "--flag", or "--flag=", and the flag name matches. Then the `replacements`
+  // map should map an old substring to a new one. Only simple, one-stage string
+  // replacement is performed: no regexes, placeholders, envvars or recursion.
+  // The `cleanup` callback should clean up any temporary resources backing the
+  // modified flags, such as temporary files.
   AugmentedArgvWithCleanup(const std::vector<std::string>& orig_argv,
+                           const Replacements& flag_replacements,
                            const Replacements& replacements,
                            BackingResourcesCleanup&& cleanup);
   // Dtor. Invokes `cleanup_`.
