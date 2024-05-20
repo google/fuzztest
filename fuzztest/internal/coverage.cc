@@ -389,16 +389,6 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE      // To make __builtin_return_address(0) work.
   fuzztest::internal::execution_coverage_instance->UpdateMaxStack(PC);
 }
 
-// Use NO_SANITIZE_MEMORY and ADDRESS to skip possible errors on reading buffer.
-FUZZTEST_INTERNAL_NOSANITIZE
-static size_t InternalStrnlen(const char *s, size_t n) {
-  size_t len = 0;
-  while (len < n && s[len]) {
-    len++;
-  }
-  return len;
-}
-
 FUZZTEST_INTERNAL_NOSANITIZE
 static size_t InternalStrlen(const char *s1, const char *s2) {
   size_t len = 0;
@@ -497,11 +487,10 @@ FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_weak_hook_strncmp(void *, const char *s1, const char *s2,
                                    size_t n, int result) {
   if (s1 == nullptr || s2 == nullptr) return;
-  size_t len1 = InternalStrnlen(s1, n);
-  size_t len2 = InternalStrnlen(s2, n);
-  n = std::min(std::min(n, len1), len2);
+  size_t len = 0;
+  while (len < n && s1[len] && s2[len]) ++len;
   TraceMemCmp(reinterpret_cast<const uint8_t *>(s1),
-              reinterpret_cast<const uint8_t *>(s2), n, result);
+              reinterpret_cast<const uint8_t *>(s2), len, result);
 }
 
 FUZZTEST_INTERNAL_NOSANITIZE
