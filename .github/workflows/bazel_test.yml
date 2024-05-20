@@ -48,12 +48,12 @@ jobs:
       - name: Setup --config=fuzztest for Bazel
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
-      - name: Restore latest cache
-        uses: actions/cache/restore@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
-          restore-keys: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-
+      # - name: Restore latest cache
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     path: "~/.cache/bazel"
+      #     key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
+      #     restore-keys: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-
       - name: Run all tests with default --config
         if: matrix.config == 'default'
         run: |
@@ -64,9 +64,9 @@ jobs:
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
-      - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-${{ github.run_id }}
+      # - name: Save new cache based on main
+      #   if: github.ref == 'refs/heads/main'
+      #   uses: actions/cache/save@v4
+      #   with:
+      #     path: "~/.cache/bazel"
+      #     key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-${{ github.run_id }}
