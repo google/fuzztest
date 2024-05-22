@@ -709,7 +709,7 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
   if (!runner_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
     return EXIT_FAILURE;
 
-  PrepareCoverage(/*full_clear=*/true);  // Clear the startup coverage.
+  CentipedeBeginExecutionBatch();
 
   for (size_t i = 0; i < num_inputs; i++) {
     auto blob = inputs_blobseq.Read();
@@ -729,6 +729,9 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 
     if (!FinishSendingOutputsToEngine(outputs_blobseq)) break;
   }
+
+  CentipedeEndExecutionBatch();
+
   return EXIT_SUCCESS;
 }
 
