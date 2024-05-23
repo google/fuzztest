@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -30,6 +31,7 @@
 #include "absl/flags/reflection.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
@@ -89,13 +91,30 @@ ABSL_DECLARE_FLAG(std::vector<std::string>, flagfile);
 namespace centipede::config {
 
 AugmentedArgvWithCleanup::AugmentedArgvWithCleanup(
-    const std::vector<std::string>& orig_argv, const Replacements& replacements,
+    const std::vector<std::string>& orig_argv,
+    const Replacements& flag_replacements, const Replacements& replacements,
     BackingResourcesCleanup&& cleanup)
     : was_augmented_{false}, cleanup_{cleanup} {
   argv_.reserve(orig_argv.size());
   for (const auto& old_arg : orig_argv) {
-    const std::string& new_arg =
-        argv_.emplace_back(absl::StrReplaceAll(old_arg, replacements));
+    const auto flag_replaced_arg = [&]() -> std::optional<std::string> {
+      if (old_arg.empty() || old_arg[0] != '-') return std::nullopt;
+      std::string_view contents = old_arg;
+      std::string_view dashes =
+          (contents.size() > 1 && contents[1] == '-') ? "--" : "-";
+      contents = contents.substr(dashes.size());
+      for (const auto& flag_replacement : flag_replacements) {
+        if (absl::StartsWith(contents, flag_replacement.first) &&
+            (contents.size() == flag_replacement.first.size() ||
+             contents[flag_replacement.first.size()] == '=')) {
+          return absl::StrCat(dashes, flag_replacement.second,
+                              contents.substr(flag_replacement.first.size()));
+        }
+      }
+      return std::nullopt;
+    }();
+    const std::string& new_arg = argv_.emplace_back(
+        absl::StrReplaceAll(flag_replaced_arg.value_or(old_arg), replacements));
     if (new_arg != old_arg) {
       VLOG(1) << "Augmented argv arg:\n" << VV(old_arg) << "\n" << VV(new_arg);
       was_augmented_ = true;
@@ -133,12 +152,10 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   }
 
   // Always need these (--config=<path> can be passed with a local <path>).
-  AugmentedArgvWithCleanup::Replacements replacements = {
-      // "-". not "--" to support the shortened "-flag" form as well.
-      // TODO(ussuri): Fix for  usage without =, i.e. `--config <file>`.
-      {absl::StrCat("-", FLAGS_config.Name(), "="),
-       absl::StrCat("-", FLAGS_flagfile.Name(), "=")},
+  const AugmentedArgvWithCleanup::Replacements flag_replacements = {
+      {std::string{FLAGS_config.Name()}, std::string{FLAGS_flagfile.Name()}},
   };
+  AugmentedArgvWithCleanup::Replacements replacements;
   AugmentedArgvWithCleanup::BackingResourcesCleanup cleanup;
 
   // Copy the remote config file to a temporary local mirror.
@@ -160,7 +177,8 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
     cleanup = [local_path]() { std::filesystem::remove(local_path); };
   }
 
-  return AugmentedArgvWithCleanup{argv, replacements, std::move(cleanup)};
+  return AugmentedArgvWithCleanup{argv, flag_replacements, replacements,
+                                  std::move(cleanup)};
 }
 
 std::filesystem::path MaybeSaveConfigToFile(
