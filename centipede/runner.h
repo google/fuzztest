@@ -125,6 +125,10 @@ struct ThreadLocalRunnerState {
 // All data members will be initialized to zero, unless they have initializers.
 // Accesses to the subobjects should be fast, so we are trying to avoid
 // extra memory references where possible.
+//
+// This class has a non-trivial destructor to work with targets that do not use
+// the runner or LLVM fuzzer API at all.
+//
 // TODO(kcc): use a CTOR with absl::kConstInit (will require refactoring).
 struct GlobalRunnerState {
   // Used by LLVMFuzzerMutate and initialized in main().
@@ -204,6 +208,14 @@ struct GlobalRunnerState {
     if (!end) return nullptr;
     return strndup(value_beg, end - value_beg);
   }
+
+  pthread_mutex_t execution_result_override_mu;
+  // If not nullptr, it points to a batch result with either zero or one
+  // execution. When an execution result present, it will be passed as the
+  // execution result of the current test input. The object is owned and cleaned
+  // up by the state, protected by execution_result_override_mu, and set by
+  // `CentipedeSetExecutionResult()`.
+  BatchResult *execution_result_override;
 
   // Doubly linked list of TLSs of all live threads.
   ThreadLocalRunnerState *tls_list;

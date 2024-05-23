@@ -382,6 +382,12 @@ PrepareCoverage(bool full_clear) {
       tls.lowest_sp = tls.top_frame_sp;
     });
   }
+  {
+    centipede::LockGuard lock(state.execution_result_override_mu);
+    if (state.execution_result_override != nullptr) {
+      state.execution_result_override->ClearAndResize(0);
+    }
+  }
   if (!full_clear) return;
   state.ForEachTls([](ThreadLocalRunnerState &tls) {
     if (state.run_time_flags.use_auto_dictionary) {
@@ -670,6 +676,26 @@ static size_t CopyFeatures(uint8_t *data, size_t capacity) {
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
+  {
+    LockGuard lock(state.execution_result_override_mu);
+    bool has_overridden_execution_result = false;
+    if (state.execution_result_override != nullptr) {
+      RunnerCheck(state.execution_result_override->results().size() <= 1,
+                  "unexpected number of overridden execution results");
+      has_overridden_execution_result =
+          state.execution_result_override->results().size() == 1;
+    }
+    if (has_overridden_execution_result) {
+      const auto &result = state.execution_result_override->results()[0];
+      return BatchResult::WriteOneFeatureVec(result.features().data(),
+                                             result.features().size(),
+                                             outputs_blobseq) &&
+             BatchResult::WriteMetadata(result.metadata(), outputs_blobseq) &&
+             BatchResult::WriteStats(result.stats(), outputs_blobseq) &&
+             BatchResult::WriteInputEnd(outputs_blobseq);
+    }
+  }
+
   // Copy features to shared memory.
   if (!BatchResult::WriteOneFeatureVec(
           state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
@@ -1034,6 +1060,13 @@ GlobalRunnerState::~GlobalRunnerState() {
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
+  {
+    LockGuard lock(state.execution_result_override_mu);
+    if (state.execution_result_override != nullptr) {
+      delete state.execution_result_override;
+      state.execution_result_override = nullptr;
+    }
+  }
   // Always clean up detached TLSs to avoid leakage.
   CleanUpDetachedTls();
 }
@@ -1186,4 +1219,19 @@ extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
 
 extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity) {
   return centipede::CopyFeatures(data, capacity);
+}
+
+extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
+  using centipede::state;
+  centipede::LockGuard lock(state.execution_result_override_mu);
+  if (!state.execution_result_override)
+    state.execution_result_override = new centipede::BatchResult();
+  state.execution_result_override->ClearAndResize(1);
+  if (data == nullptr) return;
+  // Removing const here should be fine as we don't write to `blobseq`.
+  centipede::BlobSequence blobseq(const_cast<uint8_t *>(data), size);
+  state.execution_result_override->Read(blobseq);
+  centipede::RunnerCheck(
+      state.execution_result_override->num_outputs_read() == 1,
+      "Failed to set execution result from CentipedeSetExecutionResult");
 }
