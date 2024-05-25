@@ -824,6 +824,7 @@ cc_library(
     hdrs = [
         "centipede.h",
     ],
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":binary_info",
         ":blob_file",
