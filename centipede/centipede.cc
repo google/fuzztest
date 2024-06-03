@@ -667,7 +667,8 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   }
 }
 
-void Centipede::LoadSeedInputs() {
+void Centipede::LoadSeedInputs(absl::Nonnull<BlobFileWriter *> corpus_file,
+                               absl::Nonnull<BlobFileWriter *> features_file) {
   std::vector<ByteArray> seed_inputs;
   const size_t num_seeds_available =
       user_callbacks_.GetSeeds(env_.batch_size, seed_inputs);
@@ -681,7 +682,7 @@ void Centipede::LoadSeedInputs() {
     seed_inputs.push_back({0});
   }
 
-  RunBatch(seed_inputs, /*corpus_file=*/nullptr, /*features_file=*/nullptr,
+  RunBatch(seed_inputs, corpus_file, features_file,
            /*unconditional_features_file=*/nullptr);
 
   // Forcely add all seed inputs to avoid empty corpus if none of them increased
@@ -718,7 +719,9 @@ void Centipede::FuzzingLoop() {
   CHECK_OK(features_file->Open(features_path, "a"));
 
   // Load seed corpus when there is no external corpus loaded.
-  if (corpus_.NumTotal() == 0) LoadSeedInputs();
+  if (corpus_.NumTotal() == 0) {
+    LoadSeedInputs(corpus_file.get(), features_file.get());
+  }
 
   UpdateAndMaybeLogStats("init-done", 0);
 

@@ -150,8 +150,7 @@ TEST(Centipede, MockTest) {
   EXPECT_EQ(mock.num_mutations_, env.num_runs);
   EXPECT_EQ(mock.max_batch_size_, env.batch_size);
   EXPECT_EQ(mock.min_batch_size_, 1);  // 1 for dummy.
-  EXPECT_EQ(tmp_dir.CountElementsInCorpusFile(0),
-            511);  // except for the seed input {0}.
+  EXPECT_EQ(tmp_dir.CountElementsInCorpusFile(0), 512);
   EXPECT_EQ(mock.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
   EXPECT_EQ(mock.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
 }
@@ -466,7 +465,8 @@ class MergeMock : public CentipedeCallbacks {
 TEST(Centipede, MergeFromOtherCorpus) {
   using Corpus = std::vector<ByteArray>;
 
-  // Set up the workdir, create a 2-shard corpus with 3 inputs each.
+  // Set up the workdir, create a 2-shard corpus with 3 inputs plus the seed {0}
+  // each.
   TempCorpusDir work_tmp_dir{test_info_->name(), "workdir"};
   Environment env;
   env.workdir = work_tmp_dir.path();
@@ -478,10 +478,11 @@ TEST(Centipede, MergeFromOtherCorpus) {
     CentipedeMain(env, factory);
   }
   CentipedeMain(env, factory);
-  EXPECT_EQ(work_tmp_dir.GetCorpus(0), Corpus({{1}, {2}, {3}}));
-  EXPECT_EQ(work_tmp_dir.GetCorpus(1), Corpus({{4}, {5}, {6}}));
+  EXPECT_EQ(work_tmp_dir.GetCorpus(0), Corpus({{0}, {1}, {2}, {3}}));
+  EXPECT_EQ(work_tmp_dir.GetCorpus(1), Corpus({{0}, {4}, {5}, {6}}));
 
-  // Set up another workdir, create a 2-shard corpus there, with 4 inputs each.
+  // Set up another workdir, create a 2-shard corpus there, with 4 inputs plus
+  // the seed {0} each.
   TempCorpusDir merge_tmp_dir(test_info_->name(), "merge_from");
   Environment merge_env;
   merge_env.workdir = merge_tmp_dir.path();
@@ -493,8 +494,8 @@ TEST(Centipede, MergeFromOtherCorpus) {
        ++merge_env.my_shard_index) {
     CentipedeMain(merge_env, factory);
   }
-  EXPECT_EQ(merge_tmp_dir.GetCorpus(0), Corpus({{1}, {2}, {3}, {4}}));
-  EXPECT_EQ(merge_tmp_dir.GetCorpus(1), Corpus({{5}, {6}, {7}, {8}}));
+  EXPECT_EQ(merge_tmp_dir.GetCorpus(0), Corpus({{0}, {1}, {2}, {3}, {4}}));
+  EXPECT_EQ(merge_tmp_dir.GetCorpus(1), Corpus({{0}, {5}, {6}, {7}, {8}}));
 
   // Merge shards of `merge_env` into shards of `env`.
   // Shard 0 will receive one extra input: {4}
@@ -504,8 +505,8 @@ TEST(Centipede, MergeFromOtherCorpus) {
   for (env.my_shard_index = 0; env.my_shard_index < 2; ++env.my_shard_index) {
     CentipedeMain(env, factory);
   }
-  EXPECT_EQ(work_tmp_dir.GetCorpus(0), Corpus({{1}, {2}, {3}, {4}}));
-  EXPECT_EQ(work_tmp_dir.GetCorpus(1), Corpus({{4}, {5}, {6}, {7}, {8}}));
+  EXPECT_EQ(work_tmp_dir.GetCorpus(0), Corpus({{0}, {1}, {2}, {3}, {4}}));
+  EXPECT_EQ(work_tmp_dir.GetCorpus(1), Corpus({{0}, {4}, {5}, {6}, {7}, {8}}));
 }
 
 // A mock for FunctionFilter test.
