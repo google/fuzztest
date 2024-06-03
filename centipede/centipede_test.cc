@@ -696,11 +696,15 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   }
 
   // Doesn't execute anything.
-  // Crash when 0th char of input to binary b1 equals 10, but only on 1st exec.
+  // Crash when 0th char of input to binary b1 equals `crashing_input_idx_`, but
+  // only on 1st exec.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
                BatchResult &batch_result) override {
     batch_result.ClearAndResize(inputs.size());
     bool res = true;
+    if (!first_pass_) {
+      num_inputs_triaged_ += inputs.size();
+    }
     for (const auto &input : inputs) {
       CHECK_EQ(input.size(), 1);  // By construction in `Mutate()`.
       // The contents of each mutant is its sequential number.
@@ -739,9 +743,12 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   // Gets the input that triggered the crash.
   ByteArray crashing_input() const { return crashing_input_; }
 
+  size_t num_inputs_triaged() const { return num_inputs_triaged_; }
+
  private:
   const size_t crashing_input_idx_;
   size_t curr_input_idx_ = 0;
+  size_t num_inputs_triaged_ = 0;
   ByteArray crashing_input_ = {};
   bool first_pass_ = true;
 };
@@ -768,6 +775,7 @@ TEST(Centipede, UndetectedCrashingInput) {
   env.batch_size = kBatchSize;
   // No real binary: prevent attempts by Centipede to read a PCtable from it.
   env.require_pc_table = false;
+  env.exit_on_crash = true;
 
   UndetectedCrashingInputMock mock(env, kCrashingInputIdx);
   MockFactory factory(mock);
@@ -783,14 +791,28 @@ TEST(Centipede, UndetectedCrashingInput) {
                                     .append("crashes")
                                     .append("crashing_batch-")
                                     .concat(crashing_input_hash);
-  ASSERT_TRUE(std::filesystem::exists(crashes_dir_path)) << crashes_dir_path;
+  EXPECT_TRUE(std::filesystem::exists(crashes_dir_path)) << crashes_dir_path;
   std::vector<std::string> found_crash_file_names;
   for (auto const &dir_ent :
        std::filesystem::directory_iterator(crashes_dir_path)) {
     found_crash_file_names.push_back(dir_ent.path().filename());
   }
   // TODO(ussuri): Verify exact names/contents of the files, not just count.
-  ASSERT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
+  EXPECT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
+  // Suspected input first, then every input in the batch (including the
+  // suspected input again).
+  EXPECT_EQ(mock.num_inputs_triaged(), kBatchSize + 1);
+
+  // Verify that when `env.batch_triage_suspect_only` is set, only triage the
+  // suspect.
+  TempDir suspect_only_temp_dir{test_info_->name()};
+  env.workdir = suspect_only_temp_dir.path();
+  env.batch_triage_suspect_only = true;
+  UndetectedCrashingInputMock suspect_only_mock(env, kCrashingInputIdx);
+  MockFactory suspect_only_factory(suspect_only_mock);
+  CentipedeMain(env, suspect_only_factory);
+
+  EXPECT_EQ(suspect_only_mock.num_inputs_triaged(), 1);
 }
 
 TEST(Centipede, GetsSeedInputs) {

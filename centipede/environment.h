@@ -96,6 +96,7 @@ struct Environment {
   bool exit_on_crash = false;
   size_t max_num_crash_reports = 5;
   std::string minimize_crash_file_path;
+  bool batch_triage_suspect_only = false;
   size_t shmem_size_mb = 1024;
   bool use_posix_shmem = false;
   bool dry_run = false;

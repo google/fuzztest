@@ -311,6 +311,10 @@ ABSL_FLAG(std::string, minimize_crash, default_env->minimize_crash_file_path,
           " inputs in workdir/crashes/."
           " --num_runs and --num_threads apply. "
           " Assumes local workdir.");
+ABSL_FLAG(bool, batch_triage_suspect_only,
+          default_env->batch_triage_suspect_only,
+          "If set, triage the crash on only the suspected input in a crashing "
+          "batch. Otherwise, triage on all the executed inputs");
 ABSL_FLAG(std::string, input_filter, default_env->input_filter,
           "Path to a tool that filters bad inputs. The tool is invoked as "
           "`input_filter INPUT_FILE` and should return 0 if the input is good "
@@ -506,6 +510,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .exit_on_crash = absl::GetFlag(FLAGS_exit_on_crash),
       .max_num_crash_reports = absl::GetFlag(FLAGS_num_crash_reports),
       .minimize_crash_file_path = absl::GetFlag(FLAGS_minimize_crash),
+      .batch_triage_suspect_only =
+          absl::GetFlag(FLAGS_batch_triage_suspect_only),
       .shmem_size_mb = absl::GetFlag(FLAGS_shmem_size_mb),
       .use_posix_shmem = absl::GetFlag(FLAGS_use_posix_shmem),
       .dry_run = absl::GetFlag(FLAGS_dry_run),

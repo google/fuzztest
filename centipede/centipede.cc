@@ -833,22 +833,30 @@ void Centipede::ReportCrash(std::string_view binary,
       << log_prefix
       << "Reached --max_num_crash_reports: further reports will be suppressed";
 
-  // Determine the optimal order of the inputs to try to maximize the chances of
-  // finding the reproducer fast.
-  // TODO(b/274705740): When the bug is fixed, set `input_idxs_to_try`'s size to
-  //  `suspect_input_idx + 1`.
-  std::vector<size_t> input_idxs_to_try(input_vec.size() + 1);
-  // Prioritize the presumed crasher by inserting it in front of everything
-  // else. However, do keep it at the old location, too, in case the target was
-  // primed for a crash by the sequence of inputs that preceded the crasher.
-  input_idxs_to_try.front() = suspect_input_idx;
-  std::iota(input_idxs_to_try.begin() + 1, input_idxs_to_try.end(), 0);
-
   if (batch_result.failure_description() == kExecutionFailurePerBatchTimeout) {
     LOG(INFO) << log_prefix
               << "Failure applies to entire batch: not executing inputs "
                  "one-by-one, trying to find the reproducer";
     return;
+  }
+
+  // Determine the optimal order of the inputs to try to maximize the chances of
+  // finding the reproducer fast.
+  std::vector<size_t> input_idxs_to_try;
+  // Prioritize the presumed crasher by inserting it in front of everything
+  // else.
+  input_idxs_to_try.push_back(suspect_input_idx);
+  if (!env_.batch_triage_suspect_only) {
+    // TODO(b/274705740): When the bug is fixed, set `input_idxs_to_try`'s size
+    // to `suspect_input_idx + 1`.
+    input_idxs_to_try.resize(input_vec.size() + 1);
+    // Keep the suspect at the old location, too, in case the target was
+    // primed for a crash by the sequence of inputs that preceded the crasher.
+    std::iota(input_idxs_to_try.begin() + 1, input_idxs_to_try.end(), 0);
+  } else {
+    LOG(INFO)
+        << log_prefix
+        << "Skip finding the reproducer from the inputs other than the suspect";
   }
 
   // Try inputs one-by-one in the determined order.
