@@ -216,8 +216,6 @@ Congratulations! You're now all set for fuzzing with FuzzTest.
 **Warning:** compatibility mode is experimental and does not guarantee full
 FuzzTest features.
 
-Linking FuzzTest using `link_fuzztest()` enables linking with external fuzzing engines, when built with `-DFUZZTEST_COMPATIBILITY_MODE`.
-
 ```
 $ CC=clang CXX=clang++ cmake \
   -DCMAKE_BUILD_TYPE=RelWithDebug \
