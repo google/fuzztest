@@ -87,8 +87,9 @@ class FilterImpl
     bool res = predicate_(GetValue(v));
     if (!res) {
       ++num_skips_;
-      if (num_skips_ > 100 && num_skips_ > .9 * num_values_) {
-        AbortInTest(absl::StrFormat(R"(
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          num_skips_ <= 100 || num_skips_ <= .9 * num_values_,
+          absl::StrFormat(R"(
 
 [!] Ineffective use of Filter() detected!
 
@@ -99,8 +100,7 @@ Please use Filter() only to skip unlikely values. To filter out a significant
 chunk of the input domain, consider defining a custom domain by construction.
 See more details in the User Guide.
 )",
-                                    num_skips_, num_values_));
-      }
+                          num_skips_, num_values_));
     }
     return res;
   }
