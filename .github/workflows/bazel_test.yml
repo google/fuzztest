@@ -34,17 +34,16 @@ jobs:
         config: ['default', 'fuzztest']
         compilation_mode: ['fastbuild', 'opt', 'dbg']
     steps:
-      # TODO(lszekeres): Remove once the following is fixed:
-      # https://github.com/actions/runner-images/issues/9491
-      - name: Reduce ASLR entropy as a temporary workaround
-        run: |
-          sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -yq \
-            clang
+          sudo apt-get update && sudo apt-get install -yq libstdc++6
+      - name: Install a newer version of clang
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18 all
       - name: Setup --config=fuzztest for Bazel
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
@@ -57,12 +56,12 @@ jobs:
       - name: Run all tests with default --config
         if: matrix.config == 'default'
         run: |
-          bazel test --build_tests_only --test_output=errors \
+          bazel test --build_tests_only --test_output=all --noincompatible_check_sharding_support \
             -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
-          bazel test --build_tests_only --test_output=errors \
+          bazel test --build_tests_only --test_output=all --noincompatible_check_sharding_support \
             -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
