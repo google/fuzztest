@@ -1767,26 +1767,6 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",
     ],
-    deps = [
-        ":centipede_callbacks",
-        ":centipede_default_callbacks",
-        ":centipede_interface",
-        ":defs",
-        ":environment",
-        ":feature",
-        ":logging",
-        ":mutation_input",
-        ":runner_result",
-        ":test_util",
-        ":util",
-        ":workdir",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
-    ],
 )
 
 # Verify that the `:centipede` target indeed creates a binary with the
