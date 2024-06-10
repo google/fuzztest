@@ -617,7 +617,7 @@ FUZZTEST_INTERNAL_BIND_AGGREGATE_(80, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10,
                                   x47, x48, x49, x50, x51, x52, x53, x54, x55,
                                   x56, x57, x58, x59, x60, x61, x62, x63, x64,
                                   x65, x66, x67, x68, x69, x70, x71, x72, x73,
-                                  x74, x75, x76, x77, x79, x80)
+                                  x74, x75, x76, x77, x78, x79, x80)
 
 #undef FUZZTEST_INTERNAL_BIND_AGGREGATE_
 
