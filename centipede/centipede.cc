@@ -147,6 +147,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   std::vector<std::string> paths;
   size_t total_paths = 0;
   for (const std::string &path : RemoteListFiles(dir, /*recursively=*/true)) {
+    LOG(INFO) << "Reading file: " << path;
     size_t filename_hash = std::hash<std::string>{}(path);
     sharded_paths[filename_hash % env.total_shards].push_back(path);
     ++total_paths;
@@ -178,6 +179,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
       std::string input;
       RemoteFileGetContents(path, input);
       if (input.empty() || existing_hashes.contains(Hash(input))) {
+        LOG(INFO) << "Ignoring input: " << input << " from path " << path;
         ++inputs_ignored;
         continue;
       }
