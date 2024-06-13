@@ -62,7 +62,6 @@ cc_library(
         "fuzztest_macros.h",
     ],
     deps = [
-        ":io",
         ":registration",
         ":registry",
         "@com_google_absl//absl/log:check",
@@ -104,7 +103,6 @@ cc_library(
         ":configuration",
         ":flag_name",
         ":googletest_adaptor",
-        ":io",
         ":logging",
         ":registry",
         ":runtime",
@@ -440,7 +438,6 @@ cc_library(
         ":configuration",
         ":corpus_database",
         ":flag_name",
-        ":io",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/strings",

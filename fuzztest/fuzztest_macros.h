@@ -25,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/registry.h"
 // IWYU pragma: end_exports

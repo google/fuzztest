@@ -48,7 +48,6 @@ fuzztest_cc_library(
   SRCS
     "fuzztest_macros.cc"
   DEPS
-    fuzztest::io
     fuzztest::registration
     fuzztest::registry
 )
@@ -75,7 +74,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::googletest_adaptor
-    fuzztest::io
     fuzztest::logging
     fuzztest::registry
     fuzztest::runtime
@@ -368,7 +366,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::corpus_database
-    fuzztest::io
     fuzztest::registry
     fuzztest::runtime
     absl::strings
