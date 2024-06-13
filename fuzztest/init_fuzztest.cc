@@ -223,10 +223,9 @@ void ExecvToCentipede(const char*, int, char**) {
 }
 
 #endif  // defined(__linux__)
-
 }  // namespace
 
-void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name) {
+void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
   const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
   internal::Configuration configuration =
       CreateConfigurationsFromFlags({binary_id.data(), binary_id.size()});
@@ -239,7 +238,7 @@ void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name) {
   });
 }
 
-void InitFuzzTest(int* argc, char*** argv) {
+void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   const char* centipede_binary = std::getenv("FUZZTEST_CENTIPEDE_BINARY");
   const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS");
   if (centipede_binary != nullptr && !is_runner_mode) {
@@ -263,10 +262,12 @@ void InitFuzzTest(int* argc, char*** argv) {
     GTEST_FLAG_SET(filter, matching_fuzz_test);
   }
 
-  std::string binary_identifier = std::string(internal::Basename(*argv[0]));
+  std::string derived_binary_id =
+      binary_id.empty() ? std::string(internal::Basename(*argv[0]))
+                        : std::string(binary_id);
   std::optional<std::string> reproduction_command_template;
   internal::Configuration configuration =
-      CreateConfigurationsFromFlags(binary_identifier);
+      CreateConfigurationsFromFlags(derived_binary_id);
   configuration.reproduction_command_template = reproduction_command_template;
   internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 

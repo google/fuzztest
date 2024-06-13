@@ -28,10 +28,15 @@ void ParseAbslFlags(int argc, char** argv);
 // interface:
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 //
+// The optional `binary_id` can be used to override the default "binary
+// identifier", which is used to find the saved corpus in the corpus database
+// for the fuzz tests in the given binary. (By default, the filename of the
+// binary is used as an identifier).
+//
 // REQUIRES: `main()` has started before calling this function.
 // REQUIRES: Abseil flags have been inited, either using
 //           ParseAbslFlags or some other means
-void InitFuzzTest(int* argc, char*** argv);
+void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id = {});
 
 // Returns a list of all registered fuzz test names in the form of
 // "<suite_name>.<property_function_name>", e.g., `MySuite.MyFuzzTest".
@@ -64,12 +69,13 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name);
 // If `name` matches exactly one FUZZ_TEST, it runs the selected test in fuzzing
 // mode, until a bug is found or until manually stopped. Otherwise, it exits.
 //
-// `binary_id` is used to lookup the binary corpus in the project corpus
-// database.
+// `binary_id` used to find the saved corpus in the corpus database for the fuzz
+// test in the given binary.
 //
 // REQUIRES: `main()` has started before calling this function.
 // REQUIRES: Binary must be built with SanCov instrumentation on.
-void RunSpecifiedFuzzTest(std::string_view binary_id, std::string_view name);
+// TODO(b/346833936): Make `binary_id` optional.
+void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id);
 
 }  // namespace fuzztest
 

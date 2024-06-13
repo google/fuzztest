@@ -14,6 +14,8 @@
 
 #include "./fuzztest/internal/runtime.h"
 
+#include "absl/strings/str_split.h"
+
 #if !defined(_WIN32) && !defined(__Fuchsia__)
 #define FUZZTEST_HAS_RUSAGE
 #include <sys/resource.h>
@@ -107,6 +109,12 @@ void Runtime::PrintFinalStats(RawSink out) const {
 
 namespace {
 
+std::string GetFilterForCrashingInput(absl::string_view crashing_input_path) {
+  std::vector<std::string> dirs = absl::StrSplit(crashing_input_path, '/');
+  CHECK(dirs.size() > 2) << "Invalid crashing input path!";
+  return absl::StrCat(dirs[dirs.size() - 3], "/Regression/", dirs.back());
+}
+
 // Returns a reproduction command for replaying
 // `configuration.crashing_input_to_reproduce` from a command line, using the
 // `configuration.reproduction_command_template`.
@@ -123,8 +131,8 @@ std::optional<std::string> GetReproductionCommand(
   return absl::StrReplaceAll(
       *configuration.reproduction_command_template,
       {{kTestFilterPlaceholder,
-        absl::StrCat("*",
-                     Basename(*configuration.crashing_input_to_reproduce))}});
+        GetFilterForCrashingInput(
+            *configuration.crashing_input_to_reproduce)}});
 }
 
 constexpr size_t kValueMaxPrintLength = 2048;
