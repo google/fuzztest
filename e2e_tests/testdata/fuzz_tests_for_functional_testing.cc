@@ -570,7 +570,7 @@ void FailsWhenI32IsSet(const std::unique_ptr<google::protobuf::Message>& m) {
     return;
   }
   auto* proto =
-      google::protobuf::DynamicCastToGenerated<fuzztest::internal::TestProtobuf>(&*m);
+      google::protobuf::DynamicCastMessage<fuzztest::internal::TestProtobuf>(&*m);
   if (proto->has_i32()) {
     absl::FPrintF(stderr, "The field i32 is set!\n");
     std::abort();
