@@ -705,6 +705,7 @@ fuzztest_cc_library(
     absl::strings
     absl::str_format
     absl::time
+    protobuf::libprotobuf
 )
 
 fuzztest_cc_test(

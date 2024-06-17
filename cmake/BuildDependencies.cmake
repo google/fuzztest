@@ -50,13 +50,13 @@ FetchContent_Declare(
   URL_HASH MD5=${antlr_cpp_MD5}
 )
 
-if (FUZZTEST_BUILD_TESTING)
+FetchContent_Declare(
+  protobuf
+  GIT_REPOSITORY ${proto_URL}
+  GIT_TAG        ${proto_TAG}
+)
 
-  FetchContent_Declare(
-    protobuf
-    GIT_REPOSITORY ${proto_URL}
-    GIT_TAG        ${proto_TAG}
-  )
+if (FUZZTEST_BUILD_TESTING)
 
   FetchContent_Declare(
     nlohmann_json
@@ -78,11 +78,11 @@ FetchContent_MakeAvailable(googletest)
 
 FetchContent_MakeAvailable(antlr_cpp)
 
-if (FUZZTEST_BUILD_TESTING)
+set(protobuf_BUILD_TESTS OFF)
+set(protobuf_INSTALL OFF)
+FetchContent_MakeAvailable(protobuf)
 
-  set(protobuf_BUILD_TESTS OFF)
-  set(protobuf_INSTALL OFF)
-  FetchContent_MakeAvailable(protobuf)
+if (FUZZTEST_BUILD_TESTING)
 
   FetchContent_MakeAvailable(nlohmann_json)
 
