@@ -142,8 +142,9 @@ std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
 
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
-  for (const auto& entry :
-       std::filesystem::recursive_directory_iterator(fs_path)) {
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(
+           fs_path,
+           std::filesystem::directory_options::follow_directory_symlink)) {
     output_paths.push_back(entry.path().string());
   }
   return output_paths;
