@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "absl/flags/declare.h"
@@ -39,29 +41,30 @@ extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t* data1, size_t size1,
   exit(-1);
 }
 
-std::vector<std::vector<uint8_t>> ReadByteArraysFromDirectory() {
+using ByteArray = std::vector<uint8_t>;
+
+std::vector<std::tuple<ByteArray>> ReadByteArraysFromDirectory() {
   const std::string flag = absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_corpus_dir);
   if (flag.empty()) return {};
   std::vector<fuzztest::internal::FilePathAndData> files =
       fuzztest::internal::ReadFileOrDirectory(flag);
-
-  std::vector<std::vector<uint8_t>> out;
+  std::vector<std::tuple<ByteArray>> out;
   out.reserve(files.size());
   for (const fuzztest::internal::FilePathAndData& file : files) {
-    out.push_back(
+    out.push_back(std::make_tuple<ByteArray>(
         {file.data.begin(),
-         file.data.begin() + std::min(file.data.size(), kByteArrayMaxLen)});
+         file.data.begin() + std::min(file.data.size(), kByteArrayMaxLen)}));
   }
   return out;
 }
 
-std::vector<std::vector<uint8_t>> ReadByteArrayDictionaryFromFile() {
+std::vector<ByteArray> ReadByteArrayDictionaryFromFile() {
   const std::string flag = absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_dict_file);
   if (flag.empty()) return {};
   std::vector<fuzztest::internal::FilePathAndData> files =
       fuzztest::internal::ReadFileOrDirectory(flag);
 
-  std::vector<std::vector<uint8_t>> out;
+  std::vector<ByteArray> out;
   out.reserve(files.size());
   // Dictionary must be in the format specified at
   // https://llvm.org/docs/LibFuzzer.html#dictionaries
@@ -143,7 +146,7 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
 
 class ArbitraryByteVector
     : public fuzztest::internal::SequenceContainerOfImpl<
-          std::vector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>> {
+          ByteArray, fuzztest::internal::ArbitraryImpl<uint8_t>> {
   using Base = typename ArbitraryByteVector::ContainerOfImplBase;
 
  public:
@@ -163,11 +166,11 @@ class ArbitraryByteVector
   }
 };
 
-void TestOneInput(const std::vector<uint8_t>& data) {
+void TestOneInput(const ByteArray& data) {
   LLVMFuzzerTestOneInput(data.data(), data.size());
 }
 
 FUZZ_TEST(LLVMFuzzer, TestOneInput)
-    .WithDomains(ArbitraryByteVector()
-                     .WithDictionary(ReadByteArrayDictionaryFromFile)
-                     .WithSeeds(ReadByteArraysFromDirectory));
+    .WithDomains(
+        ArbitraryByteVector().WithDictionary(ReadByteArrayDictionaryFromFile))
+    .WithSeeds(ReadByteArraysFromDirectory);
