@@ -6,10 +6,17 @@ function(_link_libfuzzer_in_compatibility_mode name)
     )
     EXECUTE_PROCESS(
       COMMAND bash -c "find $(${LLVM_CONFIG} --libdir) \
-      -name libclang_rt.fuzzer_no_main-x86_64.a -o \
-      -name libclang_rt.fuzzer_no_main.a | head -1"
+      -name libclang_rt.fuzzer_no_main-x86_64.a"
       OUTPUT_VARIABLE FUZZER_NO_MAIN OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+    if(NOT FUZZER_NO_MAIN)
+      # LLVM_ENABLE_PER_TARGET_RUNTIME_DIR was set to ON when building LLVM.
+      EXECUTE_PROCESS(
+        COMMAND bash -c "find / -regex \
+        \"$(${LLVM_CONFIG} --libdir).*$(${LLVM_CONFIG} --host-target).*libclang_rt.fuzzer_no_main.a\""
+        OUTPUT_VARIABLE FUZZER_NO_MAIN OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+    endif()
     target_link_libraries(${name} PRIVATE ${FUZZER_NO_MAIN})
   endif ()
 endfunction()
