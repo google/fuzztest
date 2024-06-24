@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/defs.h"
+#include "./common/defs.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"

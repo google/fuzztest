@@ -19,7 +19,6 @@
 #include <cstring>
 
 #include "absl/base/nullability.h"
-#include "./centipede/defs.h"
 
 namespace centipede {
 
@@ -28,7 +27,7 @@ namespace centipede {
 struct DlInfo {
   uintptr_t start_address;  // Address in memory where the object is loaded.
   uintptr_t size;           // Number of bytes in the object.
-  char path[kPathMax];      // Pathname from which the object was loaded.
+  char path[4096];          // Pathname from which the object was loaded.
 
   void Clear() { memset(this, 0, sizeof(*this)); }
 

@@ -30,13 +30,13 @@
 #include "absl/strings/string_view.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 namespace {

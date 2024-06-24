@@ -24,7 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
-#include "./centipede/defs.h"
+#include "./common/defs.h"
 
 namespace centipede {
 namespace {

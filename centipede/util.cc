@@ -17,7 +17,6 @@
 
 #include "./centipede/util.h"
 
-#include <linux/limits.h>  // NOLINT(PATH_MAX)
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -52,14 +51,12 @@
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./common/defs.h"
 
 namespace centipede {
-
-static_assert(kPathMax >= PATH_MAX, "kPathMax is too small.");
 
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;

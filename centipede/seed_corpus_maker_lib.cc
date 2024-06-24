@@ -45,7 +45,6 @@
 #include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/corpus_io.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
@@ -54,6 +53,7 @@
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 #include "google/protobuf/text_format.h"
 
 // TODO(ussuri): Implement a smarter on-the-fly sampling to avoid having to

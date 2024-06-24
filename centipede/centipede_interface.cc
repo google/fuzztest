@@ -52,7 +52,6 @@
 #include "./centipede/command.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
-#include "./centipede/defs.h"
 #include "./centipede/distill.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
@@ -64,6 +63,7 @@
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 #include "./fuzztest/internal/configuration.h"
 
 namespace centipede {

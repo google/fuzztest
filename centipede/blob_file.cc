@@ -28,10 +28,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"

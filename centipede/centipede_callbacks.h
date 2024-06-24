@@ -26,13 +26,13 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/command.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

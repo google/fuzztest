@@ -22,8 +22,8 @@
 
 #include <functional>
 
-#include "./centipede/defs.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

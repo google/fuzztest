@@ -20,10 +20,10 @@
 #include <cstddef>
 #include <vector>
 
-#include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./common/defs.h"
 
 namespace centipede::runner_request {
 

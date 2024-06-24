@@ -22,7 +22,7 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "./centipede/defs.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

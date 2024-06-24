@@ -26,9 +26,9 @@
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/strings/numbers.h"
-#include "./centipede/defs.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
+#include "./common/defs.h"
 
 namespace {
 

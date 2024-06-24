@@ -20,11 +20,11 @@
 
 #include "absl/log/check.h"
 #include "./centipede/corpus.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

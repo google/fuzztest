@@ -28,11 +28,11 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

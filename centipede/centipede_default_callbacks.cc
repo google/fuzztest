@@ -22,11 +22,11 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "./centipede/centipede_callbacks.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

@@ -38,7 +38,6 @@
 #include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/corpus_io.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
@@ -51,6 +50,7 @@
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

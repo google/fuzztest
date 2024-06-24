@@ -54,8 +54,8 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
-        "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 
@@ -90,8 +90,8 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
-        "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 
@@ -136,8 +136,8 @@ cc_binary(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
-        "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 

@@ -81,7 +81,6 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
-#include "./centipede/defs.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
@@ -95,6 +94,7 @@
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

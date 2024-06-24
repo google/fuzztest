@@ -19,9 +19,9 @@
 #include <utility>
 #include <vector>
 
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/seed_corpus_config.pb.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

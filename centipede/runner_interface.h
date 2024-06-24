@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/defs.h"
 #include "./centipede/mutation_input.h"
+#include "./common/defs.h"
 
 // Typedefs for the libFuzzer API, https://llvm.org/docs/LibFuzzer.html
 using FuzzerTestOneInputCallback = int (*)(const uint8_t *data, size_t size);

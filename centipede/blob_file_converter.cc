@@ -27,10 +27,10 @@
 #include "absl/time/time.h"
 #include "./centipede/blob_file.h"
 #include "./centipede/config_init.h"
-#include "./centipede/defs.h"
 #include "./centipede/logging.h"
 #include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
+#include "./common/defs.h"
 
 ABSL_FLAG(std::string, in, "", "Input path");
 ABSL_FLAG(std::string, out, "", "Output path");

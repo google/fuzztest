@@ -21,9 +21,9 @@
 
 #include "absl/strings/string_view.h"
 #include "./centipede/centipede_callbacks.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

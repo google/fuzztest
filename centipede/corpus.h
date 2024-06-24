@@ -25,11 +25,11 @@
 
 #include "absl/log/check.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

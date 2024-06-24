@@ -48,7 +48,6 @@
 
 #include "absl/base/nullability.h"
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/int_utils.h"
@@ -60,6 +59,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./common/defs.h"
 
 __attribute__((
     weak)) extern centipede::feature_t __start___centipede_extra_features;

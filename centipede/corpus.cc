@@ -30,13 +30,13 @@
 #include "absl/strings/substitute.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/coverage.h"
-#include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

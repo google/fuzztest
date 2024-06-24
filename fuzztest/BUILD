@@ -218,13 +218,13 @@ cc_library(
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
-        "@com_google_fuzztest//centipede:defs",
         "@com_google_fuzztest//centipede:early_exit",
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:mutation_input",
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
         "@com_google_fuzztest//centipede:workdir",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 

@@ -21,10 +21,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "./centipede/centipede_callbacks.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/test_util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 namespace {

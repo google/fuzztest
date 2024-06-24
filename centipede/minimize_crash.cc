@@ -28,7 +28,6 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
-#include "./centipede/defs.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/logging.h"  // IWYU pragma: keep
@@ -36,6 +35,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

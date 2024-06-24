@@ -24,11 +24,11 @@
 #include "absl/log/check.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/corpus.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./common/defs.h"
 namespace centipede {
 // Runs all `inputs`, returns FeatureVec for every input.
 // `env` defines what target is executed and with what flags.

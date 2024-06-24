@@ -26,8 +26,8 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

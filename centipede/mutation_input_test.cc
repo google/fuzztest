@@ -18,7 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "./centipede/defs.h"
+#include "./common/defs.h"
 
 namespace centipede {
 namespace {

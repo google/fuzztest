@@ -25,7 +25,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "./centipede/blob_file.h"
-#include "./centipede/defs.h"
+#include "./common/defs.h"
 
 #include "./centipede/logging.h"
 

@@ -25,12 +25,12 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/call_graph.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "./common/defs.h"
 
 namespace centipede {
 namespace {

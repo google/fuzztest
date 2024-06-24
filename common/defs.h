@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_CENTIPEDE_DEFS_H_
-#define THIRD_PARTY_CENTIPEDE_DEFS_H_
+#ifndef FUZZTEST_COMMON_DEFS_H_
+#define FUZZTEST_COMMON_DEFS_H_
+
 // Only simple definitions here. No code, no dependencies.
 // span.h is an exception as it's header-only and very simple.
 
-#include <cstddef>
 #include <cstdint>
 #include <random>
 #include <string_view>
@@ -38,7 +38,7 @@ using ByteSpan = absl::Span<const uint8_t>;
 template <typename Container>
 ByteSpan AsByteSpan(const Container &blob) {
   return ByteSpan(reinterpret_cast<const uint8_t *>(blob.data()),
-                  blob.size() * sizeof(blob[0]));
+                  blob.size() * sizeof(typename Container::value_type));
 }
 
 // Reinterprets a `ByteSpan` as a string_view pointing at the same data. The
@@ -52,10 +52,6 @@ inline std::string_view AsStringView(ByteSpan str) {
 #define FRIEND_TEST(test_case_name, test_name) \
   friend class test_case_name##_##test_name##_Test
 
-// We don't want to include <linux/limits.h> or equivalent in any of the .h
-// files. So we define kPathMax, and verify that it is >= PATH_MAX in util.cc.
-constexpr size_t kPathMax = 4096;
-
 }  // namespace centipede
 
-#endif  // THIRD_PARTY_CENTIPEDE_DEFS_H_
+#endif  // FUZZTEST_COMMON_DEFS_H_

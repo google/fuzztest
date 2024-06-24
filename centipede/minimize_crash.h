@@ -16,8 +16,8 @@
 #define THIRD_PARTY_CENTIPEDE_MINIMIZE_CRASH_H_
 
 #include "./centipede/centipede_callbacks.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

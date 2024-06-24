@@ -30,7 +30,6 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus.h"
 #include "./centipede/coverage.h"
-#include "./centipede/defs.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
@@ -40,6 +39,7 @@
 #include "./centipede/stats.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

@@ -25,8 +25,8 @@
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "./centipede/defs.h"
 #include "./centipede/feature.h"
+#include "./common/defs.h"
 
 namespace centipede {
 

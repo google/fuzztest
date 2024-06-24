@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/defs.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
+#include "./common/defs.h"
 
 using centipede::ByteSpan;
 

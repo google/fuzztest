@@ -21,8 +21,8 @@
 
 #include <vector>
 
-#include "./centipede/defs.h"
 #include "./centipede/execution_metadata.h"
+#include "./common/defs.h"
 
 namespace centipede {
 
