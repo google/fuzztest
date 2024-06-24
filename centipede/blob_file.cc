@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -44,9 +45,45 @@
 namespace centipede {
 namespace {
 
-// TODO(ussuri): Return more informative statuses, at least with the file path
-//  included. That will require adjustments in the test: use
-//  `testing::status::StatusIs` instead of direct `absl::Status` comparisons).
+absl::Status FileWasNeverOpen(std::string_view path, RemoteFile *file,
+                              bool closed) {
+  std::string msg;
+  if (closed) {
+    msg = absl::StrCat("Already closed: ", path);
+  }
+  if (file != nullptr) {
+    msg = absl::StrCat("Already open: ", path);
+  }
+  return msg.empty() ? absl::OkStatus() : absl::FailedPreconditionError(msg);
+}
+
+absl::Status FileIsOpen(std::string_view path, RemoteFile *file, bool closed) {
+  std::string msg;
+  if (closed) {
+    msg = absl::StrCat("Already closed: ", path);
+  }
+  if (file == nullptr) {
+    msg = absl::StrCat("Was never open: ", path);
+  }
+  return msg.empty() ? absl::OkStatus() : absl::FailedPreconditionError(msg);
+}
+
+absl::Status OpenFile(std::string_view path, std::string_view mode,
+                      RemoteFile *&file) {
+  file = RemoteFileOpen(path, mode.data());
+  if (file == nullptr) {
+    return absl::UnknownError(absl::StrCat("Can't open: ", path));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status CloseFile(std::string_view path, RemoteFile *&file, bool &closed) {
+  CHECK_OK(FileIsOpen(path, file, closed));
+  RemoteFileClose(file);
+  file = nullptr;
+  closed = true;
+  return absl::OkStatus();
+}
 
 // Simple implementations of `BlobFileReader` / `BlobFileWriter` based on
 // `PackBytesForAppendFile()` / `UnpackBytesFromAppendFile()`.
@@ -63,10 +100,9 @@ class SimpleBlobFileReader : public BlobFileReader {
   }
 
   absl::Status Open(std::string_view path) override {
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, "r");
-    if (file_ == nullptr) return absl::UnknownError("can't open file");
+    CHECK_OK(FileWasNeverOpen(path, file_, closed_));
+    CHECK_OK(OpenFile(path, "r", file_));
+    path_ = std::string(path);
     // Read the entire file at once.
     // It may be useful to read the file in chunks, but if we are going
     // to migrate to something else, it's not important here.
@@ -78,10 +114,9 @@ class SimpleBlobFileReader : public BlobFileReader {
   }
 
   absl::Status Read(ByteSpan &blob) override {
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
+    CHECK_OK(FileIsOpen(path_, file_, closed_));
     if (next_to_read_blob_index_ == unpacked_blobs_.size())
-      return absl::OutOfRangeError("no more blobs");
+      return absl::OutOfRangeError(absl::StrCat("No more blobs: ", path_));
     if (next_to_read_blob_index_ != 0)  // Clear the previous blob to save RAM.
       unpacked_blobs_[next_to_read_blob_index_ - 1].clear();
     blob = ByteSpan(unpacked_blobs_[next_to_read_blob_index_]);
@@ -91,14 +126,12 @@ class SimpleBlobFileReader : public BlobFileReader {
 
   // Closes the file (it must be open).
   absl::Status Close() override {
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
-    closed_ = true;
-    // Nothing to do here, we've already closed the underlying file (in Open()).
+    CHECK_OK(CloseFile(path_, file_, closed_));
     return absl::OkStatus();
   }
 
  private:
+  std::string path_;
   RemoteFile *file_ = nullptr;
   bool closed_ = false;
   std::vector<ByteArray> unpacked_blobs_;
@@ -116,18 +149,16 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   }
 
   absl::Status Open(std::string_view path, std::string_view mode) override {
+    path_ = path;
     CHECK(mode == "w" || mode == "a") << VV(mode);
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, mode.data());
-    if (file_ == nullptr) return absl::UnknownError("can't open file");
+    CHECK_OK(FileWasNeverOpen(path_, file_, closed_));
+    CHECK_OK(OpenFile(path_, mode, file_));
     RemoteFileSetWriteBufferSize(file_, kMaxBufferedBytes);
     return absl::OkStatus();
   }
 
   absl::Status Write(ByteSpan blob) override {
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
+    CHECK_OK(FileIsOpen(path_, file_, closed_));
     ByteArray packed = PackBytesForAppendFile(blob);
     RemoteFileAppend(file_, packed);
     RemoteFileFlush(file_);
@@ -135,10 +166,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   }
 
   absl::Status Close() override {
-    if (closed_) return absl::FailedPreconditionError("already closed");
-    if (!file_) return absl::FailedPreconditionError("was not open");
-    closed_ = true;
-    RemoteFileClose(file_);
+    CHECK_OK(CloseFile(path_, file_, closed_));
     return absl::OkStatus();
   }
 
@@ -146,6 +174,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   static constexpr uint64_t kMB = 1024UL * 1024UL;
   static constexpr uint64_t kMaxBufferedBytes = 100 * kMB;
 
+  std::string path_;
   RemoteFile *file_ = nullptr;
   bool closed_ = false;
 };
