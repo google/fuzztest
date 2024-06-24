@@ -34,7 +34,11 @@ std::filesystem::path GetTestTempDir(std::string_view subdir) {
   if (!std::filesystem::exists(dir)) {
     std::error_code error;
     std::filesystem::create_directories(dir, error);
-    CHECK(!error) << "Failed to create dir: " VV(dir) << error.message();
+    CHECK(!error) << "Failed to create dir: " VV(dir) << VV(error);
+  } else {
+    std::error_code error;
+    std::filesystem::remove_all(dir, error);
+    CHECK(!error) << "Failed to clear dir: " VV(dir) << VV(error);
   }
   return std::filesystem::canonical(dir);
 }

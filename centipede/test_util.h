@@ -65,32 +65,6 @@ std::string GetObjDumpPath();
 // Resets the PATH envvar to "`dir`:$PATH".
 void PrependDirToPathEnvvar(std::string_view dir);
 
-// Creates or clears a tmp dir in CTOR. The dir will end with `leaf` subdir.
-class TempDir {
- public:
-  explicit TempDir(std::string_view leaf1, std::string_view leaf2 = "")
-      : path_{GetTestTempDir(leaf1) / leaf2} {
-    std::filesystem::remove_all(path_);
-    std::filesystem::create_directories(path_);
-  }
-
-  const std::filesystem::path& path() const { return path_; }
-
-  std::string GetFilePath(std::string_view file_name) const {
-    return path_ / file_name;
-  }
-
-  std::string CreateSubdir(std::string_view name) const {
-    std::string path = GetFilePath(name);
-    std::filesystem::remove_all(path);
-    std::filesystem::create_directories(path);
-    return path;
-  }
-
- private:
-  std::filesystem::path path_;
-};
-
 class TempCorpusDir : public TempDir {
  public:
   // Reuse the parent's ctor.
@@ -99,8 +73,7 @@ class TempCorpusDir : public TempDir {
   // Loads the corpus from the file `name_prefix``shard_index`
   // and returns it as a vector<ByteArray>.
   // Returns an empty vector if the file cannot be opened.
-  std::vector<ByteArray> GetCorpus(size_t shard_index,
-                                   std::string_view name_prefix = "corpus.") {
+  std::vector<ByteArray> GetCorpus(size_t shard_index) {
     // NOTE: The "6" in the "%06d" comes from kDigitsInShardIndex in
     // environment.cc.
     if (!reader_
@@ -119,8 +92,7 @@ class TempCorpusDir : public TempDir {
   }
 
   // Returns the count of elements in the corpus file `path`/`file_name`.
-  size_t CountElementsInCorpusFile(size_t shard_index,
-                                   std::string_view name_prefix = "corpus.") {
+  size_t CountElementsInCorpusFile(size_t shard_index) {
     return GetCorpus(shard_index, name_prefix).size();
   }
 
