@@ -78,7 +78,7 @@ void UpdateBatchResult(const bool feature_only_feedback,
     ByteArray content;
     ReadFromLocalFile(std::string(entries[index]), content);
     if (content.empty()) {
-      LOG(WARNING) << "Skip updating batch result with an emtpy output file: "
+      LOG(WARNING) << "Skip updating batch result with an empty output file: "
                    << entries[index];
       continue;
     }
