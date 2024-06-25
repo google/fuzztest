@@ -32,7 +32,7 @@
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/int_utils.h"
-#include "./centipede/logging.h"
+#include "./common/logging.h"
 
 namespace centipede {
 namespace {

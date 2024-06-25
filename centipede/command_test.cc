@@ -27,8 +27,8 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "./centipede/early_exit.h"
-#include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

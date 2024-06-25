@@ -32,17 +32,17 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"
 
 namespace centipede {
 

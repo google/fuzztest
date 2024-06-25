@@ -46,7 +46,6 @@
 #include "absl/types/span.h"
 #include "./centipede/analyze_corpora.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/centipede.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
@@ -55,16 +54,17 @@
 #include "./centipede/distill.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"  // IWYU pragma: keep
+#include "./common/remote_file.h"
 #include "./fuzztest/internal/configuration.h"
 
 namespace centipede {

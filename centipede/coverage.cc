@@ -31,8 +31,8 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/symbol_table.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

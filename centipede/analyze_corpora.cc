@@ -32,11 +32,11 @@
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

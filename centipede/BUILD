@@ -15,7 +15,6 @@
 # Description:
 #   Centipede: an experimental distributed fuzzing engine.
 
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
@@ -28,20 +27,6 @@ PUBLIC_API_VISIBILITY = VISIBILITY
 package(default_visibility = VISIBILITY)
 
 licenses(["notice"])
-
-################################################################################
-# Flag and setting to enable use of Riegeli
-################################################################################
-
-bool_flag(
-    name = "use_riegeli",
-    build_setting_default = True,
-)
-
-config_setting(
-    name = "disable_riegeli",
-    flag_values = {":use_riegeli": "False"},
-)
 
 ################################################################################
 #                                  Binaries
@@ -73,7 +58,6 @@ cc_binary(
     srcs = ["seed_corpus_maker.cc"],
     deps = [
         ":config_init",
-        ":remote_file",
         ":seed_corpus_maker_flags",
         ":seed_corpus_maker_lib",
         ":util",
@@ -81,6 +65,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -88,10 +73,7 @@ cc_binary(
     name = "blob_file_converter",
     srcs = ["blob_file_converter.cc"],
     deps = [
-        ":blob_file",
         ":config_init",
-        ":logging",
-        ":remote_file",
         ":rusage_profiler",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
@@ -100,7 +82,10 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -142,7 +127,6 @@ cc_library(
     deps = [
         ":command",
         ":control_flow",
-        ":logging",
         ":pc_info",
         ":thread_pool",
         ":util",
@@ -151,6 +135,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -185,15 +170,6 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
-    ],
-)
-
-cc_library(
-    name = "logging",
-    hdrs = ["logging.h"],
-    deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -235,8 +211,6 @@ cc_library(
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":feature",
-        ":logging",
-        ":remote_file",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:check",
@@ -246,6 +220,8 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -285,8 +261,6 @@ cc_library(
     deps = [
         ":config_init",
         ":config_util",
-        ":logging",
-        ":remote_file",
         ":util",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
@@ -295,6 +269,8 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -378,8 +354,6 @@ cc_library(
     linkopts = ["-latomic"],  # for std::atomic::load()/store().
     deps = [
         ":environment",
-        ":logging",
-        ":remote_file",
         ":workdir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:btree",
@@ -390,6 +364,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -401,7 +377,6 @@ cc_library(
         ":centipede_callbacks",
         ":early_exit",
         ":environment",
-        ":logging",
         ":mutation_input",
         ":runner_result",
         ":util",
@@ -412,6 +387,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -427,50 +403,16 @@ cc_library(
         ":corpus_io",
         ":coverage",
         ":feature",
-        ":logging",
         ":pc_info",
-        ":remote_file",
         ":workdir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
-)
-
-cc_library(
-    name = "blob_file",
-    srcs = ["blob_file.cc"],
-    hdrs = ["blob_file.h"],
-    defines = select({
-        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
-        "//conditions:default": [],
-    }),
-    visibility = PUBLIC_API_VISIBILITY,
-    deps = [
-        ":logging",
-        ":remote_file",
-        ":util",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
-        "@com_google_fuzztest//common:defs",
-    ] + select({
-        ":disable_riegeli": [],
-        "//conditions:default": [
-            "@com_google_riegeli//riegeli/base:object",
-            "@com_google_riegeli//riegeli/base:types",
-            "@com_google_riegeli//riegeli/bytes:reader",
-            "@com_google_riegeli//riegeli/bytes:writer",
-            "@com_google_riegeli//riegeli/records:record_reader",
-            "@com_google_riegeli//riegeli/records:record_writer",
-        ],
-    }),
 )
 
 cc_library(
@@ -565,13 +507,13 @@ cc_library(
         ":control_flow",
         ":feature",
         ":pc_info",
-        ":remote_file",
         ":symbol_table",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -588,7 +530,6 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":command",
-        ":logging",
         ":pc_info",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -597,6 +538,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -613,38 +555,12 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
-        ":logging",
         ":pc_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
+        "@com_google_fuzztest//common:logging",
     ],
-)
-
-cc_library(
-    name = "remote_file",
-    srcs = ["remote_file.cc"],
-    hdrs = ["remote_file.h"],
-    defines = select({
-        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
-        "//conditions:default": [],
-    }),
-    deps = [
-        ":logging",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_fuzztest//common:defs",
-    ] + select({
-        ":disable_riegeli": [],
-        "//conditions:default": [
-            "@com_google_riegeli//riegeli/bytes:fd_reader",
-            "@com_google_riegeli//riegeli/bytes:fd_writer",
-            "@com_google_riegeli//riegeli/bytes:reader",
-            "@com_google_riegeli//riegeli/bytes:writer",
-        ],
-    }),
 )
 
 cc_library(
@@ -654,10 +570,10 @@ cc_library(
     deps = [
         ":control_flow",
         ":feature",
-        ":logging",
         ":util",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -673,13 +589,13 @@ cc_library(
         ":execution_metadata",
         ":feature",
         ":feature_set",
-        ":logging",
-        ":remote_file",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -690,7 +606,6 @@ cc_library(
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":early_exit",
-        ":logging",
         ":util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -700,6 +615,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -715,12 +631,12 @@ cc_library(
         ":command",
         ":control_flow",
         ":pc_info",
-        ":remote_file",
         ":symbol_table",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -735,13 +651,11 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":binary_info",
-        ":blob_file",
         ":byte_array_mutator",
         ":command",
         ":control_flow",
         ":environment",
         ":fuzztest_mutator",
-        ":logging",
         ":mutation_input",
         ":runner_request",
         ":runner_result",
@@ -753,8 +667,10 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -763,10 +679,7 @@ cc_library(
     srcs = ["corpus_io.cc"],
     hdrs = ["corpus_io.h"],
     deps = [
-        ":blob_file",
         ":feature",
-        ":logging",
-        ":remote_file",
         ":rusage_profiler",
         ":util",
         "@com_google_absl//absl/log",
@@ -774,8 +687,11 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -792,19 +708,19 @@ cc_library(
     srcs = ["environment_flags.cc"],
     hdrs = ["environment_flags.h"],
     defines = select({
-        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
-        ":logging",
         ":util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -819,7 +735,6 @@ cc_library(
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":binary_info",
-        ":blob_file",
         ":centipede_callbacks",
         ":command",
         ":control_flow",
@@ -830,10 +745,8 @@ cc_library(
         ":environment",
         ":feature",
         ":feature_set",
-        ":logging",
         ":mutation_input",
         ":pc_info",
-        ":remote_file",
         ":runner_result",
         ":rusage_profiler",
         ":rusage_stats",
@@ -851,8 +764,11 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -868,7 +784,6 @@ cc_library(
     deps = [
         ":analyze_corpora",
         ":binary_info",
-        ":blob_file",
         ":centipede_callbacks",
         ":centipede_lib",
         ":command",
@@ -877,10 +792,8 @@ cc_library(
         ":distill",
         ":early_exit",
         ":environment",
-        ":logging",
         ":minimize_crash",
         ":pc_info",
-        ":remote_file",
         ":runner_result",
         ":stats",
         ":util",
@@ -893,8 +806,11 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//fuzztest:configuration",
     ],
 )
@@ -908,21 +824,21 @@ cc_library(
         "environment.h",
     ],
     defines = select({
-        ":disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":feature",
         ":knobs",
-        ":logging",
-        ":remote_file",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -931,14 +847,11 @@ cc_library(
     srcs = ["distill.cc"],
     hdrs = ["distill.h"],
     deps = [
-        ":blob_file",
         ":corpus_io",
         ":environment",
         ":feature",
         ":feature_set",
-        ":logging",
         ":periodic_action",
-        ":remote_file",
         ":resource_pool",
         ":rusage_profiler",
         ":rusage_stats",
@@ -952,8 +865,11 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -965,12 +881,12 @@ cc_library(
     deps = [
         ":centipede_callbacks",
         ":environment",
-        ":logging",
         ":mutation_input",
         ":runner_result",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -1143,11 +1059,8 @@ cc_library(
     srcs = ["seed_corpus_maker_lib.cc"],
     hdrs = ["seed_corpus_maker_lib.h"],
     deps = [
-        ":blob_file",
         ":corpus_io",
         ":feature",
-        ":logging",
-        ":remote_file",
         ":rusage_profiler",
         ":seed_corpus_config_cc_proto",
         ":thread_pool",
@@ -1159,7 +1072,10 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -1177,34 +1093,17 @@ cc_library(
 ################################################################################
 
 cc_library(
-    name = "test_util",
-    testonly = True,
-    srcs = ["test_util.cc"],
-    hdrs = ["test_util.h"],
-    deps = [
-        ":blob_file",
-        ":logging",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_fuzztest//common:defs",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "workdir",
     srcs = ["workdir.cc"],
     hdrs = ["workdir.h"],
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
-        ":logging",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -1249,7 +1148,7 @@ cc_test(
         ":binary_info",
         ":pc_info",
         ":symbol_table",
-        ":test_util",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1278,18 +1177,6 @@ cc_test(
     srcs = ["pc_info_test.cc"],
     deps = [
         ":pc_info",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "remote_file_test",
-    srcs = ["remote_file_test.cc"],
-    deps = [
-        ":logging",
-        ":remote_file",
-        ":test_util",
-        "@com_google_absl//absl/log:check",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1336,7 +1223,7 @@ cc_test(
         ":environment",  # buildcleaner:keep
         ":config_util",
         ":environment_flags",
-        ":logging",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/flags:flag",
     ],
@@ -1359,13 +1246,13 @@ cc_test(
     timeout = "long",
     srcs = ["rusage_stats_test.cc"],
     deps = [
-        ":logging",
         ":rusage_stats",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1374,17 +1261,17 @@ cc_test(
     name = "distill_test",
     srcs = ["distill_test.cc"],
     deps = [
-        ":blob_file",
         ":corpus_io",
         ":distill",
         ":environment",
         ":feature",
-        ":test_util",
         ":util",
         ":workdir",
         "@com_google_absl//absl/flags:reflection",
         "@com_google_absl//absl/log:check",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1410,9 +1297,7 @@ cc_test(
     srcs = ["stats_test.cc"],
     deps = [
         ":environment",
-        ":logging",
         ":stats",
-        ":test_util",
         ":util",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:log_entry",
@@ -1420,6 +1305,8 @@ cc_test(
         "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1432,11 +1319,11 @@ cc_test(
         ":environment",
         ":minimize_crash",
         ":runner_result",
-        ":test_util",
         ":util",
         ":workdir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1453,24 +1340,12 @@ cc_test(
         ":analyze_corpora",
         ":binary_info",
         ":environment",
-        ":remote_file",
         ":symbol_table",
         ":test_coverage_util",
-        ":test_util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "blob_file_test",
-    srcs = ["blob_file_test.cc"],
-    deps = [
-        ":blob_file",
-        ":test_util",
-        "@com_google_absl//absl/status",
-        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1503,7 +1378,7 @@ cc_test(
         ":feature",
         ":runner_result",
         ":shared_memory_blob_sequence",
-        ":test_util",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1538,11 +1413,11 @@ cc_test(
     deps = [
         ":feature",
         ":int_utils",
-        ":logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1619,16 +1494,16 @@ cc_test(
     name = "corpus_io_test",
     srcs = ["corpus_io_test.cc"],
     deps = [
-        ":blob_file",
         ":corpus",
         ":corpus_io",
         ":feature",
-        ":test_util",
         ":util",
         ":workdir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1644,9 +1519,9 @@ cc_test(
         ":feature",
         ":feature_set",
         ":pc_info",
-        ":test_util",
         ":util",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1667,11 +1542,11 @@ cc_test(
     deps = [
         ":command",
         ":early_exit",
-        ":test_util",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1697,13 +1572,13 @@ cc_test(
     deps = [
         ":binary_info",
         ":control_flow",
-        ":logging",
         ":pc_info",
         ":symbol_table",
-        ":test_util",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1714,9 +1589,9 @@ cc_test(
     deps = [
         ":call_graph",
         ":control_flow",
-        ":logging",
         ":pc_info",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1735,13 +1610,13 @@ cc_test(
     srcs = ["seed_corpus_maker_lib_test.cc"],
     deps = [
         ":feature",
-        ":logging",
         ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
-        ":test_util",
         ":workdir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
@@ -1769,11 +1644,8 @@ cc_test(
         ":centipede_interface",
         ":environment",
         ":feature",
-        ":logging",
         ":mutation_input",
         ":runner_result",
-        ":test_util",
-        ":util",
         ":workdir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -1782,6 +1654,8 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1814,9 +1688,9 @@ cc_test(
         ":pc_info",
         ":symbol_table",
         ":test_coverage_util",
-        ":test_util",
         ":util",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1825,13 +1699,13 @@ cc_test(
     name = "resource_pool_test",
     srcs = ["resource_pool_test.cc"],
     deps = [
-        ":logging",
         ":resource_pool",
         ":rusage_stats",
         ":thread_pool",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1840,9 +1714,9 @@ cc_test(
     name = "periodic_action_test",
     srcs = ["periodic_action_test.cc"],
     deps = [
-        ":logging",
         ":periodic_action",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )

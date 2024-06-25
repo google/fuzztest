@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/blob_file.h"
+#include "./common/blob_file.h"
 
 #include <memory>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "./centipede/test_util.h"
 #include "./common/defs.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {
@@ -247,6 +248,25 @@ TEST(WriterFactoryDeathTest, FailWhenBuiltWithoutRiegeli) {
   ASSERT_DEATH(DefaultBlobFileWriterFactory(true), "");
 }
 #endif  // CENTIPEDE_DISABLE_RIEGELI
+
+void Append(ByteArray &to, const ByteArray &from) {
+  to.insert(to.end(), from.begin(), from.end());
+}
+
+TEST(UtilTest, AppendFile) {
+  ByteArray packed;
+  ByteArray a{1, 2, 3};
+  ByteArray b{3, 4, 5};
+  ByteArray c{111, 112, 113, 114, 115};
+  Append(packed, PackBytesForAppendFile(a));
+  Append(packed, PackBytesForAppendFile(b));
+  Append(packed, PackBytesForAppendFile(c));
+  std::vector<ByteArray> unpacked;
+  UnpackBytesFromAppendFile(packed, &unpacked);
+  EXPECT_EQ(a, unpacked[0]);
+  EXPECT_EQ(b, unpacked[1]);
+  EXPECT_EQ(c, unpacked[2]);
+}
 
 }  // namespace
 }  // namespace centipede

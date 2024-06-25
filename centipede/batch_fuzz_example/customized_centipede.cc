@@ -32,11 +32,11 @@
 #include "./centipede/command.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 namespace centipede {
 namespace {

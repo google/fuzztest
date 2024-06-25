@@ -24,7 +24,6 @@
 #include "absl/base/nullability.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
@@ -39,6 +38,7 @@
 #include "./centipede/stats.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/workdir.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 
 namespace centipede {

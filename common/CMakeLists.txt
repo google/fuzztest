@@ -19,6 +19,31 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
 
 fuzztest_cc_library(
   NAME
+    blob_file
+  HDRS
+    "blob_file.h"
+  SRCS
+    "blob_file.cc"
+  DEFINES
+    # Riegeli doesn't yet support CMake builds:
+    # https://github.com/google/riegeli/issues/16
+    CENTIPEDE_DISABLE_RIEGELI
+  DEPS
+    fuzztest::common_logging
+    fuzztest::defs
+    fuzztest::hash
+    fuzztest::remote_file
+    absl::nullability
+    absl::log
+    absl::check
+    absl::status
+    absl::str_format
+    absl::string_view
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
     defs
   HDRS
     "defs.h"
@@ -39,7 +64,69 @@ fuzztest_cc_library(
     fuzztest::defs
 )
 
+fuzztest_cc_library(
+  NAME
+    common_logging
+  HDRS
+    "logging.h"
+  DEPS
+    absl::log
+    absl::check
+)
+
+fuzztest_cc_library(
+  NAME
+    remote_file
+  HDRS
+    "remote_file.h"
+  SRCS
+    "remote_file.cc"
+    "remote_file_oss.cc"
+  DEFINES
+    # Riegeli doesn't yet support CMake builds:
+    # https://github.com/google/riegeli/issues/16
+    CENTIPEDE_DISABLE_RIEGELI
+  DEPS
+    fuzztest::common_logging
+    fuzztest::defs
+    absl::nullability
+    absl::log
+    absl::check
+)
+
+fuzztest_cc_library(
+  NAME
+    test_util
+  HDRS
+    "test_util.h"
+  SRCS
+    "test_util.cc"
+  DEPS
+    fuzztest::common_logging
+    fuzztest::blob_file
+    fuzztest::defs
+    absl::log
+    absl::check
+    absl::strings
+    absl::str_format
+    GTest::gtest
+  TESTONLY
+)
+
 ### Tests
+
+fuzztest_cc_test(
+  NAME
+    blob_file_test
+  SRCS
+    "blob_file_test.cc"
+  DEPS
+    fuzztest::blob_file
+    fuzztest::defs
+    fuzztest::test_util
+    absl::status
+    GTest::gmock_main
+)
 
 fuzztest_cc_test(
   NAME
@@ -48,5 +135,18 @@ fuzztest_cc_test(
     "hash_test.cc"
   DEPS
     fuzztest::hash
+    GTest::gmock_main
+)
+
+fuzztest_cc_test(
+  NAME
+    remote_file_test
+  SRCS
+    "remote_file_test.cc"
+  DEPS
+    fuzztest::common_logging
+    fuzztest::remote_file
+    fuzztest::test_util
+    absl::check
     GTest::gmock_main
 )

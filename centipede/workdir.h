@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
+#include "./common/logging.h"
 
 namespace centipede {
 

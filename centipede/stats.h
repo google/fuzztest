@@ -30,7 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
-#include "./centipede/remote_file.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

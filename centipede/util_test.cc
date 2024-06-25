@@ -32,25 +32,6 @@
 
 namespace centipede {
 
-static void Append(ByteArray &to, const ByteArray &from) {
-  to.insert(to.end(), from.begin(), from.end());
-}
-
-TEST(UtilTest, AppendFile) {
-  ByteArray packed;
-  ByteArray a{1, 2, 3};
-  ByteArray b{3, 4, 5};
-  ByteArray c{111, 112, 113, 114, 115};
-  Append(packed, PackBytesForAppendFile(a));
-  Append(packed, PackBytesForAppendFile(b));
-  Append(packed, PackBytesForAppendFile(c));
-  std::vector<ByteArray> unpacked;
-  UnpackBytesFromAppendFile(packed, &unpacked);
-  EXPECT_EQ(a, unpacked[0]);
-  EXPECT_EQ(b, unpacked[1]);
-  EXPECT_EQ(c, unpacked[2]);
-}
-
 TEST(UtilTest, AsString) {
   EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 3), "abc");
   EXPECT_EQ(AsPrintableString({'a', 'b', 'C'}, 4), "abC");

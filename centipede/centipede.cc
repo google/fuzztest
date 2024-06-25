@@ -75,7 +75,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
@@ -85,17 +84,18 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/logging.h"
 #include "./centipede/mutation_input.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

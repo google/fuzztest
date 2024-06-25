@@ -27,10 +27,10 @@
 #include "absl/log/log.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/environment.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
-#include "./centipede/test_util.h"
+#include "./common/remote_file.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

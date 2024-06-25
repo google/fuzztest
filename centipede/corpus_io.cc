@@ -27,14 +27,14 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/util.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

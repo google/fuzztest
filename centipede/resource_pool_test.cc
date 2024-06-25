@@ -24,9 +24,9 @@
 #include "absl/status/status.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./centipede/logging.h"
 #include "./centipede/rusage_stats.h"
 #include "./centipede/thread_pool.h"
+#include "./common/logging.h"
 
 namespace centipede::perf {
 namespace {

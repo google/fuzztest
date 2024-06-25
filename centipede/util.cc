@@ -52,10 +52,10 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "./centipede/feature.h"
-#include "./centipede/logging.h"
-#include "./centipede/remote_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 
@@ -199,69 +199,6 @@ ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
     : my_path_(std::filesystem::path(dir_path) / name) {}
 
 ScopedFile::~ScopedFile() { std::filesystem::remove_all(my_path_); }
-
-static const size_t kMagicLen = 11;
-static const uint8_t kPackBegMagic[] = "-Centipede-";
-static const uint8_t kPackEndMagic[] = "-edepitneC-";
-static_assert(sizeof(kPackBegMagic) == kMagicLen + 1);
-static_assert(sizeof(kPackEndMagic) == kMagicLen + 1);
-
-// Pack 'data' such that it can be appended to a file and later extracted:
-//   * kPackBegMagic
-//   * hash(data)
-//   * data.size() (8 bytes)
-//   * data itself
-//   * kPackEndMagic
-// Storing the magics and the hash is a precaution against partial writes.
-// UnpackBytesFromAppendFile looks for the kPackBegMagic and so
-// it will ignore any partially-written data.
-//
-// This is simple and efficient, but I wonder if there is a ready-to-use
-// standard open-source alternative. Or should we just use tar?
-ByteArray PackBytesForAppendFile(ByteSpan blob) {
-  ByteArray res;
-  auto hash = Hash(blob);
-  CHECK_EQ(hash.size(), kHashLen);
-  size_t size = blob.size();
-  uint8_t size_bytes[sizeof(size)];
-  memcpy(size_bytes, &size, sizeof(size));
-  res.insert(res.end(), &kPackBegMagic[0], &kPackBegMagic[kMagicLen]);
-  res.insert(res.end(), hash.begin(), hash.end());
-  res.insert(res.end(), &size_bytes[0], &size_bytes[sizeof(size_bytes)]);
-  res.insert(res.end(), blob.begin(), blob.end());
-  res.insert(res.end(), &kPackEndMagic[0], &kPackEndMagic[kMagicLen]);
-  return res;
-}
-
-// Reverse to a sequence of PackBytesForAppendFile() appended to each other.
-void UnpackBytesFromAppendFile(
-    const ByteArray &packed_data,
-    absl::Nullable<std::vector<ByteArray> *> unpacked,
-    absl::Nullable<std::vector<std::string> *> hashes) {
-  auto pos = packed_data.cbegin();
-  while (true) {
-    pos = std::search(pos, packed_data.end(), &kPackBegMagic[0],
-                      &kPackBegMagic[kMagicLen]);
-    if (pos == packed_data.end()) return;
-    pos += kMagicLen;
-    if (packed_data.end() - pos < kHashLen) return;
-    std::string hash(pos, pos + kHashLen);
-    pos += kHashLen;
-    size_t size = 0;
-    if (packed_data.end() - pos < sizeof(size)) return;
-    memcpy(&size, &*pos, sizeof(size));
-    pos += sizeof(size);
-    if (packed_data.end() - pos < size) return;
-    ByteArray ba(pos, pos + size);
-    pos += size;
-    if (packed_data.end() - pos < kMagicLen) return;
-    if (memcmp(&*pos, kPackEndMagic, kMagicLen) != 0) continue;
-    pos += kMagicLen;
-    if (hash != Hash(ba)) continue;
-    if (unpacked) unpacked->push_back(std::move(ba));
-    if (hashes) hashes->push_back(std::move(hash));
-  }
-}
 
 void AppendHashToArray(ByteArray &ba, std::string_view hash) {
   CHECK_EQ(hash.size(), kHashLen);

@@ -15,8 +15,6 @@
 // Implementation of remote_file.h for the local file system using pure Standard
 // Library APIs.
 
-#include "./centipede/remote_file.h"
-
 #include <glob.h>
 #include <sys/stat.h>
 
@@ -29,12 +27,12 @@
 #include <system_error>  // NOLINT
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "./centipede/logging.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/fd_writer.h"
@@ -43,7 +41,6 @@
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
 namespace centipede {
-
 namespace {
 
 // A basic version of "remote file" that can only actually handle local files.
@@ -122,13 +119,7 @@ class LocalRemoteFile : public RemoteFile {
 
 }  // namespace
 
-// NOTE: We use weak symbols for the main API definitions in this source so that
-// alternative implementations could easily override them with their own
-// versions at link time.
-
-static_assert(ABSL_HAVE_ATTRIBUTE(weak));
-
-ABSL_ATTRIBUTE_WEAK void RemoteMkdir(std::string_view path) {
+void RemoteMkdir(std::string_view path) {
   CHECK(!path.empty());
   std::error_code error;
   std::filesystem::create_directories(path, error);
@@ -138,97 +129,38 @@ ABSL_ATTRIBUTE_WEAK void RemoteMkdir(std::string_view path) {
 // TODO(ussuri): For now, simulate the old behavior, where a failure to open
 //  a file returned nullptr. Adjust the clients to expect non-null and use a
 //  normal ctor with a CHECK instead of `Create()` here instead.
-ABSL_ATTRIBUTE_WEAK absl::Nullable<RemoteFile *> RemoteFileOpen(
-    std::string_view path, const char *mode) {
+absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view path,
+                                            const char *mode) {
   return LocalRemoteFile::Create(path, mode);
 }
 
-ABSL_ATTRIBUTE_WEAK void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
+void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
   auto *file = static_cast<LocalRemoteFile *>(f);
   file->Close();
   delete file;
 }
 
-ABSL_ATTRIBUTE_WEAK void RemoteFileSetWriteBufferSize(
-    absl::Nonnull<RemoteFile *> f, size_t size) {
+void RemoteFileSetWriteBufferSize(absl::Nonnull<RemoteFile *> f, size_t size) {
   static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
 }
 
-ABSL_ATTRIBUTE_WEAK void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
-                                          const ByteArray &ba) {
+void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba) {
   static_cast<LocalRemoteFile *>(f)->Write(ba);
 }
 
-// Does not need weak attribute as the implementation depends on
-// RemoteFileAppend(RemoteFile *, ByteArray).
-void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
-                      const std::string &contents) {
-  ByteArray contents_ba{contents.cbegin(), contents.cend()};
-  RemoteFileAppend(f, contents_ba);
-}
-
-ABSL_ATTRIBUTE_WEAK void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
+void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
   static_cast<LocalRemoteFile *>(f)->Flush();
 }
 
-ABSL_ATTRIBUTE_WEAK void RemoteFileRead(absl::Nonnull<RemoteFile *> f,
-                                        ByteArray &ba) {
+void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba) {
   static_cast<LocalRemoteFile *>(f)->Read(ba);
 }
 
-// Does not need weak attribute as the implementation depends on
-// RemoteFileRead(RemoteFile *, ByteArray).
-void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
-  ByteArray contents_ba;
-  RemoteFileRead(f, contents_ba);
-  contents.assign(contents_ba.cbegin(), contents_ba.cend());
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileAppend(RemoteFile *, ByteArray).
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "w");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileAppend(file, contents);
-  RemoteFileClose(file);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileAppend(RemoteFile *, std::string).
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "w");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileAppend(file, contents);
-  RemoteFileClose(file);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileRead(RemoteFile *, ByteArray).
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "r");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileRead(file, contents);
-  RemoteFileClose(file);
-}
-
-// Does not need weak attribute as the implementation depends on
-// RemoteFileRead(RemoteFile *, std::string).
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "r");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileRead(file, contents);
-  RemoteFileClose(file);
-}
-
-ABSL_ATTRIBUTE_WEAK bool RemotePathExists(std::string_view path) {
+bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
 }
 
-ABSL_ATTRIBUTE_WEAK int64_t RemoteFileGetSize(std::string_view path) {
+int64_t RemoteFileGetSize(std::string_view path) {
   FILE *f = std::fopen(path.data(), "r");
   CHECK(f != nullptr) << VV(path);
   std::fseek(f, 0, SEEK_END);
@@ -246,8 +178,7 @@ int HandleGlobError(const char *epath, int eerrno) {
 
 }  // namespace
 
-ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
-                                         std::vector<std::string> &matches) {
+void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
   // See `man glob.3`.
   ::glob_t glob_ret = {};
   CHECK_EQ(
@@ -260,8 +191,8 @@ ABSL_ATTRIBUTE_WEAK void RemoteGlobMatch(std::string_view glob,
   ::globfree(&glob_ret);
 }
 
-ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFiles(
-    std::string_view path, bool recursively) {
+std::vector<std::string> RemoteListFiles(std::string_view path,
+                                         bool recursively) {
   if (!std::filesystem::exists(path)) return {};
   auto list_files = [](auto dir_iter) {
     std::vector<std::string> ret;
@@ -276,15 +207,13 @@ ABSL_ATTRIBUTE_WEAK std::vector<std::string> RemoteListFiles(
              : list_files(std::filesystem::directory_iterator(path));
 }
 
-ABSL_ATTRIBUTE_WEAK void RemotePathRename(std::string_view from,
-                                          std::string_view to) {
+void RemotePathRename(std::string_view from, std::string_view to) {
   std::error_code error;
   std::filesystem::rename(from, to, error);
   CHECK(!error) << VV(from) << VV(to) << VV(error);
 }
 
-ABSL_ATTRIBUTE_WEAK void RemotePathDelete(std::string_view path,
-                                          bool recursively) {
+void RemotePathDelete(std::string_view path, bool recursively) {
   std::error_code error;
   if (recursively) {
     std::filesystem::remove_all(path, error);
@@ -295,12 +224,12 @@ ABSL_ATTRIBUTE_WEAK void RemotePathDelete(std::string_view path,
 }
 
 #ifndef CENTIPEDE_DISABLE_RIEGELI
-ABSL_ATTRIBUTE_WEAK std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
+std::unique_ptr<riegeli::Reader> CreateRiegeliFileReader(
     std::string_view file_path) {
   return std::make_unique<riegeli::FdReader<>>(file_path);
 }
 
-ABSL_ATTRIBUTE_WEAK std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
+std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
     std::string_view file_path, bool append) {
   return std::make_unique<riegeli::FdWriter<>>(
       file_path, riegeli::FdWriterBase::Options().set_append(append));

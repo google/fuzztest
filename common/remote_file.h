@@ -17,10 +17,8 @@
 // streams, or an actual API for dealing with remote files. The abstractions are
 // the same as in the C FILE API.
 
-// TODO(ussuri): Add unit tests (currently tested via .sh integration tests).
-
-#ifndef THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
-#define THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
+#ifndef FUZZTEST_COMMON_REMOTE_FILE_H_
+#define FUZZTEST_COMMON_REMOTE_FILE_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -132,4 +130,4 @@ std::unique_ptr<riegeli::Writer> CreateRiegeliFileWriter(
 
 }  // namespace centipede
 
-#endif  // THIRD_PARTY_CENTIPEDE_REMOTE_FILE_H_
+#endif  // FUZZTEST_COMMON_REMOTE_FILE_H_

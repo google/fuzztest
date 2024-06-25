@@ -24,13 +24,13 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "./centipede/blob_file.h"
 #include "./centipede/corpus.h"
 #include "./centipede/feature.h"
-#include "./centipede/test_util.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

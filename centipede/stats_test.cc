@@ -35,9 +35,9 @@
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
-#include "./centipede/test_util.h"
 #include "./centipede/util.h"
+#include "./common/logging.h"  // IWYU pragma: keep
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

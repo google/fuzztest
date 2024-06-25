@@ -37,6 +37,20 @@ config_setting(
 )
 ################################################################################
 
+################################################################################
+# Flag and setting to enable use of Riegeli
+################################################################################
+bool_flag(
+    name = "use_riegeli",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "disable_riegeli",
+    flag_values = {":use_riegeli": "False"},
+)
+################################################################################
+
 cc_library(
     name = "fuzztest",
     hdrs = ["fuzztest.h"],

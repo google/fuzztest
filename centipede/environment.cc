@@ -30,9 +30,9 @@
 #include "absl/strings/string_view.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
-#include "./centipede/logging.h"
-#include "./centipede/remote_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

@@ -29,11 +29,11 @@ cc_library(
         "@com_google_fuzztest//centipede:command",
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//centipede:logging",
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:shared_memory_blob_sequence",
         "@com_google_fuzztest//centipede:util",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
     ],
 )
 
@@ -79,8 +79,8 @@ cc_test(
         "@com_google_fuzztest//centipede:centipede_callbacks",
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:runner_result",
-        "@com_google_fuzztest//centipede:test_util",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
 )

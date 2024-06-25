@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
-#include "./centipede/test_util.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

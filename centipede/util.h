@@ -131,22 +131,6 @@ void RemoveSubset(const std::vector<size_t> &subset_indices,
   set.resize(pos_to_write);
 }
 
-// Adds a prefix and a postfix to `data` such that the result can be
-// appended to another such packed data and then the operation can be reversed.
-// The purpose is to allow appending blobs of data to a (possibly remote) file
-// such that when reading this file we can separate the blobs.
-// NOTE: The now-default blob file format (Riegeli) doesn't need this, but some
-// external clients continue to use plain blob files and are unlikely to switch
-// (e.g. Chromium).
-ByteArray PackBytesForAppendFile(ByteSpan blob);
-// Unpacks `packed_data` into `unpacked` and `hashes`.
-// `packed_data` is multiple data packed by PackBytesForAppendFile()
-// and merged together.
-// `unpacked` or `hashes` can be nullptr.
-void UnpackBytesFromAppendFile(
-    const ByteArray &packed_data,
-    absl::Nullable<std::vector<ByteArray> *> unpacked,
-    absl::Nullable<std::vector<std::string> *> hashes = nullptr);
 // Append the bytes from 'hash' to 'ba'.
 void AppendHashToArray(ByteArray &ba, std::string_view hash);
 // Reverse to AppendHashToArray.

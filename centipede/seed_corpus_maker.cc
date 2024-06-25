@@ -21,10 +21,10 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "./centipede/config_init.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/seed_corpus_maker_flags.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/util.h"
+#include "./common/remote_file.h"
 
 int main(int argc, absl::Nonnull<char**> argv) {
   (void)centipede::config::InitRuntime(argc, argv);

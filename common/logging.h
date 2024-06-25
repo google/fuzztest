@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_CENTIPEDE_LOGGING_H_
-#define THIRD_PARTY_CENTIPEDE_LOGGING_H_
+#ifndef FUZZTEST_COMMON_LOGGING_H_
+#define FUZZTEST_COMMON_LOGGING_H_
 
 // TODO(b/315519925): Temporary leftover from switching to now-available
 //  OSS Abseil VLOG and friends. Explicitly include these wherever necessary and
@@ -24,4 +24,4 @@
 // Easy variable value logging: LOG(INFO) << VV(foo) << VV(bar);
 #define VV(x) #x ": " << (x) << " "
 
-#endif  // THIRD_PARTY_CENTIPEDE_LOGGING_H_
+#endif  // FUZZTEST_COMMON_LOGGING_H_

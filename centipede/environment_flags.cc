@@ -30,8 +30,8 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
 #include "./centipede/util.h"
+#include "./common/logging.h"
 
 namespace {
 const auto *default_env = new centipede::Environment();

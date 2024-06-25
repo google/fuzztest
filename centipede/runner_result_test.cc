@@ -28,7 +28,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
-#include "./centipede/test_util.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

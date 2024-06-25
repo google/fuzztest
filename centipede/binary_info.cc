@@ -28,8 +28,8 @@
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

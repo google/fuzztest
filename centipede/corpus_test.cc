@@ -28,9 +28,9 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/test_util.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

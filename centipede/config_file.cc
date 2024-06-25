@@ -38,9 +38,9 @@
 #include "absl/strings/substitute.h"
 #include "./centipede/config_init.h"
 #include "./centipede/config_util.h"
-#include "./centipede/logging.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/util.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 // TODO(ussuri): Move these flags next to main() ASAP. They are here
 //  only temporarily to simplify the APIs and implementation in V1.

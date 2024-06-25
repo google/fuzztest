@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
-#define THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
+#ifndef FUZZTEST_COMMON_TEST_UTIL_H_
+#define FUZZTEST_COMMON_TEST_UTIL_H_
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
@@ -24,10 +24,10 @@
 
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
-#include "./centipede/blob_file.h"
+#include "./common/blob_file.h"
 #include "./common/defs.h"
 
-#include "./centipede/logging.h"
+#include "./common/logging.h"
 
 #define EXPECT_OK(status) EXPECT_TRUE((status).ok()) << VV(status)
 #define ASSERT_OK(status) ASSERT_TRUE((status).ok()) << VV(status)
@@ -130,4 +130,4 @@ class TempCorpusDir : public TempDir {
 
 }  // namespace centipede
 
-#endif  // THIRD_PARTY_CENTIPEDE_INTERNAL_TEST_UTIL_H_
+#endif  // FUZZTEST_COMMON_TEST_UTIL_H_

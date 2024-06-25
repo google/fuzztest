@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/remote_file.h"
+#include "./common/remote_file.h"
 
 #include <filesystem>  // NOLINT
 #include <fstream>
@@ -22,8 +22,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "./centipede/logging.h"
-#include "./centipede/test_util.h"
+#include "./common/logging.h"
+#include "./common/test_util.h"
 
 namespace centipede {
 namespace {

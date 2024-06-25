@@ -69,19 +69,19 @@ jobs:
       - name: Run unit tests without Riegeli
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//centipede:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all
+          bazel test --no//fuzztest:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all
       - name: Run e2e tests without Riegeli
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//centipede:use_riegeli --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+          bazel test --no//fuzztest:use_riegeli --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
       - name: Run puzzles without Riegeli
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//centipede:use_riegeli --test_output=errors centipede/puzzles:all
+          bazel test --no//fuzztest:use_riegeli --test_output=errors centipede/puzzles:all
       - name: Run puzzles without Riegeli with ASAN
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//centipede:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4

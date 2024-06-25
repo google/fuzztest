@@ -44,9 +44,9 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
-#include "./centipede/logging.h"
-#include "./centipede/remote_file.h"
 #include "./centipede/workdir.h"
+#include "./common/logging.h"
+#include "./common/remote_file.h"
 
 namespace centipede {
 

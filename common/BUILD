@@ -36,6 +36,40 @@ exports_files(
 ### Libraries
 
 cc_library(
+    name = "blob_file",
+    srcs = ["blob_file.cc"],
+    hdrs = ["blob_file.h"],
+    defines = select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
+    visibility = PUBLIC_API_VISIBILITY,
+    deps = [
+        ":defs",
+        ":hash",
+        ":logging",
+        ":remote_file",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+    ] + select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+        "//conditions:default": [
+            "@com_google_riegeli//riegeli/base:object",
+            "@com_google_riegeli//riegeli/base:types",
+            "@com_google_riegeli//riegeli/bytes:reader",
+            "@com_google_riegeli//riegeli/bytes:writer",
+            "@com_google_riegeli//riegeli/records:record_reader",
+            "@com_google_riegeli//riegeli/records:record_writer",
+        ],
+    }),
+)
+
+cc_library(
     name = "defs",
     hdrs = ["defs.h"],
     visibility = PUBLIC_API_VISIBILITY,
@@ -53,13 +87,127 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "logging",
+    hdrs = ["logging.h"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
+cc_library(
+    name = "remote_file",
+    srcs = ["remote_file.cc"],
+    hdrs = ["remote_file.h"],
+    defines = select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
+    deps = [
+               ":defs",
+               ":logging",
+               "@com_google_absl//absl/base:nullability",
+               "@com_google_absl//absl/log:check",
+           ] + select({
+               "//conditions:default": [":remote_file_oss"],
+           }) +
+           select({
+               "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+               "//conditions:default": [
+                   "@com_google_riegeli//riegeli/bytes:reader",
+                   "@com_google_riegeli//riegeli/bytes:writer",
+               ],
+           }),
+)
+
+cc_library(
+    name = "remote_file_oss",
+    srcs = [
+        "remote_file.h",
+        "remote_file_oss.cc",
+    ],
+    defines = select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:private"],
+    deps = [
+        ":defs",
+        ":logging",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+    ] + select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+        "//conditions:default": [
+            "@com_google_riegeli//riegeli/bytes:fd_reader",
+            "@com_google_riegeli//riegeli/bytes:fd_writer",
+            "@com_google_riegeli//riegeli/bytes:reader",
+            "@com_google_riegeli//riegeli/bytes:writer",
+        ],
+    }),
+)
+
+cc_library(
+    name = "test_util",
+    testonly = True,
+    srcs = ["test_util.cc"],
+    hdrs = ["test_util.h"],
+    deps = [
+        ":blob_file",
+        ":defs",
+        ":logging",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 ### Tests
+
+cc_test(
+    name = "blob_file_test",
+    srcs = ["blob_file_test.cc"],
+    deps = [
+        ":blob_file",
+        ":defs",
+        ":test_util",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
 
 cc_test(
     name = "hash_test",
     srcs = ["hash_test.cc"],
     deps = [
         ":hash",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+# TODO(b/324462306): Merge this with remote_file_test once the bug is fixed.
+cc_library(
+    name = "remote_file_test_lib",
+    testonly = True,
+    srcs = ["remote_file_test.cc"],
+    deps = [
+        ":logging",
+        ":remote_file",
+        ":test_util",
+        "@com_google_absl//absl/log:check",
+        "@com_google_googletest//:gtest",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "remote_file_test",
+    deps = [
+        ":remote_file_test_lib",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "./centipede/environment_flags.h"
-#include "./centipede/logging.h"
+#include "./common/logging.h"
 
 // Dummy flags for testing.
 ABSL_FLAG(std::string, foo, "bar", "foo help");

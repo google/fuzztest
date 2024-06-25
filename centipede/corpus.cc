@@ -33,10 +33,10 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/logging.h"  // IWYU pragma: keep
-#include "./centipede/remote_file.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/logging.h"  // IWYU pragma: keep
+#include "./common/remote_file.h"
 
 namespace centipede {
 
