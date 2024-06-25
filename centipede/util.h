@@ -30,12 +30,6 @@
 
 namespace centipede {
 
-// Returns a printable hash of a byte array. Currently sha1 is used.
-std::string Hash(ByteSpan span);
-// Same as above, but for std::string_view.
-std::string Hash(std::string_view str);
-// Hashes are always this many bytes.
-inline constexpr size_t kHashLen = 40;
 // Returns the hash of the contents of the file `file_path`. Supports the file
 // being remote. Returns an empty string if the `file_path` is empty.
 std::string HashOfFileContents(std::string_view file_path);

@@ -28,6 +28,7 @@
 #include "absl/log/log.h"
 #include "./centipede/feature.h"
 #include "./common/defs.h"
+#include "./common/hash.h"
 
 namespace centipede {
 
@@ -48,14 +49,6 @@ TEST(UtilTest, AppendFile) {
   EXPECT_EQ(a, unpacked[0]);
   EXPECT_EQ(b, unpacked[1]);
   EXPECT_EQ(c, unpacked[2]);
-}
-
-TEST(UtilTest, Hash) {
-  // The current implementation of Hash() is sha1.
-  // Here we test a couple of inputs against their known sha1 values
-  // obtained from the sha1sum command line utility.
-  EXPECT_EQ(Hash({'a', 'b', 'c'}), "a9993e364706816aba3e25717850c26c9cd0d89d");
-  EXPECT_EQ(Hash({'x', 'y'}), "5f8459982f9f619f4b0d9af2542a2086e56a4bef");
 }
 
 TEST(UtilTest, AsString) {

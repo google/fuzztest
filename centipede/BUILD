@@ -230,12 +230,8 @@ cc_library(
 # Various utilities.
 cc_library(
     name = "util",
-    srcs = [
-        "hash.cc",
-        "util.cc",
-    ],
+    srcs = ["util.cc"],
     hdrs = ["util.h"],
-    linkopts = ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":feature",
@@ -249,6 +245,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -414,6 +411,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/synchronization",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -756,6 +754,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -776,6 +775,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -852,6 +852,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -893,6 +894,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//fuzztest:configuration",
     ],
 )
@@ -951,6 +953,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 
@@ -1320,6 +1323,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1777,6 +1781,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -42,6 +42,7 @@
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/hash.h"
 
 namespace centipede {
 

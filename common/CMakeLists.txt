@@ -25,3 +25,28 @@ fuzztest_cc_library(
   DEPS
     absl::span
 )
+
+fuzztest_cc_library(
+  NAME
+    hash
+  HDRS
+    "hash.h"
+  SRCS
+    "hash.cc"
+  LINKOPTS
+    -Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl
+  DEPS
+    fuzztest::defs
+)
+
+### Tests
+
+fuzztest_cc_test(
+  NAME
+    hash_test
+  SRCS
+    "hash_test.cc"
+  DEPS
+    fuzztest::hash
+    GTest::gmock_main
+)

@@ -34,6 +34,7 @@
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/hash.h"
 
 namespace centipede {
 

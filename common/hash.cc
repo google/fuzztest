@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "./common/hash.h"
+
 #include <openssl/sha.h>  // IWYU pragma: keep
 
 #include <cstddef>
@@ -19,7 +21,6 @@
 #include <string>
 #include <string_view>
 
-#include "./centipede/util.h"
 #include "./common/defs.h"
 
 namespace centipede {

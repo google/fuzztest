@@ -16,6 +16,8 @@
 
 VISIBILITY = ["//visibility:public"]
 
+EXTENDED_API_VISIBILITY = VISIBILITY
+
 PUBLIC_API_VISIBILITY = VISIBILITY
 
 package(default_visibility = VISIBILITY)
@@ -38,4 +40,26 @@ cc_library(
     hdrs = ["defs.h"],
     visibility = PUBLIC_API_VISIBILITY,
     deps = ["@com_google_absl//absl/types:span"],
+)
+
+cc_library(
+    name = "hash",
+    srcs = ["hash.cc"],
+    hdrs = ["hash.h"],
+    linkopts = ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
+    visibility = EXTENDED_API_VISIBILITY,
+    deps = [
+        ":defs",
+    ],
+)
+
+### Tests
+
+cc_test(
+    name = "hash_test",
+    srcs = ["hash_test.cc"],
+    deps = [
+        ":hash",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
