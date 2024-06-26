@@ -105,6 +105,9 @@ __sancov_fuzz_target = rule(
             mandatory = True,
         ),
         "sancov": attr.string(),
+        "_allowlist_function_transition": attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+        ),
     },
     executable = True,
 )
