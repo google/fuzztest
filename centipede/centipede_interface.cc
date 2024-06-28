@@ -49,7 +49,6 @@
 #include "./centipede/centipede.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
-#include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
 #include "./centipede/distill.h"
 #include "./centipede/early_exit.h"
@@ -427,17 +426,21 @@ int UpdateCorpusDatabaseForFuzzTests(
     Distill(env);
     const std::filesystem::path fuzztest_db_path =
         corpus_database_path / fuzztest_config.fuzz_tests[i];
-    const std::string coverage_dir = fuzztest_db_path / "coverage";
-    if (RemotePathExists(coverage_dir)) {
+    const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
+    if (RemotePathExists(coverage_dir.c_str())) {
       // In the future, we will store k latest coverage corpora for some k, but
       // for now we only keep the latest one.
-      RemotePathDelete(coverage_dir, /*recursively=*/true);
+      RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true);
     }
-    RemoteMkdir(coverage_dir);
+    RemoteMkdir(coverage_dir.c_str());
     std::vector<std::string> distilled_corpus_files;
     RemoteGlobMatch(workdir.DistilledCorpusFiles().AllShardsGlob(),
                     distilled_corpus_files);
-    ExportCorpus(distilled_corpus_files, coverage_dir);
+    for (const std::string &corpus_file : distilled_corpus_files) {
+      const std::string file_name =
+          std::filesystem::path(corpus_file).filename();
+      RemotePathRename(corpus_file, (coverage_dir / file_name).c_str());
+    }
 
     const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
     const std::vector<std::string> crashing_input_files =

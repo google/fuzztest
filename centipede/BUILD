@@ -787,7 +787,6 @@ cc_library(
         ":centipede_callbacks",
         ":centipede_lib",
         ":command",
-        ":corpus_io",
         ":coverage",
         ":distill",
         ":early_exit",
