@@ -801,10 +801,8 @@ void ExpectCorpusInputMessageInLogs(absl::string_view logs, int num_inputs) {
               HasSubstr(absl::StrFormat("%d inputs to rerun", num_inputs)))
       << logs;
 #else
-  EXPECT_THAT(logs,
-              HasSubstr(absl::StrFormat(
-                  "In total, loaded %d inputs and ignored 0 invalid inputs",
-                  num_inputs)))
+  EXPECT_THAT(logs, HasSubstr(absl::StrFormat(
+                        "Parsed %d inputs and ignored 0 inputs", num_inputs)))
       << logs;
 #endif
 }

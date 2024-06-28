@@ -170,9 +170,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   }
 
   bool Execute(centipede::ByteSpan input) override {
-    auto parsed_input =
-        fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
-    if (parsed_input.ok()) {
+    if (auto parsed_input =
+            fuzzer_impl_.TryParse({(char*)input.data(), input.size()})) {
       fuzzer_impl_.RunOneInput({*std::move(parsed_input)});
       return true;
     }
@@ -184,12 +183,13 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
     CorpusDatabase corpus_database(configuration_);
-    fuzzer_impl_.ForEachInput(
-        corpus_database.GetCoverageInputsIfAny(fuzzer_impl_.test_.full_name()),
-        [&](absl::string_view /*file_path*/, std::optional<int> /*blob_idx*/,
-            FuzzTestFuzzerImpl::Input input) {
-          seeds.push_back(std::move(input.args));
-        });
+    for (const std::string& corpus_file :
+         corpus_database.GetCoverageInputsIfAny(
+             fuzzer_impl_.test_.full_name())) {
+      auto corpus_value = fuzzer_impl_.GetCorpusValueFromFile(corpus_file);
+      if (!corpus_value) continue;
+      seeds.push_back(*corpus_value);
+    }
     constexpr int kInitialValuesInSeeds = 32;
     for (int i = 0; i < kInitialValuesInSeeds; ++i) {
       seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
@@ -226,10 +226,9 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
             inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
         auto parsed_origin =
             fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
-        if (!parsed_origin.ok()) {
+        if (!parsed_origin)
           parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
-        }
-        auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
+        auto mutant = FuzzTestFuzzerImpl::Input{*parsed_origin};
         fuzzer_impl_.MutateValue(mutant, prng_);
         mutant_data =
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();

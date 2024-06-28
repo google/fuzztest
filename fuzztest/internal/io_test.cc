@@ -21,21 +21,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>  // NOLINT
-#include <memory>
+#include <filesystem>
 #include <optional>
 #include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "./common/blob_file.h"
-#include "./common/defs.h"
 #include "./fuzztest/fuzztest_core.h"
 
 namespace fuzztest::internal {
@@ -199,78 +191,6 @@ TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryIsEmpty) {
 
 TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryDoesNotExist) {
   EXPECT_THAT(ListDirectory("/doesnt_exist/"), IsEmpty());
-}
-
-TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string serialized_file =
-      std::filesystem::path(tmp_dir) / "serialized_file";
-  const std::string blob_file = std::filesystem::path(tmp_dir) / "blob_file";
-  TestWrite(serialized_file, "Input1");
-  std::unique_ptr<centipede::BlobFileWriter> writer =
-      centipede::DefaultBlobFileWriterFactory();
-  CHECK(writer->Open(blob_file, "w").ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Input2"))).ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Input3"))).ok());
-  CHECK(writer->Close().ok());
-
-  using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;
-  std::vector<InputInFile> inputs;
-  ForEachSerializedInput({serialized_file, blob_file},
-                         [&](absl::string_view file_path,
-                             std::optional<int> blob_idx, std::string input) {
-                           inputs.emplace_back(std::string(file_path), blob_idx,
-                                               std::move(input));
-                           return absl::OkStatus();
-                         });
-  EXPECT_THAT(inputs, UnorderedElementsAre(
-                          InputInFile{serialized_file, std::nullopt, "Input1"},
-                          InputInFile{blob_file, 0, "Input2"},
-                          InputInFile{blob_file, 1, "Input3"}));
-  std::filesystem::remove_all(tmp_dir);
-}
-
-TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string file = std::filesystem::path(tmp_dir) / "file";
-  std::unique_ptr<centipede::BlobFileWriter> writer =
-      centipede::DefaultBlobFileWriterFactory();
-  CHECK(writer->Open(file, "w").ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Ignore"))).ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Accept"))).ok());
-  CHECK(writer->Close().ok());
-
-  using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;
-  std::vector<InputInFile> inputs;
-  ForEachSerializedInput(
-      {file}, [&](absl::string_view file_path, std::optional<int> blob_idx,
-                  std::string input) {
-        if (input == "Ignore") return absl::InvalidArgumentError("Ignore");
-        inputs.emplace_back(std::string(file_path), blob_idx, std::move(input));
-        return absl::OkStatus();
-      });
-  EXPECT_THAT(inputs, UnorderedElementsAre(InputInFile{file, 1, "Accept"}));
-  std::filesystem::remove_all(tmp_dir);
-}
-
-TEST(ForEachSerializedInputTest, DiesOnDirectoriesInFilePaths) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string dir = std::filesystem::path(tmp_dir) / "dir";
-  std::filesystem::create_directory(dir);
-
-  EXPECT_DEATH(ForEachSerializedInput(
-                   {dir}, [&](absl::string_view, std::optional<int>,
-                              std::string) { return absl::OkStatus(); }),
-               "is a directory");
-  std::filesystem::remove_all(tmp_dir);
-}
-
-TEST(ForEachSerializedInputTest, DiesOnNonExistingFilePaths) {
-  EXPECT_DEATH(
-      ForEachSerializedInput({"/doesnt_exist/file"},
-                             [&](absl::string_view, std::optional<int>,
-                                 std::string) { return absl::OkStatus(); }),
-      "does not exist");
 }
 
 }  // namespace

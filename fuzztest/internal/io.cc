@@ -15,10 +15,10 @@
 #include "./fuzztest/internal/io.h"
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <fstream>
-#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -27,15 +27,9 @@
 #include <utility>
 #include <vector>
 
-#include "absl/functional/function_ref.h"
 #include "absl/hash/hash.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/span.h"
-#include "./common/blob_file.h"
-#include "./common/defs.h"
-#include "./common/remote_file.h"
 #include "./fuzztest/internal/logging.h"
 
 #if defined(__APPLE__)
@@ -76,14 +70,6 @@ std::vector<std::string> ListDirectory(absl::string_view path) {
 }
 
 std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
-}
-
-void ForEachSerializedInput(absl::Span<const std::string> file_paths,
-                            absl::FunctionRef<absl::Status(
-                                absl::string_view file_path,
-                                std::optional<int> blob_idx, std::string input)>
-                                consume) {
   FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
 }
 
@@ -219,77 +205,5 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
 
   return out;
 }
-
-#if !defined(FUZZTEST_STUB_FILESYSTEM)
-
-// TODO(b/348702296): Consider merging with `centipede::ReadShard()`.
-void ForEachSerializedInput(absl::Span<const std::string> file_paths,
-                            absl::FunctionRef<absl::Status(
-                                absl::string_view file_path,
-                                std::optional<int> blob_idx, std::string input)>
-                                consume) {
-  int total_loaded_inputs = 0;
-  int total_invalid_inputs = 0;
-  for (const std::string& file_path : file_paths) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(centipede::RemotePathExists(file_path),
-                                         "File path ", file_path,
-                                         " does not exist.");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !centipede::RemotePathIsDirectory(file_path), "File path ", file_path,
-        " is a directory.");
-    int loaded_inputs_from_file = 0;
-    int invalid_inputs_from_file = 0;
-    // The reader cannot be reused for multiple files because of the way it
-    // handles its internal state. So we instantiate a new reader for each file.
-    std::unique_ptr<centipede::BlobFileReader> reader =
-        centipede::DefaultBlobFileReaderFactory();
-    if (reader->Open(file_path).ok()) {
-      centipede::ByteSpan blob;
-      for (int blob_idx = 0; reader->Read(blob).ok(); ++blob_idx) {
-        absl::Status result = consume(
-            file_path, blob_idx, std::string(centipede::AsStringView(blob)));
-        if (result.ok()) {
-          ++loaded_inputs_from_file;
-        } else {
-          ++invalid_inputs_from_file;
-          absl::FPrintF(GetStderr(),
-                        "[!] Invalid input at index %d in file %s: %s\n",
-                        blob_idx, file_path, result.message());
-        }
-      }
-    }
-    if (loaded_inputs_from_file + invalid_inputs_from_file > 0) {
-      // The file was a blob file and we read some inputs from it.
-      absl::FPrintF(
-          GetStderr(),
-          "[*] Loaded %d inputs and ignored %d invalid inputs from %s.\n",
-          loaded_inputs_from_file, invalid_inputs_from_file, file_path);
-      total_loaded_inputs += loaded_inputs_from_file;
-      total_invalid_inputs += invalid_inputs_from_file;
-      continue;
-    }
-    // The file was not a blob file (or, unlikely, it was an empty blob file);
-    // read its contents directly.
-    // TODO(b/349115475): Currently, we cannot distinguish between an empty blob
-    // file and a file that is not a blob file. Once we can, we should not fall
-    // back to reading the file directly if it is an empty blob file.
-    std::string contents;
-    centipede::RemoteFileGetContents(file_path, contents);
-    absl::Status result = consume(file_path, std::nullopt, std::move(contents));
-    if (result.ok()) {
-      ++total_loaded_inputs;
-    } else {
-      ++total_invalid_inputs;
-      absl::FPrintF(GetStderr(), "[!] Invalid input file %s: %s\n", file_path,
-                    result.message());
-    }
-  }
-  absl::FPrintF(
-      GetStderr(),
-      "[*] In total, loaded %d inputs and ignored %d invalid inputs.\n",
-      total_loaded_inputs, total_invalid_inputs);
-}
-
-#endif  // !defined(FUZZTEST_STUB_FILESYSTEM)
 
 }  // namespace fuzztest::internal

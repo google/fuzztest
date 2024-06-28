@@ -162,10 +162,6 @@ bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
 }
 
-bool RemotePathIsDirectory(std::string_view path) {
-  return std::filesystem::is_directory(path);
-}
-
 int64_t RemoteFileGetSize(std::string_view path) {
   FILE *f = std::fopen(path.data(), "r");
   CHECK(f != nullptr) << VV(path);
