@@ -17,9 +17,13 @@
 
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
+#include "absl/functional/function_ref.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 
 namespace fuzztest::internal {
 
@@ -66,6 +70,23 @@ absl::string_view Basename(absl::string_view filename);
 // by .WithSeeds().
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     absl::string_view dir);
+
+// Iterates over all serialized inputs in `file_paths` (not directory paths) and
+// calls `consume` on each one. Supports both blob files containing multiple
+// blobs, in which case `consume` is called for each blob, and individual files,
+// in which case `consume` is called on the file's contents. Ignores invalid
+// files. CHECK-fails if `file_paths` contains paths that don't exist or if it
+// contains a directory.
+//
+// `consume` is a function that takes a file path, an optional blob index in the
+// file (for blob files), and an input in the given file at the given blob index
+// (if applicable). It returns an `absl::Status` indicating whether the input
+// was successfully consumed.
+void ForEachSerializedInput(absl::Span<const std::string> file_paths,
+                            absl::FunctionRef<absl::Status(
+                                absl::string_view file_path,
+                                std::optional<int> blob_idx, std::string input)>
+                                consume);
 
 }  // namespace fuzztest::internal
 

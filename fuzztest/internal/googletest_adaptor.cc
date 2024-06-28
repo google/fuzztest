@@ -13,6 +13,7 @@
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/flag_name.h"
+#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 

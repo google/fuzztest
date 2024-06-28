@@ -32,6 +32,7 @@
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
+#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
