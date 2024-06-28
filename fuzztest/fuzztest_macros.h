@@ -153,6 +153,18 @@ inline std::vector<uint8_t> ToByteArray(std::string_view str) {
   return std::vector<uint8_t>(str.begin(), str.end());
 }
 
+// When called during the fixture setup (in the constructor or SetUp()), skips
+// calling property functions until the matching teardown (destructor or
+// TearDown()). When called in a property function, skips adding the current
+// input to the corpus when fuzzing.
+//
+// Note that this function should not be called frequently due to engine
+// limitation and efficiency reasons. Consider refining the domain definitions
+// to restrict input generation if possible.
+inline void SkipTestsOrCurrentInput() {
+  internal::Runtime::instance().SetSkippingRequested(true);
+}
+
 }  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_

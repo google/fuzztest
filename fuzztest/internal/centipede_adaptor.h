@@ -35,10 +35,10 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
                        const Configuration& configuration) override;
 
  private:
+  Runtime& runtime_ = Runtime::instance();
   const FuzzTest& test_;
   CentipedeFixtureDriver* centipede_fixture_driver_;
   FuzzTestFuzzerImpl fuzzer_impl_;
-  Runtime& runtime_ = Runtime::instance();
 };
 
 }  // namespace fuzztest::internal

@@ -18,6 +18,7 @@
 // to show that regular FUZZ_TEST work without having to #include GoogleTest.
 
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 
 #include "gtest/gtest.h"
@@ -123,5 +124,42 @@ void CrashOnFailingTestInput(const std::string& input) {
   EXPECT_FALSE(absl::StartsWith(input, "crashing"));
 }
 FUZZ_TEST(MySuite, CrashOnFailingTestInput);
+
+class SkippedTestFixturePerTest
+    : public ::fuzztest::PerFuzzTestFixtureAdapter<testing::Test> {
+ public:
+  SkippedTestFixturePerTest() { fuzztest::SkipTestsOrCurrentInput(); }
+
+  void SkippedTest() {
+    fprintf(stderr, "SkippedTest is executed! Aborting\n");
+    std::abort();
+  }
+};
+FUZZ_TEST_F(SkippedTestFixturePerTest, SkippedTest);
+
+class SkippedTestFixturePerIteration
+    : public ::fuzztest::PerIterationFixtureAdapter<testing::Test> {
+ public:
+  // For the engine limitation, there must be at least one non-skipped input
+  // when initializing the corpus for fuzzing. So we always accept the first
+  // input.
+  SkippedTestFixturePerIteration() {
+    if (!first_iteration_) fuzztest::SkipTestsOrCurrentInput();
+  }
+
+  void SkippedTest() {
+    if (first_iteration_) {
+      first_iteration_ = false;
+      return;
+    }
+    fprintf(stderr, "SkippedTest is executed! Aborting\n");
+    std::abort();
+  }
+
+ private:
+  static bool first_iteration_;
+};
+bool SkippedTestFixturePerIteration::first_iteration_ = true;
+FUZZ_TEST_F(SkippedTestFixturePerIteration, SkippedTest);
 
 }  // namespace

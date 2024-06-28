@@ -126,6 +126,14 @@ class Runtime {
     return external_failure_was_detected_.load(std::memory_order_relaxed);
   }
 
+  void SetSkippingRequested(bool requested) {
+    skipping_requested_.store(requested, std::memory_order_relaxed);
+  }
+
+  bool skipping_requested() const {
+    return skipping_requested_.load(std::memory_order_relaxed);
+  }
+
   void SetShouldTerminateOnNonFatalFailure(bool v) {
     should_terminate_on_non_fatal_failure_ = v;
   }
@@ -196,15 +204,20 @@ class Runtime {
   // Note: Even though failures should happen within the code under test, they
   // could be set from other threads at any moment. We make it an atomic to
   // avoid a race condition.
-  std::atomic<bool> external_failure_was_detected_{false};
+  std::atomic<bool> external_failure_was_detected_ = false;
 
   // To support in-process minimization for non-fatal failures we signal
   // suppress termination until we believe minimization is complete.
   bool should_terminate_on_non_fatal_failure_ = true;
 
+  // If set to true in fixture setup, skips calling property functions
+  // utill the matching teardown is called; If set to true in a property
+  // function, skip adding the current input to the corpus when fuzzing.
+  std::atomic<bool> skipping_requested_ = false;
+
   // If true, fuzzing should terminate as soon as possible.
   // Atomic because it is set from signal handlers.
-  std::atomic<bool> termination_requested_{false};
+  std::atomic<bool> termination_requested_ = false;
 
   RunMode run_mode_ = RunMode::kUnitTest;
   std::atomic<bool> watchdog_thread_started = false;

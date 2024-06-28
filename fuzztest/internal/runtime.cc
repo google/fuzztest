@@ -827,10 +827,17 @@ void PopulateLimits(const Configuration& configuration,
 }
 
 void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
+  runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
-  runtime_.StartWatchdog();
-  PopulateLimits(configuration, execution_coverage_);
   [&] {
+    if (runtime_.skipping_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    test_.full_name());
+      return;
+    }
+    runtime_.StartWatchdog();
+    PopulateLimits(configuration, execution_coverage_);
     runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
     runtime_.SetCurrentTest(&test_, &configuration);
 
@@ -923,8 +930,11 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
     execution_coverage_->SetIsTracing(true);
   }
 
+  runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpIteration();
-  fixture_driver_->Test(std::move(untyped_args));
+  if (!runtime_.skipping_requested()) {
+    fixture_driver_->Test(std::move(untyped_args));
+  }
   fixture_driver_->TearDownIteration();
   if (execution_coverage_ != nullptr) {
     execution_coverage_->SetIsTracing(false);
@@ -932,7 +942,7 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   const absl::Duration run_time = absl::Now() - start;
 
   bool new_coverage = false;
-  if (execution_coverage_ != nullptr) {
+  if (execution_coverage_ != nullptr && !runtime_.skipping_requested()) {
     new_coverage = corpus_coverage_.Update(execution_coverage_);
     stats_.max_stack_used =
         std::max(stats_.max_stack_used, execution_coverage_->MaxStackUsed());
@@ -986,10 +996,17 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
 
 int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
                                          const Configuration& configuration) {
+  runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
-  runtime_.StartWatchdog();
-  PopulateLimits(configuration, execution_coverage_);
   const int exit_code = [&] {
+    if (runtime_.skipping_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    test_.full_name());
+      return 0;
+    }
+    runtime_.StartWatchdog();
+    PopulateLimits(configuration, execution_coverage_);
     runtime_.SetRunMode(RunMode::kFuzz);
 
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();

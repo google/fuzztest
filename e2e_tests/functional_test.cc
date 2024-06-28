@@ -603,6 +603,34 @@ TEST_F(UnitTestModeTest, TimeLimitFlagWorks) {
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
+TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerTest) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixturePerTest.SkippedTest", kDefaultTargetBinary,
+          /*env=*/{},
+          /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err,
+              HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest is executed")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerIteration) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixturePerIteration.SkippedTest", kDefaultTargetBinary,
+          /*env=*/{},
+          /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest is executed")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(UnitTestModeTest, InputsAreSkippedWhenRequestedInTests) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.SkipInputs", kDefaultTargetBinary,
+          /*env=*/{},
+          /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
+}
+
 class GetRandomValueTest : public UnitTestModeTest {
  protected:
   int GetValueFromInnerTest(
@@ -1166,6 +1194,25 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+// This tests both the command line interface and the fuzzing logic. It is under
+// FuzzingModeCommandLineInterfaceTest so it can specify the command line.
+TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
+  TempDir corpus_dir;
+  // Although theoretically possible, it is extreme unlikely that the test would
+  // find the crash without saving some corpus.
+  auto [producer_status, producer_std_out, producer_std_err] =
+      RunWith({{"fuzz", "MySuite.SkipInputs"}, {"fuzz_for", "10s"}},
+              {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.dirname()}});
+
+  ASSERT_THAT(producer_std_err, HasSubstr("Skipped input"));
+
+  auto [replayer_status, replayer_std_out, replayer_std_err] =
+      RunWith({{"fuzz", "MySuite.SkipInputs"}},
+              {{"FUZZTEST_REPLAY", corpus_dir.dirname()}});
+
+  EXPECT_THAT(replayer_std_err, Not(HasSubstr("Skipped input")));
+}
+
 std::string CentipedePath() {
   const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -1303,6 +1350,23 @@ TEST_P(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
   EXPECT_EQ(
       CountTargetRuns(std_err),
       CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
+}
+
+TEST_P(FuzzingModeFixtureTest, TestIsSkippedWhenRequestedInFixturePerTest) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixturePerTest.SkippedTest", /*iterations=*/10);
+  EXPECT_THAT(std_err,
+              HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_P(FuzzingModeFixtureTest,
+       TestIsSkippedWhenRequestedInFixturePerIteration) {
+  auto [status, std_out, std_err] =
+      Run("SkippedTestFixturePerIteration.SkippedTest", /*iterations=*/10);
+  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 INSTANTIATE_TEST_SUITE_P(FuzzingModeFixtureTestWithExecutionModel,
@@ -1701,6 +1765,14 @@ TEST_P(FuzzingModeCrashFindingTest,
   auto [status, std_out, std_err] =
       Run("AlternateSignalStackFixture."
           "StackCalculationWorksWithAlternateStackForSignalHandlers");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
+  ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.SkipInputs", kDefaultTargetBinary);
+  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }

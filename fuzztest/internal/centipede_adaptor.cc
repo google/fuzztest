@@ -447,8 +447,10 @@ void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
 class CentipedeFixtureDriver : public UntypedFixtureDriver {
  public:
   CentipedeFixtureDriver(
+      Runtime& runtime,
       std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver)
-      : orig_fixture_driver_(std::move(orig_fixture_driver)) {}
+      : runtime_(runtime),
+        orig_fixture_driver_(std::move(orig_fixture_driver)) {}
 
   void SetUpFuzzTest() override {
     orig_fixture_driver_->SetUpFuzzTest();
@@ -464,6 +466,9 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
 
   void TearDownIteration() override {
     orig_fixture_driver_->TearDownIteration();
+    if (runtime_.skipping_requested()) {
+      CentipedeSetExecutionResult(nullptr, 0);
+    }
     if (!runner_mode) CentipedeFinalizeProcessing();
   }
 
@@ -487,6 +492,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
 
  private:
   const Configuration* configuration_ = nullptr;
+  Runtime& runtime_;
   const bool runner_mode = getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
   std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver_;
 };
@@ -495,7 +501,7 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
     : test_(test),
       centipede_fixture_driver_(
-          new CentipedeFixtureDriver(std::move(fixture_driver))),
+          new CentipedeFixtureDriver(runtime_, std::move(fixture_driver))),
       fuzzer_impl_(test_, absl::WrapUnique(centipede_fixture_driver_)) {
   FUZZTEST_INTERNAL_CHECK(centipede_fixture_driver_ != nullptr,
                           "Invalid fixture driver!");
@@ -513,6 +519,7 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   runtime_.SetRunMode(RunMode::kFuzz);
+  runtime_.SetSkippingRequested(false);
   runtime_.SetCurrentTest(&test_, &configuration);
   if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
   runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
@@ -527,6 +534,12 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   // and we should not run CentipedeMain in this process.
   const bool runner_mode = getenv("CENTIPEDE_RUNNER_FLAGS");
   const int result = ([&]() {
+    if (runtime_.skipping_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    test_.full_name());
+      return 0;
+    }
     if (runner_mode) {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
