@@ -41,7 +41,7 @@ void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
 
 void RemoteFileSetContents(const std::filesystem::path &path,
                            const ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "w");
+  auto *file = RemoteFileOpen(path.string(), "w");
   CHECK(file != nullptr) << VV(path);
   RemoteFileAppend(file, contents);
   RemoteFileClose(file);
@@ -49,7 +49,7 @@ void RemoteFileSetContents(const std::filesystem::path &path,
 
 void RemoteFileSetContents(const std::filesystem::path &path,
                            const std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "w");
+  auto *file = RemoteFileOpen(path.string(), "w");
   CHECK(file != nullptr) << VV(path);
   RemoteFileAppend(file, contents);
   RemoteFileClose(file);
@@ -57,7 +57,7 @@ void RemoteFileSetContents(const std::filesystem::path &path,
 
 void RemoteFileGetContents(const std::filesystem::path &path,
                            ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "r");
+  auto *file = RemoteFileOpen(path.string(), "r");
   CHECK(file != nullptr) << VV(path);
   RemoteFileRead(file, contents);
   RemoteFileClose(file);
@@ -65,7 +65,7 @@ void RemoteFileGetContents(const std::filesystem::path &path,
 
 void RemoteFileGetContents(const std::filesystem::path &path,
                            std::string &contents) {
-  auto *file = RemoteFileOpen(path.c_str(), "r");
+  auto *file = RemoteFileOpen(path.string(), "r");
   CHECK(file != nullptr) << VV(path);
   RemoteFileRead(file, contents);
   RemoteFileClose(file);

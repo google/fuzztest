@@ -26,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -53,13 +54,13 @@ namespace {
 //  abstract virtual base. Measure the performance of doing so and maybe switch.
 class LocalRemoteFile : public RemoteFile {
  public:
-  static LocalRemoteFile *Create(std::string_view path, std::string_view mode) {
-    FILE *file = std::fopen(path.data(), mode.data());
+  static LocalRemoteFile *Create(std::string path, std::string_view mode) {
+    FILE *file = std::fopen(path.c_str(), mode.data());
     if (file == nullptr) {
       LOG(ERROR) << "Failed to open file: " << VV(path);
       return nullptr;
     }
-    return new LocalRemoteFile{path, file};
+    return new LocalRemoteFile{std::move(path), file};
   }
 
   ~LocalRemoteFile() {
@@ -110,10 +111,10 @@ class LocalRemoteFile : public RemoteFile {
   }
 
  private:
-  LocalRemoteFile(std::string_view path, FILE *file)
-      : path_{path}, file_{file} {}
+  LocalRemoteFile(std::string path, FILE *file)
+      : path_{std::move(path)}, file_{file} {}
 
-  std::string_view path_;
+  std::string path_;
   FILE *file_;
   std::unique_ptr<char[]> write_buf_;
 };
@@ -132,7 +133,7 @@ void RemoteMkdir(std::string_view path) {
 //  normal ctor with a CHECK instead of `Create()` here instead.
 absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view path,
                                             const char *mode) {
-  return LocalRemoteFile::Create(path, mode);
+  return LocalRemoteFile::Create(std::string(path), mode);
 }
 
 void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
@@ -203,7 +204,9 @@ std::vector<std::string> RemoteListFiles(std::string_view path,
     std::vector<std::string> ret;
     for (const auto &entry : dir_iter) {
       if (entry.is_directory()) continue;
-      ret.push_back(entry.path());
+      // On Windows, there's no implicit conversion from `std::filesystem::path`
+      // to `std::string`.
+      ret.push_back(entry.path().string());
     }
     return ret;
   };
