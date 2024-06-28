@@ -100,6 +100,12 @@ bool RemotePathExists(std::string_view path);
 int64_t RemoteFileGetSize(std::string_view path);
 
 // Finds all files matching `glob` and appends them to `matches`.
+//
+// Note: The OSS implementation of this function fails on Windows and Android.
+// Instead of using this function, consider whether your use case can be solved
+// in a more specific way, e.g., by listing files in a directory and filtering
+// based on some criterion.
+[[deprecated("Do not use in new code.")]]
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches);
 
 // Lists all files within `path`, recursively expanding subdirectories if

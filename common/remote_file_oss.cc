@@ -15,8 +15,9 @@
 // Implementation of remote_file.h for the local file system using pure Standard
 // Library APIs.
 
+#if !defined(_MSC_VER) && !defined(__ANDROID__)
 #include <glob.h>
-#include <sys/stat.h>
+#endif  // !defined(_MSC_VER) && !defined(__ANDROID__)
 
 #include <cstdint>
 #include <cstdio>
@@ -179,6 +180,7 @@ int HandleGlobError(const char *epath, int eerrno) {
 }  // namespace
 
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
+#if !defined(_MSC_VER) && !defined(__ANDROID__)
   // See `man glob.3`.
   ::glob_t glob_ret = {};
   CHECK_EQ(
@@ -189,6 +191,9 @@ void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
     matches.emplace_back(glob_ret.gl_pathv[i]);
   }
   ::globfree(&glob_ret);
+#else
+  LOG(FATAL) << __func__ << "() is not supported on this platform.";
+#endif  // !defined(_MSC_VER) && !defined(__ANDROID__)
 }
 
 std::vector<std::string> RemoteListFiles(std::string_view path,
