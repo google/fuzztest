@@ -32,6 +32,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -41,13 +42,9 @@
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/fixture_driver.h"
-#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
-#include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/seed_seq.h"
-#include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
 
@@ -272,7 +269,7 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   std::optional<corpus_type> ReadReproducerToMinimize();
 
-  std::optional<corpus_type> TryParse(absl::string_view data);
+  absl::StatusOr<corpus_type> TryParse(absl::string_view data);
 
   void MutateValue(Input& input, absl::BitGenRef prng);
 
@@ -292,8 +289,15 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   void TrySampleAndUpdateInMemoryCorpus(Input sample,
                                         bool write_to_file = true);
 
-  void ForEachInputFile(absl::Span<const std::string> files,
-                        absl::FunctionRef<void(Input&&)> consume);
+  // Iterates over inputs in `files` and calls `consume` on each input.
+  // `consume` is a function that takes a file path, an optional blob index in
+  // the file (for blob files with multiple blobs), and an input in the given
+  // file at the given blob index (if applicable).
+  void ForEachInput(
+      absl::Span<const std::string> files,
+      absl::FunctionRef<void(absl::string_view file_path,
+                             std::optional<int> blob_idx, Input input)>
+          consume);
 
   // Returns true if we're in minimization mode.
   bool MinimizeCorpusIfInMinimizationMode(absl::BitGenRef prng);
@@ -308,9 +312,10 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   bool ShouldStop();
 
-  std::optional<GenericDomainCorpusType> GetCorpusValueFromFile(
-      const std::string& path);
-  void ReplayInput(const std::string& path);
+  // Prints a message indicating that we're replaying an input from `file_path`
+  // at `blob_idx` (if applicable) and then runs `input`.
+  void ReplayInput(absl::string_view file_path, std::optional<int> blob_idx,
+                   const Input& input);
 
   const FuzzTest& test_;
   std::unique_ptr<UntypedFixtureDriver> fixture_driver_;
