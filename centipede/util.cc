@@ -146,7 +146,7 @@ void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
 std::string HashOfFileContents(std::string_view file_path) {
   if (file_path.empty()) return "";
   std::string file_contents;
-  RemoteFileGetContents(std::filesystem::path(file_path), file_contents);
+  RemoteFileGetContents(file_path, file_contents);
   return Hash(file_contents);
 }
 

@@ -17,8 +17,8 @@
 
 #include "./common/remote_file.h"
 
-#include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
@@ -39,33 +39,29 @@ void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
   contents.assign(contents_ba.cbegin(), contents_ba.cend());
 }
 
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.string(), "w");
+void RemoteFileSetContents(std::string_view path, const ByteArray &contents) {
+  auto *file = RemoteFileOpen(path, "w");
   CHECK(file != nullptr) << VV(path);
   RemoteFileAppend(file, contents);
   RemoteFileClose(file);
 }
 
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const std::string &contents) {
-  auto *file = RemoteFileOpen(path.string(), "w");
+void RemoteFileSetContents(std::string_view path, const std::string &contents) {
+  auto *file = RemoteFileOpen(path, "w");
   CHECK(file != nullptr) << VV(path);
   RemoteFileAppend(file, contents);
   RemoteFileClose(file);
 }
 
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           ByteArray &contents) {
-  auto *file = RemoteFileOpen(path.string(), "r");
+void RemoteFileGetContents(std::string_view path, ByteArray &contents) {
+  auto *file = RemoteFileOpen(path, "r");
   CHECK(file != nullptr) << VV(path);
   RemoteFileRead(file, contents);
   RemoteFileClose(file);
 }
 
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           std::string &contents) {
-  auto *file = RemoteFileOpen(path.string(), "r");
+void RemoteFileGetContents(std::string_view path, std::string &contents) {
+  auto *file = RemoteFileOpen(path, "r");
   CHECK(file != nullptr) << VV(path);
   RemoteFileRead(file, contents);
   RemoteFileClose(file);

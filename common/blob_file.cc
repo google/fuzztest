@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -186,6 +187,10 @@ class DefaultBlobFileReader : public BlobFileReader {
     riegeli_reader_.Reset(riegeli::kClosed);
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
+    // Because we fall back to a legacy reader, we can't distinguish between
+    // an empty blob file and a file that is not a blob file. Once this behavior
+    // changes (e.g., we get rid of the legacy reader), consider b/349115475 and
+    // track down places that would benefit from this distinction.
     legacy_reader_ = std::make_unique<SimpleBlobFileReader>();
     if (absl::Status s = legacy_reader_->Open(path); !s.ok()) {
       legacy_reader_ = nullptr;
@@ -285,9 +290,13 @@ class RiegeliWriter : public BlobFileWriter {
   }
 
   absl::Status Write(ByteSpan blob) override {
+    std::string_view blob_view = AsStringView(blob);
     const auto now = absl::Now();
     if (!PreWriteFlush(blob.size())) return writer_.status();
-    if (!writer_.WriteRecord(AsStringView(blob))) return writer_.status();
+    if (!writer_.WriteRecord(
+            absl::string_view{blob_view.data(), blob_view.size()})) {
+      return writer_.status();
+    }
     if (!PostWriteFlush(blob.size())) return writer_.status();
     write_duration_ += absl::Now() - now;
     if (written_blobs_ + buffered_blobs_ % 10000 == 0)
@@ -436,11 +445,13 @@ ByteArray PackBytesForAppendFile(ByteSpan blob) {
   size_t size = blob.size();
   uint8_t size_bytes[sizeof(size)];
   std::memcpy(size_bytes, &size, sizeof(size));
-  res.insert(res.end(), &kPackBegMagic[0], &kPackBegMagic[kMagicLen]);
+  res.insert(res.end(), std::begin(kPackBegMagic),
+             std::begin(kPackBegMagic) + kMagicLen);
   res.insert(res.end(), hash.begin(), hash.end());
-  res.insert(res.end(), &size_bytes[0], &size_bytes[sizeof(size_bytes)]);
+  res.insert(res.end(), std::begin(size_bytes), std::end(size_bytes));
   res.insert(res.end(), blob.begin(), blob.end());
-  res.insert(res.end(), &kPackEndMagic[0], &kPackEndMagic[kMagicLen]);
+  res.insert(res.end(), std::begin(kPackEndMagic),
+             std::begin(kPackEndMagic) + kMagicLen);
   return res;
 }
 
