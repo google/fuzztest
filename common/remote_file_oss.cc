@@ -15,9 +15,9 @@
 // Implementation of remote_file.h for the local file system using pure Standard
 // Library APIs.
 
-#if !defined(_MSC_VER) && !defined(__ANDROID__)
+#if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 #include <glob.h>
-#endif  // !defined(_MSC_VER) && !defined(__ANDROID__)
+#endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 
 #include <cstdint>
 #include <cstdio>
@@ -185,7 +185,7 @@ int HandleGlobError(const char *epath, int eerrno) {
 }  // namespace
 
 void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
-#if !defined(_MSC_VER) && !defined(__ANDROID__)
+#if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
   // See `man glob.3`.
   ::glob_t glob_ret = {};
   CHECK_EQ(
@@ -198,7 +198,7 @@ void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
   ::globfree(&glob_ret);
 #else
   LOG(FATAL) << __func__ << "() is not supported on this platform.";
-#endif  // !defined(_MSC_VER) && !defined(__ANDROID__)
+#endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 }
 
 std::vector<std::string> RemoteListFiles(std::string_view path,
