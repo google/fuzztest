@@ -24,7 +24,7 @@ void ParsesIntCorrectly(int number, const std::string& suffix) {
   EXPECT_THAT(output, Optional(Eq(number)));
 }
 FUZZ_TEST(ParseLeadingDigitsTest, ParsesIntCorrectly)
-  .WithDomains(/*number=*/Arbitrary<int>(), /*suffix=*/InRegexp("^[0-9].*"));
+  .WithDomains(/*number=*/Arbitrary<int>(), /*suffix=*/InRegexp("^\D.*"));
 ```
 
 In the fuzz test version of the above test, `ParsesIntCorrectly` runs
