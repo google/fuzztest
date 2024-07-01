@@ -15,9 +15,8 @@
 #include "./fuzztest/internal/io.h"
 
 #include <cerrno>
-#include <cstdio>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -32,20 +31,21 @@
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 
+// TODO(fniksic): Remove this definition once we include remote_file.h.
 #if defined(__APPLE__)
 #if (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&       \
      __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_15) || \
     (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&      \
      __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0)
 // std::filesystem requires macOS 10.15+ or iOS 13+.
-// Just stub out these functions.
-#define FUZZTEST_STUB_FILESYSTEM
+// Use this macro to stub out code that depends on std::filesystem.
+#define FUZZTEST_STUB_STD_FILESYSTEM
 #endif
 #endif
 
 namespace fuzztest::internal {
 
-#if defined(FUZZTEST_STUB_FILESYSTEM)
+#if defined(FUZZTEST_STUB_STD_FILESYSTEM)
 
 // TODO(lszekeres): Return absl::Status instead of bool for these.
 
@@ -150,7 +150,7 @@ std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
   return output_paths;
 }
 
-#endif  // FUZZTEST_STUB_FILESYSTEM
+#endif  // FUZZTEST_STUB_STD_FILESYSTEM
 
 std::string WriteDataToDir(absl::string_view data, absl::string_view outdir) {
   std::string filename(outdir);

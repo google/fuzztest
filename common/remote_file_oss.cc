@@ -17,6 +17,7 @@
 
 #if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 #include <glob.h>
+#define FUZZTEST_HAS_OSS_GLOB
 #endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 
 #include <cstdint>
@@ -121,6 +122,31 @@ class LocalRemoteFile : public RemoteFile {
 
 }  // namespace
 
+#if defined(FUZZTEST_STUB_STD_FILESYSTEM)
+
+void RemoteMkdir(std::string_view path) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
+bool RemotePathExists(std::string_view path) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
+std::vector<std::string> RemoteListFiles(std::string_view path,
+                                         bool recursively) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
+void RemotePathRename(std::string_view from, std::string_view to) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
+void RemotePathDelete(std::string_view path, bool recursively) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
+#else
+
 void RemoteMkdir(std::string_view path) {
   CHECK(!path.empty());
   std::error_code error;
@@ -128,73 +154,8 @@ void RemoteMkdir(std::string_view path) {
   CHECK(!error) << VV(path) << VV(error);
 }
 
-// TODO(ussuri): For now, simulate the old behavior, where a failure to open
-//  a file returned nullptr. Adjust the clients to expect non-null and use a
-//  normal ctor with a CHECK instead of `Create()` here instead.
-absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view path,
-                                            const char *mode) {
-  return LocalRemoteFile::Create(std::string(path), mode);
-}
-
-void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
-  auto *file = static_cast<LocalRemoteFile *>(f);
-  file->Close();
-  delete file;
-}
-
-void RemoteFileSetWriteBufferSize(absl::Nonnull<RemoteFile *> f, size_t size) {
-  static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
-}
-
-void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba) {
-  static_cast<LocalRemoteFile *>(f)->Write(ba);
-}
-
-void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
-  static_cast<LocalRemoteFile *>(f)->Flush();
-}
-
-void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba) {
-  static_cast<LocalRemoteFile *>(f)->Read(ba);
-}
-
 bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
-}
-
-int64_t RemoteFileGetSize(std::string_view path) {
-  FILE *f = std::fopen(path.data(), "r");
-  CHECK(f != nullptr) << VV(path);
-  std::fseek(f, 0, SEEK_END);
-  const auto sz = std::ftell(f);
-  std::fclose(f);
-  return sz;
-}
-
-namespace {
-
-int HandleGlobError(const char *epath, int eerrno) {
-  LOG(FATAL) << "Error while globbing path: " << VV(epath) << VV(eerrno);
-  return -1;
-}
-
-}  // namespace
-
-void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
-#if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
-  // See `man glob.3`.
-  ::glob_t glob_ret = {};
-  CHECK_EQ(
-      ::glob(std::string{glob}.c_str(), GLOB_TILDE, HandleGlobError, &glob_ret),
-      0)
-      << "Error while globbing glob: " << VV(glob);
-  for (int i = 0; i < glob_ret.gl_pathc; ++i) {
-    matches.emplace_back(glob_ret.gl_pathv[i]);
-  }
-  ::globfree(&glob_ret);
-#else
-  LOG(FATAL) << __func__ << "() is not supported on this platform.";
-#endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 }
 
 std::vector<std::string> RemoteListFiles(std::string_view path,
@@ -229,6 +190,75 @@ void RemotePathDelete(std::string_view path, bool recursively) {
     std::filesystem::remove(path, error);
   }
   CHECK(!error) << VV(path) << VV(error);
+}
+
+#endif  // defined(FUZZTEST_STUB_STD_FILESYSTEM)
+
+// TODO(ussuri): For now, simulate the old behavior, where a failure to open
+//  a file returned nullptr. Adjust the clients to expect non-null and use a
+//  normal ctor with a CHECK instead of `Create()` here instead.
+absl::Nullable<RemoteFile *> RemoteFileOpen(std::string_view path,
+                                            const char *mode) {
+  return LocalRemoteFile::Create(std::string(path), mode);
+}
+
+void RemoteFileClose(absl::Nonnull<RemoteFile *> f) {
+  auto *file = static_cast<LocalRemoteFile *>(f);
+  file->Close();
+  delete file;
+}
+
+void RemoteFileSetWriteBufferSize(absl::Nonnull<RemoteFile *> f, size_t size) {
+  static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
+}
+
+void RemoteFileAppend(absl::Nonnull<RemoteFile *> f, const ByteArray &ba) {
+  static_cast<LocalRemoteFile *>(f)->Write(ba);
+}
+
+void RemoteFileFlush(absl::Nonnull<RemoteFile *> f) {
+  static_cast<LocalRemoteFile *>(f)->Flush();
+}
+
+void RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba) {
+  static_cast<LocalRemoteFile *>(f)->Read(ba);
+}
+
+int64_t RemoteFileGetSize(std::string_view path) {
+  FILE *f = std::fopen(path.data(), "r");
+  CHECK(f != nullptr) << VV(path);
+  std::fseek(f, 0, SEEK_END);
+  const auto sz = std::ftell(f);
+  std::fclose(f);
+  return sz;
+}
+
+namespace {
+
+#if defined(FUZZTEST_HAS_OSS_GLOB)
+int HandleGlobError(const char *epath, int eerrno) {
+  LOG(FATAL) << "Error while globbing path: " << VV(epath) << VV(eerrno);
+  return -1;
+}
+#endif  // defined(FUZZTEST_HAS_OSS_GLOB)
+
+}  // namespace
+
+void RemoteGlobMatch(std::string_view glob, std::vector<std::string> &matches) {
+#if defined(FUZZTEST_HAS_OSS_GLOB)
+  // See `man glob.3`.
+  ::glob_t glob_ret = {};
+  CHECK_EQ(
+      ::glob(std::string{glob}.c_str(), GLOB_TILDE, HandleGlobError, &glob_ret),
+      0)
+      << "Error while globbing glob: " << VV(glob);
+  for (int i = 0; i < glob_ret.gl_pathc; ++i) {
+    matches.emplace_back(glob_ret.gl_pathv[i]);
+  }
+  ::globfree(&glob_ret);
+#else
+  LOG(FATAL) << __func__ << "() is not supported on this platform.";
+#endif  // defined(FUZZTEST_HAS_OSS_GLOB)
 }
 
 #ifndef CENTIPEDE_DISABLE_RIEGELI

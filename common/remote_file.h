@@ -22,7 +22,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
 #include <string_view>
@@ -34,6 +33,17 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #endif  // CENTIPEDE_DISABLE_RIEGELI
+
+#if defined(__APPLE__)
+#if (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&       \
+     __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_15) || \
+    (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&      \
+     __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0)
+// std::filesystem requires macOS 10.15+ or iOS 13+.
+// Use this macro to stub out code that depends on std::filesystem.
+#define FUZZTEST_STUB_STD_FILESYSTEM
+#endif
+#endif
 
 namespace centipede {
 
@@ -78,20 +88,16 @@ void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents);
 void RemoteMkdir(std::string_view dir_path);
 
 // Sets the contents of the file at 'path' to 'contents'.
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const ByteArray &contents);
+void RemoteFileSetContents(std::string_view path, const ByteArray &contents);
 
 // Sets the contents of the file at 'path' to 'contents'.
-void RemoteFileSetContents(const std::filesystem::path &path,
-                           const std::string &contents);
+void RemoteFileSetContents(std::string_view path, const std::string &contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           ByteArray &contents);
+void RemoteFileGetContents(std::string_view path, ByteArray &contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
-void RemoteFileGetContents(const std::filesystem::path &path,
-                           std::string &contents);
+void RemoteFileGetContents(std::string_view path, std::string &contents);
 
 // Returns true if `path` exists.
 bool RemotePathExists(std::string_view path);

@@ -162,7 +162,7 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   if (!path.empty() && !std::filesystem::exists(path)) {  // assume remote
     // Read the remote file.
     std::string contents;
-    RemoteFileGetContents(path, contents);
+    RemoteFileGetContents(path.c_str(), contents);
 
     // Save a temporary local copy.
     const std::filesystem::path tmp_dir = TemporaryLocalDirPath();
@@ -170,7 +170,7 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
     LOG(INFO) << "Localizing remote config: " << VV(path) << VV(local_path);
     // NOTE: Ignore "Remote" in the API names here: the paths are always local.
     RemoteMkdir(tmp_dir.c_str());
-    RemoteFileSetContents(local_path, contents);
+    RemoteFileSetContents(local_path.c_str(), contents);
 
     // Augment the argv to point at the local copy and ensure it is cleaned up.
     replacements.emplace_back(path.c_str(), local_path.c_str());
@@ -244,7 +244,7 @@ $2 "$${flags[@]}"
     } else {
       file_contents = flags_str;
     }
-    RemoteFileSetContents(path, file_contents);
+    RemoteFileSetContents(path.c_str(), file_contents);
   }
 
   return path;

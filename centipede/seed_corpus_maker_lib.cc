@@ -501,8 +501,9 @@ void GenerateSeedCorpusFromConfig(          //
       /*my_shard_index=*/0,
   };
   const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
-  RemoteMkdir(debug_info_dir.string());
-  RemoteFileSetContents(debug_info_dir / "seeding.cfg", absl::StrCat(config));
+  RemoteMkdir(debug_info_dir.c_str());
+  RemoteFileSetContents((debug_info_dir / "seeding.cfg").c_str(),
+                        absl::StrCat(config));
 
   InputAndFeaturesVec elements;
 
