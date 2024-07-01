@@ -46,13 +46,6 @@
 namespace centipede {
 namespace {
 
-// A basic version of "remote file" that can only actually handle local files.
-// This provides a polyfill that enables running Centipede on local filesystems.
-// It can be replaced by an implementation for an actual remote filesystem by
-// overriding some of the weak symbols below (the ones that either return or
-// take a `RemoteFile *` param).
-// TODO(ussuri): This stops just one step away from making `RemoteFile` an
-//  abstract virtual base. Measure the performance of doing so and maybe switch.
 class LocalRemoteFile : public RemoteFile {
  public:
   static LocalRemoteFile *Create(std::string path, std::string_view mode) {
