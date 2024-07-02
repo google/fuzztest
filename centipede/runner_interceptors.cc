@@ -96,15 +96,18 @@ void RunnerInterceptor() {}  // to be referenced in runner.cc
 #define SANITIZER_INTERCEPTOR_NAME(orig_func_name) \
   __interceptor_##orig_func_name
 #define DECLARE_CENTIPEDE_ORIG_FUNC(ret_type, orig_func_name, args)         \
-  extern "C" __attribute__((weak))                                          \
-  ret_type(SANITIZER_INTERCEPTOR_NAME(orig_func_name)) args;                \
+  extern "C" __attribute__((weak)) ret_type(                                \
+      SANITIZER_INTERCEPTOR_NAME(orig_func_name)) args;                     \
   static decltype(&SANITIZER_INTERCEPTOR_NAME(                              \
       orig_func_name)) GetOrig_##orig_func_name() {                         \
     if (auto p = &SANITIZER_INTERCEPTOR_NAME(orig_func_name)) return p;     \
     return FuncAddr<decltype(&SANITIZER_INTERCEPTOR_NAME(orig_func_name))>( \
         #orig_func_name);                                                   \
   }                                                                         \
-  static ret_type(*orig_func_name##_orig) args = GetOrig_##orig_func_name()
+  static ret_type(*orig_func_name##_orig) args;                             \
+  __attribute__((constructor)) void InitializeOrig_##orig_func_name() {     \
+    orig_func_name##_orig = GetOrig_##orig_func_name();                     \
+  }
 #define REAL(orig_func_name) \
   (orig_func_name##_orig ? orig_func_name##_orig : GetOrig_##orig_func_name())
 
