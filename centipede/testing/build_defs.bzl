@@ -23,13 +23,6 @@ affect all its transitive dependencies as well.
 # Change the flags from the default ones to sancov:
 # https://clang.llvm.org/docs/SanitizerCoverage.html.
 def _sancov_transition_impl(settings, attr):
-    features_to_strip = ["tsan", "msan"]
-    filtered_features = [
-        x
-        for x in settings["//command_line_option:features"]
-        if x not in features_to_strip
-    ]
-
     # some of the valid sancov flag combinations:
     # trace-pc-guard,pc-table
     # trace-pc-guard,pc-table,trace-cmp
@@ -50,8 +43,6 @@ def _sancov_transition_impl(settings, attr):
         ],
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:strip": "never",  # preserve debug info.
-        "//command_line_option:features": filtered_features,
-        "//command_line_option:compiler": None,
         "//command_line_option:dynamic_mode": "off",
     }
 
@@ -59,15 +50,12 @@ sancov_transition = transition(
     implementation = _sancov_transition_impl,
     inputs = [
         "//command_line_option:copt",
-        "//command_line_option:features",
     ],
     outputs = [
         "//command_line_option:collect_code_coverage",
         "//command_line_option:copt",
         "//command_line_option:compilation_mode",
         "//command_line_option:strip",
-        "//command_line_option:features",
-        "//command_line_option:compiler",
         "//command_line_option:dynamic_mode",
     ],
 )

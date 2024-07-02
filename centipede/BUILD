@@ -992,10 +992,10 @@ RUNNER_SOURCES_NO_MAIN = [
 
 RUNNER_SOURCES_WITH_MAIN = RUNNER_SOURCES_NO_MAIN + ["runner_main.cc"]
 
-# Disable sancov and sanitizer instrumentation
+# Disable sancov and sanitizer instrumentation, except for memory sanitizer, which would produce false positive if skipped here.
 RUNNER_COPTS = [
     "-fsanitize-coverage=0",
-    "-fno-sanitize=address,hwaddress,memory,thread,undefined",
+    "-fno-sanitize=address,hwaddress,thread,undefined",
 ]
 
 RUNNER_LINKOPTS = [

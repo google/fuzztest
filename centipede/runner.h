@@ -136,7 +136,8 @@ struct GlobalRunnerState {
   Knobs knobs;
 
   GlobalRunnerState();
-  ~GlobalRunnerState();
+
+  void OnProcessExit();
 
   // Runner reads flags from CentipedeGetRunnerFlags(). We don't use flags
   // passed via argv so that argv flags can be passed directly to

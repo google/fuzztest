@@ -71,7 +71,10 @@ namespace {
 
 // Returns the length of the common prefix of `s1` and `s2`, but not more
 // than 63. I.e. the returned value is in [0, 64).
-size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
+//
+// Needed to skip memory sanitizer to avoid false positives in error reporting.
+__attribute__((no_sanitize("memory"))) size_t LengthOfCommonPrefix(
+    const void *s1, const void *s2, size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
   static constexpr size_t kMaxLen = 63;
@@ -91,7 +94,14 @@ class ThreadTerminationDetector {
   ~ThreadTerminationDetector() { tls.OnThreadStop(); }
 };
 
-thread_local ThreadTerminationDetector termination_detector;
+thread_local ThreadTerminationDetector thread_termination_detector;
+
+class ProcessTerminationDetector {
+ public:
+  ~ProcessTerminationDetector() { state.OnProcessExit(); }
+};
+
+static ProcessTerminationDetector process_termination_detector;
 
 }  // namespace
 
@@ -144,7 +154,7 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 }
 
 void ThreadLocalRunnerState::OnThreadStart() {
-  termination_detector.EnsureAlive();
+  thread_termination_detector.EnsureAlive();
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.stack_region_low = GetCurrentThreadStackRegionLow();
@@ -1049,7 +1059,7 @@ GlobalRunnerState::GlobalRunnerState() {
   }
 }
 
-GlobalRunnerState::~GlobalRunnerState() {
+void GlobalRunnerState::OnProcessExit() {
   // The process is winding down, but CentipedeRunnerMain did not run.
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
