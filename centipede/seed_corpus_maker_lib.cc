@@ -182,6 +182,12 @@ void SampleSeedCorpusElementsFromSource(    //
   }
   LOG(INFO) << "Found " << corpus_shard_fnames.size()
             << " shard(s) total in source " << source.dir_glob();
+  if (!source.corpus_shard_path().empty()) {
+    LOG(INFO) << "Adding corpus shard path: " << source.corpus_shard_path();
+    corpus_shard_fnames.push_back(source.corpus_shard_path());
+  }
+  LOG(INFO) << "Total number of corpus shards found: "
+            << corpus_shard_fnames.size();
 
   if (corpus_shard_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob();
@@ -327,8 +333,6 @@ void WriteSeedCorpusElementsToDestination(  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
   CHECK(!elements.empty());
-  CHECK(!coverage_binary_name.empty());
-  CHECK(!coverage_binary_hash.empty());
   CHECK(!destination.dir_path().empty());
 
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
@@ -487,7 +491,15 @@ void GenerateSeedCorpusFromConfig(          //
     LOG(WARNING) << "Config is empty: skipping seed corpus generation";
     return;
   }
+  GenerateSeedCorpusFromConfig(config, coverage_binary_name,
+                               coverage_binary_hash, override_out_dir);
+}
 
+void GenerateSeedCorpusFromConfig(          //
+    const SeedCorpusConfig& config,         //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
+    std::string_view override_out_dir) {
   // Pre-create the destination dir early to catch possible misspellings etc.
   if (!RemotePathExists(config.destination().dir_path())) {
     RemoteMkdir(config.destination().dir_path());
