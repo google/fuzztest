@@ -34,6 +34,9 @@ message SeedCorpusSource {
   // A relative glob used to find corpus shards in each `dir_glob`-matching dir.
   // Required.
   string shard_rel_glob = 3;
+  // Path directly to a corpus shard. Will be added to the shards specified by
+  // `dir_glob`.
+  string corpus_shard_path = 6;
   // An absolute or relative number of corpus elements to sample from all the
   // corpus shards in all `dir_glob` matching dirs of this source. Optional: the
   // default is to take all the elements.
