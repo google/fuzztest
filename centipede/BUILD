@@ -101,6 +101,7 @@ proto_library(
 
 cc_proto_library(
     name = "seed_corpus_config_cc_proto",
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [":seed_corpus_config_proto"],
 )
 
@@ -1057,6 +1058,7 @@ cc_library(
     name = "seed_corpus_maker_lib",
     srcs = ["seed_corpus_maker_lib.cc"],
     hdrs = ["seed_corpus_maker_lib.h"],
+    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":corpus_io",
         ":feature",
