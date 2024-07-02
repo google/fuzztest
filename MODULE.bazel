@@ -1,0 +1,33 @@
+module(
+    name = "fuzztest",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "abseil-cpp", repo_name = "com_google_absl", version = "20240116.1")
+bazel_dep(name = "re2", version = "2024-04-01", repo_name = "com_googlesource_code_re2")
+
+bazel_dep(name = "googletest", version = "1.14.0.bcr.1", repo_name = "com_google_googletest", dev_dependency = True)
+bazel_dep(name = "nlohmann_json", repo_name = "com_nlohmann_json", version = "3.11.3", dev_dependency = True)
+# There is no compatible protobuf version with a MODULE.bazel file to pull in transitive dependencies.
+#  * Riegeli can't build with protobuf 26.
+#  * Protobuf 21.7 is next newest with hacked-in MODULE.bazel file, and it's missing AbslStringify.
+# Only path forwards is to update Riegeli to protobuf 26+.
+bazel_dep(name = "protobuf", repo_name = "com_google_protobuf", version = "26.0", dev_dependency = True)
+bazel_dep(name = "rules_proto", version = "5.3.0-21.7", dev_dependency = True)
+
+bazel_dep(name = "riegeli", repo_name = "com_google_riegeli", version = "latest")
+git_override(
+    module_name = "riegeli",
+    remote = "https://github.com/google/riegeli.git",
+    commit = "d3b2c5ddf0b966199a5fcc24f4437fbc1afe1b6e",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "antlr_cpp",
+    build_file = "//bazel:antlr_cpp_runtime.BUILD",
+    sha256 = "642d59854ddc0cebb5b23b2233ad0a8723eef20e66ef78b5b898d0a67556893b",
+    url = "https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip",
+)
+
