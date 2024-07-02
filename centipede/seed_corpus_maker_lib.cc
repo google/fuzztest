@@ -182,6 +182,12 @@ void SampleSeedCorpusElementsFromSource(    //
   }
   LOG(INFO) << "Found " << corpus_shard_fnames.size()
             << " shard(s) total in source " << source.dir_glob();
+  if (!source.corpus_shard_path().empty()) {
+    LOG(INFO) << "Adding corpus shard path: " << source.corpus_shard_path();
+    corpus_shard_fnames.push_back(source.corpus_shard_path());
+  }
+  LOG(INFO) << "Total number of corpus shards found: "
+            << corpus_shard_fnames.size();
 
   if (corpus_shard_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob();
