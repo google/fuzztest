@@ -26,6 +26,12 @@
 
 using centipede::tls;
 
+// Used for the interceptors to avoid sanitizing them, as they could be called
+// before or during the sanitizer initialization. Instead, we check if the
+// current thread is marked as started by the runner as the proxy of sanitizier
+// initialization. If not, we skip the interception logic.
+#define NO_SANITIZE __attribute__((no_sanitize("all")))
+
 namespace {
 
 // Wrapper for dlsym().
@@ -122,7 +128,8 @@ DECLARE_CENTIPEDE_ORIG_FUNC(int, pthread_create,
 
 // Fallback for the case *cmp_orig is null.
 // Will be executed several times at process startup, if at all.
-static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
+static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
+                                       size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
   for (size_t i = 0; i < n; ++i) {
@@ -134,9 +141,12 @@ static int memcmp_fallback(const void *s1, const void *s2, size_t n) {
 
 // memcmp interceptor.
 // Calls the real memcmp() and possibly modifies state.cmp_feature_set.
-extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
+extern "C" NO_SANITIZE int memcmp(const void *s1, const void *s2, size_t n) {
   const int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
+  if (!tls.started) [[unlikely]] {
+    return result;
+  }
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
                   reinterpret_cast<const uint8_t *>(s1),
                   reinterpret_cast<const uint8_t *>(s2), n, result == 0);
@@ -148,7 +158,7 @@ extern "C" int memcmp(const void *s1, const void *s2, size_t n) {
 
 // strcmp interceptor.
 // Calls the real strcmp() and possibly modifies state.cmp_feature_set.
-extern "C" int strcmp(const char *s1, const char *s2) {
+extern "C" NO_SANITIZE int strcmp(const char *s1, const char *s2) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strcmp_orig` because we're passing it to `TraceMemCmp()`.
@@ -158,6 +168,9 @@ extern "C" int strcmp(const char *s1, const char *s2) {
       // Need to include one more byte than the shorter string length
       // when falling back to memcmp e.g. "foo" < "foobar".
       strcmp_orig ? strcmp_orig(s1, s2) : memcmp_fallback(s1, s2, len + 1);
+  if (!tls.started) [[unlikely]] {
+    return result;
+  }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
                   reinterpret_cast<const uint8_t *>(s1),
@@ -167,7 +180,7 @@ extern "C" int strcmp(const char *s1, const char *s2) {
 
 // strncmp interceptor.
 // Calls the real strncmp() and possibly modifies state.cmp_feature_set.
-extern "C" int strncmp(const char *s1, const char *s2, size_t n) {
+extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strncmp_orig` because we're passing it to `TraceMemCmp()`.
@@ -175,9 +188,12 @@ extern "C" int strncmp(const char *s1, const char *s2, size_t n) {
   while (len < n && s1[len] && s2[len]) ++len;
   // Need to include '\0' in the comparison if the shorter string is shorter
   // than `n`, hence we add 1 to the length.
-  n = std::min(n, len + 1);
+  if (n > len + 1) n = len + 1;
   const int result =
       strncmp_orig ? strncmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
+  if (!tls.started) [[unlikely]] {
+    return result;
+  }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
                   reinterpret_cast<const uint8_t *>(s1),
@@ -191,6 +207,9 @@ extern "C" int pthread_create(absl::Nonnull<pthread_t *> thread,
                               absl::Nullable<const pthread_attr_t *> attr,
                               void *(*start_routine)(void *),
                               absl::Nullable<void *> arg) {
+  if (!tls.started) [[unlikely]] {
+    return REAL(pthread_create)(thread, attr, start_routine, arg);
+  }
   // Wrap the arguments. Will be deleted in MyThreadStart.
   auto *wrapped_args = new ThreadCreateArgs{start_routine, arg};
   // Run the actual pthread_create.

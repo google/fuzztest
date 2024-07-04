@@ -93,6 +93,10 @@ struct ThreadLocalRunnerState {
   void OnThreadStart();
   void OnThreadStop();
 
+  // Whether OnThreadStart() is called on this thread. This is used as a proxy
+  // of the readiness of the lower-level runtime.
+  bool started;
+
   // Paths are thread-local, so we maintain the current bounded path here.
   // We allow paths of up to 100, controlled at run-time via the "path_level".
   static constexpr size_t kBoundedPathLength = 100;

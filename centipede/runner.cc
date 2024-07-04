@@ -145,6 +145,7 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 
 void ThreadLocalRunnerState::OnThreadStart() {
   termination_detector.EnsureAlive();
+  tls.started = true;
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.stack_region_low = GetCurrentThreadStackRegionLow();
