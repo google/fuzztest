@@ -59,12 +59,12 @@ cc_library(
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
-            "@com_google_riegeli//riegeli/base:object",
-            "@com_google_riegeli//riegeli/base:types",
-            "@com_google_riegeli//riegeli/bytes:reader",
-            "@com_google_riegeli//riegeli/bytes:writer",
-            "@com_google_riegeli//riegeli/records:record_reader",
-            "@com_google_riegeli//riegeli/records:record_writer",
+            "//third_party/riegeli/base:object",
+            "//third_party/riegeli/base:types",
+            "//third_party/riegeli/bytes:reader",
+            "//third_party/riegeli/bytes:writer",
+            "//third_party/riegeli/records:record_reader",
+            "//third_party/riegeli/records:record_writer",
         ],
     }),
 )
@@ -115,8 +115,8 @@ cc_library(
            select({
                "@com_google_fuzztest//fuzztest:disable_riegeli": [],
                "//conditions:default": [
-                   "@com_google_riegeli//riegeli/bytes:reader",
-                   "@com_google_riegeli//riegeli/bytes:writer",
+                   "//third_party/riegeli/bytes:reader",
+                   "//third_party/riegeli/bytes:writer",
                ],
            }),
 )
@@ -141,10 +141,10 @@ cc_library(
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
-            "@com_google_riegeli//riegeli/bytes:fd_reader",
-            "@com_google_riegeli//riegeli/bytes:fd_writer",
-            "@com_google_riegeli//riegeli/bytes:reader",
-            "@com_google_riegeli//riegeli/bytes:writer",
+            "//third_party/riegeli/bytes:fd_reader",
+            "//third_party/riegeli/bytes:fd_writer",
+            "//third_party/riegeli/bytes:reader",
+            "//third_party/riegeli/bytes:writer",
         ],
     }),
 )
