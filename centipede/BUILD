@@ -998,6 +998,10 @@ RUNNER_COPTS = [
     "-fno-sanitize=address,hwaddress,memory,thread,undefined",
 ]
 
+RUNNER_SANITIZED_COPTS = [
+    "-fsanitize-coverage=0",
+]
+
 RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
     "-lrt",  # for shm_open
@@ -1021,6 +1025,20 @@ cc_library(
     srcs = RUNNER_SOURCES_NO_MAIN,
     hdrs = ["runner_interface.h"],
     copts = RUNNER_COPTS,
+    linkopts = RUNNER_LINKOPTS,
+    linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
+    visibility = ["//visibility:public"],
+    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
+)
+
+# Same as :centipede_runner_no_main, except it can be sanitized to avoid false
+# positives like
+# https://github.com/google/sanitizers/wiki/AddressSanitizerContainerOverflow#false-positives
+cc_library(
+    name = "centipede_runner_no_main_sanitized",
+    srcs = RUNNER_SOURCES_NO_MAIN,
+    hdrs = ["runner_interface.h"],
+    copts = RUNNER_SANITIZED_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
