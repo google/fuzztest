@@ -147,6 +147,9 @@ void SampleSeedCorpusElementsFromSource(    //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     InputAndFeaturesVec& elements) {
+  CHECK_EQ(coverage_binary_name.empty(), coverage_binary_hash.empty())
+      << "Binary name and hash should both be either provided or empty";
+
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
       /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
       /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
@@ -326,9 +329,10 @@ void WriteSeedCorpusElementsToDestination(  //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     const SeedCorpusDestination& destination) {
+  CHECK_EQ(coverage_binary_name.empty(), coverage_binary_hash.empty())
+      << "Binary name and hash should both be either provided or empty";
+
   CHECK(!elements.empty());
-  CHECK(!coverage_binary_name.empty());
-  CHECK(!coverage_binary_hash.empty());
   CHECK(!destination.dir_path().empty());
 
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
