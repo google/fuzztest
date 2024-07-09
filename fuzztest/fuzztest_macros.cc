@@ -2,7 +2,7 @@
 
 #include <cerrno>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -17,6 +17,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "./fuzztest/internal/io.h"
 
 namespace fuzztest {
 

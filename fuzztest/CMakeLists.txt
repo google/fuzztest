@@ -57,6 +57,7 @@ fuzztest_cc_library(
   SRCS
     "fuzztest_macros.cc"
   DEPS
+    fuzztest::io
     fuzztest::registration
     fuzztest::registry
 )
@@ -376,6 +377,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::corpus_database
+    fuzztest::io
     fuzztest::registry
     fuzztest::runtime
     absl::strings
@@ -402,9 +404,16 @@ fuzztest_cc_library(
   SRCS
     "internal/io.cc"
   DEPS
+    fuzztest::blob_file
+    fuzztest::defs
     fuzztest::logging
+    fuzztest::remote_file
+    absl::function_ref
     absl::hash
+    absl::status
     absl::str_format
+    absl::string_view
+    absl::span
 )
 
 fuzztest_cc_test(
@@ -413,8 +422,12 @@ fuzztest_cc_test(
   SRCS
     "internal/io_test.cc"
   DEPS
+    fuzztest::blob_file
+    fuzztest::defs
     fuzztest::fuzztest_core
     fuzztest::io
+    absl::check
+    absl::status
     absl::strings
     GTest::gmock_main
 )
@@ -512,19 +525,20 @@ fuzztest_cc_library(
     fuzztest::fixture_driver
     fuzztest::io
     fuzztest::logging
-    fuzztest::meta
     fuzztest::printer
     fuzztest::registration
     fuzztest::seed_seq
     fuzztest::serialization
-    fuzztest::type_support
+    fuzztest::status
     absl::any_invocable
+    absl::bind_front
     absl::function_ref
     absl::check
     absl::random_random
     absl::random_bit_gen_ref
     absl::random_distributions
     absl::status
+    absl::statusor
     absl::strings
     absl::str_format
     absl::time

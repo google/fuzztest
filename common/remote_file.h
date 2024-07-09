@@ -102,6 +102,9 @@ void RemoteFileGetContents(std::string_view path, std::string &contents);
 // Returns true if `path` exists.
 bool RemotePathExists(std::string_view path);
 
+// Returns true if `path` is a directory.
+bool RemotePathIsDirectory(std::string_view path);
+
 // Returns the size of the file at `path` in bytes. The file must exist.
 int64_t RemoteFileGetSize(std::string_view path);
 

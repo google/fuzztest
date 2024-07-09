@@ -125,6 +125,10 @@ bool RemotePathExists(std::string_view path) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
+bool RemotePathIsDirectory(std::string_view path) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
 std::vector<std::string> RemoteListFiles(std::string_view path,
                                          bool recursively) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
@@ -149,6 +153,10 @@ void RemoteMkdir(std::string_view path) {
 
 bool RemotePathExists(std::string_view path) {
   return std::filesystem::exists(path);
+}
+
+bool RemotePathIsDirectory(std::string_view path) {
+  return std::filesystem::is_directory(path);
 }
 
 std::vector<std::string> RemoteListFiles(std::string_view path,
