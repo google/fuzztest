@@ -28,12 +28,13 @@ target_link_libraries(
   PUBLIC
   protobuf::libprotobuf
   test_protobuf
+  absl::algorithm_container
   absl::function_ref
   absl::str_format
+  absl::strings
   absl::time
   fuzztest_googletest_fixture_adapter
   fuzztest_logging
-  fuzztest_status
 )
 link_fuzztest(fuzz_tests_for_functional_testing.stripped)
 set_target_properties(

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "./fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -34,7 +35,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/text_format.h"
 #include "re2/re2.h"
@@ -579,7 +579,7 @@ void MathFunctions(const TestProtobuf& input) {
   if (
       // Basic operations.
       d[0] < 0                    // Negative.
-      && i[0] > 0                 // Postive.
+      && i[0] > 0                 // Positive.
       && std::fabs(d[0]) == i[0]  // |x|.
 
       // Remainder and qoutient functions.
@@ -1045,7 +1045,7 @@ bool CanSupervise(const Person& person1, const Person& person2) {
   return false;
 }
 
-// Determine wether `input` has at least two direct or indirect legal
+// Determine whether `input` has at least two direct or indirect legal
 // supervisor (18 <= supervisor.age <= 80), one of which is local.
 void HasLegalSupervisors(const Person& input) {
   if (!NeedsValidSupervisor(input)) return;

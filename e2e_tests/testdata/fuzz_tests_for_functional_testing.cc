@@ -30,7 +30,7 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include "./fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/match.h"
@@ -38,9 +38,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./fuzztest/fuzztest.h"
-#include "./fuzztest/init_fuzztest.h"
-#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
@@ -818,9 +815,3 @@ void SkipInputs(uint32_t input) {
 FUZZ_TEST(MySuite, SkipInputs).WithSeeds({1});
 
 }  // namespace
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  fuzztest::InitFuzzTest(&argc, &argv, fuzztest::internal::Basename(argv[0]));
-  return RUN_ALL_TESTS();
-}

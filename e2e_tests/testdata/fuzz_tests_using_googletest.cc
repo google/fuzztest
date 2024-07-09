@@ -19,11 +19,10 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <limits>
 
 #include "gtest/gtest.h"
-#include "absl/strings/match.h"
 #include "./fuzztest/fuzztest.h"
+#include "absl/strings/match.h"
 #include "./fuzztest/googletest_fixture_adapter.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 

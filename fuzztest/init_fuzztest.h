@@ -3,7 +3,6 @@
 
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <vector>
 
 namespace fuzztest {
@@ -36,6 +35,7 @@ void ParseAbslFlags(int argc, char** argv);
 // REQUIRES: `main()` has started before calling this function.
 // REQUIRES: Abseil flags have been inited, either using
 //           ParseAbslFlags or some other means
+//
 void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id = {});
 
 // Returns a list of all registered fuzz test names in the form of

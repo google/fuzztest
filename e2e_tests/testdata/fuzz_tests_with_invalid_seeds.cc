@@ -14,7 +14,7 @@
 
 // Fuzz test examples to be used by `functional_test` only.
 
-#include "./fuzztest/fuzztest_core.h"
+#include "./fuzztest/fuzztest.h"
 
 namespace {
 

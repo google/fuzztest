@@ -27,7 +27,6 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,9 +34,9 @@
 #include <utility>
 #include <vector>
 
+#include "./fuzztest/fuzztest.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "./fuzztest/fuzztest.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 volatile int googlefuzz_force_write;
@@ -370,7 +369,7 @@ auto SwitchTest(unsigned int x) {
 FUZZ_TEST(MySuite, SwitchTest);
 
 // Enabled by including absolute distance in the CMP coverage score.
-// Path-dependends-on-states could be somehow explored by a fair
+// Path-dependent-on-states could be somehow explored by a fair
 // scoring of the state data. With Absolute distance, this test will be
 // captured.
 auto PathDependentState(char a, char b, char c, char d) {

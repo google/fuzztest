@@ -117,6 +117,7 @@ cc_library(
         ":configuration",
         ":flag_name",
         ":googletest_adaptor",
+        ":io",
         ":logging",
         ":registry",
         ":runtime",

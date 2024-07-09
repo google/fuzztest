@@ -15,8 +15,8 @@
 #include <random>
 
 #include "gtest/gtest.h"
+#include "./fuzztest/fuzztest.h"
 #include "absl/strings/str_format.h"
-#include "./fuzztest/fuzztest_core.h"
 
 namespace {
 

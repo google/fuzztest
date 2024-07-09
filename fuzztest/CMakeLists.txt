@@ -83,6 +83,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::googletest_adaptor
+    fuzztest::io
     fuzztest::logging
     fuzztest::registry
     fuzztest::runtime

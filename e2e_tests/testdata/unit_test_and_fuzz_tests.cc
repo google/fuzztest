@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "gtest/gtest.h"
-#include "./fuzztest/fuzztest_core.h"
+#include "./fuzztest/fuzztest.h"
 
 namespace {
 
