@@ -487,7 +487,15 @@ void GenerateSeedCorpusFromConfig(          //
     LOG(WARNING) << "Config is empty: skipping seed corpus generation";
     return;
   }
+  GenerateSeedCorpusFromConfig(  //
+      config, coverage_binary_name, coverage_binary_hash, override_out_dir);
+}
 
+void GenerateSeedCorpusFromConfig(          //
+    const SeedCorpusConfig& config,         //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
+    std::string_view override_out_dir) {
   // Pre-create the destination dir early to catch possible misspellings etc.
   if (!RemotePathExists(config.destination().dir_path())) {
     RemoteMkdir(config.destination().dir_path());

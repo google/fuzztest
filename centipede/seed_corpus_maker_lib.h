@@ -93,6 +93,13 @@ void GenerateSeedCorpusFromConfig(          //
     std::string_view coverage_binary_hash,  //
     std::string_view override_out_dir = "");
 
+// Same as above but accepts a `SeedCorpusConfig` directly.
+void GenerateSeedCorpusFromConfig(          //
+    const SeedCorpusConfig& config,         //
+    std::string_view coverage_binary_name,  //
+    std::string_view coverage_binary_hash,  //
+    std::string_view override_out_dir = "");
+
 }  // namespace centipede
 
 #endif  // THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_
