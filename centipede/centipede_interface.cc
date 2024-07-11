@@ -516,23 +516,27 @@ int CentipedeMain(const Environment &env,
   const auto tmpdir = TemporaryLocalDirPath();
   CreateLocalDirRemovedAtExit(tmpdir);
 
-  const std::string serialized_target_config = [&] {
-    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
-    return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
-  }();
-  if (!serialized_target_config.empty()) {
-    const auto target_config = fuzztest::internal::Configuration::Deserialize(
-        serialized_target_config);
-    CHECK_OK(target_config.status())
-        << "Failed to deserialize target configuration";
-    if (!target_config->corpus_database.empty()) {
-      CHECK(target_config->time_limit_per_test < absl::InfiniteDuration())
-          << "Updating corpus database requires specifying time limit per fuzz "
-             "test.";
-      CHECK(target_config->time_limit_per_test >= absl::Seconds(1))
-          << "Time limit per fuzz test must be at least 1 second.";
-      return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
-                                              callbacks_factory);
+  // Enter the update corpus database mode only if we have a binary to invoke
+  // and a corpus database to update.
+  if (!env.binary.empty()) {
+    const std::string serialized_target_config = [&] {
+      ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+      return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
+    }();
+    if (!serialized_target_config.empty()) {
+      const auto target_config = fuzztest::internal::Configuration::Deserialize(
+          serialized_target_config);
+      CHECK_OK(target_config.status())
+          << "Failed to deserialize target configuration";
+      if (!target_config->corpus_database.empty()) {
+        CHECK(target_config->time_limit_per_test < absl::InfiniteDuration())
+            << "Updating corpus database requires specifying time limit per "
+               "fuzz test.";
+        CHECK(target_config->time_limit_per_test >= absl::Seconds(1))
+            << "Time limit per fuzz test must be at least 1 second.";
+        return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
+                                                callbacks_factory);
+      }
     }
   }
 
