@@ -56,6 +56,8 @@
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/seed_corpus_config.pb.h"
+#include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -345,6 +347,30 @@ int PruneNonreproducibleAndCountRemainingCrashes(
   return num_remaining_crashes;
 }
 
+// Seeds the corpus files in `env.workdir` with the previously distilled corpus
+// files from `src_dir`.
+SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
+                                     std::string_view src_dir) {
+  const WorkDir workdir{env};
+  SeedCorpusConfig seed_corpus_config;
+  SeedCorpusSource &src = *seed_corpus_config.mutable_sources()->Add();
+  src.set_dir_glob(src_dir);
+  src.set_num_recent_dirs(1);
+  // We're using the previously distilled corpus files as seeds.
+  src.set_shard_rel_glob(
+      std::filesystem::path{workdir.DistilledCorpusFiles().AllShardsGlob()}
+          .filename());
+  src.set_sampled_fraction(1.0);
+  SeedCorpusDestination &dst = *seed_corpus_config.mutable_destination();
+  dst.set_dir_path(env.workdir);
+  // We're seeding the current corpus files.
+  dst.set_shard_rel_glob(
+      std::filesystem::path{workdir.CorpusFiles().AllShardsGlob()}.filename());
+  dst.set_shard_index_digits(WorkDir::kDigitsInShardIndex);
+  dst.set_num_shards(env.num_threads);
+  return seed_corpus_config;
+}
+
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration &fuzztest_config,
     CentipedeCallbacksFactory &callbacks_factory) {
@@ -407,9 +433,21 @@ int UpdateCorpusDatabaseForFuzzTests(
       // assumptions under which it is safe to reuse an old workdir.
       RemotePathDelete(env.workdir, /*recursively=*/true);
     }
-    is_resuming = false;
     const WorkDir workdir{env};
     RemoteMkdir(workdir.CoverageDirPath());  // Implicitly creates the workdir.
+
+    // Seed the fuzzing session with the latest coverage corpus from the
+    // previous fuzzing session.
+    const std::filesystem::path fuzztest_db_path =
+        corpus_database_path / fuzztest_config.fuzz_tests[i];
+    const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
+    if (RemotePathExists(coverage_dir.c_str()) && !is_resuming) {
+      GenerateSeedCorpusFromConfig(
+          GetSeedCorpusConfig(env, coverage_dir.c_str()), env.binary_name,
+          env.binary_hash);
+    }
+    is_resuming = false;
+
     // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
     env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
@@ -424,9 +462,6 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // Distill and store the coverage corpus.
     Distill(env);
-    const std::filesystem::path fuzztest_db_path =
-        corpus_database_path / fuzztest_config.fuzz_tests[i];
-    const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
     if (RemotePathExists(coverage_dir.c_str())) {
       // In the future, we will store k latest coverage corpora for some k, but
       // for now we only keep the latest one.

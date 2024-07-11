@@ -795,6 +795,8 @@ cc_library(
         ":minimize_crash",
         ":pc_info",
         ":runner_result",
+        ":seed_corpus_config_cc_proto",
+        ":seed_corpus_maker_lib",
         ":stats",
         ":util",
         ":workdir",
