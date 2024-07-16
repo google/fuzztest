@@ -273,6 +273,7 @@ fuzztest_cc_library(
     absl::random_bit_gen_ref
     absl::random_distributions
     absl::status
+    absl::statusor
     absl::strings
     absl::synchronization
     absl::span
@@ -474,6 +475,9 @@ fuzztest_cc_library(
     absl::flat_hash_map
     absl::random_bit_gen_ref
     absl::random_distributions
+    absl::status
+    absl::statusor
+    absl::strings
     re2::re2
 )
 

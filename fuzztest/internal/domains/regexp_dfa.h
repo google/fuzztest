@@ -26,6 +26,8 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/distributions.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 #include "re2/re2.h"
@@ -179,9 +181,9 @@ class RegexpDFA {
     return result;
   }
 
-  std::optional<std::vector<Edge>> StringToDFAPath(absl::string_view s) const;
+  absl::StatusOr<std::vector<Edge>> StringToDFAPath(absl::string_view s) const;
 
-  std::optional<std::string> DFAPathToString(
+  absl::StatusOr<std::string> DFAPathToString(
       const std::vector<Edge>& path, size_t start_offset = 0,
       std::optional<size_t> end = std::nullopt) const;
 

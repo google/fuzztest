@@ -184,9 +184,11 @@ TEST(InRegexp, ValidationRejectsInvalidValue) {
   ASSERT_OK(domain_b.ValidateCorpusValue(*corpus_value_b));
 
   EXPECT_THAT(domain_a.ValidateCorpusValue(*corpus_value_b),
-              IsInvalid("Invalid value for InRegexp(\"a(c|d)+(e|f)+b\")"));
+              IsInvalid("Invalid value for InRegexp(\"a(c|d)+(e|f)+b\") >> "
+                        "Invalid DFA path."));
   EXPECT_THAT(domain_b.ValidateCorpusValue(*corpus_value_a),
-              IsInvalid("Invalid value for InRegexp(\"A{2,10}D{2,10}\")"));
+              IsInvalid("Invalid value for InRegexp(\"A{2,10}D{2,10}\") >> "
+                        "Invalid DFA path."));
 }
 
 struct InRegexString {

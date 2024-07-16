@@ -27,6 +27,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/discrete_distribution.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/logging.h"
 #include "re2/prog.h"
@@ -42,7 +45,7 @@ RegexpDFA RegexpDFA::Create(absl::string_view regexp) {
   return dfa;
 }
 
-std::optional<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
+absl::StatusOr<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
     absl::string_view s) const {
   std::vector<RegexpDFA::Edge> path;
   int state_id = 0;
@@ -56,18 +59,24 @@ std::optional<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
   while (cur_index < characters.size()) {
     std::optional<int> edge_index =
         NextState(states_[state_id], characters, cur_index);
-    if (!edge_index.has_value()) return std::nullopt;
+    if (!edge_index.has_value()) {
+      return absl::InternalError("Error while matching a string with a DFA.");
+    }
     path.push_back({state_id, *edge_index});
     state_id = states_[state_id].next[*edge_index].next_state_id;
   }
-  FUZZTEST_INTERNAL_CHECK(states_[state_id].is_end_state(),
-                          "Didn't reach an end state.");
-  FUZZTEST_INTERNAL_CHECK(cur_index == characters.size() && !path.empty(),
-                          "Impossible case!");
+  if (!states_[state_id].is_end_state()) {
+    return absl::InvalidArgumentError(
+        "Didn't reach an end state while matching a string with a DFA.");
+  }
+  if (cur_index != characters.size() || path.empty()) {
+    return absl::InternalError(
+        "Impossible case while matching a string with a DFA!");
+  }
   return path;
 }
 
-std::optional<std::string> RegexpDFA::DFAPathToString(
+absl::StatusOr<std::string> RegexpDFA::DFAPathToString(
     const std::vector<RegexpDFA::Edge>& path, size_t start_offset,
     std::optional<size_t> end_offset) const {
   if (!end_offset.has_value()) end_offset = path.size();
@@ -77,14 +86,15 @@ std::optional<std::string> RegexpDFA::DFAPathToString(
     auto& [from_state_id, edge_index] = path[i];
     if (from_state_id >= states_.size() ||
         edge_index >= states_[from_state_id].next.size()) {
-      return std::nullopt;
+      return absl::InvalidArgumentError("Invalid DFA path.");
     }
     const std::vector<std::int16_t>& chars_to_match =
         states_[from_state_id].next[edge_index].chars_to_match;
     result.insert(result.end(), chars_to_match.begin(), chars_to_match.end());
     if (chars_to_match.back() == kEndOfString) {
-      FUZZTEST_INTERNAL_CHECK(i == *end_offset - 1,
-                              "End state should be the last.");
+      if (i != *end_offset - 1) {
+        return absl::InvalidArgumentError("End state should be the last.");
+      }
       result.pop_back();
       break;
     }

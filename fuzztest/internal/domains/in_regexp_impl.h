@@ -25,11 +25,15 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/regexp_dfa.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -45,9 +49,9 @@ class InRegexpImpl
 
   DFAPath Init(absl::BitGenRef prng) {
     if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
-    std::optional<DFAPath> path =
+    absl::StatusOr<DFAPath> path =
         dfa_.StringToDFAPath(dfa_.GenerateString(prng));
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.has_value(),
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.ok(),
                                          "Init should generate valid paths");
     return *path;
   }
@@ -98,22 +102,22 @@ class InRegexpImpl
         new_path.push_back(path[i]);
       }
     }
-    FUZZTEST_INTERNAL_CHECK(
-        dfa_.StringToDFAPath(*dfa_.DFAPathToString(new_path)).has_value(),
-        "Mutation generate invalid strings");
+    ValidatePathRoundtrip(new_path);
     path = std::move(new_path);
   }
 
   auto GetPrinter() const { return StringPrinter{}; }
 
   value_type GetValue(const corpus_type& v) const {
-    std::optional<std::string> val = dfa_.DFAPathToString(v);
-    FUZZTEST_INTERNAL_CHECK(val.has_value(), "Corpus is invalid!");
+    absl::StatusOr<std::string> val = dfa_.DFAPathToString(v);
+    FUZZTEST_INTERNAL_CHECK(val.ok(), "Corpus is invalid!");
     return *val;
   }
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
-    return dfa_.StringToDFAPath(v);
+    absl::StatusOr<corpus_type> path = dfa_.StringToDFAPath(v);
+    if (!path.ok()) return std::nullopt;
+    return *path;
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
@@ -143,12 +147,20 @@ class InRegexpImpl
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Check whether this is a valid path in the DFA.
-    if (dfa_.DFAPathToString(corpus_value).has_value()) return absl::OkStatus();
-    return absl::InvalidArgumentError(
-        absl::StrCat("Invalid value for InRegexp(\"", regex_str_, "\")"));
+    absl::StatusOr<std::string> str = dfa_.DFAPathToString(corpus_value);
+    if (str.ok()) return absl::OkStatus();
+    return Prefix(str.status(), absl::StrCat("Invalid value for InRegexp(\"",
+                                             regex_str_, "\")"));
   }
 
  private:
+  void ValidatePathRoundtrip(const DFAPath& path) const {
+    absl::StatusOr<std::string> str = dfa_.DFAPathToString(path);
+    FUZZTEST_INTERNAL_CHECK(str.ok(), "Invalid path in the DFA!");
+    absl::StatusOr<DFAPath> new_path = dfa_.StringToDFAPath(*str);
+    FUZZTEST_INTERNAL_CHECK(new_path.ok(), "Invalid path in the DFA!");
+  }
+
   // Remove a random loop in the DFA path and return the string from the
   // modified path. A loop is a subpath that starts and ends with the same
   // state.
@@ -171,9 +183,7 @@ class InRegexpImpl
       // Delete the detected loop.
       path.erase(path.begin() + loop_indexes[loop_start],
                  path.begin() + loop_indexes[loop_end]);
-      FUZZTEST_INTERNAL_CHECK(
-          dfa_.StringToDFAPath(*dfa_.DFAPathToString(path)).has_value(),
-          "The mutated path is invalid!");
+      ValidatePathRoundtrip(path);
       return true;
     }
     return false;
@@ -226,9 +236,7 @@ class InRegexpImpl
       for (size_t idx = to_index; idx < path.size(); ++idx) {
         new_path.push_back(path[idx]);
       }
-      FUZZTEST_INTERNAL_CHECK(
-          dfa_.StringToDFAPath(*dfa_.DFAPathToString(new_path)).has_value(),
-          "The mutated path is invalid!");
+      ValidatePathRoundtrip(new_path);
       path = std::move(new_path);
       return true;
     }
