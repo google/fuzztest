@@ -301,6 +301,7 @@ fuzztest_cc_library(
     "internal/domains/optional_of_impl.h"
     "internal/domains/serialization_helpers.h"
     "internal/domains/smart_pointer_of_impl.h"
+    "internal/domains/special_values.h"
     "internal/domains/unique_elements_container_of_impl.h"
     "internal/domains/value_mutation_helpers.h"
     "internal/domains/variant_of_impl.h"

@@ -45,6 +45,7 @@
 #include "./fuzztest/internal/domains/one_of_impl.h"
 #include "./fuzztest/internal/domains/optional_of_impl.h"
 #include "./fuzztest/internal/domains/smart_pointer_of_impl.h"
+#include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/meta.h"
@@ -131,14 +132,8 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     if constexpr (sizeof(T) == 1) {
       return ChooseFromAll(prng);
     } else {
-      static constexpr T special[] = {
-          T{0}, T{1},
-          // For some types, ~T{} is promoted to int. Convert back to T.
-          static_cast<T>(~T{}),
-          std::numeric_limits<T>::is_signed
-              ? std::numeric_limits<T>::max()
-              : std::numeric_limits<T>::max() >> 1};
-      return ChooseOneOr(special, prng, [&] { return ChooseFromAll(prng); });
+      return ChooseOneOr(SpecialValues<T>::Get(), prng,
+                         [&] { return ChooseFromAll(prng); });
     }
   }
 
@@ -253,12 +248,7 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
 
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const T special[] = {
-        T{0.0}, T{-0.0}, T{1.0}, T{-1.0}, std::numeric_limits<T>::max(),
-        std::numeric_limits<T>::infinity(), -std::numeric_limits<T>::infinity(),
-        // std::nan is double. Cast to T explicitly.
-        static_cast<T>(std::nan(""))};
-    return ChooseOneOr(special, prng,
+    return ChooseOneOr(SpecialValues<T>::Get(), prng,
                        [&] { return absl::Uniform(prng, T{0}, T{1}); });
   }
 

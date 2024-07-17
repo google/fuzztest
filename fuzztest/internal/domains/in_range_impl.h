@@ -21,6 +21,8 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
@@ -29,6 +31,7 @@
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
@@ -88,8 +91,16 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
 
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    // TODO(sbenzaquen): Add more interesting points in the range.
-    const T special[] = {min_, max_};
+
+    const auto default_specials = SpecialValues<T>::Get();
+
+    std::vector<value_type> special = {min_, max_};
+    std::copy_if(std::begin(default_specials), std::end(default_specials),
+                 std::back_inserter(special), [&](const value_type& val) {
+                   // Strict inequality so we don't double-count the endpoints.
+                   return min_ < val && val < max_;
+                 });
+
     return ChooseOneOr(special, prng, [&] {
       return absl::Uniform(absl::IntervalClosedClosed, prng, min_, max_);
     });

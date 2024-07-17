@@ -217,6 +217,22 @@ TYPED_TEST(NumericTest, InRangeValidationRejectsInvalidRange) {
       IsInvalid(testing::MatchesRegex(R"(The value .+ is not InRange\(.+\))")));
 }
 
+TYPED_TEST(NumericTest, InRangeGeneratesSpecialValues) {
+  using T = TypeParam;
+  auto domain = InRange<T>(T{0}, T{127});
+
+  absl::flat_hash_set<T> values;
+  absl::BitGen prng;
+  for (int i = 0;
+       !(values.contains(T{0}) && values.contains(T{1})) &&
+       i < IterationsToHitAll(/*num_cases=*/2, /*hit_probability=*/1.0 / 4);
+       ++i) {
+    values.insert(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(values, AllOf(Contains(T{0}), Contains(T{1})));
+}
+
 TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
   using T = TypeParam;
   const T min = std::numeric_limits<T>::is_signed ? -100 : 10;
@@ -301,9 +317,7 @@ TEST(InRange, InitGeneratesSeeds) {
 TEST(InRange, InitGeneratesSeedsFromSeedProvider) {
   auto domain =
       InRange(std::numeric_limits<int>::min(), std::numeric_limits<int>::max())
-          .WithSeeds([]() -> std::vector<int> {
-            return {7, 42};
-          });
+          .WithSeeds([]() -> std::vector<int> { return {7, 42}; });
 
   EXPECT_THAT(GenerateInitialValues(domain, 1000),
               AllOf(Contains(Value(domain, 7)), Contains(Value(domain, 42))));
