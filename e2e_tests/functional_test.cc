@@ -673,6 +673,21 @@ TEST_F(GetRandomValueTest, SettingPrngSeedReproducesValue) {
   EXPECT_EQ(val, other_val);
 }
 
+std::string CentipedePath() {
+  const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      !test_srcdir.empty(),
+      "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
+      "test.");
+  const std::string binary_path = absl::StrCat(
+      test_srcdir,
+      "/com_google_fuzztest/centipede/centipede_uninstrumented");
+
+  FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
+                          absl::StrCat("Can't find ", binary_path));
+  return binary_path;
+}
+
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
@@ -1215,19 +1230,25 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
   EXPECT_THAT(replayer_std_err, Not(HasSubstr("Skipped input")));
 }
 
-std::string CentipedePath() {
-  const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      !test_srcdir.empty(),
-      "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
-      "test.");
-  const std::string binary_path = absl::StrCat(
-      test_srcdir,
-      "/com_google_fuzztest/centipede/centipede_uninstrumented");
-
-  FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
-                          absl::StrCat("Can't find ", binary_path));
-  return binary_path;
+TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir temp_dir;
+  const std::string corpus_database =
+      absl::StrCat(temp_dir.dirname(), "/corpus_database");
+  auto [status, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "1s"},
+          {"corpus_database", corpus_database},
+      },
+      {{"FUZZTEST_CENTIPEDE_BINARY", CentipedePath()}},
+      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
+  EXPECT_THAT(
+      std_err,
+      HasSubstr("Starting the update of the corpus database for fuzz tests"));
+  EXPECT_THAT(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 struct ExecutionModelParam {
