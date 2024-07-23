@@ -55,6 +55,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
+#include "./centipede/periodic_action.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/seed_corpus_maker_lib.h"
@@ -139,36 +140,6 @@ int ForEachBlob(const Environment &env) {
   return EXIT_SUCCESS;
 }
 
-// Runs in a dedicated thread, periodically calls PrintExperimentStats
-// on `stats_vec` and `envs`.
-// Stops when `continue_running` becomes false.
-// Exits immediately if --experiment flag is not used.
-void ReportStatsThread(const std::atomic<bool> &continue_running,
-                       const std::vector<std::atomic<Stats>> &stats_vec,
-                       const std::vector<Environment> &envs) {
-  CHECK(!envs.empty());
-
-  std::vector<std::unique_ptr<StatsReporter>> reporters;
-  reporters.emplace_back(
-      std::make_unique<StatsCsvFileAppender>(stats_vec, envs));
-  if (!envs.front().experiment.empty() || ABSL_VLOG_IS_ON(1)) {
-    reporters.emplace_back(std::make_unique<StatsLogger>(stats_vec, envs));
-  }
-
-  // TODO(ussuri): Use constant time increments for CSV generation?
-  for (int i = 0; continue_running; ++i) {
-    // Sleep at least a few seconds, and at most 600.
-    int seconds_to_sleep = std::clamp(i, 5, 600);
-    // Sleep(1) in a loop so that we check continue_running once a second.
-    while (--seconds_to_sleep && continue_running) {
-      absl::SleepFor(absl::Seconds(1));
-    }
-    for (auto &reporter : reporters) {
-      reporter->ReportCurrStats();
-    }
-  }
-}
-
 // Loads corpora from work dirs provided in `env.args`, if there are two args
 // provided, analyzes differences. If there is one arg provided, reports the
 // function coverage. Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
@@ -230,11 +201,31 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
 
   std::vector<Environment> envs(env.num_threads, env);
   std::vector<std::atomic<Stats>> stats_vec(env.num_threads);
-  std::atomic<bool> stats_thread_continue_running = true;
 
-  std::thread stats_thread(ReportStatsThread,
-                           std::ref(stats_thread_continue_running),
-                           std::ref(stats_vec), std::ref(envs));
+  // Start periodic stats dumping and, optionally, logging.
+  std::vector<PeriodicAction> stats_reporters;
+  stats_reporters.emplace_back(
+      [csv_appender = StatsCsvFileAppender{stats_vec, envs}]() mutable {
+        csv_appender.ReportCurrStats();
+      },
+      PeriodicAction::Options{
+          .sleep_before_each =
+              [](size_t iteration) {
+                return absl::Minutes(std::clamp(iteration, 0UL, 10UL));
+              },
+      });
+  if (!envs.front().experiment.empty() || ABSL_VLOG_IS_ON(1)) {
+    stats_reporters.emplace_back(
+        [logger = StatsLogger{stats_vec, envs}]() mutable {
+          logger.ReportCurrStats();
+        },
+        PeriodicAction::Options{
+            .sleep_before_each =
+                [](size_t iteration) {
+                  return absl::Seconds(std::clamp(iteration, 5UL, 600UL));
+                },
+        });
+  }
 
   auto fuzzing_worker = [&](Environment &my_env, std::atomic<Stats> &stats,
                             bool create_tmpdir) {
@@ -274,8 +265,9 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
     }
   }
 
-  stats_thread_continue_running = false;
-  stats_thread.join();
+  for (auto &reporter : stats_reporters) {
+    reporter.Stop();
+  }
 
   if (!env.knobs_file.empty()) PrintRewardValues(stats_vec, std::cerr);
 

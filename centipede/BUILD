@@ -793,6 +793,7 @@ cc_library(
         ":environment",
         ":minimize_crash",
         ":pc_info",
+        ":periodic_action",
         ":runner_result",
         ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
