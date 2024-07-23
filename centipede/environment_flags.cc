@@ -287,15 +287,24 @@ ABSL_FLAG(std::string, runner_dl_path_suffix,
           "The value could be the full path, like '/path/to/my.so' "
           "or a suffix, like '/my.so' or 'my.so'."
           "This flag is experimental and may be removed in future");
-// TODO(kcc): --distill and several others better be sub-command, not flags.
+// TODO(kcc): --distill and several others had better be dedicated binaries.
 ABSL_FLAG(bool, distill, default_env->distill,
-          "Experimental reimplementation of distillation - not ready yet. "
-          "All `total_shards` shards of the corpus in `workdir` are loaded "
-          "together with features for `binary`. "
-          "`num_threads` independent distillation threads work concurrently "
-          "loading the shards in random order. "
-          "Each distillation thread writes a minimized (distilled) "
-          "corpus to workdir/distilled-BINARY.`my_shard_index`.");
+          "Distill (minimize) the --total_shards input shards from --workdir "
+          "into --num_threads output shards. The input shards are randomly and "
+          "evenly divided between --num_threads concurrent distillation "
+          "threads to speed up processing. The threads share and update the "
+          "global coverage info as they go, so the output shards will never "
+          "have identical input/feature pairs (some intputs can still be "
+          "identical if a non-deterministic target produced different features "
+          "for identical inputs in the corpus). The features.* files are "
+          "looked up in a --workdir subdirectory that corresponds to "
+          "--coverage_binary and --binary_hash, if --binary_hash is provided; "
+          "if it is not provided, the actual hash of the --coverage_binary "
+          "file on disk is computed and used. Therefore, with an explicit "
+          "--binary_hash, --coverage_binary can be just the basename of the "
+          "actual target binary; without it, it must be the full path. "
+          "Each distillation thread writes a distilled corpus shard to "
+          "to <--workdir>/distilled-<--coverage_binary basename>.<index>.");
 ABSL_RETIRED_FLAG(size_t, distill_shards, 0,
                   "No longer supported: use --distill instead.");
 ABSL_FLAG(size_t, log_features_shards, default_env->log_features_shards,

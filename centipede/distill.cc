@@ -428,7 +428,7 @@ int Distill(const Environment &env, const DistillOptions &opts) {
             .interval = absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60),
         },
     };
-    // The RAM pool shared between all the `DistillTask()` threads.
+    // The RAM pool shared between all the `DistillToOneOutputShard()` threads.
     perf::ResourcePool ram_pool{kRamQuota};
     const size_t num_threads = std::min(env.num_threads, kMaxWritingThreads);
     ThreadPool threads{static_cast<int>(num_threads)};
