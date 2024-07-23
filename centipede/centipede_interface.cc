@@ -94,9 +94,15 @@ void SetSignalHandlers(absl::Time stop_at) {
     const absl::Duration stop_in = stop_at - absl::Now();
     // Setting an alarm works only if the delay is longer than 1 second.
     if (stop_in >= absl::Seconds(1)) {
+      unsigned int seed = GetRandomSeed(0);
+      // Desynchronize Centipede tasks by adding a random delay of up to 10
+      // seconds to avoid traffic spikes caused by multiple tasks exiting
+      // simultaneously.
+      absl::Duration jitter = absl::Seconds(rand_r(&seed) % 10);
       LOG(INFO) << "Setting alarm for --stop_at time " << stop_at << " (in "
-                << stop_in << ")";
-      PCHECK(alarm(absl::ToInt64Seconds(stop_in)) == 0) << "Alarm already set";
+                << stop_in << ") + " << jitter << "s of jitter";
+      PCHECK(alarm(absl::ToInt64Seconds(stop_in + jitter)) == 0)
+          << "Alarm already set";
     } else {
       LOG(WARNING) << "Already reached --stop_at time " << stop_at
                    << " upon starting: winding down immediately";
