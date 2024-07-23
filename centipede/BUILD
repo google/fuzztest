@@ -798,6 +798,7 @@ cc_library(
         ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
         ":stats",
+        ":thread_pool",
         ":util",
         ":workdir",
         "@com_google_absl//absl/base:core_headers",

@@ -24,12 +24,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "absl/base/optimization.h"
@@ -60,6 +58,7 @@
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
@@ -227,20 +226,23 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
         });
   }
 
-  auto fuzzing_worker = [&](Environment &my_env, std::atomic<Stats> &stats,
-                            bool create_tmpdir) {
-    if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-    my_env.UpdateForExperiment();
-    my_env.seed = GetRandomSeed(env.seed);  // uses TID, call in this thread.
-    my_env.pcs_file_path = pcs_file_path;   // same for all threads.
+  auto fuzzing_worker =
+      [&env, pcs_file_path, &callbacks_factory, &binary_info, &coverage_logger](
+          Environment &my_env, std::atomic<Stats> &stats, bool create_tmpdir) {
+        if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+        my_env.UpdateForExperiment();
+        // Uses TID, call in this thread.
+        my_env.seed = GetRandomSeed(env.seed);
+        // Same for all threads.
+        my_env.pcs_file_path = pcs_file_path;
 
-    if (env.dry_run) return;
+        if (env.dry_run) return;
 
-    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env);
-    Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
-                        coverage_logger, stats);
-    centipede.FuzzingLoop();
-  };
+        ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env);
+        Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
+                            coverage_logger, stats);
+        centipede.FuzzingLoop();
+      };
 
   if (env.num_threads == 1) {
     // When fuzzing with one thread, run fuzzing loop in the current
@@ -252,17 +254,15 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
     // is thread-local and it has been created in the current function.
     fuzzing_worker(envs[0], stats_vec[0], /*create_tmpdir=*/false);
   } else {
-    std::vector<std::thread> fuzzing_worker_threads(env.num_threads);
+    ThreadPool fuzzing_worker_threads{static_cast<int>(env.num_threads)};
     for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
       Environment &my_env = envs[thread_idx];
       my_env.my_shard_index = env.my_shard_index + thread_idx;
-      fuzzing_worker_threads[thread_idx] =
-          std::thread(fuzzing_worker, std::ref(my_env),
-                      std::ref(stats_vec[thread_idx]), /*create_tmpdir=*/true);
-    }
-    for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
-      fuzzing_worker_threads[thread_idx].join();
-    }
+      std::atomic<Stats> &my_stats = stats_vec[thread_idx];
+      fuzzing_worker_threads.Schedule([&fuzzing_worker, &my_env, &my_stats]() {
+        fuzzing_worker(my_env, my_stats, /*create_tmpdir=*/true);
+      });
+    }  // All `fuzzing_worker_threads` join here.
   }
 
   for (auto &reporter : stats_reporters) {
