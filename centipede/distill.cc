@@ -421,12 +421,11 @@ int Distill(const Environment &env, const DistillOptions &opts) {
                     << " unique: " << stats.num_byte_unique_elts
                     << " distilled: " << stats.num_feature_unique_elts;
         },
-        {
-            // Seeing 0's at the beginning is not interesting, unless debugging.
-            .delay = absl::Seconds(ABSL_VLOG_IS_ON(1) ? 0 : 60),
-            // Again, increase the frequency with --v >= 1 to aid debugging.
-            .interval = absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60),
-        },
+        // Seeing 0's at the beginning is not interesting, unless debugging.
+        // Likewise, increase the frequency --v >= 1 to aid debugging.
+        PeriodicAction::ConstDelayConstInterval(
+            absl::Seconds(ABSL_VLOG_IS_ON(1) ? 0 : 60),
+            absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60)),
     };
     // The RAM pool shared between all the `DistillToOneOutputShard()` threads.
     perf::ResourcePool ram_pool{kRamQuota};

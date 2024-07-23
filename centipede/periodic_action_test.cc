@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 #include "gtest/gtest.h"
 #include "absl/time/clock.h"
@@ -33,7 +34,7 @@ TEST(PeriodicActionTest, OnlyPeriodicInvocations) {
   int count = 0;
   PeriodicAction action{
       [&count]() { ++count; },
-      {.delay = absl::ZeroDuration(), .interval = kPeriodicInterval},
+      PeriodicAction::ZeroDelayConstInterval(kPeriodicInterval),
   };
   absl::SleepFor(kDuration);
   action.Stop();
@@ -47,16 +48,18 @@ TEST(PeriodicActionTest, OnlyNudgedInvocations) {
   int count = 0;
   PeriodicAction action{
       [&count]() { ++count; },
-      // Effectively disable invocations done periodically: only explicit
-      // `Nudge()` calls below will trigger them.
-      {.delay = absl::InfiniteDuration(), .interval = absl::InfiniteDuration()},
+      {
+          // Effectively disable periodic invocations: only `Nudge()` calls
+          // below will trigger them.
+          .sleep_before_each = [](size_t) { return absl::InfiniteDuration(); },
+      },
   };
   int expected_count = 0;
   const absl::Time end_time = absl::Now() + kDuration;
   while (absl::Now() < end_time) {
     action.Nudge();
-    // Sleep after a nudge, not before, to guarantee that the action has time to
-    // finish and increment `count`.
+    // Sleep after a nudge, not before, to guarantee that the action has time
+    // to finish and increment `count`.
     absl::SleepFor(kNudgeInterval);
     ++expected_count;
   }
@@ -82,7 +85,7 @@ TEST(PeriodicActionTest, PeriodicAndNudgedInvocations) {
   int count = 0;
   PeriodicAction action{
       [&count]() { ++count; },
-      {.delay = absl::ZeroDuration(), .interval = kPeriodicInterval},
+      PeriodicAction::ZeroDelayConstInterval(kPeriodicInterval),
   };
   const absl::Time end_time = absl::Now() + kDuration;
   while (absl::Now() < end_time) {
@@ -111,7 +114,7 @@ TEST(PeriodicActionTest, ClashingPeriodicAndNudgedInvocations) {
   int count = 0;
   PeriodicAction action{
       [&count]() { ++count; },
-      {.delay = absl::ZeroDuration(), .interval = kPeriodicInterval},
+      PeriodicAction::ZeroDelayConstInterval(kPeriodicInterval),
   };
   const absl::Time end_time = absl::Now() + kDuration;
   while (absl::Now() < end_time) {

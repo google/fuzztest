@@ -33,6 +33,7 @@
 #ifndef FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 #define FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 
+#include <cstdint>
 #include <memory>
 
 #include "absl/functional/any_invocable.h"
@@ -43,15 +44,41 @@ namespace centipede {
 class PeriodicAction {
  public:
   struct Options {
-    // A delay before the first invocation of the callback. Allowed to be
-    // `absl::IniniteDuration()`: in that case, the periodic invocations are
-    // initiated only by a first explicit `Nudge()` call.
-    absl::Duration delay = absl::ZeroDuration();
-    // The interval between the end of one invocation of the callback and the
-    // start of another. Note that a nudge triggers an out-of-schedule
-    // invocation and resets the timer (see `Nudge()`).
-    absl::Duration interval = absl::InfiniteDuration();
+    // The interval to sleep for before a given iteration. Iteration numbers are
+    // 0-based.
+    //
+    // Thus, the interval before `iteration == 0` is the delay before the first
+    // invocation of the action, the interval before `iteration == 1` is the
+    // interval between the first and the second invocation, etc.
+    //
+    // This is a functor and not a fixed value to enable dynamic intervals (the
+    // caller can use static functor state for that). Note that
+    // `PeriodicAction::Nudge()` calls trigger out-of-schedule invocations and
+    // count as iterations (therefore incrementing the internal iteration
+    // counter and resetting the timer).
+    //
+    // If `sleep_before_each()` ever returns an `absl::InfiniteDuration()`, then
+    // periodic action execution will be paused and resumed only by the next
+    // `Nudge()` call.
+    absl::AnyInvocable<absl::Duration(uint64_t iter_num)> sleep_before_each;
   };
+
+  // Convenience factory methods for common options.
+  static Options ConstDelayConstInterval(  //
+      absl::Duration delay, absl::Duration interval) {
+    return {
+        [delay, interval](uint64_t i) { return i == 0 ? delay : interval; },
+    };
+  }
+  static Options ZeroDelayZeroInterval() {
+    return ConstDelayConstInterval(absl::ZeroDuration(), absl::ZeroDuration());
+  }
+  static Options ZeroDelayConstInterval(absl::Duration interval) {
+    return ConstDelayConstInterval(absl::ZeroDuration(), interval);
+  }
+  static Options ConstDelayZeroInterval(absl::Duration delay) {
+    return ConstDelayConstInterval(delay, absl::ZeroDuration());
+  }
 
   PeriodicAction(absl::AnyInvocable<void()> action, Options options);
 

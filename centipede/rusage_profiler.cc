@@ -430,10 +430,7 @@ void RUsageProfiler::StartTimelapse(  //
         const auto& s = TakeSnapshot(loc, title);
         if (also_log) s.Log();
       },
-      PeriodicAction::Options{
-          .delay = absl::ZeroDuration(),
-          .interval = interval,
-      });
+      PeriodicAction::ZeroDelayConstInterval(interval));
 }
 
 void RUsageProfiler::StopTimelapse() {

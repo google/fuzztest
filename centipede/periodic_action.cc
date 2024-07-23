@@ -14,13 +14,13 @@
 
 #include "./centipede/periodic_action.h"
 
+#include <cstdint>
 #include <memory>
 #include <thread>
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
@@ -32,12 +32,7 @@ class PeriodicAction::Impl {
   Impl(absl::AnyInvocable<void()> action, PeriodicAction::Options options)
       : action_{std::move(action)},
         options_{std::move(options)},
-        thread_{[this]() { RunLoop(); }} {
-    // NOTE: Allow `options_.delay` to be `absl::InfiniteDuration()`: that's a
-    // valid use case, where the run-loop actually starts looping only after a
-    // first explicit nudge.
-    CHECK_GT(options_.interval, absl::ZeroDuration());
-  }
+        thread_{[this]() { RunLoop(); }} {}
 
   void Stop() {
     StopAsync();
@@ -54,8 +49,8 @@ class PeriodicAction::Impl {
     if (!stop_.HasBeenNotified()) {
       // Prime the run-loop to exit next time it re-checks `stop_`.
       stop_.Notify();
-      // Nudge the run-loop out of the sleeping phase, if it's there: the loop
-      // immediately goes to re-check `stop_` and exits.
+      // Nudge the run-loop out of the sleeping phase, if it's currently idling
+      // there: the loop immediately goes to re-check `stop_` and exits.
       {
         absl::MutexLock lock{&nudge_mu_};
         nudge_ = true;
@@ -70,10 +65,13 @@ class PeriodicAction::Impl {
 
  private:
   void RunLoop() {
-    SleepUnlessWokenByNudge(options_.delay);
+    uint64_t iteration = 0;
     while (!stop_.HasBeenNotified()) {
-      action_();
-      SleepUnlessWokenByNudge(options_.interval);
+      SleepUnlessWokenByNudge(options_.sleep_before_each(iteration));
+      if (!stop_.HasBeenNotified()) {
+        action_();
+      }
+      ++iteration;
     }
   }
 
