@@ -33,8 +33,7 @@
 #ifndef FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 #define FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 
-#include <memory>
-#include <thread>  // NOLINT
+#include <thread>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"

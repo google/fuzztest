@@ -39,11 +39,11 @@ PeriodicAction::~PeriodicAction() { Stop(); }
 
 void PeriodicAction::Stop() {
   StopAsync();
+  // The run-loop should exit the next time it checks `stop_`. Note that if
+  // the loop is currently in the middle of an invocation of `action_`, it
+  // will wait for the invocation to finish, so we might block here for an
+  // `action_`-dependent amount of time.
   if (thread_.joinable()) {
-    // The run-loop should exit the next time it checks `stop_`. Note that if
-    // the loop is currently in the middle of an invocation of `action_`, it
-    // will wait for the invocation to finish, so we might block here for an
-    // `action_`-dependent amount of time.
     thread_.join();
   }
 }
