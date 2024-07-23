@@ -473,7 +473,6 @@ class StatsLogger : public StatsReporter {
   ~StatsLogger() override = default;
 
   StatsLogger(StatsLogger &&) = default;
-  StatsLogger &operator=(StatsLogger &&) = default;
 
  private:
   bool ShouldReportThisField(const Stats::FieldInfo &field) override;
@@ -511,7 +510,6 @@ class StatsCsvFileAppender : public StatsReporter {
   ~StatsCsvFileAppender() override;
 
   StatsCsvFileAppender(StatsCsvFileAppender &&) = default;
-  StatsCsvFileAppender &operator=(StatsCsvFileAppender &&) = default;
 
  private:
   struct BufferedRemoteFile {
