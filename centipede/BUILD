@@ -515,6 +515,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
     ],
 )
 
@@ -597,6 +598,7 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
     ],
 )
 
@@ -770,6 +772,7 @@ cc_library(
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
     ],
 )
 
@@ -815,6 +818,7 @@ cc_library(
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//fuzztest:configuration",
     ],
 )
@@ -843,6 +847,7 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
     ],
 )
 
@@ -874,6 +879,7 @@ cc_library(
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
     ],
 )
 
