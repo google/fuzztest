@@ -33,12 +33,9 @@
 #ifndef FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 #define FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_
 
-#include <thread>
+#include <memory>
 
-#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
 namespace centipede {
@@ -58,11 +55,9 @@ class PeriodicAction {
 
   PeriodicAction(absl::AnyInvocable<void()> action, Options options);
 
-  // Non-copyable and non-movable.
-  PeriodicAction(const PeriodicAction&) = delete;
-  PeriodicAction& operator=(const PeriodicAction&) = delete;
-  PeriodicAction(PeriodicAction&&) = delete;
-  PeriodicAction& operator=(PeriodicAction&&) = delete;
+  // Movable, but not copyable.
+  PeriodicAction(PeriodicAction&&);
+  PeriodicAction& operator=(PeriodicAction&&);
 
   // Stops the periodic action via RAII. May block: waits for any currently
   // active invocation of the action to finish first before returning.
@@ -91,15 +86,10 @@ class PeriodicAction {
   // which case wakes up and returns immediately.
   void SleepUnlessWokenByNudge(absl::Duration duration);
 
-  absl::AnyInvocable<void()> action_;
-  const Options options_;
-
-  // WARNING!!! The order below is important.
-
-  absl::Notification stop_;
-  absl::Mutex nudge_mu_;
-  bool nudge_ ABSL_GUARDED_BY(nudge_mu_) = false;
-  std::thread thread_;
+  // Use the "pointer to implementation" idiom to make the class movable and
+  // move-constructible.
+  class Impl;
+  std::unique_ptr<Impl> pimpl_;
 };
 
 }  // namespace centipede

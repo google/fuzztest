@@ -14,8 +14,11 @@
 
 #include "./centipede/periodic_action.h"
 
+#include <memory>
+#include <thread>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
@@ -24,65 +27,93 @@
 
 namespace centipede {
 
-PeriodicAction::PeriodicAction(  //
-    absl::AnyInvocable<void()> action, Options options)
-    : action_{std::move(action)},
-      options_{std::move(options)},
-      thread_{[this]() { RunLoop(); }} {
-  // NOTE: Allow `options_.delay` to be `absl::InfiniteDuration()`: that's a
-  // valid use case, where the run-loop actually starts looping only after a
-  // first explicit nudge.
-  CHECK_GT(options_.interval, absl::ZeroDuration());
-}
-
-PeriodicAction::~PeriodicAction() { Stop(); }
-
-void PeriodicAction::Stop() {
-  StopAsync();
-  // The run-loop should exit the next time it checks `stop_`. Note that if
-  // the loop is currently in the middle of an invocation of `action_`, it
-  // will wait for the invocation to finish, so we might block here for an
-  // `action_`-dependent amount of time.
-  if (thread_.joinable()) {
-    thread_.join();
+class PeriodicAction::Impl {
+ public:
+  Impl(absl::AnyInvocable<void()> action, PeriodicAction::Options options)
+      : action_{std::move(action)},
+        options_{std::move(options)},
+        thread_{[this]() { RunLoop(); }} {
+    // NOTE: Allow `options_.delay` to be `absl::InfiniteDuration()`: that's a
+    // valid use case, where the run-loop actually starts looping only after a
+    // first explicit nudge.
+    CHECK_GT(options_.interval, absl::ZeroDuration());
   }
-}
 
-void PeriodicAction::StopAsync() {
-  if (!stop_.HasBeenNotified()) {
-    // Prime the run-loop to exit next time it re-checks `stop_`.
-    stop_.Notify();
-    // Nudge the run-loop out of the sleeping phase, if it's there: the loop
-    // immediately goes to re-check `stop_` and exits.
-    {
-      absl::MutexLock lock{&nudge_mu_};
-      nudge_ = true;
+  void Stop() {
+    StopAsync();
+    // The run-loop should exit the next time it checks `stop_`. Note that if
+    // the loop is currently in the middle of an invocation of `action_`, it
+    // will wait for the invocation to finish, so we might block here for an
+    // `action_`-dependent amount of time.
+    if (thread_.joinable()) {
+      thread_.join();
     }
   }
-}
 
-void PeriodicAction::Nudge() {
-  absl::MutexLock lock{&nudge_mu_};
-  nudge_ = true;
-}
-
-void PeriodicAction::RunLoop() {
-  SleepUnlessWokenByNudge(options_.delay);
-  while (!stop_.HasBeenNotified()) {
-    action_();
-    SleepUnlessWokenByNudge(options_.interval);
+  void StopAsync() {
+    if (!stop_.HasBeenNotified()) {
+      // Prime the run-loop to exit next time it re-checks `stop_`.
+      stop_.Notify();
+      // Nudge the run-loop out of the sleeping phase, if it's there: the loop
+      // immediately goes to re-check `stop_` and exits.
+      {
+        absl::MutexLock lock{&nudge_mu_};
+        nudge_ = true;
+      }
+    }
   }
-}
 
-void PeriodicAction::SleepUnlessWokenByNudge(absl::Duration duration) {
-  if (nudge_mu_.WriterLockWhenWithTimeout(absl::Condition{&nudge_}, duration)) {
-    // Got woken up by a nudge.
-    nudge_mu_.AssertHeld();
-    nudge_ = false;
-  } else {
-    // A nudge never came, slept well the entire time: nothing to do.
+  void Nudge() {
+    absl::MutexLock lock{&nudge_mu_};
+    nudge_ = true;
   }
-  nudge_mu_.Unlock();
-}
+
+ private:
+  void RunLoop() {
+    SleepUnlessWokenByNudge(options_.delay);
+    while (!stop_.HasBeenNotified()) {
+      action_();
+      SleepUnlessWokenByNudge(options_.interval);
+    }
+  }
+
+  void SleepUnlessWokenByNudge(absl::Duration duration) {
+    if (nudge_mu_.WriterLockWhenWithTimeout(  //
+            absl::Condition{&nudge_}, duration)) {
+      // Got woken up by a nudge.
+      nudge_mu_.AssertHeld();
+      nudge_ = false;
+    } else {
+      // A nudge never came, slept well the entire time: nothing to do.
+    }
+    nudge_mu_.Unlock();
+  }
+
+  absl::AnyInvocable<void()> action_;
+  PeriodicAction::Options options_;
+
+  // WARNING!!! The order below is important.
+  absl::Notification stop_;
+  absl::Mutex nudge_mu_;
+  bool nudge_ ABSL_GUARDED_BY(nudge_mu_) = false;
+  std::thread thread_;
+};
+
+PeriodicAction::PeriodicAction(  //
+    absl::AnyInvocable<void()> action, Options options)
+    : pimpl_{std::make_unique<Impl>(std::move(action), std::move(options))} {}
+
+PeriodicAction::~PeriodicAction() { pimpl_->Stop(); }
+
+void PeriodicAction::Stop() { pimpl_->Stop(); }
+
+void PeriodicAction::StopAsync() { pimpl_->StopAsync(); }
+
+void PeriodicAction::Nudge() { pimpl_->Nudge(); }
+
+// NOTE: Even though these are defaulted, they still must be defined here in the
+// .cc, because `Impl` is an incomplete type in the .h.
+PeriodicAction::PeriodicAction(PeriodicAction&&) = default;
+PeriodicAction& PeriodicAction::operator=(PeriodicAction&&) = default;
 
 }  // namespace centipede
