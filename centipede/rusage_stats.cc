@@ -29,7 +29,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
-#include <thread>  // NOLINT
+#include <thread>  // NOLINT: For hardware_concurrency() only.
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"

@@ -32,7 +32,7 @@
 #include <random>
 #include <string>
 #include <system_error>  // NOLINT
-#include <thread>        // NOLINT
+#include <thread>        // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
 

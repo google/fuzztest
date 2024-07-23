@@ -37,7 +37,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT(build/c++11)
+#include <thread>  // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
 

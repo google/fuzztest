@@ -18,7 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <thread>  // NOLINT
+#include <thread>  // NOLINT: Ok in a target.
 
 namespace {
 

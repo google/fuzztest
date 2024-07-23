@@ -15,11 +15,9 @@
 #include "./centipede/rusage_stats.h"
 
 #include <cmath>
-#include <cstddef>
 #include <iosfwd>
 #include <numeric>
 #include <string>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -31,6 +29,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./centipede/thread_pool.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 
 ABSL_FLAG(bool, verbose, false, "Print extra info for debugging");
@@ -70,7 +69,7 @@ class CpuHog {
       int num_hogs,                                        //
       absl::Nonnull<absl::Notification*> hogging_started,  //
       absl::Nonnull<absl::Notification*> hogging_stopped)
-      : hog_barrier_{num_hogs}, hog_pool_{static_cast<size_t>(num_hogs)} {
+      : hog_barrier_{num_hogs}, hog_pool_{num_hogs} {
     const auto hog_func = [=]() {
       const absl::Time start = absl::Now();
       double cpu_waster = 1.23;
@@ -111,15 +110,8 @@ class CpuHog {
     // Consume ~num_hogs cores at ~100% utilization for ~hog_time. The caller
     // gets notified when the hogging begins and ends, so they know when they
     // can sample the CPU utilization.
-    hog_pool_.resize(num_hogs);
-    for (auto& hog : hog_pool_) {
-      hog = std::thread{hog_func};
-    }
-  }
-
-  ~CpuHog() {
-    for (auto& hog : hog_pool_) {
-      hog.join();
+    for (int i = 0; i < num_hogs; ++i) {
+      hog_pool_.Schedule(hog_func);
     }
   }
 
@@ -128,7 +120,7 @@ class CpuHog {
   // hog_pool_ and thus must outlive hog_pool_.
   absl::Mutex mu_;
   absl::Barrier hog_barrier_;
-  std::vector<std::thread> hog_pool_;
+  ThreadPool hog_pool_;
 };
 
 // A simple histogram.

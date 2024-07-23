@@ -21,12 +21,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -38,6 +35,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./common/test_util.h"
 
@@ -167,9 +165,11 @@ TEST(Coverage, CoverageLogger) {
       logger.ObserveAndDescribeIfNew(pc_index);
     }
   };
-  std::thread t1(cb), t2(cb);
-  t1.join();
-  t2.join();
+  {
+    ThreadPool threads{2};
+    threads.Schedule(cb);
+    threads.Schedule(cb);
+  }  // The threads join here.
 }
 
 // Returns path to test_fuzz_target.

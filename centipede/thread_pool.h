@@ -18,7 +18,7 @@
 
 #include <cstddef>
 #include <queue>
-#include <thread>  // NOLINT(build/c++11)
+#include <thread>
 #include <utility>
 #include <vector>
 

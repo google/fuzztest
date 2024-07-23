@@ -19,7 +19,6 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
-#include <thread>  //NOLINT
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -30,6 +29,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
+#include "./centipede/thread_pool.h"
 #include "./common/logging.h"
 #include "./common/test_util.h"
 
@@ -148,7 +148,7 @@ TEST(ControlFlowGraph, LazyReachability) {
   cfg.InitializeControlFlowGraph(g_cf_table, g_pc_table);
   EXPECT_NE(cfg.size(), 0);
 
-  auto rt = [&]() {
+  auto rt = [&cfg]() {
     for (int i = 0; i < 10; ++i) {
       cfg.LazyGetReachabilityForPc(1);
       cfg.LazyGetReachabilityForPc(2);
@@ -166,10 +166,12 @@ TEST(ControlFlowGraph, LazyReachability) {
     EXPECT_THAT(reach4, testing::ElementsAre(4));
   };
 
-  std::thread t1(rt), t2(rt), t3(rt);
-  t1.join();
-  t2.join();
-  t3.join();
+  {
+    ThreadPool threads{3};
+    threads.Schedule(rt);
+    threads.Schedule(rt);
+    threads.Schedule(rt);
+  }  // The threads join here.
 }
 
 // Returns path to test_fuzz_target.

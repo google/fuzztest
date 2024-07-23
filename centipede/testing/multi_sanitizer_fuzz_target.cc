@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <thread>  // NOLINT
 
 [[maybe_unused]] static volatile void *sink;
 

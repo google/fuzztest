@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <sstream>
 #include <string>
-#include <thread>  // NOLINT
+#include <thread>  // NOLINT: For thread::get_id() only.
 #include <vector>
 
 #include "gtest/gtest.h"

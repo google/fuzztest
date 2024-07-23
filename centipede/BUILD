@@ -379,6 +379,7 @@ cc_library(
         ":environment",
         ":mutation_input",
         ":runner_result",
+        ":thread_pool",
         ":util",
         ":workdir",
         "@com_google_absl//absl/base:core_headers",
@@ -1228,6 +1229,7 @@ cc_test(
     copts = ["-fno-signed-char"],
     deps = [
         ":feature",
+        ":thread_pool",
         ":util",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -1269,6 +1271,7 @@ cc_test(
     srcs = ["rusage_stats_test.cc"],
     deps = [
         ":rusage_stats",
+        ":thread_pool",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -1435,6 +1438,7 @@ cc_test(
     deps = [
         ":feature",
         ":int_utils",
+        ":thread_pool",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -1596,6 +1600,7 @@ cc_test(
         ":control_flow",
         ":pc_info",
         ":symbol_table",
+        ":thread_pool",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -1710,6 +1715,7 @@ cc_test(
         ":pc_info",
         ":symbol_table",
         ":test_coverage_util",
+        ":thread_pool",
         ":util",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_fuzztest//common:test_util",

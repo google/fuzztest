@@ -21,7 +21,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <thread>  // NOLINT(build/c++11)
+#include <thread>  // NOLINT: Ok in a target.
 
 // non-const, to avoid compiler optimization.
 static char expected_data[] = "Fuzz";

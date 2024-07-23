@@ -19,7 +19,6 @@
 #include <filesystem>  // NOLINT
 #include <map>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -27,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "./centipede/feature.h"
+#include "./centipede/thread_pool.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
 
@@ -128,12 +128,19 @@ TEST(UtilTest, TemporaryLocalDirPath) {
   }
 
   {
-    // Create dir in a thread.
-    std::string temp_dir_from_other_thread;
-    std::thread get_temp_dir_thread(
-        [&]() { temp_dir_from_other_thread = TemporaryLocalDirPath(); });
-    get_temp_dir_thread.join();
-    EXPECT_NE(TemporaryLocalDirPath(), temp_dir_from_other_thread);
+    // Create dirs in two threads.
+    std::string temp_dir_1, temp_dir_2;
+    {
+      // NOTE: Not using a 2-threaded pool here because the scheduled tasks are
+      // too fast and can end up both running in the same thread. Also, not
+      // using `std::thread`.
+      ThreadPool thread1{1}, thread2{1};
+      thread1.Schedule(
+          [&temp_dir_1]() { temp_dir_1 = TemporaryLocalDirPath(); });
+      thread2.Schedule(
+          [&temp_dir_2]() { temp_dir_2 = TemporaryLocalDirPath(); });
+    }  // The threads join here.
+    EXPECT_NE(temp_dir_1, temp_dir_2);
   }
 }
 

@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <numeric>
-#include <thread>  // NOLINT.
 #include <utility>
 #include <vector>
 
@@ -32,6 +31,7 @@
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/hashed_ring_buffer.h"
 #include "./centipede/int_utils.h"
+#include "./centipede/thread_pool.h"
 #include "./common/logging.h"
 
 namespace centipede {
@@ -181,7 +181,7 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
 
 // Tests ConcurrentBitSet from multiple threads.
 TEST(Feature, ConcurrentBitSet_Threads) {
-  static ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
+  ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
   // 3 threads will each set one specific bit in a long loop.
   // 4th thread will set another bit, just once.
   // The set() function is lossy, i.e. it may fail to set the bit.
@@ -189,23 +189,22 @@ TEST(Feature, ConcurrentBitSet_Threads) {
   // indistinguishable from one (at least this is my theory :).
   // But the 4th thread that sets its bit once, may actually fail to do it.
   // So, this test allows two outcomes (possible_bits3/possible_bits4).
-  auto cb = [&](size_t idx) {
+  auto cb = [&bs](size_t idx) {
     for (size_t i = 0; i < 10000000; i++) {
       bs.set(idx);
     }
   };
-  std::thread t1(cb, 10);
-  std::thread t2(cb, 11);
-  std::thread t3(cb, 14);
-  std::thread t4([&]() { bs.set(15); });
-  t1.join();
-  t2.join();
-  t3.join();
-  t4.join();
+  {
+    ThreadPool pool{4};
+    pool.Schedule([&cb]() { cb(10); });
+    pool.Schedule([&cb]() { cb(11); });
+    pool.Schedule([&cb]() { cb(14); });
+    pool.Schedule([&bs]() { bs.set(15); });
+  }
   std::vector<size_t> bits;
   std::vector<size_t> possible_bits3 = {10, 11, 14};
   std::vector<size_t> possible_bits4 = {10, 11, 14, 15};
-  bs.ForEachNonZeroBit([&](size_t idx) { bits.push_back(idx); });
+  bs.ForEachNonZeroBit([&bits](size_t idx) { bits.push_back(idx); });
   if (bits.size() == 3) {
     EXPECT_EQ(bits, possible_bits3);
   } else {
@@ -215,7 +214,7 @@ TEST(Feature, ConcurrentBitSet_Threads) {
 
 // Tests TwoLayerConcurrentByteSet from multiple threads.
 TEST(Feature, TwoLayerConcurrentByteSet_Threads) {
-  static TwoLayerConcurrentByteSet<(1 << 16)> bs(absl::kConstInit);
+  TwoLayerConcurrentByteSet<(1 << 16)> bs(absl::kConstInit);
   // 3 threads will each increment one specific byte in a long loop.
   // 4th thread will increment another byte, just once.
   auto cb = [&](size_t idx) {
@@ -223,14 +222,13 @@ TEST(Feature, TwoLayerConcurrentByteSet_Threads) {
       bs.SaturatedIncrement(idx);
     }
   };
-  std::thread t1(cb, 10);
-  std::thread t2(cb, 11);
-  std::thread t3(cb, 14);
-  std::thread t4([&]() { bs.SaturatedIncrement(15); });
-  t1.join();
-  t2.join();
-  t3.join();
-  t4.join();
+  {
+    ThreadPool threads{4};
+    threads.Schedule([&cb]() { cb(10); });
+    threads.Schedule([&cb]() { cb(11); });
+    threads.Schedule([&cb]() { cb(14); });
+    threads.Schedule([&bs]() { bs.SaturatedIncrement(15); });
+  }  // The threads join here.
   const std::vector<std::pair<size_t, uint8_t>> expected = {
       {10, 255}, {11, 255}, {14, 255}, {15, 1}};
   std::vector<std::pair<size_t, uint8_t>> out;

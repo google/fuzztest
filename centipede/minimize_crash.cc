@@ -20,7 +20,6 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
@@ -32,6 +31,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
@@ -155,14 +155,14 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
   MinimizerWorkQueue queue(WorkDir{env}.CrashReproducerDirPath(),
                            original_crashy_input);
 
-  std::vector<std::thread> threads(env.num_threads);
-  for (auto &thread : threads) {
-    thread =
-        std::thread([&]() { MinimizeCrash(env, callbacks_factory, queue); });
-  }
-  for (auto &thread : threads) {
-    thread.join();
-  }
+  {
+    ThreadPool threads{static_cast<int>(env.num_threads)};
+    for (size_t i = 0; i < env.num_threads; ++i) {
+      threads.Schedule([&env, &callbacks_factory, &queue]() {
+        MinimizeCrash(env, callbacks_factory, queue);
+      });
+    }
+  }  // The threads join here.
 
   return queue.SmallerCrashesFound() ? EXIT_SUCCESS : EXIT_FAILURE;
 }
