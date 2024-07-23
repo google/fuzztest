@@ -16,20 +16,16 @@
 
 set -euo pipefail
 
-source googletest.sh
 source "$(dirname "$0")/../test_util.sh"
 
 CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
 
 centipede::maybe_set_var_to_executable_path \
   CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
-
 centipede::maybe_set_var_to_executable_path \
   LLVM_SYMBOLIZER "$(centipede::get_llvm_symbolizer_path)"
-
 centipede::maybe_set_var_to_executable_path \
   SERVER_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/external_target_server"
-
 centipede::maybe_set_var_to_executable_path \
   TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/external_target"
 
@@ -37,9 +33,13 @@ readonly WD="${TEST_TMPDIR}/WD"
 readonly LOG="${TEST_TMPDIR}/log"
 centipede::ensure_empty_dir "${WD}"
 
-readonly TARGET_PORT="$(get_port_from_portserver)"
+TARGET_PORT=$(centipede::get_random_free_port)
+readonly TARGET_PORT
 
-echo "Starting the server binary ..."
+echo $TARGET_PORT
+exit
+
+echo "Starting the server binary using port ${TARGET_PORT}..."
 env CENTIPEDE_RUNNER_FLAGS=":use_auto_dictionary:use_cmp_features:use_pc_features:" \
   TARGET_PORT="${TARGET_PORT}" \
   "${SERVER_BINARY}" &

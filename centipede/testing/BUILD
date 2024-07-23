@@ -408,5 +408,4 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
-    deps = ["//testing/shbase"],
 )

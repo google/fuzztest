@@ -154,3 +154,17 @@ function centipede::assert_fuzzing_success() {
     centipede::assert_regex_in_file "centipede.*end-fuzz:" "${log}"
   done
 }
+
+# Returns a random free port on the local machine.
+function centipede::get_random_free_port() {
+  # Create an array with all ports in the range [1024..65535] (ports [0..1023]
+  # are reserved) and append all ports in the same range that are currently in
+  # use. This results in the used ports appearing twice in the array.
+  declare -ra ports=(
+    {1024..65535}
+    $(netstat -tan | perl -ne '/.+?:+(\d{1,5}) .+/; if ($1 >= 1024) { print $1; }')
+  )
+  # Sort, dedupe and shuffle the array: this leaves randomly ordered free ports.
+  # `shuf -n 1` returns the first element and stops.
+  echo "${ports[@]}" | tr ' ' '\n' | sort | uniq -u | shuf -n 1
+}
