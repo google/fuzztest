@@ -14,6 +14,7 @@ namespace {
 MATCHER_P(IsOkAndEquals, config, "") {
   const absl::StatusOr<Configuration>& other = arg;
   return other.ok() && config.corpus_database == other->corpus_database &&
+         config.stats_root == other->stats_root &&
          config.binary_identifier == other->binary_identifier &&
          config.fuzz_tests == other->fuzz_tests &&
          config.reproduce_findings_as_separate_tests ==
@@ -32,6 +33,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
 TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithoutOptionalValues) {
   Configuration configuration{"corpus_database",
+                              "stats_root",
                               "binary_identifier",
                               /*fuzz_tests=*/{},
                               /*reproduce_findings_as_separate_tests=*/true,
@@ -50,6 +52,7 @@ TEST(ConfigurationTest,
 TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithOptionalValues) {
   Configuration configuration{"corpus_database",
+                              "stats_root",
                               "binary_identifier",
                               {"FuzzTest1", "FuzzTest2"},
                               /*reproduce_findings_as_separate_tests=*/true,

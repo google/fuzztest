@@ -33,6 +33,9 @@ struct Configuration {
   // crashing inputs for each test binary and fuzz test in the project (eg.,
   // ~/.cache/fuzztest).
   std::string corpus_database;
+  // The directory path to export stats with a layout similar to
+  // `corpus_database`.
+  std::string stats_root;
   // The identifier of the test binary in the corpus database (eg.,
   // relative/path/to/binary).
   std::string binary_identifier;

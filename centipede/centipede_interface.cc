@@ -385,7 +385,17 @@ int UpdateCorpusDatabaseForFuzzTests(
   const auto corpus_database_path =
       std::filesystem::path(fuzztest_config.corpus_database) /
       fuzztest_config.binary_identifier;
-  // The full workdir paths will be formed by appending the fuzz test names to
+  const auto stats_root_path =
+      fuzztest_config.stats_root.empty()
+          ? std::filesystem::path()
+          : std::filesystem::path(fuzztest_config.stats_root) /
+                fuzztest_config.binary_identifier;
+  const auto execution_stamp = [] {
+    std::string stamp =
+        absl::FormatTime("%Y-%m-%d-%H-%M-%S", absl::Now(), absl::UTCTimeZone());
+    return stamp;
+  }();
+  // the full workdir paths will be formed by appending the fuzz test names to
   // the base workdir path.
   const auto base_workdir_path =
       corpus_database_path / absl::StrFormat("workdir.%03d", test_shard_index);
@@ -459,6 +469,14 @@ int UpdateCorpusDatabaseForFuzzTests(
     ClearEarlyExitRequest();
     alarm(absl::ToInt64Seconds(fuzztest_config.time_limit_per_test));
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+    if (!stats_root_path.empty()) {
+      const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
+      RemoteMkdir(stats_dir.c_str());
+      RemotePathRename(
+          workdir.FuzzingStatsPath(),
+          (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
+              .c_str());
+    }
 
     // Distill and store the coverage corpus.
     Distill(env);

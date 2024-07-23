@@ -178,14 +178,14 @@ internal::Configuration CreateConfigurationsFromFlags(
   }
   return internal::Configuration{
       absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
+      /*stats_root=*/"",
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       reproduce_findings_as_separate_tests,
       absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
-      absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
-      time_limit_per_test};
+      absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit_per_test};
 }
 
 #if defined(__linux__)

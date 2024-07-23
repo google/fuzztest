@@ -167,8 +167,8 @@ std::string Configuration::Serialize() const {
   std::string time_limit_per_test_str =
       absl::FormatDuration(time_limit_per_test);
   std::string out;
-  out.resize(SpaceFor(corpus_database) + SpaceFor(binary_identifier) +
-             SpaceFor(fuzz_tests) +
+  out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
+             SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(stack_limit) +
              SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
@@ -177,6 +177,7 @@ std::string Configuration::Serialize() const {
              SpaceFor(reproduction_command_template));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
+  offset = WriteString(out, offset, stats_root);
   offset = WriteString(out, offset, binary_identifier);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
@@ -195,6 +196,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     absl::string_view serialized) {
   return [=]() mutable -> absl::StatusOr<Configuration> {
     ASSIGN_OR_RETURN(corpus_database, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(stats_root, ConsumeString(serialized));
     ASSIGN_OR_RETURN(binary_identifier, ConsumeString(serialized));
     ASSIGN_OR_RETURN(fuzz_tests, ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(reproduce_findings_as_separate_tests,
@@ -217,6 +219,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(time_limit_per_test,
                      ParseDuration(*time_limit_per_test_str));
     return Configuration{*std::move(corpus_database),
+                         *std::move(stats_root),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
                          *reproduce_findings_as_separate_tests,

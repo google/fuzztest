@@ -1235,12 +1235,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
   GTEST_SKIP() << "Skipping Centipede-specific test";
 #endif
   TempDir temp_dir;
-  const std::string corpus_database =
-      absl::StrCat(temp_dir.dirname(), "/corpus_database");
   auto [status, std_out, std_err] = RunWith(
       {
           {"fuzz_for", "1s"},
-          {"corpus_database", corpus_database},
+          {"corpus_database", temp_dir.dirname()},
       },
       {{"FUZZTEST_CENTIPEDE_BINARY", CentipedePath()}},
       /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
