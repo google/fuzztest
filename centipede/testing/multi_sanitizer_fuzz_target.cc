@@ -17,6 +17,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#if defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#include <thread>  // NOLINT
+#endif
+#endif
 
 [[maybe_unused]] static volatile void *sink;
 
