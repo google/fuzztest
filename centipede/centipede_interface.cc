@@ -266,6 +266,8 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
   }
 
   for (auto &reporter : stats_reporters) {
+    // Nudge one final update and stop the reporting thread.
+    reporter.Nudge();
     reporter.Stop();
   }
 
