@@ -105,14 +105,6 @@ class PeriodicAction {
   void Nudge();
 
  private:
-  // The actual run-loop. Runs on the `thread_` and invokes `action_`
-  // periodically, as controlled by `options_`, `stop_` and `nudge_`.
-  void RunLoop();
-
-  // Sleeps for up to `duration` amount of time, unless a `nudge_` comes, in
-  // which case wakes up and returns immediately.
-  void SleepUnlessWokenByNudge(absl::Duration duration);
-
   // Use the "pointer to implementation" idiom to make the class movable and
   // move-constructible.
   class Impl;

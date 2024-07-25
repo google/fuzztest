@@ -17,8 +17,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <thread>  // NOLINT: For `std::this_thread::get_id()` only.
+#include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./common/logging.h"
@@ -131,6 +136,41 @@ TEST(PeriodicActionTest, ClashingPeriodicAndNudgedInvocations) {
       << VV(kMaxPeriodicCount) << VV(kMaxNudgedCount);
   EXPECT_LE(count, kMaxPeriodicCount + kMaxNudgedCount)
       << VV(kMaxPeriodicCount) << VV(kMaxNudgedCount);
+}
+
+// The main purpose of this test is to make sure that a `PeriodicAction` object
+// can be moved to another such that the original object's dtor doesn't blow up
+// when it runs.
+TEST(PeriodicActionTest, ActionIsMoveable) {
+  absl::Mutex mu;
+  std::vector<std::thread::id> thread_ids;
+  {
+    PeriodicAction moved_from{
+        [&mu, &thread_ids]() {
+          absl::WriterMutexLock lock{&mu};
+          thread_ids.push_back(std::this_thread::get_id());
+        },
+        PeriodicAction::ZeroDelayConstInterval(absl::Milliseconds(10)),
+    };
+    absl::SleepFor(absl::Milliseconds(100));
+    // Sanity check that the action is running and is healthy.
+    moved_from.Nudge();
+    absl::SleepFor(absl::Milliseconds(100));
+    // Move the action to another object.
+    PeriodicAction moved_to = std::move(moved_from);
+    absl::SleepFor(absl::Milliseconds(100));
+    // The moved object should now be running the run-loop thread.
+    moved_to.Nudge();
+    absl::SleepFor(absl::Milliseconds(100));
+    moved_to.Stop();
+  }  // The dtors for both moved-from and moved-to objects run here.
+  // If we reached this point, at least the dtors ran without blowing up.
+  ASSERT_GT(thread_ids.size(), 1);
+  // A single instance of the run-loop thread should have been running
+  // throughout the whole process, including the move: the moved-from object
+  // should have just handed over the thread to the moved-to object.
+  std::sort(thread_ids.begin(), thread_ids.end());
+  ASSERT_EQ(thread_ids.front(), thread_ids.back());
 }
 
 }  // namespace

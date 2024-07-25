@@ -1743,6 +1743,8 @@ cc_test(
     srcs = ["periodic_action_test.cc"],
     deps = [
         ":periodic_action",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",

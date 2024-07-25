@@ -101,7 +101,10 @@ PeriodicAction::PeriodicAction(  //
     absl::AnyInvocable<void()> action, Options options)
     : pimpl_{std::make_unique<Impl>(std::move(action), std::move(options))} {}
 
-PeriodicAction::~PeriodicAction() { pimpl_->Stop(); }
+PeriodicAction::~PeriodicAction() {
+  // NOTE: `pimpl_` will be null if this object has been moved to another one.
+  if (pimpl_ != nullptr) pimpl_->Stop();
+}
 
 void PeriodicAction::Stop() { pimpl_->Stop(); }
 
