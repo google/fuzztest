@@ -1,7 +1,5 @@
 #include "./fuzztest/init_fuzztest.h"
 
-#include "absl/strings/str_replace.h"
-
 #if defined(__linux__)
 #include <unistd.h>
 #endif
@@ -9,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -28,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
@@ -197,6 +197,20 @@ std::string ShellEscape(absl::string_view str) {
 }
 
 void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
+  // Initialization code before `ExecvToCentipede` may establish a timer and a
+  // signal handler, but only the timer persists through execve(). This can
+  // cause program termination by unhandled signals and to avoid this, we unset
+  // timer signals.
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = SIG_IGN;
+  for (int timer_signo : {SIGALRM, SIGPROF, SIGVTALRM}) {
+    if (sigaction(timer_signo, &sa, nullptr) < 0) {
+      std::cerr << "Failed to ignore timer signal " << timer_signo
+                << ". The program being launched may die if a profiling "
+                   "timer expires before it can register its own handler.";
+    }
+  }
   std::string binary_arg = absl::StrCat("--binary=", argv[0]);
   // We need shell escaping, because parts of binary_arg will be passed to
   // system(), which uses the default shell.
