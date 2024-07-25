@@ -180,7 +180,7 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
 }
 
 // Tests ConcurrentBitSet from multiple threads.
-TEST(Feature, ConcurrentBitSet_Threads) {
+TEST(Feature, ConcurrentBitSetThreads) {
   ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
   // 3 threads will each set one specific bit in a long loop.
   // 4th thread will set another bit, just once.
@@ -213,7 +213,7 @@ TEST(Feature, ConcurrentBitSet_Threads) {
 }
 
 // Tests TwoLayerConcurrentByteSet from multiple threads.
-TEST(Feature, TwoLayerConcurrentByteSet_Threads) {
+TEST(Feature, TwoLayerConcurrentByteSetThreads) {
   TwoLayerConcurrentByteSet<(1 << 16)> bs(absl::kConstInit);
   // 3 threads will each increment one specific byte in a long loop.
   // 4th thread will increment another byte, just once.
@@ -243,7 +243,7 @@ static ConcurrentBitSet<(1 << 20)> large_concurrent_bitset(absl::kConstInit);
 static thread_local ConcurrentBitSet<(1 << 20)> large_tls_concurrent_bitset(
     absl::kConstInit);
 
-TEST(Feature, ConcurrentBitSet_Large) {
+TEST(Feature, ConcurrentBitSetLarge) {
   for (auto *bs : {&large_concurrent_bitset, &large_tls_concurrent_bitset}) {
     const std::vector<size_t> in_bits = {0,   1,     2,     100,   102,
                                          800, 10000, 20000, 30000, 500000};

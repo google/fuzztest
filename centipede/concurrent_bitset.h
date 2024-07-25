@@ -129,9 +129,9 @@ class ConcurrentBitSet {
   static constexpr size_t kSizeInWords = kSizeInBits / kBitsInWord;
 
   // All words are logically split into lines.
-  // When Set() is called, we set the corresponding element of lines_ to 1, so
-  // that we now know that at least 1 bit in that line is set. Then, in
-  // ForEachNonZeroBit, we iterate only those lines that have non-zero bits.
+  // When `set()` is called, we set the corresponding element of `lines_` to 1,
+  // so that we now know that at least 1 bit in that line is set. Then, in
+  // `ForEachNonZeroBit()`, we iterate only those lines that have non-zero bits.
   static constexpr size_t kBytesInLine = 64 * 8;
   static constexpr size_t kWordsInLine = kBytesInLine / kBytesInWord;
   static constexpr size_t kSizeInLines = kSizeInWords / kWordsInLine;
