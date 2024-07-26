@@ -127,7 +127,7 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
   runtime_.SetCurrentTest(&impl.test_, nullptr);
   if (IsEnginePlaceholderInput(data)) return;
   auto input = impl.TryParse(data);
-  if (!input) return;
+  if (!input.ok()) return;
   impl.RunOneInput({*std::move(input)});
 }
 
@@ -136,11 +136,12 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
                                                       unsigned int seed) {
   auto& impl = GetFuzzerImpl();
   typename FuzzerImpl::PRNG prng(seed);
-  std::optional<GenericDomainCorpusType> input = std::nullopt;
-  if (!IsEnginePlaceholderInput(data)) {
-    input = impl.TryParse(data);
-  }
-  if (!input) input = impl.params_domain_.Init(prng);
+  const auto input = [&]() -> decltype(impl.TryParse(data)) {
+    if (!IsEnginePlaceholderInput(data)) {
+      return impl.TryParse(data);
+    }
+    return impl.params_domain_.Init(prng);
+  }();
   constexpr int kNumAttempts = 10;
   std::string result;
   for (int i = 0; i < kNumAttempts; ++i) {
