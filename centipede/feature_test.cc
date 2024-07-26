@@ -181,7 +181,6 @@ TEST(Feature, TwoLayerConcurrentByteSet) {
 
 // Tests ConcurrentBitSet from multiple threads.
 TEST(Feature, ConcurrentBitSetThreads) {
-  ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
   // 3 threads will each set one specific bit in a long loop.
   // 4th thread will set another bit, just once.
   // The set() function is lossy, i.e. it may fail to set the bit.
@@ -189,7 +188,9 @@ TEST(Feature, ConcurrentBitSetThreads) {
   // indistinguishable from one (at least this is my theory :).
   // But the 4th thread that sets its bit once, may actually fail to do it.
   // So, this test allows two outcomes (possible_bits3/possible_bits4).
-  auto cb = [&bs](size_t idx) {
+  // WARNING: `bs` must be static (see the class comment).
+  static ConcurrentBitSet<(1 << 18)> bs(absl::kConstInit);
+  auto cb = [](size_t idx) {
     for (size_t i = 0; i < 10000000; i++) {
       bs.set(idx);
     }
@@ -199,7 +200,7 @@ TEST(Feature, ConcurrentBitSetThreads) {
     pool.Schedule([&cb]() { cb(10); });
     pool.Schedule([&cb]() { cb(11); });
     pool.Schedule([&cb]() { cb(14); });
-    pool.Schedule([&bs]() { bs.set(15); });
+    pool.Schedule([]() { bs.set(15); });
   }
   std::vector<size_t> bits;
   std::vector<size_t> possible_bits3 = {10, 11, 14};

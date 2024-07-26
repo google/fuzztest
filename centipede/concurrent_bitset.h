@@ -47,7 +47,11 @@ namespace centipede {
 
 // A fixed-size bitset with a lossy concurrent set() function.
 // kSize (in bits) must be a multiple of 2**16.
-// Should only be constructed with static storage duration.
+//
+// IMPORTANT!!! Objects of this class should only be constructed with static
+// storage duration. This is because the class has intentionally uninitialized
+// direct and transitive data members that rely on static initialization in the
+// compiled process image.
 template <size_t kSizeInBits>
 class ConcurrentBitSet {
  public:
@@ -127,7 +131,6 @@ class ConcurrentBitSet {
   static constexpr size_t kBytesInWord = sizeof(word_t);
   static constexpr size_t kBitsInWord = CHAR_BIT * kBytesInWord;
   static constexpr size_t kSizeInWords = kSizeInBits / kBitsInWord;
-
   // All words are logically split into lines.
   // When `set()` is called, we set the corresponding element of `lines_` to 1,
   // so that we now know that at least 1 bit in that line is set. Then, in
@@ -136,7 +139,10 @@ class ConcurrentBitSet {
   static constexpr size_t kWordsInLine = kBytesInLine / kBytesInWord;
   static constexpr size_t kSizeInLines = kSizeInWords / kWordsInLine;
   ConcurrentByteSet<kSizeInLines> lines_;
-  word_t words_[kSizeInWords];  // No initializer.
+  // NOTE: No initializer for performance (`kSizeInWords` can be quite large).
+  // Relies on static initialization in the process image (see the class
+  // comment).
+  word_t words_[kSizeInWords];
 };
 
 }  // namespace centipede
