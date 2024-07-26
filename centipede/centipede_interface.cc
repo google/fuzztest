@@ -210,7 +210,10 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
       PeriodicAction::Options{
           .sleep_before_each =
               [](size_t iteration) {
-                return absl::Minutes(std::clamp(iteration, 0UL, 10UL));
+                // TODO(ussuri): Switch to the commented-out version after
+                // fixing `PeriodicAction::Nudge()`.
+                // return absl::Minutes(std::clamp(iteration, 0UL, 10UL));
+                return absl::Seconds(std::clamp(iteration, 5UL, 600UL));
               },
       });
   if (!envs.front().experiment.empty() || ABSL_VLOG_IS_ON(1)) {
