@@ -30,6 +30,8 @@
 #ifndef THIRD_PARTY_CENTIPEDE_HASHED_RING_BUFFER_H_
 #define THIRD_PARTY_CENTIPEDE_HASHED_RING_BUFFER_H_
 
+#include <string.h>
+
 // WARNING!!!: Be very careful with what STL headers or other dependencies you
 // add here. This header needs to remain mostly bare-bones so that we can
 // include it into runner.

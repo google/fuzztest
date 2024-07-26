@@ -1437,13 +1437,6 @@ cc_test(
     srcs = ["feature_test.cc"],
     deps = [
         ":feature",
-        ":int_utils",
-        ":thread_pool",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_fuzztest//common:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1649,6 +1642,100 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "coverage_test",
+    srcs = ["coverage_test.cc"],
+    data = [
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
+        "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
+    ],
+    deps = [
+        ":binary_info",
+        ":control_flow",
+        ":coverage",
+        ":environment",
+        ":feature",
+        ":pc_info",
+        ":symbol_table",
+        ":test_coverage_util",
+        ":thread_pool",
+        ":util",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_fuzztest//common:test_util",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "resource_pool_test",
+    srcs = ["resource_pool_test.cc"],
+    deps = [
+        ":resource_pool",
+        ":rusage_stats",
+        ":thread_pool",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "periodic_action_test",
+    srcs = ["periodic_action_test.cc"],
+    deps = [
+        ":periodic_action",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "concurrent_bitset_test",
+    srcs = ["concurrent_bitset_test.cc"],
+    deps = [
+        ":feature",
+        ":thread_pool",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "concurrent_byteset_test",
+    srcs = ["concurrent_byteset_test.cc"],
+    deps = [
+        ":feature",
+        ":thread_pool",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "hashed_ring_buffer_test",
+    srcs = ["hashed_ring_buffer_test.cc"],
+    deps = [
+        ":feature",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "int_utils_test",
+    srcs = ["int_utils_test.cc"],
+    deps = [
+        ":int_utils",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 ################################################################################
 #                               Other tests
 ################################################################################
@@ -1695,58 +1782,5 @@ sh_test(
     data = [
         ":centipede",
         ":test_util_sh",
-    ],
-)
-
-cc_test(
-    name = "coverage_test",
-    srcs = ["coverage_test.cc"],
-    data = [
-        "@com_google_fuzztest//centipede/testing:test_fuzz_target",
-        "@com_google_fuzztest//centipede/testing:test_fuzz_target_trace_pc",
-        "@com_google_fuzztest//centipede/testing:threaded_fuzz_target",
-    ],
-    deps = [
-        ":binary_info",
-        ":control_flow",
-        ":coverage",
-        ":environment",
-        ":feature",
-        ":pc_info",
-        ":symbol_table",
-        ":test_coverage_util",
-        ":thread_pool",
-        ":util",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_fuzztest//common:test_util",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "resource_pool_test",
-    srcs = ["resource_pool_test.cc"],
-    deps = [
-        ":resource_pool",
-        ":rusage_stats",
-        ":thread_pool",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/time",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "periodic_action_test",
-    srcs = ["periodic_action_test.cc"],
-    deps = [
-        ":periodic_action",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_googletest//:gtest_main",
     ],
 )
