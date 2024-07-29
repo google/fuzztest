@@ -22,7 +22,6 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 
 namespace centipede {
@@ -46,54 +45,62 @@ class PeriodicAction::Impl {
   }
 
   void StopAsync() {
-    if (!stop_.HasBeenNotified()) {
-      // Prime the run-loop to exit next time it re-checks `stop_`.
-      stop_.Notify();
-      // Nudge the run-loop out of the sleeping phase, if it's currently idling
-      // there: the loop immediately goes to re-check `stop_` and exits.
-      {
-        absl::MutexLock lock{&nudge_mu_};
-        nudge_ = true;
-      }
-    }
+    absl::MutexLock lock{&mu_};
+    stop_ = true;
   }
 
   void Nudge() {
-    absl::MutexLock lock{&nudge_mu_};
+    absl::MutexLock lock{&mu_};
     nudge_ = true;
   }
 
  private:
   void RunLoop() {
     uint64_t iteration = 0;
-    while (!stop_.HasBeenNotified()) {
-      SleepUnlessWokenByNudge(options_.sleep_before_each(iteration));
-      if (!stop_.HasBeenNotified()) {
+    while (true) {
+      SleepOrWakeEarly(options_.sleep_before_each(iteration));
+      const bool schedule = !nudge_ && !stop_;
+      const bool nudge = nudge_;
+      const bool stop = stop_;
+      mu_.Unlock();
+      // NOTE: The caller might call `Stop()` immediately after one final
+      // `Nudge()`: in that case we still should run the action, and only then
+      // terminate the loop. This is in contrast to waking after sleeping the
+      // full duration while the caller calls `Stop()` during that time: in that
+      // case, we should NOT run the action and terminate the loop immediately.
+      if (schedule || nudge) {
         action_();
+      }
+      if (stop) {
+        return;
       }
       ++iteration;
     }
   }
 
-  void SleepUnlessWokenByNudge(absl::Duration duration) {
-    if (nudge_mu_.WriterLockWhenWithTimeout(  //
-            absl::Condition{&nudge_}, duration)) {
-      // Got woken up by a nudge.
-      nudge_mu_.AssertHeld();
-      nudge_ = false;
-    } else {
-      // A nudge never came, slept well the entire time: nothing to do.
-    }
-    nudge_mu_.Unlock();
+  void SleepOrWakeEarly(absl::Duration duration)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mu_) {
+    mu_.Lock();
+    // NOTE: Reset only `nudge_`, but not `stop_`: nudging is transient and
+    // can be activated repeatedly, the latter is persistent and can be
+    // activated only once (repeated calls to `Stop()` are no-ops).
+    nudge_ = false;
+    mu_.Unlock();
+    const auto wake_early = [this]() {
+      mu_.AssertReaderHeld();
+      return nudge_ || stop_;
+    };
+    mu_.LockWhenWithTimeout(absl::Condition{&wake_early}, duration);
+    mu_.AssertHeld();
   }
 
   absl::AnyInvocable<void()> action_;
   PeriodicAction::Options options_;
 
   // WARNING!!! The order below is important.
-  absl::Notification stop_;
-  absl::Mutex nudge_mu_;
-  bool nudge_ ABSL_GUARDED_BY(nudge_mu_) = false;
+  absl::Mutex mu_;
+  bool nudge_ ABSL_GUARDED_BY(mu_) = false;
+  bool stop_ ABSL_GUARDED_BY(mu_) = false;
   std::thread thread_;
 };
 

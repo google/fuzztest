@@ -137,6 +137,58 @@ TEST(PeriodicActionTest, ClashingPeriodicAndNudgedInvocations) {
       << VV(kMaxPeriodicCount) << VV(kMaxNudgedCount);
 }
 
+// Test that a `Nudge()` immediately followed by an explicit `Stop()` still
+// runs the action.
+TEST(PeriodicActionTest, NudgeThenStopStillRunsAction) {
+  int count = 0;
+  absl::Mutex count_mu;
+  PeriodicAction action{
+      [&count, &count_mu]() {
+        absl::MutexLock lock{&count_mu};
+        ++count;
+      },
+      PeriodicAction::ZeroDelayConstInterval(absl::InfiniteDuration()),
+  };
+  absl::SleepFor(absl::Seconds(1));
+  {
+    absl::MutexLock lock{&count_mu};
+    EXPECT_EQ(count, 1);
+  }
+  action.Nudge();
+  action.Stop();
+  {
+    absl::MutexLock lock{&count_mu};
+    EXPECT_EQ(count, 2);
+  }
+}
+
+// Test that a `Nudge()` immediately followed by an implicit `Stop()` in
+// `~PeriodicAction()` still runs the action.
+TEST(PeriodicActionTest, NudgeThenDtorStillRunsAction) {
+  int count = 0;
+  absl::Mutex count_mu;
+  {
+    PeriodicAction action{
+        [&count, &count_mu]() {
+          absl::MutexLock lock{&count_mu};
+          ++count;
+        },
+        PeriodicAction::ZeroDelayConstInterval(absl::InfiniteDuration()),
+    };
+    absl::SleepFor(absl::Seconds(1));
+    {
+      absl::MutexLock lock{&count_mu};
+      EXPECT_EQ(count, 1);
+    }
+    EXPECT_EQ(count, 1);
+    action.Nudge();
+  }
+  {
+    absl::MutexLock lock{&count_mu};
+    EXPECT_EQ(count, 2);
+  }
+}
+
 // The main purpose of this test is to make sure that a `PeriodicAction` object
 // can be moved to another such that the original object's dtor doesn't blow up
 // when it runs.
