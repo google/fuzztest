@@ -99,7 +99,7 @@ void Convert(               //
   // Verify and prepare source and destination.
 
   CHECK(RemotePathExists(in)) << VV(in);
-  RemoteMkdir(std::filesystem::path{out}.parent_path().c_str());
+  CHECK_OK(RemoteMkdir(std::filesystem::path{out}.parent_path().c_str()));
 
   // Open blob file reader and writer.
 

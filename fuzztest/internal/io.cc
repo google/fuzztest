@@ -253,7 +253,11 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
     // file and a file that is not a blob file. Once we can, we should not fall
     // back to reading the file directly if it is an empty blob file.
     std::string contents;
-    centipede::RemoteFileGetContents(file_path, contents);
+    const absl::Status get_contents_status =
+        centipede::RemoteFileGetContents(file_path, contents);
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        get_contents_status.ok(), "RemoteFileGetContents failed on ", file_path,
+        ", status: ", get_contents_status.message());
     absl::Status result = consume(file_path, std::nullopt, std::move(contents));
     if (result.ok()) {
       ++total_loaded_inputs;
