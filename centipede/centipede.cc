@@ -96,6 +96,7 @@
 #include "./common/hash.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
@@ -135,8 +136,8 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
   std::vector<std::string> sharded_corpus_files;
-  RemoteGlobMatch(WorkDir{env}.CorpusFiles().AllShardsGlob(),
-                  sharded_corpus_files);
+  CHECK_OK(RemoteGlobMatch(WorkDir{env}.CorpusFiles().AllShardsGlob(),
+                           sharded_corpus_files));
   ExportCorpus(sharded_corpus_files, dir);
 }
 
@@ -147,7 +148,9 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   std::vector<std::vector<std::string>> sharded_paths(env.total_shards);
   std::vector<std::string> paths;
   size_t total_paths = 0;
-  for (const std::string &path : RemoteListFiles(dir, /*recursively=*/true)) {
+  const std::vector<std::string> listed_paths =
+      ValueOrDie(RemoteListFiles(dir, /*recursively=*/true));
+  for (const std::string &path : listed_paths) {
     size_t filename_hash = std::hash<std::string>{}(path);
     sharded_paths[filename_hash % env.total_shards].push_back(path);
     ++total_paths;
@@ -177,7 +180,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     ByteArray shard_data;
     for (const auto &path : sharded_paths[shard]) {
       std::string input;
-      RemoteFileGetContents(path, input);
+      CHECK_OK(RemoteFileGetContents(path, input));
       if (input.empty() || existing_hashes.contains(Hash(input))) {
         ++inputs_ignored;
         continue;
@@ -533,7 +536,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
   auto report_path = wd_.SourceBasedCoverageReportPath(filename_annotation);
   LOG(INFO) << "Generate source based coverage report [" << description << "]; "
             << VV(report_path);
-  RemoteMkdir(report_path);
+  CHECK_OK(RemoteMkdir(report_path));
 
   std::vector<std::string> raw_profiles = wd_.EnumerateRawCoverageProfiles();
 
@@ -574,15 +577,16 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
   class ReportDumper : public RUsageProfiler::ReportSink {
    public:
     explicit ReportDumper(std::string_view path)
-        : file_{RemoteFileOpen(path, "w")} {
+        : file_{*RemoteFileOpen(path, "w")} {
       CHECK(file_ != nullptr) << VV(path);
-      RemoteFileSetWriteBufferSize(file_, 10UL * 1024 * 1024);
+      CHECK_OK(RemoteFileSetWriteBufferSize(file_, 10UL * 1024 * 1024));
     }
 
-    ~ReportDumper() override { RemoteFileClose(file_); }
+    ~ReportDumper() override { CHECK_OK(RemoteFileClose(file_)); }
 
     ReportDumper &operator<<(std::string_view fragment) override {
-      RemoteFileAppend(file_, ByteArray{fragment.cbegin(), fragment.cend()});
+      CHECK_OK(RemoteFileAppend(file_,
+                                ByteArray{fragment.cbegin(), fragment.cend()}));
       return *this;
     }
 
@@ -870,7 +874,7 @@ void Centipede::ReportCrash(std::string_view binary,
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPath();
-      RemoteMkdir(crash_dir);
+      CHECK_OK(RemoteMkdir(crash_dir));
       std::string file_path = std::filesystem::path(crash_dir).append(hash);
       LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
                 << "\nInput index    : " << input_idx << "\nInput bytes    : "
@@ -879,7 +883,7 @@ void Centipede::ReportCrash(std::string_view binary,
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
                 << "\nSaving input to: " << file_path;
-      RemoteFileSetContents(file_path, one_input);
+      CHECK_OK(RemoteFileSetContents(file_path, one_input));
       return;
     }
   }
@@ -898,18 +902,18 @@ void Centipede::ReportCrash(std::string_view binary,
   const auto &suspect_input = input_vec[suspect_input_idx];
   auto suspect_hash = Hash(suspect_input);
   auto crash_dir = wd_.CrashReproducerDirPath();
-  RemoteMkdir(crash_dir);
+  CHECK_OK(RemoteMkdir(crash_dir));
   std::string save_dir = std::filesystem::path(crash_dir)
                              .append("crashing_batch-")
                              .concat(suspect_hash);
-  RemoteMkdir(save_dir);
+  CHECK_OK(RemoteMkdir(save_dir));
   LOG(INFO) << log_prefix << "Saving used inputs from batch to: " << save_dir;
   for (int i = 0; i <= suspect_input_idx; ++i) {
     const auto &one_input = input_vec[i];
     auto hash = Hash(one_input);
     std::string file_path = std::filesystem::path(save_dir).append(
         absl::StrFormat("input-%010d-%s", i, hash));
-    RemoteFileSetContents(file_path, one_input);
+    CHECK_OK(RemoteFileSetContents(file_path, one_input));
   }
 }
 
