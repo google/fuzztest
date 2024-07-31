@@ -140,13 +140,14 @@ void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
-  RemoteFileSetContents(file_path, std::string(data.begin(), data.end()));
+  CHECK_OK(
+      RemoteFileSetContents(file_path, std::string(data.begin(), data.end())));
 }
 
 std::string HashOfFileContents(std::string_view file_path) {
   if (file_path.empty()) return "";
   std::string file_contents;
-  RemoteFileGetContents(file_path, file_contents);
+  CHECK_OK(RemoteFileGetContents(file_path, file_contents));
   return Hash(file_contents);
 }
 
