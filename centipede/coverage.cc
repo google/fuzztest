@@ -33,6 +33,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
@@ -90,47 +91,47 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
 void Coverage::DumpReportToFile(const SymbolTable &symbols,
                                 std::string_view filepath,
                                 std::string_view description) {
-  auto *file = RemoteFileOpen(filepath, "w");
+  auto *file = ValueOrDie(RemoteFileOpen(filepath, "w"));
   CHECK(file != nullptr) << "Failed to open file: " << filepath;
-  RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024);
+  CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
   if (!description.empty()) {
-    RemoteFileAppend(file, "# ");
-    RemoteFileAppend(file, std::string{description});
-    RemoteFileAppend(file, ":\n\n");
+    CHECK_OK(RemoteFileAppend(file, "# "));
+    CHECK_OK(RemoteFileAppend(file, std::string{description}));
+    CHECK_OK(RemoteFileAppend(file, ":\n\n"));
   }
   // Print symbolized function names for all covered functions.
   for (auto pc_index : fully_covered_funcs) {
-    RemoteFileAppend(file, "FULL: ");
-    RemoteFileAppend(file, symbols.full_description(pc_index));
-    RemoteFileAppend(file, "\n");
+    CHECK_OK(RemoteFileAppend(file, "FULL: "));
+    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
+    CHECK_OK(RemoteFileAppend(file, "\n"));
   }
-  RemoteFileFlush(file);
+  CHECK_OK(RemoteFileFlush(file));
   // Same for uncovered functions.
   for (auto pc_index : uncovered_funcs) {
-    RemoteFileAppend(file, "NONE: ");
-    RemoteFileAppend(file, symbols.full_description(pc_index));
-    RemoteFileAppend(file, "\n");
+    CHECK_OK(RemoteFileAppend(file, "NONE: "));
+    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
+    CHECK_OK(RemoteFileAppend(file, "\n"));
   }
-  RemoteFileFlush(file);
+  CHECK_OK(RemoteFileFlush(file));
   // For every partially covered function, first print its name,
   // then print its covered edges, then uncovered edges.
   for (auto &pcf : partially_covered_funcs) {
-    RemoteFileAppend(file, "PARTIAL: ");
-    RemoteFileAppend(file, symbols.full_description(pcf.covered[0]));
-    RemoteFileAppend(file, "\n");
+    CHECK_OK(RemoteFileAppend(file, "PARTIAL: "));
+    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pcf.covered[0])));
+    CHECK_OK(RemoteFileAppend(file, "\n"));
     for (auto pc_index : pcf.covered) {
-      RemoteFileAppend(file, "  + ");
-      RemoteFileAppend(file, symbols.full_description(pc_index));
-      RemoteFileAppend(file, "\n");
+      CHECK_OK(RemoteFileAppend(file, "  + "));
+      CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
+      CHECK_OK(RemoteFileAppend(file, "\n"));
     }
     for (auto pc_index : pcf.uncovered) {
-      RemoteFileAppend(file, "  - ");
-      RemoteFileAppend(file, symbols.full_description(pc_index));
-      RemoteFileAppend(file, "\n");
+      CHECK_OK(RemoteFileAppend(file, "  - "));
+      CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
+      CHECK_OK(RemoteFileAppend(file, "\n"));
     }
   }
-  RemoteFileFlush(file);
-  RemoteFileClose(file);
+  CHECK_OK(RemoteFileFlush(file));
+  CHECK_OK(RemoteFileClose(file));
 }
 
 std::string CoverageLogger::ObserveAndDescribeIfNew(PCIndex pc_index) {

@@ -66,6 +66,7 @@
 #include "./common/hash.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 #include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
@@ -178,7 +179,7 @@ BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
   }
   if (env.save_binary_info) {
     const std::string binary_info_dir = WorkDir{env}.BinaryInfoDirPath();
-    RemoteMkdir(binary_info_dir);
+    CHECK_OK(RemoteMkdir(binary_info_dir));
     LOG(INFO) << "Serializing binary info to: " << binary_info_dir;
     binary_info.Write(binary_info_dir);
   }
@@ -329,11 +330,11 @@ int PruneNonreproducibleAndCountRemainingCrashes(
 
   for (const std::string &crashing_input_file : crashing_input_files) {
     ByteArray crashing_input;
-    RemoteFileGetContents(crashing_input_file, crashing_input);
+    CHECK_OK(RemoteFileGetContents(crashing_input_file, crashing_input));
     if (scoped_callbacks.callbacks()->Execute(env.binary, {crashing_input},
                                               batch_result)) {
       // The crash is not reproducible.
-      RemotePathDelete(crashing_input_file, /*recursively=*/false);
+      CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
     } else {
       ++num_remaining_crashes;
     }
@@ -435,10 +436,11 @@ int UpdateCorpusDatabaseForFuzzTests(
       // This could be a workdir from a failed run that used a different version
       // of the binary. We delete it so that we don't have to deal with the
       // assumptions under which it is safe to reuse an old workdir.
-      RemotePathDelete(env.workdir, /*recursively=*/true);
+      CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
     }
     const WorkDir workdir{env};
-    RemoteMkdir(workdir.CoverageDirPath());  // Implicitly creates the workdir.
+    CHECK_OK(RemoteMkdir(
+        workdir.CoverageDirPath()));  // Implicitly creates the workdir
 
     // Seed the fuzzing session with the latest coverage corpus from the
     // previous fuzzing session.
@@ -465,11 +467,11 @@ int UpdateCorpusDatabaseForFuzzTests(
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
     if (!stats_root_path.empty()) {
       const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
-      RemoteMkdir(stats_dir.c_str());
-      RemotePathRename(
+      CHECK_OK(RemoteMkdir(stats_dir.c_str()));
+      CHECK_OK(RemotePathRename(
           workdir.FuzzingStatsPath(),
           (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
-              .c_str());
+              .c_str()));
     }
 
     // Distill and store the coverage corpus.
@@ -477,23 +479,25 @@ int UpdateCorpusDatabaseForFuzzTests(
     if (RemotePathExists(coverage_dir.c_str())) {
       // In the future, we will store k latest coverage corpora for some k, but
       // for now we only keep the latest one.
-      RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true);
+      CHECK_OK(RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true));
     }
-    RemoteMkdir(coverage_dir.c_str());
+    CHECK_OK(RemoteMkdir(coverage_dir.c_str()));
     std::vector<std::string> distilled_corpus_files;
-    RemoteGlobMatch(workdir.DistilledCorpusFiles().AllShardsGlob(),
-                    distilled_corpus_files);
+    CHECK_OK(RemoteGlobMatch(workdir.DistilledCorpusFiles().AllShardsGlob(),
+                             distilled_corpus_files));
     for (const std::string &corpus_file : distilled_corpus_files) {
       const std::string file_name =
           std::filesystem::path(corpus_file).filename();
-      RemotePathRename(corpus_file, (coverage_dir / file_name).c_str());
+      CHECK_OK(
+          RemotePathRename(corpus_file, (coverage_dir / file_name).c_str()));
     }
 
     const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
     const std::vector<std::string> crashing_input_files =
         // The corpus database layout assumes the crash input files are located
         // directly in the crashing subdirectory, so we don't list recursively.
-        RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false);
+        ValueOrDie(
+            RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
     const int num_remaining_crashes =
         PruneNonreproducibleAndCountRemainingCrashes(env, crashing_input_files,
                                                      callbacks_factory);
@@ -505,18 +509,19 @@ int UpdateCorpusDatabaseForFuzzTests(
           // The crash reproducer directory may contain subdirectories with
           // input files that don't individually cause a crash. We ignore those
           // for now and don't list the files recursively.
-          RemoteListFiles(workdir.CrashReproducerDirPath(),
-                          /*recursively=*/false);
+          *RemoteListFiles(workdir.CrashReproducerDirPath(),
+                           /*recursively=*/false);
       if (!new_crashing_input_files.empty()) {
         const std::string crashing_input_file_name =
             std::filesystem::path(new_crashing_input_files[0]).filename();
-        RemoteMkdir(crashing_dir.c_str());
-        RemotePathRename(new_crashing_input_files[0],
-                         (crashing_dir / crashing_input_file_name).c_str());
+        CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
+        CHECK_OK(RemotePathRename(
+            new_crashing_input_files[0],
+            (crashing_dir / crashing_input_file_name).c_str()));
       }
     }
   }
-  RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true);
+  CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
 
   return EXIT_SUCCESS;
 }
@@ -589,7 +594,7 @@ int CentipedeMain(const Environment &env,
 
   // Create the remote coverage dirs once, before creating any threads.
   const auto coverage_dir = WorkDir{env}.CoverageDirPath();
-  RemoteMkdir(coverage_dir);
+  CHECK_OK(RemoteMkdir(coverage_dir));
   LOG(INFO) << "Coverage dir: " << coverage_dir
             << "; temporary dir: " << tmpdir;
 
