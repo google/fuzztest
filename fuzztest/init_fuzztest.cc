@@ -1,5 +1,7 @@
 #include "./fuzztest/init_fuzztest.h"
 
+#include "absl/strings/str_replace.h"
+
 #if defined(__linux__)
 #include <unistd.h>
 #endif
@@ -190,16 +192,24 @@ internal::Configuration CreateConfigurationsFromFlags(
 
 #if defined(__linux__)
 
+std::string ShellEscape(absl::string_view str) {
+  return absl::StrCat("'", absl::StrReplaceAll(str, {{"'", "'\\''"}}), "'");
+}
+
 void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
   std::string binary_arg = absl::StrCat("--binary=", argv[0]);
+  // We need shell escaping, because parts of binary_arg will be passed to
+  // system(), which uses the default shell.
   for (int i = 1; i < argc; ++i) {
-    absl::StrAppend(&binary_arg, " ", argv[i]);
+    absl::StrAppend(&binary_arg, " ", ShellEscape(argv[i]));
   }
   // Additionally we need to append the parsed flags because Abseil removes
   // them from `argv`. We only append flags with a non-default value.
   for (const auto [flag_name, flag] : absl::GetAllFlags()) {
     if (flag->CurrentValue() == flag->DefaultValue()) continue;
-    absl::StrAppend(&binary_arg, " --", flag_name, "=", flag->CurrentValue());
+    absl::StrAppend(
+        &binary_arg, " ",
+        ShellEscape(absl::StrCat("--", flag_name, "=", flag->CurrentValue())));
   }
   // `execv` guarantees it will not modify the passed arguments, so the
   // const_casts are OK.
