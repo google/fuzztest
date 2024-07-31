@@ -22,49 +22,69 @@
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
-void RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
-                      const std::string &contents) {
+absl::Status RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
+                              const std::string &contents) {
   ByteArray contents_ba{contents.cbegin(), contents.cend()};
-  RemoteFileAppend(f, contents_ba);
+  return RemoteFileAppend(f, contents_ba);
 }
 
-void RemoteFileRead(absl::Nonnull<RemoteFile *> f, std::string &contents) {
+absl::Status RemoteFileRead(absl::Nonnull<RemoteFile *> f,
+                            std::string &contents) {
   ByteArray contents_ba;
-  RemoteFileRead(f, contents_ba);
+  RETURN_IF_NOT_OK(RemoteFileRead(f, contents_ba));
   contents.assign(contents_ba.cbegin(), contents_ba.cend());
+  return absl::OkStatus();
 }
 
-void RemoteFileSetContents(std::string_view path, const ByteArray &contents) {
-  auto *file = RemoteFileOpen(path, "w");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileAppend(file, contents);
-  RemoteFileClose(file);
+absl::Status RemoteFileSetContents(std::string_view path,
+                                   const ByteArray &contents) {
+  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
+  if (file == nullptr) {
+    return absl::UnknownError(
+        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
+  }
+  RETURN_IF_NOT_OK(RemoteFileAppend(file, contents));
+  return RemoteFileClose(file);
 }
 
-void RemoteFileSetContents(std::string_view path, const std::string &contents) {
-  auto *file = RemoteFileOpen(path, "w");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileAppend(file, contents);
-  RemoteFileClose(file);
+absl::Status RemoteFileSetContents(std::string_view path,
+                                   const std::string &contents) {
+  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
+  if (file == nullptr) {
+    return absl::UnknownError(
+        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
+  }
+  RETURN_IF_NOT_OK(RemoteFileAppend(file, contents));
+  RETURN_IF_NOT_OK(RemoteFileClose(file));
+  return absl::OkStatus();
 }
 
-void RemoteFileGetContents(std::string_view path, ByteArray &contents) {
-  auto *file = RemoteFileOpen(path, "r");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileRead(file, contents);
-  RemoteFileClose(file);
+absl::Status RemoteFileGetContents(std::string_view path, ByteArray &contents) {
+  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "r"));
+  if (file == nullptr) {
+    return absl::UnknownError(
+        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
+  }
+  RETURN_IF_NOT_OK(RemoteFileRead(file, contents));
+  return RemoteFileClose(file);
 }
 
-void RemoteFileGetContents(std::string_view path, std::string &contents) {
-  auto *file = RemoteFileOpen(path, "r");
-  CHECK(file != nullptr) << VV(path);
-  RemoteFileRead(file, contents);
-  RemoteFileClose(file);
+absl::Status RemoteFileGetContents(std::string_view path,
+                                   std::string &contents) {
+  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "r"));
+  if (file == nullptr) {
+    return absl::UnknownError(
+        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
+  }
+  RETURN_IF_NOT_OK(RemoteFileRead(file, contents));
+  return RemoteFileClose(file);
 }
 
 }  // namespace centipede

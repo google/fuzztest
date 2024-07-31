@@ -102,7 +102,7 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
       std::filesystem::path{test_tmpdir} / "covered_symbol_table";
   DumpCoverageReport(coverage_results, coverage_report_path);
   std::string symbol_table_contents;
-  RemoteFileGetContents(coverage_report_path, symbol_table_contents);
+  ASSERT_OK(RemoteFileGetContents(coverage_report_path, symbol_table_contents));
 
   std::istringstream symbol_table_stream(symbol_table_contents);
   SymbolTable symbols;
