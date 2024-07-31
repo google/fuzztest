@@ -1,7 +1,5 @@
 #include "./fuzztest/init_fuzztest.h"
 
-#include "absl/strings/str_replace.h"
-
 #if defined(__linux__)
 #include <unistd.h>
 #endif
@@ -9,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -28,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
@@ -102,10 +102,17 @@ FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
                      "in the database as separate TEST-s.");
 
 FUZZTEST_DEFINE_FLAG(
-    bool, replay_coverage_inputs, false,
-    "When true, the selected tests replay coverage inputs in the database for "
-    "a given test. This is useful for measuring the coverage of the corpus "
-    "built up during previously ran fuzzing sessions.");
+    absl::Duration, binary_replay_coverage_time_budget, absl::ZeroDuration(),
+    "When set to a positive duration, the coverage inputs (corpus) from the "
+    "corpus database are replayed for all fuzz tests selected to run, until "
+    "the test time budget is reached. Each fuzz test time budget is "
+    "--" FUZZTEST_FLAG_PREFIX
+    "binary_replay_coverage_time_budget divided by the number of running fuzz "
+    "tests. Set to 'inf' to replay all coverage inputs. Note that replay does "
+    "not include crashing inputs (counterexample findings). Replaying coverage "
+    "(non-crashing) inputs is useful for measuring the coverage of the corpus "
+    "built up during previously ran fuzzing sessions, or to catch newly "
+    "introduced regressions at presubmit time in CI.");
 
 FUZZTEST_DEFINE_FLAG(
     size_t, stack_limit_kb, 128,
@@ -183,8 +190,9 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*stats_root=*/"",
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
+      /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
       reproduce_findings_as_separate_tests,
-      absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
+      absl::GetFlag(FUZZTEST_FLAG(binary_replay_coverage_time_budget)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit_per_test};
@@ -197,6 +205,20 @@ std::string ShellEscape(absl::string_view str) {
 }
 
 void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
+  // Initialization code before `ExecvToCentipede` may establish a timer and a
+  // signal handler, but only the timer persists through execve(). This can
+  // cause program termination by unhandled signals and to avoid this, we unset
+  // timer signals.
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = SIG_IGN;
+  for (int timer_signo : {SIGALRM, SIGPROF, SIGVTALRM}) {
+    if (sigaction(timer_signo, &sa, nullptr) < 0) {
+      std::cerr << "Failed to ignore timer signal " << timer_signo
+                << ". The program being launched may die if a profiling "
+                   "timer expires before it can register its own handler.";
+    }
+  }
   std::string binary_arg = absl::StrCat("--binary=", argv[0]);
   // We need shell escaping, because parts of binary_arg will be passed to
   // system(), which uses the default shell.

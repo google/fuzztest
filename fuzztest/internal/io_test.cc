@@ -34,6 +34,8 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./fuzztest/fuzztest_core.h"
@@ -250,6 +252,30 @@ TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
         return absl::OkStatus();
       });
   EXPECT_THAT(inputs, UnorderedElementsAre(InputInFile{file, 1, "Accept"}));
+  std::filesystem::remove_all(tmp_dir);
+}
+
+TEST(ForEachSerializedInputTest, ReadsInputsUntilTimeout) {
+  const std::string tmp_dir = TmpDir("test_dir");
+  std::vector<std::string> serialized_files;
+  constexpr int kInputsNum = 1000;
+  constexpr absl::Duration kTimeout = absl::Seconds(1);
+  for (int i = 0; i < kInputsNum; ++i) {
+    serialized_files.push_back(std::filesystem::path(tmp_dir) /
+                               absl::StrCat("serialized_file", i));
+    TestWrite(serialized_files.back(), absl::StrCat("Input", i));
+  }
+  int inputs_read = 0;
+  ForEachSerializedInput(
+      serialized_files,
+      [&inputs_read, kTimeout](absl::string_view file_path,
+                               std::optional<int> blob_idx, std::string input) {
+        absl::SleepFor(kTimeout / kInputsNum);
+        ++inputs_read;
+        return absl::OkStatus();
+      },
+      kTimeout);
+  EXPECT_LT(inputs_read, kInputsNum);
   std::filesystem::remove_all(tmp_dir);
 }
 
