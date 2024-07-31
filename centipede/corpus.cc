@@ -37,6 +37,7 @@
 #include "./common/defs.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
@@ -136,9 +137,9 @@ const CorpusRecord &Corpus::UniformRandom(size_t random) const {
 
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
                              std::string_view description) {
-  auto *file = RemoteFileOpen(filepath, "w");
+  auto *file = ValueOrDie(RemoteFileOpen(filepath, "w"));
   CHECK(file != nullptr) << "Failed to open file: " << filepath;
-  RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024);
+  CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
   static constexpr std::string_view kHeaderStub = R"(# $0
 {
   "num_inputs": $1,
@@ -151,7 +152,7 @@ void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
 )";
   const std::string header_str =
       absl::Substitute(kHeaderStub, description, records_.size());
-  RemoteFileAppend(file, header_str);
+  CHECK_OK(RemoteFileAppend(file, header_str));
   std::string before_record;
   for (const auto &record : records_) {
     std::vector<size_t> frequencies;
@@ -162,11 +163,11 @@ void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
     const std::string frequencies_str = absl::StrJoin(frequencies, ", ");
     const std::string record_str = absl::Substitute(
         kRecordStub, before_record, record.data.size(), frequencies_str);
-    RemoteFileAppend(file, record_str);
+    CHECK_OK(RemoteFileAppend(file, record_str));
     before_record = ",";
   }
-  RemoteFileAppend(file, std::string{kFooter});
-  RemoteFileClose(file);
+  CHECK_OK(RemoteFileAppend(file, std::string{kFooter}));
+  CHECK_OK(RemoteFileClose(file));
 }
 
 std::string Corpus::MemoryUsageString() const {

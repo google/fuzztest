@@ -33,6 +33,7 @@
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
@@ -192,10 +193,10 @@ void Environment::ReadKnobsFileIfSpecified() {
   const std::string_view knobs_file_path = knobs_file;
   if (knobs_file_path.empty()) return;
   ByteArray knob_bytes;
-  auto *f = RemoteFileOpen(knobs_file, "r");
+  auto *f = ValueOrDie(RemoteFileOpen(knobs_file, "r"));
   CHECK(f) << "Failed to open remote file " << knobs_file;
-  RemoteFileRead(f, knob_bytes);
-  RemoteFileClose(f);
+  CHECK_OK(RemoteFileRead(f, knob_bytes));
+  CHECK_OK(RemoteFileClose(f));
   VLOG(1) << "Knobs: " << knob_bytes.size() << " knobs read from "
           << knobs_file;
   knobs.Set(knob_bytes);

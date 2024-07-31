@@ -48,9 +48,11 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
   WorkDir workdir(std::string(workdir_path), std::string(binary_name),
                   std::string(binary_hash), /*my_shard_index=*/0);
   std::vector<std::string> corpus_paths;
-  RemoteGlobMatch(workdir.CorpusFiles().AllShardsGlob(), corpus_paths);
+  CHECK_OK(
+      RemoteGlobMatch(workdir.CorpusFiles().AllShardsGlob(), corpus_paths));
   std::vector<std::string> features_paths;
-  RemoteGlobMatch(workdir.FeaturesFiles().AllShardsGlob(), features_paths);
+  CHECK_OK(
+      RemoteGlobMatch(workdir.FeaturesFiles().AllShardsGlob(), features_paths));
 
   CHECK_EQ(corpus_paths.size(), features_paths.size());
   std::vector<CorpusRecord> corpus;
@@ -193,7 +195,8 @@ void DumpCoverageReport(const CoverageResults &coverage_results,
   std::ostringstream symbol_table_stream;
   coverage_symbol_table.WriteToLLVMSymbolizer(symbol_table_stream);
 
-  RemoteFileSetContents(coverage_report_path, symbol_table_stream.str());
+  CHECK_OK(
+      RemoteFileSetContents(coverage_report_path, symbol_table_stream.str()));
 }
 
 AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
