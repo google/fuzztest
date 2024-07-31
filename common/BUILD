@@ -150,6 +150,12 @@ cc_library(
 )
 
 cc_library(
+    name = "status_macros",
+    hdrs = ["status_macros.h"],
+    deps = ["@com_google_absl//absl/base:core_headers"],
+)
+
+cc_library(
     name = "test_util",
     testonly = True,
     srcs = ["test_util.cc"],
