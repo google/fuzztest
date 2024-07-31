@@ -32,6 +32,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
@@ -206,9 +208,11 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
                             absl::FunctionRef<absl::Status(
                                 absl::string_view file_path,
                                 std::optional<int> blob_idx, std::string input)>
-                                consume) {
+                                consume,
+                            absl::Duration timeout) {
   int total_loaded_inputs = 0;
   int total_invalid_inputs = 0;
+  const absl::Time start_time = absl::Now();
   for (const std::string& file_path : file_paths) {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(centipede::RemotePathExists(file_path),
                                          "File path ", file_path,
@@ -225,6 +229,13 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
     if (reader->Open(file_path).ok()) {
       centipede::ByteSpan blob;
       for (int blob_idx = 0; reader->Read(blob).ok(); ++blob_idx) {
+        if (absl::Now() - start_time > timeout) {
+          absl::FPrintF(GetStderr(),
+                        "[!] Timeout reached while processing input at index "
+                        "%d in file %s.\n",
+                        blob_idx, file_path);
+          break;
+        }
         absl::Status result = consume(
             file_path, blob_idx, std::string(centipede::AsStringView(blob)));
         if (result.ok()) {
@@ -236,6 +247,12 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
                         blob_idx, file_path, result.message());
         }
       }
+    }
+    if (absl::Now() - start_time > timeout) {
+      absl::FPrintF(GetStderr(),
+                    "[!] Timeout reached while processing input %s.\n",
+                    file_path);
+      break;
     }
     if (loaded_inputs_from_file + invalid_inputs_from_file > 0) {
       // The file was a blob file and we read some inputs from it.

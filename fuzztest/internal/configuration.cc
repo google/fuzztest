@@ -162,6 +162,8 @@ absl::StatusOr<absl::Duration> ParseDuration(absl::string_view duration) {
 }  // namespace
 
 std::string Configuration::Serialize() const {
+  std::string binary_replay_coverage_time_budget_str =
+      absl::FormatDuration(binary_replay_coverage_time_budget);
   std::string time_limit_per_input_str =
       absl::FormatDuration(time_limit_per_input);
   std::string time_limit_per_test_str =
@@ -169,9 +171,11 @@ std::string Configuration::Serialize() const {
   std::string out;
   out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
              SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
+             SpaceFor(fuzz_tests_in_current_shard) +
              SpaceFor(reproduce_findings_as_separate_tests) +
-             SpaceFor(replay_coverage_inputs) + SpaceFor(stack_limit) +
-             SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
+             SpaceFor(binary_replay_coverage_time_budget_str) +
+             SpaceFor(stack_limit) + SpaceFor(rss_limit) +
+             SpaceFor(time_limit_per_input_str) +
              SpaceFor(time_limit_per_test_str) +
              SpaceFor(crashing_input_to_reproduce) +
              SpaceFor(reproduction_command_template));
@@ -180,8 +184,9 @@ std::string Configuration::Serialize() const {
   offset = WriteString(out, offset, stats_root);
   offset = WriteString(out, offset, binary_identifier);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
+  offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
-  offset = WriteIntegral(out, offset, replay_coverage_inputs);
+  offset = WriteString(out, offset, binary_replay_coverage_time_budget_str);
   offset = WriteIntegral(out, offset, stack_limit);
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
@@ -199,9 +204,12 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(stats_root, ConsumeString(serialized));
     ASSIGN_OR_RETURN(binary_identifier, ConsumeString(serialized));
     ASSIGN_OR_RETURN(fuzz_tests, ConsumeVectorOfStrings(serialized));
+    ASSIGN_OR_RETURN(fuzz_tests_in_current_shard,
+                     ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(reproduce_findings_as_separate_tests,
                      Consume<bool>(serialized));
-    ASSIGN_OR_RETURN(replay_coverage_inputs, Consume<bool>(serialized));
+    ASSIGN_OR_RETURN(binary_replay_coverage_time_budget_str,
+                     ConsumeString(serialized));
     ASSIGN_OR_RETURN(stack_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
@@ -214,6 +222,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
     }
+    ASSIGN_OR_RETURN(binary_replay_coverage_time_budget,
+                     ParseDuration(*binary_replay_coverage_time_budget_str));
     ASSIGN_OR_RETURN(time_limit_per_input,
                      ParseDuration(*time_limit_per_input_str));
     ASSIGN_OR_RETURN(time_limit_per_test,
@@ -222,8 +232,9 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *std::move(stats_root),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
+                         *std::move(fuzz_tests_in_current_shard),
                          *reproduce_findings_as_separate_tests,
-                         *replay_coverage_inputs,
+                         *binary_replay_coverage_time_budget,
                          *stack_limit,
                          *rss_limit,
                          *time_limit_per_input,

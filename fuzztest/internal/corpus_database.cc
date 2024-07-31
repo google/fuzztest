@@ -21,6 +21,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/io.h"
 
@@ -56,11 +57,13 @@ CorpusDatabase::CorpusDatabase(absl::string_view database_path,
       use_crashing_inputs_(use_crashing_inputs) {}
 
 CorpusDatabase::CorpusDatabase(const Configuration& configuration)
-    : CorpusDatabase(
-          configuration.corpus_database, configuration.binary_identifier,
-          /*use_coverage_inputs=*/configuration.replay_coverage_inputs,
-          /*use_crashing_inputs=*/
-          configuration.reproduce_findings_as_separate_tests) {}
+    : CorpusDatabase(configuration.corpus_database,
+                     configuration.binary_identifier,
+                     /*use_coverage_inputs=*/
+                     configuration.binary_replay_coverage_time_budget >
+                         absl::ZeroDuration(),
+                     /*use_crashing_inputs=*/
+                     configuration.reproduce_findings_as_separate_tests) {}
 
 std::vector<std::string> CorpusDatabase::GetRegressionInputs(
     absl::string_view test_name) const {

@@ -23,6 +23,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 
 namespace fuzztest::internal {
@@ -76,7 +77,8 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
 // blobs, in which case `consume` is called for each blob, and individual files,
 // in which case `consume` is called on the file's contents. Ignores invalid
 // files. CHECK-fails if `file_paths` contains paths that don't exist or if it
-// contains a directory.
+// contains a directory. When `timeout` is reached before calling the `consume`
+// on an input, the iteration stops (the rest of the inputs won't be consumed).
 //
 // `consume` is a function that takes a file path, an optional blob index in the
 // file (for blob files), and an input in the given file at the given blob index
@@ -86,7 +88,8 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
                             absl::FunctionRef<absl::Status(
                                 absl::string_view file_path,
                                 std::optional<int> blob_idx, std::string input)>
-                                consume);
+                                consume,
+                            absl::Duration timeout = absl::InfiniteDuration());
 
 }  // namespace fuzztest::internal
 
