@@ -92,7 +92,7 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
     LOG(INFO) << "Config spec points at an existing file; trying to parse "
                  "textproto config from it: "
               << VV(config_spec);
-    RemoteFileGetContents(config_spec, config_str);
+    CHECK_OK(RemoteFileGetContents(config_spec, config_str));
     LOG(INFO) << "Raw config read from file:\n" << config_str;
     base_dir = std::filesystem::path{config_spec}.parent_path();
   } else {
@@ -161,7 +161,7 @@ void SampleSeedCorpusElementsFromSource(    //
   // `source.num_recent_dirs()` most recent ones.
 
   std::vector<std::string> src_dirs;
-  RemoteGlobMatch(source.dir_glob(), src_dirs);
+  CHECK_OK(RemoteGlobMatch(source.dir_glob(), src_dirs));
   LOG(INFO) << "Found " << src_dirs.size() << " corpus dir(s) matching "
             << source.dir_glob();
   // Sort in the ascending lexicographical order. We expect that dir names
@@ -179,7 +179,7 @@ void SampleSeedCorpusElementsFromSource(    //
     const std::string shards_glob = fs::path{dir} / source.shard_rel_glob();
     // NOTE: `RemoteGlobMatch` appends to the output list.
     const auto prev_num_shards = corpus_shard_fnames.size();
-    RemoteGlobMatch(shards_glob, corpus_shard_fnames);
+    CHECK_OK(RemoteGlobMatch(shards_glob, corpus_shard_fnames));
     LOG(INFO) << "Found " << (corpus_shard_fnames.size() - prev_num_shards)
               << " shard(s) matching " << shards_glob;
   }
@@ -422,7 +422,9 @@ void WriteSeedCorpusElementsToDestination(  //
         for (const auto& fname : {corpus_fname, features_fname}) {
           if (!fname.empty()) {
             const auto dir = fs::path{fname}.parent_path().string();
-            if (!RemotePathExists(dir)) RemoteMkdir(dir);
+            if (!RemotePathExists(dir)) {
+              CHECK_OK(RemoteMkdir(dir));
+            }
           }
         }
 
@@ -502,7 +504,7 @@ void GenerateSeedCorpusFromConfig(          //
     std::string_view override_out_dir) {
   // Pre-create the destination dir early to catch possible misspellings etc.
   if (!RemotePathExists(config.destination().dir_path())) {
-    RemoteMkdir(config.destination().dir_path());
+    CHECK_OK(RemoteMkdir(config.destination().dir_path()));
   }
 
   // Dump the config to the debug info dir in the destination.
@@ -513,9 +515,9 @@ void GenerateSeedCorpusFromConfig(          //
       /*my_shard_index=*/0,
   };
   const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
-  RemoteMkdir(debug_info_dir.c_str());
-  RemoteFileSetContents((debug_info_dir / "seeding.cfg").c_str(),
-                        absl::StrCat(config));
+  CHECK_OK(RemoteMkdir(debug_info_dir.c_str()));
+  CHECK_OK(RemoteFileSetContents((debug_info_dir / "seeding.cfg").c_str(),
+                                 absl::StrCat(config)));
 
   InputAndFeaturesVec elements;
 
