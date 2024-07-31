@@ -52,6 +52,7 @@
 #include "./common/hash.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 
 namespace centipede {
 
@@ -116,8 +117,10 @@ class InputCorpusShardReader {
   perf::MemSize EstimateRamFootprint(size_t shard_idx) const {
     const auto corpus_path = workdir_.CorpusFiles().ShardPath(shard_idx);
     const auto features_path = workdir_.FeaturesFiles().ShardPath(shard_idx);
-    const perf::MemSize corpus_file_size = RemoteFileGetSize(corpus_path);
-    const perf::MemSize features_file_size = RemoteFileGetSize(features_path);
+    const perf::MemSize corpus_file_size =
+        ValueOrDie(RemoteFileGetSize(corpus_path));
+    const perf::MemSize features_file_size =
+        ValueOrDie(RemoteFileGetSize(features_path));
     // Conservative compression factors for the two file types. These have been
     // observed empirically for the Riegeli blob format. The legacy format is
     // approximately 1:1, but use the stricter Riegeli numbers, as the legacy

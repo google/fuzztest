@@ -123,15 +123,16 @@ void BinaryInfo::InitializeFromSanCovBinary(
 void BinaryInfo::Read(std::string_view dir) {
   std::string symbol_table_contents;
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  RemoteFileGetContents(
+  CHECK_OK(RemoteFileGetContents(
       (std::filesystem::path(dir) / kSymbolTableFileName).c_str(),
-      symbol_table_contents);
+      symbol_table_contents));
   std::istringstream symbol_table_stream(symbol_table_contents);
   symbols.ReadFromLLVMSymbolizer(symbol_table_stream);
 
   std::string pc_table_contents;
-  RemoteFileGetContents((std::filesystem::path(dir) / kPCTableFileName).c_str(),
-                        pc_table_contents);
+  CHECK_OK(RemoteFileGetContents(
+      (std::filesystem::path(dir) / kPCTableFileName).c_str(),
+      pc_table_contents));
   std::istringstream pc_table_stream(pc_table_contents);
   pc_table = ReadPcTable(pc_table_stream);
 }
@@ -140,14 +141,15 @@ void BinaryInfo::Write(std::string_view dir) {
   std::ostringstream symbol_table_stream;
   symbols.WriteToLLVMSymbolizer(symbol_table_stream);
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  RemoteFileSetContents(
+  CHECK_OK(RemoteFileSetContents(
       (std::filesystem::path(dir) / kSymbolTableFileName).c_str(),
-      symbol_table_stream.str());
+      symbol_table_stream.str()));
 
   std::ostringstream pc_table_stream;
   WritePcTable(pc_table, pc_table_stream);
-  RemoteFileSetContents((std::filesystem::path(dir) / kPCTableFileName).c_str(),
-                        pc_table_stream.str());
+  CHECK_OK(RemoteFileSetContents(
+      (std::filesystem::path(dir) / kPCTableFileName).c_str(),
+      pc_table_stream.str()));
 }
 
 }  // namespace centipede
