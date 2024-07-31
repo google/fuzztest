@@ -37,6 +37,7 @@
 #include "./common/hash.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -76,14 +77,15 @@ class SimpleBlobFileReader : public BlobFileReader {
   absl::Status Open(std::string_view path) override {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, "r");
+    ASSIGN_OR_RETURN_IF_NOT_OK(file_, RemoteFileOpen(path, "r"));
     if (file_ == nullptr) return absl::UnknownError("can't open file");
     // Read the entire file at once.
     // It may be useful to read the file in chunks, but if we are going
     // to migrate to something else, it's not important here.
     ByteArray raw_bytes;
-    RemoteFileRead(file_, raw_bytes);
-    RemoteFileClose(file_);  // close the file here, we won't need it.
+    RETURN_IF_NOT_OK(RemoteFileRead(file_, raw_bytes));
+    RETURN_IF_NOT_OK(
+        RemoteFileClose(file_));  // close the file here, we won't need it.
     UnpackBytesFromAppendFile(raw_bytes, &unpacked_blobs_);
     return absl::OkStatus();
   }
@@ -130,9 +132,9 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     CHECK(mode == "w" || mode == "a") << VV(mode);
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (file_) return absl::FailedPreconditionError("already open");
-    file_ = RemoteFileOpen(path, mode.data());
+    ASSIGN_OR_RETURN_IF_NOT_OK(file_, RemoteFileOpen(path, mode.data()));
     if (file_ == nullptr) return absl::UnknownError("can't open file");
-    RemoteFileSetWriteBufferSize(file_, kMaxBufferedBytes);
+    RETURN_IF_NOT_OK(RemoteFileSetWriteBufferSize(file_, kMaxBufferedBytes));
     return absl::OkStatus();
   }
 
@@ -140,8 +142,8 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     ByteArray packed = PackBytesForAppendFile(blob);
-    RemoteFileAppend(file_, packed);
-    RemoteFileFlush(file_);
+    RETURN_IF_NOT_OK(RemoteFileAppend(file_, packed));
+    RETURN_IF_NOT_OK(RemoteFileFlush(file_));
     return absl::OkStatus();
   }
 
@@ -149,7 +151,7 @@ class SimpleBlobFileWriter : public BlobFileWriter {
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (!file_) return absl::FailedPreconditionError("was not open");
     closed_ = true;
-    RemoteFileClose(file_);
+    RETURN_IF_NOT_OK(RemoteFileClose(file_));
     return absl::OkStatus();
   }
 
@@ -174,7 +176,9 @@ class DefaultBlobFileReader : public BlobFileReader {
     if (absl::Status s = Close(); !s.ok()) return s;
 
 #ifndef CENTIPEDE_DISABLE_RIEGELI
-    riegeli_reader_.Reset(CreateRiegeliFileReader(path));
+    ASSIGN_OR_RETURN_IF_NOT_OK(std::unique_ptr<riegeli::Reader> new_reader,
+                               CreateRiegeliFileReader(path));
+    riegeli_reader_.Reset(std::move(new_reader));
     if (riegeli_reader_.CheckFileFormat()) [[likely]] {
       // File could be opened and is in the Riegeli format.
       return absl::OkStatus();
@@ -277,8 +281,10 @@ class RiegeliWriter : public BlobFileWriter {
     if (absl::Status s = Close(); !s.ok()) return s;
     const auto kWriterOpts =
         riegeli::RecordWriterBase::Options{}.set_chunk_size(kMaxBufferedBytes);
-    writer_.Reset(CreateRiegeliFileWriter(path, mode == "a"), kWriterOpts);
-    if (!writer_.ok()) return writer_.status();
+    ASSIGN_OR_RETURN_IF_NOT_OK(std::unique_ptr<riegeli::Writer> new_writer,
+                               CreateRiegeliFileWriter(path, mode == "a"));
+    writer_.Reset(std::move(new_writer), kWriterOpts);
+    RETURN_IF_NOT_OK(writer_.status());
     path_ = path;
     opened_at_ = absl::Now();
     flushed_at_ = absl::Now();
