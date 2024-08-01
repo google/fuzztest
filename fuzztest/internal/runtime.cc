@@ -683,15 +683,18 @@ void FuzzTestFuzzerImpl::TrySampleAndUpdateInMemoryCorpus(Input sample,
 void FuzzTestFuzzerImpl::ForEachInput(
     absl::Span<const std::string> files,
     absl::FunctionRef<void(absl::string_view, std::optional<int>, Input)>
-        consume) {
+        consume,
+    absl::Duration timeout) {
   ForEachSerializedInput(
-      files, [this, consume](absl::string_view file_path,
-                             std::optional<int> blob_idx, std::string data) {
+      files,
+      [this, consume](absl::string_view file_path, std::optional<int> blob_idx,
+                      std::string data) {
         absl::StatusOr<corpus_type> corpus_value = TryParse(data);
         if (!corpus_value.ok()) return corpus_value.status();
         consume(file_path, blob_idx, Input{*std::move(corpus_value)});
         return absl::OkStatus();
-      });
+      },
+      timeout);
 }
 
 bool FuzzTestFuzzerImpl::MinimizeCorpusIfInMinimizationMode(
@@ -831,9 +834,14 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
         absl::bind_front(&FuzzTestFuzzerImpl::ReplayInput, this);
     ForEachInput(corpus_database.GetRegressionInputs(test_.full_name()),
                  replay_input);
-    ForEachInput(corpus_database.GetCoverageInputsIfAny(test_.full_name()),
-                 replay_input);
-
+    std::vector<std::string> coverage_inputs =
+        corpus_database.GetCoverageInputsIfAny(test_.full_name());
+    // Replay a random subset of the coverage input until reach the timeout.
+    PRNG prng(seed_sequence_);
+    std::shuffle(coverage_inputs.begin(), coverage_inputs.end(), prng);
+    ForEachInput(coverage_inputs, replay_input,
+                 configuration.binary_replay_coverage_time_budget /
+                     configuration.fuzz_tests_in_current_shard.size());
     runtime_.SetRunMode(RunMode::kUnitTest);
 
     // If crashing inputs are reported, there's no need for a smoke test.
@@ -849,7 +857,6 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
           "Could not parse duration in FUZZTEST_FUZZ_FOR=", fuzz_for);
     }
     const auto time_limit = stats_.start_time + duration;
-    PRNG prng(seed_sequence_);
     Input mutation{params_domain_.Init(prng)};
     constexpr size_t max_iterations = 10000;
     for (int i = 0; i < max_iterations; ++i) {

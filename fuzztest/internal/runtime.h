@@ -305,12 +305,15 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   // Iterates over inputs in `files` and calls `consume` on each input.
   // `consume` is a function that takes a file path, an optional blob index in
   // the file (for blob files with multiple blobs), and an input in the given
-  // file at the given blob index (if applicable).
+  // file at the given blob index (if applicable). When `timeout` is reached
+  // before calling the `consume` on an input, the iteration stops and the rest
+  // of the inputs won't be consumed.
   void ForEachInput(
       absl::Span<const std::string> files,
       absl::FunctionRef<void(absl::string_view file_path,
                              std::optional<int> blob_idx, Input input)>
-          consume);
+          consume,
+      absl::Duration timeout = absl::InfiniteDuration());
 
   // Returns true if we're in minimization mode.
   bool MinimizeCorpusIfInMinimizationMode(absl::BitGenRef prng);

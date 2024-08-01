@@ -41,11 +41,13 @@ struct Configuration {
   std::string binary_identifier;
   // The fuzz tests in the test binary.
   std::vector<std::string> fuzz_tests;
+  // The fuzz tests in the current shard.
+  std::vector<std::string> fuzz_tests_in_current_shard;
   // Generate separate TESTs that replay crashing inputs for the selected fuzz
   // tests.
   bool reproduce_findings_as_separate_tests = false;
-  // Replay coverage inputs for the selected fuzz tests.
-  bool replay_coverage_inputs = false;
+  // Replay coverage timeout for all selected fuzz tests.
+  absl::Duration binary_replay_coverage_time_budget = absl::ZeroDuration();
 
   // Stack limit in bytes.
   size_t stack_limit = 128 * 1024;

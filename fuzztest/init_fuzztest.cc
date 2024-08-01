@@ -102,10 +102,17 @@ FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
                      "in the database as separate TEST-s.");
 
 FUZZTEST_DEFINE_FLAG(
-    bool, replay_coverage_inputs, false,
-    "When true, the selected tests replay coverage inputs in the database for "
-    "a given test. This is useful for measuring the coverage of the corpus "
-    "built up during previously ran fuzzing sessions.");
+    absl::Duration, binary_replay_coverage_time_budget, absl::ZeroDuration(),
+    "When set to a positive duration, the coverage inputs (corpus) from the "
+    "corpus database are replayed for all fuzz tests selected to run, until "
+    "the test time budget is reached. Each fuzz test time budget is "
+    "--" FUZZTEST_FLAG_PREFIX
+    "binary_replay_coverage_time_budget divided by the number of running fuzz "
+    "tests. Set to 'inf' to replay all coverage inputs. Note that replay does "
+    "not include crashing inputs (counterexample findings). Replaying coverage "
+    "(non-crashing) inputs is useful for measuring the coverage of the corpus "
+    "built up during previously ran fuzzing sessions, or to catch newly "
+    "introduced regressions at presubmit time in CI.");
 
 FUZZTEST_DEFINE_FLAG(
     size_t, stack_limit_kb, 128,
@@ -183,8 +190,9 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*stats_root=*/"",
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
+      /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
       reproduce_findings_as_separate_tests,
-      absl::GetFlag(FUZZTEST_FLAG(replay_coverage_inputs)),
+      absl::GetFlag(FUZZTEST_FLAG(binary_replay_coverage_time_budget)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit_per_test};
