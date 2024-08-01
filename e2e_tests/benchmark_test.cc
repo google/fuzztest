@@ -35,8 +35,8 @@
 #include "./fuzztest/internal/subprocess.h"
 #include "re2/re2.h"
 
-// Mimic the open source google benchmark flags in order to work with benchmark
-// driver tools.
+// Mimic the open source google benchmark flags in order to work with
+// benchmark driver tools.
 ABSL_FLAG(std::string, benchmark_filter, "", "");
 ABSL_FLAG(bool, benchmark_list_tests, false, "");
 ABSL_FLAG(std::string, benchmark_format, "", "");
