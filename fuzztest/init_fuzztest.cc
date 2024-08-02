@@ -309,18 +309,34 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   const RunMode run_mode = is_test_to_fuzz_specified || has_time_limit_per_test
                                ? RunMode::kFuzz
                                : RunMode::kUnitTest;
+  const bool is_replaying_coverage_inputs =
+      configuration.binary_replay_coverage_time_budget > absl::ZeroDuration();
 
-  if (run_mode == RunMode::kFuzz && !is_test_to_fuzz_specified &&
-      GTEST_FLAG_GET(filter) == "*") {
-    // Run only the fuzz tests, and not the unit tests when the user doesn't
-    // set the test filter.
-    // TODO: b/340232436 -- This is needed because we currently rely on a fuzz
-    // test being the first test to run so that Centipede can get the serialized
-    // configuration from the binary. For simplicity, we don't restrict the
-    // filter to fuzz tests when the user explicitly sets the filter. Instead of
-    // improving the logic here, once we fix b/340232436 we will remove this
-    // altogether and allow a mix of fuzz tests and unit tests in all cases.
-    GTEST_FLAG_SET(filter, absl::StrJoin(configuration.fuzz_tests, ":"));
+  if ((run_mode == RunMode::kFuzz && !is_test_to_fuzz_specified) ||
+      is_replaying_coverage_inputs) {
+    absl::flat_hash_set<std::string> fuzz_tests = {
+        configuration.fuzz_tests.begin(), configuration.fuzz_tests.end()};
+    std::vector<std::string> non_fuzz_tests;
+    for (const auto* test : internal::GetRegisteredTests()) {
+      const std::string test_name =
+          absl::StrCat(test->test_suite_name(), ".", test->name());
+      if (!fuzz_tests.contains(test_name)) {
+        non_fuzz_tests.push_back(test_name);
+      }
+    }
+    if (!non_fuzz_tests.empty()) {
+      // Run only the fuzz tests, and not the unit tests.
+      // TODO: b/340232436 -- This is needed because we currently rely on a fuzz
+      // test being the first test to run so that Centipede can get the
+      // serialized configuration from the binary.
+      std::string filter = absl::StrCat(
+          GTEST_FLAG_GET(filter),
+          // When the filter already includes the negative patterns, append to
+          // the negative patterns.
+          absl::StrContains(GTEST_FLAG_GET(filter), '-') ? ":" : "-",
+          absl::StrJoin(non_fuzz_tests, ":"));
+      GTEST_FLAG_SET(filter, filter);
+    }
   }
 
   // TODO(b/307513669): Use the Configuration class instead of Runtime.

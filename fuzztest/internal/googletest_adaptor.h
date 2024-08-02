@@ -155,6 +155,9 @@ void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv,
 // properly handled.
 void SetFuzzTestListingModeValidatorForGoogleTest(bool listing_mode);
 
+// Returns the list of registered tests.
+std::vector<const testing::TestInfo*> GetRegisteredTests();
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_

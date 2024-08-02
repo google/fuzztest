@@ -1182,8 +1182,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
 
 // TODO: b/340232436 - Once fixed, remove this test since we will no longer need
 // to restrict the filter to only fuzz tests.
-TEST_F(FuzzingModeCommandLineInterfaceTest,
-       RunsOnlyFuzzTestsWhenNoFilterIsSpecified) {
+TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests");
@@ -1203,11 +1202,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               {{GTEST_FLAG_PREFIX_ "filter",
                 "UnitTest.AlwaysPasses:FuzzTest.AlwaysPasses"}});
 
-  EXPECT_THAT(std_out, HasSubstr("[ RUN      ] UnitTest.AlwaysPasses"));
   EXPECT_THAT(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
   EXPECT_THAT(std_out,
               Not(HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses")));
-  EXPECT_THAT(std_out, HasSubstr("2 tests from 2 test suites ran."));
+  EXPECT_THAT(std_out, Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+  EXPECT_THAT(std_out, HasSubstr("1 test from 1 test suite ran."));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 

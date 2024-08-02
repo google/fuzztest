@@ -5,6 +5,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
@@ -138,6 +139,17 @@ void FuzzTestListingModeValidator::RegisterGoogleTestListener() {
 
 void SetFuzzTestListingModeValidatorForGoogleTest(bool listing_mode) {
   FuzzTestListingModeValidator::GetInstance().set_listing_mode(listing_mode);
+}
+
+std::vector<const testing::TestInfo*> GetRegisteredTests() {
+  std::vector<const testing::TestInfo*> result;
+  auto& unit_test = *testing::UnitTest::GetInstance();
+  for (int i = 0; i < unit_test.total_test_suite_count(); ++i) {
+    for (int j = 0; j < unit_test.GetTestSuite(i)->total_test_count(); ++j) {
+      result.push_back(unit_test.GetTestSuite(i)->GetTestInfo(j));
+    }
+  }
+  return result;
 }
 
 }  // namespace fuzztest::internal
