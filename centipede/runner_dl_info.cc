@@ -14,8 +14,13 @@
 
 #include "./centipede/runner_dl_info.h"
 
+#ifdef __APPLE__
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
+#else  // __APPLE__
 #include <elf.h>
 #include <link.h>  // dl_iterate_phdr
+#endif             // __APPLE__
 #include <unistd.h>
 
 #include <cinttypes>
@@ -31,6 +36,158 @@ namespace centipede {
 
 namespace {
 
+constexpr bool kDlDebug = false;  // we may want to make it a runtime flag.
+
+bool StringEndsWithSuffix(const char* string,
+                          absl::Nonnull<const char*> suffix) {
+  const char* pos = strstr(string, suffix);
+  if (pos == nullptr) return false;
+  return pos == string + strlen(string) - strlen(suffix);
+}
+
+}  // namespace
+
+#ifdef __APPLE__
+// Reference:
+// https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
+
+namespace {
+
+// Calls `callback` on the assumed unique text segment with the link-time start
+// address and size.
+void FindTextSegment(
+    const mach_header* header,
+    const std::function<void(uintptr_t start, uintptr_t size)>& callback) {
+  const load_command* cmd = nullptr;
+  bool found = false;
+  if (header->magic == MH_MAGIC) {
+    cmd = reinterpret_cast<const load_command*>(
+        reinterpret_cast<const char*>(header) + sizeof(mach_header));
+  } else if (header->magic == MH_MAGIC_64) {
+    cmd = reinterpret_cast<const load_command*>(
+        reinterpret_cast<const char*>(header) + sizeof(mach_header_64));
+  }
+  RunnerCheck(cmd != nullptr, "bad magic number of mach image header");
+  for (size_t cmd_index = 0; cmd_index < header->ncmds;
+       ++cmd_index, cmd = reinterpret_cast<const load_command*>(
+                        reinterpret_cast<const char*>(cmd) + cmd->cmdsize)) {
+    if constexpr (kDlDebug) {
+      fprintf(stderr, "%s command at %p with size 0x%" PRIx32 "\n", __func__,
+              cmd, cmd->cmdsize);
+    }
+    uintptr_t base, size;
+    const char* name;
+    if (cmd->cmd == LC_SEGMENT) {
+      const auto* seg = reinterpret_cast<const segment_command*>(cmd);
+      base = seg->vmaddr;
+      size = seg->vmsize;
+      name = seg->segname;
+    } else if (cmd->cmd == LC_SEGMENT_64) {
+      const auto* seg = reinterpret_cast<const segment_command_64*>(cmd);
+      base = seg->vmaddr;
+      size = seg->vmsize;
+      name = seg->segname;
+    } else {
+      continue;
+    }
+    if constexpr (kDlDebug) {
+      fprintf(stderr,
+              "%s segment name %s addr seg 0x%" PRIxPTR " size 0x%" PRIxPTR
+              "\n",
+              __func__, name, base, size);
+    }
+    if (strcmp(name, "__TEXT") != 0) continue;
+    if (found) {
+      fprintf(stderr,
+              "%s found more than one __TEXT segument: this breaks Centipede "
+              "assumption. Ignoring the later segments.\n",
+              __func__);
+      break;
+    }
+    found = true;
+    callback(base, size);
+  }
+  if constexpr (kDlDebug) {
+    fprintf(stderr, "%s finished\n", __func__);
+  }
+}
+
+DlInfo GetDlInfoFromImage(
+    const std::function<bool(const mach_header* header, const char* name)>&
+        image_filter) {
+  DlInfo result;
+  result.Clear();
+  const auto image_count = _dyld_image_count();
+  for (uint32_t i = 0; i < image_count; ++i) {
+    const mach_header* header = _dyld_get_image_header(i);
+    RunnerCheck(header != nullptr, "failed to get image header");
+    const char* name = _dyld_get_image_name(i);
+    RunnerCheck(name != nullptr, "bad image name");
+    if constexpr (kDlDebug) {
+      fprintf(stderr, "%s image header at %p, name %s\n", __func__, header,
+              name);
+    }
+    if (!image_filter(header, name)) continue;
+    uintptr_t text_start = 0;
+    uintptr_t text_size = 0;
+    FindTextSegment(header,
+                    [&text_start, &text_size](uintptr_t start, uintptr_t size) {
+                      text_start = start;
+                      text_size = size;
+                    });
+    result.link_offset = _dyld_get_image_vmaddr_slide(i);
+    result.start_address = text_start + result.link_offset;
+    result.size = text_size;
+    RunnerCheck(result.size > 0, "bad text size");
+    strncpy(result.path, name, sizeof(result.path));
+    break;
+  }
+  if constexpr (kDlDebug) {
+    fprintf(stderr, "%s succeeded? %d\n", __func__, result.IsSet());
+    if (result.IsSet()) {
+      fprintf(stderr,
+              "  start 0x%" PRIxPTR " size 0x%" PRIxPTR
+              " link_offset 0x%" PRIxPTR "\n",
+              result.start_address, result.size, result.link_offset);
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
+DlInfo GetDlInfo(absl::Nullable<const char*> dl_path_suffix) {
+  if constexpr (kDlDebug) {
+    fprintf(stderr, "GetDlInfo for path suffix %s\n", dl_path_suffix);
+  }
+  return GetDlInfoFromImage(
+      [dl_path_suffix](const mach_header* unused_header, const char* name) {
+        return dl_path_suffix == nullptr ||
+               StringEndsWithSuffix(name, dl_path_suffix);
+      });
+}
+
+DlInfo GetDlInfo(uintptr_t pc) {
+  if constexpr (kDlDebug) {
+    fprintf(stderr, "GetDlInfo for pc 0x%" PRIxPTR "\n", pc);
+  }
+  return GetDlInfoFromImage([pc](const mach_header* header, const char* name) {
+    bool matched = false;
+    FindTextSegment(
+        header, [pc, header, &matched](uintptr_t start, uintptr_t size) {
+          const uintptr_t actual_start = reinterpret_cast<uintptr_t>(header);
+          if (pc >= actual_start && actual_start + size) {
+            matched = true;
+          }
+        });
+    return matched;
+  });
+}
+
+#else  // __APPLE__
+
+namespace {
+
 // Struct to pass to dl_iterate_phdr's callback.
 struct DlCallbackParam {
   // Full path to the instrumented library or nullptr for the main binary.
@@ -41,16 +198,7 @@ struct DlCallbackParam {
   DlInfo &result;
 };
 
-bool StringEndsWithSuffix(const char *string,
-                          absl::Nonnull<const char *> suffix) {
-  const char *pos = strstr(string, suffix);
-  if (pos == nullptr) return false;
-  return pos == string + strlen(string) - strlen(suffix);
-}
-
 int g_some_global;  // Used in DlIteratePhdrCallback.
-
-constexpr bool kDlDebug = false;  // we may want to make it a runtime flag.
 
 // Returns the size of the DL represented by `info`.
 size_t DlSize(absl::Nonnull<struct dl_phdr_info *> info) {
@@ -107,6 +255,7 @@ int DlIteratePhdrCallback(absl::Nonnull<struct dl_phdr_info *> info,
 
   result.start_address = info->dlpi_addr;
   result.size = DlSize(info);
+  result.link_offset = result.start_address;
   // copy dlpi_name to result.path.
   strncpy(result.path, info->dlpi_name, sizeof(result.path));
   result.path[sizeof(result.path) - 1] = 0;
@@ -150,6 +299,7 @@ int DlIteratePhdrPCCallback(absl::Nonnull<struct dl_phdr_info *> info,
   if (param->pc >= info->dlpi_addr + size) return 0;  // wrong DSO.
   result.start_address = info->dlpi_addr;
   result.size = size;
+  result.link_offset = result.start_address;
   if (strlen(info->dlpi_name) != 0) {
     // copy dlpi_name to result.path.
     strncpy(result.path, info->dlpi_name, sizeof(result.path));
@@ -179,5 +329,7 @@ DlInfo GetDlInfo(uintptr_t pc) {
   dl_iterate_phdr(DlIteratePhdrPCCallback, &callback_param);
   return result;
 }
+
+#endif  // __APPLE__
 
 }  // namespace centipede

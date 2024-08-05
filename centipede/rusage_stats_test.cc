@@ -296,7 +296,11 @@ TEST(RUsageMemoryTest, Accuracy) {
 #if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
     !defined(MEMORY_SANITIZER)
   EXPECT_NEAR(mem_rss_histo.Average(), kBytes, kRssLeeway) << mem_rss_histo;
+#ifdef __APPLE__
+  // `data` is not supported.
+#else
   EXPECT_NEAR(mem_data_histo.Average(), kBytes, kDataLeeway) << mem_data_histo;
+#endif
 #else
   LOG(WARNING) << "Validation of test results omitted under *SAN: see code";
 #endif

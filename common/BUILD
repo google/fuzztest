@@ -82,7 +82,10 @@ cc_library(
     name = "hash",
     srcs = ["hash.cc"],
     hdrs = ["hash.h"],
-    linkopts = ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
+    linkopts = select({
+        "@platforms//os:macos": ["-lcrypto"],
+        "//conditions:default": ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
+    }),
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":defs",

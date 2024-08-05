@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // A fuzz target used for testing Centipede.
+#include <errno.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -153,9 +154,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     // Disable and free the previous signal stack.
     stack_t disabled_sigstk = {};
+#ifdef __APPLE__
+    // Needed for MacOS.
+    // Reference:
+    // https://chromium.googlesource.com/native_client/src/native_client/+/ad617ab7dd5f23a67fcff244b3c3263ffcc7e66d/src/trusted/service_runtime/posix/nacl_signal_stack.c#117
+    disabled_sigstk.ss_size = MINSIGSTKSZ;
+#endif
     disabled_sigstk.ss_flags = SS_DISABLE;
     if (sigaltstack(&disabled_sigstk, nullptr) != 0) {
-      printf("failed to disable the signal stack\n");
+      printf("failed to disable the signal stack: %d\n", errno);
       abort();
     }
     free(sigstk.ss_sp);
