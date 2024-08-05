@@ -14,10 +14,12 @@
 
 #include "./common/remote_file.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -46,12 +48,16 @@ TEST(RemoteFile, GetSize) {
   {
     const std::string file_contents1 = "abcd1234";
     CreateFileOrDie(file_path, file_contents1);
-    EXPECT_EQ(RemoteFileGetSize(file_path), file_contents1.size());
+    const absl::StatusOr<int64_t> size = RemoteFileGetSize(file_path);
+    ASSERT_TRUE(size.status().ok());
+    EXPECT_EQ(*size, file_contents1.size());
   }
   {
     const std::string file_contents2 = "efg567";
-    RemoteFileSetContents(file_path, file_contents2);
-    EXPECT_EQ(RemoteFileGetSize(file_path), file_contents2.size());
+    ASSERT_TRUE(RemoteFileSetContents(file_path, file_contents2).ok());
+    const absl::StatusOr<int64_t> size = RemoteFileGetSize(file_path);
+    EXPECT_TRUE(size.status().ok());
+    EXPECT_EQ(*size, file_contents2.size());
   }
 }
 
@@ -59,7 +65,7 @@ TEST(RemoteMkdir, CreatesMissingParentDirectories) {
   const fs::path temp_dir = GetTestTempDir(test_info_->name());
   const std::string dir_path = temp_dir / "a" / "b" / "c";
 
-  RemoteMkdir(dir_path);
+  ASSERT_TRUE(RemoteMkdir(dir_path).ok());
   EXPECT_TRUE(fs::exists(dir_path));
 }
 
@@ -73,8 +79,10 @@ TEST(RemoteListFiles, DoesNotRecurseIntoSubdirectories) {
   const std::string file2_path = dir1_path / "file_02";
   CreateFileOrDie(file2_path);
 
-  EXPECT_THAT(RemoteListFiles(temp_dir.string(), /*recursively=*/false),
-              UnorderedElementsAre(file1_path));
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles(temp_dir.string(), /*recursively=*/false);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, UnorderedElementsAre(file1_path));
 }
 
 TEST(RemoteListFiles, ListsFilesInRecursiveDirectories) {
@@ -90,14 +98,18 @@ TEST(RemoteListFiles, ListsFilesInRecursiveDirectories) {
   const std::string file3_path = dir1_path / "file_03";
   CreateFileOrDie(file3_path);
 
-  EXPECT_THAT(RemoteListFiles(temp_dir.string(), /*recursively=*/true),
-              UnorderedElementsAre(file1_path, file2_path, file3_path));
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles(temp_dir.string(), /*recursively=*/true);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, UnorderedElementsAre(file1_path, file2_path, file3_path));
 }
 
 TEST(RemoteListFiles, ReturnsAnEmptyResultWhenNoFilesAreFound) {
   const fs::path temp_dir = GetTestTempDir(test_info_->name());
-  EXPECT_THAT(RemoteListFiles(temp_dir.string(), /*recursively=*/false),
-              IsEmpty());
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles(temp_dir.string(), /*recursively=*/false);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, IsEmpty());
 }
 
 TEST(RemoteListFiles, ReturnsASingleFileWhenListingAFile) {
@@ -106,14 +118,17 @@ TEST(RemoteListFiles, ReturnsASingleFileWhenListingAFile) {
   const std::string file1_path = temp_dir / "file_01";
   CreateFileOrDie(file1_path);
 
-  EXPECT_THAT(RemoteListFiles(temp_dir.string(), /*recursively=*/false),
-              UnorderedElementsAre(file1_path));
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles(temp_dir.string(), /*recursively=*/false);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, UnorderedElementsAre(file1_path));
 }
 
 TEST(RemoteListFiles, ReturnsAnEmptyVectorWhenPathDoesNotExist) {
-  EXPECT_THAT(
-      RemoteListFiles("/this/file/path/does/not/exist", /*recursively=*/false),
-      IsEmpty());
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles("/this/file/path/does/not/exist", /*recursively=*/false);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, IsEmpty());
 }
 
 TEST(RemotePathDelete, RecursivelyDeletesAllFilesAndSubdirectories) {
@@ -123,7 +138,7 @@ TEST(RemotePathDelete, RecursivelyDeletesAllFilesAndSubdirectories) {
   const std::string file_path = a_b_c / "file";
   CreateFileOrDie(file_path);
 
-  RemotePathDelete(temp_dir.string(), /*recursively=*/true);
+  ASSERT_TRUE(RemotePathDelete(temp_dir.string(), /*recursively=*/true).ok());
   EXPECT_FALSE(fs::exists(a_b_c));
 }
 

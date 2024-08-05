@@ -49,10 +49,12 @@ cc_library(
         ":hash",
         ":logging",
         ":remote_file",
+        ":status_macros",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/time",
@@ -107,8 +109,12 @@ cc_library(
     deps = [
                ":defs",
                ":logging",
+               ":status_macros",
                "@com_google_absl//absl/base:nullability",
                "@com_google_absl//absl/log:check",
+               "@com_google_absl//absl/status",
+               "@com_google_absl//absl/status:statusor",
+               "@com_google_absl//absl/strings",
            ] + select({
                "//conditions:default": [":remote_file_oss"],
            }) +
@@ -135,9 +141,13 @@ cc_library(
     deps = [
         ":defs",
         ":logging",
+        ":status_macros",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
@@ -152,7 +162,10 @@ cc_library(
 cc_library(
     name = "status_macros",
     hdrs = ["status_macros.h"],
-    deps = ["@com_google_absl//absl/base:core_headers"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
+    ],
 )
 
 cc_library(

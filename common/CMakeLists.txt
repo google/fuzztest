@@ -37,6 +37,7 @@ fuzztest_cc_library(
     absl::log
     absl::check
     absl::status
+    absl::statusor
     absl::str_format
     absl::string_view
     absl::time
@@ -91,6 +92,8 @@ fuzztest_cc_library(
     fuzztest::defs
     absl::nullability
     absl::log
+    absl::status
+    absl::statusor
     absl::check
 )
 
@@ -125,6 +128,7 @@ fuzztest_cc_test(
     fuzztest::defs
     fuzztest::test_util
     absl::status
+    absl::statusor
     GTest::gmock_main
 )
 
@@ -148,5 +152,6 @@ fuzztest_cc_test(
     fuzztest::remote_file
     fuzztest::test_util
     absl::check
+    absl::statusor
     GTest::gmock_main
 )

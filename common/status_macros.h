@@ -17,7 +17,11 @@
 #ifndef FUZZTEST_COMMON_STATUS_MACROS_H_
 #define FUZZTEST_COMMON_STATUS_MACROS_H_
 
+#include <cstdint>
+
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/log.h"
 
 // If `status_expr` (an expression of type `absl::Status`) is not OK then return
 // it from the current function. Otherwise, do nothing.
@@ -44,5 +48,18 @@
 // Internal helper for concatenating macro values.
 #define CHECKS_INTERNAL_CONCAT_IMPL_(x, y) x##y
 #define CHECKS_INTERNAL_CONCAT_(x, y) CHECKS_INTERNAL_CONCAT_IMPL_(x, y)
+
+namespace centipede {
+template <typename T>
+decltype(auto) ValueOrDie(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                          std::uint_least32_t line = __builtin_LINE(),
+                          const char* file_name = __builtin_FILE()) {
+  if (ABSL_PREDICT_FALSE(!value.ok())) {
+    LOG(FATAL) << file_name << ":" << line
+               << ": ValueOrDie on non-OK status: " << value.status();
+  }
+  return *std::forward<T>(value);
+}
+}  // namespace centipede
 
 #endif  // FUZZTEST_COMMON_STATUS_MACROS_H_
