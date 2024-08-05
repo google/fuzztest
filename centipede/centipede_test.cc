@@ -613,6 +613,14 @@ TEST(Centipede, FunctionFilter) {
   }
 }
 
+TEST(Centipede, SkipsFuzzingWhenNoFuzzIfNoConfigIsSet) {
+  TempDir tmp_dir{test_info_->name(), "no_config"};
+  setenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG", "true", /*replace=*/1);
+  auto observed_no_config = RunWithFunctionFilter("", tmp_dir);
+  EXPECT_TRUE(observed_no_config.empty());
+  unsetenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG");
+}
+
 namespace {
 
 // A mock for ExtraBinaries test.

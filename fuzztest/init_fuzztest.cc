@@ -240,6 +240,7 @@ void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
       const_cast<char*>(binary_arg.c_str()),
       nullptr,
   };
+  setenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG", "true", /*replace=*/1);
   const int execv_ret = execv(centipede_binary, args);
   FUZZTEST_INTERNAL_CHECK(false, "execv() should never return. It returned ",
                           execv_ret, " with an error: ", std::strerror(errno));
