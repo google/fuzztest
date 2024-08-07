@@ -20,6 +20,22 @@
 
 namespace fuzztest::internal {
 
+std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard() const {
+  std::vector<std::string> result;
+  for (const auto* test : GetRegisteredTests()) {
+    if (!test->should_run()) continue;
+    if (test->is_in_another_shard()) continue;
+    for (const auto& fuzztest : configuration_.fuzz_tests) {
+      if (fuzztest ==
+          absl::StrCat(test->test_suite_name(), ".", test->name())) {
+        result.push_back(fuzztest);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 namespace {
 template <typename T>
 void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,

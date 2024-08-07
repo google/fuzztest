@@ -840,8 +840,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     PRNG prng(seed_sequence_);
     std::shuffle(coverage_inputs.begin(), coverage_inputs.end(), prng);
     ForEachInput(coverage_inputs, replay_input,
-                 configuration.binary_replay_coverage_time_budget /
-                     configuration.fuzz_tests_in_current_shard.size());
+                 configuration.GetTimeLimitPerTest());
     runtime_.SetRunMode(RunMode::kUnitTest);
 
     // If crashing inputs are reported, there's no need for a smoke test.
@@ -1042,10 +1041,11 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       }
     }
 
-    if (configuration.time_limit_per_test != absl::InfiniteDuration()) {
+    const auto time_limit_per_test = configuration.GetTimeLimitPerTest();
+    if (time_limit_per_test != absl::InfiniteDuration()) {
       absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
-                    absl::FormatDuration(configuration.time_limit_per_test));
-      time_limit_ = stats_.start_time + configuration.time_limit_per_test;
+                    absl::FormatDuration(time_limit_per_test));
+      time_limit_ = stats_.start_time + time_limit_per_test;
     }
 
     runtime_.SetShouldTerminateOnNonFatalFailure(false);

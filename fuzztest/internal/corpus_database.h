@@ -32,12 +32,11 @@ class CorpusDatabase {
   // given by the environment variable TEST_SRCDIR, and `binary_identifier` is
   // the test binary's relative path within `database_path`.
   //
-  // The parameters `use_coverage_inputs` and `use_crashing_inputs` control
-  // whether the database gives access to or ignores the coverage and crashing
-  // inputs.
+  // The parameter `use_crashing_inputs` controls whether the database gives
+  // access to or ignores the crashing inputs.
   explicit CorpusDatabase(absl::string_view database_path,
                           absl::string_view binary_identifier,
-                          bool use_coverage_inputs, bool use_crashing_inputs);
+                          bool use_crashing_inputs);
 
   // Constructs a corpus database directly from `configuration`.
   explicit CorpusDatabase(const Configuration& configuration);
@@ -48,7 +47,6 @@ class CorpusDatabase {
       absl::string_view test_name) const;
 
   // Returns set of all corpus inputs from `corpus_database` for a fuzz test.
-  // Returns an empty set when `use_coverage_inputs_` is false.
   std::vector<std::string> GetCoverageInputsIfAny(
       absl::string_view test_name) const;
 
@@ -61,7 +59,6 @@ class CorpusDatabase {
 
  private:
   std::string corpus_path_for_test_binary_;
-  bool use_coverage_inputs_ = false;
   bool use_crashing_inputs_ = false;
 };
 

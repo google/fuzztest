@@ -27,6 +27,19 @@
 
 namespace fuzztest::internal {
 
+enum class TimeBudgetType { kPerTest, kTotal };
+
+// To be used by ABSL_FLAG for parsing TimeBudgetType.
+bool AbslParseFlag(absl::string_view text, TimeBudgetType* mode,
+                   std::string* error);
+
+// To be used by ABSL_FLAG for stringifying TimeBudgetType.
+std::string AbslUnparseFlag(TimeBudgetType mode);
+
+// Returns the TimeBudgetType from flag string values. Returns an error if the
+// string is not representing a valid TimeBudgetType.
+absl::StatusOr<TimeBudgetType> ParseTimeBudgetType(absl::string_view text);
+
 // The configuration of a fuzz test.
 struct Configuration {
   // The location of the database that contains coverage, regression, and
@@ -46,8 +59,6 @@ struct Configuration {
   // Generate separate TESTs that replay crashing inputs for the selected fuzz
   // tests.
   bool reproduce_findings_as_separate_tests = false;
-  // Replay coverage timeout for all selected fuzz tests.
-  absl::Duration binary_replay_coverage_time_budget = absl::ZeroDuration();
 
   // Stack limit in bytes.
   size_t stack_limit = 128 * 1024;
@@ -55,8 +66,10 @@ struct Configuration {
   size_t rss_limit = 0;
   // Time limit per test input.
   absl::Duration time_limit_per_input = absl::InfiniteDuration();
-  // Fuzzing time limit per test.
-  absl::Duration time_limit_per_test = absl::InfiniteDuration();
+  // Fuzzing or corpus replay time limit.
+  absl::Duration time_limit = absl::InfiniteDuration();
+  // Whether the time limit is for each test or for all tests in the binary.
+  TimeBudgetType time_budget_type = TimeBudgetType::kPerTest;
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
@@ -72,6 +85,9 @@ struct Configuration {
   std::function<void()> preprocess_crash_reproducing = [] {};
 
   std::string Serialize() const;
+
+  absl::Duration GetTimeLimitPerTest() const;
+
   static absl::StatusOr<Configuration> Deserialize(
       absl::string_view serialized);
 };

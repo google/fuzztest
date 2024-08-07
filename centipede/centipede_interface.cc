@@ -463,7 +463,7 @@ int UpdateCorpusDatabaseForFuzzTests(
               << "\n\tTest binary: " << env.binary;
 
     ClearEarlyExitRequest();
-    alarm(absl::ToInt64Seconds(fuzztest_config.time_limit_per_test));
+    alarm(absl::ToInt64Seconds(fuzztest_config.GetTimeLimitPerTest()));
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
     if (!stats_root_path.empty()) {
       const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
@@ -581,10 +581,11 @@ int CentipedeMain(const Environment &env,
       CHECK_OK(target_config.status())
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
-        CHECK(target_config->time_limit_per_test < absl::InfiniteDuration())
+        const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
+        CHECK(time_limit_per_test < absl::InfiniteDuration())
             << "Updating corpus database requires specifying time limit per "
                "fuzz test.";
-        CHECK(target_config->time_limit_per_test >= absl::Seconds(1))
+        CHECK(time_limit_per_test >= absl::Seconds(1))
             << "Time limit per fuzz test must be at least 1 second.";
         return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
                                                 callbacks_factory);

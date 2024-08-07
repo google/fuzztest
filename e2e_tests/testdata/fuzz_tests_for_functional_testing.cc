@@ -759,6 +759,7 @@ void DetectRegressionAndCoverageInputs(const std::string& input) {
   if (absl::StartsWith(input, "coverage")) {
     std::cout << "coverage input detected: " << input << std::endl;
   }
+  absl::SleepFor(absl::Seconds(0.1));
 }
 FUZZ_TEST(MySuite, DetectRegressionAndCoverageInputs);
 

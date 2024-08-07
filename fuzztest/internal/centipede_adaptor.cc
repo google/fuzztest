@@ -125,10 +125,11 @@ centipede::Environment CreateCentipedeEnvironmentFromFuzzTestFlags(
   env.exit_on_crash = true;
   // Populating the PC table in single-process mode is not implemented.
   env.require_pc_table = false;
-  if (configuration.time_limit_per_test != absl::InfiniteDuration()) {
+  const auto time_limit_per_test = configuration.GetTimeLimitPerTest();
+  if (time_limit_per_test != absl::InfiniteDuration()) {
     absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
-                  absl::FormatDuration(configuration.time_limit_per_test));
-    env.stop_at = absl::Now() + configuration.time_limit_per_test;
+                  absl::FormatDuration(time_limit_per_test));
+    env.stop_at = absl::Now() + time_limit_per_test;
   }
   env.first_corpus_dir_output_only = true;
   if (const char* corpus_out_dir_chars = getenv("FUZZTEST_TESTSUITE_OUT_DIR")) {

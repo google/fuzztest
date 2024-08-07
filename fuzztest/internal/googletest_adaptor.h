@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/registry.h"
@@ -102,25 +101,7 @@ class GTest_TestAdaptor : public ::testing::Test {
   }
 
  private:
-  std::vector<std::string> GetFuzzTestsInCurrentShard() const {
-    std::vector<std::string> result;
-    auto& unit_test = *testing::UnitTest::GetInstance();
-    for (int i = 0; i < unit_test.total_test_suite_count(); ++i) {
-      for (int j = 0; j < unit_test.GetTestSuite(i)->total_test_count(); ++j) {
-        auto& test = *unit_test.GetTestSuite(i)->GetTestInfo(j);
-        if (!test.should_run()) continue;
-        if (test.is_in_another_shard()) continue;
-        for (const auto& fuzztest : configuration_.fuzz_tests) {
-          if (fuzztest ==
-              absl::StrCat(test.test_suite_name(), ".", test.name())) {
-            result.push_back(fuzztest);
-            break;
-          }
-        }
-      }
-    }
-    return result;
-  }
+  std::vector<std::string> GetFuzzTestsInCurrentShard() const;
 
   FuzzTest& test_;
   int* argc_;

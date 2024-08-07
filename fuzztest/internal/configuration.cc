@@ -30,6 +30,41 @@
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
+
+bool AbslParseFlag(absl::string_view text, TimeBudgetType* mode,
+                   std::string* error) {
+  if (text == "per-test") {
+    *mode = TimeBudgetType::kPerTest;
+    return true;
+  }
+  if (text == "total") {
+    *mode = TimeBudgetType::kTotal;
+    return true;
+  }
+  *error = "unknown value for enumeration";
+  return false;
+}
+
+absl::StatusOr<TimeBudgetType> ParseTimeBudgetType(absl::string_view text) {
+  TimeBudgetType mode;
+  std::string error;
+  if (!AbslParseFlag(text, &mode, &error)) {
+    return absl::InvalidArgumentError(error);
+  }
+  return mode;
+}
+
+std::string AbslUnparseFlag(TimeBudgetType mode) {
+  switch (mode) {
+    case TimeBudgetType::kPerTest:
+      return "per-test";
+    case TimeBudgetType::kTotal:
+      return "total";
+    default:
+      return absl::StrCat(mode);
+  }
+}
+
 namespace {
 
 template <typename T>
@@ -162,21 +197,18 @@ absl::StatusOr<absl::Duration> ParseDuration(absl::string_view duration) {
 }  // namespace
 
 std::string Configuration::Serialize() const {
-  std::string binary_replay_coverage_time_budget_str =
-      absl::FormatDuration(binary_replay_coverage_time_budget);
   std::string time_limit_per_input_str =
       absl::FormatDuration(time_limit_per_input);
-  std::string time_limit_per_test_str =
-      absl::FormatDuration(time_limit_per_test);
+  std::string time_limit_str = absl::FormatDuration(time_limit);
+  std::string time_budget_type_str = AbslUnparseFlag(time_budget_type);
   std::string out;
   out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
              SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
              SpaceFor(fuzz_tests_in_current_shard) +
              SpaceFor(reproduce_findings_as_separate_tests) +
-             SpaceFor(binary_replay_coverage_time_budget_str) +
              SpaceFor(stack_limit) + SpaceFor(rss_limit) +
-             SpaceFor(time_limit_per_input_str) +
-             SpaceFor(time_limit_per_test_str) +
+             SpaceFor(time_limit_per_input_str) + SpaceFor(time_limit_str) +
+             SpaceFor(time_budget_type_str) +
              SpaceFor(crashing_input_to_reproduce) +
              SpaceFor(reproduction_command_template));
   size_t offset = 0;
@@ -186,11 +218,11 @@ std::string Configuration::Serialize() const {
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
-  offset = WriteString(out, offset, binary_replay_coverage_time_budget_str);
   offset = WriteIntegral(out, offset, stack_limit);
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
-  offset = WriteString(out, offset, time_limit_per_test_str);
+  offset = WriteString(out, offset, time_limit_str);
+  offset = WriteString(out, offset, time_budget_type_str);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
   CHECK_EQ(offset, out.size());
@@ -208,12 +240,11 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                      ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(reproduce_findings_as_separate_tests,
                      Consume<bool>(serialized));
-    ASSIGN_OR_RETURN(binary_replay_coverage_time_budget_str,
-                     ConsumeString(serialized));
     ASSIGN_OR_RETURN(stack_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
-    ASSIGN_OR_RETURN(time_limit_per_test_str, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(time_limit_str, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(time_budget_type_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(crashing_input_to_reproduce,
                      ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
@@ -222,28 +253,38 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
     }
-    ASSIGN_OR_RETURN(binary_replay_coverage_time_budget,
-                     ParseDuration(*binary_replay_coverage_time_budget_str));
     ASSIGN_OR_RETURN(time_limit_per_input,
                      ParseDuration(*time_limit_per_input_str));
-    ASSIGN_OR_RETURN(time_limit_per_test,
-                     ParseDuration(*time_limit_per_test_str));
+    ASSIGN_OR_RETURN(time_limit, ParseDuration(*time_limit_str));
+    ASSIGN_OR_RETURN(time_budget_type,
+                     ParseTimeBudgetType(*time_budget_type_str));
     return Configuration{*std::move(corpus_database),
                          *std::move(stats_root),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
                          *std::move(fuzz_tests_in_current_shard),
                          *reproduce_findings_as_separate_tests,
-                         *binary_replay_coverage_time_budget,
                          *stack_limit,
                          *rss_limit,
                          *time_limit_per_input,
-                         *time_limit_per_test,
+                         *time_limit,
+                         *time_budget_type,
                          *std::move(crashing_input_to_reproduce),
                          *std::move(reproduction_command_template)};
   }();
 }
 
 #undef ASSIGN_OR_RETURN
+
+absl::Duration Configuration::GetTimeLimitPerTest() const {
+  switch (time_budget_type) {
+    case TimeBudgetType::kPerTest:
+      return time_limit;
+    case TimeBudgetType::kTotal:
+      return time_limit / fuzz_tests_in_current_shard.size();
+    default:
+      return absl::InfiniteDuration();
+  }
+}
 
 }  // namespace fuzztest::internal
