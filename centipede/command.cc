@@ -176,7 +176,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
     CENTIPEDE_FORK_SERVER_FIFO1="%s" \
     %s
   } &
-  echo -n $! > "%s"
+  printf "%%s" $! > "%s"
 )sh";
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
@@ -215,20 +215,24 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
     return false;
   }
 
-  // The fork server has started and the comms pipes got opened successfully.
-  // Read the fork server's PID and the initial /proc/<PID>/exe symlink pointing
-  // at the fork server's binary, written to the provided files by `command`.
-  // `Execute()` uses these to monitor the fork server health.
   std::string pid_str;
   ReadFromLocalFile(pid_file_path, pid_str);
   CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
-  std::string proc_exe = absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
-  if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
-    LogProblemInfo(
-        absl::StrCat("Fork server appears not running; will proceed without it "
-                     "(failed to stat ",
-                     proc_exe, ")"));
-    return false;
+
+  // TODO(b/281882892): Disable for now. Find a proper solution later.
+  if constexpr (false) {
+    // The fork server has started and the comms pipes got opened successfully.
+    // Read the fork server's PID and the initial /proc/<PID>/exe symlink
+    // pointing at the fork server's binary, written to the provided files by
+    // `command`. `Execute()` uses these to monitor the fork server health.
+    std::string proc_exe = absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
+    if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
+      LogProblemInfo(absl::StrCat(
+          "Fork server appears not running; will proceed without it "
+          "(failed to stat ",
+          proc_exe, ")"));
+      return false;
+    }
   }
 
   return true;
@@ -249,18 +253,18 @@ absl::Status Command::VerifyForkServerIsHealthy() {
     return absl::UnknownError(absl::StrCat(
         "Can't communicate with fork server, PID=", fork_server_->pid_));
   }
-  // ...and it is a process with our expected binary, so it's practically
-  // guaranteed to be our original fork server process.
-  const std::string proc_exe =
-      absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
-  struct stat proc_exe_stat = {};
-  if (stat(proc_exe.c_str(), &proc_exe_stat) != EXIT_SUCCESS) {
-    return absl::UnknownError(absl::StrCat(
-        "Failed to stat fork server's /proc/<PID>/exe symlink, PID=",
-        fork_server_->pid_));
-  }
   // TODO(b/281882892): Disable for now. Find a proper solution later.
   if constexpr (false) {
+    // ...and it is a process with our expected binary, so it's practically
+    // guaranteed to be our original fork server process.
+    const std::string proc_exe =
+        absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
+    struct stat proc_exe_stat = {};
+    if (stat(proc_exe.c_str(), &proc_exe_stat) != EXIT_SUCCESS) {
+      return absl::UnknownError(absl::StrCat(
+          "Failed to stat fork server's /proc/<PID>/exe symlink, PID=",
+          fork_server_->pid_));
+    }
     if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
         proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
       return absl::UnknownError(absl::StrCat(

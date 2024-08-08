@@ -28,8 +28,7 @@ namespace centipede {
 
 std::string ShmemName() {
   std::ostringstream oss;
-  oss << "/shared_memory_blob_sequence_test-" << getpid() << "-"
-      << std::this_thread::get_id();
+  oss << "/shm_test-" << getpid() << "-" << std::this_thread::get_id();
   return oss.str();
 }
 
@@ -54,7 +53,17 @@ TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
 }
 
 class SharedMemoryBlobSequenceTest
-    : public testing::TestWithParam</* use_shm */ bool> {};
+    : public testing::TestWithParam</* use_shm */ bool> {
+ public:
+  void SetUp() override {
+#ifdef __APPLE__
+    const bool use_shm = GetParam();
+    if (!use_shm) {
+      GTEST_SKIP() << "Skipping test that does not use POSIX shmem on MacOS";
+    }
+#endif  // __APPLE__
+  }
+};
 
 INSTANTIATE_TEST_SUITE_P(SharedMemoryBlobSequenceParametrizedTest,
                          SharedMemoryBlobSequenceTest,
@@ -195,6 +204,8 @@ TEST_P(SharedMemoryBlobSequenceTest, WriteAfterReset) {
   EXPECT_FALSE(blob2.IsValid());
 }
 
+// MacOS does not support releasing the shm memory.
+#ifndef __APPLE__
 // Test ReleaseSharedMemory and NumBytesUsed.
 TEST_P(SharedMemoryBlobSequenceTest, ReleaseSharedMemory) {
   // Allocate a blob sequence with 1M bytes of storage.
@@ -207,5 +218,6 @@ TEST_P(SharedMemoryBlobSequenceTest, ReleaseSharedMemory) {
   EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4})));
   EXPECT_GT(blobseq.NumBytesUsed(), 5);
 }
+#endif
 
 }  // namespace centipede

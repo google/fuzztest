@@ -54,36 +54,33 @@ using CpuUtilization = long double;
 //------------------------------------------------------------------------------
 class RUsageScope {
  public:
-  enum ProcFile : size_t { kSched = 0, kStatm = 1, kStatus = 2, kNum = 3 };
-
   // Static ctors for supported use cases. If the same scope is used repeatedly,
   // callers should prefer caching it, as construction may involve syscalls.
   static RUsageScope ThisProcess();
   static RUsageScope Process(pid_t pid);
-  static RUsageScope ThisThread();
-  static RUsageScope ThisProcessThread(pid_t tid);
-  static RUsageScope Thread(pid_t pid, pid_t tid);
 
   // Copyable and movable.
   RUsageScope(const RUsageScope&) = default;
   RUsageScope& operator=(const RUsageScope&) = default;
-  RUsageScope(RUsageScope&&) = default;
-  RUsageScope& operator=(RUsageScope&&) = default;
-
-  // Returns a path to the /proc/<pid>/<file> or /proc/<pid>/task/<tid>/<file>.
-  [[nodiscard]] const std::string& GetProcFilePath(ProcFile file) const;
+  RUsageScope(RUsageScope&&);
+  RUsageScope& operator=(RUsageScope&&);
+  ~RUsageScope();
 
   template <typename OStream>
   friend OStream& operator<<(OStream& os, const RUsageScope& s) {
       return os << s.description_;
   }
 
+  // Opaque platform dependent information for rusage monitoring.
+  class PlatformInfo;
+
+  const PlatformInfo& info() const { return *info_; }
+
  private:
   explicit RUsageScope(pid_t pid);
-  RUsageScope(pid_t pid, pid_t tid);
 
   std::string description_;
-  std::array<std::string, ProcFile::kNum> proc_file_paths_;
+  std::shared_ptr<PlatformInfo> info_;
 };
 
 //------------------------------------------------------------------------------

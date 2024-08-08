@@ -71,7 +71,7 @@ function Run() {
     --timeout_per_input=10 \
     --exit_on_crash \
     "$@" \
-    |& tee "${log}"
+    2>&1 | tee "${log}"
   then
     # Centipede must exit with failure.
     return 1

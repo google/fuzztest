@@ -124,7 +124,8 @@ TEST(CommandTest, ForkServer) {
     const std::string log = std::filesystem::path{test_tmpdir} / input;
     Command cmd(helper, {input}, {}, log, log);
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
-    EXPECT_EQ(WTERMSIG(cmd.Execute()), SIGABRT);
+    const int ret = cmd.Execute();
+    EXPECT_EQ(WTERMSIG(ret), SIGABRT);
     std::string log_contents;
     ReadFromLocalFile(log, log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));

@@ -139,8 +139,8 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
   Command &cmd = commands_.emplace_back(Command(
       /*path=*/binary, /*args=*/{},
       /*env=*/env,
-      /*out=*/execute_log_path_,
-      /*err=*/execute_log_path_,
+      /*out=*/"",
+      /*err=*/"",
       /*timeout=*/amortized_timeout,
       /*temp_file_path=*/temp_input_file_path_));
   if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));

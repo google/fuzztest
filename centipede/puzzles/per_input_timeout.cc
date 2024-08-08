@@ -19,9 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if (size == 3 && data[0] == 'S' && data[1] == 'L' && data[2] == 'O') {
+    fprintf(stderr, "Going to sleep!\n");
     sleep(1000);  // Dies with timeout.
   }
   return 0;
