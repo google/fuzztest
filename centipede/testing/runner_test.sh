@@ -85,14 +85,19 @@ echo ======== Run f1 func1
 "${target}" "${f1}" "${func1}"
 check_features_files_f1_and_f02
 
-# Check OOM. The test target allocates 4Gb, and we make sure
-# this can be detected with appropriate limit (address_space_limit_mb),
-# and can not be detected with a larger limit.
-echo ======== Check OOM behaviour with address_space_limit_mb
-CENTIPEDE_RUNNER_FLAGS=":address_space_limit_mb=4096:" $target "${oom}" \
-  && die "failed to die on 4G OOM (address_space_limit_mb)"
-# must pass.
-CENTIPEDE_RUNNER_FLAGS=":address_space_limit_mb=8192:" $target "${oom}"
+
+# Address space limit is ignored by MacOS.
+# Reference: https://bugs.chromium.org/p/chromium/issues/detail?id=853873#c2
+if [[ "${OSTYPE}" != 'darwin'* ]]; then
+  # Check OOM. The test target allocates 4Gb, and we make sure
+  # this can be detected with appropriate limit (address_space_limit_mb),
+  # and can not be detected with a larger limit.
+  echo ======== Check OOM behaviour with address_space_limit_mb
+  CENTIPEDE_RUNNER_FLAGS=":address_space_limit_mb=4096:" $target "${oom}" \
+    && die "failed to die on 4G OOM (address_space_limit_mb)"
+  # must pass.
+  CENTIPEDE_RUNNER_FLAGS=":address_space_limit_mb=8192:" $target "${oom}"
+fi
 
 echo ======== Check OOM behaviour with rss_limit_mb
 CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=4096:" $target "${oom}" \
@@ -105,7 +110,8 @@ CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=567:" "${target}" \
   2>&1 | grep "timeout_per_input:.567"
 
 CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=2:" "${target}" "${slo}" \
-  2>&1 | grep "Per-input timeout exceeded"
+                      2>&1 | tee "${TEST_TMPDIR}/timeout"
+cat "${TEST_TMPDIR}/timeout" | grep "Per-input timeout exceeded"
 
 echo ======== Check stack limit check with stack_limit
 CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=200:" "${target}" "${stk}"  # must pass

@@ -151,9 +151,13 @@ def centipede_fuzz_target(
             copts = copts,
             linkopts = linkopts + [
                 "-ldl",
-                "-lrt",
-                "-lpthread"
-            ],
+                "-lpthread",
+            ] + select({
+                "@platforms//os:macos": [],
+                "//conditions:default": [
+                    "-lrt",  # for shm_open
+                ],
+            }),
             testonly = True,
         )
 

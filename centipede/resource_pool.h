@@ -21,6 +21,7 @@
 
 #include <ostream>
 #include <string>
+#include <thread>  // NOLINT: for std::this_thread::get_id()
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
@@ -144,7 +145,7 @@ class ResourcePool {
     // A short description that can be used in logs.
     std::string id() const;
     // The thread ID that submitted the request.
-    pid_t thread_id() const;
+    std::thread::id thread_id() const;
     // The creation time and the age of the lease.
     absl::Time created_at() const;
     absl::Duration age() const;
@@ -166,7 +167,7 @@ class ResourcePool {
     LeaseRequest request_ = {};
     absl::Status status_ = absl::OkStatus();
     mutable bool status_checked_ = false;
-    pid_t thread_id_ = ::syscall(__NR_gettid);
+    std::thread::id thread_id_ = std::this_thread::get_id();
     absl::Time created_at_ = absl::Now();
   };
 

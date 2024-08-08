@@ -51,7 +51,7 @@ env TARGET_PORT="${TARGET_PORT}" \
   "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --coverage_binary="${SERVER_BINARY}" --symbolizer_path="${LLVM_SYMBOLIZER}" \
   --exit_on_crash=1 --seed=1 --log_features_shards=1 \
-  |& tee "${LOG}" || true
+  2>&1 | tee "${LOG}" || true
 
 # Check that Centipede finds the crashing input.
 centipede::assert_regex_in_file "Input bytes.*: Secret" "${LOG}"

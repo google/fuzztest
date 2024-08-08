@@ -23,8 +23,6 @@
 #include "./centipede/runner.h"
 
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
-#include <sys/auxv.h>
-#include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -95,10 +93,6 @@ thread_local ThreadTerminationDetector termination_detector;
 
 }  // namespace
 
-// Use of the fixed init priority allows to call CentipedeRunnerMain
-// from constructor functions (CentipedeRunnerMain needs to run after
-// state constructor).
-// Note: it must run after ForkServerCallMeVeryEarly, see comment there.
 GlobalRunnerState state __attribute__((init_priority(200)));
 // We use __thread instead of thread_local so that the compiler warns if
 // the initializer for `tls` is not a constant expression.
@@ -193,8 +187,14 @@ void ThreadLocalRunnerState::OnThreadStop() {
 static size_t GetPeakRSSMb() {
   struct rusage usage = {};
   if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
+#ifdef __APPLE__
+  // On MacOS, the unit seems to be byte according to experiment, while some
+  // documents mentioned KiB. This could depend on OS variants.
+  return usage.ru_maxrss >> 20;
+#else   // __APPLE__
   // On Linux, ru_maxrss is in KiB
   return usage.ru_maxrss >> 10;
+#endif  // __APPLE__
 }
 
 // Returns the current time in microseconds.
@@ -281,7 +281,8 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
       tls.top_frame_sp - sp > stack_limit) {
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
-            "========= Stack limit exceeded: %" PRIuPTR " > %" PRIu64
+            "========= Stack limit exceeded: %" PRIuPTR
+            " > %zu"
             " (byte); aborting\n",
             tls.top_frame_sp - sp, stack_limit);
     centipede::WriteFailureDescription(
@@ -948,13 +949,17 @@ static size_t GetVmSizeInBytes() {
   // NOTE: Ignore any (unlikely) failures to suppress a compiler warning.
   (void)fscanf(f, "%zd", &vm_size);
   fclose(f);
-  return vm_size * getauxval(AT_PAGESZ);  // proc gives VmSize in pages.
+  return vm_size * getpagesize();  // proc gives VmSize in pages.
 }
 
 // Sets RLIMIT_CORE, RLIMIT_AS
 static void SetLimits() {
-  // no core files anywhere.
-  prctl(PR_SET_DUMPABLE, 0);
+  // Disable core dumping.
+  struct rlimit core_limits;
+  getrlimit(RLIMIT_CORE, &core_limits);
+  core_limits.rlim_cur = 0;
+  core_limits.rlim_max = 0;
+  setrlimit(RLIMIT_CORE, &core_limits);
 
   // ASAN/TSAN/MSAN can not be used with RLIMIT_AS.
   // We get the current VmSize, if it is greater than 1Tb, we assume we
@@ -1010,6 +1015,9 @@ extern void RunnerInterceptor();
     &RunnerInterceptor;
 
 GlobalRunnerState::GlobalRunnerState() {
+  // Make sure fork server is started if needed.
+  ForkServerCallMeVeryEarly();
+
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
   tls.OnThreadStart();

@@ -54,7 +54,13 @@ struct Environment {
   bool serialize_shard_loads = false;
   size_t seed = 0;
   size_t prune_frequency = 100;
+#ifdef __APPLE__
+  // Address space limit is ignored on MacOS.
+  // Reference: https://bugs.chromium.org/p/chromium/issues/detail?id=853873#c2
+  size_t address_space_limit_mb = 0;
+#else   // __APPLE__
   size_t address_space_limit_mb = 8192;
+#endif  // __APPLE__
   size_t rss_limit_mb = 4096;
   size_t timeout_per_input = 60;
   size_t timeout_per_batch = 0;
@@ -98,7 +104,11 @@ struct Environment {
   std::string minimize_crash_file_path;
   bool batch_triage_suspect_only = false;
   size_t shmem_size_mb = 1024;
+#ifdef __APPLE__
+  bool use_posix_shmem = true;
+#else
   bool use_posix_shmem = false;
+#endif
   bool dry_run = false;
   bool save_binary_info = false;
   bool populate_binary_info = true;
