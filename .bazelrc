@@ -33,7 +33,7 @@ build --copt=-mcrc32
 # Bazel 7.0.0: it pulls in a version of protobuf that is older than the one
 # specified in WORKSPACE, and the two versions clash.
 # TODO(b/316067250): Remove when we know a better fix.
-build --noenable_bzlmod
+# build --noenable_bzlmod
 
 # Build GoogleTest with ABSL support.
 build --define absl=1
