@@ -857,7 +857,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     }
     const auto time_limit = stats_.start_time + duration;
     Input mutation{params_domain_.Init(prng)};
-    constexpr size_t max_iterations = 10000;
+    const size_t max_iterations = duration == absl::ZeroDuration() ? 0 : 10000;
     for (int i = 0; i < max_iterations; ++i) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(mutation);
