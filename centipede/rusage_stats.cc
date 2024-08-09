@@ -14,10 +14,16 @@
 
 #include "./centipede/rusage_stats.h"
 
+#ifdef __APPLE__
+#include <libproc.h>
+#include <sys/proc.h>
+#include <sys/sysctl.h>
+#endif  // __APPLE__
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <cinttypes>
 #include <cstdarg>
 #include <cstdint>
@@ -26,6 +32,7 @@
 #include <functional>
 #include <ios>
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -66,6 +73,44 @@ void ProcessTimer::Get(double& user, double& sys, double& wall) const {
 //                               RUsageScope
 //------------------------------------------------------------------------------
 
+#ifdef __APPLE__
+class RUsageScope::PlatformInfo {
+ public:
+  PlatformInfo(pid_t pid) : pid_(pid) {}
+
+  pid_t pid() const { return pid_; }
+
+ private:
+  pid_t pid_;
+};
+#else
+class RUsageScope::PlatformInfo {
+ public:
+  enum ProcFile : size_t { kSched = 0, kStatm = 1, kStatus = 2, kNum = 3 };
+
+  using ProcFilePaths = std::array<std::string, ProcFile::kNum>;
+
+  PlatformInfo(pid_t pid)
+      : proc_file_paths_{
+            absl::StrFormat("/proc/%d/sched", pid),
+            absl::StrFormat("/proc/%d/statm", pid),
+            absl::StrFormat("/proc/%d/status", pid),
+        } {}
+
+  // Returns a path to the /proc/<pid>/<file> or /proc/<pid>/task/<tid>/<file>.
+  [[nodiscard]] const std::string& GetProcFilePath(ProcFile file) const {
+    return proc_file_paths_[file];
+  }
+
+ private:
+  std::array<std::string, ProcFile::kNum> proc_file_paths_;
+};
+#endif
+
+RUsageScope::RUsageScope(RUsageScope&&) = default;
+RUsageScope& RUsageScope::operator=(RUsageScope&&) = default;
+RUsageScope::~RUsageScope() = default;
+
 RUsageScope RUsageScope::ThisProcess() {  //
   return RUsageScope{getpid()};
 }
@@ -74,37 +119,9 @@ RUsageScope RUsageScope::Process(pid_t pid) {  //
   return RUsageScope{pid};
 }
 
-RUsageScope RUsageScope::ThisThread() {
-  return RUsageScope{getpid(), static_cast<pid_t>(syscall(__NR_gettid))};
-}
-
-RUsageScope RUsageScope::ThisProcessThread(pid_t tid) {
-  return RUsageScope{getpid(), tid};
-}
-
-RUsageScope RUsageScope::Thread(pid_t pid, pid_t tid) {
-  return RUsageScope{pid, tid};
-}
-
 RUsageScope::RUsageScope(pid_t pid)
     : description_{absl::StrFormat("PID=%d", pid)},
-      proc_file_paths_{
-          absl::StrFormat("/proc/%d/sched", pid),
-          absl::StrFormat("/proc/%d/statm", pid),
-          absl::StrFormat("/proc/%d/status", pid),
-      } {}
-
-RUsageScope::RUsageScope(pid_t pid, pid_t tid)
-    : description_{absl::StrFormat("PID=%d TID=%d", pid, tid)},
-      proc_file_paths_{
-          absl::StrFormat("/proc/%d/task/%d/sched", pid, tid),
-          absl::StrFormat("/proc/%d/task/%d/statm", pid, tid),
-          absl::StrFormat("/proc/%d/task/%d/status", pid, tid),
-      } {}
-
-const std::string& RUsageScope::GetProcFilePath(ProcFile file) const {
-  return proc_file_paths_[file];
-}
+      info_(std::make_shared<PlatformInfo>(pid)) {}
 
 namespace detail {
 namespace {
@@ -344,21 +361,33 @@ RUsageTiming RUsageTiming::Snapshot(  //
   double user_time = 0, sys_time = 0, wall_time = 0;
   // TODO(b/265480321): This does not honor `scope`.
   timer.Get(user_time, sys_time, wall_time);
+  double cpu_utilization = 0;
+#ifdef __APPLE__
+  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, scope.info().pid()};
+  struct kinfo_proc info = {};
+  size_t size = sizeof(info);
+  // Get process information
+  CHECK(sysctl(mib, sizeof(mib) / sizeof(mib[0]), &info, &size, NULL, 0) == 0)
+      << "Error getting process information: " << strerror(errno);
+  cpu_utilization = info.kp_proc.p_pctcpu;
+#else   // __APPLE__
   // Get the CPU utilization in 1/1024th units of the maximum from
   // /proc/self/sched. The maximum se.avg.util_avg field == SCHED_CAPACITY_SCALE
   // == 1024, as defined by the Linux scheduler code.
-  double cpu_utilization = 0;
   // TODO(b/265461840): Handle reading errors.
   (void)detail::ReadProcFileKeyword(  // ignore errors (which are unlikely)
-      scope.GetProcFilePath(RUsageScope::ProcFile::kSched),  //
-      "se.avg.util_avg : %lf",                               //
+      scope.info().GetProcFilePath(
+          RUsageScope::PlatformInfo::ProcFile::kSched),  //
+      "se.avg.util_avg : %lf",                           //
       &cpu_utilization);
   constexpr double kLinuxSchedCapacityScale = 1024;
+  cpu_utilization /= kLinuxSchedCapacityScale;
+#endif  // __APPLE__
   return RUsageTiming{
       .wall_time = absl::Seconds(wall_time),
       .user_time = absl::Seconds(user_time),
       .sys_time = absl::Seconds(sys_time),
-      .cpu_utilization = cpu_utilization / kLinuxSchedCapacityScale,
+      .cpu_utilization = cpu_utilization,
       .cpu_hyper_cores = (user_time + sys_time) / wall_time,
       .is_delta = false,
   };
@@ -488,30 +517,57 @@ RUsageMemory RUsageMemory::Max() {
 }
 
 RUsageMemory RUsageMemory::Snapshot(const RUsageScope& scope) {
+  [[maybe_unused]] MemSize vsize = 0, rss = 0, shared = 0, code = 0, unused = 0,
+                           data = 0, vpeak = 0;
+#ifdef __APPLE__
+  if (scope.info().pid() != getpid()) return {};
+  struct proc_taskinfo pti = {};
+  CHECK(proc_pidinfo(scope.info().pid(), PROC_PIDTASKINFO, 0, &pti,
+                     PROC_PIDTASKINFO_SIZE) == PROC_PIDTASKINFO_SIZE)
+      << "Unable to get system resource information";
+  vsize = pti.pti_virtual_size;
+  rss = pti.pti_resident_size;
+  struct rusage rusage = {};
+  CHECK(getrusage(RUSAGE_SELF, &rusage) == 0)
+      << "Failed to get memory stats by getrusage";
+  // `data` and `shared` are not supported in MacOS.
+  // MacOS does not have a builtin way to query the peak size of virutal memory.
+  // Here provide an estimatation assuming only RSS memory can shrink or be
+  // swapped out.
+  //
+  // Here we assume `ru_maxrss` is in bytes according to some experiments.
+  vpeak = vsize + (rusage.ru_maxrss - rss);
+#else   // __APPLE__
   // Get memory stats except the VM peak from /proc/self/statm (see `man proc`).
-  MemSize vsize = 0, rss = 0, shared = 0, code = 0, unused = 0, data = 0;
   // TODO(b/265461840): Handle reading errors.
-  (void)detail::ReadProcFileFields(                          // ignore errors
-      scope.GetProcFilePath(RUsageScope::ProcFile::kStatm),  //
-      "%lld %lld %lld %lld %lld %lld",                       //
+  (void)detail::ReadProcFileFields(  // ignore errors
+      scope.info().GetProcFilePath(
+          RUsageScope::PlatformInfo::ProcFile::kStatm),  //
+      "%lld %lld %lld %lld %lld %lld",                   //
       &vsize, &rss, &shared, &code, &unused, &data);
   // Get the VM peak from /proc/self/status (see `man proc`).
-  MemSize vpeak = 0;
   // TODO(b/265461840): Handle reading errors.
-  (void)detail::ReadProcFileKeyword(                          // ignore errors
-      scope.GetProcFilePath(RUsageScope::ProcFile::kStatus),  //
-      "VmPeak : %" SCNd64 " kB",                              //
+  (void)detail::ReadProcFileKeyword(  // ignore errors
+      scope.info().GetProcFilePath(
+          RUsageScope::PlatformInfo::ProcFile::kStatus),  //
+      "VmPeak : %" SCNd64 " kB",                          //
       &vpeak);
   static const int page_size = getpagesize();
+  vsize *= page_size;
+  rss *= page_size;
+  data *= page_size;
+  shared *= page_size;
   // NOTE: The units are specified in the file itself, but they are always kB.
   static constexpr int kVPeakUnits = 1024;
+  vpeak *= kVPeakUnits;
+#endif  // __APPLE__
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = vsize * page_size,
-      .mem_vpeak = vpeak * kVPeakUnits,
-      .mem_rss = rss * page_size,
-      .mem_data = data * page_size,
-      .mem_shared = shared * page_size,
+      .mem_vsize = vsize,
+      .mem_vpeak = vpeak,
+      .mem_rss = rss,
+      .mem_data = data,
+      .mem_shared = shared,
       .is_delta = false,
   };
   // clang-format on

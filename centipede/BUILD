@@ -351,7 +351,12 @@ cc_library(
     name = "stats",
     srcs = ["stats.cc"],
     hdrs = ["stats.h"],
-    linkopts = ["-latomic"],  # for std::atomic::load()/store().
+    linkopts = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "-latomic",  # for std::atomic::load()/store().
+        ],
+    }),
     deps = [
         ":environment",
         ":workdir",
@@ -420,7 +425,12 @@ cc_library(
     name = "shared_memory_blob_sequence",
     srcs = ["shared_memory_blob_sequence.cc"],
     hdrs = ["shared_memory_blob_sequence.h"],
-    linkopts = ["-lrt"],  # for shm_open.
+    linkopts = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "-lrt",  # for shm_open
+        ],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = ["@com_google_absl//absl/base:nullability"],
     # don't add any dependencies.
@@ -702,7 +712,12 @@ cc_library(
     name = "early_exit",
     srcs = ["early_exit.cc"],
     hdrs = ["early_exit.h"],
-    linkopts = ["-latomic"],  # for std::atomic::load()/store().
+    linkopts = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "-latomic",  # for std::atomic::load()/store().
+        ],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
 )
 
@@ -1015,9 +1030,13 @@ RUNNER_SANITIZED_COPTS = [
 
 RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
-    "-lrt",  # for shm_open
     "-lpthread",  # for pthread_once
-]
+] + select({
+    "@platforms//os:macos": [],
+    "//conditions:default": [
+        "-lrt",  # for shm_open
+    ],
+})
 
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
@@ -1162,8 +1181,11 @@ sh_library(
 sh_library(
     name = "test_util_sh",
     srcs = ["test_util.sh"],
-    data = [
-    ],
+    data = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+        ],
+    }),
 )
 
 ################################################################################

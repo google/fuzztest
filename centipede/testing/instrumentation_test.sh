@@ -37,7 +37,11 @@ CENTIPEDE_RUNNER_FLAGS=":dump_binary_info:arg1=${pc_table}:arg2=${unused1}:arg3=
   "${target}"
 
 # Check the pc table size.
-size=$(stat -c %s "${pc_table}")
+if [[ "$OSTYPE" == 'darwin'* ]]; then
+  size=$(stat -f %z "${pc_table}")
+else
+  size=$(stat -c %s "${pc_table}")
+fi
 echo "pc table size: ${size}"
 (( size < 1 )) && die "pc table is too small: ${size}"
 (( size > ALLOWED_SIZE )) && die "pc table is too large: ${size}"
