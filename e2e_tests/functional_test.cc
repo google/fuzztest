@@ -80,7 +80,7 @@ std::string BinaryPath(const absl::string_view name) {
       "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
       "test.");
   const std::string binary_path = absl::StrCat(
-      test_srcdir, "/com_google_fuzztest/e2e_tests/", name,
+      test_srcdir, "/_main/e2e_tests/", name,
       absl::EndsWith(name, ".stripped") ? "" : ".stripped");
 
   FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
@@ -681,7 +681,7 @@ std::string CentipedePath() {
       "test.");
   const std::string binary_path = absl::StrCat(
       test_srcdir,
-      "/com_google_fuzztest/centipede/centipede_uninstrumented");
+      "/_main/centipede/centipede_uninstrumented");
 
   FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
                           absl::StrCat("Can't find ", binary_path));
