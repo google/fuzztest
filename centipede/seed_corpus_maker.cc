@@ -46,8 +46,8 @@ int main(int argc, absl::Nonnull<char**> argv) {
               << " from actual file at --coverage_binary_path=" << binary_path;
   }
 
-  centipede::GenerateSeedCorpusFromConfig(  //
-      config, binary_name, binary_hash, override_out_dir);
+  QCHECK_OK(centipede::GenerateSeedCorpusFromConfig(  //
+      config, binary_name, binary_hash, override_out_dir));
 
   return EXIT_SUCCESS;
 }
