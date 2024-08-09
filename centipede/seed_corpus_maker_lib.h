@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "./centipede/feature.h"
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./common/defs.h"
@@ -35,8 +37,8 @@ using InputAndFeaturesVec = std::vector<InputAndFeatures>;
 // file's parent dir (if `config_spec` is a file) or the current dir otherwise.
 // If `override_out_dir` is non-empty, it overrides `destination.dir_path` in
 // the resolved config.
-SeedCorpusConfig ResolveSeedCorpusConfig(  //
-    std::string_view config_spec,          //
+absl::StatusOr<SeedCorpusConfig> ResolveSeedCorpusConfig(  //
+    std::string_view config_spec,                          //
     std::string_view override_out_dir = "");
 
 // Extracts a sample of corpus elements from `source` and appends the results to
@@ -50,10 +52,10 @@ SeedCorpusConfig ResolveSeedCorpusConfig(  //
 // <coverage_binary_name>-<coverage_binary_hash> subdir, the matching features
 // will be copied over to `elements`; otherwise, and empty `FeatureVec` will be
 // used instead.
-void SampleSeedCorpusElementsFromSource(    //
-    const SeedCorpusSource& source,         //
-    std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
+absl::Status SampleSeedCorpusElementsFromSource(  //
+    const SeedCorpusSource& source,               //
+    std::string_view coverage_binary_name,        //
+    std::string_view coverage_binary_hash,        //
     InputAndFeaturesVec& elements);
 
 // Writes seed corpus `elements` to `destination`. Any previously existing
@@ -65,10 +67,10 @@ void SampleSeedCorpusElementsFromSource(    //
 // be the hash of that binary. The features in each `FeatureVec` of the
 // `elements` will be saved to a features shard file under
 // <coverage_binary_name>-<coverage_binary_hash> subdir of the destination.
-void WriteSeedCorpusElementsToDestination(  //
-    const InputAndFeaturesVec& elements,    //
-    std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
+absl::Status WriteSeedCorpusElementsToDestination(  //
+    const InputAndFeaturesVec& elements,            //
+    std::string_view coverage_binary_name,          //
+    std::string_view coverage_binary_hash,          //
     const SeedCorpusDestination& destination);
 
 // Reads and samples seed corpus elements from all the sources and writes the
@@ -87,14 +89,14 @@ void WriteSeedCorpusElementsToDestination(  //
 // element will be copied over from the
 // <coverage_binary_name>-<coverage_binary_hash> subdir of the source to the
 // same subdir of the destination.
-void GenerateSeedCorpusFromConfig(          //
+absl::Status GenerateSeedCorpusFromConfig(  //
     std::string_view config_spec,           //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
     std::string_view override_out_dir = "");
 
 // Same as above but accepts a `SeedCorpusConfig` directly.
-void GenerateSeedCorpusFromConfig(          //
+absl::Status GenerateSeedCorpusFromConfig(  //
     const SeedCorpusConfig& config,         //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash,  //
