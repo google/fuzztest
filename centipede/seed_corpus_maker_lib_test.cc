@@ -30,6 +30,7 @@
 #include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/workdir.h"
 #include "./common/logging.h"  // IWYU pragma: keep
+#include "./common/status_macros.h"
 #include "./common/test_util.h"
 #include "google/protobuf/text_format.h"
 
@@ -140,8 +141,9 @@ TEST(SeedCorpusMakerLibTest, ResolveConfig) {
     }
   )pb";
 
-  const SeedCorpusConfig resolved_config = ResolveSeedCorpusConfig(  //
-      absl::Substitute(kConfigStr, kSrcSubDir, kDstSubDir, kNumShards));
+  const SeedCorpusConfig resolved_config =
+      ValueOrDie(ResolveSeedCorpusConfig(  //
+          absl::Substitute(kConfigStr, kSrcSubDir, kDstSubDir, kNumShards)));
 
   const SeedCorpusConfig expected_config = ParseSeedCorpusConfig(  //
       absl::Substitute(kExpectedConfigStr, test_dir, kSrcSubDir, kDstSubDir,
@@ -185,8 +187,8 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     )pb";
     const SeedCorpusConfig config = ParseSeedCorpusConfig(absl::Substitute(
         kConfigStr, kRelDir1, kCovBin, kNumShards, kIdxDigits));
-    WriteSeedCorpusElementsToDestination(  //
-        kElements, kCovBin, kCovHash, config.destination());
+    ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
+        kElements, kCovBin, kCovHash, config.destination()));
     const std::string workdir = (test_dir / kRelDir1).c_str();
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
         workdir, kCovBin, kCovHash, kNumShards, ShardType::kDistilled));
@@ -208,8 +210,8 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       const SeedCorpusConfig config = ParseSeedCorpusConfig(
           absl::Substitute(kConfigStr, kRelDir1, kCovBin, fraction));
       InputAndFeaturesVec elements;
-      SampleSeedCorpusElementsFromSource(  //
-          config.sources(0), kCovBin, kCovHash, elements);
+      ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
+          config.sources(0), kCovBin, kCovHash, elements));
       // NOTE: 1.0 has a precise double representation, so `==` is fine.
       ASSERT_EQ(elements.size(), std::llrint(kElements.size() * fraction))
           << VV(fraction);
@@ -240,8 +242,8 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
         kConfigStr, kRelDir1, kCovBin, kRelDir2, kNumShards, kIdxDigits);
 
     {
-      GenerateSeedCorpusFromConfig(  //
-          config_str, kCovBin, kCovHash, "");
+      ASSERT_OK(GenerateSeedCorpusFromConfig(  //
+          config_str, kCovBin, kCovHash, ""));
       const std::string workdir = (test_dir / kRelDir2).c_str();
       ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
@@ -249,8 +251,8 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     }
 
     {
-      GenerateSeedCorpusFromConfig(  //
-          config_str, kCovBin, kCovHash, kRelDir3);
+      ASSERT_OK(GenerateSeedCorpusFromConfig(  //
+          config_str, kCovBin, kCovHash, kRelDir3));
       const std::string workdir = (test_dir / kRelDir3).c_str();
       ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
