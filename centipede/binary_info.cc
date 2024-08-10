@@ -56,12 +56,15 @@ void BinaryInfo::InitializeFromSanCovBinary(
   ScopedFile log_path(tmp_dir_path, "binary_info_log_tmp");
   LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
-  Command cmd(
-      binary_path_with_args, {},
-      {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=",
-                    pc_table_path.path(), ":arg2=", cf_table_path.path(),
-                    ":arg3=", dso_table_path.path(), ":")},
-      log_path.path());
+  const std::string runner_flags = absl::StrCat(
+      ":dump_binary_info:arg1=", pc_table_path.path(),
+      ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":");
+  Command cmd{
+      binary_path_with_args,
+      {},
+      {{"CENTIPEDE_RUNNER_FLAGS", runner_flags}},
+      log_path.path(),
+  };
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     LOG(INFO) << __func__ << ": exit_code: " << exit_code;

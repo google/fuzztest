@@ -25,6 +25,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <initializer_list>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -32,11 +33,11 @@
 #include <vector>
 
 #include "absl/base/const_init.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -48,12 +49,14 @@
 #include "./centipede/early_exit.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/subprocess.h"
 
 namespace centipede {
 
-// See the definition of --fork_server flag.
 inline constexpr std::string_view kCommandLineSeparator(" \\\n");
+// See the definition of --fork_server flag.
 inline constexpr std::string_view kNoForkServerRequestPrefix("%f");
+inline constexpr std::string_view kTempFileWildCard("@@");
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
 //  this source as possible in this struct, and make it a class.
@@ -62,8 +65,6 @@ struct Command::ForkServerProps {
   std::string fifo_path_[2];
   // The file descriptors of the comms pipes.
   int pipe_[2] = {-1, -1};
-  // The file path to write the PID of the fork server process to.
-  std::string pid_file_path_;
   // The PID of the fork server process. Used to verify that the fork server is
   // running and the pipes are ready for comms.
   pid_t pid_ = -1;
@@ -95,98 +96,84 @@ Command::Command(Command &&other) noexcept = default;
 Command::~Command() = default;
 
 Command::Command(std::string_view path, std::vector<std::string> args,
-                 std::vector<std::string> env, std::string_view out,
-                 std::string_view err, absl::Duration timeout,
-                 std::string_view temp_file_path)
-    : path_(path),
-      args_(std::move(args)),
-      env_(std::move(env)),
-      out_(out),
-      err_(err),
-      timeout_(timeout),
-      temp_file_path_(temp_file_path) {}
-
-std::string Command::ToString() const {
-  std::vector<std::string> ss;
-  // env.
-  ss.reserve(env_.size());
-  for (const auto &env : env_) {
-    ss.emplace_back(env);
+                 absl::flat_hash_map<std::string, std::string> env,
+                 std::string_view out, std::string_view err,
+                 absl::Duration timeout, std::string_view temp_file_path)
+    : out_{out},
+      err_{err},
+      timeout_{timeout},
+      use_fork_server_{!absl::StartsWith(path, kNoForkServerRequestPrefix)} {
+  const absl::flat_hash_map<std::string_view, std::string_view>
+      temp_file_replacements = {{kTempFileWildCard, temp_file_path}};
+  // argv.
+  argv_.reserve(1 /*path*/ + args.size());
+  argv_.emplace_back(absl::StrReplaceAll(path, temp_file_replacements));
+  for (const auto &a : args) {
+    argv_.emplace_back(absl::StrReplaceAll(a, temp_file_replacements));
   }
-  // path.
-  std::string path = path_;
-  // Strip the % prefixes, if any.
-  if (absl::StartsWith(path, kNoForkServerRequestPrefix)) {
-    path = path.substr(kNoForkServerRequestPrefix.size());
+  // TODO(ussuri): Consider using the built-in
+  //  `fuzztest::internal::SubProcess`'s I/O interception instead.
+  if (!out.empty()) {
+    argv_.emplace_back(absl::StrCat("> ", out));
   }
-  // Replace @@ with temp_file_path_.
-  constexpr std::string_view kTempFileWildCard = "@@";
-  if (absl::StrContains(path, kTempFileWildCard)) {
-    CHECK(!temp_file_path_.empty());
-    path = absl::StrReplaceAll(path, {{kTempFileWildCard, temp_file_path_}});
-  }
-  ss.emplace_back(path);
-  // args.
-  for (const auto &arg : args_) {
-    ss.emplace_back(arg);
-  }
-  // out/err.
-  if (!out_.empty()) {
-    ss.emplace_back(absl::StrCat("> ", out_));
-  }
-  if (!err_.empty()) {
-    if (out_ != err_) {
-      ss.emplace_back(absl::StrCat("2> ", err_));
+  if (!err.empty()) {
+    if (out != err) {
+      argv_.emplace_back(absl::StrCat("2> ", err));
     } else {
-      ss.emplace_back("2>&1");
+      argv_.emplace_back("2>&1");
     }
   }
-  // Trim trailing space and return.
-  return absl::StrJoin(ss, kCommandLineSeparator);
+  // env.
+  env_.reserve(env.size());
+  for (const auto &[k, v] : env) {
+    env_.emplace(k, absl::StrReplaceAll(v, temp_file_replacements));
+  }
+}
+
+std::string Command::ToString() const {
+  std::vector<std::string> env_and_argv_strs;
+  std::string env_str =
+      absl::StrJoin(env_, kCommandLineSeparator, absl::PairFormatter("="));
+  if (!env_str.empty()) env_and_argv_strs.emplace_back(std::move(env_str));
+  std::string argv_str = absl::StrJoin(argv_, kCommandLineSeparator);
+  CHECK(!argv_str.empty());
+  env_and_argv_strs.emplace_back(std::move(argv_str));
+  return absl::StrJoin(env_and_argv_strs, kCommandLineSeparator);
 }
 
 bool Command::StartForkServer(std::string_view temp_dir_path,
                               std::string_view prefix) {
-  if (absl::StartsWith(path_, kNoForkServerRequestPrefix)) {
+  if (!use_fork_server_) {
     VLOG(2) << "Fork server disabled for " << path();
     return false;
   }
   VLOG(2) << "Starting fork server for " << path();
 
   fork_server_.reset(new ForkServerProps);
-  fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
-                                    .append(absl::StrCat(prefix, "_FIFO0"));
-  fork_server_->fifo_path_[1] = std::filesystem::path(temp_dir_path)
-                                    .append(absl::StrCat(prefix, "_FIFO1"));
-  const std::string pid_file_path =
-      std::filesystem::path(temp_dir_path).append("pid");
+  fork_server_->fifo_path_[0] =
+      std::filesystem::path(temp_dir_path) / absl::StrCat(prefix, "_FIFO0");
+  fork_server_->fifo_path_[1] =
+      std::filesystem::path(temp_dir_path) / absl::StrCat(prefix, "_FIFO1");
   (void)std::filesystem::create_directory(temp_dir_path);  // it may not exist.
   for (int i = 0; i < 2; ++i) {
     PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
         << VV(i) << VV(fork_server_->fifo_path_[i]);
   }
 
-  // NOTE: A background process does not return its exit status to the subshell,
-  // so failures will never propagate to the caller of `system()`. Instead, we
-  // save out the background process's PID to a file and use it later to assert
-  // that the process has started and is still running.
-  static constexpr std::string_view kForkServerCommandStub = R"sh(
-  {
-    CENTIPEDE_FORK_SERVER_FIFO0="%s" \
-    CENTIPEDE_FORK_SERVER_FIFO1="%s" \
-    %s
-  } &
-  echo -n $! > "%s"
-)sh";
-  const std::string fork_server_command = absl::StrFormat(
-      kForkServerCommandStub, fork_server_->fifo_path_[0],
-      fork_server_->fifo_path_[1], command_line_, pid_file_path);
-  VLOG(2) << "Fork server command:" << fork_server_command;
+  std::vector<std::string> fork_server_argv{argv_};
+  fork_server_argv.emplace_back("&");
+  absl::flat_hash_map<std::string, std::string> fork_server_env{
+      {"CENTIPEDE_FORK_SERVER_FIFO0", fork_server_->fifo_path_[0]},
+      {"CENTIPEDE_FORK_SERVER_FIFO1", fork_server_->fifo_path_[1]},
+  };
+  fork_server_env.merge(env_);
 
-  const int exit_code = system(fork_server_command.c_str());
+  const fuzztest::internal::RunResults run_results =
+      fuzztest::internal::RunCommand(fork_server_argv, fork_server_env,
+                                     absl::ZeroDuration());
 
   // Check if `system()` was able to parse and run the command at all.
-  if (exit_code != EXIT_SUCCESS) {
+  if (!run_results.status.Exited()) {
     LogProblemInfo(
         "Failed to parse or run command to launch fork server; will proceed "
         "without it");
@@ -205,25 +192,32 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   // it.
   // See more at
   // https://www.gnu.org/software/libc/manual/html_node/Operating-Modes.html.
-  if ((fork_server_->pipe_[0] = open(fork_server_->fifo_path_[0].c_str(),
-                                     O_RDWR | O_NONBLOCK)) < 0 ||
-      (fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(),
-                                     O_RDONLY | O_NONBLOCK)) < 0) {
+  fork_server_->pipe_[0] =
+      open(fork_server_->fifo_path_[0].c_str(), O_RDWR | O_NONBLOCK);
+  if (fork_server_->pipe_[0] < 0) {
     LogProblemInfo(
-        "Failed to establish communication with fork server; will proceed "
-        "without it");
+        "Failed to open outbound comms channel to fork server; proceeding in "
+        "forkless mode");
+    return false;
+  }
+  fork_server_->pipe_[1] =
+      open(fork_server_->fifo_path_[1].c_str(), O_RDONLY | O_NONBLOCK);
+  if (fork_server_->pipe_[1] < 0) {
+    LogProblemInfo(
+        "Failed to open inbound comms channel from fork server; proceeding in "
+        "forkless mode");
+    close(fork_server_->pipe_[0]);
     return false;
   }
 
   // The fork server has started and the comms pipes got opened successfully.
-  // Read the fork server's PID and the initial /proc/<PID>/exe symlink pointing
-  // at the fork server's binary, written to the provided files by `command`.
-  // `Execute()` uses these to monitor the fork server health.
-  std::string pid_str;
-  ReadFromLocalFile(pid_file_path, pid_str);
-  CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
-  std::string proc_exe = absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
-  if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
+  // Read the initial /proc/<PID>/exe symlink pointing at the fork server's
+  // binary, so `Execute()` can use it (via `VerifyForkServerIsHealthy()`) to
+  // monitor the server's health.
+  fork_server_->pid_ = run_results.pid;
+  if (const std::string proc_exe =
+          absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
+      stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
     LogProblemInfo(
         absl::StrCat("Fork server appears not running; will proceed without it "
                      "(failed to stat ",
@@ -259,20 +253,18 @@ absl::Status Command::VerifyForkServerIsHealthy() {
         "Failed to stat fork server's /proc/<PID>/exe symlink, PID=",
         fork_server_->pid_));
   }
-  // TODO(b/281882892): Disable for now. Find a proper solution later.
-  if constexpr (false) {
-    if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
-        proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
-      return absl::UnknownError(absl::StrCat(
-          "Fork server's /proc/<PID>/exe symlink changed (new process?), PID=",
-          fork_server_->pid_));
-    }
+  if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
+      proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
+    return absl::UnknownError(absl::StrCat(
+        "Fork server's /proc/<PID>/exe symlink changed (new process?), PID=",
+        fork_server_->pid_));
   }
+
   return absl::OkStatus();
 }
 
 int Command::Execute() {
-  VLOG(1) << "Executing command '" << command_line_ << "'...";
+  VLOG(1) << "Executing command '" << ToString() << "'...";
 
   int exit_code = EXIT_SUCCESS;
 
@@ -327,8 +319,20 @@ int Command::Execute() {
              read(fork_server_->pipe_[1], &exit_code, sizeof(exit_code)));
   } else {
     VLOG(1) << "Fork server disabled - executing command directly";
-    // No fork server, use system().
-    exit_code = system(command_line_.c_str());
+    const fuzztest::internal::RunResults run_results =
+        fuzztest::internal::RunCommand(argv_, env_, timeout_);
+    if (run_results.status.Exited()) {
+      exit_code = static_cast<int>(
+          std::get<fuzztest::internal::ExitCodeT>(run_results.status.Status()));
+    } else {
+      exit_code = static_cast<int>(
+          std::get<fuzztest::internal::SignalT>(run_results.status.Status()));
+      if (exit_code == SIGTERM) {
+        LogProblemInfo(
+            absl::StrCat("Timeout while waiting for subprocess: timeout is ",
+                         absl::FormatDuration(timeout_)));
+      }
+    }
   }
 
   // When the command is actually a wrapper shell launching the binary(-es)
@@ -355,9 +359,8 @@ int Command::Execute() {
 
   if (WIFEXITED(exit_code) && WEXITSTATUS(exit_code) != EXIT_SUCCESS) {
     const auto exit_status = WEXITSTATUS(exit_code);
-    VlogProblemInfo(
-        absl::StrCat("Command errored out: exit status=", exit_status),
-        /*vlog_level=*/1);
+    LogProblemInfo(
+        absl::StrCat("Command errored out: exit status=", exit_status));
     exit_code = exit_status;
   } else if (WIFSIGNALED(exit_code)) {
     const auto signal = WTERMSIG(exit_code);
@@ -368,13 +371,11 @@ int Command::Execute() {
       // the subprocesses, including all the runners, so all their outputs would
       // get printed simultaneously, flooding the log. Hence log at a high
       // `vlog_level`.
-      VlogProblemInfo("Command killed: signal=SIGINT (likely Ctrl-C)",
-                      /*vlog_level=*/10);
+      LogProblemInfo("Command killed: signal=SIGINT (likely Ctrl-C)");
     } else {
       // The fork server subprocess was killed by something other than ^C: log
       // at a lower `vlog_level` to help diagnose problems.
-      VlogProblemInfo(absl::StrCat("Command killed: signal=", signal),
-                      /*vlog_level=*/1);
+      LogProblemInfo(absl::StrCat("Command killed: signal=", signal));
     }
 
     // TODO(ussuri): Consider changing this to exit_code = EXIT_FAILURE.
@@ -417,7 +418,7 @@ void Command::LogProblemInfo(std::string_view message) const {
 
   LOG(ERROR) << message;
   LOG(ERROR).NoPrefix() << "=== COMMAND ===";
-  LOG(ERROR).NoPrefix() << command_line_;
+  LOG(ERROR).NoPrefix() << ToString();
   LOG(ERROR).NoPrefix() << "=== STDOUT ===";
   for (const auto &line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
     LOG(ERROR).NoPrefix() << line;

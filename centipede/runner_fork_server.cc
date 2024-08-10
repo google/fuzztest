@@ -67,8 +67,9 @@ namespace centipede {
 // Writes a C string to stderr when debugging, no-op otherwise.
 void Log(absl::Nonnull<const char *> str) {
   // Uncomment these lines to debug.
-  // (void)write(STDERR_FILENO, str, strlen(str));
-  // fsync(STDERR_FILENO);
+  // TODO(ussuri): Temporarily uncommented for testing.
+  (void)write(STDERR_FILENO, str, strlen(str));
+  (void)fsync(STDERR_FILENO);
 }
 
 // Maybe writes the `reason` to stderr; then calls _exit.

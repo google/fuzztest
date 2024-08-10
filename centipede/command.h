@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
@@ -45,8 +46,8 @@ class Command final {
   // TODO(ussuri): The number of parameters became untenable and error-prone.
   //  Use the Options or Builder pattern instead.
   explicit Command(std::string_view path, std::vector<std::string> args = {},
-                   std::vector<std::string> env = {}, std::string_view out = "",
-                   std::string_view err = "",
+                   absl::flat_hash_map<std::string, std::string> env = {},
+                   std::string_view out = "", std::string_view err = "",
                    absl::Duration timeout = absl::InfiniteDuration(),
                    std::string_view temp_file_path = "");
 
@@ -68,7 +69,7 @@ class Command final {
   bool StartForkServer(std::string_view temp_dir_path, std::string_view prefix);
 
   // Accessors.
-  const std::string& path() const { return path_; }
+  const std::string& path() const { return argv_[0]; }
 
  private:
   struct ForkServerProps;
@@ -92,14 +93,14 @@ class Command final {
   // via `--v` or its equivalents) is >= `min_vlog`.
   void VlogProblemInfo(std::string_view message, int vlog_level) const;
 
-  const std::string path_;
-  const std::vector<std::string> args_;
-  const std::vector<std::string> env_;
+  std::vector<std::string> argv_;
+  absl::flat_hash_map<std::string, std::string> env_;
   const std::string out_;
   const std::string err_;
-  const absl::Duration timeout_;
-  const std::string temp_file_path_;
-  const std::string command_line_ = ToString();
+  absl::Duration timeout_;
+  // const std::string temp_file_path_;
+  // const std::string command_line_ = ToString();
+  bool use_fork_server_;
 
   std::unique_ptr<ForkServerProps> fork_server_;
 };
