@@ -448,9 +448,9 @@ int UpdateCorpusDatabaseForFuzzTests(
         corpus_database_path / fuzztest_config.fuzz_tests[i];
     const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
     if (RemotePathExists(coverage_dir.c_str()) && !is_resuming) {
-      GenerateSeedCorpusFromConfig(
+      CHECK_OK(GenerateSeedCorpusFromConfig(
           GetSeedCorpusConfig(env, coverage_dir.c_str()), env.binary_name,
-          env.binary_hash);
+          env.binary_hash));
     }
     is_resuming = false;
 
