@@ -102,7 +102,7 @@ FUZZTEST_DEFINE_FLAG(
 
 FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
                      "When true, the selected tests replay all crashing inputs "
-                     "in the database as separate TEST-s.");
+                     "in the corpus database as separate TEST-s.");
 
 FUZZTEST_DEFINE_FLAG(
     std::string, replay_corpus, std::string(kUnspecified),
@@ -127,7 +127,7 @@ FUZZTEST_DEFINE_FLAG(
     absl::Duration, replay_corpus_for, absl::ZeroDuration(),
     "Runs all fuzz tests in corpus replay mode up to the specified duration. "
     "Can be combined with --" FUZZTEST_FLAG_PREFIX
-    "corpus_replay to select a single fuzz test, or with --" GTEST_FLAG_PREFIX_
+    "fuzz to select a single fuzz test, or with --" GTEST_FLAG_PREFIX_
     "filter to select a subset of fuzz tests. To replay the entire corpus for "
     "each FUZZ_TEST in the binary, set this flag to `inf` (infinite time "
     "budget). It's recommended to run the tests in the binary in parallel "
