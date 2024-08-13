@@ -200,9 +200,11 @@ TEST(StringTest, Printer) {
 }
 
 TEST(ByteArrayTest, Printer) {
-  EXPECT_THAT(TestPrintValue(std::vector<uint8_t>{'\0', 'a', 0223, 'b', '\"'}),
-              ElementsAre(R"("\000a\223b"")",
-                          R"(fuzztest::ToByteArray("\000a\223b\""))"));
+  EXPECT_THAT(
+      TestPrintValue(std::vector<uint8_t>{'\0', 'a', 0223, 'b', '\"'}),
+      ElementsAre(R"("\000a\223b"")",
+                  R"(fuzztest::ToByteArray(std::string("\000a\223b\"", 5)))"));
+  EXPECT_EQ(std::string("\000a\223b\"", 5).size(), 5);
 }
 
 TEST(CompoundTest, Printer) {

@@ -160,7 +160,8 @@ struct StringPrinter {
         const std::string input(v.data(), v.data() + v.size());
         const std::string escaped = absl::CEscape(input);
         if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
-          absl::Format(out, "fuzztest::ToByteArray(\"%s\")", escaped);
+          absl::Format(out, "fuzztest::ToByteArray(std::string(\"%s\", %d))",
+                       escaped, v.size());
         } else if (absl::StrContains(input, '\0')) {
           absl::Format(out, "std::string(\"%s\", %d)", escaped, v.size());
         } else {
