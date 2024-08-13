@@ -35,3 +35,8 @@ cc_library(
         "@com_google_absl//absl/synchronization",
     ],
 )
+
+alias(
+    name = "antlr4-cpp-runtime",
+    actual = "@antlr_cpp//:antlr4-cpp-runtime",
+)

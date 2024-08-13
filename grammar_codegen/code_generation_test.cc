@@ -45,7 +45,7 @@ std::string RemoveWhiteSpace(absl::string_view s) {
 std::string GetFuzzTestSrcDir() {
   const std::string src_dir = ::testing::SrcDir();
   return absl::StrCat(absl::StripSuffix(src_dir, "/"),
-                      "/com_google_fuzztest/");
+                      "/_main/");
 }
 
 // Removes lines that start with "//" from `s`.
