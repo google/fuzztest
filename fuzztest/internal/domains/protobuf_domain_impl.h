@@ -1285,6 +1285,15 @@ class ProtobufDomainUntypedImpl
     return field_policy;
   }
 
+  // TODO(b/285926381): Allow other customizations for the untyped protos.
+  ProtobufDomainUntypedImpl&& WithProtobufFieldsTransformed(
+      std::function<Domain<std::unique_ptr<Message>>(
+          Domain<std::unique_ptr<Message>>)>&& transformer) && {
+    GetPolicy().SetDomainTransformerForProtobufs(IncludeAll<FieldDescriptor>(),
+                                                 std::move(transformer));
+    return std::move(*this);
+  }
+
  private:
   void CheckIfPolicyCanBeUpdated() const {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(

@@ -61,15 +61,14 @@ template <typename PrototypeMessageProvider,
               decltype(std::declval<PrototypeMessageProvider>()())>>>
 auto ProtobufOf(PrototypeMessageProvider get_prototype) {
   if constexpr (std::is_abstract_v<T>) {  // T = Message
-    return Domain<std::unique_ptr<T>>(internal::ProtobufDomainUntypedImpl<T>(
+    return internal::ProtobufDomainUntypedImpl<T>(
         fuzztest::internal::PrototypePtr<T>(get_prototype),
-        /*use_lazy_initialization=*/false));
+        /*use_lazy_initialization=*/false);
   } else {  // T is derived class of Message
     using Message = typename T::Message;
-    return Domain<std::unique_ptr<Message>>(
-        internal::ProtobufDomainUntypedImpl<Message>(
-            fuzztest::internal::PrototypePtr<Message>(get_prototype),
-            /*use_lazy_initialization=*/false));
+    return internal::ProtobufDomainUntypedImpl<Message>(
+        fuzztest::internal::PrototypePtr<Message>(get_prototype),
+        /*use_lazy_initialization=*/false);
   }
 }
 
