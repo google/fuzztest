@@ -60,7 +60,8 @@ template <typename PrototypeMessageProvider,
           typename T = std::remove_cv_t<std::remove_pointer_t<
               decltype(std::declval<PrototypeMessageProvider>()())>>>
 auto ProtobufOf(PrototypeMessageProvider get_prototype) {
-  if constexpr (std::is_abstract_v<T>) {  // T = Message
+  constexpr bool kIsMessageClass = !std::is_copy_constructible_v<T>;
+  if constexpr (kIsMessageClass) {
     return internal::ProtobufDomainUntypedImpl<T>(
         fuzztest::internal::PrototypePtr<T>(get_prototype),
         /*use_lazy_initialization=*/false);
