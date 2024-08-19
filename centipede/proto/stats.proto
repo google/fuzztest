@@ -1,0 +1,103 @@
+// Copyright 2022 The Centipede Authors.
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//      https://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package third_party_googlefuzztest_centipede_proto;
+
+// A set of statistics about the fuzzing progress.
+message Stats {
+  message StatsMeta {
+    optional int timestamp_unix_micros = 1;
+  }
+
+  message ExecStats {
+    optional uint64 fuzz_time_sec = 1;
+    optional uint64 num_executions = 2;
+    optional uint64 num_target_crashes = 3;
+  }
+
+  message CovStats {
+    optional uint64 num_covered_pcs = 1;
+    optional uint64 num_8bit_counter_features = 2;
+    optional uint64 num_data_flow_features = 3;
+    optional uint64 num_cmp_features = 4;
+    optional uint64 num_call_stack_features = 5;
+    optional uint64 num_bounded_path_features = 6;
+    optional uint64 num_pc_pair_features = 7;
+    optional uint64 num_user_features = 8;
+    optional uint64 num_user0_features = 9;
+    optional uint64 num_user1_features = 10;
+    optional uint64 num_user2_features = 11;
+    optional uint64 num_user3_features = 12;
+    optional uint64 num_user4_features = 13;
+    optional uint64 num_user5_features = 14;
+    optional uint64 num_user6_features = 15;
+    optional uint64 num_user7_features = 16;
+    optional uint64 num_user8_features = 17;
+    optional uint64 num_user9_features = 18;
+    optional uint64 num_user10_features = 19;
+    optional uint64 num_user11_features = 20;
+    optional uint64 num_user12_features = 21;
+    optional uint64 num_user13_features = 22;
+    optional uint64 num_user14_features = 23;
+    optional uint64 num_user15_features = 24;
+    optional uint64 num_unknown_features = 25;
+    optional uint64 num_funcs_in_frontier = 26;
+  }
+
+  message CorpusStats {
+    optional uint64 active_corpus_size = 1;
+    optional uint64 total_corpus_size = 2;
+    optional uint64 max_corpus_element_size = 3;
+    optional uint64 avg_corpus_element_size = 4;
+  }
+
+  message RusageStats {
+    optional uint64 engine_rusage_avg_millicores = 1;
+    optional uint64 engine_rusage_cpu_percent = 2;
+    optional uint64 engine_rusage_rss_mb = 3;
+    optional uint64 engine_rusage_vsize_mb = 4;
+  }
+
+  enum TraitBits {
+    // The kind of the stat.
+    TIMESTAMP = 0;
+    FUZZ_STAT = 1;
+    USAGE_STAT = 2;
+    // The aggregate value(s) to report for the stat.
+    MIN = 3;
+    MAX = 4;
+    AVG = 5;
+    SUM = 6;
+  }
+
+  // Ascribes some properties to each stat.
+  message FieldInfo {
+    oneof field {
+      StatsMeta stats_meta = 1;
+      ExecStats exec_stats = 2;
+      CovStats cov_stats = 3;
+      CorpusStats corpus_stats = 4;
+      RusageStats rusage_stats = 5;
+    }
+    // The machine-readable name of the field.
+    string name = 2;
+    // The human-readable description of the field. Used in logging.
+    string description = 3;
+    repeated TraitBits traits = 4;
+  }
+
+  repeated FieldInfo field_info = 1;
+}
