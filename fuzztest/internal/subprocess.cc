@@ -20,6 +20,8 @@
 #include <cstring>
 #include <variant>
 
+#include "absl/strings/str_join.h"
+
 #if !defined(_MSC_VER)
 #include <fcntl.h>
 #include <poll.h>
@@ -171,8 +173,9 @@ pid_t SubProcess::StartChild(
   int err;
   err = posix_spawnp(&child_pid, argv[0], &actions, nullptr, argv.data(),
                      envp.data());
-  FUZZTEST_INTERNAL_CHECK(err == 0,
-                          "Cannot spawn child process: ", strerror(err));
+  FUZZTEST_INTERNAL_CHECK(
+      err == 0, "Cannot spawn child process: ", strerror(err),
+      "; Command line:\n", absl::StrJoin(command_line, "\\\n"));
 
   // Free up the used parameters.
   for (char* p : argv) free(p);
@@ -281,12 +284,20 @@ RunResults SubProcess::Run(
   CreatePipes();
   pid_t child_pid = StartChild(command_line, environment);
   CloseChildPipes();
-  std::future<int> status =
-      std::async(std::launch::async, &WaitWithTimeout, child_pid, timeout);
-  std::string stdout_output, stderr_output;
-  ReadChildOutput(&stdout_output, &stderr_output);
+  RunResults run_results = {
+      .pid = child_pid,
+      .status = TerminationStatus{EXIT_SUCCESS},
+  };
+  // DO NOT SUBMIT: Use zero timeout as a temporary proxy to tell `SubProcess`
+  //  to launch the the child process in the background.
+  if (timeout > absl::ZeroDuration()) {
+    std::future<int> status =
+        std::async(std::launch::async, &WaitWithTimeout, child_pid, timeout);
+    ReadChildOutput(&run_results.stdout_output, &run_results.stderr_output);
+    run_results.status = TerminationStatus(status.get());
+  }
   CloseParentPipes();
-  return {TerminationStatus(status.get()), stdout_output, stderr_output};
+  return run_results;
 }
 
 #endif  // !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) &&
@@ -308,5 +319,25 @@ RunResults RunCommand(
   return proc.Run(command_line, environment, timeout);
 #endif
 }
+
+// RunResults StartBackgroundCommand(
+//     const std::vector<std::string>& command_line,
+//     const absl::flat_hash_map<std::string, std::string>& environment,
+//     absl::Duration timeout) {
+// #if defined(_MSC_VER)
+//   FUZZTEST_INTERNAL_CHECK(false,
+//                           "Subprocess library not implemented on Windows
+//                           yet.");
+// #elif defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ <
+// 28
+//   FUZZTEST_INTERNAL_CHECK(
+//       false,
+//       "Subprocess library not implemented on older Android NDK versions
+//       yet");
+// #else
+//   SubProcess proc;
+//   return proc.StartChild(command_line, environment);
+// #endif
+// }
 
 }  // namespace fuzztest::internal

@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <variant>
 #include <vector>
@@ -85,6 +86,9 @@ class TerminationStatus {
 };
 
 struct RunResults {
+  // The PID of the process. Particularly useful when the process is launched in
+  // the background.
+  pid_t pid;
   // Termination status.
   TerminationStatus status;
   // Contents of stdout.

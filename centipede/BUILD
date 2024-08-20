@@ -611,6 +611,7 @@ cc_library(
         ":early_exit",
         ":util",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -619,6 +620,7 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest:subprocess",
     ],
 )
 
