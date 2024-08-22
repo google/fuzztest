@@ -36,6 +36,7 @@ namespace centipede {
 namespace {
 constexpr std::string_view kSymbolTableFileName = "symbol-table";
 constexpr std::string_view kPCTableFileName = "pc-table";
+constexpr std::string_view kCfTableFileName = "cf-table";
 }  // namespace
 
 void BinaryInfo::InitializeFromSanCovBinary(
@@ -135,6 +136,13 @@ void BinaryInfo::Read(std::string_view dir) {
       pc_table_contents));
   std::istringstream pc_table_stream(pc_table_contents);
   pc_table = ReadPcTable(pc_table_stream);
+
+  std::string cf_table_contents;
+  CHECK_OK(RemoteFileGetContents(
+      (std::filesystem::path(dir) / kCfTableFileName).c_str(),
+      cf_table_contents));
+  std::istringstream cf_table_stream(cf_table_contents);
+  cf_table = ReadCfTableFromFile(cf_table_stream);
 }
 
 void BinaryInfo::Write(std::string_view dir) {
@@ -150,6 +158,12 @@ void BinaryInfo::Write(std::string_view dir) {
   CHECK_OK(RemoteFileSetContents(
       (std::filesystem::path(dir) / kPCTableFileName).c_str(),
       pc_table_stream.str()));
+
+  std::ostringstream cf_table_stream;
+  WriteCfTableToFile(cf_table, cf_table_stream);
+  CHECK_OK(RemoteFileSetContents(
+      (std::filesystem::path(dir) / kCfTableFileName).c_str(),
+      cf_table_stream.str()));
 }
 
 }  // namespace centipede
