@@ -38,7 +38,7 @@ centipede::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --exit_on_crash=1 --seed=1 --log_features_shards=1 \
   --symbolizer_path="${LLVM_SYMBOLIZER}" \
-  |& tee "${LOG}"
+  2>&1 | tee "${LOG}"
 
 echo "Fuzzing DONE"
 
