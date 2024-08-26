@@ -191,7 +191,9 @@ class Runtime {
   void CheckWatchdogLimits();
   void Watchdog();
 
-  void DumpReproducer(absl::string_view outdir) const;
+  // Returns the file path of the reproducer.
+  // Returns empty string if writing the file failed.
+  std::string DumpReproducer(absl::string_view outdir) const;
 
   // Some failures are not necessarily detected by signal handlers or by
   // sanitizers. For example, we could have test framework failures like

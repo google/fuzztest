@@ -14,13 +14,6 @@
 
 #include "./fuzztest/internal/runtime.h"
 
-#include "./fuzztest/internal/status.h"
-
-#if !defined(_WIN32) && !defined(__Fuchsia__)
-#define FUZZTEST_HAS_RUSAGE
-#include <sys/resource.h>
-#endif
-
 #include <algorithm>
 #include <cerrno>
 #include <csignal>
@@ -28,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
 #include <optional>
@@ -35,6 +29,11 @@
 #include <thread>  // NOLINT
 #include <utility>
 #include <vector>
+
+#if !defined(_WIN32) && !defined(__Fuchsia__)
+#define FUZZTEST_HAS_RUSAGE
+#include <sys/resource.h>
+#endif
 
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
@@ -62,6 +61,7 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/status.h"
 
 #ifdef ADDRESS_SANITIZER
 #include <sanitizer/asan_interface.h>
@@ -78,18 +78,12 @@ using ::fuzztest::domain_implementor::RawSink;
 
 void (*crash_handler_hook)();
 
-void Runtime::DumpReproducer(absl::string_view outdir) const {
+// TODO(lszekeres): Return absl::StatusOr when WriteDataToDir returns StatusOr.
+std::string Runtime::DumpReproducer(absl::string_view outdir) const {
   const std::string content =
       current_args_->domain.SerializeCorpus(current_args_->corpus_value)
           .ToString();
-  const std::string filename = WriteDataToDir(content, outdir);
-
-  if (filename.empty()) {
-    absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file.\n");
-  } else {
-    absl::FPrintF(GetStderr(), "[*] Reproducer file written to: %s\n",
-                  filename);
-  }
+  return WriteDataToDir(content, outdir);
 }
 
 void Runtime::PrintFinalStats(RawSink out) const {
@@ -137,6 +131,49 @@ std::optional<std::string> GetReproductionCommand(
 
 constexpr size_t kValueMaxPrintLength = 2048;
 constexpr absl::string_view kTrimIndicator = " ...<value too long>";
+constexpr absl::string_view kReproducerDirName = "fuzztest_repro";
+
+struct ReproducerDirectory {
+  std::string path;
+  enum class Type { kUserSpecified, kTestUndeclaredOutputs };
+  Type type;
+};
+
+std::optional<ReproducerDirectory> GetReproducerDirectory() {
+  auto env = absl::NullSafeStringView(getenv("FUZZTEST_REPRODUCERS_OUT_DIR"));
+  if (!env.empty()) {
+    return ReproducerDirectory{std::string(env),
+                               ReproducerDirectory::Type::kUserSpecified};
+  }
+  env = absl::NullSafeStringView(getenv("TEST_UNDECLARED_OUTPUTS_DIR"));
+  if (!env.empty()) {
+    auto path = std::filesystem::path(std::string(env)) /
+                std::string(kReproducerDirName);
+    return ReproducerDirectory{
+        path.string(), ReproducerDirectory::Type::kTestUndeclaredOutputs};
+  }
+  return std::nullopt;
+}
+
+void PrintReproductionInstructionsForUndeclaredOutputs(
+    RawSink out, absl::string_view reproducer_path,
+    absl::string_view test_name) {
+  absl::string_view file_name = Basename(reproducer_path);
+  absl::Format(out,
+               "Reproducer file was dumped under"
+               "TEST_UNDECLARED_OUTPUTS_DIR.\n");
+  absl::Format(out,
+               "Make a copy of it with:\n\n"
+               "mkdir -p /tmp/%s && \\\ncp -f %s /tmp/%s/%s\n\n",
+               kReproducerDirName, reproducer_path, kReproducerDirName,
+               file_name);
+  absl::Format(out,
+               "Then replay by adding:\n\n"
+               "--test_filter=%s "
+               "--test_env=FUZZTEST_REPLAY=/tmp/%s/%s\n\n"
+               "after `bazel test` in your original Bazel invocation.\n",
+               test_name, kReproducerDirName, file_name);
+}
 
 }  // namespace
 
@@ -152,14 +189,6 @@ void Runtime::PrintReport(RawSink out) const {
   }
 
   if (crash_handler_hook) crash_handler_hook();
-
-  // First, lets try to dump the reproducer if requested.
-  if (current_args_ != nullptr) {
-    const char* outdir = getenv("FUZZTEST_REPRODUCERS_OUT_DIR");
-    if (outdir != nullptr && outdir[0]) {
-      DumpReproducer(outdir);
-    }
-  }
 
   if (run_mode() != RunMode::kUnitTest) {
     PrintFinalStats(out);
@@ -184,10 +213,34 @@ void Runtime::PrintReport(RawSink out) const {
                        trim ? kTrimIndicator : "");
         });
 
+    // Dump the reproducer if requested.
+    std::optional<ReproducerDirectory> out_dir = GetReproducerDirectory();
+    if (out_dir.has_value()) {
+      absl::Format(out, "%s=== Reproduction\n\n", separator);
+      const std::string reproducer_path = DumpReproducer(out_dir->path);
+      if (reproducer_path.empty()) {
+        absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
+      } else {
+        switch (out_dir->type) {
+          case ReproducerDirectory::Type::kUserSpecified:
+            absl::Format(out, "Reproducer file was dumped at:\n%s\n",
+                         reproducer_path);
+            break;
+          case ReproducerDirectory::Type::kTestUndeclaredOutputs:
+            std::string test_name = absl::StrCat(
+                current_test_->suite_name(), ".", current_test_->test_name());
+            PrintReproductionInstructionsForUndeclaredOutputs(
+                out, reproducer_path, test_name);
+            break;
+        }
+      }
+    }
+
     // There doesn't seem to be a good way to generate a reproducer test when
     // the test uses a fixture (see b/241271658).
     if (!current_test_->uses_fixture()) {
-      absl::Format(out, "%s=== Reproducer test\n\n", separator);
+      absl::Format(out, "%s=== Regression test draft\n\n", separator);
+
       absl::Format(out, "TEST(%1$s, %2$sRegression) {\n  %2$s(\n",
                    current_test_->suite_name(), current_test_->test_name());
       printer.PrintFormattedAggregateValue(
@@ -204,6 +257,13 @@ void Runtime::PrintReport(RawSink out) const {
           });
       absl::Format(out, "\n  );\n");
       absl::Format(out, "}\n");
+
+      absl::Format(out,
+                   "\nPlease note that the code generated above is best effort "
+                   "and is intended\n"
+                   "to use be used as a draft regression test.\n"
+                   "For reproducing findings please rely on file based "
+                   "reproduction.\n");
     }
     if (current_configuration_ != nullptr) {
       const auto reproduction_command =

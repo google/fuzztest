@@ -631,6 +631,7 @@ cc_test(
         ":domain_core",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
