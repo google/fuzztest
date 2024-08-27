@@ -99,6 +99,13 @@ TEST(CFTable, MakeCfgFromCfTable) {
   CHECK_EQ(cfg.GetCyclomaticComplexity(1), 2);
 }
 
+TEST(CFTable, SerializesAndDeserializesCfTable) {
+  std::stringstream stream;
+  WriteCfTableToFile(g_cf_table, stream);
+  const CFTable cf_table = ReadCfTableFromFile(stream);
+  EXPECT_EQ(cf_table, g_cf_table);
+}
+
 TEST(FunctionComplexity, ComputeFuncComplexity) {
   static const CFTable g_cf_table1 = {
       1, 2, 3, 0, 0,  // 1 goes to 2 and 3.

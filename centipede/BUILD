@@ -541,6 +541,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -1178,6 +1179,7 @@ cc_test(
     srcs = ["binary_info_test.cc"],
     deps = [
         ":binary_info",
+        ":control_flow",
         ":pc_info",
         ":symbol_table",
         "@com_google_fuzztest//common:test_util",

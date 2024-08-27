@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./common/test_util.h"
@@ -38,19 +39,41 @@ TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
     source/location/two.cc:2:0
 
 )";
+  const CFTable cf_table = {1, 2, 3, 0, 0, 2, 4, 0};
   std::istringstream input_stream(input_symbols);
   SymbolTable symbol_table;
   symbol_table.ReadFromLLVMSymbolizer(input_stream);
-  BinaryInfo input = {
-      .pc_table = input_pcs,
-      .symbols = std::move(symbol_table),
-  };
+  BinaryInfo input = {.pc_table = input_pcs,
+                      .symbols = std::move(symbol_table),
+                      .cf_table = cf_table};
   input.Write(temp_dir);
   BinaryInfo output;
   output.Read(temp_dir);
 
   EXPECT_EQ(input.pc_table, output.pc_table);
   EXPECT_EQ(input.symbols, output.symbols);
+  EXPECT_EQ(input.cf_table, output.cf_table);
+}
+
+TEST(BinaryInfoTest, SerializesAndDeserializesEmptyBinaryInfoSuccessfully) {
+  const std::string temp_dir = GetTestTempDir(test_info_->name());
+
+  const PCTable input_pcs = {};
+  std::string input_symbols = "";
+  const CFTable cf_table = {};
+  std::istringstream input_stream(input_symbols);
+  SymbolTable symbol_table;
+  symbol_table.ReadFromLLVMSymbolizer(input_stream);
+  BinaryInfo input = {.pc_table = input_pcs,
+                      .symbols = std::move(symbol_table),
+                      .cf_table = cf_table};
+  input.Write(temp_dir);
+  BinaryInfo output;
+  output.Read(temp_dir);
+
+  EXPECT_EQ(input.pc_table, output.pc_table);
+  EXPECT_EQ(input.symbols, output.symbols);
+  EXPECT_EQ(input.cf_table, output.cf_table);
 }
 
 }  // namespace
