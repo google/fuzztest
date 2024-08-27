@@ -55,7 +55,6 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/periodic_action.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
 #include "./centipede/thread_pool.h"
@@ -348,21 +347,21 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
                                      std::string_view src_dir) {
   const WorkDir workdir{env};
   SeedCorpusConfig seed_corpus_config;
-  SeedCorpusSource &src = *seed_corpus_config.mutable_sources()->Add();
-  src.set_dir_glob(src_dir);
-  src.set_num_recent_dirs(1);
+  SeedCorpusSource &src = seed_corpus_config.sources.emplace_back();
+  src.dir_glob = src_dir;
+  src.num_recent_dirs = 1;
   // We're using the previously distilled corpus files as seeds.
-  src.set_shard_rel_glob(
+  src.shard_rel_glob =
       std::filesystem::path{workdir.DistilledCorpusFiles().AllShardsGlob()}
-          .filename());
-  src.set_sampled_fraction(1.0);
-  SeedCorpusDestination &dst = *seed_corpus_config.mutable_destination();
-  dst.set_dir_path(env.workdir);
+          .filename();
+  src.sampled_fraction_or_count = 1.0f;
+  SeedCorpusDestination &dst = seed_corpus_config.destination;
+  dst.dir_path = env.workdir;
   // We're seeding the current corpus files.
-  dst.set_shard_rel_glob(
-      std::filesystem::path{workdir.CorpusFiles().AllShardsGlob()}.filename());
-  dst.set_shard_index_digits(WorkDir::kDigitsInShardIndex);
-  dst.set_num_shards(env.num_threads);
+  dst.shard_rel_glob =
+      std::filesystem::path{workdir.CorpusFiles().AllShardsGlob()}.filename();
+  dst.shard_index_digits = WorkDir::kDigitsInShardIndex;
+  dst.num_shards = env.num_threads;
   return seed_corpus_config;
 }
 

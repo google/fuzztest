@@ -15,7 +15,7 @@
 #include "./escaping.h"
 
 #include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
+#include "./fuzztest/fuzztest.h"
 
 namespace codelab {
 namespace {
