@@ -365,7 +365,7 @@ In addition, for repeated fields, you can customize its size with
 ```c++
 FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithCustomProto).
   WithDomains(Arbitrary<MyProto>()
-      .WithRepeatedFieldSize("size1", 1)
+      .WithRepeatedFieldSize("size1", 1, 2)
       .WithRepeatedFieldMinSize("size_ge_2", 2)
       .WithRepeatedFieldMaxSize("size_le_3", 3));
 ```
