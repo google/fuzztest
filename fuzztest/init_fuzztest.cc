@@ -257,66 +257,6 @@ internal::Configuration CreateConfigurationsFromFlags(
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
       absl::GetFlag(FUZZTEST_FLAG(time_budget_type))};
 }
-
-#if defined(__linux__)
-
-std::string ShellEscape(absl::string_view str) {
-  return absl::StrCat("'", absl::StrReplaceAll(str, {{"'", "'\\''"}}), "'");
-}
-
-void ExecvToCentipede(const char* centipede_binary, int argc, char** argv) {
-  // Initialization code before `ExecvToCentipede` may establish a timer and a
-  // signal handler, but only the timer persists through execve(). This can
-  // cause program termination by unhandled signals and to avoid this, we unset
-  // timer signals.
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  for (int timer_signo : {SIGALRM, SIGPROF, SIGVTALRM}) {
-    if (sigaction(timer_signo, &sa, nullptr) < 0) {
-      std::cerr << "Failed to ignore timer signal " << timer_signo
-                << ". The program being launched may die if a profiling "
-                   "timer expires before it can register its own handler.";
-    }
-  }
-  std::string binary_arg = absl::StrCat("--binary=", argv[0]);
-  // We need shell escaping, because parts of binary_arg will be passed to
-  // system(), which uses the default shell.
-  for (int i = 1; i < argc; ++i) {
-    absl::StrAppend(&binary_arg, " ", ShellEscape(argv[i]));
-  }
-  // Additionally we need to append the parsed flags because Abseil removes
-  // them from `argv`. We only append flags with a non-default value.
-  for (const auto [flag_name, flag] : absl::GetAllFlags()) {
-    if (flag->CurrentValue() == flag->DefaultValue()) continue;
-    absl::StrAppend(
-        &binary_arg, " ",
-        ShellEscape(absl::StrCat("--", flag_name, "=", flag->CurrentValue())));
-  }
-  // `execv` guarantees it will not modify the passed arguments, so the
-  // const_casts are OK.
-  char* const args[] = {
-      const_cast<char*>(centipede_binary),
-      const_cast<char*>(binary_arg.c_str()),
-      nullptr,
-  };
-  setenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG", "true", /*replace=*/1);
-  const int execv_ret = execv(centipede_binary, args);
-  FUZZTEST_INTERNAL_CHECK(false, "execv() should never return. It returned ",
-                          execv_ret, " with an error: ", std::strerror(errno));
-}
-
-#else
-
-void ExecvToCentipede(const char*, int, char**) {
-  FUZZTEST_INTERNAL_CHECK(
-      false,
-      "Switching to Centipede via FUZZTEST_CENTIPEDE_BINARY only works on "
-      "Linux. Please run Centipede manually and use the --binary flag to pass "
-      "the current binary.");
-}
-
-#endif  // defined(__linux__)
 }  // namespace
 
 void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
@@ -333,12 +273,6 @@ void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
 }
 
 void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
-  const char* centipede_binary = std::getenv("FUZZTEST_CENTIPEDE_BINARY");
-  const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS");
-  if (centipede_binary != nullptr && !is_runner_mode) {
-    ExecvToCentipede(centipede_binary, *argc, *argv);
-  }
-
   const bool is_listing = absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests));
   if (is_listing) {
     for (const auto& name : ListRegisteredTests()) {
