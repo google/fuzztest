@@ -15,16 +15,45 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "./centipede/config_init.h"
+#include "./centipede/seed_corpus_config_proto_lib.h"
 #include "./centipede/seed_corpus_maker_flags.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/util.h"
 #include "./common/remote_file.h"
+#include "./common/status_macros.h"
+
+namespace centipede {
+namespace {
+
+absl::Status GenerateSeedCorpusFromConfigProto(  //
+    std::string_view config_spec,                //
+    std::string_view coverage_binary_name,       //
+    std::string_view coverage_binary_hash,       //
+    std::string_view override_out_dir) {
+  // Resolve the config.
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      const proto::SeedCorpusConfig config_proto,
+      ResolveSeedCorpusConfigProto(config_spec, override_out_dir));
+  if (config_proto.sources_size() == 0 || !config_proto.has_destination()) {
+    LOG(WARNING) << "Config is empty: skipping seed corpus generation";
+    return absl::OkStatus();
+  }
+  RETURN_IF_NOT_OK(GenerateSeedCorpusFromConfig(  //
+      CreateSeedCorpusConfigFromProto(config_proto), coverage_binary_name,
+      coverage_binary_hash));
+  return absl::OkStatus();
+}
+
+}  // namespace
+}  // namespace centipede
 
 int main(int argc, absl::Nonnull<char**> argv) {
   (void)centipede::config::InitRuntime(argc, argv);
@@ -46,7 +75,7 @@ int main(int argc, absl::Nonnull<char**> argv) {
               << " from actual file at --coverage_binary_path=" << binary_path;
   }
 
-  QCHECK_OK(centipede::GenerateSeedCorpusFromConfig(  //
+  QCHECK_OK(centipede::GenerateSeedCorpusFromConfigProto(  //
       config, binary_name, binary_hash, override_out_dir));
 
   return EXIT_SUCCESS;

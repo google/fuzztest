@@ -28,6 +28,7 @@
 #include "absl/strings/substitute.h"
 #include "./centipede/feature.h"
 #include "./centipede/seed_corpus_config.pb.h"
+#include "./centipede/seed_corpus_config_proto_lib.h"
 #include "./centipede/workdir.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/status_macros.h"
@@ -38,23 +39,18 @@ namespace centipede {
 namespace {
 
 namespace fs = std::filesystem;
-using google::protobuf::TextFormat;
-using testing::IsSubsetOf;
+
+using ::google::protobuf::TextFormat;
+using ::testing::IsSubsetOf;
 
 inline constexpr auto kIdxDigits = WorkDir::kDigitsInShardIndex;
 
 enum ShardType { kNormal, kDistilled };
 
-SeedCorpusConfig ParseSeedCorpusConfig(std::string_view config_str) {
-  SeedCorpusConfig config;
-  CHECK(TextFormat::ParseFromString(config_str, &config));
-  return config;
-}
-
-std::string PrintSeedCorpusConfigToString(const SeedCorpusConfig& config) {
-  std::string config_str;
-  TextFormat::PrintToString(config, &config_str);
-  return config_str;
+SeedCorpusConfig CreateTestSeedCorpusConfig(std::string_view config_str) {
+  proto::SeedCorpusConfig config_proto;
+  CHECK(TextFormat::ParseFromString(config_str, &config_proto));
+  return CreateSeedCorpusConfigFromProto(config_proto);
 }
 
 void VerifyShardsExist(            //
@@ -103,59 +99,8 @@ void VerifyDumpedConfig(           //
       << VV(workdir);
 }
 
-TEST(SeedCorpusMakerLibTest, ResolveConfig) {
-  const std::string test_dir = GetTestTempDir(test_info_->name());
-
-  // `ResolveSeedCorpusConfig()` should use the CWD to resolve relative paths.
-  chdir(test_dir.c_str());
-
-  constexpr size_t kNumShards = 3;
-  constexpr std::string_view kSrcSubDir = "src/dir";
-  constexpr std::string_view kDstSubDir = "dest/dir";
-  const std::string_view kConfigStr = R"pb(
-    sources {
-      dir_glob: "./$0"
-      shard_rel_glob: "corpus.*"
-      num_recent_dirs: 1
-      sampled_fraction: 0.5
-    }
-    destination {
-      #
-      dir_path: "./$1"
-      shard_rel_glob: "corpus.*"
-      num_shards: $2
-    }
-  )pb";
-  const std::string_view kExpectedConfigStr = R"pb(
-    sources {
-      dir_glob: "$0/./$1"
-      shard_rel_glob: "corpus.*"
-      num_recent_dirs: 1
-      sampled_fraction: 0.5
-    }
-    destination {
-      dir_path: "$0/./$2"
-      shard_rel_glob: "corpus.*"
-      num_shards: $3
-      shard_index_digits: $4
-    }
-  )pb";
-
-  const SeedCorpusConfig resolved_config =
-      ValueOrDie(ResolveSeedCorpusConfig(  //
-          absl::Substitute(kConfigStr, kSrcSubDir, kDstSubDir, kNumShards)));
-
-  const SeedCorpusConfig expected_config = ParseSeedCorpusConfig(  //
-      absl::Substitute(kExpectedConfigStr, test_dir, kSrcSubDir, kDstSubDir,
-                       kNumShards, kIdxDigits));
-
-  ASSERT_EQ(PrintSeedCorpusConfigToString(resolved_config),
-            PrintSeedCorpusConfigToString(expected_config));
-}
-
 TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   const fs::path test_dir = GetTestTempDir(test_info_->name());
-  // `ResolveSeedCorpusConfig()` should use the CWD to resolve relative paths.
   chdir(test_dir.c_str());
 
   const InputAndFeaturesVec kElements = {
@@ -171,7 +116,6 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   constexpr std::string_view kCovHash = "hash";
   constexpr std::string_view kRelDir1 = "dir/foo";
   constexpr std::string_view kRelDir2 = "dir/bar";
-  constexpr std::string_view kRelDir3 = "dir/kuq";
 
   // Test `WriteSeedCorpusElementsToDestination()`. This also creates a seed
   // source for the subsequent tests.
@@ -185,10 +129,10 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
         shard_index_digits: $3
       }
     )pb";
-    const SeedCorpusConfig config = ParseSeedCorpusConfig(absl::Substitute(
+    const SeedCorpusConfig config = CreateTestSeedCorpusConfig(absl::Substitute(
         kConfigStr, kRelDir1, kCovBin, kNumShards, kIdxDigits));
     ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
-        kElements, kCovBin, kCovHash, config.destination()));
+        kElements, kCovBin, kCovHash, config.destination));
     const std::string workdir = (test_dir / kRelDir1).c_str();
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
         workdir, kCovBin, kCovHash, kNumShards, ShardType::kDistilled));
@@ -207,11 +151,11 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     )pb";
 
     for (const double fraction : {1.0, 0.5, 0.2}) {
-      const SeedCorpusConfig config = ParseSeedCorpusConfig(
+      const SeedCorpusConfig config = CreateTestSeedCorpusConfig(
           absl::Substitute(kConfigStr, kRelDir1, kCovBin, fraction));
       InputAndFeaturesVec elements;
       ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
-          config.sources(0), kCovBin, kCovHash, elements));
+          config.sources[0], kCovBin, kCovHash, elements));
       // NOTE: 1.0 has a precise double representation, so `==` is fine.
       ASSERT_EQ(elements.size(), std::llrint(kElements.size() * fraction))
           << VV(fraction);
@@ -238,22 +182,14 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       }
     )pb";
 
-    const std::string config_str = absl::Substitute(  //
-        kConfigStr, kRelDir1, kCovBin, kRelDir2, kNumShards, kIdxDigits);
+    const SeedCorpusConfig config =
+        CreateTestSeedCorpusConfig(absl::Substitute(  //
+            kConfigStr, kRelDir1, kCovBin, kRelDir2, kNumShards, kIdxDigits));
 
     {
       ASSERT_OK(GenerateSeedCorpusFromConfig(  //
-          config_str, kCovBin, kCovHash, ""));
+          config, kCovBin, kCovHash));
       const std::string workdir = (test_dir / kRelDir2).c_str();
-      ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
-      ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
-          workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
-    }
-
-    {
-      ASSERT_OK(GenerateSeedCorpusFromConfig(  //
-          config_str, kCovBin, kCovHash, kRelDir3));
-      const std::string workdir = (test_dir / kRelDir3).c_str();
       ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
           workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
