@@ -15,31 +15,53 @@
 #ifndef THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_
 #define THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_
 
+#include <iostream>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "./centipede/feature.h"
-#include "./centipede/seed_corpus_config.pb.h"
 #include "./common/defs.h"
 
 namespace centipede {
 
+// Native struct used by the seed corpus library for seed corpus source.
+//
+// TODO(b/362576261): Currently this is mirroring the `proto::SeedCorpusSource`
+// proto. But in the future it may change with the core seeding API.
+struct SeedCorpusSource {
+  std::string dir_glob;
+  uint32_t num_recent_dirs;
+  std::string shard_rel_glob;
+  std::variant<float, uint32_t> sampled_fraction_or_count;
+};
+
+// Native struct used by the seed corpus library for seed corpus destination.
+//
+// TODO(b/362576261): Currently this is mirroring the
+// `proto::SeedCorpusDestination` proto. But in the future it may change with
+// the core seeding API.
+struct SeedCorpusDestination {
+  std::string dir_path;
+  std::string shard_rel_glob;
+  uint32_t shard_index_digits;
+  uint32_t num_shards;
+};
+
+// Native struct used by the seed corpus library for seed corpus configuration.
+//
+// TODO(b/362576261): Currently this is mirroring the `proto::SeedCorpusConfig`
+// proto. But in the future it may change with the core seeding API.
+struct SeedCorpusConfig {
+  std::vector<SeedCorpusSource> sources;
+  SeedCorpusDestination destination;
+};
+
 using InputAndFeatures = std::pair<ByteArray, FeatureVec>;
 using InputAndFeaturesVec = std::vector<InputAndFeatures>;
-
-// If a file with `config_spec` path exists, tries to parse it as a
-// `SeedCorpusConfig` textproto. Otherwise, tries to parse `config_spec` as a
-// verbatim `SeedCorpusConfig` textproto. Resolves any relative paths and globs
-// in the config fields to absolute ones, using as the base dir either the
-// file's parent dir (if `config_spec` is a file) or the current dir otherwise.
-// If `override_out_dir` is non-empty, it overrides `destination.dir_path` in
-// the resolved config.
-absl::StatusOr<SeedCorpusConfig> ResolveSeedCorpusConfig(  //
-    std::string_view config_spec,                          //
-    std::string_view override_out_dir = "");
 
 // Extracts a sample of corpus elements from `source` and appends the results to
 // `elements`. `source` defines the locations of the corpus shards and the size
@@ -74,14 +96,9 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
     const SeedCorpusDestination& destination);
 
 // Reads and samples seed corpus elements from all the sources and writes the
-// results to the destination, as defined in `config_spec`. `config_spec` can be
-// either a `silifuzz.ccmp.SeedCorpusConfig` textproto file (local or remote) or
-// a verbatim `silifuzz.ccmp.SeedCorpusConfig` string. The paths and globs in
-// the proto can be relative paths: in that case, they are resolved to absolute
-// using either the file's parent dir (if `config_spec` is a file) or the
-// current dir (if `config_spec` is a verbatim string) as the base dir. If
-// `override_out_dir` is non-empty, it overrides `destination.dir_path`
-// specified in `config_spec`.
+// results to the destination, as defined in `config`. The paths and globs in
+// `config` can be relative paths: in that case, they are resolved to absolute
+// using as the base dir.
 //
 // `coverage_binary_name` should be the basename of the coverage binary for
 // which the seed corpus is to be created, and the `coverage_binary_hash` should
@@ -90,17 +107,9 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
 // <coverage_binary_name>-<coverage_binary_hash> subdir of the source to the
 // same subdir of the destination.
 absl::Status GenerateSeedCorpusFromConfig(  //
-    std::string_view config_spec,           //
-    std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
-    std::string_view override_out_dir = "");
-
-// Same as above but accepts a `SeedCorpusConfig` directly.
-absl::Status GenerateSeedCorpusFromConfig(  //
     const SeedCorpusConfig& config,         //
     std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
-    std::string_view override_out_dir = "");
+    std::string_view coverage_binary_hash);
 
 }  // namespace centipede
 

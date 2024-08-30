@@ -59,7 +59,7 @@ cc_binary(
     deps = [
         ":config_init",
         ":seed_corpus_maker_flags",
-        ":seed_corpus_maker_lib",
+        ":seed_corpus_maker_proto_lib",
         ":util",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/flags:flag",
@@ -799,7 +799,6 @@ cc_library(
         ":pc_info",
         ":periodic_action",
         ":runner_result",
-        ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
         ":stats",
         ":thread_pool",
@@ -1091,7 +1090,6 @@ cc_library(
         ":corpus_io",
         ":feature",
         ":rusage_profiler",
-        ":seed_corpus_config_cc_proto",
         ":thread_pool",
         ":util",
         ":workdir",
@@ -1105,6 +1103,25 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
+    ],
+)
+
+# Proto-related utilities for the seed corpus maker.
+cc_library(
+    name = "seed_corpus_maker_proto_lib",
+    srcs = ["seed_corpus_maker_proto_lib.cc"],
+    hdrs = ["seed_corpus_maker_proto_lib.h"],
+    deps = [
+        ":seed_corpus_config_cc_proto",
+        ":seed_corpus_maker_lib",
+        ":workdir",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
@@ -1639,7 +1656,6 @@ cc_test(
     srcs = ["seed_corpus_maker_lib_test.cc"],
     deps = [
         ":feature",
-        ":seed_corpus_config_cc_proto",
         ":seed_corpus_maker_lib",
         ":workdir",
         "@com_google_absl//absl/log:check",
@@ -1648,7 +1664,22 @@ cc_test(
         "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
-        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "seed_corpus_maker_proto_lib_test",
+    srcs = ["seed_corpus_maker_proto_lib_test.cc"],
+    deps = [
+        ":feature",
+        ":seed_corpus_config_cc_proto",
+        ":seed_corpus_maker_lib",
+        ":seed_corpus_maker_proto_lib",
+        ":workdir",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

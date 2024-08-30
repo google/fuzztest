@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The Centipede seed corpus maker. Following the input text proto config in the
-// ./seed_corpus_config.proto format, selects a sample of fuzzing inputs from N
+// The Centipede seed corpus maker. It selects a sample of fuzzing inputs from N
 // Centipede workdirs and writes them out to a new set of Centipede corpus file
 // shards.
 
@@ -23,6 +22,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
@@ -33,6 +33,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -48,7 +49,6 @@
 #include "./centipede/corpus_io.h"
 #include "./centipede/feature.h"
 #include "./centipede/rusage_profiler.h"
-#include "./centipede/seed_corpus_config.pb.h"
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -57,7 +57,6 @@
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
-#include "google/protobuf/text_format.h"
 
 // TODO(ussuri): Implement a smarter on-the-fly sampling to avoid having to
 //  load all of a source's elements into RAM only to pick some of them. That
@@ -81,74 +80,6 @@ std::string ShardPathsForLogging(  //
 
 }  // namespace
 
-absl::StatusOr<SeedCorpusConfig> ResolveSeedCorpusConfig(  //
-    std::string_view config_spec,                          //
-    std::string_view override_out_dir) {
-  std::string config_str;
-  std::string base_dir;
-
-  if (config_spec.empty()) {
-    return absl::InvalidArgumentError(
-        "Unable to ResolveSeedCorpusConfig() with empty config_spec");
-  }
-
-  if (RemotePathExists(config_spec)) {
-    LOG(INFO) << "Config spec points at an existing file; trying to parse "
-                 "textproto config from it: "
-              << VV(config_spec);
-    RETURN_IF_NOT_OK(RemoteFileGetContents(config_spec, config_str));
-    LOG(INFO) << "Raw config read from file:\n" << config_str;
-    base_dir = std::filesystem::path{config_spec}.parent_path();
-  } else {
-    LOG(INFO) << "Config spec is not a file, or file doesn't exist; trying to "
-                 "parse textproto config verbatim: "
-              << VV(config_spec);
-    config_str = config_spec;
-    base_dir = fs::current_path();
-  }
-
-  SeedCorpusConfig config;
-  if (!google::protobuf::TextFormat::ParseFromString(config_str, &config)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Unable to parse config_str: ", config_str));
-  }
-  if (config.sources_size() > 0 != config.has_destination()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Non-empty config must have both source(s) and "
-                     "destination, config_spec: ",
-                     config_spec, ", config: ", config));
-  }
-  LOG(INFO) << "Parsed config:\n" << config;
-
-  // Resolve relative `source.dir_glob`s in the config to absolute ones.
-  for (auto& src : *config.mutable_sources()) {
-    auto* dir = src.mutable_dir_glob();
-    if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
-    }
-  }
-
-  // Set `destination.dir_path` to `override_out_dir`, if the latter is
-  // non-empty, or resolve a relative `destination.dir_path` to an absolute one.
-  if (config.has_destination()) {
-    auto* dir = config.mutable_destination()->mutable_dir_path();
-    if (!override_out_dir.empty()) {
-      *dir = override_out_dir;
-    } else if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
-    }
-  }
-
-  if (config.destination().shard_index_digits() == 0) {
-    config.mutable_destination()->set_shard_index_digits(
-        WorkDir::kDigitsInShardIndex);
-  }
-
-  LOG(INFO) << "Resolved config:\n" << config;
-
-  return config;
-}
-
 // TODO(ussuri): Refactor into smaller functions.
 absl::Status SampleSeedCorpusElementsFromSource(  //
     const SeedCorpusSource& source,               //
@@ -167,20 +98,21 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
       /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
 
-  LOG(INFO) << "Reading/sampling seed corpus elements from source:\n" << source;
+  LOG(INFO) << "Reading/sampling seed corpus elements from source glob: "
+            << source.dir_glob;
 
   // Find `source.dir_glob()`-matching dirs and pick at most
   // `source.num_recent_dirs()` most recent ones.
 
   std::vector<std::string> src_dirs;
-  RETURN_IF_NOT_OK(RemoteGlobMatch(source.dir_glob(), src_dirs));
+  RETURN_IF_NOT_OK(RemoteGlobMatch(source.dir_glob, src_dirs));
   LOG(INFO) << "Found " << src_dirs.size() << " corpus dir(s) matching "
-            << source.dir_glob();
+            << source.dir_glob;
   // Sort in the ascending lexicographical order. We expect that dir names
   // contain timestamps and therefore will be sorted from oldest to newest.
   std::sort(src_dirs.begin(), src_dirs.end(), std::less<std::string>());
-  if (source.num_recent_dirs() < src_dirs.size()) {
-    src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs());
+  if (source.num_recent_dirs < src_dirs.size()) {
+    src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs);
     LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
   }
 
@@ -188,7 +120,7 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
 
   std::vector<std::string> corpus_shard_fnames;
   for (const auto& dir : src_dirs) {
-    const std::string shards_glob = fs::path{dir} / source.shard_rel_glob();
+    const std::string shards_glob = fs::path{dir} / source.shard_rel_glob;
     // NOTE: `RemoteGlobMatch` appends to the output list.
     const auto prev_num_shards = corpus_shard_fnames.size();
     RETURN_IF_NOT_OK(RemoteGlobMatch(shards_glob, corpus_shard_fnames));
@@ -196,10 +128,10 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
               << " shard(s) matching " << shards_glob;
   }
   LOG(INFO) << "Found " << corpus_shard_fnames.size()
-            << " shard(s) total in source " << source.dir_glob();
+            << " shard(s) total in source " << source.dir_glob;
 
   if (corpus_shard_fnames.empty()) {
-    LOG(WARNING) << "Skipping empty source " << source.dir_glob();
+    LOG(WARNING) << "Skipping empty source " << source.dir_glob;
     return absl::OkStatus();
   }
 
@@ -288,27 +220,25 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
 
   LOG(INFO) << "Read total of " << src_elts.size() << " elements ("
             << src_num_features << " with features) from source "
-            << source.dir_glob();
+            << source.dir_glob;
 
   // Extract a sample of the elements of the size specified in
-  // `source.sample_size()`.
+  // `source.sample_size`.
 
   size_t sample_size = 0;
-  switch (source.sample_size_case()) {
-    case SeedCorpusSource::kSampledFraction:
-      if (source.sampled_fraction() <= 0.0 || source.sampled_fraction() > 1) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("sampled_fraction must be in (0, 1], got ",
-                         source.sampled_fraction()));
-      }
-      sample_size = std::llrint(src_elts.size() * source.sampled_fraction());
-      break;
-    case SeedCorpusSource::kSampledCount:
-      sample_size = std::min<size_t>(src_elts.size(), source.sampled_count());
-      break;
-    case SeedCorpusSource::SAMPLE_SIZE_NOT_SET:
-      sample_size = src_elts.size();
-      break;
+  if (std::holds_alternative<float>(source.sampled_fraction_or_count)) {
+    const auto fraction = std::get<float>(source.sampled_fraction_or_count);
+    if (fraction <= 0.0 || fraction > 1 || !std::isfinite(fraction)) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("sampled_fraction must be in (0, 1], got ", fraction));
+    }
+    sample_size = std::llrint(src_elts.size() * fraction);
+  } else if (std::holds_alternative<uint32_t>(
+                 source.sampled_fraction_or_count)) {
+    const auto count = std::get<uint32_t>(source.sampled_fraction_or_count);
+    sample_size = std::min<size_t>(src_elts.size(), count);
+  } else {
+    sample_size = src_elts.size();
   }
 
   if (sample_size < src_elts.size()) {
@@ -357,7 +287,7 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         "Collected seed corpus turned out to be empty: verify config / "
         "sources");
   }
-  if (destination.dir_path().empty()) {
+  if (destination.dir_path.empty()) {
     return absl::InvalidArgumentError(
         "Unable to write seed corpus to empty destination path");
   }
@@ -368,24 +298,23 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
       /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
 
   LOG(INFO) << "Writing " << elements.size()
-            << " seed corpus elements to destination:\n"
-            << destination;
+            << " seed corpus elements to destination: " << destination.dir_path;
 
-  if (destination.num_shards() <= 0) {
+  if (destination.num_shards <= 0) {
     return absl::InvalidArgumentError(
         "Requested number of destination shards must be > 0");
   }
-  if (!absl::StrContains(destination.shard_rel_glob(), "*")) {
+  if (!absl::StrContains(destination.shard_rel_glob, "*")) {
     return absl::InvalidArgumentError(
         absl::StrCat("Destination shard pattern must contain '*', got ",
-                     destination.shard_rel_glob()));
+                     destination.shard_rel_glob));
   }
 
   // Compute shard sizes. If the elements can't be evenly divided between the
   // requested number of shards, distribute the N excess elements between the
   // first N shards.
   const size_t num_shards =
-      std::min<size_t>(destination.num_shards(), elements.size());
+      std::min<size_t>(destination.num_shards, elements.size());
   CHECK_GT(num_shards, 0);
   const size_t shard_size = elements.size() / num_shards;
   std::vector<size_t> shard_sizes(num_shards, shard_size);
@@ -419,11 +348,11 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         // them, and possibly retire
         // `SeedCorpusDestination::shard_index_digits`).
         const std::string shard_idx =
-            absl::StrFormat("%0*d", destination.shard_index_digits(), shard);
-        const std::string corpus_rel_fname = absl::StrReplaceAll(
-            destination.shard_rel_glob(), {{"*", shard_idx}});
+            absl::StrFormat("%0*d", destination.shard_index_digits, shard);
+        const std::string corpus_rel_fname =
+            absl::StrReplaceAll(destination.shard_rel_glob, {{"*", shard_idx}});
         const std::string corpus_fname =
-            fs::path{destination.dir_path()} / corpus_rel_fname;
+            fs::path{destination.dir_path} / corpus_rel_fname;
 
         const auto work_dir = WorkDir::FromCorpusShardPath(  //
             corpus_fname, coverage_binary_name, coverage_binary_hash);
@@ -450,9 +379,9 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
                 << ShardPathsForLogging(corpus_fname, features_fname);
 
         // Features files are always saved in a subdir of the workdir
-        // (== `destination.dir_path()` here), which might not exist yet, so we
+        // (== `destination.dir_path` here), which might not exist yet, so we
         // create it. Corpus files are saved in the workdir directly, but we
-        // also create it in case `destination.shard_rel_glob()` contains some
+        // also create it in case `destination.shard_rel_glob` contains some
         // dirs (not really intended for that, but the end-user may do that).
         for (const auto& fname : {corpus_fname, features_fname}) {
           if (!fname.empty()) {
@@ -516,59 +445,23 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
   LOG(INFO) << "Wrote total of " << elements.size() << " elements ("
             << dst_elts_with_features
             << " with precomputed features) to destination "
-            << destination.dir_path();
-  return absl::OkStatus();
-}
-
-absl::Status GenerateSeedCorpusFromConfig(  //
-    std::string_view config_spec,           //
-    std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
-    std::string_view override_out_dir) {
-  // Resolve the config.
-  ASSIGN_OR_RETURN_IF_NOT_OK(
-      const SeedCorpusConfig config,
-      ResolveSeedCorpusConfig(config_spec, override_out_dir));
-  if (config.sources_size() == 0 || !config.has_destination()) {
-    LOG(WARNING) << "Config is empty: skipping seed corpus generation";
-    return absl::OkStatus();
-  }
-  RETURN_IF_NOT_OK(GenerateSeedCorpusFromConfig(  //
-      config, coverage_binary_name, coverage_binary_hash, override_out_dir));
+            << destination.dir_path;
   return absl::OkStatus();
 }
 
 absl::Status GenerateSeedCorpusFromConfig(  //
     const SeedCorpusConfig& config,         //
     std::string_view coverage_binary_name,  //
-    std::string_view coverage_binary_hash,  //
-    std::string_view override_out_dir) {
-  // Pre-create the destination dir early to catch possible misspellings etc.
-  if (!RemotePathExists(config.destination().dir_path())) {
-    RETURN_IF_NOT_OK(RemoteMkdir(config.destination().dir_path()));
-  }
-
-  // Dump the config to the debug info dir in the destination.
-  const WorkDir workdir{
-      config.destination().dir_path(),
-      coverage_binary_name,
-      coverage_binary_hash,
-      /*my_shard_index=*/0,
-  };
-  const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
-  RETURN_IF_NOT_OK(RemoteMkdir(debug_info_dir.c_str()));
-  RETURN_IF_NOT_OK(RemoteFileSetContents(
-      (debug_info_dir / "seeding.cfg").c_str(), absl::StrCat(config)));
-
+    std::string_view coverage_binary_hash) {
   InputAndFeaturesVec elements;
 
   // Read and sample elements from the sources.
-  for (const auto& source : config.sources()) {
+  for (const auto& source : config.sources) {
     RETURN_IF_NOT_OK(SampleSeedCorpusElementsFromSource(  //
         source, coverage_binary_name, coverage_binary_hash, elements));
   }
   LOG(INFO) << "Sampled " << elements.size() << " elements from "
-            << config.sources_size() << " seed corpus source(s)";
+            << config.sources.size() << " seed corpus source(s)";
 
   // Write the sampled elements to the destination.
   if (elements.empty()) {
@@ -577,7 +470,7 @@ absl::Status GenerateSeedCorpusFromConfig(  //
   } else {
     RETURN_IF_NOT_OK(WriteSeedCorpusElementsToDestination(  //
         elements, coverage_binary_name, coverage_binary_hash,
-        config.destination()));
+        config.destination));
     LOG(INFO) << "Wrote " << elements.size()
               << " elements to seed corpus destination";
   }

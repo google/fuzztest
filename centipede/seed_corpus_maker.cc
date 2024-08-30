@@ -22,7 +22,7 @@
 #include "absl/log/log.h"
 #include "./centipede/config_init.h"
 #include "./centipede/seed_corpus_maker_flags.h"
-#include "./centipede/seed_corpus_maker_lib.h"
+#include "./centipede/seed_corpus_maker_proto_lib.h"
 #include "./centipede/util.h"
 #include "./common/remote_file.h"
 
@@ -46,7 +46,7 @@ int main(int argc, absl::Nonnull<char**> argv) {
               << " from actual file at --coverage_binary_path=" << binary_path;
   }
 
-  QCHECK_OK(centipede::GenerateSeedCorpusFromConfig(  //
+  QCHECK_OK(centipede::GenerateSeedCorpusFromConfigProto(  //
       config, binary_name, binary_hash, override_out_dir));
 
   return EXIT_SUCCESS;
