@@ -281,6 +281,68 @@ struct TestShard {
   int total_shards = 1;
 };
 
+// https://bazel.build/reference/test-encyclopedia#initial-conditions
+absl::Duration GetBazelTestTimeout() {
+  const char *test_timeout_env = std::getenv("TEST_TIMEOUT");
+  if (test_timeout_env == nullptr) return absl::InfiniteDuration();
+  int timeout_s = 0;
+  CHECK(absl::SimpleAtoi(test_timeout_env, &timeout_s))
+      << "Failed to parse TEST_TIMEOUT: \"" << test_timeout_env << "\"";
+  return absl::Seconds(timeout_s);
+}
+
+void ReportErrorWhenNotEnoughTimeToRunEverything(absl::Time start_time,
+                                                 absl::Duration test_time_limit,
+                                                 int executed_tests_in_shard,
+                                                 int fuzz_test_count,
+                                                 int shard_count) {
+  static const absl::Duration bazel_test_timeout = GetBazelTestTimeout();
+  constexpr float kTimeoutSafetyFactor = 1.2;
+  const auto required_test_time = kTimeoutSafetyFactor * test_time_limit;
+  const auto remaining_duration =
+      bazel_test_timeout - (absl::Now() - start_time);
+  if (required_test_time <= remaining_duration) return;
+  std::string error =
+      "Cannot fuzz a fuzz test within the given timeout. Please ";
+  if (executed_tests_in_shard == 0) {
+    // Increasing number of shards won't help.
+    const absl::Duration suggested_timeout =
+        required_test_time * ((fuzz_test_count - 1) / shard_count + 1);
+    absl::StrAppend(&error, "set the `timeout` to ", suggested_timeout,
+                    " or reduce the fuzzing time, ");
+  } else {
+    constexpr int kMaxShardCount = 50;
+    const int suggested_shard_count = std::min(
+        (fuzz_test_count - 1) / executed_tests_in_shard + 1, kMaxShardCount);
+    const int suggested_tests_per_shard =
+        (fuzz_test_count - 1) / suggested_shard_count + 1;
+    if (suggested_tests_per_shard > executed_tests_in_shard) {
+      // We wouldn't be able to execute the suggested number of tests without
+      // timeout. This case can only happen if we would in fact need more than
+      // `kMaxShardCount` shards, indicating that there are simply too many fuzz
+      // tests in a binary.
+      CHECK_EQ(suggested_shard_count, kMaxShardCount);
+      absl::StrAppend(&error,
+                      "split the fuzz tests into several test binaries where "
+                      "each binary has at most ",
+                      executed_tests_in_shard * kMaxShardCount, "tests ",
+                      "with `shard_count` = ", kMaxShardCount, ", ");
+    } else {
+      // In this case, `suggested_shard_count` must be greater than
+      // `shard_count`, otherwise we would have already executed all the tests
+      // without a timeout.
+      CHECK_GT(suggested_shard_count, shard_count);
+      absl::StrAppend(&error, "increase the `shard_count` to ",
+                      suggested_shard_count, ", ");
+    }
+  }
+  absl::StrAppend(&error, "to avoid this issue. ");
+  absl::StrAppend(&error,
+                  "(https://bazel.build/reference/be/"
+                  "common-definitions#common-attributes-tests)");
+  CHECK(false) << error;
+}
+
 TestShard SetUpTestSharding() {
   TestShard test_shard;
   if (const char *test_total_shards_env = std::getenv("TEST_TOTAL_SHARDS");
@@ -373,6 +435,7 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration &fuzztest_config,
     CentipedeCallbacksFactory &callbacks_factory) {
+  absl::Time start_time = absl::Now();
   LOG(INFO) << "Starting the update of the corpus database for fuzz tests:"
             << "\nBinary: " << env.binary
             << "\nCorpus database: " << fuzztest_config.corpus_database
@@ -435,6 +498,10 @@ int UpdateCorpusDatabaseForFuzzTests(
   for (int i = resuming_fuzztest_idx; i < fuzztest_config.fuzz_tests.size();
        ++i) {
     if (i % total_test_shards != test_shard_index) continue;
+    ReportErrorWhenNotEnoughTimeToRunEverything(
+        start_time, fuzztest_config.time_limit,
+        /*executed_tests_in_shard=*/i / total_test_shards,
+        fuzztest_config.fuzz_tests.size(), total_test_shards);
     env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
     if (RemotePathExists(env.workdir) && !is_resuming) {
       // This could be a workdir from a failed run that used a different version
