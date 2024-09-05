@@ -82,10 +82,10 @@ cc_library(
     name = "hash",
     srcs = ["hash.cc"],
     hdrs = ["hash.h"],
-    linkopts = ["-Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl"],
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":defs",
+        ":sha1",
     ],
 )
 
@@ -157,6 +157,16 @@ cc_library(
             "@com_google_riegeli//riegeli/bytes:writer",
         ],
     }),
+)
+
+cc_library(
+    name = "sha1",
+    srcs = ["sha1.cc"],
+    hdrs = ["sha1.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_library(

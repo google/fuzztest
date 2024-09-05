@@ -33,9 +33,10 @@ fuzztest_cc_library(
     fuzztest::defs
     fuzztest::hash
     fuzztest::remote_file
-    absl::nullability
-    absl::log
+    fuzztest::status_macros
     absl::check
+    absl::log
+    absl::nullability
     absl::status
     absl::statusor
     absl::str_format
@@ -59,10 +60,9 @@ fuzztest_cc_library(
     "hash.h"
   SRCS
     "hash.cc"
-  LINKOPTS
-    -Wl,-Bstatic -lcrypto -Wl,-Bdynamic -ldl
   DEPS
     fuzztest::defs
+    fuzztest::sha1
 )
 
 fuzztest_cc_library(
@@ -71,8 +71,8 @@ fuzztest_cc_library(
   HDRS
     "logging.h"
   DEPS
-    absl::log
     absl::check
+    absl::log
 )
 
 fuzztest_cc_library(
@@ -90,11 +90,34 @@ fuzztest_cc_library(
   DEPS
     fuzztest::common_logging
     fuzztest::defs
-    absl::nullability
+    fuzztest::status_macros
+    absl::check
     absl::log
+    absl::nullability
     absl::status
     absl::statusor
-    absl::check
+    absl::strings
+)
+
+fuzztest_cc_library(
+  NAME
+    sha1
+  HDRS
+    "sha1.h"
+  SRCS
+    "sha1.cc"
+  DEPS
+    absl::nullability
+)
+
+fuzztest_cc_library(
+  NAME
+    status_macros
+  HDRS
+    "status_macros.h"
+  DEPS
+    absl::core_headers
+    absl::log
 )
 
 fuzztest_cc_library(
@@ -108,8 +131,8 @@ fuzztest_cc_library(
     fuzztest::common_logging
     fuzztest::blob_file
     fuzztest::defs
-    absl::log
     absl::check
+    absl::log
     absl::strings
     absl::str_format
     GTest::gtest
@@ -128,7 +151,6 @@ fuzztest_cc_test(
     fuzztest::defs
     fuzztest::test_util
     absl::status
-    absl::statusor
     GTest::gmock_main
 )
 
@@ -152,6 +174,5 @@ fuzztest_cc_test(
     fuzztest::remote_file
     fuzztest::test_util
     absl::check
-    absl::statusor
     GTest::gmock_main
 )
