@@ -25,6 +25,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -35,6 +36,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -50,10 +52,43 @@
 #include "./common/logging.h"
 
 namespace centipede {
+namespace {
 
 // See the definition of --fork_server flag.
-inline constexpr std::string_view kCommandLineSeparator(" \\\n");
-inline constexpr std::string_view kNoForkServerRequestPrefix("%f");
+constexpr std::string_view kCommandLineSeparator(" \\\n");
+constexpr std::string_view kNoForkServerRequestPrefix("%f");
+
+absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
+  constexpr int kFieldIndexOfStartTimeAfterComm = 19;  // From `man procfs`
+  const std::string proc_stat_path = absl::StrFormat("/proc/%d/stat", pid);
+  std::string proc_stat_line;
+  // Cannot use `ReadFromLocalFile` on procfs since seek does not work.
+  // This seems to work assuming the filename of the command does not contain
+  // newline, which should be in our control when the process is ours.
+  if (std::getline(std::ifstream(proc_stat_path), proc_stat_line).bad()) {
+    return absl::InternalError(absl::StrCat("failed to read ", proc_stat_path));
+  }
+  // According to the current format of `/proc/[pid]/stat`, only the comm field
+  // can contain ')'.
+  const size_t comm_end_pos = proc_stat_line.find_last_of(')');
+  if (comm_end_pos == proc_stat_line.npos) {
+    return absl::NotFoundError(
+        absl::StrCat("cannot find the end of command in the first line of ",
+                     proc_stat_path, ": ", proc_stat_line));
+  }
+  std::string_view proc_stat_after_comm =
+      std::string_view(proc_stat_line).substr(comm_end_pos + 1);
+  const std::vector<std::string_view> fields =
+      absl::StrSplit(proc_stat_after_comm, ' ', absl::SkipEmpty());
+  if (fields.size() <= kFieldIndexOfStartTimeAfterComm) {
+    return absl::NotFoundError(
+        absl::StrCat("not enough fields in the first line of ", proc_stat_path,
+                     ": ", proc_stat_line));
+  }
+  return std::string(fields[kFieldIndexOfStartTimeAfterComm]);
+}
+
+}  // namespace
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
 //  this source as possible in this struct, and make it a class.
@@ -67,10 +102,10 @@ struct Command::ForkServerProps {
   // The PID of the fork server process. Used to verify that the fork server is
   // running and the pipes are ready for comms.
   pid_t pid_ = -1;
-  // A `stat` of the fork server's binary right after it's started. Used to
-  // detect that the running process with `pid_` is still the original fork
-  // server, not a PID recycled by the OS.
-  struct stat exe_stat_ = {};
+  // The creation stamp of the fork server process. Used to detect that the
+  // running process with `pid_` is still the original fork server, not a PID
+  // recycled by the OS.
+  std::string creation_stamp;
 
   ~ForkServerProps() {
     for (int i = 0; i < 2; ++i) {
@@ -222,15 +257,16 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   std::string pid_str;
   ReadFromLocalFile(pid_file_path, pid_str);
   CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
-  std::string proc_exe = absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
-  if (stat(proc_exe.c_str(), &fork_server_->exe_stat_) != EXIT_SUCCESS) {
+  auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
+  if (!creation_stamp.ok()) {
     LogProblemInfo(
-        absl::StrCat("Fork server appears not running; will proceed without it "
-                     "(failed to stat ",
-                     proc_exe, ")"));
+        absl::StrCat("Failed to get the fork server's creation stamp; will "
+                     "proceed without it "
+                     "(failure status: ",
+                     creation_stamp.status(), ")"));
     return false;
   }
-
+  fork_server_->creation_stamp = *std::move(creation_stamp);
   return true;
 }
 
@@ -249,24 +285,14 @@ absl::Status Command::VerifyForkServerIsHealthy() {
     return absl::UnknownError(absl::StrCat(
         "Can't communicate with fork server, PID=", fork_server_->pid_));
   }
-  // ...and it is a process with our expected binary, so it's practically
+  // ...and it is a process has the same creation stamp, so it's practically
   // guaranteed to be our original fork server process.
-  const std::string proc_exe =
-      absl::StrFormat("/proc/%d/exe", fork_server_->pid_);
-  struct stat proc_exe_stat = {};
-  if (stat(proc_exe.c_str(), &proc_exe_stat) != EXIT_SUCCESS) {
+  const auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
+  if (!creation_stamp.ok()) return creation_stamp.status();
+  if (*creation_stamp != fork_server_->creation_stamp) {
     return absl::UnknownError(absl::StrCat(
-        "Failed to stat fork server's /proc/<PID>/exe symlink, PID=",
-        fork_server_->pid_));
-  }
-  // TODO(b/281882892): Disable for now. Find a proper solution later.
-  if constexpr (false) {
-    if (proc_exe_stat.st_dev != fork_server_->exe_stat_.st_dev ||
-        proc_exe_stat.st_ino != fork_server_->exe_stat_.st_ino) {
-      return absl::UnknownError(absl::StrCat(
-          "Fork server's /proc/<PID>/exe symlink changed (new process?), PID=",
-          fork_server_->pid_));
-    }
+        "Fork server's creation stamp changed (new process?) - expected ",
+        fork_server_->creation_stamp, ", but got ", *creation_stamp));
   }
   return absl::OkStatus();
 }
