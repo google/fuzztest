@@ -24,12 +24,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/feature.h"
 #include "./centipede/workdir.h"
 #include "./common/logging.h"  // IWYU pragma: keep
-#include "./common/status_macros.h"
 #include "./common/test_util.h"
 
 namespace centipede {
