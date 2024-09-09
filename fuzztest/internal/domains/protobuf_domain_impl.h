@@ -575,7 +575,7 @@ class ProtobufDomainUntypedImpl
       IRObject& pair = subs.emplace_back();
       auto& pair_subs = pair.MutableSubs();
       pair_subs.reserve(2);
-      pair_subs.emplace_back(GetFieldName(field));
+      pair_subs.emplace_back(std::string(GetFieldName(field)));
       VisitProtobufField(
           field, SerializeVisitor{*this, inner, pair_subs.emplace_back()});
     }
