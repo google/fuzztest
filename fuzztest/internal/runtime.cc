@@ -14,6 +14,11 @@
 
 #include "./fuzztest/internal/runtime.h"
 
+#if !defined(_WIN32) && !defined(__Fuchsia__)
+#define FUZZTEST_HAS_RUSAGE
+#include <sys/resource.h>
+#endif
+
 #include <algorithm>
 #include <cerrno>
 #include <csignal>
@@ -29,11 +34,6 @@
 #include <thread>  // NOLINT
 #include <utility>
 #include <vector>
-
-#if !defined(_WIN32) && !defined(__Fuchsia__)
-#define FUZZTEST_HAS_RUSAGE
-#include <sys/resource.h>
-#endif
 
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
@@ -63,7 +63,12 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
-#ifdef ADDRESS_SANITIZER
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+#define FUZZTEST_HAS_SANITIZER
+#include <sanitizer/common_interface_defs.h>
+#endif
+
+#if defined(ADDRESS_SANITIZER)
 #include <sanitizer/asan_interface.h>
 #endif
 
@@ -72,36 +77,14 @@ inline constexpr int TRAP_PERF = 6;
 #endif
 
 namespace fuzztest::internal {
+namespace {
 
 using ::fuzztest::domain_implementor::PrintMode;
 using ::fuzztest::domain_implementor::RawSink;
 
-void (*crash_handler_hook)();
-
-// TODO(lszekeres): Return absl::StatusOr when WriteDataToDir returns StatusOr.
-std::string Runtime::DumpReproducer(absl::string_view outdir) const {
-  const std::string content =
-      current_args_->domain.SerializeCorpus(current_args_->corpus_value)
-          .ToString();
-  return WriteDataToDir(content, outdir);
-}
-
-void Runtime::PrintFinalStats(RawSink out) const {
-  const std::string separator = '\n' + std::string(65, '=') + '\n';
-  absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
-
-  const absl::Duration fuzzing_time = clock_fn_() - stats_->start_time;
-  absl::Format(out, "Elapsed time: %s\n", absl::FormatDuration(fuzzing_time));
-  absl::Format(out, "Total runs: %d\n", stats_->runs);
-#ifndef FUZZTEST_USE_CENTIPEDE
-  absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
-  absl::Format(out, "Total edges: %d\n", stats_->total_edges);
-  absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
-  absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
-#endif
-}
-
-namespace {
+constexpr size_t kValueMaxPrintLength = 2048;
+constexpr absl::string_view kTrimIndicator = " ...<value too long>";
+constexpr absl::string_view kReproducerDirName = "fuzztest_repro";
 
 std::string GetFilterForCrashingInput(absl::string_view crashing_input_path) {
   std::vector<std::string> dirs = absl::StrSplit(crashing_input_path, '/');
@@ -128,10 +111,6 @@ std::optional<std::string> GetReproductionCommand(
         GetFilterForCrashingInput(
             *configuration.crashing_input_to_reproduce)}});
 }
-
-constexpr size_t kValueMaxPrintLength = 2048;
-constexpr absl::string_view kTrimIndicator = " ...<value too long>";
-constexpr absl::string_view kReproducerDirName = "fuzztest_repro";
 
 struct ReproducerDirectory {
   std::string path;
@@ -175,7 +154,47 @@ void PrintReproductionInstructionsForUndeclaredOutputs(
                test_name, kReproducerDirName, file_name);
 }
 
+void DumpCrashMetadata(absl::string_view crash_type,
+                       absl::Span<const std::string> /*stack_frames*/) {
+  const char* crash_metadata_path = std::getenv("FUZZTEST_CRASH_METADATA_PATH");
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      crash_metadata_path != nullptr,
+      "FUZZTEST_CRASH_METADATA_PATH is not set!");
+  WriteFile(crash_metadata_path, crash_type);
+}
+
 }  // namespace
+
+void (*crash_handler_hook)();
+
+Runtime::Runtime() {
+  if (std::getenv("FUZZTEST_CRASH_METADATA_PATH") != nullptr) {
+    RegisterCrashMetadataListener(DumpCrashMetadata);
+  }
+}
+
+// TODO(lszekeres): Return absl::StatusOr when WriteDataToDir returns StatusOr.
+std::string Runtime::DumpReproducer(absl::string_view outdir) const {
+  const std::string content =
+      current_args_->domain.SerializeCorpus(current_args_->corpus_value)
+          .ToString();
+  return WriteDataToDir(content, outdir);
+}
+
+void Runtime::PrintFinalStats(RawSink out) const {
+  const std::string separator = '\n' + std::string(65, '=') + '\n';
+  absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
+
+  const absl::Duration fuzzing_time = clock_fn_() - stats_->start_time;
+  absl::Format(out, "Elapsed time: %s\n", absl::FormatDuration(fuzzing_time));
+  absl::Format(out, "Total runs: %d\n", stats_->runs);
+#ifndef FUZZTEST_USE_CENTIPEDE
+  absl::Format(out, "Edges covered: %d\n", stats_->edges_covered);
+  absl::Format(out, "Total edges: %d\n", stats_->total_edges);
+  absl::Format(out, "Corpus size: %d\n", stats_->useful_inputs);
+  absl::Format(out, "Max stack used: %d\n", stats_->max_stack_used);
+#endif
+}
 
 void Runtime::PrintReport(RawSink out) const {
   // We don't want to try and print a fuzz report when we are not running a fuzz
@@ -189,6 +208,10 @@ void Runtime::PrintReport(RawSink out) const {
   }
 
   if (crash_handler_hook) crash_handler_hook();
+
+  for (CrashMetadataListener listener : crash_metadata_listeners_) {
+    listener(crash_type_.value_or("Generic crash"), {});
+  }
 
   if (run_mode() != RunMode::kUnitTest) {
     PrintFinalStats(out);
@@ -351,6 +374,7 @@ void Runtime::OnTestIterationEnd() {
 
 struct OldSignalHandler {
   int signum;
+  absl::string_view signame;
   struct sigaction action;
 };
 
@@ -363,11 +387,12 @@ struct FILESink {
 };
 static FILESink signal_out_sink;
 
-static OldSignalHandler crash_handlers[] = {{SIGILL}, {SIGFPE},  {SIGSEGV},
-                                            {SIGBUS}, {SIGTRAP}, {SIGABRT}};
+static OldSignalHandler crash_handlers[] = {
+    {SIGILL, "SIGILL"}, {SIGFPE, "SIGFPE"},   {SIGSEGV, "SIGSEGV"},
+    {SIGBUS, "SIGBUS"}, {SIGTRAP, "SIGTRAP"}, {SIGABRT, "SIGABRT"}};
 
 static OldSignalHandler termination_handlers[] = {
-    {SIGHUP}, {SIGINT}, {SIGTERM}};
+    {SIGHUP, "SIGHUP"}, {SIGINT, "SIGINT"}, {SIGTERM, "SIGTERM"}};
 
 static bool HasCustomHandler(const struct sigaction& sigaction) {
   return (sigaction.sa_flags & SA_SIGINFO) ? sigaction.sa_sigaction != nullptr
@@ -393,13 +418,15 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
     else
       std::abort();
   }
+  Runtime& runtime = Runtime::instance();
+  runtime.SetCrashTypeIfUnset(std::string(it->signame));
   const bool has_old_handler = HasCustomHandler(it->action);
   // SIGTRAP generated by perf_event_open(sigtrap=1) may be used by
   // debugging/analysis tools, so don't consider these as a crash.
   if (!has_old_handler || signum != SIGTRAP ||
       (info->si_code != TRAP_PERF && info->si_code != SI_TIMER)) {
     // Dump our info first.
-    Runtime::instance().PrintReport(&signal_out_sink);
+    runtime.PrintReport(&signal_out_sink);
     // The old signal handler might print important messages (e.g., strack
     // trace) to the original file descriptors, therefore we restore them before
     // calling them.
@@ -461,13 +488,20 @@ void InstallSignalHandlers(FILE* out) {
   }
   signal_out = out;
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+#if defined(FUZZTEST_HAS_SANITIZER)
   // An ASan failure might come without a signal.
   // Eg a divide by zero is intercepted by ASan and it terminates the process
   // after printing its output. This handler helps us print our output
   // afterwards.
-  __sanitizer_set_death_callback(
-      [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
+  __sanitizer_set_death_callback([](auto...) {
+    Runtime& runtime = Runtime::instance();
+#if defined(ADDRESS_SANITIZER)
+    runtime.SetCrashTypeIfUnset(__asan_get_report_description());
+#else
+    runtime.SetCrashTypeIfUnset("Sanitizer crash");
+#endif
+    runtime.PrintReport(&signal_out_sink);
+  });
 #endif
 
   for (OldSignalHandler& h : crash_handlers) {

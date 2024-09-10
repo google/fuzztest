@@ -1411,16 +1411,16 @@ class FuzzingModeCrashFindingTest
 
   RunResults Run(absl::string_view test_name,
                  absl::string_view target_binary = kDefaultTargetBinary,
+                 absl::flat_hash_map<std::string, std::string> env = {},
                  absl::Duration timeout = absl::InfiniteDuration()) {
-    // We start the test binaries with an empty environment. This is
-    // useful because we don't want to propagate env vars set by
-    // Bazel, such as TEST_SHARD_INDEX, TEST_TOTAL_SHARDS,
-    // TEST_PREMATURE_EXIT_FILE, TEST_WARNINGS_OUTPUT_FILE, etc. (See
+    // We start the test binaries with `env` passed by the caller, but without
+    // propagating env vars set by Bazel, such as TEST_SHARD_INDEX,
+    // TEST_TOTAL_SHARDS, TEST_PREMATURE_EXIT_FILE, TEST_WARNINGS_OUTPUT_FILE,
+    // etc. (See
     // https://bazel.build/reference/test-encyclopedia#initial-conditions.)
     // There are however env vars that we do want to propagate, which
     // we now need to do explicitly.
-    absl::flat_hash_map<std::string, std::string> environment =
-        WithTestSanitizerOptions({});
+    env = WithTestSanitizerOptions(std::move(env));
     if (GetParam().multi_process) {
       TempDir workdir;
       return RunCommand(
@@ -1429,11 +1429,11 @@ class FuzzingModeCrashFindingTest
            absl::StrCat("--workdir=", workdir.dirname()),
            absl::StrCat("--binary=", BinaryPath(target_binary), " ",
                         CreateFuzzTestFlag("fuzz", test_name))},
-          environment, timeout + absl::Seconds(10));
+          env, timeout + absl::Seconds(10));
     } else {
       return RunCommand(
           {BinaryPath(target_binary), CreateFuzzTestFlag("fuzz", test_name)},
-          environment, timeout);
+          env, timeout);
     }
   }
 
@@ -1655,7 +1655,7 @@ TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
 TEST_P(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
   auto [status, std_out, std_err] =
       Run("MySuite.FlatMapPassesWhenCorrect", kDefaultTargetBinary,
-          /*timeout=*/absl::Seconds(10));
+          /*env=*/{}, /*timeout=*/absl::Seconds(10));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1795,6 +1795,41 @@ TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
   EXPECT_THAT(std_err, HasSubstr("Skipped input"));
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest, AsanCrashMetadataIsDumpedIfEnvVarIsSet) {
+  TempDir out_dir;
+  const std::string crash_metadata_path =
+      std::filesystem::path(out_dir.dirname()) / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.BufferOverreadWithString", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("heap-buffer-overflow")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest, SignalCrashMetadataIsDumpedIfEnvVarIsSet) {
+  TempDir out_dir;
+  const std::string crash_metadata_path =
+      std::filesystem::path(out_dir.dirname()) / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.Aborts", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path), Optional(Eq("SIGABRT")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
+  TempDir out_dir;
+  const std::string crash_metadata_path =
+      std::filesystem::path(out_dir.dirname()) / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.GoogleTestExpect", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("GoogleTest assertion failure")));
 }
 
 INSTANTIATE_TEST_SUITE_P(FuzzingModeCrashFindingTestWithExecutionModel,
