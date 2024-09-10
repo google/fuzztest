@@ -51,6 +51,7 @@ def _sancov_transition_impl(settings, attr):
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:strip": "never",  # preserve debug info.
         "//command_line_option:features": filtered_features,
+        "//command_line_option:compiler": None,
         "//command_line_option:dynamic_mode": "off",
     }
 
@@ -66,6 +67,7 @@ sancov_transition = transition(
         "//command_line_option:compilation_mode",
         "//command_line_option:strip",
         "//command_line_option:features",
+        "//command_line_option:compiler",
         "//command_line_option:dynamic_mode",
     ],
 )
