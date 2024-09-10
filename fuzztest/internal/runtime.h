@@ -227,7 +227,7 @@ class Runtime {
   const Configuration* current_configuration_;
   absl::Time current_iteration_start_time_;
   std::atomic<bool> test_iteration_started_ = false;
-  std::atomic_flag watchdog_spinlock_;
+  std::atomic_flag watchdog_spinlock_ = ATOMIC_FLAG_INIT;
   const RuntimeStats* stats_ = nullptr;
   absl::Time (*clock_fn_)() = nullptr;
 };
