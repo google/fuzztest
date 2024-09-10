@@ -29,6 +29,7 @@ def _sancov_transition_impl(settings, attr):
         for x in settings["//command_line_option:features"]
         if x not in features_to_strip
     ]
+    has_stripped_features = len(filtered_features) < len(settings["//command_line_option:features"])
 
     # some of the valid sancov flag combinations:
     # trace-pc-guard,pc-table
@@ -51,6 +52,7 @@ def _sancov_transition_impl(settings, attr):
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:strip": "never",  # preserve debug info.
         "//command_line_option:features": filtered_features,
+        "//command_line_option:compiler": None if has_stripped_features else settings["//command_line_option:compiler"],
         "//command_line_option:dynamic_mode": "off",
     }
 
@@ -59,6 +61,7 @@ sancov_transition = transition(
     inputs = [
         "//command_line_option:copt",
         "//command_line_option:features",
+        "//command_line_option:compiler",
     ],
     outputs = [
         "//command_line_option:collect_code_coverage",
@@ -66,6 +69,7 @@ sancov_transition = transition(
         "//command_line_option:compilation_mode",
         "//command_line_option:strip",
         "//command_line_option:features",
+        "//command_line_option:compiler",
         "//command_line_option:dynamic_mode",
     ],
 )
