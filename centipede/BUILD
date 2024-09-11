@@ -1017,6 +1017,10 @@ RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
     "-lrt",  # for shm_open
     "-lpthread",  # for pthread_once
+    # runner_interceptors defines its own memcmp/etc, which triggers the
+    # linker's --warn-backrefs. Selectively disable the warning.
+    # https://lld.llvm.org/ELF/warn_backrefs.html
+    "-Wl,--warn-backrefs-exclude=*/centipede*runner_interceptors.o",
 ]
 
 # WARNING: be careful with more deps here. Use only the most trivial ones.
