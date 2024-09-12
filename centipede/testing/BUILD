@@ -204,6 +204,11 @@ cc_library(
     ],
 )
 
+cc_shared_library(
+    name = "multi_dso_target_shared_lib",
+    deps = [":multi_dso_target_lib"],
+)
+
 # A fuzz target with an instrumented DSO dependency (:multi_dso_target_lib).
 cc_binary(
     name = "multi_dso_target",
@@ -212,7 +217,9 @@ cc_binary(
         "-fsanitize-coverage=trace-pc-guard,pc-table,control-flow",
         "-gline-tables-only",
     ],
-    linkstatic = False,
+    dynamic_deps = [
+        ":multi_dso_target_shared_lib",
+    ],
     deps = [
         ":multi_dso_target_lib",
         "@com_google_fuzztest//centipede:centipede_runner",
