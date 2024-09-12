@@ -55,7 +55,13 @@ using PCIndexVec = std::vector<PCIndex>;
 using CFTable = std::vector<intptr_t>;
 
 // Reads a CFTable from `file_path`, returns it. Returns empty table on error.
-CFTable ReadCfTableFromFile(std::string_view file_path);
+CFTable ReadCfTable(std::string_view file_path);
+
+// Same as above but reads from a stream.
+CFTable ReadCfTable(std::istream &in);
+
+// Writes the `cf_table` to `out`.
+void WriteCfTable(const CFTable &cf_table, std::ostream &out);
 
 // Reads a DsoTable from `file_path`, returns it. Returns empty table on error.
 DsoTable ReadDsoTableFromFile(std::string_view file_path);
