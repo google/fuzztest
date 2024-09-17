@@ -107,8 +107,12 @@ struct RuntimeStats {
 void InstallSignalHandlers(FILE* report_out);
 
 // A function that is called when crash metadata is available.
-using CrashMetadataListener = void (*)(
-    absl::string_view crash_type, absl::Span<const std::string> stack_frames);
+using CrashMetadataListener =
+    absl::AnyInvocable<void(absl::string_view crash_type,
+                            absl::Span<const std::string> stack_frames) const>;
+using CrashMetadataListenerRef =
+    absl::FunctionRef<void(absl::string_view crash_type,
+                           absl::Span<const std::string> stack_frames) const>;
 
 // This class encapsulates the runtime state that is global by necessity.
 // The state is accessed by calling `Runtime::instance()`, which handles the
@@ -193,7 +197,7 @@ class Runtime {
   // Registers a crash metadata listener that will be called when crash metadata
   // is available.
   void RegisterCrashMetadataListener(CrashMetadataListener listener) {
-    crash_metadata_listeners_.push_back(listener);
+    crash_metadata_listeners_.push_back(std::move(listener));
   }
   void SetCrashTypeIfUnset(std::string crash_type) {
     if (!crash_type_.has_value()) {

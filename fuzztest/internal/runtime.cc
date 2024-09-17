@@ -154,22 +154,19 @@ void PrintReproductionInstructionsForUndeclaredOutputs(
                test_name, kReproducerDirName, file_name);
 }
 
-void DumpCrashMetadata(absl::string_view crash_type,
-                       absl::Span<const std::string> /*stack_frames*/) {
-  const char* crash_metadata_path = std::getenv("FUZZTEST_CRASH_METADATA_PATH");
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      crash_metadata_path != nullptr,
-      "FUZZTEST_CRASH_METADATA_PATH is not set!");
-  WriteFile(crash_metadata_path, crash_type);
-}
-
 }  // namespace
 
 void (*crash_handler_hook)();
 
 Runtime::Runtime() {
-  if (std::getenv("FUZZTEST_CRASH_METADATA_PATH") != nullptr) {
-    RegisterCrashMetadataListener(DumpCrashMetadata);
+  if (const char* crash_metadata_path =
+          std::getenv("FUZZTEST_CRASH_METADATA_PATH");
+      crash_metadata_path != nullptr) {
+    RegisterCrashMetadataListener(
+        [=](absl::string_view crash_type,
+            absl::Span<const std::string> /*stack_frames*/) {
+          WriteFile(crash_metadata_path, crash_type);
+        });
   }
 }
 
@@ -209,7 +206,7 @@ void Runtime::PrintReport(RawSink out) const {
 
   if (crash_handler_hook) crash_handler_hook();
 
-  for (CrashMetadataListener listener : crash_metadata_listeners_) {
+  for (CrashMetadataListenerRef listener : crash_metadata_listeners_) {
     listener(crash_type_.value_or("Generic crash"), {});
   }
 

@@ -546,6 +546,9 @@ void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
 
 std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
 
+void RunnerCallbacks::OnFailure(
+    std::function<void(std::string_view)> /*failure_description_callback*/) {}
+
 class LegacyRunnerCallbacks : public RunnerCallbacks {
  public:
   LegacyRunnerCallbacks(FuzzerTestOneInputCallback test_one_input_cb,
@@ -1096,6 +1099,10 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     DumpSeedsToDir(callbacks, /*output_dir=*/state.arg1);
     return EXIT_SUCCESS;
   }
+
+  callbacks.OnFailure([](std::string_view failure_description) {
+    WriteFailureDescription(std::string(failure_description).c_str());
+  });
 
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {

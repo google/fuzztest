@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -143,6 +144,11 @@ class RunnerCallbacks {
   virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
                       size_t num_mutants,
                       std::function<void(ByteSpan)> new_mutant_callback) = 0;
+  // Registers a function to be called when a failure happens. If the
+  // implementation supports this functionality, it will call the function with
+  // a description of the failure. Otherwise, it will do nothing.
+  virtual void OnFailure(
+      std::function<void(std::string_view)> failure_description_callback);
   virtual ~RunnerCallbacks() = default;
 };
 

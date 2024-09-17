@@ -152,6 +152,8 @@ class BatchResult {
   std::vector<ExecutionResult> results_;
   std::string log_;  // log_ is populated optionally, e.g. if there was a crash.
   int exit_code_ = EXIT_SUCCESS;  // Process exit code.
+  // If the batch execution fails, this may optionally contain a failure
+  // description, e.g., the crash type, stack trace...
   std::string failure_description_;
   size_t num_outputs_read_ = 0;
 };
