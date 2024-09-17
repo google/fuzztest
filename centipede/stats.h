@@ -19,10 +19,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -404,6 +406,9 @@ class StatsReporter {
   StatsReporter(const std::vector<std::atomic<Stats>> &stats_vec,
                 const std::vector<Environment> &env_vec);
 
+  StatsReporter(const StatsReporter &) = default;
+  StatsReporter(StatsReporter &&) noexcept;
+
   virtual ~StatsReporter() = default;
 
   // Reports the current sample of stats values as updated in the `stats_vec_`
@@ -462,6 +467,8 @@ class StatsReporter {
   GroupToFlags group_to_flags_;
 };
 
+inline StatsReporter::StatsReporter(StatsReporter &&) noexcept = default;
+
 // Takes a set of `Stats` objects and a corresponding set of `Environment`
 // objects and logs the current `Stats` values to LOG(INFO) on each invocation
 // of `ReportCurrStats()`. If the environments indicate the use of the
@@ -509,13 +516,44 @@ class StatsCsvFileAppender : public StatsReporter {
   using StatsReporter::StatsReporter;
   ~StatsCsvFileAppender() override;
 
-  StatsCsvFileAppender(StatsCsvFileAppender &&) = default;
+  // Move-only.
+  StatsCsvFileAppender(StatsCsvFileAppender &&) noexcept;
 
  private:
   struct BufferedRemoteFile {
     RemoteFile *file = nullptr;
     std::string buffer;
   };
+
+  // Auxiliary struct that holds a pointer to a `BufferedRemoteFile` and sets
+  // itself to `nullptr` when moved. This is to avoid having to define an
+  // explicit move constructor for `StatsCsvFileAppender` solely to set the
+  // pointer to `nullptr`.
+  class BufferedRemoteFilePtr {
+   public:
+    BufferedRemoteFilePtr(absl::Nullable<BufferedRemoteFile *> file)
+        : file_(file) {}
+    BufferedRemoteFilePtr(BufferedRemoteFilePtr &&other) noexcept
+        : file_(std::exchange(other.file_, nullptr)) {}
+    BufferedRemoteFilePtr &operator=(
+        absl::Nullable<BufferedRemoteFile *> file) {
+      file_ = file;
+      return *this;
+    }
+    bool operator==(absl::Nullable<BufferedRemoteFile *> file) const {
+      return file_ == file;
+    }
+    bool operator!=(absl::Nullable<BufferedRemoteFile *> file) const {
+      return file_ != file;
+    }
+    absl::Nullable<BufferedRemoteFile *> operator->() const { return file_; }
+
+   private:
+    absl::Nullable<BufferedRemoteFile *> file_ = nullptr;
+  };
+
+  using BufferedRemoteFilesMap =
+      absl::flat_hash_map<std::string /*group_name*/, BufferedRemoteFile>;
 
   void PreAnnounceFields(
       std::initializer_list<Stats::FieldInfo> fields) override;
@@ -530,10 +568,14 @@ class StatsCsvFileAppender : public StatsReporter {
   virtual std::string GetBackupFilename(const std::string &filename) const;
 
   std::string csv_header_;
-  absl::flat_hash_map<std::string /*group_name*/, BufferedRemoteFile> files_;
-  absl::Nullable<BufferedRemoteFile *> curr_file_ = nullptr;
+  std::unique_ptr<BufferedRemoteFilesMap> files_ =
+      std::make_unique<BufferedRemoteFilesMap>();
+  BufferedRemoteFilePtr curr_file_ = nullptr;
   Stats::FieldInfo curr_field_info_;
 };
+
+inline StatsCsvFileAppender::StatsCsvFileAppender(
+    StatsCsvFileAppender &&) noexcept = default;
 
 // Takes a span of Stats objects `stats_vec` and prints a summary of the results
 // to `os`, such that it can be ingested as a reward function by an ML system.

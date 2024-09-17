@@ -171,7 +171,8 @@ void StatsLogger::DoneFieldSamplesBatch() {
 //                           StatsCsvFileAppender
 
 StatsCsvFileAppender::~StatsCsvFileAppender() {
-  for (const auto &[group_name, file] : files_) {
+  if (files_ == nullptr) return;
+  for (const auto &[group_name, file] : *files_) {
     CHECK_OK(RemoteFileClose(file.file));
   }
 }
@@ -194,7 +195,8 @@ void StatsCsvFileAppender::PreAnnounceFields(
 }
 
 void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
-  BufferedRemoteFile &file = files_[master_env.experiment_name];
+  CHECK(files_ != nullptr);
+  BufferedRemoteFile &file = (*files_)[master_env.experiment_name];
   if (file.file == nullptr) {
     const std::string filename =
         WorkDir{master_env}.FuzzingStatsPath(master_env.experiment_name);
@@ -222,6 +224,8 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
       CHECK_OK(RemoteFileFlush(file.file));
     }
   }
+  // This is OK even though hash maps provide no pointer stability because the
+  // field is always updated immediately after the map is modified.
   curr_file_ = &file;
 }
 
@@ -259,7 +263,8 @@ void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
 }
 
 void StatsCsvFileAppender::DoneFieldSamplesBatch() {
-  for (auto &&[group_name, file] : files_) {
+  CHECK(files_ != nullptr);
+  for (auto &[group_name, file] : *files_) {
     CHECK_OK(RemoteFileAppend(file.file, absl::StrCat(file.buffer, "\n")));
     CHECK_OK(RemoteFileFlush(file.file));
     file.buffer.clear();
