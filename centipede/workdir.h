@@ -106,6 +106,9 @@ class WorkDir {
   std::string CoverageDirPath() const;
   // Returns the path to the crash reproducer dir.
   std::string CrashReproducerDirPath() const;
+  // Returns the path to the crash metadata dir, which contains the crash
+  // metadata file for each crash reproducer.
+  std::string CrashMetadataDirPath() const;
   // Returns the path where the BinaryInfo will be serialized within workdir.
   std::string BinaryInfoDirPath() const;
 

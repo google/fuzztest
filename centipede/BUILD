@@ -1802,6 +1802,7 @@ cc_test(
         ":feature",
         ":mutation_input",
         ":runner_result",
+        ":util",
         ":workdir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",

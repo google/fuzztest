@@ -140,6 +140,10 @@ std::string WorkDir::CrashReproducerDirPath() const {
   return std::filesystem::path(workdir_) / "crashes";
 }
 
+std::string WorkDir::CrashMetadataDirPath() const {
+  return std::filesystem::path(workdir_) / "crash-metadata";
+}
+
 std::string WorkDir::BinaryInfoDirPath() const {
   return std::filesystem::path(CoverageDirPath()) / "binary-info";
 }

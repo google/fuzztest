@@ -875,15 +875,23 @@ void Centipede::ReportCrash(std::string_view binary,
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPath();
       CHECK_OK(RemoteMkdir(crash_dir));
-      std::string file_path = std::filesystem::path(crash_dir).append(hash);
+      std::string input_file_path = std::filesystem::path(crash_dir) / hash;
+      auto crash_metadata_dir = wd_.CrashMetadataDirPath();
+      CHECK_OK(RemoteMkdir(crash_metadata_dir));
+      std::string crash_metadata_file_path =
+          std::filesystem::path(crash_metadata_dir) / hash;
       LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
                 << "\nInput index    : " << input_idx << "\nInput bytes    : "
                 << AsPrintableString(one_input, /*max_len=*/32)
                 << "\nExit code      : " << one_input_batch_result.exit_code()
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
-                << "\nSaving input to: " << file_path;
-      CHECK_OK(RemoteFileSetContents(file_path, one_input));
+                << "\nSaving input to: " << input_file_path
+                << "\nSaving crash metadata to: " << crash_metadata_file_path;
+      CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
+      CHECK_OK(
+          RemoteFileSetContents(crash_metadata_file_path,
+                                one_input_batch_result.failure_description()));
       return;
     }
   }
@@ -894,7 +902,7 @@ void Centipede::ReportCrash(std::string_view binary,
   // There will be cases when several inputs collectively cause a crash, but no
   // single input does. Handle this by writing out the inputs from the batch
   // between 0 and `suspect_input_idx` (inclusive) as individual files under the
-  // <--workdir>/crash/unreliable_batch-<HASH_OF_SUSPECT_INPUT> directory.
+  // <--workdir>/crash/crashing_batch-<HASH_OF_SUSPECT_INPUT> directory.
   // TODO(bookholt): Check for repro by re-running the whole batch.
   // TODO(ussuri): Consolidate the crash reproduction logic here and above.
   // TODO(ussuri): This can create a lot of tiny files. Write to a single
@@ -903,9 +911,9 @@ void Centipede::ReportCrash(std::string_view binary,
   auto suspect_hash = Hash(suspect_input);
   auto crash_dir = wd_.CrashReproducerDirPath();
   CHECK_OK(RemoteMkdir(crash_dir));
-  std::string save_dir = std::filesystem::path(crash_dir)
-                             .append("crashing_batch-")
-                             .concat(suspect_hash);
+  std::string crashing_batch_name =
+      absl::StrCat("crashing_batch-", suspect_hash);
+  std::string save_dir = std::filesystem::path(crash_dir) / crashing_batch_name;
   CHECK_OK(RemoteMkdir(save_dir));
   LOG(INFO) << log_prefix << "Saving used inputs from batch to: " << save_dir;
   for (int i = 0; i <= suspect_input_idx; ++i) {
@@ -915,6 +923,14 @@ void Centipede::ReportCrash(std::string_view binary,
         absl::StrFormat("input-%010d-%s", i, hash));
     CHECK_OK(RemoteFileSetContents(file_path, one_input));
   }
+  auto crash_metadata_dir = wd_.CrashMetadataDirPath();
+  CHECK_OK(RemoteMkdir(crash_metadata_dir));
+  std::string crash_metadata_file_path =
+      std::filesystem::path(crash_metadata_dir) / crashing_batch_name;
+  LOG(INFO) << log_prefix
+            << "Saving crash metadata to: " << crash_metadata_file_path;
+  CHECK_OK(RemoteFileSetContents(crash_metadata_file_path,
+                                 batch_result.failure_description()));
 }
 
 }  // namespace centipede

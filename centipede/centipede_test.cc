@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <thread>  // NOLINT: For thread::get_id() only.
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -40,6 +41,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
@@ -623,11 +625,17 @@ TEST(Centipede, SkipsFuzzingWhenNoFuzzIfNoConfigIsSet) {
 
 namespace {
 
+struct Crash {
+  std::string binary;
+  unsigned char input = 0;
+  std::string description;
+};
+
 // A mock for ExtraBinaries test.
 class ExtraBinariesMock : public CentipedeCallbacks {
  public:
-  explicit ExtraBinariesMock(const Environment &env)
-      : CentipedeCallbacks(env) {}
+  explicit ExtraBinariesMock(const Environment &env, std::vector<Crash> crashes)
+      : CentipedeCallbacks(env), crashes_(std::move(crashes)) {}
 
   // Doesn't execute anything.
   // On certain combinations of {binary,input} returns false.
@@ -636,9 +644,12 @@ class ExtraBinariesMock : public CentipedeCallbacks {
     bool res = true;
     for (const auto &input : inputs) {
       if (input.size() != 1) continue;
-      if (binary == "b1" && input[0] == 10) res = false;
-      if (binary == "b2" && input[0] == 30) res = false;
-      if (binary == "b3" && input[0] == 50) res = false;
+      for (const Crash &crash : crashes_) {
+        if (binary == crash.binary && input[0] == crash.input) {
+          batch_result.failure_description() = crash.description;
+          res = false;
+        }
+      }
     }
     batch_result.results().resize(inputs.size());
     return res;
@@ -656,7 +667,34 @@ class ExtraBinariesMock : public CentipedeCallbacks {
 
  private:
   size_t number_of_mutations_ = 0;
+  std::vector<Crash> crashes_;
 };
+
+struct FileAndContents {
+  std::string file;
+  std::string contents;
+
+  bool operator==(const FileAndContents &other) const {
+    return file == other.file && contents == other.contents;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink &sink, const FileAndContents &f) {
+    absl::Format(&sink, "FileAndContents{%s, \"%s\"}", f.file, f.contents);
+  }
+};
+
+MATCHER_P(HasFilesWithContents, expected_files_and_contents, "") {
+  const std::string &dir_path = arg;
+  std::vector<FileAndContents> files_and_contents;
+  for (const auto &dir_ent : std::filesystem::directory_iterator(dir_path)) {
+    auto file_and_contents = FileAndContents{dir_ent.path().filename()};
+    ReadFromLocalFile(dir_ent.path().c_str(), file_and_contents.contents);
+    files_and_contents.push_back(std::move(file_and_contents));
+  }
+  return ExplainMatchResult(expected_files_and_contents, files_and_contents,
+                            result_listener);
+}
 
 }  // namespace
 
@@ -673,23 +711,34 @@ TEST(Centipede, ExtraBinaries) {
   env.binary = "b1";
   env.extra_binaries = {"b2", "b3", "b4"};
   env.require_pc_table = false;  // No PC table here.
-  ExtraBinariesMock mock(env);
+  ExtraBinariesMock mock(
+      env, {Crash{"b1", 10, "b1-crash"}, Crash{"b2", 30, "b2-crash"},
+            Crash{"b3", 50, "b3-crash"}});
   MockFactory factory(mock);
   CentipedeMain(env, factory);
 
   // Verify that we see the expected crashes.
   // The "crashes" dir must contain 3 crashy inputs, one for each binary.
-  // We simply match their file names, because they are hashes of the contents.
-  std::vector<std::string> found_crash_file_names;
   auto crashes_dir_path = WorkDir{env}.CrashReproducerDirPath();
   ASSERT_TRUE(std::filesystem::exists(crashes_dir_path))
       << VV(crashes_dir_path);
-  for (const auto &dir_ent :
-       std::filesystem::directory_iterator(crashes_dir_path)) {
-    found_crash_file_names.push_back(dir_ent.path().filename());
-  }
-  EXPECT_THAT(found_crash_file_names, testing::UnorderedElementsAre(
-                                          Hash({10}), Hash({30}), Hash({50})));
+  EXPECT_THAT(crashes_dir_path,
+              HasFilesWithContents(testing::UnorderedElementsAre(
+                  FileAndContents{Hash({10}), AsString({10})},
+                  FileAndContents{Hash({30}), AsString({30})},
+                  FileAndContents{Hash({50}), AsString({50})})));
+
+  // Verify that we see the expected crash metadata.
+  // The "crash-metadata" dir must contain 3 crash metadata files, one for each
+  // crashy input.
+  auto crash_metadata_dir_path = WorkDir{env}.CrashMetadataDirPath();
+  ASSERT_TRUE(std::filesystem::exists(crash_metadata_dir_path))
+      << VV(crash_metadata_dir_path);
+  EXPECT_THAT(crash_metadata_dir_path,
+              HasFilesWithContents(testing::UnorderedElementsAre(
+                  FileAndContents{Hash({10}), "b1-crash"},
+                  FileAndContents{Hash({30}), "b2-crash"},
+                  FileAndContents{Hash({50}), "b3-crash"})));
 }
 
 namespace {

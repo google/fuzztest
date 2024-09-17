@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <random>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -46,6 +47,10 @@ ByteSpan AsByteSpan(const Container &blob) {
 inline std::string_view AsStringView(ByteSpan str) {
   return std::string_view(reinterpret_cast<const char *>(str.data()),
                           str.size());
+}
+
+inline std::string AsString(ByteSpan str) {
+  return std::string(AsStringView(str));
 }
 
 // Macro used to allow tests to access protected or private members of a class.
