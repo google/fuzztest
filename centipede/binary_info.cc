@@ -72,7 +72,7 @@ void BinaryInfo::InitializeFromSanCovBinary(
 
   // Load CF Table.
   if (std::filesystem::exists(cf_table_path.path()))
-    cf_table = ReadCfTableFromFile(cf_table_path.path());
+    cf_table = ReadCfTable(cf_table_path.path());
 
   // Load the DSO Table.
   dso_table = ReadDsoTableFromFile(dso_table_path.path());
