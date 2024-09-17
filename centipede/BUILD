@@ -1197,6 +1197,7 @@ cc_test(
     srcs = ["binary_info_test.cc"],
     deps = [
         ":binary_info",
+        ":control_flow",
         ":pc_info",
         ":symbol_table",
         "@com_google_fuzztest//common:test_util",
