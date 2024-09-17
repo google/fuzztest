@@ -517,7 +517,7 @@ class StatsCsvFileAppender : public StatsReporter {
   ~StatsCsvFileAppender() override;
 
   // Move-only.
-  StatsCsvFileAppender(StatsCsvFileAppender &&) noexcept;
+  StatsCsvFileAppender(StatsCsvFileAppender &&) noexcept = default;
 
  private:
   struct BufferedRemoteFile {
@@ -573,9 +573,6 @@ class StatsCsvFileAppender : public StatsReporter {
   BufferedRemoteFilePtr curr_file_ = nullptr;
   Stats::FieldInfo curr_field_info_;
 };
-
-inline StatsCsvFileAppender::StatsCsvFileAppender(
-    StatsCsvFileAppender &&) noexcept = default;
 
 // Takes a span of Stats objects `stats_vec` and prints a summary of the results
 // to `os`, such that it can be ingested as a reward function by an ML system.
