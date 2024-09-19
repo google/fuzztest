@@ -28,9 +28,11 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -382,25 +384,61 @@ TestShard SetUpTestSharding() {
   return test_shard;
 }
 
-int PruneNonreproducibleAndCountRemainingCrashes(
-    const Environment &env, absl::Span<const std::string> crashing_input_files,
+// Prunes non-reproducible and duplicate crashes and returns the crash metadata
+// of the remaining crashes.
+absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
+    const std::filesystem::path &crashing_dir, const Environment &env,
     CentipedeCallbacksFactory &callbacks_factory) {
+  const std::vector<std::string> crashing_input_files =
+      // The corpus database layout assumes the crash input files are located
+      // directly in the crashing subdirectory, so we don't list recursively.
+      ValueOrDie(RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
   ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
   BatchResult batch_result;
-  int num_remaining_crashes = 0;
+  absl::flat_hash_set<std::string> remaining_crash_metadata;
 
   for (const std::string &crashing_input_file : crashing_input_files) {
     ByteArray crashing_input;
     CHECK_OK(RemoteFileGetContents(crashing_input_file, crashing_input));
-    if (scoped_callbacks.callbacks()->Execute(env.binary, {crashing_input},
-                                              batch_result)) {
-      // The crash is not reproducible.
+    const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
+        env.binary, {crashing_input}, batch_result);
+    const bool is_duplicate =
+        is_reproducible &&
+        !remaining_crash_metadata.insert(batch_result.failure_description())
+             .second;
+    if (!is_reproducible || is_duplicate) {
       CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
-    } else {
-      ++num_remaining_crashes;
     }
   }
-  return num_remaining_crashes;
+  return remaining_crash_metadata;
+}
+
+void DeduplicateAndStoreNewCrashes(
+    const std::filesystem::path &crashing_dir, const WorkDir &workdir,
+    absl::flat_hash_set<std::string> crash_metadata) {
+  const std::vector<std::string> new_crashing_input_files =
+      // The crash reproducer directory may contain subdirectories with
+      // input files that don't individually cause a crash. We ignore those
+      // for now and don't list the files recursively.
+      ValueOrDie(RemoteListFiles(workdir.CrashReproducerDirPath(),
+                                 /*recursively=*/false));
+  const std::filesystem::path crash_metadata_dir =
+      workdir.CrashMetadataDirPath();
+
+  CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
+  for (const std::string &crashing_input_file : new_crashing_input_files) {
+    const std::string crashing_input_file_name =
+        std::filesystem::path(crashing_input_file).filename();
+    const std::string crash_metadata_file =
+        crash_metadata_dir / crashing_input_file_name;
+    std::string new_crash_metadata;
+    CHECK_OK(RemoteFileGetContents(crash_metadata_file, new_crash_metadata));
+    const bool is_duplicate = !crash_metadata.insert(new_crash_metadata).second;
+    if (is_duplicate) continue;
+    CHECK_OK(
+        RemotePathRename(crashing_input_file,
+                         (crashing_dir / crashing_input_file_name).c_str()));
+  }
 }
 
 // Seeds the corpus files in `env.workdir` with the previously distilled corpus
@@ -432,6 +470,7 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
   };
 }
 
+// TODO(b/368325638): Add tests for this.
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration &fuzztest_config,
     CentipedeCallbacksFactory &callbacks_factory) {
@@ -467,8 +506,6 @@ int UpdateCorpusDatabaseForFuzzTests(
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
       env, callbacks_factory, pcs_file_path);
-  // We limit the number of crash reports until we have crash deduplication.
-  env.max_num_crash_reports = 1;
 
   LOG(INFO) << "Test shard index: " << test_shard_index
             << " Total test shards: " << total_test_shards;
@@ -563,34 +600,13 @@ int UpdateCorpusDatabaseForFuzzTests(
           RemotePathRename(corpus_file, (coverage_dir / file_name).c_str()));
     }
 
+    // Deduplicate and update the crashing inputs.
     const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
-    const std::vector<std::string> crashing_input_files =
-        // The corpus database layout assumes the crash input files are located
-        // directly in the crashing subdirectory, so we don't list recursively.
-        ValueOrDie(
-            RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
-    const int num_remaining_crashes =
-        PruneNonreproducibleAndCountRemainingCrashes(env, crashing_input_files,
-                                                     callbacks_factory);
-
-    // Before we implement crash deduplication, we only save a single newly
-    // found crashing input, and only if there were no previously found crashes.
-    if (num_remaining_crashes == 0) {
-      const std::vector<std::string> new_crashing_input_files =
-          // The crash reproducer directory may contain subdirectories with
-          // input files that don't individually cause a crash. We ignore those
-          // for now and don't list the files recursively.
-          *RemoteListFiles(workdir.CrashReproducerDirPath(),
-                           /*recursively=*/false);
-      if (!new_crashing_input_files.empty()) {
-        const std::string crashing_input_file_name =
-            std::filesystem::path(new_crashing_input_files[0]).filename();
-        CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
-        CHECK_OK(RemotePathRename(
-            new_crashing_input_files[0],
-            (crashing_dir / crashing_input_file_name).c_str()));
-      }
-    }
+    absl::flat_hash_set<std::string> crash_metadata =
+        PruneOldCrashesAndGetRemainingCrashMetadata(crashing_dir, env,
+                                                    callbacks_factory);
+    DeduplicateAndStoreNewCrashes(crashing_dir, workdir,
+                                  std::move(crash_metadata));
   }
   CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
 

@@ -887,7 +887,8 @@ void Centipede::ReportCrash(std::string_view binary,
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
                 << "\nSaving input to: " << input_file_path
-                << "\nSaving crash metadata to: " << crash_metadata_file_path;
+                << "\nSaving crash"  //
+                << "\nmetadata to    : " << crash_metadata_file_path;
       CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
       CHECK_OK(
           RemoteFileSetContents(crash_metadata_file_path,
