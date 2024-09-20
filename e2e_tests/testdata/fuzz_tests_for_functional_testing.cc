@@ -179,13 +179,13 @@ FUZZ_TEST(MySuite, RepeatedFieldHasMinimumSize)
     .WithDomains(Arbitrary<TestProtobuf>().WithRepeatedBoolField(
         "rep_b", VectorOf(Arbitrary<bool>()).WithMinSize(10)));
 
-void FailsWhenFieldI32HasNoValue(const TestProtobuf& proto) {
+void FailsWhenFieldI32HasNoValue(const SingleInt32Field& proto) {
   if (!proto.has_i32()) std::abort();
 }
 
 FUZZ_TEST(MySuite, FailsWhenFieldI32HasNoValue)
-    .WithDomains(Arbitrary<TestProtobuf>().WithInt32Field("i32",
-                                                          InRange(0, 1000)));
+    .WithDomains(
+        Arbitrary<SingleInt32Field>().WithInt32Field("i32", InRange(0, 1000)));
 
 void FailsWhenFieldI64HasValue(const TestProtobuf& proto) {
   if (proto.has_i64()) std::abort();
