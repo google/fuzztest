@@ -16,7 +16,7 @@ set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-sourc
 set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
 
 set(proto_URL https://github.com/protocolbuffers/protobuf.git)
-set(proto_TAG 33b78e67a92c7ba1ecc2e19a037cd2e12f4c5e27)
+set(proto_TAG v28.2)
 
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
 set(nlohmann_json_TAG v3.11.2)

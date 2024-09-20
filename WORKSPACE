@@ -120,9 +120,9 @@ http_archive(
 
 http_archive(
     name = "com_google_protobuf",
-    integrity = "sha256-m9h7goDvcg0yQFFPiE5WpxLyIY8NaTtIBQyDYCiUCkI=",
-    strip_prefix = "protobuf-25.1",
-    url = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protobuf-25.1.tar.gz"
+    integrity = "sha256-sjQKpH+vfvEKAygZAxnT877hsk9CbUzo9CU7byfOFts=",
+    strip_prefix = "protobuf-28.2",
+    url = "https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protobuf-28.2.tar.gz"
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
