@@ -27,6 +27,10 @@ message SingleBytesField {
   optional bytes data = 1;
 }
 
+message SingleInt32Field {
+  optional int32 i32 = 1;
+}
+
 message TestSubProtobuf {
   optional int32 subproto_i32 = 1;
   repeated int32 subproto_rep_i32 = 2 [packed = true];

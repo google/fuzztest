@@ -41,6 +41,8 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/message.h"
+#include "google/protobuf/message_lite.h"
 
 namespace {
 
@@ -55,6 +57,7 @@ using ::fuzztest::StructOf;
 using ::fuzztest::TupleOf;
 using ::fuzztest::VectorOf;
 using ::fuzztest::internal::ProtoExtender;
+using ::fuzztest::internal::SingleInt32Field;
 using ::fuzztest::internal::TestProtobuf;
 using ::fuzztest::internal::TestProtobufWithExtension;
 using ::fuzztest::internal::TestProtobufWithRecursion;
@@ -562,19 +565,19 @@ struct HasConstructor {
   HasConstructor(int a, std::string b) : a(a), b(b) {}
 };
 
-void FailsWhenI32IsSet(const std::unique_ptr<google::protobuf::Message>& m) {
-  if (m->GetDescriptor()->full_name() != "fuzztest.internal.TestProtobuf") {
+void FailsWhenI32IsSet(std::unique_ptr<google::protobuf::Message> m) {
+  if (m->GetDescriptor()->full_name() != "fuzztest.internal.SingleInt32Field") {
     return;
   }
-  auto* proto =
-      google::protobuf::DynamicCastToGenerated<fuzztest::internal::TestProtobuf>(&*m);
-  if (proto->has_i32()) {
+  const auto& proto =
+      google::protobuf::DynamicCastMessage<fuzztest::internal::SingleInt32Field>(*m);
+  if (proto.has_i32()) {
     absl::FPrintF(stderr, "The field i32 is set!\n");
     std::abort();
   }
 }
 FUZZ_TEST(MySuite, FailsWhenI32IsSet).WithDomains(fuzztest::ProtobufOf([]() {
-  return &fuzztest::internal::TestProtobuf::default_instance();
+  return &fuzztest::internal::SingleInt32Field::default_instance();
 }));
 
 void WorksWithStructsWithConstructors(const HasConstructor& h) {
