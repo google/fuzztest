@@ -195,7 +195,7 @@ class Domain {
   // Note that validation must be done with `ValidateCorpusValue()` after
   // calling this function.
   std::optional<corpus_type> FromValue(const value_type& user_value) const {
-    return inner_->TypedFromValue(user_value);
+    return inner_->TypedFromValue(user_value, /*validate=*/false);
   }
 
   // Turns an `IRObject` value `obj` into corpus value **without validation**.

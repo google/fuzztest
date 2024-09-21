@@ -99,7 +99,7 @@ class TypedDomainConcept : public UntypedDomainConcept {
   virtual ValueType TypedGetRandomValue(absl::BitGenRef prng) = 0;
   virtual ValueType TypedGetValue(const GenericDomainCorpusType& v) const = 0;
   virtual std::optional<GenericDomainCorpusType> TypedFromValue(
-      const ValueType& v) const = 0;
+      const ValueType& v, bool validate) const = 0;
 
   std::unique_ptr<UntypedDomainConcept> UntypedClone() const final {
     return TypedClone();
@@ -152,7 +152,7 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
   }
 
   std::optional<GenericDomainCorpusType> TypedFromValue(
-      const ValueType& v) const final {
+      const ValueType& v, bool validate) const final {
     if (auto c = domain_.FromValue(v)) {
       return GenericDomainCorpusType(std::in_place_type<CorpusType>,
                                      *std::move(c));
