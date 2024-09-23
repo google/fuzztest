@@ -38,11 +38,12 @@ cc_binary(
     ],
 )
 
-# This binary contains "puzzles" with proto inputs for benchmarking purposes.
-cc_binary(
-    name = "fuzz_tests_with_proto_inputs",
+# This library contains "puzzles" with proto inputs for benchmarking purposes.
+cc_library(
+    name = "fuzz_tests_with_proto_inputs_lib",
     testonly = 1,
     srcs = ["fuzz_tests_with_proto_inputs.cc"],
+    local_defines = ["FUZZTEST_INTERNAL_DO_NOT_CRASH_ON_TARGET"],
     deps = [
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -52,10 +53,20 @@ cc_binary(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
         "@com_googlesource_code_re2//:re2",
+    ],
+    alwayslink = 1,
+)
+
+cc_binary(
+    name = "fuzz_tests_with_proto_inputs",
+    testonly = 1,
+    deps = [
+        ":fuzz_tests_with_proto_inputs_lib",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
