@@ -159,7 +159,6 @@ cc_library(
         ":fuzztest",
         ":fuzztest_macros",
         ":io",
-        ":llvm_fuzzer_main",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random",
