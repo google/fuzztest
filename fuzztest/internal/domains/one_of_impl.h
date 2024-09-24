@@ -110,7 +110,7 @@ class OneOfImpl
     return res;
   }
 
-  auto GetPrinter() const { return OneOfPrinter<Inner...>{domains_}; }
+  auto GetPrinter() const { return VariantDomainPrinter<Inner...>{domains_}; }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
     return ParseWithDomainVariant(domains_, obj);

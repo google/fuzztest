@@ -57,6 +57,7 @@
 #include "./fuzztest/internal/domains/map_impl.h"
 #include "./fuzztest/internal/domains/one_of_impl.h"
 #include "./fuzztest/internal/domains/optional_of_impl.h"
+#include "./fuzztest/internal/domains/overlap_of_impl.h"
 #include "./fuzztest/internal/domains/smart_pointer_of_impl.h"
 #include "./fuzztest/internal/domains/unique_elements_container_of_impl.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
@@ -300,6 +301,17 @@ auto Just(T val) {
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto OneOf(Inner... domains) {
   return internal::OneOfImpl<Inner...>(std::move(domains)...);
+}
+
+// TODO(xinhaoyuan): Documentation.
+template <int&... ExplicitArgumentBarrier, typename... Inner>
+auto OverlapOf(Inner... domains) {
+  auto MaybeWrapDomain =
+      [](auto domain) -> Domain<internal::value_type_t<decltype(domain)>> {
+    return domain;
+  };
+  return internal::OverlapOfImpl<Domain<internal::value_type_t<Inner>>...>(
+      MaybeWrapDomain(std::move(domains))...);
 }
 
 // Filter(predicate, inner) combinator creates a domain that filters out values

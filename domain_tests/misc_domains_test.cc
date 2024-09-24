@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Tests of various domains that don't fit naturally into the other test files
-// in this directory: BitFlagCombinationOf and OneOf.
+// in this directory: BitFlagCombinationOf, OneOf, and OverlapOf.
 
 #include <cstdlib>
 #include <string>
@@ -37,6 +37,10 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::Each;
+using ::testing::Ge;
+using ::testing::IsSupersetOf;
+using ::testing::Le;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
 
@@ -211,6 +215,21 @@ TEST(OneOf, FromValueReturnsValidCorpusValuesWhenPossible) {
 
   ASSERT_TRUE(corpus_value.has_value());
   EXPECT_OK(domain.ValidateCorpusValue(*corpus_value));
+}
+
+TEST(OverlapOf, ValidatesForAllDomains) {
+  auto domain = OverlapOf(InRange(0, 3), InRange(1, 4));
+  EXPECT_FALSE(domain.FromValue(0).has_value());
+  EXPECT_TRUE(domain.FromValue(1).has_value());
+  EXPECT_TRUE(domain.FromValue(2).has_value());
+  EXPECT_TRUE(domain.FromValue(3).has_value());
+  EXPECT_FALSE(domain.FromValue(4).has_value());
+}
+
+TEST(OverlapOf, GeneratesMultipleValidValues) {
+  auto domain = OverlapOf(InRange(0, 3), InRange(1, 4));
+  EXPECT_THAT(GenerateNonUniqueValues(domain),
+              AllOf(Each(AllOf(Ge(1), Le(3))), IsSupersetOf({1, 2, 3})));
 }
 
 }  // namespace

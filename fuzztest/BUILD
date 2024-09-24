@@ -373,6 +373,7 @@ cc_library(
         "internal/domains/map_impl.h",
         "internal/domains/one_of_impl.h",
         "internal/domains/optional_of_impl.h",
+        "internal/domains/overlap_of_impl.h",
         "internal/domains/serialization_helpers.h",
         "internal/domains/smart_pointer_of_impl.h",
         "internal/domains/special_values.h",

@@ -235,7 +235,7 @@ struct VariantPrinter {
 };
 
 template <typename... Inner>
-struct OneOfPrinter {
+struct VariantDomainPrinter {
   const std::tuple<Inner...>& inner;
 
   template <typename T>
