@@ -277,10 +277,17 @@ int EvalCalculatorExpressionHelper(const CalculatorExpression& expression) {
     }
   }
 }
-void EvalCalculatorExpression(const CalculatorExpression& expression) {
-  EvalCalculatorExpressionHelper(expression);
+
+void EvalCalculatorExpression(const CalculatorExpression& expression,
+                              int expected_result) {
+  if (EvalCalculatorExpressionHelper(expression) != expected_result) {
+    return;
+  }
+  Target();
 }
-FUZZ_TEST(ProtoPuzzles, EvalCalculatorExpression);
+FUZZ_TEST(ProtoPuzzles, EvalCalculatorExpression)
+    .WithDomains(fuzztest::Arbitrary<CalculatorExpression>(),
+                 fuzztest::Arbitrary<int>());
 
 struct DeliveryResult {
   std::string location_name;
