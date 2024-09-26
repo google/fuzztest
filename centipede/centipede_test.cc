@@ -190,8 +190,8 @@ TEST(Centipede, ReadFirstCorpusDir) {
   CentipedeMock mock_2(env);
   MockFactory factory_2(mock_2);
   CentipedeMain(env, factory_2);
-  // Should observe all inputs in corpus_dir.
-  EXPECT_EQ(mock_2.num_inputs_, 512);
+  // Should observe all inputs in corpus_dir, plus the seed input {0}.
+  EXPECT_EQ(mock_2.num_inputs_, 512 + 1);
 }
 
 TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
