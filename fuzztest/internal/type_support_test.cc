@@ -383,6 +383,26 @@ TEST(MapTest, Printer) {
               Each("\"0x15\""));
 }
 
+}  // namespace
+}  // namespace fuzztest::internal
+
+auto DoubleValueOutsideNamespace(int n) { return 2 * n; }
+
+namespace fuzztest::internal {
+namespace {
+
+TEST(MapTest, PrintsMapperOutsideNamespace) {
+  auto domain = Map(DoubleValueOutsideNamespace, InRange(2, 5));
+  std::tuple<int> corpus_value(3);
+
+  EXPECT_THAT(
+      TestPrintValue(corpus_value, domain),
+      ElementsAre("6",
+                  // Takes into account that the function name may
+                  // contain ABI annotations after de-mangling.
+                  MatchesRegex(R"re(DoubleValueOutsideNamespace.*\(3\))re")));
+}
+
 auto ValueInRange(int a, int b) {
   int min = std::min(a, b);
   int max = std::max(a, b);
