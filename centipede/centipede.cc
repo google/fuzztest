@@ -723,7 +723,11 @@ void Centipede::FuzzingLoop() {
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_path, "a"));
 
-  LoadSeedInputs(corpus_file.get(), features_file.get());
+  // Load seed corpus when there is no external corpus loaded.
+  if (corpus_.NumTotal() == 0) {
+    LoadSeedInputs(corpus_file.get(), features_file.get());
+  }
+
   UpdateAndMaybeLogStats("init-done", 0);
 
   // If we're going to fuzz, dump the initial telemetry files. For a brand-new
