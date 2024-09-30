@@ -1724,6 +1724,12 @@ TEST_P(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
+TEST_P(FuzzingModeCrashFindingTest, FindsProtoInputForQueryOfDeath) {
+  auto [status, std_out, std_err] = Run("ProtoPuzzles.QueryOfDeath");
+  EXPECT_THAT(std_err, HasSubstr("query: \"QoD\""));
+  ExpectTargetAbort(status, std_err);
+}
+
 TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsedForMutation");
   EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 9791, 1234, 6789"));

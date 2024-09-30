@@ -520,7 +520,9 @@ inline auto String() { return Arbitrary<std::string>(); }
 //
 template <int&... ExplicitArgumentBarrier, typename Inner>
 inline auto StringOf(Inner inner) {
-  return ContainerOf<std::string>(std::move(inner));
+  // We overlap it with String() to be able to use the dictionary-based
+  // mutation.
+  return OverlapOf(ContainerOf<std::string>(std::move(inner)), String());
 }
 
 // AsciiString() represents `std::string`-s composed of ASCII characters.

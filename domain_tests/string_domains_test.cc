@@ -159,5 +159,41 @@ TEST(Domain, PrintableAsciiString) {
     }
   }
 }
+
+TEST(Domain, StringOfDomainUsesDictionary) {
+  auto domain = PrintableAsciiString();
+  class ScopedExecutionCoverage {
+   public:
+    ScopedExecutionCoverage() { internal::SetExecutionCoverage(&coverage); }
+
+    ~ScopedExecutionCoverage() { internal::SetExecutionCoverage(nullptr); }
+
+   private:
+    internal::ExecutionCoverage coverage =
+        internal::ExecutionCoverage(/*counter_map=*/{});
+  };
+  ScopedExecutionCoverage scoped_coverage;
+  fuzztest::internal::GetExecutionCoverage()
+      ->GetTablesOfRecentCompares()
+      .GetMutable<0>()
+      .Insert(reinterpret_cast<const uint8_t*>("abcd"),
+              reinterpret_cast<const uint8_t*>("1234"), 4);
+
+  absl::BitGen bitgen;
+  std::vector<std::string> mutants;
+  for (int i = 0; i < 1000000; ++i) {
+    auto mutant = domain.FromValue("abcdabcdabcdabcd");
+    ASSERT_TRUE(mutant.has_value());
+    domain.Mutate(*mutant, bitgen, false);
+    mutants.push_back(domain.GetValue(*mutant));
+  }
+
+  EXPECT_THAT(mutants, testing::IsSupersetOf(std::vector<std::string>{
+                           "1234abcdabcdabcd",
+                           "abcd1234abcdabcd",
+                           "abcdabcd1234abcd",
+                           "abcdabcdabcd1234",
+                       }));
+}
 }  // namespace
 }  // namespace fuzztest
