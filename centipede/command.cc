@@ -20,6 +20,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <inttypes.h>
+#include <libproc.h>
+#endif  // __APPLE__
 
 #include <algorithm>
 #include <csignal>
@@ -59,6 +63,16 @@ constexpr std::string_view kCommandLineSeparator(" \\\n");
 constexpr std::string_view kNoForkServerRequestPrefix("%f");
 
 absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
+#ifdef __APPLE__
+  struct proc_bsdinfo info = {};
+  if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, PROC_PIDTBSDINFO_SIZE) !=
+      PROC_PIDTBSDINFO_SIZE) {
+    return absl::InternalError(
+        absl::StrCat("failed to get proc bsdinfo for ", pid));
+  }
+  return absl::StrFormat("%" PRIu64 ".%06" PRIu64, info.pbi_start_tvsec,
+                         info.pbi_start_tvusec);
+#else
   constexpr int kFieldIndexOfStartTimeAfterComm = 19;  // From `man procfs`
   const std::string proc_stat_path = absl::StrFormat("/proc/%d/stat", pid);
   std::string proc_stat_line;
@@ -86,6 +100,7 @@ absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
                      ": ", proc_stat_line));
   }
   return std::string(fields[kFieldIndexOfStartTimeAfterComm]);
+#endif
 }
 
 }  // namespace
@@ -211,7 +226,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
     CENTIPEDE_FORK_SERVER_FIFO1="%s" \
     %s
   } &
-  echo -n $! > "%s"
+  printf "%%s" $! > "%s"
 )sh";
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
@@ -250,10 +265,6 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
     return false;
   }
 
-  // The fork server has started and the comms pipes got opened successfully.
-  // Read the fork server's PID and the initial /proc/<PID>/exe symlink pointing
-  // at the fork server's binary, written to the provided files by `command`.
-  // `Execute()` uses these to monitor the fork server health.
   std::string pid_str;
   ReadFromLocalFile(pid_file_path, pid_str);
   CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);

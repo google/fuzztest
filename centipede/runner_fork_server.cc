@@ -52,7 +52,11 @@
 // works too early in the process. E.g. getenv() will not work yet.
 
 #include <fcntl.h>
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#else                      // __APPLE__
 #include <linux/limits.h>  // ARG_MAX
+#endif                     // __APPLE__
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -64,14 +68,24 @@
 
 namespace centipede {
 
+namespace {
+
+constexpr bool kForkServerDebug = false;
+[[maybe_unused]] constexpr bool kForkServerDumpEnvAtStart = false;
+
+}  // namespace
+
 // Writes a C string to stderr when debugging, no-op otherwise.
 void Log(absl::Nonnull<const char *> str) {
-  // Uncomment these lines to debug.
-  // (void)write(STDERR_FILENO, str, strlen(str));
-  // fsync(STDERR_FILENO);
+  if constexpr (kForkServerDebug) {
+    (void)write(STDERR_FILENO, str, strlen(str));
+    fsync(STDERR_FILENO);
+  }
 }
 
-// Maybe writes the `reason` to stderr; then calls _exit.
+// Maybe writes the `reason` to stderr; then calls _exit. We use this instead of
+// CHECK/RunnerCheck since the fork server runs at the very early stage of the
+// process, where the logging functions used there may not work.
 void Exit(absl::Nonnull<const char *> reason) {
   Log(reason);
   _exit(0);  // The exit code does not matter, it won't be checked anyway.
@@ -82,13 +96,63 @@ void Exit(absl::Nonnull<const char *> reason) {
 static char env[ARG_MAX];
 static ssize_t env_size;
 
-// Reads /proc/self/environ into env.
 void GetAllEnv() {
+#ifdef __APPLE__
+  // Reference:
+  // https://chromium.googlesource.com/crashpad/crashpad/+/360e441c53ab4191a6fd2472cc57c3343a2f6944/util/posix/process_util_mac.cc
+  char args[ARG_MAX];
+  size_t args_size = sizeof(args);
+  int mib[] = {CTL_KERN, KERN_PROCARGS2, getpid()};
+  int rv =
+      sysctl(mib, sizeof(mib) / sizeof(mib[0]), args, &args_size, nullptr, 0);
+  if (rv != 0) {
+    Exit("GetEnv: sysctl({CTK_KERN, KERN_PROCARGS2, ...}) failed");
+  }
+  if (args_size < sizeof(int)) {
+    Exit("GetEnv: args_size too small");
+  }
+  int argc = 0;
+  memcpy(&argc, &args[0], sizeof(argc));
+  size_t start_pos = sizeof(argc);
+  // Find the end of the executable path.
+  while (start_pos < args_size && args[start_pos] != 0) ++start_pos;
+  if (start_pos == args_size) {
+    Exit("GetEnv: envp not found");
+  }
+  // Find the beginning of the string area.
+  while (start_pos < args_size && args[start_pos] == 0) ++start_pos;
+  if (start_pos == args_size) {
+    Exit("GetEnv: envp not found");
+  }
+  // Ignore the first argc strings, after which is the envp.
+  for (int i = 0; i < argc; ++i) {
+    while (start_pos < args_size && args[start_pos] != 0) ++start_pos;
+    if (start_pos == args_size) {
+      Exit("GetEnv: envp not found");
+    }
+    ++start_pos;
+  }
+  const size_t end_pos = args_size;
+  memcpy(env, &args[start_pos], end_pos - start_pos);
+  env_size = end_pos - start_pos;
+  if constexpr (kForkServerDumpEnvAtStart) {
+    size_t pos = start_pos;
+    while (pos < args_size) {
+      const size_t len = strnlen(&args[pos], args_size - pos);
+      (void)write(STDERR_FILENO, &args[pos], len);
+      (void)write(STDERR_FILENO, "\n", 1);
+      pos += len + 1;
+    }
+    fsync(STDERR_FILENO);
+  }
+#else                        // __APPLE__
+  // Reads /proc/self/environ into env.
   int fd = open("/proc/self/environ", O_RDONLY);
   if (fd < 0) Exit("GetEnv: can't open /proc/self/environ\n");
   env_size = read(fd, env, sizeof(env));
   if (env_size < 0) Exit("GetEnv: can't read to env\n");
   if (close(fd) != 0) Exit("GetEnv: can't close /proc/self/environ\n");
+#endif                       // __APPLE__
   env[sizeof(env) - 1] = 0;  // Just in case.
 }
 
@@ -183,7 +247,14 @@ __attribute__((constructor(150))) void ForkServerCallMeVeryEarly() {
   __builtin_unreachable();
 }
 
+// If supported, use .preinit_array to call `ForkServerCallMeVeryEarly` even
+// earlier than the `constructor` attribute of the declaration. This helps to
+// avoid potential conflicts with higher-priority constructors.
+#ifdef __APPLE__
+// .preinit_array is not supported in MacOS.
+#else   // __APPLE__
 __attribute__((section(".preinit_array"))) auto call_very_early =
     ForkServerCallMeVeryEarly;
+#endif  // __APPLE__
 
 }  // namespace centipede
