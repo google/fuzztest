@@ -35,6 +35,12 @@ bazel_dep(
     version = "1.7.1",
 )
 
+bazel_dep(
+    name = "platforms",
+    version = "0.0.10",
+    repo_name = "platforms",
+)
+
 # Dev dependencies.
 bazel_dep(
     name = "googletest",
