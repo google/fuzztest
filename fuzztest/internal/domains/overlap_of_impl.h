@@ -188,7 +188,8 @@ class OverlapOfImpl
       ++num_validation_failures_;
       FUZZTEST_INTERNAL_CHECK_PRECONDITION(
           num_validation_attempts_ <= 100 ||
-              num_validation_failures_ <= .9 * num_validation_attempts_,
+              num_validation_failures_ <=
+                  static_cast<size_t>(.9 * num_validation_attempts_),
           absl::StrFormat(R"(
 
 [!] Ineffective use of overlapping domains detected!
