@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+common --enable_platform_specific_config
+
 # Force the use of Clang for all builds.
 build --action_env=CC=clang
 build --action_env=CXX=clang++
@@ -27,10 +29,12 @@ build --cxxopt=-Wno-c++20-extensions
 build --host_cxxopt=-std=c++17
 
 # Use the builtin crc32 for fast integer hashing.
-build --copt=-mcrc32
+build:linux --copt=-mcrc32
 
 # Build GoogleTest with ABSL support.
 build --define absl=1
+
+build:macos --macos_minimum_os=10.15
 
 # To create this file, please run:
 #
