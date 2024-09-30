@@ -15,6 +15,7 @@
 // Tests of character and string domains.
 
 #include <cctype>
+#include <cstdint>
 #include <deque>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/coverage.h"
 
 namespace fuzztest {
 namespace {
