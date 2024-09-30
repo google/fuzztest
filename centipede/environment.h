@@ -98,7 +98,11 @@ struct Environment {
   std::string minimize_crash_file_path;
   bool batch_triage_suspect_only = false;
   size_t shmem_size_mb = 1024;
+#ifdef __APPLE__
+  bool use_posix_shmem = true;
+#else
   bool use_posix_shmem = false;
+#endif
   bool dry_run = false;
   bool save_binary_info = false;
   bool populate_binary_info = true;

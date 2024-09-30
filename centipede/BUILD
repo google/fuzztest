@@ -425,7 +425,12 @@ cc_library(
     name = "shared_memory_blob_sequence",
     srcs = ["shared_memory_blob_sequence.cc"],
     hdrs = ["shared_memory_blob_sequence.h"],
-    linkopts = ["-lrt"],  # for shm_open.
+    linkopts = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": [
+            "-lrt",  # for shm_open
+        ],
+    }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = ["@com_google_absl//absl/base:nullability"],
     # don't add any dependencies.

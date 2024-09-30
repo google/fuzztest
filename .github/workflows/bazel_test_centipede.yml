@@ -108,19 +108,25 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli \
-            centipede:binary_info_test centipede:call_graph_test \
-            centipede:callstack_test centipede:concurrent_bitset_test \
+            centipede:binary_info_test centipede:byte_array_mutator_test \
+            centipede:call_graph_test centipede:callstack_test \
+            centipede:centipede_binary_test centipede:concurrent_bitset_test \
             centipede:command_test \
             centipede:concurrent_byteset_test centipede:config_file_test \
-            centipede:config_util_test centipede:environment_test \
+            centipede:config_util_test centipede:corpus_io_test \
+            centipede:corpus_test centipede:distill_test \
+            centipede:environment_test centipede:execution_metadata_test \
             centipede:feature_set_test centipede:feature_test \
             centipede:foreach_nonzero_test \
             centipede:hashed_ring_buffer_test centipede:int_utils_test \
-            centipede:knobs_test centipede:pc_info_test \
-            centipede:resource_pool_test \
+            centipede:knobs_test centipede:mutation_input_test \
+            centipede:pc_info_test centipede:resource_pool_test \
             centipede:reverse_pc_table_test centipede:rolling_hash_test \
             centipede:runner_cmp_trace_test centipede:runner_flags_test \
-            centipede:rusage_stats_test \
+            centipede:runner_result_test centipede:rusage_stats_test \
+            centipede:seed_corpus_maker_lib_test \
+            centipede:seed_corpus_maker_proto_lib_test \
+            centipede:shared_memory_blob_sequence_test \
             centipede:stats_test centipede:symbol_table_test \
             centipede:util_test centipede:workdir_test && \
           bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test

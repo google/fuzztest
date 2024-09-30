@@ -108,6 +108,9 @@ SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
                    "shm_open() path length exceeds PATH_MAX.");
     path_is_owned_ = true;
   } else {
+#ifdef __APPLE__
+    ErrorOnFailure(true, "must use POSIX shmem");
+#else   // __APPLE__
     fd_ = memfd_create(name, MFD_CLOEXEC);
     ErrorOnFailure(fd_ < 0, "memfd_create() failed");
     const size_t path_size =
@@ -116,8 +119,9 @@ SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
                    "internal fd path length exceeds PATH_MAX.");
     // memfd_create descriptors are automatically freed on close().
     path_is_owned_ = false;
+#endif  // __APPLE__
   }
-  ErrorOnFailure(ftruncate(fd_, static_cast<__off_t>(size_)),
+  ErrorOnFailure(ftruncate(fd_, static_cast<off_t>(size_)),
                  "ftruncate() failed)");
   MmapData();
 }
@@ -154,10 +158,16 @@ SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
 }
 
 void SharedMemoryBlobSequence::ReleaseSharedMemory() {
+#ifdef __APPLE__
+  // MacOS only allows ftruncate shm once
+  // (https://stackoverflow.com/questions/25502229/ftruncate-not-working-on-posix-shared-memory-in-mac-os-x).
+  // So nothing we can do here.
+#else   // __APPLE__
   // Setting size to 0 releases the memory to OS.
   ErrorOnFailure(ftruncate(fd_, 0) != 0, "ftruncate(0) failed)");
   // Set the size back to `size`. The memory is not actually reserved.
   ErrorOnFailure(ftruncate(fd_, size_) != 0, "ftruncate(size_) failed)");
+#endif  // __APPLE__
 }
 
 size_t SharedMemoryBlobSequence::NumBytesUsed() const {
