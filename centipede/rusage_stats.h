@@ -30,6 +30,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/time/time.h"
 
 namespace centipede::perf {
@@ -54,36 +55,39 @@ using CpuUtilization = long double;
 //------------------------------------------------------------------------------
 class RUsageScope {
  public:
-  enum ProcFile : size_t { kSched = 0, kStatm = 1, kStatus = 2, kNum = 3 };
-
   // Static ctors for supported use cases. If the same scope is used repeatedly,
   // callers should prefer caching it, as construction may involve syscalls.
   static RUsageScope ThisProcess();
   static RUsageScope Process(pid_t pid);
-  static RUsageScope ThisThread();
-  static RUsageScope ThisProcessThread(pid_t tid);
-  static RUsageScope Thread(pid_t pid, pid_t tid);
 
   // Copyable and movable.
   RUsageScope(const RUsageScope&) = default;
   RUsageScope& operator=(const RUsageScope&) = default;
   RUsageScope(RUsageScope&&) = default;
   RUsageScope& operator=(RUsageScope&&) = default;
-
-  // Returns a path to the /proc/<pid>/<file> or /proc/<pid>/task/<tid>/<file>.
-  [[nodiscard]] const std::string& GetProcFilePath(ProcFile file) const;
+  ~RUsageScope() = default;
 
   template <typename OStream>
   friend OStream& operator<<(OStream& os, const RUsageScope& s) {
       return os << s.description_;
   }
 
+  // Opaque platform dependent information for rusage monitoring.
+  class PlatformInfo;
+
+  const PlatformInfo& info() const {
+    // This can fail only when called after the object is moved.
+    CHECK(info_ != nullptr);
+    return *info_;
+  }
+
  private:
   explicit RUsageScope(pid_t pid);
-  RUsageScope(pid_t pid, pid_t tid);
 
   std::string description_;
-  std::array<std::string, ProcFile::kNum> proc_file_paths_;
+  // Use shared_ptr to make the class copyable (without actually copying the
+  // potentially large PlatformInfo).
+  std::shared_ptr<const PlatformInfo> info_;
 };
 
 //------------------------------------------------------------------------------

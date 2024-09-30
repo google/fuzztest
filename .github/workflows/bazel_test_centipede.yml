@@ -117,10 +117,13 @@ jobs:
             centipede:foreach_nonzero_test \
             centipede:hashed_ring_buffer_test centipede:int_utils_test \
             centipede:knobs_test centipede:pc_info_test \
+            centipede:resource_pool_test \
             centipede:reverse_pc_table_test centipede:rolling_hash_test \
             centipede:runner_cmp_trace_test centipede:runner_flags_test \
+            centipede:rusage_stats_test \
             centipede:stats_test centipede:symbol_table_test \
-            centipede:util_test centipede:workdir_test
+            centipede:util_test centipede:workdir_test && \
+          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
