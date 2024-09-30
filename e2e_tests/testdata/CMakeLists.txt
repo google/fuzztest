@@ -22,23 +22,17 @@ add_executable(
   fuzz_tests_for_functional_testing.cc
   fuzz_tests_for_microbenchmarking.cc
   fuzz_tests_using_googletest.cc
-  fuzz_tests_with_proto_inputs.cc
 )
 target_link_libraries(
   fuzz_tests_for_functional_testing.stripped
   PUBLIC
   protobuf::libprotobuf
   test_protobuf
-  absl::check
   absl::algorithm_container
-  absl::flat_hash_map
-  absl::flat_hash_set
   absl::function_ref
-  absl::span
   absl::str_format
   absl::strings
   absl::time
-  re2::re2
   fuzztest_googletest_fixture_adapter
   fuzztest_logging
 )
