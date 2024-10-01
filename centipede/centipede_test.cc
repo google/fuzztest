@@ -175,23 +175,29 @@ TEST(Centipede, ReadFirstCorpusDir) {
   env.require_pc_table = false;  // No PC table here.
   env.corpus_dir.push_back(corpus_dir.path());
 
-  // First, generate corpus files in corpus_dir.
-  CentipedeMock mock_1(env);
-  MockFactory factory_1(mock_1);
-  CentipedeMain(env, factory_1);
-  ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
-  ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
-  ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
-            512);  // All 1-byte and 2-byte inputs.
+  // Need to wrap each CentipedeMain in a scope to make sure the shmem is
+  // released before the next call. Otherwise it may fail in MacOS.
+  {
+    // First, generate corpus files in corpus_dir.
+    CentipedeMock mock_1(env);
+    MockFactory factory_1(mock_1);
+    CentipedeMain(env, factory_1);
+    ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
+    ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
+    ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
+              512);  // All 1-byte and 2-byte inputs.
+  }
 
-  // Second, run without fuzzing using the same corpus_dir.
-  env.workdir = workdir_2.path();
-  env.num_runs = 0;
-  CentipedeMock mock_2(env);
-  MockFactory factory_2(mock_2);
-  CentipedeMain(env, factory_2);
-  // Should observe all inputs in corpus_dir.
-  EXPECT_EQ(mock_2.num_inputs_, 512);
+  {
+    // Second, run without fuzzing using the same corpus_dir.
+    env.workdir = workdir_2.path();
+    env.num_runs = 0;
+    CentipedeMock mock_2(env);
+    MockFactory factory_2(mock_2);
+    CentipedeMain(env, factory_2);
+    // Should observe all inputs in corpus_dir.
+    EXPECT_EQ(mock_2.num_inputs_, 512);
+  }
 }
 
 TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
@@ -206,24 +212,29 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   env.require_pc_table = false;  // No PC table here.
   env.corpus_dir.push_back(corpus_dir.path());
 
-  // First, generate corpus files in corpus_dir.
-  CentipedeMock mock_1(env);
-  MockFactory factory_1(mock_1);
-  CentipedeMain(env, factory_1);
-  ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
-  ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
-  ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
-            512);  // All 1-byte and 2-byte inputs.
+  {
+    // First, generate corpus files in corpus_dir.
+    CentipedeMock mock_1(env);
+    MockFactory factory_1(mock_1);
+    CentipedeMain(env, factory_1);
+    ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
+    ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
+    ASSERT_EQ(CountFilesInDir(env.corpus_dir[0]),
+              512);  // All 1-byte and 2-byte inputs.
+  }
 
-  // Second, run without fuzzing using the same corpus_dir, but as output-only.
-  env.workdir = workdir_2.path();
-  env.num_runs = 0;
-  env.first_corpus_dir_output_only = true;
-  CentipedeMock mock_2(env);
-  MockFactory factory_2(mock_2);
-  CentipedeMain(env, factory_2);
-  // Should observe no inputs other than the seed input {0}.
-  EXPECT_EQ(mock_2.num_inputs_, 1);
+  {
+    // Second, run without fuzzing using the same corpus_dir, but as
+    // output-only.
+    env.workdir = workdir_2.path();
+    env.num_runs = 0;
+    env.first_corpus_dir_output_only = true;
+    CentipedeMock mock_2(env);
+    MockFactory factory_2(mock_2);
+    CentipedeMain(env, factory_2);
+    // Should observe no inputs other than the seed input {0}.
+    EXPECT_EQ(mock_2.num_inputs_, 1);
+  }
 }
 
 TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
@@ -834,31 +845,32 @@ TEST(Centipede, UndetectedCrashingInput) {
   env.require_pc_table = false;
   env.exit_on_crash = true;
 
-  UndetectedCrashingInputMock mock(env, kCrashingInputIdx);
-  MockFactory factory(mock);
-  CentipedeMain(env, factory);
+  {
+    UndetectedCrashingInputMock mock(env, kCrashingInputIdx);
+    MockFactory factory(mock);
+    CentipedeMain(env, factory);
 
-  // Verify that we see the expected inputs from the batch.
-  // The "crashes/unreliable_batch-<HASH>" dir must contain all inputs from the
-  // batch that were executing during the session.
-  // We simply verify the number of saved inputs matches the number of executed
-  // inputs.
-  const auto crashing_input_hash = Hash(mock.crashing_input());
-  const auto crashes_dir_path = std::filesystem::path(temp_dir.path())
-                                    .append("crashes")
-                                    .append("crashing_batch-")
-                                    .concat(crashing_input_hash);
-  EXPECT_TRUE(std::filesystem::exists(crashes_dir_path)) << crashes_dir_path;
-  std::vector<std::string> found_crash_file_names;
-  for (auto const &dir_ent :
-       std::filesystem::directory_iterator(crashes_dir_path)) {
-    found_crash_file_names.push_back(dir_ent.path().filename());
+    // Verify that we see the expected inputs from the batch.
+    // The "crashes/unreliable_batch-<HASH>" dir must contain all inputs from
+    // the batch that were executing during the session. We simply verify the
+    // number of saved inputs matches the number of executed inputs.
+    const auto crashing_input_hash = Hash(mock.crashing_input());
+    const auto crashes_dir_path = std::filesystem::path(temp_dir.path())
+                                      .append("crashes")
+                                      .append("crashing_batch-")
+                                      .concat(crashing_input_hash);
+    EXPECT_TRUE(std::filesystem::exists(crashes_dir_path)) << crashes_dir_path;
+    std::vector<std::string> found_crash_file_names;
+    for (auto const &dir_ent :
+         std::filesystem::directory_iterator(crashes_dir_path)) {
+      found_crash_file_names.push_back(dir_ent.path().filename());
+    }
+    // TODO(ussuri): Verify exact names/contents of the files, not just count.
+    EXPECT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
+    // Suspected input first, then every input in the batch (including the
+    // suspected input again).
+    EXPECT_EQ(mock.num_inputs_triaged(), kBatchSize + 1);
   }
-  // TODO(ussuri): Verify exact names/contents of the files, not just count.
-  EXPECT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
-  // Suspected input first, then every input in the batch (including the
-  // suspected input again).
-  EXPECT_EQ(mock.num_inputs_triaged(), kBatchSize + 1);
 
   // Verify that when `env.batch_triage_suspect_only` is set, only triage the
   // suspect.

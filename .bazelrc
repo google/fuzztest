@@ -35,6 +35,8 @@ build:linux --copt=-mcrc32
 build --define absl=1
 
 build:macos --macos_minimum_os=10.15
+# For compatible behavior on weak symbols.
+build:macos --linkopt=-Wl,-undefined,dynamic_lookup
 
 # To create this file, please run:
 #

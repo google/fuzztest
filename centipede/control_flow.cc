@@ -87,8 +87,10 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
       saw_new_function = true;
       continue;
     }
-    if (!absl::EndsWith(line, "<__sanitizer_cov_trace_pc>") &&
-        !absl::EndsWith(line, "<__sanitizer_cov_trace_pc@plt>"))
+    // On MacOS there is an extra underscope before the symbols, so not sealing
+    // the symbol with `<`.
+    if (!absl::EndsWith(line, "__sanitizer_cov_trace_pc>") &&
+        !absl::EndsWith(line, "__sanitizer_cov_trace_pc@plt>"))
       continue;
     uintptr_t pc = std::stoul(line, nullptr, 16);
     uintptr_t flags = saw_new_function ? PCInfo::kFuncEntry : 0;

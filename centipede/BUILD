@@ -1032,9 +1032,13 @@ RUNNER_SANITIZED_COPTS = [
 
 RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
-    "-lrt",  # for shm_open
     "-lpthread",  # for pthread_once
-]
+] + select({
+    "@platforms//os:macos": [],
+    "//conditions:default": [
+        "-lrt",  # for shm_open
+    ],
+})
 
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
@@ -1200,8 +1204,6 @@ sh_library(
 sh_library(
     name = "test_util_sh",
     srcs = ["test_util.sh"],
-    data = [
-    ],
 )
 
 ################################################################################

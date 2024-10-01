@@ -87,6 +87,17 @@ def __sancov_fuzz_target_impl(ctx):
     # See https://docs.bazel.build/versions/main/skylark/rules.html#runfiles
     runfiles = ctx.runfiles()
 
+    is_macos = ctx.target_platform_has_constraint(ctx.attr._macos_constraint_value[platform_common.ConstraintValueInfo])
+    if is_macos:
+        dsym_dst = ctx.actions.declare_directory(ctx.label.name + ".dSYM", sibling = executable_dst)
+        ctx.actions.run_shell(
+            inputs = [executable_dst],
+            outputs = [dsym_dst],
+            command = "dsymutil %s -o %s" % (executable_dst.path, dsym_dst.path),
+            execution_requirements = {"no-remote-exec": ""},
+        )
+        runfiles = runfiles.merge(ctx.runfiles(files = [dsym_dst]))
+
     # The transition transforms scalar attributes into lists,
     # so we need to index into the list first.
     fuzz_target = ctx.attr.fuzz_target[0]
@@ -107,6 +118,9 @@ __sancov_fuzz_target = rule(
         "sancov": attr.string(),
         "_allowlist_function_transition": attr.label(
             default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+        ),
+        "_macos_constraint_value": attr.label(
+            default = "@platforms//os:macos",
         ),
     },
     executable = True,
@@ -151,9 +165,15 @@ def centipede_fuzz_target(
             copts = copts,
             linkopts = linkopts + [
                 "-ldl",
-                "-lrt",
-                "-lpthread"
-            ],
+                "-lpthread",
+            ] + select({
+                "@platforms//os:macos": [],
+                "//conditions:default": [
+                    "-lrt",  # for shm_open
+                ],
+            }),
+            # For dsymutils to locate files properly.
+            tags = ["no-sandbox"],
             testonly = True,
         )
 

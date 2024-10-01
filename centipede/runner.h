@@ -99,7 +99,7 @@ struct ThreadLocalRunnerState {
 
   // Paths are thread-local, so we maintain the current bounded path here.
   // We allow paths of up to 100, controlled at run-time via the "path_level".
-  static constexpr size_t kBoundedPathLength = 100;
+  static constexpr uint64_t kBoundedPathLength = 100;
   HashedRingBuffer<kBoundedPathLength> path_ring_buffer;
 
   // Value of SP in the top call frame of the thread, computed in OnThreadStart.

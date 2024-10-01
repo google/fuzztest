@@ -132,8 +132,8 @@ std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
     const auto &object = objects_[i];
     for (const auto *ptr = object.pcs_beg; ptr != object.pcs_end; ++ptr) {
       auto pc_info = *ptr;
-      // Subtract the ASLR base.
-      pc_info.pc -= object.dl_info.start_address;
+      // Convert into the link-time address
+      pc_info.pc -= object.dl_info.link_offset;
       result.push_back(pc_info);
     }
   }
@@ -148,8 +148,8 @@ std::vector<uintptr_t> SanCovObjectArray::CreateCfTable() const {
     for (const auto *ptr = object.cfs_beg; ptr != object.cfs_end; ++ptr) {
       uintptr_t data = *ptr;
       // CF table is an array of PCs, except for delimiter (Null) and indirect
-      // call indicator (-1). Subtract the ASLR base only from PCs.
-      if (data != 0 && data != -1ULL) data -= object.dl_info.start_address;
+      // call indicator (-1). Convert into link-time address.
+      if (data != 0 && data != -1ULL) data -= object.dl_info.link_offset;
       result.push_back(data);
     }
   }
