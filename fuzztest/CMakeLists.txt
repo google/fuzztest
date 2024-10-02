@@ -26,8 +26,12 @@ include_directories(${PARENT_DIR})
 
 add_subdirectory(grammars)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
+
+if (NOT COMPILER_GCC)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
+endif()
+
 
 fuzztest_cc_library(
   NAME
