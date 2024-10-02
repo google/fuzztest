@@ -185,14 +185,23 @@ struct StringPrinter {
   }
 };
 
-template <typename... Inner>
+template <typename DomainT, typename... Inner>
 struct AggregatePrinter {
+  const DomainT& domain;
   const std::tuple<Inner...>& inner;
   absl::string_view type_name;
 
-  template <typename T>
-  void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
+  void PrintCorpusValue(const corpus_type_t<DomainT>& v,
+                        domain_implementor::RawSink out,
                         domain_implementor::PrintMode mode) const {
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
+      // In human-readable mode, prefer formatting with Abseil if possible.
+      if constexpr (has_absl_stringify_v<value_type_t<DomainT>>) {
+        absl::Format(out, "%v", domain.GetValue(v));
+        return;
+      }
+    }
+
     absl::Format(out, "%s", type_name);
     PrintFormattedAggregateValue(
         v, out, mode, "{", "}",
@@ -202,9 +211,8 @@ struct AggregatePrinter {
         });
   }
 
-  template <typename T>
   void PrintFormattedAggregateValue(
-      const T& v, domain_implementor::RawSink out,
+      const corpus_type_t<DomainT>& v, domain_implementor::RawSink out,
       domain_implementor::PrintMode mode, absl::string_view prefix,
       absl::string_view suffix,
       absl::FunctionRef<void(absl::FormatRawSink, size_t, absl::string_view)>

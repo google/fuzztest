@@ -207,6 +207,15 @@ TEST(ByteArrayTest, Printer) {
   EXPECT_EQ(std::string("\000a\223b\"", 5).size(), 5);
 }
 
+struct UserDefinedWithAbslStringify {
+  std::string foo;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const UserDefinedWithAbslStringify& v) {
+    absl::Format(&sink, "{foo=\"%s\"}", v.foo);
+  }
+};
+
 TEST(CompoundTest, Printer) {
   EXPECT_THAT(
       TestPrintValue(std::pair(1, 1.5), Arbitrary<std::pair<int, double>>()),
@@ -225,6 +234,10 @@ TEST(CompoundTest, Printer) {
                   StructOf<UserDefined>(Arbitrary<int>(), Arbitrary<double>(),
                                         Arbitrary<std::string>())),
               Each("UserDefined{2, -3.5, \"Foo\"}"));
+  EXPECT_THAT(
+      TestPrintValue(std::tuple{"Foo"}, StructOf<UserDefinedWithAbslStringify>(
+                                            Arbitrary<std::string>())),
+      ElementsAre("{foo=\"Foo\"}", "UserDefinedWithAbslStringify{\"Foo\"}"));
 }
 
 TEST(ProtobufTest, Printer) {
