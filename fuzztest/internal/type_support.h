@@ -555,7 +555,7 @@ struct UnknownPrinter {
 
 template <typename T>
 decltype(auto) AutodetectTypePrinter() {
-  if constexpr (std::numeric_limits<T>::is_integer || std::is_enum_v<T>) {
+  if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
     return IntegralPrinter{};
   } else if constexpr (std::is_floating_point_v<T>) {
     return FloatingPrinter{};
