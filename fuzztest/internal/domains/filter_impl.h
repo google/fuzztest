@@ -88,7 +88,8 @@ class FilterImpl
     if (!res) {
       ++num_skips_;
       FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-          num_skips_ <= 100 || num_skips_ <= .9 * num_values_,
+          num_skips_ <= 100 || static_cast<double>(num_skips_) <=
+                                   .9 * static_cast<double>(num_values_),
           absl::StrFormat(R"(
 
 [!] Ineffective use of Filter() detected!
