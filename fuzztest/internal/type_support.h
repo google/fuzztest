@@ -442,34 +442,9 @@ struct FlatMappedPrinter {
           std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
     });
 
-    switch (mode) {
-      case domain_implementor::PrintMode::kHumanReadable: {
-        // Delegate to the output domain's printer.
-        domain_implementor::PrintValue(output_domain, std::get<0>(corpus_value),
-                                       out, mode);
-        break;
-      }
-      case domain_implementor::PrintMode::kSourceCode:
-        if constexpr (!HasFunctionName<FlatMapper>()) {
-          domain_implementor::PrintValue(output_domain,
-                                         std::get<0>(corpus_value), out, mode);
-          break;
-        }
-
-        // In source code mode we print the mapping expression.
-        // This should give a better chance of valid code, given that the result
-        // of the mapping function can easily be a user defined type we can't
-        // generate otherwise.
-        absl::Format(out, "%s(",
-                     GetFunctionName(mapper, "<FLAT_MAP_FUNCTION>"));
-        const auto print_one = [&](auto I) {
-          if (I != 0) absl::Format(out, ", ");
-          domain_implementor::PrintValue(
-              std::get<I>(inner), std::get<I + 1>(corpus_value), out, mode);
-        };
-        ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
-        absl::Format(out, ")");
-    }
+    // Delegate to the output domain's printer.
+    domain_implementor::PrintValue(output_domain, std::get<0>(corpus_value),
+                                   out, mode);
   }
 };
 

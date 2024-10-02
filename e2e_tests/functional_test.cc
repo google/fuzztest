@@ -1644,11 +1644,8 @@ TEST_P(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
 TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
   auto [status, std_out, std_err] = Run("MySuite.FlatMapping");
   EXPECT_THAT(std_err, AllOf(HasSubstr("argument 0: {\"abc\", 2}"),
-                             HasReproducerTest(
-                                 "MySuite", "FlatMapping",
-                                 // Account for the possibility that the symbol
-                                 // StringAndValidIndex may be mangled.
-                                 R"re(.*StringAndValidIndex.*\("abc"\))re")));
+                             HasReproducerTest("MySuite", "FlatMapping",
+                                               "{\"abc\", 2}")));
   ExpectTargetAbort(status, std_err);
 }
 
