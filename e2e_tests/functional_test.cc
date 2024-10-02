@@ -380,41 +380,41 @@ TEST_F(UnitTestModeTest, WorksWithRecursiveStructs) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithRecursiveStructs");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
   // Nullptr has multiple possible human-readable representations.
-  EXPECT_THAT(std_err, AnyOf(HasSubstr("argument 0: {0, 1}"),
-                             HasSubstr("argument 0: {(nil), 1}")));
+  EXPECT_THAT(std_err, AnyOf(HasSubstr("argument 0: LinkedList{0, 1}"),
+                             HasSubstr("argument 0: LinkedList{(nil), 1}")));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithConstructors) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithConstructors");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {1, \"abc\"}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: HasConstructor{1, \"abc\"}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithEmptyTuples) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithEmptyTuples");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmptyTuple{}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithEmptyStructs) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithEmptyStructs");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: Empty{}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithEmptyFields) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithEmptyFields");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {{}}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmpty{{}}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithEmptyInheritance) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithEmptyInheritance");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"abc\"}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: Child{0, \"abc\"}"));
 }
 
 TEST_F(UnitTestModeTest, ArbitraryWorksWithEmptyInheritance) {
@@ -1691,13 +1691,13 @@ TEST_P(FuzzingModeCrashFindingTest, UnprintableTypeRunsAndPrintsSomething) {
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestArbitraryCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructArbitrary");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestWithDomainsCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructWithDomains");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {0, \"X"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 

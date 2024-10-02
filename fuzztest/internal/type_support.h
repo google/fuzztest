@@ -84,6 +84,18 @@ absl::string_view GetTypeName() {
 }
 
 template <typename T>
+absl::string_view GetTypeNameIfUserDefined() {
+  using CleanT = std::remove_cv_t<std::remove_reference_t<T>>;
+  absl::string_view type_name = GetTypeName<CleanT>();
+  // Exclude aggregate types like `std::pair`, `std::tuple`, and `std::array`,
+  // for which we don't want to print a long and unwieldy type name.
+  if (type_name == "<TYPE>" || absl::StartsWith(type_name, "std::")) {
+    return "";
+  }
+  return type_name;
+}
+
+template <typename T>
 inline constexpr bool has_absl_stringify_v = absl::HasAbslStringify<T>::value;
 
 struct IntegralPrinter {
@@ -176,10 +188,12 @@ struct StringPrinter {
 template <typename... Inner>
 struct AggregatePrinter {
   const std::tuple<Inner...>& inner;
+  absl::string_view type_name;
 
   template <typename T>
   void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
                         domain_implementor::PrintMode mode) const {
+    absl::Format(out, "%s", type_name);
     PrintFormattedAggregateValue(
         v, out, mode, "{", "}",
         [](absl::FormatRawSink out, size_t idx, absl::string_view element) {
@@ -466,7 +480,7 @@ struct AutodetectAggregatePrinter {
           std::remove_reference_t<std::tuple_element_t<I, decltype(bound)>>>()
           .PrintUserValue(std::get<I>(bound), out, mode);
     };
-    absl::Format(out, "{");
+    absl::Format(out, "%s{", GetTypeNameIfUserDefined<T>());
     ApplyIndex<std::tuple_size_v<decltype(bound)>>(
         [&](auto... Is) { (print_one(Is), ...); });
     absl::Format(out, "}");

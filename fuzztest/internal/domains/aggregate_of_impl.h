@@ -103,7 +103,9 @@ class AggregateOfImpl
     }
   }
 
-  auto GetPrinter() const { return AggregatePrinter<Inner...>{inner_}; }
+  auto GetPrinter() const {
+    return AggregatePrinter<Inner...>{inner_, GetTypeNameIfUserDefined<T>()};
+  }
 
   value_type GetValue(const corpus_type& value) const {
     if constexpr (has_custom_corpus_type) {

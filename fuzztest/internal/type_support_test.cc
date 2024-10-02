@@ -224,7 +224,7 @@ TEST(CompoundTest, Printer) {
                   std::tuple{2, -3.5, "Foo"},
                   StructOf<UserDefined>(Arbitrary<int>(), Arbitrary<double>(),
                                         Arbitrary<std::string>())),
-              Each("{2, -3.5, \"Foo\"}"));
+              Each("UserDefined{2, -3.5, \"Foo\"}"));
 }
 
 TEST(ProtobufTest, Printer) {
@@ -489,9 +489,11 @@ TEST(AutodetectAggregateTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::pair{123, 456}), Each("{123, 456}"));
   EXPECT_THAT(TestPrintValue(std::array{123, 456}), Each("{123, 456}"));
   EXPECT_THAT(TestPrintValue(AggregateStructWithNoAbslStringify{}),
-              Each(R"({1, {"Foo", "Bar"}})"));
-  EXPECT_THAT(TestPrintValue(AggregateStructWithAbslStringify{}),
-              ElementsAre("value={1, {Foo, Bar}}", R"({1, {"Foo", "Bar"}})"));
+              Each(R"(AggregateStructWithNoAbslStringify{1, {"Foo", "Bar"}})"));
+  EXPECT_THAT(
+      TestPrintValue(AggregateStructWithAbslStringify{}),
+      ElementsAre("value={1, {Foo, Bar}}",
+                  R"(AggregateStructWithAbslStringify{1, {"Foo", "Bar"}})"));
 }
 
 TEST(DurationTest, Printer) {
