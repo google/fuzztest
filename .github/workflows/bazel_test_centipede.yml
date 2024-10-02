@@ -81,7 +81,7 @@ jobs:
       - name: Run puzzles without Riegeli with ASAN
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --platform_suffix=asan centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -109,20 +109,20 @@ jobs:
         run: |
           # Timed wait is delayed for unknown reasons in MacOS for a few testing
           # environments, thus disabling a few related non-critical tests.
-          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all -centipede:periodic_action_test -centipede:rusage_profiler_test && \
-          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all -centipede:periodic_action_test -centipede:rusage_profiler_test && \
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test
       - name: Run e2e tests without Riegeli
         if: ${{ !cancelled() }}
         run: |
-          bazel test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
       - name: Run puzzles without Riegeli
         if: ${{ !cancelled() }}
         run: |
-          bazel test --test_output=errors --no//fuzztest:use_riegeli centipede/puzzles:all
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/puzzles:all
       - name: Run puzzles without Riegeli with ASAN
         if: ${{ !cancelled() }}
         run: |
-          bazel test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --platform_suffix=asan centipede/puzzles:all
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --platform_suffix=asan centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
