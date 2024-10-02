@@ -308,15 +308,12 @@ TEST(VariantTest, Printer) {
       Arbitrary<int>(), Arbitrary<double>(),
       ContainerOf<std::vector<std::string>>(Arbitrary<std::string>()));
   value = 1;
-  EXPECT_THAT(TestPrintValue(value, variant_domain),
-              ElementsAre("(index=0, value=1)", "1"));
+  EXPECT_THAT(TestPrintValue(value, variant_domain), Each("1"));
   value = 1.2;
-  EXPECT_THAT(TestPrintValue(value, variant_domain),
-              ElementsAre("(index=1, value=1.2)", "1.2"));
+  EXPECT_THAT(TestPrintValue(value, variant_domain), Each("1.2"));
   value = std::vector<std::string>{"variant", "print", "test"};
   EXPECT_THAT(TestPrintValue(value, variant_domain),
-              ElementsAre("(index=2, value={\"variant\", \"print\", \"test\"})",
-                          "{\"variant\", \"print\", \"test\"}"));
+              Each("{\"variant\", \"print\", \"test\"}"));
 }
 
 TEST(OptionalTest, Printer) {

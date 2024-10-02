@@ -232,29 +232,9 @@ struct VariantPrinter {
   template <typename T>
   void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
                         domain_implementor::PrintMode mode) const {
-    if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      absl::Format(out, "(index=%d, value=", v.index());
-    }
     // The source code version will work as long as the types are unambiguous.
     // Printing the whole variant type to call the explicit constructor might be
     // an issue.
-    Switch<sizeof...(Inner)>(v.index(), [&](auto I) {
-      domain_implementor::PrintValue(std::get<I>(inner), std::get<I>(v), out,
-                                     mode);
-    });
-    if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      absl::Format(out, ")");
-    }
-  }
-};
-
-template <typename... Inner>
-struct VariantDomainPrinter {
-  const std::tuple<Inner...>& inner;
-
-  template <typename T>
-  void PrintCorpusValue(const T& v, domain_implementor::RawSink out,
-                        domain_implementor::PrintMode mode) const {
     Switch<sizeof...(Inner)>(v.index(), [&](auto I) {
       domain_implementor::PrintValue(std::get<I>(inner), std::get<I>(v), out,
                                      mode);

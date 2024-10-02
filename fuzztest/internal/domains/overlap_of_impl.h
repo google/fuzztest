@@ -130,7 +130,7 @@ class OverlapOfImpl
     return corpus;
   }
 
-  auto GetPrinter() const { return VariantDomainPrinter<Inner...>{domains_}; }
+  auto GetPrinter() const { return VariantPrinter<Inner...>{domains_}; }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
     return ParseWithDomainVariant(domains_, obj);
