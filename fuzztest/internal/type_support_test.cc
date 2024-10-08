@@ -464,7 +464,7 @@ TEST(ConstructorOfTest, Printer) {
 
   struct UserDefined {};
   EXPECT_THAT(TestPrintValue({}, ConstructorOf<UserDefined>()),
-              ElementsAre("{}", "UserDefined()"));
+              ElementsAre("UserDefined{}", "UserDefined()"));
 }
 
 TEST(MonostateTest, Printer) {
@@ -472,7 +472,7 @@ TEST(MonostateTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::monostate{}), Each("{}"));
   EXPECT_THAT(TestPrintValue(std::tuple{}), Each("{}"));
   EXPECT_THAT(TestPrintValue(std::array<int, 0>{}), Each("{}"));
-  EXPECT_THAT(TestPrintValue(UserDefinedEmpty{}), Each("{}"));
+  EXPECT_THAT(TestPrintValue(UserDefinedEmpty{}), Each("UserDefinedEmpty{}"));
 }
 
 struct AggregateStructWithNoAbslStringify {

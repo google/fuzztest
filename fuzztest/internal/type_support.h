@@ -310,7 +310,7 @@ struct MonostatePrinter {
   template <typename T>
   void PrintUserValue(const T&, domain_implementor::RawSink out,
                       domain_implementor::PrintMode) const {
-    absl::Format(out, "{}");
+    absl::Format(out, "%s{}", GetTypeNameIfUserDefined<T>());
   }
 };
 

@@ -408,7 +408,7 @@ TEST_F(UnitTestModeTest, WorksWithStructsWithEmptyFields) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithEmptyFields");
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmpty{{}}"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmpty{Empty{}}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithEmptyInheritance) {
