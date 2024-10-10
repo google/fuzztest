@@ -60,6 +60,7 @@ class InRegexpImpl
   // path and random walk from the node until we reach an end state or go back
   // to the original path.
   void Mutate(DFAPath& path, absl::BitGenRef prng, bool only_shrink) {
+    // Add a comment again and again and again.
     if (only_shrink) {
       // Fast path to remove loop.
       if (absl::Bernoulli(prng, 0.5)) {
