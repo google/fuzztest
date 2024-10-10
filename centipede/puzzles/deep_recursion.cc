@@ -23,8 +23,6 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "absl/base/nullability.h"
-
 // Deep recursion triggered by 'ABCDEF...'
 void Recursive(const uint8_t *data, size_t size, size_t idx) {
   if (idx > 5) std::abort();
