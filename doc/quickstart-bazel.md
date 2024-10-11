@@ -101,9 +101,6 @@ build --action_env=CXX=clang++
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
 
-# Use the builtin crc32 for fast integer hashing.
-build --copt=-mcrc32
-
 # Show everything when running tests.
 test --test_output=streamed
 

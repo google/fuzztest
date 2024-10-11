@@ -28,9 +28,6 @@ build --cxxopt=-Wno-c++20-extensions
 # --host_cxxopt flag (https://bazel.build/docs/user-manual#host-cxxopt).
 build --host_cxxopt=-std=c++17
 
-# Use the builtin crc32 for fast integer hashing.
-build:linux --copt=-mcrc32
-
 # Build GoogleTest with ABSL support.
 build --define absl=1
 
