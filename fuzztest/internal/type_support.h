@@ -289,8 +289,8 @@ struct ProtobufEnumPrinter {
       // For top-level enums in C++11, the enumerators are local to the enum,
       // so leave the name untouched to print `<Enum>::<Label>`.
       absl::string_view type_name = GetTypeName<T>();
-      const std::string& enum_name = descriptor->name();
-      if (absl::EndsWith(type_name, "_" + enum_name)) {
+      absl::string_view enum_name = descriptor->name();
+      if (absl::EndsWith(type_name, absl::StrCat("_", enum_name))) {
         type_name.remove_suffix(enum_name.size() + 1);
       }
       absl::Format(out, "%s::%s", type_name, vd->name());
