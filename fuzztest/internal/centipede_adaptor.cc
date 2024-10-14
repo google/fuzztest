@@ -599,11 +599,11 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
           "intended for compatibility with certain fuzzing infrastructures. "
           "End users are strongly advised against using it directly.\n");
       // Minimization with Centipede takes multiple steps:
-      // 1. Import the corpus into the Centipede shard by replaying the corpus.
+      // 1. Load the corpus into the Centipede shard.
       auto replay_env = env;
       // The first empty path means no output dir.
       replay_env.corpus_dir = {"", minimize_dir};
-      replay_env.num_runs = 0;
+      replay_env.load_shards_only = true;
       FUZZTEST_INTERNAL_CHECK(
           centipede::CentipedeMain(replay_env, factory) == 0,
           "Failed to replaying the testsuite for minimization");

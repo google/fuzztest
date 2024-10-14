@@ -716,6 +716,8 @@ void Centipede::FuzzingLoop() {
     MergeFromOtherCorpus(env_.merge_from, env_.my_shard_index);
   }
 
+  if (env_.load_shards_only) return;
+
   auto corpus_path = wd_.CorpusFiles().ShardPath(env_.my_shard_index);
   auto corpus_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(corpus_file->Open(corpus_path, "a"));
@@ -723,10 +725,7 @@ void Centipede::FuzzingLoop() {
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_path, "a"));
 
-  // Load seed corpus when there is no external corpus loaded.
-  if (corpus_.NumTotal() == 0) {
-    LoadSeedInputs(corpus_file.get(), features_file.get());
-  }
+  LoadSeedInputs(corpus_file.get(), features_file.get());
 
   UpdateAndMaybeLogStats("init-done", 0);
 
