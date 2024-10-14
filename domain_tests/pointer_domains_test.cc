@@ -41,7 +41,7 @@ void TestSmartPointer(Domain domain) {
 
     Set<std::optional<int>> mutations;
     while (mutations.size() < 4) {
-      value.Mutate(domain, bitgen, false);
+      value.Mutate(domain, bitgen, {}, false);
       mutations.insert(value.user_value ? std::optional(*value.user_value)
                                         : std::nullopt);
     }

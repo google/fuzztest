@@ -50,7 +50,7 @@ TEST(ElementOfTest, TwoOptions) {
 
   for (const auto& v : found) {
     auto copy = v;
-    copy.Mutate(domain, bitgen, false);
+    copy.Mutate(domain, bitgen, {}, false);
     EXPECT_NE(v, copy);
   }
 }
@@ -87,7 +87,7 @@ TEST(ElementOfTest, Colors) {
   found.clear();
   Value c(domain, bitgen);
   while (found.size() < all_colors.size()) {
-    c.Mutate(domain, bitgen, false);
+    c.Mutate(domain, bitgen, {}, false);
     found.insert(c.user_value);
 
     VerifyRoundTripThroughConversion(c, domain);
@@ -97,7 +97,7 @@ TEST(ElementOfTest, Colors) {
   c = Value(domain, bitgen);
   while (c.user_value != Color::Red) {
     auto prev = c.user_value;
-    c.Mutate(domain, bitgen, true);
+    c.Mutate(domain, bitgen, {}, true);
     ASSERT_LE(c.user_value, prev);
   }
   ASSERT_THAT(found, UnorderedElementsAreArray(all_colors));
@@ -146,7 +146,7 @@ TEST(Just, Basic) {
   int n = 3;
   for (int i = 0; i < 10; ++i) {
     Value v(domain, bitgen);
-    v.Mutate(domain, bitgen, false);
+    v.Mutate(domain, bitgen, {}, false);
 
     VerifyRoundTripThroughConversion(v, domain);
     EXPECT_EQ(n, 3);

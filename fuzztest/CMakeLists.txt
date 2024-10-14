@@ -119,6 +119,7 @@ fuzztest_cc_library(
   SRCS
     "llvm_fuzzer_wrapper.cc"
   DEPS
+    fuzztest::coverage
     fuzztest::domain_core
     fuzztest::fuzztest
     fuzztest::io
@@ -241,6 +242,7 @@ fuzztest_cc_library(
   SRCS
     "internal/coverage.cc"
   DEPS
+    fuzztest::domain_core
     fuzztest::flag_name
     fuzztest::logging
     fuzztest::table_of_recent_compares
@@ -299,6 +301,7 @@ fuzztest_cc_library(
     "internal/domains/flat_map_impl.h"
     "internal/domains/in_range_impl.h"
     "internal/domains/map_impl.h"
+    "internal/domains/mutation_metadata.h"
     "internal/domains/one_of_impl.h"
     "internal/domains/optional_of_impl.h"
     "internal/domains/overlap_of_impl.h"
@@ -313,7 +316,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::absl_helpers
     fuzztest::any
-    fuzztest::coverage
     fuzztest::logging
     fuzztest::meta
     fuzztest::printer

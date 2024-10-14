@@ -34,6 +34,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/any.h"
+#include "./fuzztest/internal/domains/mutation_metadata.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
@@ -56,10 +57,13 @@ class UntypedDomainConcept {
 
   virtual std::unique_ptr<UntypedDomainConcept> UntypedClone() const = 0;
   virtual GenericDomainCorpusType UntypedInit(absl::BitGenRef) = 0;
-  virtual void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
-                             bool only_shrink) = 0;
+  virtual void UntypedMutate(
+      GenericDomainCorpusType& val, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata,
+      bool only_shrink) = 0;
   virtual void UntypedUpdateMemoryDictionary(
-      const GenericDomainCorpusType& val) = 0;
+      const GenericDomainCorpusType& val,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) = 0;
   virtual std::optional<GenericDomainCorpusType> UntypedParseCorpus(
       const IRObject& obj) const = 0;
   virtual absl::Status UntypedValidateCorpusValue(
@@ -68,9 +72,9 @@ class UntypedDomainConcept {
       const GenericDomainCorpusType& v) const = 0;
   virtual uint64_t UntypedCountNumberOfFields(
       const GenericDomainCorpusType&) = 0;
-  virtual uint64_t UntypedMutateSelectedField(GenericDomainCorpusType&,
-                                              absl::BitGenRef, bool,
-                                              uint64_t) = 0;
+  virtual uint64_t UntypedMutateSelectedField(
+      GenericDomainCorpusType&, absl::BitGenRef,
+      const domain_implementor::MutationMetadata&, bool, uint64_t) = 0;
   virtual GenericDomainValueType UntypedGetValue(
       const GenericDomainCorpusType& v) const = 0;
   virtual void UntypedPrintCorpusValue(
@@ -135,12 +139,15 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
   }
 
   void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata& metadata,
                      bool only_shrink) final {
-    domain_.Mutate(val.GetAs<CorpusType>(), prng, only_shrink);
+    domain_.Mutate(val.GetAs<CorpusType>(), prng, metadata, only_shrink);
   }
 
-  void UntypedUpdateMemoryDictionary(const GenericDomainCorpusType& val) final {
-    domain_.UpdateMemoryDictionary(val.GetAs<CorpusType>());
+  void UntypedUpdateMemoryDictionary(
+      const GenericDomainCorpusType& val,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) final {
+    domain_.UpdateMemoryDictionary(val.GetAs<CorpusType>(), cmp_tables);
   }
 
   ValueType TypedGetRandomValue(absl::BitGenRef prng) final {
@@ -185,11 +192,12 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
     return domain_.CountNumberOfFields(v.GetAs<CorpusType>());
   }
 
-  uint64_t UntypedMutateSelectedField(GenericDomainCorpusType& v,
-                                      absl::BitGenRef prng, bool only_shrink,
-                                      uint64_t selected_field_index) final {
-    return domain_.MutateSelectedField(v.GetAs<CorpusType>(), prng, only_shrink,
-                                       selected_field_index);
+  uint64_t UntypedMutateSelectedField(
+      GenericDomainCorpusType& v, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index) final {
+    return domain_.MutateSelectedField(v.GetAs<CorpusType>(), prng, metadata,
+                                       only_shrink, selected_field_index);
   }
 
   void UntypedPrintCorpusValue(const GenericDomainCorpusType& val,

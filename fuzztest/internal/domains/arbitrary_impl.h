@@ -33,7 +33,6 @@
 #include "absl/random/distributions.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
@@ -75,7 +74,8 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
 
   value_type Init(absl::BitGenRef) { return value_type{}; }
 
-  void Mutate(value_type&, absl::BitGenRef, bool) {}
+  void Mutate(value_type&, absl::BitGenRef,
+              const domain_implementor::MutationMetadata&, bool) {}
 
   value_type GetRandomCorpusValue(absl::BitGenRef prng) { return value_type{}; }
 
@@ -96,7 +96,9 @@ class ArbitraryImpl<bool>
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
   }
 
-  void Mutate(value_type& val, absl::BitGenRef, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     if (only_shrink) {
       val = false;
     } else {
@@ -137,7 +139,9 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     }
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     if (only_shrink) {
       if (val == 0) return;
@@ -152,10 +156,10 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
       if (absl::Bernoulli(prng, 0.25)) {
         RandomBitFlip(prng, val, sizeof(T) * 8);
       } else {
-        RandomWalkOrUniformOrDict<5>(prng, val, std::numeric_limits<T>::min(),
-                                     std::numeric_limits<T>::max(),
-                                     temporary_dict_, permanent_dict_,
-                                     permanent_dict_candidate_);
+        RandomWalkOrUniformOrDict<5>(
+            prng, val, std::numeric_limits<T>::min(),
+            std::numeric_limits<T>::max(), metadata.cmp_tables, temporary_dict_,
+            permanent_dict_, permanent_dict_candidate_);
       }
       // Make sure Mutate really mutates.
     } while (val == prev);
@@ -166,12 +170,13 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     return ChooseFromAll(prng);
   }
 
-  void UpdateMemoryDictionary(const value_type& val) {
+  void UpdateMemoryDictionary(
+      const value_type& val, domain_implementor::ConstCmpTablesPtr cmp_tables) {
     if constexpr (is_memory_dictionary_compatible_v) {
-      if (GetExecutionCoverage() != nullptr) {
+      if (cmp_tables != nullptr) {
         temporary_dict_.MatchEntriesFromTableOfRecentCompares(
-            val, GetExecutionCoverage()->GetTablesOfRecentCompares(),
-            std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
+            val, *cmp_tables, std::numeric_limits<T>::min(),
+            std::numeric_limits<T>::max());
         if (permanent_dict_candidate_.has_value() &&
             permanent_dict_.Size() < kPermanentDictMaxSize) {
           permanent_dict_.AddEntry(std::move(*permanent_dict_candidate_));
@@ -221,9 +226,11 @@ class ArbitraryImpl<std::byte>
     return std::byte{inner_.Init(prng)};
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     unsigned char u8 = std::to_integer<unsigned char>(val);
-    inner_.Mutate(u8, prng, only_shrink);
+    inner_.Mutate(u8, prng, metadata, only_shrink);
     val = std::byte{u8};
   }
 
@@ -252,7 +259,9 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
                        [&] { return absl::Uniform(prng, T{0}, T{1}); });
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     if (only_shrink) {
       if (!std::isfinite(val) || val == 0) return;
       val = ShrinkTowards(prng, val, T{0});
@@ -323,12 +332,16 @@ class ArbitraryImpl<std::basic_string_view<Char>>
     return inner_.Init(prng);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    inner_.Mutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
+    inner_.Mutate(val, prng, metadata, only_shrink);
   }
 
-  void UpdateMemoryDictionary(const corpus_type& val) {
-    inner_.UpdateMemoryDictionary(val);
+  void UpdateMemoryDictionary(
+      const corpus_type& val,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) {
+    inner_.UpdateMemoryDictionary(val, cmp_tables);
   }
 
   auto GetPrinter() const { return StringPrinter{}; }
@@ -378,12 +391,16 @@ class ArbitraryImpl<absl::string_view>
     return inner_.Init(prng);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    inner_.Mutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
+    inner_.Mutate(val, prng, metadata, only_shrink);
   }
 
-  void UpdateMemoryDictionary(const corpus_type& val) {
-    inner_.UpdateMemoryDictionary(val);
+  void UpdateMemoryDictionary(
+      const corpus_type& val,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) {
+    inner_.UpdateMemoryDictionary(val, cmp_tables);
   }
 
   auto GetPrinter() const { return StringPrinter{}; }
