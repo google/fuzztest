@@ -93,7 +93,7 @@ TEST(ContainerCombinatorTest, MinSizeCanBeLargerThanDefaultMaxSize) {
                     .WithMinSize(kDefaultMaxSize + 1);
   absl::BitGen bitgen;
   auto val = Value(domain, bitgen);
-  val.Mutate(domain, bitgen, /*only_shrink=*/false);
+  val.Mutate(domain, bitgen, /*metadata=*/nullptr, /*only_shrink=*/false);
   ASSERT_THAT(val.user_value, SizeIs(Gt(kDefaultMaxSize)));
 }
 
@@ -359,7 +359,8 @@ TEST(Domain, Container) {
 }
 
 TEST(TupleOf, GeneratesValidValues) {
-  auto values = MutateUntilFoundN(TupleOf(InRange(-5, 5), AsciiChar()), 100);
+  auto values = MutateUntilFoundN(TupleOf(InRange(-5, 5), AsciiChar()), 100,
+                                  /*metadata=*/nullptr);
   EXPECT_THAT(values, Each(FieldsAre(_, FieldsAre(IsInClosedRange(-5, 5),
                                                   IsInClosedRange(0, 127)))));
 }
@@ -373,7 +374,8 @@ TEST(TupleOf, InitGeneratesSeeds) {
 }
 
 TEST(PairOf, GeneratesValidValues) {
-  auto values = MutateUntilFoundN(PairOf(InRange(-5, 5), AsciiChar()), 100);
+  auto values = MutateUntilFoundN(PairOf(InRange(-5, 5), AsciiChar()), 100,
+                                  /*metadata=*/nullptr);
   EXPECT_THAT(values, Each(FieldsAre(_, FieldsAre(IsInClosedRange(-5, 5),
                                                   IsInClosedRange(0, 127)))));
 }

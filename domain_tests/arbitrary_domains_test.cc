@@ -42,6 +42,7 @@
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -67,9 +68,9 @@ TEST(BoolTest, Arbitrary) {
 
   Value b(domain, bitgen);
   bool copy = b.user_value;
-  b.Mutate(domain, bitgen, false);
+  b.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
   EXPECT_NE(b.user_value, copy);
-  b.Mutate(domain, bitgen, false);
+  b.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
   EXPECT_EQ(b.user_value, copy);
 }
 
@@ -87,7 +88,7 @@ TEST(ArbitraryBoolTest, InitGeneratesSeeds) {
 TEST(ArbitraryByteTest, RepeatedMutationYieldsEveryValue) {
   Domain<std::byte> domain = Arbitrary<std::byte>();
   // Verify every value appears.
-  auto values = MutateUntilFoundN(domain, 256);
+  auto values = MutateUntilFoundN(domain, 256, /*metadata=*/nullptr);
   VerifyRoundTripThroughConversion(values, domain);
   EXPECT_EQ(values.size(), 256);
 }
@@ -150,7 +151,7 @@ TYPED_TEST_SUITE(CompoundTypeTest, CompoundTypeTypes);
 
 TYPED_TEST(CompoundTypeTest, Arbitrary) {
   Domain<TypeParam> domain = Arbitrary<TypeParam>();
-  auto values = MutateUntilFoundN(domain, 100);
+  auto values = MutateUntilFoundN(domain, 100, /*metadata=*/nullptr);
   VerifyRoundTripThroughConversion(values, domain);
   // Just make sure we can find 100 different objects.
   // No need to look into their actual values.
@@ -163,7 +164,7 @@ TYPED_TEST(CompoundTypeTest, InitGeneratesSeeds) {
     auto domain = Arbitrary<TypeParam>();
     absl::BitGen bitgen;
     auto seed = Value(domain, bitgen);
-    seed.RandomizeByRepeatedMutation(domain, bitgen);
+    seed.RandomizeByRepeatedMutation(domain, bitgen, /*metadata*/ nullptr);
     domain.WithSeeds({seed.user_value});
 
     EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
@@ -186,7 +187,7 @@ TYPED_TEST(MonostateTypeTest, Arbitrary) {
   auto v = domain.Init(bitgen);
   // Mutate "works". That is, it returns.
   // We don't expect it to do anything else since the value can't be changed.
-  domain.Mutate(v, bitgen, false);
+  domain.Mutate(v, bitgen, /*metadata=*/nullptr, false);
 }
 
 struct BinaryTree {
@@ -207,7 +208,7 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
   Set<int> s;
   while (s.size() < 10) {
     s.insert(v.user_value.count_nodes());
-    v.Mutate(domain, bitgen, false);
+    v.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
   }
 }
 
@@ -223,7 +224,8 @@ struct StatefulIncrementDomain
     return result;
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const internal::TablesOfRecentCompares*, bool only_shrink) {
     std::get<0>(val) += absl::Uniform<value_type>(prng, 5, 6) +
                         static_cast<value_type>(only_shrink);
   }
@@ -279,9 +281,9 @@ TEST(Domain, BasicVerify) {
 
   Value i(domain, bitgen);
   Value j = i;
-  i.Mutate(domain, bitgen, false);
+  i.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
   EXPECT_THAT(i.user_value, j.user_value + 5);
-  i.Mutate(domain, bitgen, true);
+  i.Mutate(domain, bitgen, /*metadata=*/nullptr, true);
   EXPECT_THAT(i.user_value, j.user_value + 11);
 }
 

@@ -486,13 +486,14 @@ class ProtobufDomainUntypedImpl
     return val;
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     if (GetFieldCount(prototype_.Get()->GetDescriptor()) == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
     uint64_t total_weight = CountNumberOfFields(val);
     uint64_t selected_weight = absl::Uniform(absl::IntervalClosedClosed, prng,
                                              uint64_t{1}, total_weight);
-    MutateSelectedField(val, prng, only_shrink, selected_weight);
+    MutateSelectedField(val, prng, metadata, only_shrink, selected_weight);
   }
 
   auto GetPrinter() const { return ProtobufPrinter{}; }
@@ -612,6 +613,7 @@ class ProtobufDomainUntypedImpl
   }
 
   uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               const MutationMetadata* metadata,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
@@ -625,7 +627,8 @@ class ProtobufDomainUntypedImpl
       }
       ++field_counter;
       if (field_counter == selected_field_index) {
-        VisitProtobufField(field, MutateVisitor{prng, only_shrink, *this, val});
+        VisitProtobufField(
+            field, MutateVisitor{prng, metadata, only_shrink, *this, val});
         return field_counter;
       }
 
@@ -635,12 +638,12 @@ class ProtobufDomainUntypedImpl
         if (field->is_repeated()) {
           field_counter +=
               GetSubDomain<ProtoMessageTag, true>(field).MutateSelectedField(
-                  val_it->second, prng, only_shrink,
+                  val_it->second, prng, metadata, only_shrink,
                   selected_field_index - field_counter);
         } else {
           field_counter +=
               GetSubDomain<ProtoMessageTag, false>(field).MutateSelectedField(
-                  val_it->second, prng, only_shrink,
+                  val_it->second, prng, metadata, only_shrink,
                   selected_field_index - field_counter);
         }
       }
@@ -947,6 +950,7 @@ class ProtobufDomainUntypedImpl
 
   struct MutateVisitor {
     absl::BitGenRef prng;
+    const MutationMetadata* metadata;
     bool only_shrink;
     ProtobufDomainUntypedImpl& self;
     corpus_type& val;
@@ -959,7 +963,7 @@ class ProtobufDomainUntypedImpl
 
       if (is_present) {
         // Mutate the element
-        domain.Mutate(it->second, prng, only_shrink);
+        domain.Mutate(it->second, prng, metadata, only_shrink);
         return;
       }
 
@@ -997,7 +1001,7 @@ class ProtobufDomainUntypedImpl
         // Switch the inner domain for maps to use flat_hash_map instead.
         corpus_type corpus_copy;
         auto& copy = corpus_copy[field->number()] = it->second;
-        domain.Mutate(copy, prng, only_shrink);
+        domain.Mutate(copy, prng, metadata, only_shrink);
         auto v = self.GetValue(corpus_copy);
         // We need to roundtrip through serialization to really dedup. The
         // reflection API alone doesn't cut it.
@@ -1008,7 +1012,7 @@ class ProtobufDomainUntypedImpl
           it->second = std::move(copy);
         }
       } else {
-        domain.Mutate(it->second, prng, only_shrink);
+        domain.Mutate(it->second, prng, metadata, only_shrink);
       }
     }
   };
@@ -1244,7 +1248,8 @@ class ProtobufDomainUntypedImpl
           auto val = domain.Init(gen);
           auto descriptor = GetDescriptor<is_repeated>(val);
           for (int i = 0; !descriptor && i < kMaxTry; ++i) {
-            domain.Mutate(val, gen, /*only_shrink=*/false);
+            domain.Mutate(val, gen, /*metadata=*/nullptr,
+                          /*only_shrink=*/false);
             descriptor = GetDescriptor<is_repeated>(val);
           }
           FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -1802,8 +1807,9 @@ class ProtobufDomainImpl
     return inner_.MutateNumberOfProtoFields(val);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    inner_.Mutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
+    inner_.Mutate(val, prng, metadata, only_shrink);
   }
 
   value_type GetValue(const corpus_type& v) const {
@@ -2245,7 +2251,8 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     return static_cast<T>(descriptor()->value(index)->number());
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng, const MutationMetadata*,
+              bool only_shrink) {
     if (only_shrink) {
       std::vector<int> numbers;
       for (int i = 0; i < descriptor()->value_count(); ++i) {

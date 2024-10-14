@@ -34,7 +34,7 @@
 #include <optional>
 
 #include "absl/types/span.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
+#include "./fuzztest/internal/domains/mutation_metadata.h"
 
 #if defined(__linux__)
 #define FUZZTEST_INTERNAL_ENABLE_STACK_SIZE_CHECK 1
@@ -125,7 +125,7 @@ class ExecutionCoverage {
     return new_coverage_.load(std::memory_order_relaxed);
   }
 
-  auto& GetTablesOfRecentCompares() { return tables_of_recent_compares_; }
+  auto& GetMutationMetadata() { return mutation_metadata_; }
 
   // Flag marking if the control flow is currently in target codes.
   // We don't want to collect unrelated updates to cmp score and dictionary.
@@ -183,7 +183,7 @@ class ExecutionCoverage {
   // Flag marking new coverage of any kind.
   std::atomic<bool> new_coverage_{false};
 
-  TablesOfRecentCompares tables_of_recent_compares_ = {};
+  MutationMetadata mutation_metadata_ = {};
   bool is_tracing_ = false;
 };
 

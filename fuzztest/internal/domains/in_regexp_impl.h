@@ -59,7 +59,8 @@ class InRegexpImpl
   // Strategy: Parse the input string into a path in the DFA. Pick a node in the
   // path and random walk from the node until we reach an end state or go back
   // to the original path.
-  void Mutate(DFAPath& path, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(DFAPath& path, absl::BitGenRef prng, const MutationMetadata*,
+              bool only_shrink) {
     if (only_shrink) {
       // Fast path to remove loop.
       if (absl::Bernoulli(prng, 0.5)) {

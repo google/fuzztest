@@ -53,7 +53,7 @@ TEST(BitFlagCombinationOf, InitGeneratesSeeds) {
 
 TEST(BitFlagCombinationOf, Ints) {
   auto domain = BitFlagCombinationOf({1, 4, 16, 32});
-  auto seen = MutateUntilFoundN(domain, 16);
+  auto seen = MutateUntilFoundN(domain, 16, /*metadata=*/nullptr);
   EXPECT_THAT(seen, UnorderedElementsAre(0, 1, 4, 5, 16, 17, 20, 21, 32, 33, 36,
                                          37, 48, 49, 52, 53));
 
@@ -61,7 +61,7 @@ TEST(BitFlagCombinationOf, Ints) {
   int val = 1 | 4 | 16 | 32;
   while (val != 0) {
     int prev = val;
-    domain.Mutate(val, bitgen, true);
+    domain.Mutate(val, bitgen, /*metadata=*/nullptr, true);
     // val can't have new bits set.
     EXPECT_EQ(prev & val, val);
     EXPECT_EQ(prev | val, prev);
@@ -72,16 +72,16 @@ TEST(BitFlagCombinationOf, Enum) {
   enum class E { A = 1, B = 8 };
   auto domain = BitFlagCombinationOf({E::A, E::B});
 
-  auto seen = MutateUntilFoundN(domain, 4);
+  auto seen = MutateUntilFoundN(domain, 4, /*metadata=*/nullptr);
   EXPECT_THAT(seen, UnorderedElementsAre(E{0}, E{1}, E{8}, E{9}));
 }
 
 TEST(BitFlagCombinationOf, UserDefined) {
-  EXPECT_THAT(
-      MutateUntilFoundN(
-          BitFlagCombinationOf({absl::uint128(1), absl::uint128(4)}), 4),
-      UnorderedElementsAre(absl::uint128(0), absl::uint128(1), absl::uint128(4),
-                           absl::uint128(5)));
+  EXPECT_THAT(MutateUntilFoundN(
+                  BitFlagCombinationOf({absl::uint128(1), absl::uint128(4)}), 4,
+                  /*metadata=*/nullptr),
+              UnorderedElementsAre(absl::uint128(0), absl::uint128(1),
+                                   absl::uint128(4), absl::uint128(5)));
 }
 
 TEST(BitFlagCombinationOf, InvalidInputReportsErrors) {
@@ -133,7 +133,7 @@ TEST(OneOf, AllSubDomainsArePickedEventually) {
   elems.clear();
   Value mutated(domain, bitgen);
   while (elems.size() < 5) {
-    mutated.Mutate(domain, bitgen, false);
+    mutated.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
     elems.insert(mutated.user_value);
 
     VerifyRoundTripThroughConversion(mutated, domain);
@@ -155,13 +155,13 @@ TEST(OneOf, Mutate) {
     } else {
       v.corpus_value = std::variant<int, int>(std::in_place_index_t<1>{}, k);
     }
-    v.Mutate(domain, bitgen, /*only_shrink=*/false);
+    v.Mutate(domain, bitgen, /*metadata=*/nullptr, /*only_shrink=*/false);
     ASSERT_NE(k, v.user_value);
   }
   for (int i = 0; i < kRuns; ++i) {
     Value v(domain, bitgen);
     int old_k = v.user_value;
-    v.Mutate(domain, bitgen, /*only_shrink=*/true);
+    v.Mutate(domain, bitgen, /*metadata=*/nullptr, /*only_shrink=*/true);
     int new_k = v.user_value;
     if ((new_k >= 0) == (old_k >= 0)) {
       EXPECT_LE(std::abs(new_k), std::abs(old_k))
@@ -181,7 +181,7 @@ TEST(OneOf, SwitchesDomains) {
   absl::flat_hash_set<Color> found;
   Value v(domain, bitgen);
   while (found.size() < all_colors.size()) {
-    v.Mutate(domain, bitgen, /*only_shrink=*/false);
+    v.Mutate(domain, bitgen, /*metadata=*/nullptr, /*only_shrink=*/false);
     found.insert(v.user_value);
   }
   ASSERT_THAT(found, UnorderedElementsAreArray(all_colors));
