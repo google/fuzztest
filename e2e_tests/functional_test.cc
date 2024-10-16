@@ -27,7 +27,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -35,6 +34,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./domain_tests/domain_testing.h"
+#include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
@@ -45,8 +45,6 @@
 
 namespace fuzztest::internal {
 namespace {
-
-#define FUZZTEST_FLAG_PREFIX_ ""
 
 using ::fuzztest::domain_implementor::PrintMode;
 using ::testing::_;
@@ -68,26 +66,6 @@ using ::testing::StartsWith;
 constexpr absl::string_view kDefaultTargetBinary =
     "testdata/fuzz_tests_for_functional_testing";
 
-std::string CreateFuzzTestFlag(absl::string_view flag_name,
-                               absl::string_view flag_value) {
-  return absl::StrCat("--", FUZZTEST_FLAG_PREFIX_, flag_name, "=", flag_value);
-}
-
-std::string BinaryPath(const absl::string_view name) {
-  const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      !test_srcdir.empty(),
-      "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
-      "test.");
-  const std::string binary_path = absl::StrCat(
-      test_srcdir, "/_main/e2e_tests/", name,
-      absl::EndsWith(name, ".stripped") ? "" : ".stripped");
-
-  FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
-                          absl::StrCat("Can't find ", binary_path));
-  return binary_path;
-}
-
 absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
     absl::flat_hash_map<std::string, std::string> env) {
   if (!env.contains("ASAN_OPTIONS"))
@@ -97,22 +75,6 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
   return env;
 }
 
-class TempDir {
- public:
-  TempDir() {
-    dirname_ = "/tmp/replay_test_XXXXXX";
-    dirname_ = mkdtemp(dirname_.data());
-    EXPECT_TRUE(std::filesystem::is_directory(dirname_));
-  }
-
-  const std::string& dirname() const { return dirname_; }
-
-  ~TempDir() { std::filesystem::remove_all(dirname_); }
-
- private:
-  std::string dirname_;
-};
-
 class UnitTestModeTest : public ::testing::Test {
  protected:
   RunResults Run(
@@ -120,15 +82,11 @@ class UnitTestModeTest : public ::testing::Test {
       absl::string_view target_binary = kDefaultTargetBinary,
       const absl::flat_hash_map<std::string, std::string>& env = {},
       const absl::flat_hash_map<std::string, std::string>& fuzzer_flags = {}) {
-    std::vector<std::string> commandline = {
+    return RunBinary(
         BinaryPath(target_binary),
-        absl::StrCat("--", GTEST_FLAG_PREFIX_, "filter=", test_filter)};
-
-    for (const auto& flag : fuzzer_flags) {
-      commandline.push_back(CreateFuzzTestFlag(flag.first, flag.second));
-    }
-    return RunCommand(commandline, WithTestSanitizerOptions(env),
-                      absl::Minutes(10));
+        {.flags = {{GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)}},
+         .fuzztest_flags = fuzzer_flags,
+         .env = WithTestSanitizerOptions(env)});
   }
 };
 
@@ -673,21 +631,6 @@ TEST_F(GetRandomValueTest, SettingPrngSeedReproducesValue) {
   EXPECT_EQ(val, other_val);
 }
 
-std::string CentipedePath() {
-  const auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      !test_srcdir.empty(),
-      "Please set TEST_SRCDIR to non-empty value or use bazel to run the "
-      "test.");
-  const std::string binary_path = absl::StrCat(
-      test_srcdir,
-      "/_main/centipede/centipede_uninstrumented");
-
-  FUZZTEST_INTERNAL_CHECK(std::filesystem::exists(binary_path),
-                          absl::StrCat("Can't find ", binary_path));
-  return binary_path;
-}
-
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
@@ -698,14 +641,11 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
       absl::string_view binary = kDefaultTargetBinary,
       const absl::flat_hash_map<std::string, std::string>& non_fuzztest_flags =
           {}) {
-    std::vector<std::string> args = {BinaryPath(binary)};
-    for (const auto& [key, value] : flags) {
-      args.push_back(CreateFuzzTestFlag(key, value));
-    }
-    for (const auto& [key, value] : non_fuzztest_flags) {
-      args.push_back(absl::StrCat("--", key, "=", value));
-    }
-    return RunCommand(args, WithTestSanitizerOptions(env), timeout);
+    return RunBinary(BinaryPath(binary),
+                     RunOptions{.flags = non_fuzztest_flags,
+                                .fuzztest_flags = flags,
+                                .env = WithTestSanitizerOptions(env),
+                                .timeout = timeout});
   }
 };
 
@@ -1132,10 +1072,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               {{"FUZZTEST_STACK_LIMIT", "512000"}});
   EXPECT_THAT(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT(std_err,
-              HasSubstr("Stack limit is set by FUZZTEST_STACK_LIMIT env var "
-                        "- this is going to be deprecated soon. Consider "
-                        "switching to --" FUZZTEST_FLAG_PREFIX_
-                        "stack_limit_kb flag."));
+              HasSubstr(absl::StrCat(
+                  "Stack limit is set by FUZZTEST_STACK_LIMIT env var - this "
+                  "is going to be deprecated soon. Consider switching to ",
+                  CreateFuzzTestFlag("stack_limit_kb", ""), " flag.")));
   ExpectStackLimitExceededMessage(std_err, 512000);
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
@@ -1279,20 +1219,22 @@ class FuzzingModeFixtureTest
   RunResults Run(absl::string_view test_name, int iterations) {
     if (GetParam().multi_process) {
       TempDir workdir;
-      return RunCommand(
-          {CentipedePath(), "--print_runner_log", "--exit_on_crash",
-           absl::StrCat("--workdir=", workdir.dirname()),
-           absl::StrCat("--binary=", BinaryPath(kDefaultTargetBinary), " ",
-                        CreateFuzzTestFlag("fuzz", test_name)),
-           absl::StrCat("--num_runs=", iterations)},
-          /*environment=*/{},
-          /*timeout=*/absl::InfiniteDuration());
+      return RunBinary(
+          CentipedePath(),
+          {.flags = {{"print_runner_log", "true"},
+                     {"exit_on_crash", "true"},
+                     {"workdir", workdir.dirname()},
+                     {"binary",
+                      absl::StrCat(BinaryPath(kDefaultTargetBinary), " ",
+                                   CreateFuzzTestFlag("fuzz", test_name))},
+                     {"num_runs", absl::StrCat(iterations)}},
+           .timeout = absl::InfiniteDuration()});
     } else {
-      return RunCommand(
-          {BinaryPath(kDefaultTargetBinary),
-           CreateFuzzTestFlag("fuzz", test_name)},
-          {{"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}},
-          /*timeout=*/absl::InfiniteDuration());
+      return RunBinary(
+          BinaryPath(kDefaultTargetBinary),
+          {.fuzztest_flags = {{"fuzz", std::string(test_name)}},
+           .env = {{"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}},
+           .timeout = absl::InfiniteDuration()});
     }
   }
 
@@ -1423,17 +1365,22 @@ class FuzzingModeCrashFindingTest
     env = WithTestSanitizerOptions(std::move(env));
     if (GetParam().multi_process) {
       TempDir workdir;
-      return RunCommand(
-          {CentipedePath(), "--exit_on_crash", "--timeout_per_input=0",
-           absl::StrCat("--stop_at=", absl::Now() + timeout),
-           absl::StrCat("--workdir=", workdir.dirname()),
-           absl::StrCat("--binary=", BinaryPath(target_binary), " ",
-                        CreateFuzzTestFlag("fuzz", test_name))},
-          env, timeout + absl::Seconds(10));
+      return RunBinary(
+          CentipedePath(),
+          {.flags = {{"exit_on_crash", "true"},
+                     {"timeout_per_input", "0"},
+                     {"stop_at", absl::StrCat(absl::Now() + timeout)},
+                     {"workdir", workdir.dirname()},
+                     {"binary",
+                      absl::StrCat(BinaryPath(target_binary), " ",
+                                   CreateFuzzTestFlag("fuzz", test_name))}},
+           .env = std::move(env),
+           .timeout = timeout + absl::Seconds(10)});
     } else {
-      return RunCommand(
-          {BinaryPath(target_binary), CreateFuzzTestFlag("fuzz", test_name)},
-          env, timeout);
+      return RunBinary(BinaryPath(target_binary),
+                       {.fuzztest_flags = {{"fuzz", std::string(test_name)}},
+                        .env = std::move(env),
+                        .timeout = timeout});
     }
   }
 
