@@ -74,7 +74,8 @@ class OptionalOfImpl
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     if (policy_ == OptionalPolicy::kAlwaysNull) {
       val.template emplace<0>();
       return;
@@ -88,7 +89,7 @@ class OptionalOfImpl
       // 1/100 chance of returning an empty.
       val.template emplace<0>();
     } else {
-      inner_.Mutate(std::get<1>(val), prng, only_shrink);
+      inner_.Mutate(std::get<1>(val), prng, metadata, only_shrink);
     }
   }
 
@@ -156,11 +157,12 @@ class OptionalOfImpl
   }
 
   uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               const MutationMetadata* metadata,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     if (val.index() == 1) {
-      return inner_.MutateSelectedField(std::get<1>(val), prng, only_shrink,
-                                        selected_field_index);
+      return inner_.MutateSelectedField(std::get<1>(val), prng, metadata,
+                                        only_shrink, selected_field_index);
     }
     return 0;
   }

@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/base/casts.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/flag_name.h"
@@ -382,7 +383,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE      // To make __builtin_return_address(0) work.
   fuzztest::internal::execution_coverage_instance->UpdateCmpMap(
       PC, argsize_bit - __builtin_popcount(arg1 ^ arg2),
       255U - (255U > abs ? abs : 255U));
-  fuzztest::internal::execution_coverage_instance->GetTablesOfRecentCompares()
+  absl::implicit_cast<fuzztest::internal::TablesOfRecentCompares &>(
+      fuzztest::internal::execution_coverage_instance->GetMutationMetadata())
       .GetMutable<data_size>()
       .Insert(arg1, arg2);
 
@@ -406,7 +408,8 @@ static void TraceMemCmp(const uint8_t *s1, const uint8_t *s2, size_t n,
   if (fuzztest::internal::execution_coverage_instance == nullptr ||
       !fuzztest::internal::execution_coverage_instance->IsTracing())
     return;
-  fuzztest::internal::execution_coverage_instance->GetTablesOfRecentCompares()
+  absl::implicit_cast<fuzztest::internal::TablesOfRecentCompares &>(
+      fuzztest::internal::execution_coverage_instance->GetMutationMetadata())
       .GetMutable<0>()
       .Insert(s1, s2, n);
 }

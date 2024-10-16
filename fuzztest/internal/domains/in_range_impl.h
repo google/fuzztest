@@ -29,13 +29,11 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -106,7 +104,8 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
     });
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     if (min_ == max_) {
       val = min_;
       return;
@@ -146,8 +145,8 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
               val = absl::Uniform(absl::IntervalClosedClosed, prng, min_, max_);
             }
           } else {
-            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                         permanent_dict_,
+            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, metadata,
+                                         temporary_dict_, permanent_dict_,
                                          permanent_dict_candidate_);
           }
         } else {
@@ -157,14 +156,14 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
               val = absl::Uniform(absl::IntervalClosedClosed, prng, min_, max_);
             }
           } else {
-            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                         permanent_dict_,
+            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, metadata,
+                                         temporary_dict_, permanent_dict_,
                                          permanent_dict_candidate_);
           }
         }
       } else {
-        RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                     permanent_dict_,
+        RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, metadata,
+                                     temporary_dict_, permanent_dict_,
                                      permanent_dict_candidate_);
       }
     } while (val == prev);  // Make sure Mutate really mutates.
@@ -198,12 +197,12 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
     }
   }
 
-  void UpdateMemoryDictionary(const value_type& val) {
+  void UpdateMemoryDictionary(const value_type& val,
+                              const MutationMetadata* metadata) {
     if constexpr (T_is_memory_dictionary_compatible) {
-      if (GetExecutionCoverage() != nullptr) {
-        temporary_dict_.MatchEntriesFromTableOfRecentCompares(
-            val, GetExecutionCoverage()->GetTablesOfRecentCompares(), min_,
-            max_);
+      if (metadata != nullptr) {
+        temporary_dict_.MatchEntriesFromTableOfRecentCompares(val, *metadata,
+                                                              min_, max_);
         if (permanent_dict_candidate_.has_value() &&
             permanent_dict_.Size() < kPermanentDictMaxSize) {
           permanent_dict_.AddEntry(std::move(*permanent_dict_candidate_));

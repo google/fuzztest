@@ -926,11 +926,12 @@ cc_library(
         ":execution_metadata",
         ":knobs",
         ":mutation_input",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
-        "@com_google_fuzztest//fuzztest:coverage",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest:table_of_recent_compares",
     ],
 )
 

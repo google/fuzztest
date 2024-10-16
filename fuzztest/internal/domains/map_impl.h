@@ -58,9 +58,12 @@ class MapImpl
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
+      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,
+                                  only_shrink),
+       ...);
     });
   }
 
@@ -135,9 +138,12 @@ class ReversibleMapImpl
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
+      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,
+                                  only_shrink),
+       ...);
     });
   }
 

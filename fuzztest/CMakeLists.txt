@@ -311,7 +311,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::absl_helpers
     fuzztest::any
-    fuzztest::coverage
     fuzztest::logging
     fuzztest::meta
     fuzztest::printer

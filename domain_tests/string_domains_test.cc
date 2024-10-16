@@ -78,7 +78,7 @@ TYPED_TEST(HandleTypeTest, InitGeneratesSeeds) {
   auto domain = Arbitrary<TypeParam>();
   absl::BitGen bitgen;
   auto seed = Value(domain, bitgen);
-  seed.RandomizeByRepeatedMutation(domain, bitgen);
+  seed.RandomizeByRepeatedMutation(domain, bitgen, /*metadata=*/nullptr);
   domain.WithSeeds({seed.user_value});
 
   EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
@@ -96,7 +96,7 @@ TEST(Domain, Forwarding) {
   elems.clear();
   Value c(domain, bitgen);
   while (elems.size() < 'z' - 'a' + 1) {
-    c.Mutate(domain, bitgen, false);
+    c.Mutate(domain, bitgen, /*metadata=*/nullptr, false);
     elems.insert(c.user_value);
   }
 }

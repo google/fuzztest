@@ -31,14 +31,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -112,7 +110,8 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
   ContainerOfImplBase() = default;
   explicit ContainerOfImplBase(InnerDomainT inner) : inner_(std::move(inner)) {}
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
     FUZZTEST_INTERNAL_CHECK(
         min_size() <= val.size() && val.size() <= max_size(), "Size ",
@@ -123,7 +122,7 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
     const bool can_change = val.size() != 0;
     const bool can_use_memory_dict = !only_shrink &&
                                      container_has_memory_dict && can_change &&
-                                     GetExecutionCoverage() != nullptr;
+                                     metadata != nullptr;
 
     const int action_count =
         can_shrink + can_grow + can_change + can_use_memory_dict;
@@ -162,12 +161,13 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
           auto it_start = std::next(val.begin(), change_offset);
           auto it_end = std::next(it_start, changes);
           for (; it_start != it_end; it_start = std::next(it_start)) {
-            Self().MutateElement(val, prng, it_start, only_shrink);
+            Self().MutateElement(val, prng, metadata, it_start, only_shrink);
           }
           return;
         }
-        Self().MutateElement(
-            val, prng, ChoosePosition(val, IncludeEnd::kNo, prng), only_shrink);
+        Self().MutateElement(val, prng, metadata,
+                             ChoosePosition(val, IncludeEnd::kNo, prng),
+                             only_shrink);
         return;
       }
     }
@@ -175,11 +175,11 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
       if (can_use_memory_dict) {
         if (action-- == 0) {
           bool mutated = MemoryDictionaryMutation(
-              val, prng, temporary_dict_, GetManualDict(), permanent_dict_,
-              permanent_dict_candidate_, max_size());
+              val, prng, metadata, temporary_dict_, GetManualDict(),
+              permanent_dict_, permanent_dict_candidate_, max_size());
           // If dict failed, fall back to changing an element.
           if (!mutated) {
-            Self().MutateElement(val, prng,
+            Self().MutateElement(val, prng, metadata,
                                  ChoosePosition(val, IncludeEnd::kNo, prng),
                                  only_shrink);
           }
@@ -189,16 +189,16 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
     }
   }
 
-  void UpdateMemoryDictionary(const corpus_type& val) {
+  void UpdateMemoryDictionary(const corpus_type& val,
+                              const MutationMetadata* metadata) {
     // TODO(JunyangShao): Implement dictionary propagation to container
     // elements. For now the propagation stops in container domains.
     // Because all elements share an `inner_` and will share
     // a dictionary if we propagate it, which makes the dictionary
     // not efficient.
     if constexpr (container_has_memory_dict) {
-      if (GetExecutionCoverage() != nullptr) {
-        temporary_dict_.MatchEntriesFromTableOfRecentCompares(
-            val, GetExecutionCoverage()->GetTablesOfRecentCompares());
+      if (metadata != nullptr) {
+        temporary_dict_.MatchEntriesFromTableOfRecentCompares(val, *metadata);
         if (permanent_dict_candidate_.has_value() &&
             permanent_dict_.Size() < kPermanentDictMaxSize) {
           permanent_dict_.AddEntry(std::move(*permanent_dict_candidate_));
@@ -494,6 +494,7 @@ Please verify that the inner domain can provide enough values.
 
   // Try to mutate the element in `it`.
   void MutateElement(corpus_type& val, absl::BitGenRef prng,
+                     const MutationMetadata* metadata,
                      typename corpus_type::iterator it, bool only_shrink) {
     size_t failures_allowed = 100;
     // Try a few times to mutate the element.
@@ -510,7 +511,7 @@ Please verify that the inner domain can provide enough values.
 
     while (failures_allowed > 0) {
       auto new_element = original_element_list.front();
-      this->inner_.Mutate(new_element, prng, only_shrink);
+      this->inner_.Mutate(new_element, prng, metadata, only_shrink);
       if (real_value.insert(this->inner_.GetValue(new_element)).second) {
         val.push_back(std::move(new_element));
         return;
@@ -554,12 +555,13 @@ class SequenceContainerOfImpl
   }
 
   uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
+                               const MutationMetadata* metadata,
                                bool only_shrink,
                                uint64_t selected_field_index) {
     uint64_t field_counter = 0;
     for (auto& i : val) {
       field_counter += this->inner_.MutateSelectedField(
-          i, prng, only_shrink, selected_field_index - field_counter);
+          i, prng, metadata, only_shrink, selected_field_index - field_counter);
       if (field_counter >= selected_field_index) break;
     }
     return field_counter;
@@ -574,8 +576,9 @@ class SequenceContainerOfImpl
   }
 
   void MutateElement(corpus_type&, absl::BitGenRef prng,
+                     const MutationMetadata* metadata,
                      typename corpus_type::iterator it, bool only_shrink) {
-    this->inner_.Mutate(*it, prng, only_shrink);
+    this->inner_.Mutate(*it, prng, metadata, only_shrink);
   }
 };
 

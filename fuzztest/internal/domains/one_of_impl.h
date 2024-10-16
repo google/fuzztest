@@ -61,7 +61,8 @@ class OneOfImpl
         });
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     // Switch to another domain 1% of the time when not reducing.
     if (kNumDomains > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
@@ -76,7 +77,7 @@ class OneOfImpl
     } else {
       Switch<kNumDomains>(val.index(), [&](auto I) {
         auto& domain = std::get<I>(domains_);
-        domain.Mutate(std::get<I>(val), prng, only_shrink);
+        domain.Mutate(std::get<I>(val), prng, metadata, only_shrink);
       });
     }
   }

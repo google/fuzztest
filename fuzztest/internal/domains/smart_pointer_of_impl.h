@@ -67,7 +67,8 @@ class SmartPointerOfImpl
     return corpus_type();
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationMetadata* metadata, bool only_shrink) {
     const bool has_value = val.index() == 1;
     if (!has_value) {
       // Only add a value if we are not shrinking.
@@ -76,7 +77,7 @@ class SmartPointerOfImpl
       // 1/100 chance of returning an empty.
       val.template emplace<0>();
     } else {
-      GetOrMakeInner().Mutate(std::get<1>(val), prng, only_shrink);
+      GetOrMakeInner().Mutate(std::get<1>(val), prng, metadata, only_shrink);
     }
   }
 
