@@ -206,11 +206,6 @@ cc_library(
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
     defines = ["FUZZTEST_USE_CENTIPEDE"],
-    linkopts = [
-        # Needed for linking the Centipede engine with the runner, due to
-        # the common source code built separately for the engine and runner.
-        "-Wl,--warn-backrefs-exclude=*/centipede/*",
-    ],
     deps = [
         ":any",
         ":configuration",
