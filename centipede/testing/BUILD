@@ -206,6 +206,15 @@ cc_library(
 
 cc_shared_library(
     name = "multi_dso_target_shared_lib",
+    user_link_flags = select(
+        {
+            "@platforms//os:macos": [
+                # For compatible behavior on weak symbols.
+                "-Wl,-undefined,dynamic_lookup",
+            ],
+            "//conditions:default": [],
+        },
+    ),
     deps = [":multi_dso_target_lib"],
 )
 

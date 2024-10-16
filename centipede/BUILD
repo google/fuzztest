@@ -1034,7 +1034,10 @@ RUNNER_LINKOPTS = [
     "-ldl",  # for dlsym
     "-lpthread",  # for pthread_once
 ] + select({
-    "@platforms//os:macos": [],
+    "@platforms//os:macos": [
+        # For compatible behavior on weak symbols.
+        "-Wl,-undefined,dynamic_lookup",
+    ],
     "//conditions:default": [
         "-lrt",  # for shm_open
     ],
