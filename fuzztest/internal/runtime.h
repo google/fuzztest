@@ -390,10 +390,11 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
 size_t GetStackLimitFromEnvOrConfiguration(const Configuration& configuration);
 
-// A reproduction command template will include this placeholder. This
-// placeholder then will be replaced by the proper test filter when creating the
-// final reproduction command from the template.
+// A reproduction command template will include these placeholders. These
+// placeholders then will be replaced by the proper test filter when creating
+// the final reproduction command from the template.
 static constexpr absl::string_view kTestFilterPlaceholder = "$TEST_FILTER";
+static constexpr absl::string_view kExtraArgsPlaceholder = "$EXTRA_ARGS";
 
 }  // namespace internal
 }  // namespace fuzztest
