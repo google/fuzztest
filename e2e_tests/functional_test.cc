@@ -761,6 +761,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
+  EXPECT_THAT(std_err,
+              HasSubstr(absl::StrCat("Reproducer file was dumped at:\n",
+                                     replay_files[0].path)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
