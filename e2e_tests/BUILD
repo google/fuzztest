@@ -18,6 +18,22 @@ package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])
 
+cc_library(
+    name = "test_binary_util",
+    testonly = 1,
+    srcs = ["test_binary_util.cc"],
+    hdrs = ["test_binary_util.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/time",
+        "@com_google_fuzztest//fuzztest:flag_name",
+        "@com_google_fuzztest//fuzztest:subprocess",
+    ],
+)
+
 # Can be run with or without `--config=fuzztest`. When running without, the
 # fuzzing mode tests are skipped.
 cc_test(
@@ -39,6 +55,7 @@ cc_test(
     }),
     shard_count = 50,
     deps = [
+        ":test_binary_util",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

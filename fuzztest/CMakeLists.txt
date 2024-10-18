@@ -83,6 +83,7 @@ fuzztest_cc_library(
     "init_fuzztest.cc"
   DEPS
     fuzztest::configuration
+    fuzztest::flag_name
     fuzztest::googletest_adaptor
     fuzztest::io
     fuzztest::logging
@@ -240,6 +241,7 @@ fuzztest_cc_library(
   SRCS
     "internal/coverage.cc"
   DEPS
+    fuzztest::flag_name
     fuzztest::logging
     fuzztest::table_of_recent_compares
     absl::core_headers
@@ -372,6 +374,13 @@ fuzztest_cc_test(
 
 fuzztest_cc_library(
   NAME
+    flag_name
+  HDRS
+    "internal/flag_name.h"
+)
+
+fuzztest_cc_library(
+  NAME
     googletest_adaptor
   HDRS
     "internal/googletest_adaptor.h"
@@ -380,6 +389,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::configuration
     fuzztest::corpus_database
+    fuzztest::flag_name
     fuzztest::io
     fuzztest::registry
     fuzztest::runtime
@@ -529,6 +539,7 @@ fuzztest_cc_library(
     fuzztest::coverage
     fuzztest::domain_core
     fuzztest::fixture_driver
+    fuzztest::flag_name
     fuzztest::io
     fuzztest::logging
     fuzztest::printer

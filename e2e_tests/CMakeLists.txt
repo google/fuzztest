@@ -4,6 +4,24 @@ include_directories(${PARENT_DIR}/domain_tests)
 
 add_subdirectory(testdata)
 
+fuzztest_cc_library(
+  NAME
+    test_binary_util
+  HDRS
+    test_binary_util.h
+  SRCS
+    test_binary_util.cc
+  DEPS
+    absl::check
+    absl::flat_hash_map
+    absl::strings
+    absl::string_view
+    absl::time
+    fuzztest_flag_name
+    fuzztest_subprocess
+  TESTONLY
+)
+
 add_executable(
   functional_test
   functional_test.cc
@@ -17,6 +35,7 @@ target_link_libraries(
   fuzztest_printer
   fuzztest_serialization
   fuzztest_subprocess
+  fuzztest_test_binary_util
   fuzztest_type_support
   re2
   absl::flat_hash_map
