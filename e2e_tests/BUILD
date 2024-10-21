@@ -60,6 +60,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@com_google_fuzztest//centipede:weak_sancov_stubs",
         "@com_google_fuzztest//domain_tests:domain_testing",
         "@com_google_fuzztest//fuzztest:io",
         "@com_google_fuzztest//fuzztest:logging",
