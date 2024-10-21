@@ -4,7 +4,8 @@
 
 set -euf -o pipefail
 
-echo "### DO NOT EDIT. Generated file.
+cat <<EOF
+### DO NOT EDIT. Generated file.
 #
 # To regenerate, run the following from your project's workspace:
 #
@@ -13,16 +14,12 @@ echo "### DO NOT EDIT. Generated file.
 # And don't forget to add the following to your project's .bazelrc:
 #
 #  try-import %workspace%/fuzztest.bazelrc
-"
+EOF
 
-echo "
+cat <<EOF
 ### Common options.
 #
 # Do not use directly.
-
-# Compile and link with Address Sanitizer (ASAN).
-build:fuzztest-common --linkopt=-fsanitize=address
-build:fuzztest-common --copt=-fsanitize=address
 
 # Standard define for \"ifdef-ing\" any fuzz test specific code.
 build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -33,13 +30,25 @@ build:fuzztest-common --copt=-UNDEBUG
 # Enable libc++ assertions.
 # See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
 build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
-"
+EOF
 
-echo "
+cat <<EOF
+### ASan (Address Sanitizer) build configuration.
+#
+# Use with: --config=asan
+
+build:asan --linkopt=-fsanitize=address
+build:asan --copt=-fsanitize=address
+EOF
+
+cat <<EOF
 ### FuzzTest build configuration.
 #
 # Use with: --config=fuzztest
+#
+# Note that this configuration includes the ASan configuration.
 
+build:fuzztest --config=asan
 build:fuzztest --config=fuzztest-common
 
 # Link statically.
@@ -49,13 +58,14 @@ build:fuzztest --dynamic_mode=off
 # __has_feature(address_sanitizer) to know that we have an ASAN build even in
 # the uninstrumented runtime.
 build:fuzztest --copt=-DADDRESS_SANITIZER
-"
+EOF
 
 REPO_NAME="${1}"
 # When used in the fuzztest repo itself.
 if [[ ${REPO_NAME} == "@" ]]; then
+  COMMON_FILTER="//common:"
   FUZZTEST_FILTER="//fuzztest:"
-  CENTIPEDE_FILTER="//centipede:"
+  CENTIPEDE_FILTER="//centipede:,-//centipede/.*fuzz_target"
 # When used in client repo. This matches both `WORKSPACE` usage and
 # `MODULE.bazel` usage which will prepend information to the repo name to form
 # a canonical repo name.
@@ -63,17 +73,52 @@ if [[ ${REPO_NAME} == "@" ]]; then
 # TODO: This will need to be adjusted when making `fuzztest` a native Bazel
 # module.
 elif [[ ${REPO_NAME} =~ ^@.*com_google_fuzztest$ ]]; then
+  COMMON_FILTER="common/.*"
   FUZZTEST_FILTER="fuzztest/.*"
-  CENTIPEDE_FILTER="centipede/.*"
+  CENTIPEDE_FILTER="centipede/.*,-centipede/.*fuzz_target"
 else
   echo "Unexpected repo name: ${REPO_NAME}"
   exit 1
 fi
 
-echo "# We apply coverage tracking instrumentation to everything but the
+cat <<EOF
+# We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --per_file_copt=+//,-${FUZZTEST_FILTER},-${CENTIPEDE_FILTER},-googletest/.*,-googlemock/.*@-fsanitize-coverage=inline-8bit-counters,-fsanitize-coverage=trace-cmp,-fsanitize-coverage=pc-table
-"
+build:fuzztest --copt=-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table
+build:fuzztest --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+EOF
+
+cat <<EOF
+### Experimental FuzzTest build configuration.
+#
+# Use with: --config=fuzztest-experimental
+#
+# Use this instead of --config=fuzztest when building test binaries to run with
+# Centipede. Eventually, this will be consolidated with --config=fuzztest.
+# Note that this configuration doesn't include the ASan configuration. If you
+# want to use both, you can use --config=fuzztest-experimental --config=asan.
+
+build:fuzztest-experimental --config=fuzztest-common
+build:fuzztest-experimental --@com_google_fuzztest//fuzztest:centipede_integration
+
+# Generate line tables for debugging.
+build:fuzztest-experimental --copt=-gline-tables-only
+build:fuzztest-experimental --strip=never
+
+# Prevent memcmp & co from being inlined.
+build:fuzztest-experimental --copt=-fno-builtin
+
+# Disable heap checking.
+build:fuzztest-experimental --copt=-DHEAPCHECK_DISABLE
+
+# Link statically.
+build:fuzztest-experimental --dynamic_mode=off
+
+# We apply coverage tracking instrumentation to everything but Centipede and the
+# FuzzTest framework itself (including GoogleTest and GoogleMock).
+build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp,control-flow
+build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+EOF
 
 # Do not use the extra configurations below, unless you know what you're doing.
 
@@ -98,23 +143,24 @@ if [[ -z "${LLVM_CONFIG}" ]]; then
   exit 1
 fi
 
-echo "
+cat <<EOF
 ### libFuzzer compatibility mode.
 #
 # Use with: --config=libfuzzer
 
+build:libfuzzer --config=asan
 build:libfuzzer --config=fuzztest-common
 build:libfuzzer --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:libfuzzer --copt=-fsanitize=fuzzer-no-link
 build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)
-"
+EOF
 
 fi # libFuzzer
 
 
 # OSS-Fuzz
 if [[ -n ${FUZZING_ENGINE:-} && -n ${SANITIZER:-} ]]; then
-echo "
+cat <<EOF
 ### OSS-Fuzz compatibility mode.
 #
 # Use with: --config=oss-fuzz
@@ -122,7 +168,7 @@ build:oss-fuzz --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:oss-fuzz --dynamic_mode=off
 build:oss-fuzz --action_env=CC=${CC}
 build:oss-fuzz --action_env=CXX=${CXX}
-"
+EOF
 
 ossfuz_flag_to_bazel_config_flag()
 {
