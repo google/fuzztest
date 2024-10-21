@@ -937,7 +937,7 @@ cc_library(
 cc_library(
     name = "weak_sancov_stubs",
     srcs = ["weak_sancov_stubs.cc"],
-    visibility = PUBLIC_API_VISIBILITY,
+    visibility = ["//visibility:public"],
     alwayslink = 1,
 )
 
