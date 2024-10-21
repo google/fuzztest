@@ -352,7 +352,7 @@ TEST(InRange, SupportsSingletonRange) {
   auto domain = InRange(10, 10);
   absl::BitGen bitgen;
   auto val = Value(domain, bitgen);
-  val.Mutate(domain, bitgen, /*only_shrink=*/false);
+  val.Mutate(domain, bitgen);
 
   EXPECT_EQ(val.user_value, 10);
 }
@@ -379,11 +379,11 @@ TEST(IllegalInputs, Numeric) {
   const std::vector<int> values{-10, -1, 0, 1};
   auto restricted_domain = Positive<int>();
   for (int value : values) {
-    restricted_domain.Mutate(value, bitgen, false);
+    restricted_domain.Mutate(value, bitgen, {});
     ASSERT_GT(value, 0);
   }
   for (int value : values) {
-    restricted_domain.Mutate(value, bitgen, true);
+    restricted_domain.Mutate(value, bitgen, {.only_shrink = true});
     ASSERT_GT(value, 0);
   }
 }

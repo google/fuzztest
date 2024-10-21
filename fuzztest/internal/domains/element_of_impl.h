@@ -51,9 +51,10 @@ class ElementOfImpl
     return corpus_type{absl::Uniform<size_t>(prng, 0, values_.size())};
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     if (values_.size() <= 1) return;
-    if (only_shrink) {
+    if (options.only_shrink) {
       size_t index = static_cast<size_t>(val);
       if (index == 0) return;
       index = absl::Uniform<size_t>(prng, 0, index);

@@ -31,10 +31,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
+#include "./fuzztest/internal/domains/mutation_options.h"  // IWYU pragma: export
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -73,7 +73,8 @@ namespace fuzztest::domain_implementor {
 //   may first call `MaybeGetRandomSeed()` and return its non-nullopt result.
 //   TODO(b/303324603): Move the call to `MaybeGetRandomSeed()` to a wrapper.
 //
-// - void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink)
+// - void Mutate(corpus_type& val, absl::BitGenRef prng,
+//               const MutationOptions& options)
 //
 //   The method that mutates the corpus value.
 //
@@ -165,11 +166,12 @@ class DomainBase {
     return internal::IRObject::FromCorpus(v);
   }
 
-  void UpdateMemoryDictionary(const CorpusType& val) {}
+  void UpdateMemoryDictionary(const CorpusType& val, ConstCmpTablesPtr) {}
 
   uint64_t CountNumberOfFields(const CorpusType&) { return 0; }
 
-  uint64_t MutateSelectedField(CorpusType&, absl::BitGenRef, bool, uint64_t) {
+  uint64_t MutateSelectedField(CorpusType&, absl::BitGenRef,
+                               const MutationOptions&, uint64_t) {
     return 0;
   }
 
@@ -240,7 +242,7 @@ class DomainBase {
     // probability.
     constexpr int kMaxMutations = 1000;
     for (int i = absl::Uniform(prng, 0, kMaxMutations); i > 0; --i) {
-      derived().Mutate(corpus_val, prng, /*only_shrink=*/false);
+      derived().Mutate(corpus_val, prng, MutationOptions{});
     }
     return corpus_val;
   }

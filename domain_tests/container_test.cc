@@ -34,7 +34,7 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
@@ -109,7 +109,7 @@ void TestMinMaxContainerSize(Domain domain, size_t min_size, size_t max_size) {
 
     ASSERT_THAT(v.user_value, size_match);
     sizes.insert(v.user_value.size());
-    v.Mutate(domain, bitgen, false);
+    v.Mutate(domain, bitgen);
     ASSERT_THAT(v.user_value, size_match);
 
     // Mutating the value can reach the max, but only for small max sizes
@@ -117,7 +117,7 @@ void TestMinMaxContainerSize(Domain domain, size_t min_size, size_t max_size) {
     if (max_size <= 10) {
       auto max_v = v;
       while (max_v.user_value.size() < max_size) {
-        v.Mutate(domain, bitgen, false);
+        v.Mutate(domain, bitgen);
         if (v.user_value.size() > max_v.user_value.size()) {
           max_v = v;
         } else if (v.user_value.size() < max_v.user_value.size()) {
@@ -129,10 +129,10 @@ void TestMinMaxContainerSize(Domain domain, size_t min_size, size_t max_size) {
 
     // Shinking the value will reach the min.
     while (v.user_value.size() > min_size) {
-      v.Mutate(domain, bitgen, true);
+      v.Mutate(domain, bitgen, {.only_shrink = true});
     }
     // Mutating again won't go below.
-    v.Mutate(domain, bitgen, true);
+    v.Mutate(domain, bitgen, {.only_shrink = true});
     ASSERT_THAT(v.user_value, SizeIs(min_size));
   }
   // Check that there is some in between.
@@ -242,28 +242,16 @@ TEST(Container, ValidationRejectsInvalidElements) {
 // enabled, but we test on strings for simplification.
 TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
   auto domain = Arbitrary<std::string>();
-  class ScopedExecutionCoverage {
-   public:
-    ScopedExecutionCoverage() { internal::SetExecutionCoverage(&coverage); }
-
-    ~ScopedExecutionCoverage() { internal::SetExecutionCoverage(nullptr); }
-
-   private:
-    internal::ExecutionCoverage coverage =
-        internal::ExecutionCoverage(/*counter_map=*/{});
-  };
-  ScopedExecutionCoverage scoped_coverage;
-  fuzztest::internal::GetExecutionCoverage()
-      ->GetTablesOfRecentCompares()
-      .GetMutable<0>()
-      .Insert(reinterpret_cast<const uint8_t*>("abcd"),
-              reinterpret_cast<const uint8_t*>("1234"), 4);
+  internal::TablesOfRecentCompares cmp_tables;
+  cmp_tables.GetMutable<0>().Insert(reinterpret_cast<const uint8_t*>("abcd"),
+                                    reinterpret_cast<const uint8_t*>("1234"),
+                                    4);
 
   absl::BitGen bitgen;
   std::vector<std::string> mutants;
   for (int i = 0; i < 1000000; ++i) {
     std::string mutant = "abcdabcdabcdabcd";
-    domain.Mutate(mutant, bitgen, false);
+    domain.Mutate(mutant, bitgen, {.cmp_tables = &cmp_tables});
     mutants.push_back(std::move(mutant));
   }
 

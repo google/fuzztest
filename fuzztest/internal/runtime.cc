@@ -55,6 +55,7 @@
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/domains/mutation_options.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/io.h"
@@ -621,7 +622,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     while (!ShouldStop()) {
       auto copy = *to_minimize;
       for (int i = 0; i < num_mutations; ++i) {
-        params_domain_.Mutate(copy, prng, true);
+        params_domain_.Mutate(copy, prng, {.only_shrink = true});
       }
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
@@ -676,7 +677,8 @@ std::optional<corpus_type> FuzzTestFuzzerImpl::ReadReproducerToMinimize() {
   return *reproducer;
 }
 
-void FuzzTestFuzzerImpl::MutateValue(Input& input, absl::BitGenRef prng) {
+void FuzzTestFuzzerImpl::MutateValue(Input& input, absl::BitGenRef prng,
+                                     const MutationOptions& options) {
   // Do a random number of mutations on the value at once, skewed
   // towards 1 and decreasing probability as we go up.
   // Doing multiple smaller mutations at once allows reaching states that
@@ -694,7 +696,7 @@ void FuzzTestFuzzerImpl::MutateValue(Input& input, absl::BitGenRef prng) {
   // optimized in any significant way.
   for (int mutations_at_once = absl::Poisson<int>(prng) + 1;
        mutations_at_once > 0; --mutations_at_once) {
-    params_domain_.Mutate(input.args, prng, /* only_shrink= */ false);
+    params_domain_.Mutate(input.args, prng, options);
   }
 }
 
@@ -762,7 +764,10 @@ void FuzzTestFuzzerImpl::TrySampleAndUpdateInMemoryCorpus(Input sample,
   auto [new_coverage, run_time] = TrySample(sample, write_to_file);
   if (execution_coverage_ != nullptr &&
       (stats_.runs % 4096 == 0 || new_coverage)) {
-    params_domain_.UpdateMemoryDictionary(sample.args);
+    auto* coverage = GetExecutionCoverage();
+    params_domain_.UpdateMemoryDictionary(
+        sample.args,
+        coverage == nullptr ? nullptr : &coverage->GetTablesOfRecentCompares());
   }
   if (!new_coverage) return;
   // New coverage, update corpus and weights.
@@ -959,7 +964,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
       // generate a new one through Init.
       constexpr size_t num_mutations_per_value = 100;
       if (i % num_mutations_per_value < num_mutations_per_value - 1) {
-        MutateValue(mutation, prng);
+        MutateValue(mutation, prng, {});
       } else {
         mutation.args = params_domain_.Init(prng);
       }
@@ -1041,7 +1046,7 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // reach another failure, but prefer a low number of mutations (thus Zipf).
     for (int num_mutations = absl::Zipf(prng, 10); num_mutations >= 0;
          --num_mutations) {
-      params_domain_.Mutate(copy.args, prng, /* only_shrink= */ true);
+      params_domain_.Mutate(copy.args, prng, {.only_shrink = true});
     }
     // Only run it if it actually is different. Random mutations might
     // not actually change the value, or we have reached a minimum that can't be
@@ -1165,6 +1170,10 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       try_input_and_process_counterexample({params_domain_.Init(prng)});
     }
 
+    MutationOptions mutation_options;
+    if (auto* coverage = GetExecutionCoverage(); coverage != nullptr) {
+      mutation_options.cmp_tables = &coverage->GetTablesOfRecentCompares();
+    }
     // Fuzz corpus elements in round robin fashion.
     while (!ShouldStop()) {
       Input input_to_mutate = [&]() -> Input {
@@ -1184,7 +1193,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       for (int i = 0; i < kMutationsPerInput; ++i) {
         if (ShouldStop()) break;
         Input mutation = input_to_mutate;
-        MutateValue(mutation, prng);
+        MutateValue(mutation, prng, mutation_options);
         try_input_and_process_counterexample(std::move(mutation));
       }
     }

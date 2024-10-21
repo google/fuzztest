@@ -69,7 +69,7 @@ TEST(InJsonGrammar, MutateGeneratesValidValues) {
   Value ast(domain, bitgen);
 
   while (valid_jsons.size() < 5000) {
-    ast.Mutate(domain, bitgen, false);
+    ast.Mutate(domain, bitgen);
     nlohmann::json parsed_json = nlohmann::json::parse(
         ast.user_value.begin(), ast.user_value.end(), nullptr, false);
     EXPECT_FALSE(parsed_json.is_discarded());
@@ -88,7 +88,7 @@ TEST(InJsonGrammar, MutateGeneratesDifferentValuesWithHighProb) {
 
   while (valid_jsons.size() < 5000) {
     ++num_total_mutation;
-    ast.Mutate(domain, bitgen, false);
+    ast.Mutate(domain, bitgen);
     nlohmann::json parsed_json = nlohmann::json::parse(
         ast.user_value.begin(), ast.user_value.end(), nullptr, false);
     valid_jsons.insert(parsed_json.dump());
@@ -116,7 +116,7 @@ TEST(InJsonGrammar, ShrinkModeReducesInputSize) {
     if (original_size > 20) ++expected_num_of_successful_shrink;
 
     for (int j = 0; j < 10; ++j) {
-      val.Mutate(domain, bitgen, true);
+      val.Mutate(domain, bitgen, {.only_shrink = true});
       EXPECT_TRUE(val.corpus_value.NodeCount() <= original_size);
     }
     if (original_size > val.corpus_value.NodeCount()) {

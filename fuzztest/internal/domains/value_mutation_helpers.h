@@ -23,7 +23,7 @@
 #include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
-#include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/domains/mutation_options.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
@@ -91,6 +91,7 @@ T SampleFromUniformRange(absl::BitGenRef prng, T min, T max) {
 //  dictionary fails to mutate, fall back to uniform.
 template <unsigned char RANGE, typename T, typename IntegerDictionaryT>
 void RandomWalkOrUniformOrDict(absl::BitGenRef prng, T& val, T min, T max,
+                               ConstCmpTablesPtr cmp_tables,
                                const IntegerDictionaryT& temporary_dict,
                                const IntegerDictionaryT& permanent_dict,
                                std::optional<T>& permanent_dict_candidate) {
@@ -98,8 +99,7 @@ void RandomWalkOrUniformOrDict(absl::BitGenRef prng, T& val, T min, T max,
       std::numeric_limits<T>::is_integer &&
       (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
   const bool can_use_memory_dictionary =
-      is_memory_dictionary_compatible_integer &&
-      GetExecutionCoverage() != nullptr;
+      is_memory_dictionary_compatible_integer && cmp_tables != nullptr;
   const int action_count = 2 + can_use_memory_dictionary;
   int action = absl::Uniform(prng, 0, action_count);
   // Random walk.
@@ -143,9 +143,7 @@ void RandomWalkOrUniformOrDict(absl::BitGenRef prng, T& val, T min, T max,
             },
             [&] {
               auto entry = IntegerDictionary<T>::GetRandomTORCEntry(
-                  val, prng,
-                  GetExecutionCoverage()->GetTablesOfRecentCompares(), min,
-                  max);
+                  val, prng, *cmp_tables, min, max);
               if (entry.has_value()) {
                 val = *entry;
               } else {

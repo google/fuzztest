@@ -57,10 +57,11 @@ class BitFlagCombinationOfImpl
     return value_type{};
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     T to_switch = flags_[ChooseOffset(flags_.size(), prng)];
 
-    if (!only_shrink || BitAnd(val, to_switch) != T{}) {
+    if (!options.only_shrink || BitAnd(val, to_switch) != T{}) {
       val = BitXor(val, to_switch);
     }
   }

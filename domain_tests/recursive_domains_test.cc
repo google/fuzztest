@@ -57,7 +57,7 @@ TEST(DomainBuilder, DomainForRecursiveDataStructureCreatesUniqueObjects) {
   Value tree(domain, bitgen);
 
   while (true) {
-    tree.Mutate(domain, bitgen, false);
+    tree.Mutate(domain, bitgen);
     if (tree.user_value.children.empty()) continue;
     if (tree.user_value.children[0].children.empty()) continue;
     if (tree.user_value.children[0].children[0].children.empty()) continue;
@@ -98,7 +98,7 @@ TEST(DomainBuilder,
   absl::BitGen bitgen;
   Value redtree(domain_redtree, bitgen);
   while (true) {
-    redtree.Mutate(domain_redtree, bitgen, false);
+    redtree.Mutate(domain_redtree, bitgen);
     if (redtree.user_value.children.empty()) continue;
     if (redtree.user_value.children[0].children.empty()) continue;
     if (redtree.user_value.children[0].children[0].children.empty()) continue;

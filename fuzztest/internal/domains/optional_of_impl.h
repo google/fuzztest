@@ -74,7 +74,8 @@ class OptionalOfImpl
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     if (policy_ == OptionalPolicy::kAlwaysNull) {
       val.template emplace<0>();
       return;
@@ -82,13 +83,13 @@ class OptionalOfImpl
     const bool has_value = val.index() == 1;
     if (!has_value) {
       // Only add a value if we are not shrinking.
-      if (!only_shrink) val.template emplace<1>(inner_.Init(prng));
+      if (!options.only_shrink) val.template emplace<1>(inner_.Init(prng));
     } else if (policy_ == OptionalPolicy::kWithNull &&
                absl::Bernoulli(prng, 1. / 100)) {
       // 1/100 chance of returning an empty.
       val.template emplace<0>();
     } else {
-      inner_.Mutate(std::get<1>(val), prng, only_shrink);
+      inner_.Mutate(std::get<1>(val), prng, options);
     }
   }
 
@@ -156,10 +157,10 @@ class OptionalOfImpl
   }
 
   uint64_t MutateSelectedField(corpus_type& val, absl::BitGenRef prng,
-                               bool only_shrink,
+                               const MutationOptions& options,
                                uint64_t selected_field_index) {
     if (val.index() == 1) {
-      return inner_.MutateSelectedField(std::get<1>(val), prng, only_shrink,
+      return inner_.MutateSelectedField(std::get<1>(val), prng, options,
                                         selected_field_index);
     }
     return 0;

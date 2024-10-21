@@ -67,9 +67,9 @@ TEST(BoolTest, Arbitrary) {
 
   Value b(domain, bitgen);
   bool copy = b.user_value;
-  b.Mutate(domain, bitgen, false);
+  b.Mutate(domain, bitgen);
   EXPECT_NE(b.user_value, copy);
-  b.Mutate(domain, bitgen, false);
+  b.Mutate(domain, bitgen);
   EXPECT_EQ(b.user_value, copy);
 }
 
@@ -186,7 +186,7 @@ TYPED_TEST(MonostateTypeTest, Arbitrary) {
   auto v = domain.Init(bitgen);
   // Mutate "works". That is, it returns.
   // We don't expect it to do anything else since the value can't be changed.
-  domain.Mutate(v, bitgen, false);
+  domain.Mutate(v, bitgen, {});
 }
 
 struct BinaryTree {
@@ -207,7 +207,7 @@ TEST(UserDefinedAggregate, NestedArbitrary) {
   Set<int> s;
   while (s.size() < 10) {
     s.insert(v.user_value.count_nodes());
-    v.Mutate(domain, bitgen, false);
+    v.Mutate(domain, bitgen);
   }
 }
 
@@ -223,9 +223,10 @@ struct StatefulIncrementDomain
     return result;
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     std::get<0>(val) += absl::Uniform<value_type>(prng, 5, 6) +
-                        static_cast<value_type>(only_shrink);
+                        static_cast<value_type>(options.only_shrink);
   }
 
   value_type GetValue(corpus_type v) const { return std::get<0>(v); }
@@ -279,9 +280,9 @@ TEST(Domain, BasicVerify) {
 
   Value i(domain, bitgen);
   Value j = i;
-  i.Mutate(domain, bitgen, false);
+  i.Mutate(domain, bitgen);
   EXPECT_THAT(i.user_value, j.user_value + 5);
-  i.Mutate(domain, bitgen, true);
+  i.Mutate(domain, bitgen, {.only_shrink = true});
   EXPECT_THAT(i.user_value, j.user_value + 11);
 }
 

@@ -929,8 +929,8 @@ cc_library(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//common:defs",
-        "@com_google_fuzztest//fuzztest:coverage",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest:table_of_recent_compares",
     ],
 )
 

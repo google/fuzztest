@@ -261,7 +261,7 @@ TEST(FlatMap, MutationAcceptsChangingDomains) {
     // We demand that our output domain has size `len` above. This will check
     // fail in ContainerOfImpl if we try to generate a string of the wrong
     // length.
-    domain.Mutate(mutated, bitgen, false);
+    domain.Mutate(mutated, bitgen, {});
   }
   EXPECT_EQ(domain.GetValue(mutated).size(), std::get<1>(mutated));
 }
@@ -277,7 +277,7 @@ TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
   }
   auto mutated = value->corpus_value;
   while (!domain.GetValue(mutated).empty()) {
-    domain.Mutate(mutated, bitgen, true);
+    domain.Mutate(mutated, bitgen, {.only_shrink = true});
   }
   EXPECT_THAT(domain.GetValue(mutated), IsEmpty());
 }
@@ -298,7 +298,7 @@ TEST(FlatMap, MutationDoesNotAlterInputDomains) {
   auto mutated = value->corpus_value;
   const size_t original_size = value->user_value.size();
   while (!all_zeros(domain.GetValue(mutated))) {
-    domain.Mutate(mutated, bitgen, true);
+    domain.Mutate(mutated, bitgen, {.only_shrink = true});
     EXPECT_THAT(domain.GetValue(mutated).size(), Eq(original_size));
   }
   EXPECT_THAT(domain.GetValue(mutated), Each(Eq(0)));
@@ -341,7 +341,7 @@ TEST(Filter, CanFilterMutateCalls) {
   Value value(domain, bitgen);
   Set<int> seen;
   while (seen.size() < 5) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
     seen.insert(value.user_value);
   }
   EXPECT_THAT(seen, UnorderedElementsAre(2, 4, 6, 8, 10));

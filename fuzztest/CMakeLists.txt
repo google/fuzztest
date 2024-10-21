@@ -119,6 +119,7 @@ fuzztest_cc_library(
   SRCS
     "llvm_fuzzer_wrapper.cc"
   DEPS
+    fuzztest::coverage
     fuzztest::domain_core
     fuzztest::fuzztest
     fuzztest::io
@@ -313,7 +314,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::absl_helpers
     fuzztest::any
-    fuzztest::coverage
     fuzztest::logging
     fuzztest::meta
     fuzztest::printer

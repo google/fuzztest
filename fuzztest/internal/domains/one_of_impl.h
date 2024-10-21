@@ -61,9 +61,11 @@ class OneOfImpl
         });
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     // Switch to another domain 1% of the time when not reducing.
-    if (kNumDomains > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
+    if (kNumDomains > 1 && !options.only_shrink &&
+        absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
       size_t offset = absl::Uniform<size_t>(prng, 1, kNumDomains);
       size_t index = static_cast<size_t>(val.index());
@@ -76,7 +78,7 @@ class OneOfImpl
     } else {
       Switch<kNumDomains>(val.index(), [&](auto I) {
         auto& domain = std::get<I>(domains_);
-        domain.Mutate(std::get<I>(val), prng, only_shrink);
+        domain.Mutate(std::get<I>(val), prng, options);
       });
     }
   }

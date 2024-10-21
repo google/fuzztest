@@ -82,7 +82,7 @@ TEST(StructOf, MutateGeneratesValidValues) {
   Set<std::string> field_s;
   Value agg(domain, bitgen);
   while (field_a.size() < 2 && field_s.size() < 10) {
-    agg.Mutate(domain, bitgen, false);
+    agg.Mutate(domain, bitgen);
     EXPECT_THAT(agg.user_value.a, AnyOf(5, 10));
     field_a.insert(agg.user_value.a);
     field_s.insert(agg.user_value.s);
@@ -104,11 +104,11 @@ TEST(StructOf, WorksWithStructWithUpTo16Fields) {
   Value value(domain, bitgen);
   const uint32_t initial_sum = value.user_value.sum();
   while (value.user_value.sum() == initial_sum) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
   }
   // Check that shrinking works too.
   while (value.user_value.sum() != 0) {
-    value.Mutate(domain, bitgen, true);
+    value.Mutate(domain, bitgen, {.only_shrink = true});
   }
 }
 
@@ -151,7 +151,7 @@ TEST(ConstructorOf, MutateGeneratesValidValues) {
   Set<std::string> field_s;
   Value agg(domain, bitgen);
   while (field_a.size() < 2 && field_d.size() < 10 && field_s.size() < 10) {
-    agg.Mutate(domain, bitgen, false);
+    agg.Mutate(domain, bitgen);
     EXPECT_THAT(agg.user_value.a(), AnyOf(5, 10));
     field_a.insert(agg.user_value.a());
     field_d.insert(agg.user_value.d());
@@ -181,11 +181,11 @@ TEST(ConstructorOf, WorksWithTemplatedConstructors) {
   Value value(domain, bitgen);
   const uint32_t initial_sum = value.user_value.sum();
   while (value.user_value.sum() == initial_sum) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
   }
   // Check that shrinking works too.
   while (value.user_value.sum() != 0) {
-    value.Mutate(domain, bitgen, true);
+    value.Mutate(domain, bitgen, {.only_shrink = true});
   }
 }
 
@@ -201,7 +201,7 @@ TEST(ConstructorOf, WorksWithMoveConstructors) {
   Value value(domain, bitgen);
   const std::string initial_value = value.user_value.data_;
   while (value.user_value.data_ == initial_value) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
   }
 }
 
@@ -254,7 +254,7 @@ TEST(VariantOf, MutateGenerateValidValues) {
   Value value(domain, bitgen);
   while (unique_values[0].size() < 2 || unique_values[1].size() < n ||
          counter[2] < n || counter[3] < n) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
     if (value.user_value.index() == 0) {
       int val = std::get<0>(value.user_value);
       EXPECT_THAT(val, AnyOf(5, 10));
@@ -325,7 +325,7 @@ TEST(OptionalOf, MutateCanMakeValuesOrNull) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   while (values.size() < 4) {
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
     values.insert(value.user_value);
   }
   EXPECT_THAT(values, UnorderedElementsAre(std::nullopt, Optional(1),
@@ -347,7 +347,7 @@ TEST(OptionalOf, AlwaysGenerateNulloptWhenPolicySet) {
   Value value(domain, bitgen);
   for (int i = 0; i < 10000; ++i) {
     EXPECT_TRUE(value == std::nullopt) << "Didn't expect non-null value!";
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
   }
 }
 
@@ -359,7 +359,7 @@ TEST(OptionalOf, DoesntGenerateNulloptWhenPolicySet) {
   Value value(domain, bitgen);
   for (int i = 0; i < 10000; ++i) {
     EXPECT_TRUE(value != std::nullopt) << "Didn't expect null value!";
-    value.Mutate(domain, bitgen, false);
+    value.Mutate(domain, bitgen);
   }
 }
 

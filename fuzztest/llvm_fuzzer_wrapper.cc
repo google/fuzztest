@@ -16,6 +16,9 @@
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/io.h"
+#ifndef FUZZTEST_USE_CENTIPEDE
+#include "./fuzztest/internal/coverage.h"
+#endif
 
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
@@ -135,7 +138,12 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   domain.WithMaxSize(max_size);
   absl::BitGen bitgen;
   InplaceVector<uint8_t> val(data, size);
-  domain.Mutate(val, bitgen, false);
+  fuzztest::MutationOptions options;
+  if (auto* coverage = fuzztest::internal::GetExecutionCoverage();
+      coverage != nullptr) {
+    options.cmp_tables = &coverage->GetTablesOfRecentCompares();
+  }
+  domain.Mutate(val, bitgen, options);
   return val.size();
 }
 
@@ -151,14 +159,15 @@ class ArbitraryByteVector
 
   ArbitraryByteVector() { WithMaxSize(kByteArrayMaxLen); }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const fuzztest::MutationOptions& options) {
     if (LLVMFuzzerCustomMutator) {
       const size_t size = val.size();
-      const size_t max_size = only_shrink ? size : kByteArrayMaxLen;
+      const size_t max_size = options.only_shrink ? size : kByteArrayMaxLen;
       val.resize(max_size);
       val.resize(LLVMFuzzerCustomMutator(val.data(), size, max_size, prng()));
     } else {
-      Base::Mutate(val, prng, only_shrink);
+      Base::Mutate(val, prng, options);
     }
   }
 };

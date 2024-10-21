@@ -49,10 +49,11 @@ class FilterImpl
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     corpus_type original_val = val;
     while (true) {
-      inner_.Mutate(val, prng, only_shrink);
+      inner_.Mutate(val, prng, options);
       if (RunFilter(val)) return;
       val = original_val;
     }

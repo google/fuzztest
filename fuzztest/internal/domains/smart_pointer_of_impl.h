@@ -67,16 +67,18 @@ class SmartPointerOfImpl
     return corpus_type();
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
     const bool has_value = val.index() == 1;
     if (!has_value) {
       // Only add a value if we are not shrinking.
-      if (!only_shrink) val.template emplace<1>(GetOrMakeInner().Init(prng));
+      if (!options.only_shrink)
+        val.template emplace<1>(GetOrMakeInner().Init(prng));
     } else if (absl::Bernoulli(prng, 1. / 100)) {
       // 1/100 chance of returning an empty.
       val.template emplace<0>();
     } else {
-      GetOrMakeInner().Mutate(std::get<1>(val), prng, only_shrink);
+      GetOrMakeInner().Mutate(std::get<1>(val), prng, options);
     }
   }
 

@@ -96,7 +96,7 @@ TEST(Domain, Forwarding) {
   elems.clear();
   Value c(domain, bitgen);
   while (elems.size() < 'z' - 'a' + 1) {
-    c.Mutate(domain, bitgen, false);
+    c.Mutate(domain, bitgen);
     elems.insert(c.user_value);
   }
 }

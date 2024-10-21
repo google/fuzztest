@@ -93,7 +93,7 @@ TEST(ContainerCombinatorTest, MinSizeCanBeLargerThanDefaultMaxSize) {
                     .WithMinSize(kDefaultMaxSize + 1);
   absl::BitGen bitgen;
   auto val = Value(domain, bitgen);
-  val.Mutate(domain, bitgen, /*only_shrink=*/false);
+  val.Mutate(domain, bitgen);
   ASSERT_THAT(val.user_value, SizeIs(Gt(kDefaultMaxSize)));
 }
 

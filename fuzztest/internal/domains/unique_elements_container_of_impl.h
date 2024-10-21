@@ -64,8 +64,9 @@ class UniqueElementsContainerImpl
     return unique_domain_.Init(prng);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    unique_domain_.Mutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const MutationOptions& options) {
+    unique_domain_.Mutate(val, prng, options);
   }
 
   value_type GetValue(const corpus_type& v) const {
