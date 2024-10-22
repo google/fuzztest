@@ -54,6 +54,10 @@ cc_test(
         "//conditions:default": [],
     }),
     shard_count = 50,
+    tags = [
+        # Don't cache the results.
+        "external",
+    ],
     deps = [
         ":test_binary_util",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -89,5 +93,33 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:subprocess",
         "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+# Must be run with `--config=fuzztest-experimental --config=asan`.
+cc_test(
+    name = "corpus_database_test",
+    srcs = ["corpus_database_test.cc"],
+    data = [
+        "@com_google_fuzztest//centipede:centipede_uninstrumented",
+        "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_corpus_database_testing.stripped",
+    ],
+    local_defines = select({
+        "@com_google_fuzztest//fuzztest:use_centipede": ["FUZZTEST_USE_CENTIPEDE"],
+        "//conditions:default": [],
+    }),
+    tags = [
+        # Don't cache the results.
+        "external",
+        # Don't include in wildcard expansions (:..., :all).
+        "manual",
+    ],
+    deps = [
+        ":test_binary_util",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//centipede:weak_sancov_stubs",
+        "@com_google_googletest//:gtest_main",
     ],
 )

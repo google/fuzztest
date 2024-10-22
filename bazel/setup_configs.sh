@@ -116,7 +116,9 @@ build:fuzztest-experimental --dynamic_mode=off
 
 # We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp,control-flow
+# TODO(b/374840534): Add -fsanitize-coverage=control-flow once we start building
+# with clang 16+.
+build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
 build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
 EOF
 

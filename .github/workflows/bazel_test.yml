@@ -64,6 +64,14 @@ jobs:
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
+      - name: Run end-to-end tests with --config=fuzztest-experimental
+        if: matrix.config == 'fuzztest'
+        run: |
+          bazel test --build_tests_only --test_output=errors \
+            -c ${{ matrix.compilation_mode }} \
+            --config=fuzztest-experimental --config=asan \
+            --platform_suffix=fuzztest-experimental-asan \
+            //e2e_tests:corpus_database_test
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
