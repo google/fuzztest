@@ -26,6 +26,7 @@
 #include "absl/time/time.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
 
@@ -46,6 +47,7 @@ struct Environment {
   size_t total_shards = 1;
   size_t my_shard_index = 0;
   size_t num_threads = 1;
+  size_t j = 0;
   size_t max_len = 4000;
   size_t batch_size = 1000;
   size_t mutate_batch_size = 2;
@@ -152,6 +154,9 @@ struct Environment {
 
   // APIs ----------------------------------------------------------------------
 
+  // Returns an instance of the environment with default values.
+  static const Environment& Default();
+
   // Should certain actions be performed ---------------------------------------
 
   // Returns true if we want to log features as symbols in this shard.
@@ -205,6 +210,10 @@ struct Environment {
 
   // Reads `knobs` from `knobs_file`. Does nothing if the `knobs_file` is empty.
   void ReadKnobsFileIfSpecified();
+  // Updates `this` with `config` obtained from the target binary. CHECK-fails
+  // if the fields are non-default and inconsistent with the corresponding
+  // values in `config`.
+  void UpdateWithTargetConfig(const fuzztest::internal::Configuration& config);
 };
 
 }  // namespace centipede

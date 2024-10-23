@@ -33,9 +33,7 @@
 #include "./centipede/util.h"
 #include "./common/logging.h"
 
-namespace {
-const auto *default_env = new centipede::Environment();
-}  // namespace
+using ::centipede::Environment;
 
 // TODO(kcc): document usage of standalone binaries and how to use @@ wildcard.
 // If the "binary" contains @@, it means the binary can only accept inputs
@@ -44,88 +42,94 @@ const auto *default_env = new centipede::Environment();
 // @@ is chosen to follow the AFL command line syntax.
 // TODO(kcc): rename --binary to --command (same for --extra_binaries),
 // while remaining backward compatible.
-ABSL_FLAG(std::string, binary, default_env->binary, "The target binary.");
-ABSL_FLAG(std::string, coverage_binary, default_env->coverage_binary,
+ABSL_FLAG(std::string, binary, Environment::Default().binary,
+          "The target binary.");
+ABSL_FLAG(std::string, coverage_binary, Environment::Default().coverage_binary,
           "The actual binary from which coverage is collected - if different "
           "from --binary.");
-ABSL_FLAG(std::string, binary_hash, default_env->binary_hash,
+ABSL_FLAG(std::string, binary_hash, Environment::Default().binary_hash,
           "If not-empty, this hash string is used instead of the hash of the "
           "contents of coverage_binary. Use this flag when the coverage_binary "
           "is not available nor needed, e.g. when using --distill.");
 ABSL_FLAG(std::string, clang_coverage_binary,
-          default_env->clang_coverage_binary,
+          Environment::Default().clang_coverage_binary,
           "A clang source-based code coverage binary used to produce "
           "human-readable reports. Do not add this binary to extra_binaries. "
           "You must have llvm-cov and llvm-profdata in your path to generate "
           "the reports. --workdir in turn must be local in order for this "
           "functionality to work. See "
           "https://clang.llvm.org/docs/SourceBasedCodeCoverage.html");
-ABSL_FLAG(std::vector<std::string>, extra_binaries, default_env->extra_binaries,
+ABSL_FLAG(std::vector<std::string>, extra_binaries,
+          Environment::Default().extra_binaries,
           "A comma-separated list of extra target binaries. These binaries are "
           "fed the same inputs as the main binary, but the coverage feedback "
           "from them is not collected. Use this e.g. to run the target under "
           "sanitizers.");
-ABSL_FLAG(std::string, workdir, default_env->workdir, "The working directory.");
-ABSL_FLAG(std::string, merge_from, default_env->merge_from,
+ABSL_FLAG(std::string, workdir, Environment::Default().workdir,
+          "The working directory.");
+ABSL_FLAG(std::string, merge_from, Environment::Default().merge_from,
           "Another working directory to merge the corpus from. Inputs from "
           "--merge_from will be added to --workdir if the add new features.");
-ABSL_FLAG(size_t, num_runs, default_env->num_runs,
+ABSL_FLAG(size_t, num_runs, Environment::Default().num_runs,
           "Number of inputs to run per shard (see --total_shards).");
-ABSL_FLAG(size_t, seed, default_env->seed,
+ABSL_FLAG(size_t, seed, Environment::Default().seed,
           "A seed for the random number generator. If 0, some other random "
           "number is used as seed.");
-ABSL_FLAG(size_t, total_shards, default_env->total_shards, "Number of shards.");
-ABSL_FLAG(size_t, first_shard_index, default_env->my_shard_index,
+ABSL_FLAG(size_t, total_shards, Environment::Default().total_shards,
+          "Number of shards.");
+ABSL_FLAG(size_t, first_shard_index, Environment::Default().my_shard_index,
           "Index of the first shard, [0, --total_shards - --num_threads].");
-ABSL_FLAG(size_t, num_threads, default_env->num_threads,
+ABSL_FLAG(size_t, num_threads, Environment::Default().num_threads,
           "Number of threads to execute in one process. i-th thread, where i "
           "is in [0, --num_threads), will work on shard "
           "(--first_shard_index + i).");
-ABSL_FLAG(size_t, j, 0,
+ABSL_FLAG(size_t, j, Environment::Default().j,
           "If not 0, --j=N is a shorthand for "
           "--num_threads=N --total_shards=N --first_shard_index=0. "
           "Overrides values of these flags if they are also used.");
-ABSL_FLAG(size_t, max_len, default_env->max_len,
+ABSL_FLAG(size_t, max_len, Environment::Default().max_len,
           "Max length of mutants. Passed to mutator.");
-ABSL_FLAG(size_t, batch_size, default_env->batch_size,
+ABSL_FLAG(size_t, batch_size, Environment::Default().batch_size,
           "The number of inputs given to the target at one time. Batches of "
           "more than 1 input are used to amortize the process start-up cost.")
     .OnUpdate([]() {
       QCHECK_GT(absl::GetFlag(FLAGS_batch_size), 0)
           << "--" << FLAGS_batch_size.Name() << " must be non-zero";
     });
-ABSL_FLAG(size_t, mutate_batch_size, default_env->mutate_batch_size,
+ABSL_FLAG(size_t, mutate_batch_size, Environment::Default().mutate_batch_size,
           "Mutate this many inputs to produce batch_size mutants");
 ABSL_FLAG(bool, use_legacy_default_mutator,
-          default_env->use_legacy_default_mutator,
+          Environment::Default().use_legacy_default_mutator,
           "When set, use the legacy ByteArrayMutator as the default mutator. "
           "Otherwise, the FuzzTest domain based mutator will be used.");
 ABSL_FLAG(size_t, load_other_shard_frequency,
-          default_env->load_other_shard_frequency,
+          Environment::Default().load_other_shard_frequency,
           "Load a random other shard after processing this many batches. Use 0 "
           "to disable loading other shards.  For now, choose the value of this "
           "flag so that shard loads happen at most once in a few minutes. In "
           "future we may be able to find the suitable value automatically.");
 // TODO(b/262798184): Remove once the bug is fixed.
-ABSL_FLAG(bool, serialize_shard_loads, default_env->serialize_shard_loads,
+ABSL_FLAG(bool, serialize_shard_loads,
+          Environment::Default().serialize_shard_loads,
           "When this flag is on, shard loading is serialized. "
           " Useful to avoid excessive RAM consumption when loading more"
           " that one shard at a time. Currently, loading a single large shard"
           " may create too many temporary heap allocations. "
           " This means, if we load many large shards concurrently,"
           " we may run out or RAM.");
-ABSL_FLAG(size_t, prune_frequency, default_env->prune_frequency,
+ABSL_FLAG(size_t, prune_frequency, Environment::Default().prune_frequency,
           "Prune the corpus every time after this many inputs were added. If "
           "zero, pruning is disabled. Pruning removes redundant inputs from "
           "the corpus, e.g. inputs that have only \"frequent\", i.e. "
           "uninteresting features. When the corpus gets larger than "
           "--max_corpus_size, some random elements may also be removed.");
-ABSL_FLAG(size_t, address_space_limit_mb, default_env->address_space_limit_mb,
+ABSL_FLAG(size_t, address_space_limit_mb,
+          Environment::Default().address_space_limit_mb,
           "If not zero, instructs the target to set setrlimit(RLIMIT_AS) to "
           "this number of megabytes. Some targets (e.g. if built with ASAN, "
           "which can't run with RLIMIT_AS) may choose to ignore this flag. See "
           "also --rss_limit_mb.");
-ABSL_FLAG(size_t, rss_limit_mb, default_env->rss_limit_mb,
+ABSL_FLAG(size_t, rss_limit_mb, Environment::Default().rss_limit_mb,
           "If not zero, instructs the target to fail if RSS goes over this "
           "number of megabytes and report an OOM. See also "
           "--address_space_limit_mb. These two flags have somewhat different "
@@ -136,24 +140,24 @@ ABSL_FLAG(size_t, rss_limit_mb, default_env->rss_limit_mb,
           "--rss_limit_mb allows Centipede to *report* an OOM condition in "
           "most cases, while --address_space_limit_mb will cause a crash that "
           "may be hard to attribute to OOM.");
-ABSL_FLAG(size_t, timeout_per_input, default_env->timeout_per_input,
+ABSL_FLAG(size_t, timeout_per_input, Environment::Default().timeout_per_input,
           "If not zero, the timeout in seconds for a single input. If an input "
           "runs longer than this, the runner process will abort. Support may "
           "vary depending on the runner.");
-ABSL_FLAG(size_t, timeout, default_env->timeout_per_input,
+ABSL_FLAG(size_t, timeout, Environment::Default().timeout_per_input,
           "An alias for --timeout_per_input. If both are passed, the last of "
           "the two wins.")
     .OnUpdate([]() {
       absl::SetFlag(&FLAGS_timeout_per_input, absl::GetFlag(FLAGS_timeout));
     });
-ABSL_FLAG(size_t, timeout_per_batch, default_env->timeout_per_batch,
+ABSL_FLAG(size_t, timeout_per_batch, Environment::Default().timeout_per_batch,
           "If not zero, the collective timeout budget in seconds for a single "
           "batch of inputs. Each input in a batch still has up to "
           "--timeout_per_input seconds to finish, but the entire batch must "
           "finish within --timeout_per_batch seconds. The default is computed "
           "as a function of --timeout_per_input * --batch_size. Support may "
           "vary depending on the runner.");
-ABSL_FLAG(absl::Time, stop_at, default_env->stop_at,
+ABSL_FLAG(absl::Time, stop_at, Environment::Default().stop_at,
           "Stop fuzzing in all shards (--total_shards) at approximately this "
           "time in ISO-8601/RFC-3339 format, e.g. 2023-04-06T23:35:02Z. "
           "If a given shard is still running at that time, it will gracefully "
@@ -166,38 +170,39 @@ ABSL_FLAG(absl::Time, stop_at, default_env->stop_at,
 ABSL_FLAG(absl::Duration, stop_after, absl::InfiniteDuration(),
           "Equivalent to setting --stop_at to the current date/time + this "
           "duration. These two flags are mutually exclusive.");
-ABSL_FLAG(bool, fork_server, default_env->fork_server,
+ABSL_FLAG(bool, fork_server, Environment::Default().fork_server,
           "If true (default) tries to execute the target(s) via the fork "
           "server, if supported by the target(s). Prepend the binary path with "
           "'%f' to disable the fork server. --fork_server applies to binaries "
           "passed via these flags: --binary, --extra_binaries, "
           "--input_filter.");
-ABSL_FLAG(bool, full_sync, default_env->full_sync,
+ABSL_FLAG(bool, full_sync, Environment::Default().full_sync,
           "Perform a full corpus sync on startup. If true, feature sets and "
           "corpora are read from all shards before fuzzing. This way fuzzing "
           "starts with a full knowledge of the current state and will avoid "
           "adding duplicating inputs. This however is very expensive when the "
           "number of shards is very large.");
-ABSL_FLAG(bool, use_corpus_weights, default_env->use_corpus_weights,
+ABSL_FLAG(bool, use_corpus_weights, Environment::Default().use_corpus_weights,
           "If true, use weighted distribution when choosing the corpus element "
           "to mutate. This flag is mostly for Centipede developers.");
-ABSL_FLAG(bool, use_coverage_frontier, default_env->use_coverage_frontier,
+ABSL_FLAG(bool, use_coverage_frontier,
+          Environment::Default().use_coverage_frontier,
           "If true, use coverage frontier when choosing the corpus element to "
           "mutate. This flag is mostly for Centipede developers.");
-ABSL_FLAG(size_t, max_corpus_size, default_env->max_corpus_size,
+ABSL_FLAG(size_t, max_corpus_size, Environment::Default().max_corpus_size,
           "Indicates the number of inputs in the in-memory corpus after which"
           "more aggressive pruning will be applied.");
-ABSL_FLAG(size_t, crossover_level, default_env->crossover_level,
+ABSL_FLAG(size_t, crossover_level, Environment::Default().crossover_level,
           "Defines how much crossover is used during mutations. 0 means no "
           "crossover, 100 means the most aggressive crossover. See "
           "https://en.wikipedia.org/wiki/Crossover_(genetic_algorithm).");
-ABSL_FLAG(bool, use_pc_features, default_env->use_pc_features,
+ABSL_FLAG(bool, use_pc_features, Environment::Default().use_pc_features,
           "When available from instrumentation, use features derived from "
           "PCs.");
-ABSL_FLAG(bool, use_cmp_features, default_env->use_cmp_features,
+ABSL_FLAG(bool, use_cmp_features, Environment::Default().use_cmp_features,
           "When available from instrumentation, use features derived from "
           "instrumentation of CMP instructions.");
-ABSL_FLAG(size_t, callstack_level, default_env->callstack_level,
+ABSL_FLAG(size_t, callstack_level, Environment::Default().callstack_level,
           "When available from instrumentation, use features derived from "
           "observing the function call stacks. 0 means no callstack features."
           "Values between 1 and 100 define how aggressively to use the "
@@ -206,7 +211,7 @@ ABSL_FLAG(size_t, callstack_level, default_env->callstack_level,
       QCHECK_LE(absl::GetFlag(FLAGS_callstack_level), 100)
           << "--" << FLAGS_callstack_level.Name() << " must be in [0,100]";
     });
-ABSL_FLAG(bool, use_auto_dictionary, default_env->use_auto_dictionary,
+ABSL_FLAG(bool, use_auto_dictionary, Environment::Default().use_auto_dictionary,
           "If true, use automatically-generated dictionary derived from "
           "intercepting comparison instructions, memcmp, and similar.");
 ABSL_FLAG(size_t, path_level, 0,  // Not ready for wide usage.
@@ -218,22 +223,24 @@ ABSL_FLAG(size_t, path_level, 0,  // Not ready for wide usage.
       QCHECK_LE(absl::GetFlag(FLAGS_path_level), 100)
           << "--" << FLAGS_path_level.Name() << " must be in [0,100]";
     });
-ABSL_FLAG(bool, use_dataflow_features, default_env->use_dataflow_features,
+ABSL_FLAG(bool, use_dataflow_features,
+          Environment::Default().use_dataflow_features,
           "When available from instrumentation, use features derived from "
           "data flows.");
-ABSL_FLAG(bool, use_counter_features, default_env->use_counter_features,
+ABSL_FLAG(bool, use_counter_features,
+          Environment::Default().use_counter_features,
           "When available from instrumentation, use features derived from "
           "counting the number of occurrences of a given PC. When enabled, "
           "supersedes --use_pc_features.");
-ABSL_FLAG(bool, use_pcpair_features, default_env->use_pcpair_features,
+ABSL_FLAG(bool, use_pcpair_features, Environment::Default().use_pcpair_features,
           "If true, PC pairs are used as additional synthetic features. "
           "Experimental, use with care - it may explode the corpus.");
 ABSL_FLAG(uint64_t, user_feature_domain_mask,
-          default_env->user_feature_domain_mask,
+          Environment::Default().user_feature_domain_mask,
           "A bitmask indicating which user feature domains should be enabled. "
           "A value of zero will disable all user features.");
 ABSL_FLAG(size_t, feature_frequency_threshold,
-          default_env->feature_frequency_threshold,
+          Environment::Default().feature_frequency_threshold,
           "Internal flag. When a given feature is present in the corpus this "
           "many times Centipede will stop recording it for future corpus "
           "elements. Larger values will use more RAM but may improve corpus "
@@ -244,9 +251,9 @@ ABSL_FLAG(size_t, feature_frequency_threshold,
           << "--" << FLAGS_feature_frequency_threshold.Name()
           << " must be in [2,255] but has value " << threshold;
     });
-ABSL_FLAG(bool, require_pc_table, default_env->require_pc_table,
+ABSL_FLAG(bool, require_pc_table, Environment::Default().require_pc_table,
           "If true, Centipede will exit if the --pc_table is not found.");
-ABSL_FLAG(int, telemetry_frequency, default_env->telemetry_frequency,
+ABSL_FLAG(int, telemetry_frequency, Environment::Default().telemetry_frequency,
           "Dumping frequency for intermediate telemetry files, i.e. coverage "
           "report (workdir/coverage-report-BINARY.*.txt), corpus stats "
           "(workdir/corpus-stats-*.json), etc. Positive value N means dump "
@@ -255,32 +262,34 @@ ABSL_FLAG(int, telemetry_frequency, default_env->telemetry_frequency,
           "--telemetry_frequency=-5, dump on batches 32, 64, 128,...). Zero "
           "means no telemetry. Note that the before-fuzzing and after-fuzzing "
           "telemetry are always dumped.");
-ABSL_FLAG(bool, print_runner_log, default_env->print_runner_log,
+ABSL_FLAG(bool, print_runner_log, Environment::Default().print_runner_log,
           "If true, runner logs are printed after every batch. Note that "
           "crash logs are always printed regardless of this flag's value.");
-ABSL_FLAG(std::string, knobs_file, default_env->knobs_file,
+ABSL_FLAG(std::string, knobs_file, Environment::Default().knobs_file,
           "If not empty, knobs will be read from this (possibly remote) file."
           " The feature is experimental, not yet fully functional.");
-ABSL_FLAG(std::string, corpus_to_files, default_env->corpus_to_files,
+ABSL_FLAG(std::string, corpus_to_files, Environment::Default().corpus_to_files,
           "Save the remote corpus from working to the given directory, one "
           "file per corpus.");
-ABSL_FLAG(std::string, corpus_from_files, default_env->corpus_from_files,
+ABSL_FLAG(std::string, corpus_from_files,
+          Environment::Default().corpus_from_files,
           "Export a corpus from a local directory with one file per input into "
           "the sharded remote corpus in workdir. Not recursive.");
-ABSL_FLAG(std::vector<std::string>, corpus_dir, default_env->corpus_dir,
+ABSL_FLAG(std::vector<std::string>, corpus_dir,
+          Environment::Default().corpus_dir,
           "Comma-separated list of paths to local corpus dirs, with one file "
           "per input. At startup, the files are exported into the corpus in "
           "--workdir. While fuzzing, the new corpus elements are written to "
           "the first dir if it is not empty. This makes it more convenient to "
           "interop with libFuzzer corpora.");
-ABSL_FLAG(std::string, symbolizer_path, default_env->symbolizer_path,
+ABSL_FLAG(std::string, symbolizer_path, Environment::Default().symbolizer_path,
           "Path to the symbolizer tool. By default, we use llvm-symbolizer "
           "and assume it is in PATH.");
-ABSL_FLAG(std::string, objdump_path, default_env->objdump_path,
+ABSL_FLAG(std::string, objdump_path, Environment::Default().objdump_path,
           "Path to the objdump tool. By default, we use the system objdump "
           "and assume it is in PATH.");
 ABSL_FLAG(std::string, runner_dl_path_suffix,
-          default_env->runner_dl_path_suffix,
+          Environment::Default().runner_dl_path_suffix,
           "If non-empty, this flag is passed to the Centipede runner. "
           "It tells the runner that this dynamic library is instrumented "
           "while the main binary is not. "
@@ -288,7 +297,7 @@ ABSL_FLAG(std::string, runner_dl_path_suffix,
           "or a suffix, like '/my.so' or 'my.so'."
           "This flag is experimental and may be removed in future");
 // TODO(kcc): --distill and several others had better be dedicated binaries.
-ABSL_FLAG(bool, distill, default_env->distill,
+ABSL_FLAG(bool, distill, Environment::Default().distill,
           "Distill (minimize) the --total_shards input shards from --workdir "
           "into --num_threads output shards. The input shards are randomly and "
           "evenly divided between --num_threads concurrent distillation "
@@ -307,36 +316,39 @@ ABSL_FLAG(bool, distill, default_env->distill,
           "to <--workdir>/distilled-<--coverage_binary basename>.<index>.");
 ABSL_RETIRED_FLAG(size_t, distill_shards, 0,
                   "No longer supported: use --distill instead.");
-ABSL_FLAG(size_t, log_features_shards, default_env->log_features_shards,
+ABSL_FLAG(size_t, log_features_shards,
+          Environment::Default().log_features_shards,
           "The first --log_features_shards shards will log newly observed "
           "features as symbols. In most cases you don't need this to be >= 2.");
-ABSL_FLAG(bool, exit_on_crash, default_env->exit_on_crash,
+ABSL_FLAG(bool, exit_on_crash, Environment::Default().exit_on_crash,
           "If true, Centipede will exit on the first crash of the target.");
-ABSL_FLAG(size_t, num_crash_reports, default_env->max_num_crash_reports,
+ABSL_FLAG(size_t, num_crash_reports,
+          Environment::Default().max_num_crash_reports,
           "report this many crashes per shard.");
-ABSL_FLAG(std::string, minimize_crash, default_env->minimize_crash_file_path,
+ABSL_FLAG(std::string, minimize_crash,
+          Environment::Default().minimize_crash_file_path,
           "If non-empty, a path to an input file that triggers a crash."
           " Centipede will run the minimization loop and store smaller crash-y"
           " inputs in workdir/crashes/."
           " --num_runs and --num_threads apply. "
           " Assumes local workdir.");
 ABSL_FLAG(bool, batch_triage_suspect_only,
-          default_env->batch_triage_suspect_only,
+          Environment::Default().batch_triage_suspect_only,
           "If set, triage the crash on only the suspected input in a crashing "
           "batch. Otherwise, triage on all the executed inputs");
-ABSL_FLAG(std::string, input_filter, default_env->input_filter,
+ABSL_FLAG(std::string, input_filter, Environment::Default().input_filter,
           "Path to a tool that filters bad inputs. The tool is invoked as "
           "`input_filter INPUT_FILE` and should return 0 if the input is good "
           "and non-0 otherwise. Ignored if empty. The --input_filter is "
           "invoked only for inputs that are considered for addition to the "
           "corpus.");
-ABSL_FLAG(std::string, for_each_blob, default_env->for_each_blob,
+ABSL_FLAG(std::string, for_each_blob, Environment::Default().for_each_blob,
           "If non-empty, extracts individual blobs from the files given as "
           "arguments, copies each blob to a temporary file, and applies this "
           "command to that temporary file. %P is replaced with the temporary "
           "file's path and %H is replaced with the blob's hash. Example:\n"
           "$ centipede --for_each_blob='ls -l  %P && echo %H' corpus.000000");
-ABSL_FLAG(std::string, experiment, default_env->experiment,
+ABSL_FLAG(std::string, experiment, Environment::Default().experiment,
           "A colon-separated list of values, each of which is a flag followed "
           "by = and a comma-separated list of values. Example: "
           "'foo=1,2,3:bar=10,20'. When non-empty, this flag is used to run an "
@@ -346,46 +358,48 @@ ABSL_FLAG(std::string, experiment, default_env->experiment,
           "tested. In example above: '--foo=1 --bar=10' ... "
           "'--foo=3 --bar=20'. The number of threads should be multiple of the "
           "number of flag combinations.");
-ABSL_FLAG(bool, analyze, default_env->analyze,
+ABSL_FLAG(bool, analyze, Environment::Default().analyze,
           "If set, Centipede will read the corpora from the work dirs provided"
           " as argv. If two corpora are provided, then analyze differences"
           " between those corpora. If one corpus is provided, then save the"
           " coverage report to a file within workdir with prefix"
           " 'coverage-report-'.");
-ABSL_FLAG(std::vector<std::string>, dictionary, default_env->dictionary,
+ABSL_FLAG(std::vector<std::string>, dictionary,
+          Environment::Default().dictionary,
           "A comma-separated list of paths to dictionary files. The dictionary "
           "file is either in AFL/libFuzzer plain text format or in the binary "
           "Centipede corpus file format. The flag is interpreted by "
           "CentipedeCallbacks so its meaning may be different in custom "
           "implementations of CentipedeCallbacks.");
-ABSL_FLAG(std::string, function_filter, default_env->function_filter,
+ABSL_FLAG(std::string, function_filter, Environment::Default().function_filter,
           "A comma-separated list of functions that fuzzing needs to focus on. "
           "If this list is non-empty, the fuzzer will mutate only those inputs "
           "that trigger code in one of these functions.");
-ABSL_FLAG(size_t, shmem_size_mb, default_env->shmem_size_mb,
+ABSL_FLAG(size_t, shmem_size_mb, Environment::Default().shmem_size_mb,
           "Size of the shared memory regions used to communicate between the "
           "ending and the runner.");
-ABSL_FLAG(bool, use_posix_shmem, default_env->use_posix_shmem,
+ABSL_FLAG(bool, use_posix_shmem, Environment::Default().use_posix_shmem,
           "[INTERNAL] When true, uses shm_open/shm_unlink instead of "
           "memfd_create to allocate shared memory. You may want this if your "
           "target doesn't have access to /proc/<arbitrary_pid> subdirs or the "
           "memfd_create syscall is not supported.");
-ABSL_FLAG(bool, dry_run, default_env->dry_run,
+ABSL_FLAG(bool, dry_run, Environment::Default().dry_run,
           "Initializes as much of Centipede as possible without actually "
           "running any fuzzing. Useful to validate the rest of the command "
           "line, verify existence of all the input directories and files, "
           "etc. Also useful in combination with --save_config or "
           "--update_config to stop execution immediately after writing the "
           "(updated) config file.");
-ABSL_FLAG(bool, save_binary_info, default_env->save_binary_info,
+ABSL_FLAG(bool, save_binary_info, Environment::Default().save_binary_info,
           "Save the BinaryInfo from the fuzzing run within the working "
           "directory.");
-ABSL_FLAG(bool, populate_binary_info, default_env->populate_binary_info,
+ABSL_FLAG(bool, populate_binary_info,
+          Environment::Default().populate_binary_info,
           "Get binary info from a coverage instrumented binary. This should "
           "only be turned off when coverage is not based on instrumenting some "
           "binary.");
 #ifndef CENTIPEDE_DISABLE_RIEGELI
-ABSL_FLAG(bool, riegeli, default_env->riegeli,
+ABSL_FLAG(bool, riegeli, Environment::Default().riegeli,
           "Use Riegeli file format (instead of the legacy bespoke encoding) "
           "for storage");
 #endif  // CENTIPEDE_DISABLE_RIEGELI

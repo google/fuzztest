@@ -70,6 +70,9 @@ struct Configuration {
   absl::Duration time_limit = absl::InfiniteDuration();
   // Whether the time limit is for each test or for all tests in the binary.
   TimeBudgetType time_budget_type = TimeBudgetType::kPerTest;
+  // The number of fuzzing jobs to run in parallel. Zero indicates that the
+  // number of jobs is unspecified by the test binary.
+  size_t jobs = 0;
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
