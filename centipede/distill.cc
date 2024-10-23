@@ -289,7 +289,9 @@ class DistillingInputFilter {
 
   Stats GetStats() {
     absl::MutexLock lock{&mu_};
-    stats_.coverage_str = (std::stringstream{} << seen_features_).str();
+    stats_.coverage_str =
+    static_cast<std::ostringstream&>(std::stringstream{} <<
+    seen_features_).str();
     return stats_;
   }
 
