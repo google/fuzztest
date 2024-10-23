@@ -23,6 +23,7 @@
 #include <system_error>  // NOLINT
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -34,8 +35,14 @@
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
+
+const Environment &Environment::Default() {
+  static absl::NoDestructor<Environment> default_env;
+  return *default_env;
+}
 
 bool Environment::DumpCorpusTelemetryInThisShard() const {
   // Corpus stats are global across all shards on all machines.
@@ -203,6 +210,19 @@ void Environment::ReadKnobsFileIfSpecified() {
   knobs.ForEachKnob([](std::string_view name, Knobs::value_type value) {
     VLOG(1) << "knob " << name << ": " << static_cast<uint32_t>(value);
   });
+}
+
+void Environment::UpdateWithTargetConfig(
+    const fuzztest::internal::Configuration &config) {
+  if (config.jobs == 0) return;
+  CHECK(j == Default().j || j == config.jobs)
+      << "Value for --j is inconsistent with the value for jobs in the target "
+         "binary:"
+      << VV(j) << VV(config.jobs);
+  j = config.jobs;
+  total_shards = config.jobs;
+  num_threads = config.jobs;
+  my_shard_index = 0;
 }
 
 }  // namespace centipede

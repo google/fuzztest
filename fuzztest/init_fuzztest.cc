@@ -160,6 +160,11 @@ FUZZTEST_DEFINE_FLAG(
     "for an input if the execution of the property-function with the input "
     "takes longer than this time limit.");
 
+FUZZTEST_DEFINE_FLAG(
+    size_t, jobs, 0,
+    "The number of fuzzing jobs to run in parallel. If set to 0, the number of "
+    "jobs is unspecified and determined automatically.");
+
 namespace fuzztest {
 
 std::vector<std::string> ListRegisteredTests() {
@@ -255,7 +260,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
-      absl::GetFlag(FUZZTEST_FLAG(time_budget_type))};
+      absl::GetFlag(FUZZTEST_FLAG(time_budget_type)),
+      absl::GetFlag(FUZZTEST_FLAG(jobs))};
 }
 }  // namespace
 

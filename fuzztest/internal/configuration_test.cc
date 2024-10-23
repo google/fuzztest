@@ -26,6 +26,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.time_limit_per_input == other->time_limit_per_input &&
          config.time_limit == other->time_limit &&
          config.time_budget_type == other->time_budget_type &&
+         config.jobs == other->jobs &&
          config.crashing_input_to_reproduce ==
              other->crashing_input_to_reproduce &&
          config.reproduction_command_template ==
@@ -45,6 +46,7 @@ TEST(ConfigurationTest,
                               /*time_limit_per_input=*/absl::Seconds(42),
                               /*time_limit=*/absl::Minutes(42),
                               /*time_budget_type=*/TimeBudgetType::kPerTest,
+                              /*jobs=*/1,
                               /*crashing_input_to_reproduce=*/std::nullopt,
                               /*reproduction_command_template=*/std::nullopt};
 
@@ -65,6 +67,7 @@ TEST(ConfigurationTest,
                               /*time_limit_per_input=*/absl::Seconds(42),
                               /*time_limit=*/absl::Minutes(42),
                               /*time_budget_type=*/TimeBudgetType::kPerTest,
+                              /*jobs=*/1,
                               "crashing_input_to_reproduce",
                               "reproduction_command_template"};
 
