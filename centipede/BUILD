@@ -741,6 +741,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest:configuration",
     ],
 )
 
@@ -812,6 +813,7 @@ cc_library(
         ":distill",
         ":early_exit",
         ":environment",
+        ":environment_flags",
         ":minimize_crash",
         ":pc_info",
         ":periodic_action",

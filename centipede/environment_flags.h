@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "./centipede/environment.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
 
@@ -26,6 +27,12 @@ namespace centipede {
 // environment_flags.cc.
 Environment CreateEnvironmentFromFlags(
     const std::vector<std::string> &argv = {});
+
+// Returns `env` adjusted for the `config` obtained from the target binary.
+// Check-fails if the values in `config` are inconsistent with the corresponding
+// values passed by flags.
+Environment AdjustEnvironmentForTargetConfig(
+    Environment env, const fuzztest::internal::Configuration &config);
 
 }  // namespace centipede
 

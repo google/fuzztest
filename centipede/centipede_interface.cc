@@ -53,6 +53,7 @@
 #include "./centipede/distill.h"
 #include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
+#include "./centipede/environment_flags.h"
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/periodic_action.h"
@@ -674,8 +675,9 @@ int CentipedeMain(const Environment &env,
                "fuzz test.";
         CHECK(time_limit_per_test >= absl::Seconds(1))
             << "Time limit per fuzz test must be at least 1 second.";
-        return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
-                                                callbacks_factory);
+        return UpdateCorpusDatabaseForFuzzTests(
+            AdjustEnvironmentForTargetConfig(env, *target_config),
+            *target_config, callbacks_factory);
       }
     } else if (std::getenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG") != nullptr) {
       // Target config is empty when the shard does not contain any fuzz tests.

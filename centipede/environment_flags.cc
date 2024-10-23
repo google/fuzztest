@@ -32,6 +32,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace {
 const auto *default_env = new centipede::Environment();
@@ -570,6 +571,17 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
 
   env_from_flags.ReadKnobsFileIfSpecified();
   return env_from_flags;
+}
+
+Environment AdjustEnvironmentForTargetConfig(
+    Environment env, const fuzztest::internal::Configuration &config) {
+  if (config.jobs != 0) {
+    CHECK(absl::GetFlag(FLAGS_j) == 0 || absl::GetFlag(FLAGS_j) == config.jobs);
+    env.total_shards = config.jobs;
+    env.num_threads = config.jobs;
+    env.my_shard_index = 0;
+  }
+  return env;
 }
 
 }  // namespace centipede
