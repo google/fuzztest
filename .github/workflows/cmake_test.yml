@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
-            ccache clang cmake ninja-build libprotobuf-dev protobuf-compiler
+            ccache clang gcc g++ cmake ninja-build libprotobuf-dev protobuf-compiler
       - name: Restore latest cache
         uses: actions/cache/restore@v4
         with:
@@ -65,7 +65,7 @@ jobs:
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" \
           && cmake --build build_codelab -j $(nproc)
-      - name: Run all tests in default mode
+      - name: Run all tests in default mode with clang
         if: matrix.mode == 'default'
         run: |
           CC=clang CXX=clang++ cmake \
@@ -78,6 +78,20 @@ jobs:
             -D FUZZTEST_BUILD_TESTING=on \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure
+      - name: Run all tests in default mode with gcc
+        if: matrix.mode == 'default'
+        run: |
+          CC=gcc CXX=g++ cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_BUILD_TYPE=RelWithDebug \
+            -D FUZZTEST_BUILD_TESTING=on \
+          && cmake --build build -j $(nproc)
+#          TODO: Rewrite helper `PrintValue` to obtain same output under clang and gcc
+#          && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
         if: matrix.mode == 'fuzzing'
         run: |
