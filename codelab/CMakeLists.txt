@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 
-set(FUZZTEST_REPO_BRANCH "FuzzTest repository branch." CACHE STRING "main")
+set(FUZZTEST_REPO_BRANCH "main" CACHE STRING "FuzzTest repository branch.")
 message("Building fuzztest at branch " ${FUZZTEST_REPO_BRANCH})
 
 FetchContent_Declare(
