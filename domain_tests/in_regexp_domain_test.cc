@@ -99,7 +99,7 @@ TEST(InRegexp, MutationGeneratesDifferentValidValues) {
     EXPECT_TRUE(RE2::FullMatch(val.user_value, regexp));
 
     while (unique_values.size() < num_unique_values) {
-      val.Mutate(domain, bitgen, false);
+      val.Mutate(domain, bitgen, {}, false);
       EXPECT_TRUE(RE2::FullMatch(val.user_value, regexp));
       unique_values.insert(val.user_value);
     }
@@ -119,7 +119,7 @@ TEST(InRegexp, MutatingRepetitionCanIncreaseAndDecreaseLength) {
   constexpr int mutate_times = 50000;
   for (int i = 0; i < mutate_times; ++i) {
     val.corpus_value = domain.FromValue("aaaaa").value();
-    val.Mutate(domain, bitgen, false);
+    val.Mutate(domain, bitgen, {}, false);
     size_t size_after_mutation = val.user_value.size();
     ASSERT_LT(size_after_mutation, 7) << val.user_value;
     ++size_histogram[size_after_mutation];
@@ -161,7 +161,7 @@ TEST(InRegexp, OnlyShrinkFindsDifferentValueWithMinimalLength) {
       Value val(domain, bitgen);
       while (val.user_value.size() != expected_length) {
         size_t pre_size = val.user_value.size();
-        val.Mutate(domain, bitgen, /*only_shrink=*/true);
+        val.Mutate(domain, bitgen, {}, true);
         if (min_path_length_equal_min_string_length) {
           ASSERT_LE(val.user_value.size(), pre_size) << val.user_value;
         }

@@ -62,11 +62,11 @@
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -162,12 +162,6 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         fuzzer_impl_(*fuzzer_impl),
         configuration_(*configuration),
         prng_(GetRandomSeed()) {
-    if (GetExecutionCoverage() == nullptr) {
-      execution_coverage_ = std::make_unique<ExecutionCoverage>(
-          /*counter_map=*/absl::Span<uint8_t>{});
-      execution_coverage_->SetIsTracing(true);
-      SetExecutionCoverage(execution_coverage_.get());
-    }
   }
 
   bool Execute(centipede::ByteSpan input) override {
@@ -254,7 +248,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
           parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
         }
         auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
-        fuzzer_impl_.MutateValue(mutant, prng_);
+        fuzzer_impl_.MutateValue(mutant, prng_, {.cmp_tables = &cmp_tables_});
         mutant_data =
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }
@@ -266,27 +260,22 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
 
   ~CentipedeAdaptorRunnerCallbacks() override {
     runtime_.UnsetCurrentArgs();
-    if (GetExecutionCoverage() == execution_coverage_.get())
-      SetExecutionCoverage(nullptr);
   }
 
  private:
   template <typename T>
-  static void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a,
-                                                  const uint8_t* b) {
+  void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b) {
     T a_int;
     T b_int;
     memcpy(&a_int, a, sizeof(T));
     memcpy(&b_int, b, sizeof(T));
-    GetExecutionCoverage()
-        ->GetTablesOfRecentCompares()
-        .GetMutable<sizeof(T)>()
-        .Insert(a_int, b_int);
+    cmp_tables_.GetMutable<sizeof(T)>().Insert(a_int, b_int);
   }
 
   void SetMetadata(const centipede::ExecutionMetadata* metadata) {
     if (metadata == nullptr) return;
-    metadata->ForEachCmpEntry([](centipede::ByteSpan a, centipede::ByteSpan b) {
+    metadata->ForEachCmpEntry([this](centipede::ByteSpan a,
+                                     centipede::ByteSpan b) {
       FUZZTEST_INTERNAL_CHECK(a.size() == b.size(),
                               "cmp operands must have the same size");
       const size_t size = a.size();
@@ -299,10 +288,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       } else if (size == 8) {
         InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
       }
-      GetExecutionCoverage()
-          ->GetTablesOfRecentCompares()
-          .GetMutable<0>()
-          .Insert(a.data(), b.data(), size);
+      cmp_tables_.GetMutable<0>().Insert(a.data(), b.data(), size);
     });
   }
 
@@ -313,7 +299,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
-  std::unique_ptr<ExecutionCoverage> execution_coverage_;
+  internal::TablesOfRecentCompares cmp_tables_;
   absl::BitGen prng_;
 };
 
@@ -409,7 +395,6 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
   CentipedeAdaptorRunnerCallbacks runner_callbacks_;
   size_t batch_result_buffer_size_;
   uint8_t* batch_result_buffer_;
-  std::unique_ptr<ExecutionCoverage> execution_coverage_;
 };
 
 class CentipedeAdaptorEngineCallbacksFactory

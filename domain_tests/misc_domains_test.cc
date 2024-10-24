@@ -61,7 +61,7 @@ TEST(BitFlagCombinationOf, Ints) {
   int val = 1 | 4 | 16 | 32;
   while (val != 0) {
     int prev = val;
-    domain.Mutate(val, bitgen, true);
+    domain.Mutate(val, bitgen, {}, true);
     // val can't have new bits set.
     EXPECT_EQ(prev & val, val);
     EXPECT_EQ(prev | val, prev);
@@ -133,7 +133,7 @@ TEST(OneOf, AllSubDomainsArePickedEventually) {
   elems.clear();
   Value mutated(domain, bitgen);
   while (elems.size() < 5) {
-    mutated.Mutate(domain, bitgen, false);
+    mutated.Mutate(domain, bitgen, {}, false);
     elems.insert(mutated.user_value);
 
     VerifyRoundTripThroughConversion(mutated, domain);
@@ -155,13 +155,13 @@ TEST(OneOf, Mutate) {
     } else {
       v.corpus_value = std::variant<int, int>(std::in_place_index_t<1>{}, k);
     }
-    v.Mutate(domain, bitgen, /*only_shrink=*/false);
+    v.Mutate(domain, bitgen, {}, false);
     ASSERT_NE(k, v.user_value);
   }
   for (int i = 0; i < kRuns; ++i) {
     Value v(domain, bitgen);
     int old_k = v.user_value;
-    v.Mutate(domain, bitgen, /*only_shrink=*/true);
+    v.Mutate(domain, bitgen, {}, true);
     int new_k = v.user_value;
     if ((new_k >= 0) == (old_k >= 0)) {
       EXPECT_LE(std::abs(new_k), std::abs(old_k))
@@ -181,7 +181,7 @@ TEST(OneOf, SwitchesDomains) {
   absl::flat_hash_set<Color> found;
   Value v(domain, bitgen);
   while (found.size() < all_colors.size()) {
-    v.Mutate(domain, bitgen, /*only_shrink=*/false);
+    v.Mutate(domain, bitgen, {}, false);
     found.insert(v.user_value);
   }
   ASSERT_THAT(found, UnorderedElementsAreArray(all_colors));
