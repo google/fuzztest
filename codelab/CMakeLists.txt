@@ -4,12 +4,13 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 
+set(FUZZTEST_REPOSITORY "FuzzTest repository url." CACHE STRING "https://github.com/google/fuzztest.git")
 set(FUZZTEST_REPO_BRANCH "FuzzTest repository branch." CACHE STRING "main")
 message("Building fuzztest at branch " ${FUZZTEST_REPO_BRANCH})
 
 FetchContent_Declare(
   fuzztest
-  GIT_REPOSITORY https://github.com/google/fuzztest.git
+  GIT_REPOSITORY ${FUZZTEST_REPOSITORY}
   GIT_TAG ${FUZZTEST_REPO_BRANCH}
 )
 
