@@ -623,9 +623,12 @@ cc_test(
     name = "runtime_test",
     srcs = ["internal/runtime_test.cc"],
     deps = [
+        ":configuration",
         ":domain_core",
+        ":flag_name",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",

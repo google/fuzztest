@@ -69,7 +69,7 @@ argument 0: 17
 argument 1: "ABC"
 )"));
 
-  EXPECT_TRUE(absl::EndsWith(report, R"(
+  EXPECT_TRUE(absl::StrContains(report, R"(
 =================================================================
 === Regression test draft
 

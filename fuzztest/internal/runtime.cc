@@ -46,9 +46,11 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -93,23 +95,47 @@ std::string GetFilterForCrashingInput(absl::string_view crashing_input_path) {
 }
 
 // Returns a reproduction command for replaying
-// `configuration.crashing_input_to_reproduce` from a command line, using the
-// `configuration.reproduction_command_template`.
-std::optional<std::string> GetReproductionCommand(
-    const Configuration& configuration) {
-  if (!configuration.reproduction_command_template.has_value()) {
-    return std::nullopt;
+// `configuration.crashing_input_to_reproduce` or `reproducer_path` from a
+// command line, using the `configuration.reproduction_command_template`.
+std::string GetReproductionCommand(const Configuration* configuration,
+                                   absl::string_view reproducer_path,
+                                   absl::string_view test_name) {
+  const bool is_reproducer_in_corpus_db =
+      configuration && configuration->crashing_input_to_reproduce;
+  CHECK(!reproducer_path.empty() || is_reproducer_in_corpus_db);
+  if (!configuration || !configuration->reproduction_command_template) {
+    absl::string_view reproducer =
+        is_reproducer_in_corpus_db ? *configuration->crashing_input_to_reproduce
+                                   : reproducer_path;
+    return absl::StrFormat(
+        "Replay by adding:\n\n"
+        "--test_filter=%s "
+        "--test_env=FUZZTEST_REPLAY=%s\n\n"
+        "after `bazel test` in your original invocation.\n",
+        test_name, reproducer);
   }
-  if (!configuration.crashing_input_to_reproduce.has_value()) {
-    return std::nullopt;
+  const std::string command_template =
+      *configuration->reproduction_command_template;
+  CHECK(absl::StrContains(command_template, kTestFilterPlaceholder));
+  CHECK(absl::StrContains(command_template, kExtraArgsPlaceholder));
+  if (is_reproducer_in_corpus_db) {
+    const std::string corpus_db = configuration->corpus_database;
+    std::vector<std::string> extra_args = {absl::StrCat(
+        "--test_arg=--", FUZZTEST_FLAG_PREFIX, "corpus_database=", corpus_db)};
+    return absl::StrReplaceAll(
+        command_template,
+        {{kTestFilterPlaceholder,
+          GetFilterForCrashingInput(
+              *configuration->crashing_input_to_reproduce)},
+         {kExtraArgsPlaceholder, absl::StrJoin(extra_args, " ")}});
+  } else {
+    return absl::StrReplaceAll(
+        command_template,
+        {{kTestFilterPlaceholder, test_name},
+         {kExtraArgsPlaceholder,
+          absl::StrCat("--test_env=FUZZTEST_REPLAY=", reproducer_path,
+                       " --test_strategy=local --test_output=streamed")}});
   }
-  CHECK(absl::StrContains(*configuration.reproduction_command_template,
-                          kTestFilterPlaceholder));
-  return absl::StrReplaceAll(
-      *configuration.reproduction_command_template,
-      {{kTestFilterPlaceholder,
-        GetFilterForCrashingInput(
-            *configuration.crashing_input_to_reproduce)}});
 }
 
 struct ReproducerDirectory {
@@ -135,8 +161,8 @@ std::optional<ReproducerDirectory> GetReproducerDirectory() {
 }
 
 void PrintReproductionInstructionsForUndeclaredOutputs(
-    RawSink out, absl::string_view reproducer_path,
-    absl::string_view test_name) {
+    RawSink out, absl::string_view test_name,
+    absl::string_view reproducer_path) {
   absl::string_view file_name = Basename(reproducer_path);
   absl::Format(out,
                "Reproducer file was dumped under"
@@ -146,12 +172,49 @@ void PrintReproductionInstructionsForUndeclaredOutputs(
                "mkdir -p /tmp/%s && \\\ncp -f %s /tmp/%s/%s\n\n",
                kReproducerDirName, reproducer_path, kReproducerDirName,
                file_name);
-  absl::Format(out,
-               "Then replay by adding:\n\n"
-               "--test_filter=%s "
-               "--test_env=FUZZTEST_REPLAY=/tmp/%s/%s\n\n"
-               "after `bazel test` in your original Bazel invocation.\n",
-               test_name, kReproducerDirName, file_name);
+}
+
+absl::string_view GetSeparator() {
+  return "\n================================================================="
+         "\n";
+}
+
+void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
+                                const Configuration* configuration,
+                                std::string reproducer_path) {
+  const bool is_reproducer_in_corpus_db =
+      configuration && configuration->crashing_input_to_reproduce;
+  if (!is_reproducer_in_corpus_db) {
+    if (reproducer_path.empty()) {
+      absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
+      return;
+    }
+  }
+  if (configuration && configuration->reproduction_command_template) {
+    absl::Format(out, "%s=== Reproduction command\n\n", GetSeparator());
+  } else {
+    absl::Format(out, "%s=== Reproducer\n\n", GetSeparator());
+  }
+  const std::string test_name =
+      absl::StrCat(test.suite_name(), ".", test.test_name());
+  if (!is_reproducer_in_corpus_db) {
+    auto out_dir = GetReproducerDirectory();
+    switch (out_dir->type) {
+      case ReproducerDirectory::Type::kUserSpecified:
+        absl::Format(out, "Reproducer file was dumped at:\n%s\n",
+                     reproducer_path);
+        break;
+      case ReproducerDirectory::Type::kTestUndeclaredOutputs:
+        PrintReproductionInstructionsForUndeclaredOutputs(out, test_name,
+                                                          reproducer_path);
+        reproducer_path = absl::StrCat("/tmp/", kReproducerDirName, "/",
+                                       Basename(reproducer_path));
+        break;
+    }
+  }
+  absl::Format(
+      out, "%s\n\n",
+      GetReproductionCommand(configuration, reproducer_path, test_name));
 }
 
 }  // namespace
@@ -179,8 +242,7 @@ std::string Runtime::DumpReproducer(absl::string_view outdir) const {
 }
 
 void Runtime::PrintFinalStats(RawSink out) const {
-  const std::string separator = '\n' + std::string(65, '=') + '\n';
-  absl::Format(out, "%s=== Fuzzing stats\n\n", separator);
+  absl::Format(out, "%s=== Fuzzing stats\n\n", GetSeparator());
 
   const absl::Duration fuzzing_time = clock_fn_() - stats_->start_time;
   absl::Format(out, "Elapsed time: %s\n", absl::FormatDuration(fuzzing_time));
@@ -214,10 +276,8 @@ void Runtime::PrintReport(RawSink out) const {
     PrintFinalStats(out);
   }
 
-  const std::string separator = '\n' + std::string(65, '=') + '\n';
-
   if (current_args_ != nullptr) {
-    absl::Format(out, "%s=== BUG FOUND!\n\n", separator);
+    absl::Format(out, "%s=== BUG FOUND!\n\n", GetSeparator());
     absl::Format(out, "%s:%d: Counterexample found for %s.%s.\n",
                  current_test_->file(), current_test_->line(),
                  current_test_->suite_name(), current_test_->test_name());
@@ -233,33 +293,10 @@ void Runtime::PrintReport(RawSink out) const {
                        trim ? kTrimIndicator : "");
         });
 
-    // Dump the reproducer if requested.
-    std::optional<ReproducerDirectory> out_dir = GetReproducerDirectory();
-    if (out_dir.has_value()) {
-      absl::Format(out, "%s=== Reproduction\n\n", separator);
-      const std::string reproducer_path = DumpReproducer(out_dir->path);
-      if (reproducer_path.empty()) {
-        absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
-      } else {
-        switch (out_dir->type) {
-          case ReproducerDirectory::Type::kUserSpecified:
-            absl::Format(out, "Reproducer file was dumped at:\n%s\n",
-                         reproducer_path);
-            break;
-          case ReproducerDirectory::Type::kTestUndeclaredOutputs:
-            std::string test_name = absl::StrCat(
-                current_test_->suite_name(), ".", current_test_->test_name());
-            PrintReproductionInstructionsForUndeclaredOutputs(
-                out, reproducer_path, test_name);
-            break;
-        }
-      }
-    }
-
     // There doesn't seem to be a good way to generate a reproducer test when
     // the test uses a fixture (see b/241271658).
     if (!current_test_->uses_fixture()) {
-      absl::Format(out, "%s=== Regression test draft\n\n", separator);
+      absl::Format(out, "%s=== Regression test draft\n\n", GetSeparator());
 
       absl::Format(out, "TEST(%1$s, %2$sRegression) {\n  %2$s(\n",
                    current_test_->suite_name(), current_test_->test_name());
@@ -285,16 +322,13 @@ void Runtime::PrintReport(RawSink out) const {
                    "For reproducing findings please rely on file based "
                    "reproduction.\n");
     }
-    if (current_configuration_ != nullptr) {
-      const auto reproduction_command =
-          GetReproductionCommand(*current_configuration_);
-      if (reproduction_command.has_value()) {
-        absl::Format(out, "%s=== Reproduction command\n\n", separator);
-        absl::Format(out, "%s\n\n", *reproduction_command);
-      }
-    }
+    std::optional<ReproducerDirectory> out_dir = GetReproducerDirectory();
+    const std::string reproducer_path =
+        out_dir.has_value() ? DumpReproducer(out_dir->path) : "";
+    PrintReproducerIfRequested(out, *current_test_, current_configuration_,
+                               reproducer_path);
   } else {
-    absl::Format(out, "%s=== SETUP FAILURE!\n\n", separator);
+    absl::Format(out, "%s=== SETUP FAILURE!\n\n", GetSeparator());
     absl::Format(out, "%s:%d: There was a problem with %s.%s.",
                  current_test_->file(), current_test_->line(),
                  current_test_->suite_name(), current_test_->test_name());
@@ -302,7 +336,7 @@ void Runtime::PrintReport(RawSink out) const {
       absl::Format(out, "%s", *test_abort_message);
     }
   }
-  absl::Format(out, "%s", separator);
+  absl::Format(out, "%s", GetSeparator());
 }
 
 void Runtime::StartWatchdog() {

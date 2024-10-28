@@ -568,10 +568,13 @@ fuzztest_cc_test(
   SRCS
     "internal/runtime_test.cc"
   DEPS
+    fuzztest::configuration
     fuzztest::domain_core
+    fuzztest::flag_name
     fuzztest::runtime
     test_protobuf
     absl::time
+    absl::flags
     GTest::gmock_main
 )
 
