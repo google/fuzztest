@@ -377,18 +377,19 @@ __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
   state.CleanUpDetachedTls();
+  {
+    centipede::LockGuard lock(state.execution_result_override_mu);
+    if (state.execution_result_override != nullptr) {
+      state.execution_result_override->ClearAndResize(0);
+    }
+  }
+  if (state.run_time_flags.skip_seen_features) return;
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
       tls.call_stack.Reset(state.run_time_flags.callstack_level);
       tls.lowest_sp = tls.top_frame_sp;
     });
-  }
-  {
-    centipede::LockGuard lock(state.execution_result_override_mu);
-    if (state.execution_result_override != nullptr) {
-      state.execution_result_override->ClearAndResize(0);
-    }
   }
   if (!full_clear) return;
   state.ForEachTls([](ThreadLocalRunnerState &tls) {
