@@ -22,6 +22,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"

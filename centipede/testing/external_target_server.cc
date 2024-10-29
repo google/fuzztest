@@ -18,9 +18,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/strings/numbers.h"
