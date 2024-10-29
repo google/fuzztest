@@ -312,7 +312,8 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   absl::StatusOr<corpus_type> TryParse(absl::string_view data);
 
-  void MutateValue(Input& input, absl::BitGenRef prng);
+  void MutateValue(Input& input, absl::BitGenRef prng,
+                   const domain_implementor::MutationMetadata& metadata);
 
   void UpdateCorpusDistribution();
 

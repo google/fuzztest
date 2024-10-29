@@ -31,10 +31,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
+#include "./fuzztest/internal/domains/mutation_metadata.h"  // IWYU pragma: export
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -73,7 +73,8 @@ namespace fuzztest::domain_implementor {
 //   may first call `MaybeGetRandomSeed()` and return its non-nullopt result.
 //   TODO(b/303324603): Move the call to `MaybeGetRandomSeed()` to a wrapper.
 //
-// - void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink)
+// - void Mutate(corpus_type& val, absl::BitGenRef prng,
+//               const MutationMetadata& metadata, bool only_shrink)
 //
 //   The method that mutates the corpus value.
 //
@@ -130,6 +131,15 @@ class DomainBase {
     }
   }
 
+  // Mutates `corpus_value` using `prng`, `only_shirnk` and the default mutation
+  // metadata. This is a temporary wrapper that redirects the call to the real
+  // interface with an explicit argument for metadata.
+  void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
+              bool only_shrink) {
+    return derived().Mutate(corpus_value, prng, MutationMetadata{},
+                            only_shrink);
+  }
+
   // Returns a random user value from the domain. In general, doesn't provide
   // guarantees on the distribution of the returned values.
   //
@@ -165,11 +175,12 @@ class DomainBase {
     return internal::IRObject::FromCorpus(v);
   }
 
-  void UpdateMemoryDictionary(const CorpusType& val) {}
+  void UpdateMemoryDictionary(const CorpusType& val, ConstCmpTablesPtr) {}
 
   uint64_t CountNumberOfFields(const CorpusType&) { return 0; }
 
-  uint64_t MutateSelectedField(CorpusType&, absl::BitGenRef, bool, uint64_t) {
+  uint64_t MutateSelectedField(CorpusType&, absl::BitGenRef,
+                               const MutationMetadata&, bool, uint64_t) {
     return 0;
   }
 
@@ -240,7 +251,8 @@ class DomainBase {
     // probability.
     constexpr int kMaxMutations = 1000;
     for (int i = absl::Uniform(prng, 0, kMaxMutations); i > 0; --i) {
-      derived().Mutate(corpus_val, prng, /*only_shrink=*/false);
+      derived().Mutate(corpus_val, prng, MutationMetadata{},
+                       /*only_shrink=*/false);
     }
     return corpus_val;
   }

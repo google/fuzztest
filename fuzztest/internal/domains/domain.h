@@ -31,6 +31,7 @@
 #include "./fuzztest/internal/domains/domain_type_erasure.h"  // IWYU pragma: export
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest {
 namespace internal {
@@ -156,13 +157,23 @@ class Domain {
 
   // Mutate() makes a relatively small modification on `val` of `corpus_type`.
   //
-  // Used during coverage-guided fuzzing. When `only_shrink` is enabled, the
-  // mutated value is always "simpler" (e.g., smaller). This is used for input
-  // minimization ("shrinking").
+  // Used during coverage-guided fuzzing. When `only_shrink` is true,
+  // the mutated value is always "simpler" (e.g., smaller). This is used for
+  // input minimization ("shrinking").
   //
   // ENSURES: That the mutated value is not the same as the original.
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    return inner_->UntypedMutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
+    return inner_->UntypedMutate(val, prng, metadata, only_shrink);
+  }
+
+  // Mutates `corpus_value` using `prng`, `only_shirnk` and the default mutation
+  // metadata. This is a temporary wrapper that redirects the call to the real
+  // interface with an explicit argument for metadata.
+  void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
+              bool only_shrink) {
+    return Mutate(corpus_value, prng, {}, only_shrink);
   }
 
   // The methods below are responsible for transforming between the above
@@ -232,8 +243,10 @@ class Domain {
   //
   // TODO(b/303324603): Using an extension mechanism, expose this method in
   // the interface only for user value types `T` for which it makes sense.
-  void UpdateMemoryDictionary(const corpus_type& corpus_value) {
-    return inner_->UntypedUpdateMemoryDictionary(corpus_value);
+  void UpdateMemoryDictionary(
+      const corpus_type& corpus_value,
+      const internal::TablesOfRecentCompares* cmp_tables) {
+    return inner_->UntypedUpdateMemoryDictionary(corpus_value, cmp_tables);
   }
 
   // Return the field counts of `corpus_value` if `corpus_value` is
@@ -251,11 +264,12 @@ class Domain {
   //
   // TODO(b/303324603): Using an extension mechanism, expose this method in
   // the interface only for user value types `T` for which it makes sense.
-  uint64_t MutateSelectedField(corpus_type& corpus_value, absl::BitGenRef prng,
-                               bool only_shrink,
-                               uint64_t selected_field_index) {
-    return inner_->UntypedMutateSelectedField(corpus_value, prng, only_shrink,
-                                              selected_field_index);
+  uint64_t MutateSelectedField(
+      corpus_type& corpus_value, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index) {
+    return inner_->UntypedMutateSelectedField(
+        corpus_value, prng, metadata, only_shrink, selected_field_index);
   }
 
  private:
@@ -303,8 +317,14 @@ class UntypedDomain {
   corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
 
   void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
-    return inner_->UntypedMutate(corpus_value, prng, only_shrink);
+    return inner_->UntypedMutate(corpus_value, prng, metadata, only_shrink);
+  }
+
+  void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
+              bool only_shrink) {
+    return Mutate(corpus_value, prng, {}, only_shrink);
   }
 
   value_type GetValue(const corpus_type& corpus_value) const {
@@ -325,8 +345,10 @@ class UntypedDomain {
 
   auto GetPrinter() const { return internal::GenericPrinter{*inner_}; }
 
-  void UpdateMemoryDictionary(const corpus_type& corpus_value) {
-    return inner_->UntypedUpdateMemoryDictionary(corpus_value);
+  void UpdateMemoryDictionary(
+      const corpus_type& corpus_value,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) {
+    return inner_->UntypedUpdateMemoryDictionary(corpus_value, cmp_tables);
   }
 
  private:

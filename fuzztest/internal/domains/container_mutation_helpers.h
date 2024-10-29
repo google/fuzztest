@@ -22,7 +22,6 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest::internal {
@@ -205,6 +204,7 @@ bool ApplyDictionaryMutationAndSavePermanentCandidate(
 template <typename ContainerT>
 bool MemoryDictionaryMutation(
     ContainerT& val, absl::BitGenRef prng,
+    const internal::TablesOfRecentCompares* cmp_tables,
     ContainerDictionary<ContainerT>& temporary_dict,
     ContainerDictionary<ContainerT>& manual_dict,
     ContainerDictionary<ContainerT>& permanent_dict,
@@ -214,9 +214,9 @@ bool MemoryDictionaryMutation(
   const bool can_use_manual_dictionary = !manual_dict.IsEmpty();
   const bool can_use_temporary_dictionary = !temporary_dict.IsEmpty();
   const bool can_use_permanent_dictionary = !permanent_dict.IsEmpty();
-  const int dictionary_action_count = 1 + can_use_manual_dictionary +
-                                      can_use_temporary_dictionary +
-                                      can_use_permanent_dictionary;
+  const int dictionary_action_count =
+      can_use_manual_dictionary + can_use_temporary_dictionary +
+      can_use_permanent_dictionary + (cmp_tables == nullptr ? 0 : 1);
   int dictionary_action = absl::Uniform(prng, 0, dictionary_action_count);
   if (can_use_temporary_dictionary && dictionary_action-- == 0) {
     mutated = ApplyDictionaryMutationAndSavePermanentCandidate(
@@ -245,7 +245,7 @@ bool MemoryDictionaryMutation(
   // Pick entries from tables_of_recent_compares(TORC) directly.
   if (dictionary_action-- == 0) {
     auto dictionary_entry = ContainerDictionary<ContainerT>::GetRandomTORCEntry(
-        val, prng, GetExecutionCoverage()->GetTablesOfRecentCompares());
+        val, prng, *cmp_tables);
     if (dictionary_entry.has_value()) {
       mutated = ApplyDictionaryMutationAndSavePermanentCandidate(
           val, *dictionary_entry, prng, permanent_dict_candidate, max_size);

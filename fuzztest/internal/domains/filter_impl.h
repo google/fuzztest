@@ -37,6 +37,8 @@ class FilterImpl
   using typename FilterImpl::DomainBase::corpus_type;
   using typename FilterImpl::DomainBase::value_type;
 
+  using FilterImpl::DomainBase::Mutate;
+
   FilterImpl() = default;
   explicit FilterImpl(std::function<bool(const T&)> predicate, Domain<T> inner)
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}
@@ -49,10 +51,12 @@ class FilterImpl
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     corpus_type original_val = val;
     while (true) {
-      inner_.Mutate(val, prng, only_shrink);
+      inner_.Mutate(val, prng, metadata, only_shrink);
       if (RunFilter(val)) return;
       val = original_val;
     }

@@ -42,6 +42,8 @@ class OneOfImpl
   using typename OneOfImpl::DomainBase::corpus_type;
   using typename OneOfImpl::DomainBase::value_type;
 
+  using OneOfImpl::DomainBase::Mutate;
+
   // All value_types of inner domains must be the same. (Though note that they
   // can have different corpus_types!)
   static_assert(
@@ -61,7 +63,9 @@ class OneOfImpl
         });
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     // Switch to another domain 1% of the time when not reducing.
     if (kNumDomains > 1 && !only_shrink && absl::Bernoulli(prng, 0.01)) {
       // Choose a different index.
@@ -76,7 +80,7 @@ class OneOfImpl
     } else {
       Switch<kNumDomains>(val.index(), [&](auto I) {
         auto& domain = std::get<I>(domains_);
-        domain.Mutate(std::get<I>(val), prng, only_shrink);
+        domain.Mutate(std::get<I>(val), prng, metadata, only_shrink);
       });
     }
   }

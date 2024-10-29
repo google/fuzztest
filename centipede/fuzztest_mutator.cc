@@ -29,7 +29,7 @@
 #include "./centipede/mutation_input.h"
 #include "./common/defs.h"
 #include "./fuzztest/domain_core.h"
-#include "./fuzztest/internal/coverage.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace centipede {
 
@@ -40,30 +40,25 @@ using MutatorDomainBase =
 
 }  // namespace
 
+struct FuzzTestMutator::MutationMetadata {
+  fuzztest::internal::TablesOfRecentCompares cmp_tables;
+};
+
 class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
  public:
   MutatorDomain()
       : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {
-    if (fuzztest::internal::GetExecutionCoverage() == nullptr) {
-      execution_coverage_ = std::make_unique<ExecutionCoverage>(
-          /*counter_map=*/absl::Span<uint8_t>{});
-      execution_coverage_->SetIsTracing(true);
-      fuzztest::internal::SetExecutionCoverage(execution_coverage_.get());
-    }
   }
 
   ~MutatorDomain() {
-    if (fuzztest::internal::GetExecutionCoverage() == execution_coverage_.get())
-      fuzztest::internal::SetExecutionCoverage(nullptr);
   }
-
- private:
-  using ExecutionCoverage = fuzztest::internal::ExecutionCoverage;
-  std::unique_ptr<ExecutionCoverage> execution_coverage_;
 };
 
 FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
-    : knobs_(knobs), prng_(seed), domain_(std::make_unique<MutatorDomain>()) {
+    : knobs_(knobs),
+      prng_(seed),
+      mutation_metadata_(std::make_unique<MutationMetadata>()),
+      domain_(std::make_unique<MutatorDomain>()) {
   domain_->WithMinSize(1).WithMaxSize(max_len_);
 }
 
@@ -123,23 +118,23 @@ void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef>& inputs,
           inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
       CrossOver(mutant, other_input);
     } else {
-      domain_->Mutate(mutant, prng_, /*only_shrink=*/false);
+      domain_->Mutate(mutant, prng_,
+                      {.cmp_tables = &mutation_metadata_->cmp_tables},
+                      /*only_shrink=*/false);
     }
     mutants.push_back(std::move(mutant));
   }
 }
 
 void FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
-  metadata.ForEachCmpEntry([](ByteSpan a, ByteSpan b) {
+  metadata.ForEachCmpEntry([this](ByteSpan a, ByteSpan b) {
     size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
     if (size > kMaxCmpEntrySize) return;
     // Use the memcmp table to avoid subtlety of the container domain mutation
     // with integer tables. E.g. it won't insert integer comparison data.
-    fuzztest::internal::GetExecutionCoverage()
-        ->GetTablesOfRecentCompares()
-        .GetMutable<0>()
-        .Insert(a.data(), b.data(), size);
+    mutation_metadata_->cmp_tables.GetMutable<0>().Insert(a.data(), b.data(),
+                                                          size);
   });
 }
 

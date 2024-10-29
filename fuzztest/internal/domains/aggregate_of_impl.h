@@ -53,6 +53,8 @@ class AggregateOfImpl
   using typename AggregateOfImpl::DomainBase::corpus_type;
   using typename AggregateOfImpl::DomainBase::value_type;
 
+  using AggregateOfImpl::DomainBase::Mutate;
+
   AggregateOfImpl() = default;
   explicit AggregateOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}
@@ -64,7 +66,9 @@ class AggregateOfImpl
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     std::integral_constant<int, sizeof...(Inner)> size;
     auto bound = internal::BindAggregate(val, size);
     // Filter the tuple to only the mutable fields.
@@ -79,12 +83,14 @@ class AggregateOfImpl
       int offset = absl::Uniform<int>(prng, 0, actual_size);
       Switch<actual_size>(offset, [&](auto I) {
         std::get<to_mutate[I]>(inner_).Mutate(std::get<to_mutate[I]>(bound),
-                                              prng, only_shrink);
+                                              prng, metadata, only_shrink);
       });
     }
   }
 
-  void UpdateMemoryDictionary(const corpus_type& val) {
+  void UpdateMemoryDictionary(
+      const corpus_type& val,
+      domain_implementor::ConstCmpTablesPtr cmp_tables) {
     // Copy codes from Mutate that does the mutable domain filtering things.
     std::integral_constant<int, sizeof...(Inner)> size;
     auto bound = internal::BindAggregate(val, size);
@@ -97,7 +103,7 @@ class AggregateOfImpl
     if constexpr (actual_size > 0) {
       ApplyIndex<actual_size>([&](auto... I) {
         (std::get<to_mutate[I]>(inner_).UpdateMemoryDictionary(
-             std::get<to_mutate[I]>(bound)),
+             std::get<to_mutate[I]>(bound), cmp_tables),
          ...);
       });
     }

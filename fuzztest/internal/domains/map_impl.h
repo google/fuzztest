@@ -42,6 +42,8 @@ class MapImpl
   using typename MapImpl::DomainBase::corpus_type;
   using typename MapImpl::DomainBase::value_type;
 
+  using MapImpl::DomainBase::Mutate;
+
   MapImpl() = default;
   explicit MapImpl(Mapper mapper, Inner... inner)
       : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
@@ -58,9 +60,13 @@ class MapImpl
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
+      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,
+                                  only_shrink),
+       ...);
     });
   }
 
@@ -117,6 +123,8 @@ class ReversibleMapImpl
   using typename ReversibleMapImpl::DomainBase::corpus_type;
   using typename ReversibleMapImpl::DomainBase::value_type;
 
+  using ReversibleMapImpl::DomainBase::Mutate;
+
   static_assert(
       std::is_invocable_v<InvMapper, const value_type&> &&
       std::is_same_v<std::invoke_result_t<InvMapper, const value_type&>,
@@ -135,9 +143,13 @@ class ReversibleMapImpl
         inner_);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     return ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink), ...);
+      (std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,
+                                  only_shrink),
+       ...);
     });
   }
 

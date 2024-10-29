@@ -43,6 +43,8 @@ class VariantOfImpl : public domain_implementor::DomainBase<
   using typename VariantOfImpl::DomainBase::corpus_type;
   using typename VariantOfImpl::DomainBase::value_type;
 
+  using VariantOfImpl::DomainBase::Mutate;
+
   VariantOfImpl() = default;
   explicit VariantOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}
@@ -56,7 +58,9 @@ class VariantOfImpl : public domain_implementor::DomainBase<
         });
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     // Flip a coin to choose between generating a value of an alternative type
     // and mutating the value of the current type. Assign more weight to the
     // mutating case in order to explore more on a given type before we start
@@ -65,7 +69,8 @@ class VariantOfImpl : public domain_implementor::DomainBase<
       val = Init(prng);
     } else {
       Switch<sizeof...(Inner)>(val.index(), [&](auto I) {
-        std::get<I>(inner_).Mutate(std::get<I>(val), prng, only_shrink);
+        std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,
+                                   only_shrink);
       });
     }
   }

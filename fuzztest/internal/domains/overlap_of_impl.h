@@ -45,6 +45,8 @@ class OverlapOfImpl
   using typename OverlapOfImpl::DomainBase::corpus_type;
   using typename OverlapOfImpl::DomainBase::value_type;
 
+  using OverlapOfImpl::DomainBase::Mutate;
+
   static_assert(
       std::conjunction_v<std::is_same<value_type, value_type_t<Inner>>...>,
       "All overlapping domains must have the same value_type.");
@@ -65,7 +67,9 @@ class OverlapOfImpl
     }
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     const size_t index = val.index();
     std::optional<value_type> orig_value;
     std::optional<corpus_type> mutant_corpus;
@@ -85,7 +89,7 @@ class OverlapOfImpl
           FUZZTEST_INTERNAL_CHECK(inner_corpus.has_value(),
                                   "Mutate() called on a user value that is not "
                                   "valid in all overlapping domains");
-          domain.Mutate(*inner_corpus, prng, only_shrink);
+          domain.Mutate(*inner_corpus, prng, metadata, only_shrink);
           mutant_corpus =
               corpus_type(std::in_place_index<I>, *std::move(inner_corpus));
         });
@@ -93,7 +97,8 @@ class OverlapOfImpl
         mutant_corpus = val;
         Switch<kNumDomains>(index, [&](auto I) {
           auto& domain = std::get<I>(domains_);
-          domain.Mutate(std::get<I>(*mutant_corpus), prng, only_shrink);
+          domain.Mutate(std::get<I>(*mutant_corpus), prng, metadata,
+                        only_shrink);
         });
       }
       FUZZTEST_INTERNAL_CHECK(mutant_corpus.has_value(),

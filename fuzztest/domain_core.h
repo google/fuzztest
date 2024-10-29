@@ -162,12 +162,16 @@ class DomainBuilder {
       return GetInnerDomain().Init(prng);
     }
 
-    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-      GetInnerDomain().Mutate(val, prng, only_shrink);
+    void Mutate(corpus_type& val, absl::BitGenRef prng,
+                const domain_implementor::MutationMetadata& metadata,
+                bool only_shrink) {
+      GetInnerDomain().Mutate(val, prng, metadata, only_shrink);
     }
 
-    void UpdateMemoryDictionary(const corpus_type& val) {
-      return GetInnerDomain().UpdateMemoryDictionary(val);
+    void UpdateMemoryDictionary(
+        const corpus_type& val,
+        domain_implementor::ConstCmpTablesPtr cmp_tables) {
+      return GetInnerDomain().UpdateMemoryDictionary(val, cmp_tables);
     }
 
     auto GetPrinter() const { return GetInnerDomain().GetPrinter(); }
@@ -216,12 +220,16 @@ class DomainBuilder {
 
     corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
 
-    void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-      inner_.Mutate(val, prng, only_shrink);
+    void Mutate(corpus_type& val, absl::BitGenRef prng,
+                const domain_implementor::MutationMetadata& metadata,
+                bool only_shrink) {
+      inner_.Mutate(val, prng, metadata, only_shrink);
     }
 
-    void UpdateMemoryDictionary(const corpus_type& val) {
-      return inner_.UpdateMemoryDictionary(val);
+    void UpdateMemoryDictionary(
+        const corpus_type& val,
+        domain_implementor::ConstCmpTablesPtr cmp_tables) {
+      return inner_.UpdateMemoryDictionary(val, cmp_tables);
     }
 
     auto GetPrinter() const { return inner_.GetPrinter(); }

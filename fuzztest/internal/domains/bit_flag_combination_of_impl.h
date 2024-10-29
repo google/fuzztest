@@ -33,11 +33,14 @@ class BitFlagCombinationOfImpl
  public:
   using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 
+  using BitFlagCombinationOfImpl::DomainBase::Mutate;
+
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
       : flags_(flags.begin(), flags.end()), all_flags_combo_{} {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         !flags.empty(), "BitFlagCombinationOf requires a non empty list.");
-    // Make sure they are mutually exclusive options, and none are empty.
+    // Make sure they are mutually exclusive metadata, only_shrink and none are
+    // empty.
     for (int i = 0; i < flags.size(); ++i) {
       T v1 = flags[i];
       FUZZTEST_INTERNAL_CHECK_PRECONDITION(
@@ -57,7 +60,8 @@ class BitFlagCombinationOfImpl
     return value_type{};
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata&, bool only_shrink) {
     T to_switch = flags_[ChooseOffset(flags_.size(), prng)];
 
     if (!only_shrink || BitAnd(val, to_switch) != T{}) {

@@ -104,7 +104,8 @@ class StringLiteralDomain {
     return ASTNode{id, std::monostate()};
   }
 
-  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {}
+  static void Mutate(ASTNode& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata&, bool) {}
 
   static ASTTypeId TypeId() { return id; }
 
@@ -147,8 +148,11 @@ class RegexLiteralDomain {
     return ASTNode{id, GetInnerRegexpDomain().Init(prng)};
   }
 
-  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
-    GetInnerRegexpDomain().Mutate(std::get<1>(val.children), prng, only_shrink);
+  static void Mutate(ASTNode& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata& metadata,
+                     bool only_shrink) {
+    GetInnerRegexpDomain().Mutate(std::get<1>(val.children), prng, metadata,
+                                  only_shrink);
   }
 
   static ASTTypeId TypeId() { return id; }
@@ -233,7 +237,9 @@ class VectorDomain {
 
   static ASTTypeId TypeId() { return id; }
 
-  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata& metadata,
+                     bool only_shrink) {
     FUZZTEST_INTERNAL_CHECK(val.children.index() == 2, "Not a vector!");
     std::vector<ASTNode>& elements = std::get<2>(val.children);
     if (only_shrink) {
@@ -253,14 +259,14 @@ class VectorDomain {
     } else if (!can_change_element_num) {
       ElementT::Mutate(
           elements[absl::Uniform<size_t>(prng, 0, elements.size())], prng,
-          only_shrink);
+          metadata, only_shrink);
     } else {
       if (absl::Bernoulli(prng, 0.5)) {
         ChangeElementNum(elements, prng);
       } else {
         ElementT::Mutate(
             elements[absl::Uniform<size_t>(prng, 0, elements.size())], prng,
-            only_shrink);
+            metadata, only_shrink);
       }
     }
   }
@@ -323,7 +329,7 @@ class VectorDomain {
     if (!can_remove_element) {
       // Cannot remove elements, let's shrink them.
       ElementT::Mutate(*ChoosePosition(elements, IncludeEnd::kNo, prng), prng,
-                       true);
+                       {}, /*only_shrink=*/true);
     } else if (!can_shrink_element) {
       // Cannot shrink elements, let's remove one.
       elements.erase(ChoosePosition(elements, IncludeEnd::kNo, prng));
@@ -334,7 +340,7 @@ class VectorDomain {
 
       } else {
         ElementT::Mutate(*ChoosePosition(elements, IncludeEnd::kNo, prng), prng,
-                         true);
+                         {}, /*only_shrink=*/true);
       }
     }
   }
@@ -383,7 +389,9 @@ class TupleDomain {
                 generation_budget / static_cast<int>(sizeof...(ElementT)))...}};
   }
 
-  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata& metadata,
+                     bool only_shrink) {
     FUZZTEST_INTERNAL_CHECK(
         val.children.index() == 2 &&
             std::get<2>(val.children).size() == sizeof...(ElementT),
@@ -404,7 +412,7 @@ class TupleDomain {
     int choice = mutables[absl::Uniform<int>(prng, 0, mutables.size())];
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
       ((choice == I ? (ElementT::Mutate(std::get<2>(val.children)[I], prng,
-                                        only_shrink))
+                                        metadata, only_shrink))
                     : (void)0),
        ...);
     });
@@ -492,7 +500,9 @@ class VariantDomain {
     return result;
   }
 
-  static void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
+  static void Mutate(ASTNode& val, absl::BitGenRef prng,
+                     const domain_implementor::MutationMetadata& metadata,
+                     bool only_shrink) {
     constexpr bool has_alternative = sizeof...(ElementT) > 1;
     ASTNode current_value = std::get<2>(val.children).front();
     ASTTypeId current_value_id = current_value.type_id;
@@ -507,7 +517,7 @@ class VariantDomain {
                             "Impossible at" + std::to_string(id));
     if (only_shrink) {
       if (is_current_value_mutable) {
-        MutateCurrentValue(val, prng, only_shrink);
+        MutateCurrentValue(val, prng, metadata, only_shrink);
       }
       return;
     }
@@ -515,10 +525,10 @@ class VariantDomain {
     if (!is_current_value_mutable) {
       SwitchToAlternative(val, prng);
     } else if (!has_alternative) {
-      MutateCurrentValue(val, prng, only_shrink);
+      MutateCurrentValue(val, prng, metadata, only_shrink);
     } else {
       if (absl::Bernoulli(prng, 0.5)) {
-        MutateCurrentValue(val, prng, only_shrink);
+        MutateCurrentValue(val, prng, metadata, only_shrink);
       } else {
         SwitchToAlternative(val, prng);
       }
@@ -594,11 +604,12 @@ class VariantDomain {
   }
 
  private:
-  static void MutateCurrentValue(ASTNode& val, absl::BitGenRef prng,
-                                 bool only_shrink) {
+  static void MutateCurrentValue(
+      ASTNode& val, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink) {
     ASTNode& current_value = std::get<2>(val.children).front();
     ((ElementT::TypeId() == current_value.type_id
-          ? (ElementT::Mutate(current_value, prng, only_shrink))
+          ? (ElementT::Mutate(current_value, prng, metadata, only_shrink))
           : (void)0),
      ...);
   }
@@ -640,17 +651,21 @@ class InGrammarImpl
   using typename InGrammarImpl::DomainBase::corpus_type;
   using typename InGrammarImpl::DomainBase::value_type;
 
+  using InGrammarImpl::DomainBase::Mutate;
+
   ASTNode Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return TopDomain::Init(prng);
   }
 
-  void Mutate(ASTNode& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(ASTNode& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     if (only_shrink && absl::Bernoulli(prng, 0.5) &&
         ShrinkByReplaceWithSubElementOfSameType(val, prng)) {
       return;
     }
-    TopDomain::Mutate(val, prng, only_shrink);
+    TopDomain::Mutate(val, prng, metadata, only_shrink);
   }
 
   auto GetPrinter() const { return StringPrinter{}; }

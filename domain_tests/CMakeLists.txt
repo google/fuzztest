@@ -82,8 +82,8 @@ fuzztest_cc_test(
     absl::flat_hash_map
     absl::flat_hash_set
     absl::random_random
-    fuzztest::coverage
     fuzztest::domain_core
+    fuzztest::table_of_recent_compares
     fuzztest::type_support
     GTest::gmock_main
 )
@@ -100,6 +100,7 @@ fuzztest_cc_library(
     absl::random_bit_gen_ref
     absl::status
     absl::strings
+    fuzztest::domain_core
     fuzztest::logging
     fuzztest::meta
     fuzztest::serialization

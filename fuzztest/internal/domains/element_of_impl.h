@@ -41,6 +41,8 @@ class ElementOfImpl
   using typename ElementOfImpl::DomainBase::corpus_type;
   using typename ElementOfImpl::DomainBase::value_type;
 
+  using ElementOfImpl::DomainBase::Mutate;
+
   explicit ElementOfImpl(std::vector<T> values) : values_(values) {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         !values.empty(), "ElementOf requires a non empty list.");
@@ -51,7 +53,8 @@ class ElementOfImpl
     return corpus_type{absl::Uniform<size_t>(prng, 0, values_.size())};
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata&, bool only_shrink) {
     if (values_.size() <= 1) return;
     if (only_shrink) {
       size_t index = static_cast<size_t>(val);

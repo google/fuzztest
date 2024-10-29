@@ -52,6 +52,8 @@ class UniqueElementsContainerImpl
   using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
   using typename UniqueElementsContainerImpl::DomainBase::value_type;
 
+  using UniqueElementsContainerImpl::DomainBase::Mutate;
+
   UniqueElementsContainerImpl() = default;
   explicit UniqueElementsContainerImpl(InnerDomain inner)
       : unique_domain_(std::move(inner)) {}
@@ -64,8 +66,10 @@ class UniqueElementsContainerImpl
     return unique_domain_.Init(prng);
   }
 
-  void Mutate(corpus_type& val, absl::BitGenRef prng, bool only_shrink) {
-    unique_domain_.Mutate(val, prng, only_shrink);
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
+    unique_domain_.Mutate(val, prng, metadata, only_shrink);
   }
 
   value_type GetValue(const corpus_type& v) const {

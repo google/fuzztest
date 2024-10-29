@@ -29,13 +29,11 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "./fuzztest/internal/coverage.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
@@ -44,6 +42,8 @@ template <typename T>
 class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
  public:
   using typename InRangeImpl::DomainBase::value_type;
+
+  using InRangeImpl::DomainBase::Mutate;
 
   constexpr static bool T_is_integer = std::numeric_limits<T>::is_integer;
   constexpr static bool T_is_signed = std::is_signed<T>::value;
@@ -106,7 +106,9 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
     });
   }
 
-  void Mutate(value_type& val, absl::BitGenRef prng, bool only_shrink) {
+  void Mutate(value_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
     if (min_ == max_) {
       val = min_;
       return;
@@ -146,9 +148,9 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
               val = absl::Uniform(absl::IntervalClosedClosed, prng, min_, max_);
             }
           } else {
-            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                         permanent_dict_,
-                                         permanent_dict_candidate_);
+            RandomWalkOrUniformOrDict<5>(
+                prng, val, min_, max_, metadata.cmp_tables, temporary_dict_,
+                permanent_dict_, permanent_dict_candidate_);
           }
         } else {
           if (absl::Bernoulli(prng, 0.25)) {
@@ -157,14 +159,14 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
               val = absl::Uniform(absl::IntervalClosedClosed, prng, min_, max_);
             }
           } else {
-            RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                         permanent_dict_,
-                                         permanent_dict_candidate_);
+            RandomWalkOrUniformOrDict<5>(
+                prng, val, min_, max_, metadata.cmp_tables, temporary_dict_,
+                permanent_dict_, permanent_dict_candidate_);
           }
         }
       } else {
-        RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, temporary_dict_,
-                                     permanent_dict_,
+        RandomWalkOrUniformOrDict<5>(prng, val, min_, max_, metadata.cmp_tables,
+                                     temporary_dict_, permanent_dict_,
                                      permanent_dict_candidate_);
       }
     } while (val == prev);  // Make sure Mutate really mutates.
@@ -198,12 +200,12 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
     }
   }
 
-  void UpdateMemoryDictionary(const value_type& val) {
+  void UpdateMemoryDictionary(
+      const value_type& val, domain_implementor::ConstCmpTablesPtr cmp_tables) {
     if constexpr (T_is_memory_dictionary_compatible) {
-      if (GetExecutionCoverage() != nullptr) {
-        temporary_dict_.MatchEntriesFromTableOfRecentCompares(
-            val, GetExecutionCoverage()->GetTablesOfRecentCompares(), min_,
-            max_);
+      if (cmp_tables != nullptr) {
+        temporary_dict_.MatchEntriesFromTableOfRecentCompares(val, *cmp_tables,
+                                                              min_, max_);
         if (permanent_dict_candidate_.has_value() &&
             permanent_dict_.Size() < kPermanentDictMaxSize) {
           permanent_dict_.AddEntry(std::move(*permanent_dict_candidate_));
