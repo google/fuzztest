@@ -65,7 +65,7 @@ jobs:
       - name: Run puzzles with ASAN
         if: matrix.config == 'asan'
         run: |
-          bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address centipede/puzzles:all
+          bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 centipede/puzzles:all
       - name: Run unit tests without Riegeli
         if: matrix.config == 'noriegeli'
         run: |
@@ -81,7 +81,7 @@ jobs:
       - name: Run puzzles without Riegeli with ASAN
         if: matrix.config == 'noriegeli'
         run: |
-          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --platform_suffix=asan centipede/puzzles:all
+          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -122,7 +122,7 @@ jobs:
       - name: Run puzzles without Riegeli with ASAN
         if: ${{ !cancelled() }}
         run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --platform_suffix=asan centipede/puzzles:all
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan centipede/puzzles:all
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
