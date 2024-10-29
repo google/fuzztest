@@ -159,6 +159,10 @@ FUZZTEST_DEFINE_FLAG(
     "for an input if the execution of the property-function with the input "
     "takes longer than this time limit.");
 
+FUZZTEST_DEFINE_FLAG(std::optional<size_t>, jobs, std::nullopt,
+                     "The number of fuzzing jobs to run in parallel. If "
+                     "unspecified, the number of jobs is 1.");
+
 namespace fuzztest {
 
 std::vector<std::string> ListRegisteredTests() {
@@ -244,6 +248,9 @@ internal::Configuration CreateConfigurationsFromFlags(
                               : replay_corpus_time_limit
                                   ? *replay_corpus_time_limit
                                   : absl::ZeroDuration();
+  std::optional<size_t> jobs = absl::GetFlag(FUZZTEST_FLAG(jobs));
+  FUZZTEST_INTERNAL_CHECK(!jobs.has_value() || *jobs > 0, "If specified, --",
+                          FUZZTEST_FLAG(jobs).Name(), " must be positive.");
   return internal::Configuration{
       absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
       /*stats_root=*/"",
@@ -254,7 +261,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
-      absl::GetFlag(FUZZTEST_FLAG(time_budget_type))};
+      absl::GetFlag(FUZZTEST_FLAG(time_budget_type)), jobs.value_or(0)};
 }
 }  // namespace
 

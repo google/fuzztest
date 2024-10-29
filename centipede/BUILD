@@ -856,6 +856,7 @@ cc_library(
     deps = [
         ":feature",
         ":knobs",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -865,6 +866,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
+        "@com_google_fuzztest//fuzztest:configuration",
     ],
 )
 

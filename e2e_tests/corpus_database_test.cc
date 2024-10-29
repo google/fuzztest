@@ -55,7 +55,8 @@ class UpdateCorpusDatabaseTest : public testing::Test {
                            " ",
                            CreateFuzzTestFlag("corpus_database",
                                               GetCorpusDatabasePath()),
-                           " ", CreateFuzzTestFlag("fuzz_for", "30s"))}}});
+                           " ", CreateFuzzTestFlag("fuzz_for", "30s"), " ",
+                           CreateFuzzTestFlag("jobs", "2"))}}});
 
     *centipede_std_out_ = std::move(std_out);
     *centipede_std_err_ = std::move(std_err);
@@ -88,6 +89,14 @@ absl::NoDestructor<std::string> UpdateCorpusDatabaseTest::centipede_std_err_{};
 TEST_F(UpdateCorpusDatabaseTest, RunsFuzzTests) {
   EXPECT_THAT(GetCentipedeStdErr(),
               HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"));
+}
+
+TEST_F(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
+  EXPECT_THAT(
+      GetCentipedeStdErr(),
+      AllOf(HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz"),
+            HasSubstr("DISTILL[S.0]: Distilling to output shard 0"),
+            HasSubstr("DISTILL[S.1]: Distilling to output shard 1")));
 }
 
 }  // namespace

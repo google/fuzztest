@@ -474,6 +474,8 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration &fuzztest_config,
     CentipedeCallbacksFactory &callbacks_factory) {
+  env.UpdateWithTargetConfig(fuzztest_config);
+
   absl::Time start_time = absl::Now();
   LOG(INFO) << "Starting the update of the corpus database for fuzz tests:"
             << "\nBinary: " << env.binary

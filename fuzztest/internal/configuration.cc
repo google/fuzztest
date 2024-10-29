@@ -208,7 +208,7 @@ std::string Configuration::Serialize() const {
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(stack_limit) + SpaceFor(rss_limit) +
              SpaceFor(time_limit_per_input_str) + SpaceFor(time_limit_str) +
-             SpaceFor(time_budget_type_str) +
+             SpaceFor(time_budget_type_str) + SpaceFor(jobs) +
              SpaceFor(crashing_input_to_reproduce) +
              SpaceFor(reproduction_command_template));
   size_t offset = 0;
@@ -223,6 +223,7 @@ std::string Configuration::Serialize() const {
   offset = WriteString(out, offset, time_limit_per_input_str);
   offset = WriteString(out, offset, time_limit_str);
   offset = WriteString(out, offset, time_budget_type_str);
+  offset = WriteIntegral(out, offset, jobs);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
   CHECK_EQ(offset, out.size());
@@ -245,6 +246,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(time_limit_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(time_budget_type_str, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(jobs, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(crashing_input_to_reproduce,
                      ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
@@ -269,6 +271,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *time_limit_per_input,
                          *time_limit,
                          *time_budget_type,
+                         *jobs,
                          *std::move(crashing_input_to_reproduce),
                          *std::move(reproduction_command_template)};
   }();
