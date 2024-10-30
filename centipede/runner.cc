@@ -399,7 +399,9 @@ PrepareCoverage(bool full_clear) {
       tls.cmp_traceN.Clear();
     }
   });
-  state.pc_counter_set.ForEachNonZeroByte([](size_t idx, uint8_t value) {});
+  state.pc_counter_set.ForEachNonZeroByte(
+      [](size_t idx, uint8_t value) {}, 0,
+      state.actual_pc_counter_set_size_aligned);
   if (state.run_time_flags.use_dataflow_features)
     state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
   if (state.run_time_flags.use_cmp_features) {
