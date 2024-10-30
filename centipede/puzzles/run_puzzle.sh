@@ -67,6 +67,7 @@ function Run() {
     --symbolizer_path="${llvm_symbolizer}" \
     --objdump_path="${objdump}$" \
     --seed="${seed}" \
+    --batch_size=10000 \
     --num_runs=2000000 \
     --timeout_per_input=10 \
     --exit_on_crash \
