@@ -17,7 +17,6 @@
 #include <dlfcn.h>  // for dlsym()
 #include <pthread.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 

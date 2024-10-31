@@ -15,6 +15,7 @@
 #include "./centipede/analyze_corpora.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <sstream>
 #include <string>
 #include <string_view>

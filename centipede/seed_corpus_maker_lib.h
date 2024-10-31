@@ -15,7 +15,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_
 #define THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_
 
+#include <cstdint>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>

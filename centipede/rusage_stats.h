@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iosfwd>
+#include <memory>
 #include <ostream>
 #include <string>
 

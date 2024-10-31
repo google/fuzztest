@@ -17,7 +17,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <istream>
 #include <mutex>  //NOLINT
+#include <ostream>
 #include <string_view>
 #include <vector>
 
