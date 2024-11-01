@@ -56,9 +56,18 @@ TEST(WorkDirTest, Api) {
 
   EXPECT_EQ(wd.DebugInfoDirPath(), "/dir/debug");
   EXPECT_EQ(wd.CoverageDirPath(), "/dir/bin-hash");
-  EXPECT_EQ(wd.CrashReproducerDirPath(), "/dir/crashes");
-  EXPECT_EQ(wd.CrashMetadataDirPath(), "/dir/crash-metadata");
   EXPECT_EQ(wd.BinaryInfoDirPath(), "/dir/bin-hash/binary-info");
+
+  EXPECT_EQ(wd.CrashReproducerDirPaths().MyShard(), "/dir/crashes.000003");
+  EXPECT_EQ(wd.CrashReproducerDirPaths().Shard(7), "/dir/crashes.000007");
+  EXPECT_EQ(wd.CrashReproducerDirPaths().AllShardsGlob(), "/dir/crashes.*");
+  EXPECT_TRUE(wd.CrashReproducerDirPaths().IsShard("/dir/crashes.000009"));
+
+  EXPECT_EQ(wd.CrashMetadataDirPaths().MyShard(), "/dir/crash-metadata.000003");
+  EXPECT_EQ(wd.CrashMetadataDirPaths().Shard(7), "/dir/crash-metadata.000007");
+  EXPECT_EQ(wd.CrashMetadataDirPaths().AllShardsGlob(),
+            "/dir/crash-metadata.*");
+  EXPECT_TRUE(wd.CrashMetadataDirPaths().IsShard("/dir/crash-metadata.000009"));
 
   EXPECT_EQ(wd.CorpusFilePaths().MyShard(), "/dir/corpus.000003");
   EXPECT_EQ(wd.CorpusFilePaths().Shard(7), "/dir/corpus.000007");

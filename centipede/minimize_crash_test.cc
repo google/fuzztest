@@ -98,8 +98,8 @@ TEST(MinimizeTest, MinimizeTest) {
   EXPECT_EQ(MinimizeCrash(original_crasher, env, factory), EXIT_SUCCESS);
   // Collect the new crashers from the crasher dir.
   std::vector<ByteArray> crashers;
-  for (auto const &dir_entry :
-       std::filesystem::directory_iterator{wd.CrashReproducerDirPath()}) {
+  for (auto const &dir_entry : std::filesystem::directory_iterator{
+           wd.CrashReproducerDirPaths().MyShard()}) {
     ByteArray crasher;
     const std::string &path = dir_entry.path();
     ReadFromLocalFile(path, crasher);

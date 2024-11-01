@@ -47,8 +47,8 @@ centipede::ensure_empty_dir "${WD}"
 # some specific 5-byte input.
 centipede::assert_regex_in_file "Crasher: size: 5: .*fuz.*" "${LOG}"
 
-# Check that we actually have a 5-byte-long file in "${WD}/crashes".
-find "${WD}/crashes" -size 5c
+# Check that we actually have a 5-byte-long file in "${WD}/crashes."*.
+find "${WD}/crashes."* -size 5c
 
 # Cats a large crasher consisting of 2*n+5 bytes to stdout.
 # $1: n

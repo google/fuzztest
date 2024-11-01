@@ -136,12 +136,12 @@ std::string WorkDir::CoverageDirPath() const {
          absl::StrCat(binary_name_, "-", binary_hash_);
 }
 
-std::string WorkDir::CrashReproducerDirPath() const {
-  return std::filesystem::path(workdir_) / "crashes";
+WorkDir::PathShards WorkDir::CrashReproducerDirPaths() const {
+  return {workdir_, "crashes.", my_shard_index_};
 }
 
-std::string WorkDir::CrashMetadataDirPath() const {
-  return std::filesystem::path(workdir_) / "crash-metadata";
+WorkDir::PathShards WorkDir::CrashMetadataDirPaths() const {
+  return {workdir_, "crash-metadata.", my_shard_index_};
 }
 
 std::string WorkDir::BinaryInfoDirPath() const {

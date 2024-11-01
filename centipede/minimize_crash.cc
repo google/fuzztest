@@ -152,7 +152,7 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
   LOG(INFO) << "Starting the crash minimization loop in " << env.num_threads
             << "threads";
 
-  MinimizerWorkQueue queue(WorkDir{env}.CrashReproducerDirPath(),
+  MinimizerWorkQueue queue(WorkDir{env}.CrashReproducerDirPaths().MyShard(),
                            original_crashy_input);
 
   {

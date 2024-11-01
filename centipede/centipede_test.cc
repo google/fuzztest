@@ -730,7 +730,7 @@ TEST(Centipede, ExtraBinaries) {
 
   // Verify that we see the expected crashes.
   // The "crashes" dir must contain 3 crashy inputs, one for each binary.
-  auto crashes_dir_path = WorkDir{env}.CrashReproducerDirPath();
+  auto crashes_dir_path = WorkDir{env}.CrashReproducerDirPaths().MyShard();
   ASSERT_TRUE(std::filesystem::exists(crashes_dir_path))
       << VV(crashes_dir_path);
   EXPECT_THAT(crashes_dir_path,
@@ -742,7 +742,7 @@ TEST(Centipede, ExtraBinaries) {
   // Verify that we see the expected crash metadata.
   // The "crash-metadata" dir must contain 3 crash metadata files, one for each
   // crashy input.
-  auto crash_metadata_dir_path = WorkDir{env}.CrashMetadataDirPath();
+  auto crash_metadata_dir_path = WorkDir{env}.CrashMetadataDirPaths().MyShard();
   ASSERT_TRUE(std::filesystem::exists(crash_metadata_dir_path))
       << VV(crash_metadata_dir_path);
   EXPECT_THAT(crash_metadata_dir_path,
@@ -855,10 +855,10 @@ TEST(Centipede, UndetectedCrashingInput) {
     // the batch that were executing during the session. We simply verify the
     // number of saved inputs matches the number of executed inputs.
     const auto crashing_input_hash = Hash(mock.crashing_input());
-    const auto crashes_dir_path = std::filesystem::path(temp_dir.path())
-                                      .append("crashes")
-                                      .append("crashing_batch-")
-                                      .concat(crashing_input_hash);
+    const auto crashes_dir_path =
+        std::filesystem::path{
+            WorkDir{env}.CrashReproducerDirPaths().MyShard()} /
+        absl::StrCat("crashing_batch-", crashing_input_hash);
     EXPECT_TRUE(std::filesystem::exists(crashes_dir_path)) << crashes_dir_path;
     std::vector<std::string> found_crash_file_names;
     for (auto const &dir_ent :

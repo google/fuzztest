@@ -104,14 +104,14 @@ class WorkDir {
   std::string DebugInfoDirPath() const;
   // Returns the path to the coverage dir.
   std::string CoverageDirPath() const;
-  // Returns the path to the crash reproducer dir.
-  std::string CrashReproducerDirPath() const;
-  // Returns the path to the crash metadata dir, which contains the crash
-  // metadata file for each crash reproducer.
-  std::string CrashMetadataDirPath() const;
   // Returns the path where the BinaryInfo will be serialized within workdir.
   std::string BinaryInfoDirPath() const;
 
+  // Returns the paths for the sharded crash reproducer directory.
+  PathShards CrashReproducerDirPaths() const;
+  // Returns the paths for the sharded crash metadata directory, which contains
+  // the crash metadata file for each crash reproducer.
+  PathShards CrashMetadataDirPaths() const;
   // Returns the paths for the sharded corpus file.
   PathShards CorpusFilePaths() const;
   // Returns the paths for the sharded distilled corpus file.

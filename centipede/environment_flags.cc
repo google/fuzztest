@@ -328,8 +328,9 @@ ABSL_FLAG(size_t, num_crash_reports,
 ABSL_FLAG(std::string, minimize_crash,
           Environment::Default().minimize_crash_file_path,
           "If non-empty, a path to an input file that triggers a crash."
-          " Centipede will run the minimization loop and store smaller crash-y"
-          " inputs in workdir/crashes/."
+          " Centipede will run the minimization loop and store smaller crashing"
+          " inputs in workdir/crashes.NNNNNN/, where NNNNNN is "
+          "--first_shard_index padded on the left with zeros. "
           " --num_runs and --num_threads apply. "
           " Assumes local workdir.");
 ABSL_FLAG(bool, batch_triage_suspect_only,

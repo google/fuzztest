@@ -415,29 +415,33 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
 
 void DeduplicateAndStoreNewCrashes(
     const std::filesystem::path &crashing_dir, const WorkDir &workdir,
-    absl::flat_hash_set<std::string> crash_metadata) {
-  const std::vector<std::string> new_crashing_input_files =
-      // The crash reproducer directory may contain subdirectories with
-      // input files that don't individually cause a crash. We ignore those
-      // for now and don't list the files recursively.
-      ValueOrDie(RemoteListFiles(workdir.CrashReproducerDirPath(),
-                                 /*recursively=*/false));
-  const std::filesystem::path crash_metadata_dir =
-      workdir.CrashMetadataDirPath();
+    size_t total_shards, absl::flat_hash_set<std::string> crash_metadata) {
+  for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
+    const std::vector<std::string> new_crashing_input_files =
+        // The crash reproducer directory may contain subdirectories with
+        // input files that don't individually cause a crash. We ignore those
+        // for now and don't list the files recursively.
+        ValueOrDie(
+            RemoteListFiles(workdir.CrashReproducerDirPaths().Shard(shard_idx),
+                            /*recursively=*/false));
+    const std::filesystem::path crash_metadata_dir =
+        workdir.CrashMetadataDirPaths().Shard(shard_idx);
 
-  CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
-  for (const std::string &crashing_input_file : new_crashing_input_files) {
-    const std::string crashing_input_file_name =
-        std::filesystem::path(crashing_input_file).filename();
-    const std::string crash_metadata_file =
-        crash_metadata_dir / crashing_input_file_name;
-    std::string new_crash_metadata;
-    CHECK_OK(RemoteFileGetContents(crash_metadata_file, new_crash_metadata));
-    const bool is_duplicate = !crash_metadata.insert(new_crash_metadata).second;
-    if (is_duplicate) continue;
-    CHECK_OK(
-        RemotePathRename(crashing_input_file,
-                         (crashing_dir / crashing_input_file_name).c_str()));
+    CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
+    for (const std::string &crashing_input_file : new_crashing_input_files) {
+      const std::string crashing_input_file_name =
+          std::filesystem::path(crashing_input_file).filename();
+      const std::string crash_metadata_file =
+          crash_metadata_dir / crashing_input_file_name;
+      std::string new_crash_metadata;
+      CHECK_OK(RemoteFileGetContents(crash_metadata_file, new_crash_metadata));
+      const bool is_duplicate =
+          !crash_metadata.insert(new_crash_metadata).second;
+      if (is_duplicate) continue;
+      CHECK_OK(
+          RemotePathRename(crashing_input_file,
+                           (crashing_dir / crashing_input_file_name).c_str()));
+    }
   }
 }
 
@@ -608,7 +612,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     absl::flat_hash_set<std::string> crash_metadata =
         PruneOldCrashesAndGetRemainingCrashMetadata(crashing_dir, env,
                                                     callbacks_factory);
-    DeduplicateAndStoreNewCrashes(crashing_dir, workdir,
+    DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
                                   std::move(crash_metadata));
   }
   CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));

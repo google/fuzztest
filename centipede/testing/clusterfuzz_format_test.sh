@@ -82,7 +82,7 @@ test_crashing_target() {
     "^CRASH LOG: ${expected_regex}" "${LOG}"
   # Validate input saving format.
   centipede::assert_regex_in_file \
-    '^Saving input to: .\+/crashes/.\+' "${LOG}"
+    '^Saving input to: .\+/crashes\.[0-9]\+/.\+' "${LOG}"
 }
 
 # Check if the following crash logs are in the format expected by ClusterFuzz.

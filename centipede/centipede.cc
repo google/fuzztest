@@ -872,10 +872,10 @@ void Centipede::ReportCrash(std::string_view binary,
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
       auto hash = Hash(one_input);
-      auto crash_dir = wd_.CrashReproducerDirPath();
+      auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
       CHECK_OK(RemoteMkdir(crash_dir));
       std::string input_file_path = std::filesystem::path(crash_dir) / hash;
-      auto crash_metadata_dir = wd_.CrashMetadataDirPath();
+      auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
       CHECK_OK(RemoteMkdir(crash_metadata_dir));
       std::string crash_metadata_file_path =
           std::filesystem::path(crash_metadata_dir) / hash;
@@ -909,7 +909,7 @@ void Centipede::ReportCrash(std::string_view binary,
   //  shard-like corpus file instead.
   const auto &suspect_input = input_vec[suspect_input_idx];
   auto suspect_hash = Hash(suspect_input);
-  auto crash_dir = wd_.CrashReproducerDirPath();
+  auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
   CHECK_OK(RemoteMkdir(crash_dir));
   std::string crashing_batch_name =
       absl::StrCat("crashing_batch-", suspect_hash);
@@ -923,7 +923,7 @@ void Centipede::ReportCrash(std::string_view binary,
         absl::StrFormat("input-%010d-%s", i, hash));
     CHECK_OK(RemoteFileSetContents(file_path, one_input));
   }
-  auto crash_metadata_dir = wd_.CrashMetadataDirPath();
+  auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
   CHECK_OK(RemoteMkdir(crash_metadata_dir));
   std::string crash_metadata_file_path =
       std::filesystem::path(crash_metadata_dir) / crashing_batch_name;
