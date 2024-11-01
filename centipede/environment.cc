@@ -29,6 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
 #include "./common/defs.h"
@@ -214,15 +215,27 @@ void Environment::ReadKnobsFileIfSpecified() {
 
 void Environment::UpdateWithTargetConfig(
     const fuzztest::internal::Configuration &config) {
-  if (config.jobs == 0) return;
-  CHECK(j == Default().j || j == config.jobs)
-      << "Value for --j is inconsistent with the value for jobs in the target "
-         "binary:"
-      << VV(j) << VV(config.jobs);
-  j = config.jobs;
-  total_shards = config.jobs;
-  num_threads = config.jobs;
-  my_shard_index = 0;
+  if (config.jobs != 0) {
+    CHECK(j == Default().j || j == config.jobs)
+        << "Value for --j is inconsistent with the value for jobs in the "
+           "target binary:"
+        << VV(j) << VV(config.jobs);
+    j = config.jobs;
+    total_shards = config.jobs;
+    num_threads = config.jobs;
+    my_shard_index = 0;
+  }
+  if (const auto test_time_limit = config.GetTimeLimitPerTest();
+      test_time_limit < absl::InfiniteDuration()) {
+    CHECK(test_time_limit >= absl::Seconds(1))
+        << "Test time limit must not be less than one second";
+    const auto test_time_limit_seconds =
+        static_cast<size_t>(absl::ToInt64Seconds(test_time_limit));
+    timeout_per_batch =
+        timeout_per_batch == 0
+            ? test_time_limit_seconds
+            : std::min(timeout_per_batch, test_time_limit_seconds);
+  }
 }
 
 }  // namespace centipede

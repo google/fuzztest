@@ -18,6 +18,9 @@
 #include <string_view>
 
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
+#include "absl/time/time.h"
+#include "./fuzztest/internal/configuration.h"
 
 namespace centipede {
 
@@ -50,6 +53,31 @@ TEST(Environment, UpdateForExperiment) {
   Experiment(9, true, 10, "E10", "use_cmp_features=true:path_level=10:");
   Experiment(10, true, 20, "E11", "use_cmp_features=true:path_level=20:");
   Experiment(11, true, 30, "E12", "use_cmp_features=true:path_level=30:");
+}
+
+TEST(Environment, UpdatesBatchTimeoutFromTargetConfig) {
+  Environment env;
+  fuzztest::internal::Configuration config{
+      .time_limit = absl::Seconds(123),
+      .time_budget_type = fuzztest::internal::TimeBudgetType::kPerTest,
+  };
+  CHECK(config.GetTimeLimitPerTest() == absl::Seconds(123));
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_batch, 123)
+      << "`timeout_per_batch` should be set to the test time limit when it was "
+         "previously unset";
+
+  env.timeout_per_batch = 456;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_batch, 123)
+      << "`timeout_per_batch` should be set to test time limit when it is "
+         "shorter than the previous value";
+
+  env.timeout_per_batch = 56;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_batch, 56)
+      << "`timeout_per_batch` should not be updated with the test time limit "
+         "when it is longer than the previous value";
 }
 
 }  // namespace centipede

@@ -1233,6 +1233,9 @@ cc_test(
     srcs = ["environment_test.cc"],
     deps = [
         ":environment",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/time",
+        "@com_google_fuzztest//fuzztest:configuration",
         "@com_google_googletest//:gtest_main",
     ],
 )
