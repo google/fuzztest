@@ -112,11 +112,11 @@ TEST(ExportCorpusTest, ExportsCorpusToIndividualFiles) {
   CHECK(std::filesystem::create_directory(out_dir));
   const WorkDir workdir{temp_dir.c_str(), "fake_binary_name",
                         "fake_binary_hash", /*my_shard_index=*/0};
-  const auto corpus_files = workdir.CorpusFiles();
-  WriteBlobsToFile(corpus_files.ShardPath(0), {ByteArray{1, 2}, ByteArray{3}});
-  WriteBlobsToFile(corpus_files.ShardPath(1), {ByteArray{4}, ByteArray{5, 6}});
+  const auto corpus_file_paths = workdir.CorpusFilePaths();
+  WriteBlobsToFile(corpus_file_paths.Shard(0), {ByteArray{1, 2}, ByteArray{3}});
+  WriteBlobsToFile(corpus_file_paths.Shard(1), {ByteArray{4}, ByteArray{5, 6}});
 
-  ExportCorpus({corpus_files.ShardPath(0), corpus_files.ShardPath(1)},
+  ExportCorpus({corpus_file_paths.Shard(0), corpus_file_paths.Shard(1)},
                out_dir.c_str());
 
   EXPECT_THAT(ReadInputsFromFiles(out_dir.c_str()),

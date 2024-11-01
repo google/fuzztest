@@ -60,36 +60,36 @@ TEST(WorkDirTest, Api) {
   EXPECT_EQ(wd.CrashMetadataDirPath(), "/dir/crash-metadata");
   EXPECT_EQ(wd.BinaryInfoDirPath(), "/dir/bin-hash/binary-info");
 
-  EXPECT_EQ(wd.CorpusFiles().MyShardPath(), "/dir/corpus.000003");
-  EXPECT_EQ(wd.CorpusFiles().ShardPath(7), "/dir/corpus.000007");
-  EXPECT_EQ(wd.CorpusFiles().AllShardsGlob(), "/dir/corpus.*");
-  EXPECT_TRUE(wd.CorpusFiles().IsShardPath("/dir/corpus.000009"));
+  EXPECT_EQ(wd.CorpusFilePaths().MyShard(), "/dir/corpus.000003");
+  EXPECT_EQ(wd.CorpusFilePaths().Shard(7), "/dir/corpus.000007");
+  EXPECT_EQ(wd.CorpusFilePaths().AllShardsGlob(), "/dir/corpus.*");
+  EXPECT_TRUE(wd.CorpusFilePaths().IsShard("/dir/corpus.000009"));
 
-  EXPECT_EQ(wd.DistilledCorpusFiles().MyShardPath(),  //
+  EXPECT_EQ(wd.DistilledCorpusFilePaths().MyShard(),  //
             "/dir/distilled-bin.000003");
-  EXPECT_EQ(wd.DistilledCorpusFiles().ShardPath(7),  //
+  EXPECT_EQ(wd.DistilledCorpusFilePaths().Shard(7),  //
             "/dir/distilled-bin.000007");
-  EXPECT_EQ(wd.DistilledCorpusFiles().AllShardsGlob(),  //
+  EXPECT_EQ(wd.DistilledCorpusFilePaths().AllShardsGlob(),  //
             "/dir/distilled-bin.*");
-  EXPECT_TRUE(wd.DistilledCorpusFiles().IsShardPath(  //
+  EXPECT_TRUE(wd.DistilledCorpusFilePaths().IsShard(  //
       "/dir/distilled-bin.000009"));
 
-  EXPECT_EQ(wd.FeaturesFiles().MyShardPath(),  //
+  EXPECT_EQ(wd.FeaturesFilePaths().MyShard(),  //
             "/dir/bin-hash/features.000003");
-  EXPECT_EQ(wd.FeaturesFiles().ShardPath(7),  //
+  EXPECT_EQ(wd.FeaturesFilePaths().Shard(7),  //
             "/dir/bin-hash/features.000007");
-  EXPECT_EQ(wd.FeaturesFiles().AllShardsGlob(),  //
+  EXPECT_EQ(wd.FeaturesFilePaths().AllShardsGlob(),  //
             "/dir/bin-hash/features.*");
-  EXPECT_TRUE(wd.FeaturesFiles().IsShardPath(  //
+  EXPECT_TRUE(wd.FeaturesFilePaths().IsShard(  //
       "/dir/bin-hash/features.000009"));
 
-  EXPECT_EQ(wd.DistilledFeaturesFiles().MyShardPath(),  //
+  EXPECT_EQ(wd.DistilledFeaturesFilePaths().MyShard(),  //
             "/dir/bin-hash/distilled-features-bin.000003");
-  EXPECT_EQ(wd.DistilledFeaturesFiles().ShardPath(7),  //
+  EXPECT_EQ(wd.DistilledFeaturesFilePaths().Shard(7),  //
             "/dir/bin-hash/distilled-features-bin.000007");
-  EXPECT_EQ(wd.DistilledFeaturesFiles().AllShardsGlob(),  //
+  EXPECT_EQ(wd.DistilledFeaturesFilePaths().AllShardsGlob(),  //
             "/dir/bin-hash/distilled-features-bin.*");
-  EXPECT_TRUE(wd.DistilledFeaturesFiles().IsShardPath(  //
+  EXPECT_TRUE(wd.DistilledFeaturesFilePaths().IsShard(  //
       "/dir/bin-hash/distilled-features-bin.000009"));
 
   EXPECT_EQ(wd.CoverageReportPath(),  //

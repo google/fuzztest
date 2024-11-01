@@ -66,8 +66,8 @@ using InputVec = std::vector<ByteArray>;
 void WriteToShard(const Environment &env, const TestCorpusRecord &record,
                   size_t shard_index) {
   const WorkDir wd{env};
-  const auto corpus_path = wd.CorpusFiles().ShardPath(shard_index);
-  const auto features_path = wd.FeaturesFiles().ShardPath(shard_index);
+  const auto corpus_path = wd.CorpusFilePaths().Shard(shard_index);
+  const auto features_path = wd.FeaturesFilePaths().Shard(shard_index);
   const auto corpus_appender = DefaultBlobFileWriterFactory(env.riegeli);
   const auto features_appender = DefaultBlobFileWriterFactory(env.riegeli);
   CHECK_OK(corpus_appender->Open(corpus_path, "a"));
@@ -80,9 +80,9 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
 // Reads and returns the distilled corpus record from
 // `wd.DistilledCorpusPath()` and `wd.DistilledFeaturesPath()`.
 std::vector<TestCorpusRecord> ReadFromDistilled(const WorkDir &wd) {
-  const auto distilled_corpus_path = wd.DistilledCorpusFiles().MyShardPath();
+  const auto distilled_corpus_path = wd.DistilledCorpusFilePaths().MyShard();
   const auto distilled_features_path =
-      wd.DistilledFeaturesFiles().MyShardPath();
+      wd.DistilledFeaturesFilePaths().MyShard();
 
   std::vector<TestCorpusRecord> result;
   auto shard_reader_callback = [&result](ByteArray input, FeatureVec features) {

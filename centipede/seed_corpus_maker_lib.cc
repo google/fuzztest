@@ -160,10 +160,10 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
         const auto work_dir = WorkDir::FromCorpusShardPath(  //
             corpus_fname, coverage_binary_name, coverage_binary_hash);
         const std::string features_fname =
-            work_dir.CorpusFiles().IsShardPath(corpus_fname)
-                ? work_dir.FeaturesFiles().MyShardPath()
-            : work_dir.DistilledCorpusFiles().IsShardPath(corpus_fname)
-                ? work_dir.DistilledFeaturesFiles().MyShardPath()
+            work_dir.CorpusFilePaths().IsShard(corpus_fname)
+                ? work_dir.FeaturesFilePaths().MyShard()
+            : work_dir.DistilledCorpusFilePaths().IsShard(corpus_fname)
+                ? work_dir.DistilledFeaturesFilePaths().MyShard()
                 : "";
 
         VLOG(2) << "Reading elements from source shard " << shard
@@ -356,21 +356,21 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         const auto work_dir = WorkDir::FromCorpusShardPath(  //
             corpus_fname, coverage_binary_name, coverage_binary_hash);
 
-        if (corpus_fname != work_dir.CorpusFiles().MyShardPath() &&
-            corpus_fname != work_dir.DistilledCorpusFiles().MyShardPath()) {
+        if (corpus_fname != work_dir.CorpusFilePaths().MyShard() &&
+            corpus_fname != work_dir.DistilledCorpusFilePaths().MyShard()) {
           return absl::InvalidArgumentError(absl::StrCat(
               "Bad config: generated destination corpus filename '",
               corpus_fname, "' doesn't match one of two expected forms '",
-              work_dir.CorpusFiles().MyShardPath(), "' or '",
-              work_dir.DistilledCorpusFiles().MyShardPath(),
+              work_dir.CorpusFilePaths().MyShard(), "' or '",
+              work_dir.DistilledCorpusFilePaths().MyShard(),
               "'; make sure binary name in config matches explicitly passed '",
               coverage_binary_name, "'"));
         }
 
         const std::string features_fname =
-            work_dir.CorpusFiles().IsShardPath(corpus_fname)
-                ? work_dir.FeaturesFiles().MyShardPath()
-                : work_dir.DistilledFeaturesFiles().MyShardPath();
+            work_dir.CorpusFilePaths().IsShard(corpus_fname)
+                ? work_dir.FeaturesFilePaths().MyShard()
+                : work_dir.DistilledFeaturesFilePaths().MyShard();
         CHECK(!features_fname.empty());
 
         VLOG(2) << "Writing " << std::distance(elt_range_begin, elt_range_end)

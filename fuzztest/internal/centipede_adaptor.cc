@@ -605,8 +605,8 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
       // 3. Replace the shard corpus data with the distillation result.
       auto workdir = centipede::WorkDir(distill_env);
       FUZZTEST_INTERNAL_CHECK(
-          std::rename(workdir.DistilledCorpusFiles().MyShardPath().c_str(),
-                      workdir.CorpusFiles().MyShardPath().c_str()) == 0,
+          std::rename(workdir.DistilledCorpusFilePaths().MyShard().c_str(),
+                      workdir.CorpusFilePaths().MyShard().c_str()) == 0,
           "Failed to replace the corpus data with the minimized result");
       // 4. Export the corpus of the shard.
       auto export_env = env;

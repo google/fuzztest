@@ -136,7 +136,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
 
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
   std::vector<std::string> sharded_corpus_files;
-  CHECK_OK(RemoteGlobMatch(WorkDir{env}.CorpusFiles().AllShardsGlob(),
+  CHECK_OK(RemoteGlobMatch(WorkDir{env}.CorpusFilePaths().AllShardsGlob(),
                            sharded_corpus_files));
   ExportCorpus(sharded_corpus_files, dir);
 }
@@ -158,16 +158,16 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   // Iterate over all shards.
   size_t inputs_added = 0;
   size_t inputs_ignored = 0;
-  const auto corpus_files = WorkDir{env}.CorpusFiles();
+  const auto corpus_file_paths = WorkDir{env}.CorpusFilePaths();
   for (size_t shard = 0; shard < env.total_shards; shard++) {
-    const std::string corpus_path = corpus_files.ShardPath(shard);
+    const std::string corpus_file_path = corpus_file_paths.Shard(shard);
     size_t num_shard_bytes = 0;
     // Read the shard (if it exists), collect input hashes from it.
     absl::flat_hash_set<std::string> existing_hashes;
-    if (RemotePathExists(corpus_path)) {
+    if (RemotePathExists(corpus_file_path)) {
       auto reader = DefaultBlobFileReaderFactory();
       // May fail to open if file doesn't exist.
-      reader->Open(corpus_path).IgnoreError();
+      reader->Open(corpus_file_path).IgnoreError();
       ByteSpan blob;
       while (reader->Read(blob).ok()) {
         existing_hashes.insert(Hash(blob));
@@ -175,8 +175,8 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
     auto appender = DefaultBlobFileWriterFactory(env.riegeli);
-    CHECK_OK(appender->Open(corpus_path, "a"))
-        << "Failed to open corpus file: " << corpus_path;
+    CHECK_OK(appender->Open(corpus_file_path, "a"))
+        << "Failed to open corpus file: " << corpus_file_path;
     ByteArray shard_data;
     for (const auto &path : sharded_paths[shard]) {
       std::string input;
@@ -455,8 +455,8 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   // See serialize_shard_loads on why we may want to serialize shard loads.
   // TODO(kcc): remove serialize_shard_loads when LoadShards() uses less RAM.
   const WorkDir wd{load_env};
-  const std::string corpus_path = wd.CorpusFiles().ShardPath(shard_index);
-  const std::string features_path = wd.FeaturesFiles().ShardPath(shard_index);
+  const std::string corpus_path = wd.CorpusFilePaths().Shard(shard_index);
+  const std::string features_path = wd.FeaturesFilePaths().Shard(shard_index);
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
     absl::MutexLock lock(&load_shard_mu);
@@ -490,7 +490,7 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
 
 void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
-  auto features_file_path = wd_.FeaturesFiles().ShardPath(env_.my_shard_index);
+  auto features_file_path = wd_.FeaturesFilePaths().Shard(env_.my_shard_index);
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_file_path, "a"));
 
@@ -636,7 +636,7 @@ void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
   if (new_corpus_size > initial_corpus_size) {
     auto appender = DefaultBlobFileWriterFactory(env_.riegeli);
     CHECK_OK(
-        appender->Open(wd_.CorpusFiles().ShardPath(env_.my_shard_index), "a"));
+        appender->Open(wd_.CorpusFilePaths().Shard(env_.my_shard_index), "a"));
     for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
       CHECK_OK(appender->Write(corpus_.Get(idx)));
     }
@@ -655,7 +655,7 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
 
   // Save the distilled corpus to a file in workdir and possibly to a hashed
   // file in the first corpus dir passed in `--corpus_dir`.
-  const auto distill_to_path = wd_.DistilledCorpusFiles().MyShardPath();
+  const auto distill_to_path = wd_.DistilledCorpusFilePaths().MyShard();
   LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
             << " output: " << distill_to_path << " "
             << " distilled size: " << corpus_.NumActive();
@@ -718,10 +718,10 @@ void Centipede::FuzzingLoop() {
 
   if (env_.load_shards_only) return;
 
-  auto corpus_path = wd_.CorpusFiles().ShardPath(env_.my_shard_index);
+  auto corpus_path = wd_.CorpusFilePaths().Shard(env_.my_shard_index);
   auto corpus_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(corpus_file->Open(corpus_path, "a"));
-  auto features_path = wd_.FeaturesFiles().ShardPath(env_.my_shard_index);
+  auto features_path = wd_.FeaturesFilePaths().Shard(env_.my_shard_index);
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   CHECK_OK(features_file->Open(features_path, "a"));
 

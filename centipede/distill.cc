@@ -115,8 +115,8 @@ class InputCorpusShardReader {
       : workdir_{env}, log_prefix_{LogPrefix(env)} {}
 
   perf::MemSize EstimateRamFootprint(size_t shard_idx) const {
-    const auto corpus_path = workdir_.CorpusFiles().ShardPath(shard_idx);
-    const auto features_path = workdir_.FeaturesFiles().ShardPath(shard_idx);
+    const auto corpus_path = workdir_.CorpusFilePaths().Shard(shard_idx);
+    const auto features_path = workdir_.FeaturesFilePaths().Shard(shard_idx);
     const perf::MemSize corpus_file_size =
         ValueOrDie(RemoteFileGetSize(corpus_path));
     const perf::MemSize features_file_size =
@@ -134,8 +134,8 @@ class InputCorpusShardReader {
 
   // Reads and returns a single shard's elements. Thread-safe.
   CorpusEltVec ReadShard(size_t shard_idx) {
-    const auto corpus_path = workdir_.CorpusFiles().ShardPath(shard_idx);
-    const auto features_path = workdir_.FeaturesFiles().ShardPath(shard_idx);
+    const auto corpus_path = workdir_.CorpusFilePaths().Shard(shard_idx);
+    const auto features_path = workdir_.FeaturesFilePaths().Shard(shard_idx);
     VLOG(1) << log_prefix_ << "reading input shard " << shard_idx << ":\n"
             << VV(corpus_path) << "\n"
             << VV(features_path);
@@ -167,8 +167,8 @@ class CorpusShardWriter {
   CorpusShardWriter(const Environment &env, bool append)
       : workdir_{env},
         log_prefix_{LogPrefix(env)},
-        corpus_path_{workdir_.DistilledCorpusFiles().MyShardPath()},
-        features_path_{workdir_.DistilledFeaturesFiles().MyShardPath()},
+        corpus_path_{workdir_.DistilledCorpusFilePaths().MyShard()},
+        features_path_{workdir_.DistilledFeaturesFilePaths().MyShard()},
         corpus_writer_{DefaultBlobFileWriterFactory()},
         feature_writer_{DefaultBlobFileWriterFactory()} {
     CHECK_OK(corpus_writer_->Open(corpus_path_, append ? "a" : "w"));

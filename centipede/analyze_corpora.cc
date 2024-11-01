@@ -49,10 +49,10 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
                   std::string(binary_hash), /*my_shard_index=*/0);
   std::vector<std::string> corpus_paths;
   CHECK_OK(
-      RemoteGlobMatch(workdir.CorpusFiles().AllShardsGlob(), corpus_paths));
+      RemoteGlobMatch(workdir.CorpusFilePaths().AllShardsGlob(), corpus_paths));
   std::vector<std::string> features_paths;
-  CHECK_OK(
-      RemoteGlobMatch(workdir.FeaturesFiles().AllShardsGlob(), features_paths));
+  CHECK_OK(RemoteGlobMatch(workdir.FeaturesFilePaths().AllShardsGlob(),
+                           features_paths));
 
   CHECK_EQ(corpus_paths.size(), features_paths.size());
   std::vector<CorpusRecord> corpus;

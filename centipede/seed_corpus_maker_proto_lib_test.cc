@@ -51,21 +51,23 @@ void VerifyShardsExist(            //
       std::string{binary_hash},
       /*my_shard_index=*/0,
   };
-  const WorkDir::ShardedFileInfo corpus_files =
-      shard_type == kNormal ? wd.CorpusFiles() : wd.DistilledCorpusFiles();
-  const WorkDir::ShardedFileInfo features_files =
-      shard_type == kNormal ? wd.FeaturesFiles() : wd.DistilledFeaturesFiles();
+  const WorkDir::PathShards corpus_file_paths =
+      shard_type == kNormal ? wd.CorpusFilePaths()
+                            : wd.DistilledCorpusFilePaths();
+  const WorkDir::PathShards features_file_paths =
+      shard_type == kNormal ? wd.FeaturesFilePaths()
+                            : wd.DistilledFeaturesFilePaths();
   for (int shard = 0; shard < num_shards + 2; ++shard) {
     if (shard < num_shards) {
-      ASSERT_TRUE(fs::exists(corpus_files.ShardPath(shard)))
-          << VV(shard) << VV(corpus_files.ShardPath(shard));
-      ASSERT_TRUE(fs::exists(features_files.ShardPath(shard)))
-          << VV(shard) << VV(features_files.ShardPath(shard));
+      ASSERT_TRUE(fs::exists(corpus_file_paths.Shard(shard)))
+          << VV(shard) << VV(corpus_file_paths.Shard(shard));
+      ASSERT_TRUE(fs::exists(features_file_paths.Shard(shard)))
+          << VV(shard) << VV(features_file_paths.Shard(shard));
     } else {
-      ASSERT_FALSE(fs::exists(corpus_files.ShardPath(shard)))
-          << VV(shard) << VV(corpus_files.ShardPath(shard));
-      ASSERT_FALSE(fs::exists(features_files.ShardPath(shard)))
-          << VV(shard) << VV(features_files.ShardPath(shard));
+      ASSERT_FALSE(fs::exists(corpus_file_paths.Shard(shard)))
+          << VV(shard) << VV(corpus_file_paths.Shard(shard));
+      ASSERT_FALSE(fs::exists(features_file_paths.Shard(shard)))
+          << VV(shard) << VV(features_file_paths.Shard(shard));
     }
   }
 }

@@ -453,7 +453,7 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
           // We're using the previously distilled corpus files as seeds.
           .shard_rel_glob =
               std::filesystem::path{
-                  workdir.DistilledCorpusFiles().AllShardsGlob()}
+                  workdir.DistilledCorpusFilePaths().AllShardsGlob()}
                   .filename(),
           .sampled_fraction_or_count = 1.0f,
       }},
@@ -462,7 +462,8 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
               .dir_path = env.workdir,
               // We're seeding the current corpus files.
               .shard_rel_glob =
-                  std::filesystem::path{workdir.CorpusFiles().AllShardsGlob()}
+                  std::filesystem::path{
+                      workdir.CorpusFilePaths().AllShardsGlob()}
                       .filename(),
               .shard_index_digits = WorkDir::kDigitsInShardIndex,
               .num_shards = static_cast<uint32_t>(env.num_threads),
@@ -593,7 +594,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
     CHECK_OK(RemoteMkdir(coverage_dir.c_str()));
     std::vector<std::string> distilled_corpus_files;
-    CHECK_OK(RemoteGlobMatch(workdir.DistilledCorpusFiles().AllShardsGlob(),
+    CHECK_OK(RemoteGlobMatch(workdir.DistilledCorpusFilePaths().AllShardsGlob(),
                              distilled_corpus_files));
     for (const std::string &corpus_file : distilled_corpus_files) {
       const std::string file_name =
