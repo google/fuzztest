@@ -85,8 +85,6 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
   using typename ContainerOfImplBase::DomainBase::corpus_type;
   using typename ContainerOfImplBase::DomainBase::value_type;
 
-  using ContainerOfImplBase::DomainBase::Mutate;
-
   // Some container mutation only applies to vector or string types which do
   // not have a custom corpus type.
   static constexpr bool is_vector_or_string =

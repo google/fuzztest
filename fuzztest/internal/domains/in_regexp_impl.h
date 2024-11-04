@@ -44,8 +44,6 @@ class InRegexpImpl
     : public domain_implementor::DomainBase<InRegexpImpl, std::string,
                                             DFAPath> {
  public:
-  using InRegexpImpl::DomainBase::Mutate;
-
   explicit InRegexpImpl(std::string_view regex_str)
       : regex_str_(regex_str), dfa_(RegexpDFA::Create(regex_str_)) {}
 

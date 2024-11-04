@@ -131,15 +131,6 @@ class DomainBase {
     }
   }
 
-  // Mutates `corpus_value` using `prng`, `only_shirnk` and the default mutation
-  // metadata. This is a temporary wrapper that redirects the call to the real
-  // interface with an explicit argument for metadata.
-  void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
-              bool only_shrink) {
-    return derived().Mutate(corpus_value, prng, MutationMetadata{},
-                            only_shrink);
-  }
-
   // Returns a random user value from the domain. In general, doesn't provide
   // guarantees on the distribution of the returned values.
   //

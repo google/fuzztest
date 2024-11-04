@@ -53,8 +53,6 @@ class AggregateOfImpl
   using typename AggregateOfImpl::DomainBase::corpus_type;
   using typename AggregateOfImpl::DomainBase::value_type;
 
-  using AggregateOfImpl::DomainBase::Mutate;
-
   AggregateOfImpl() = default;
   explicit AggregateOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}

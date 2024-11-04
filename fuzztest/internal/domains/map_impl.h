@@ -42,8 +42,6 @@ class MapImpl
   using typename MapImpl::DomainBase::corpus_type;
   using typename MapImpl::DomainBase::value_type;
 
-  using MapImpl::DomainBase::Mutate;
-
   MapImpl() = default;
   explicit MapImpl(Mapper mapper, Inner... inner)
       : mapper_(std::move(mapper)), inner_(std::move(inner)...) {}
@@ -122,8 +120,6 @@ class ReversibleMapImpl
  public:
   using typename ReversibleMapImpl::DomainBase::corpus_type;
   using typename ReversibleMapImpl::DomainBase::value_type;
-
-  using ReversibleMapImpl::DomainBase::Mutate;
 
   static_assert(
       std::is_invocable_v<InvMapper, const value_type&> &&

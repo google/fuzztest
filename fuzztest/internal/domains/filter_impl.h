@@ -37,8 +37,6 @@ class FilterImpl
   using typename FilterImpl::DomainBase::corpus_type;
   using typename FilterImpl::DomainBase::value_type;
 
-  using FilterImpl::DomainBase::Mutate;
-
   FilterImpl() = default;
   explicit FilterImpl(std::function<bool(const T&)> predicate, Domain<T> inner)
       : predicate_(std::move(predicate)), inner_(std::move(inner)) {}

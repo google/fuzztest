@@ -43,8 +43,6 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
  public:
   using typename InRangeImpl::DomainBase::value_type;
 
-  using InRangeImpl::DomainBase::Mutate;
-
   constexpr static bool T_is_integer = std::numeric_limits<T>::is_integer;
   constexpr static bool T_is_signed = std::is_signed<T>::value;
   constexpr static bool T_is_memory_dictionary_compatible =

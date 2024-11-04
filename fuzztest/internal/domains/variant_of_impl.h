@@ -43,8 +43,6 @@ class VariantOfImpl : public domain_implementor::DomainBase<
   using typename VariantOfImpl::DomainBase::corpus_type;
   using typename VariantOfImpl::DomainBase::value_type;
 
-  using VariantOfImpl::DomainBase::Mutate;
-
   VariantOfImpl() = default;
   explicit VariantOfImpl(std::in_place_t, Inner... inner)
       : inner_(std::move(inner)...) {}

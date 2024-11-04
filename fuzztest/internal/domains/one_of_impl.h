@@ -42,8 +42,6 @@ class OneOfImpl
   using typename OneOfImpl::DomainBase::corpus_type;
   using typename OneOfImpl::DomainBase::value_type;
 
-  using OneOfImpl::DomainBase::Mutate;
-
   // All value_types of inner domains must be the same. (Though note that they
   // can have different corpus_types!)
   static_assert(

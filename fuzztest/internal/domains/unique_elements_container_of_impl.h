@@ -52,8 +52,6 @@ class UniqueElementsContainerImpl
   using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
   using typename UniqueElementsContainerImpl::DomainBase::value_type;
 
-  using UniqueElementsContainerImpl::DomainBase::Mutate;
-
   UniqueElementsContainerImpl() = default;
   explicit UniqueElementsContainerImpl(InnerDomain inner)
       : unique_domain_(std::move(inner)) {}

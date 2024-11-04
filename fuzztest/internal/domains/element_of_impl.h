@@ -41,8 +41,6 @@ class ElementOfImpl
   using typename ElementOfImpl::DomainBase::corpus_type;
   using typename ElementOfImpl::DomainBase::value_type;
 
-  using ElementOfImpl::DomainBase::Mutate;
-
   explicit ElementOfImpl(std::vector<T> values) : values_(values) {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         !values.empty(), "ElementOf requires a non empty list.");

@@ -45,8 +45,6 @@ class OverlapOfImpl
   using typename OverlapOfImpl::DomainBase::corpus_type;
   using typename OverlapOfImpl::DomainBase::value_type;
 
-  using OverlapOfImpl::DomainBase::Mutate;
-
   static_assert(
       std::conjunction_v<std::is_same<value_type, value_type_t<Inner>>...>,
       "All overlapping domains must have the same value_type.");

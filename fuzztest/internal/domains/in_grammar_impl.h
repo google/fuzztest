@@ -651,8 +651,6 @@ class InGrammarImpl
   using typename InGrammarImpl::DomainBase::corpus_type;
   using typename InGrammarImpl::DomainBase::value_type;
 
-  using InGrammarImpl::DomainBase::Mutate;
-
   ASTNode Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return TopDomain::Init(prng);

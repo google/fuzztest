@@ -72,8 +72,6 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
  public:
   using typename ArbitraryImpl::DomainBase::value_type;
 
-  using ArbitraryImpl::DomainBase::Mutate;
-
   value_type Init(absl::BitGenRef) { return value_type{}; }
 
   void Mutate(value_type&, absl::BitGenRef,
@@ -93,8 +91,6 @@ template <>
 class ArbitraryImpl<bool>
     : public domain_implementor::DomainBase<ArbitraryImpl<bool>> {
  public:
-  using ArbitraryImpl::DomainBase::Mutate;
-
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
     return static_cast<bool>(absl::Uniform(prng, 0, 2));
@@ -125,8 +121,6 @@ class ArbitraryImpl<T, std::enable_if_t<!std::is_const_v<T> &&
     : public domain_implementor::DomainBase<ArbitraryImpl<T>> {
  public:
   using typename ArbitraryImpl::DomainBase::value_type;
-
-  using ArbitraryImpl::DomainBase::Mutate;
 
   static constexpr bool is_memory_dictionary_compatible_v =
       sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8;
@@ -226,8 +220,6 @@ class ArbitraryImpl<std::byte>
   using typename ArbitraryImpl::DomainBase::corpus_type;
   using typename ArbitraryImpl::DomainBase::value_type;
 
-  using ArbitraryImpl::DomainBase::Mutate;
-
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::byte{inner_.Init(prng)};
@@ -259,8 +251,6 @@ class ArbitraryImpl<T, std::enable_if_t<std::is_floating_point_v<T>>>
     : public domain_implementor::DomainBase<ArbitraryImpl<T>> {
  public:
   using typename ArbitraryImpl::DomainBase::value_type;
-
-  using ArbitraryImpl::DomainBase::Mutate;
 
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
@@ -335,8 +325,6 @@ class ArbitraryImpl<std::basic_string_view<Char>>
   using typename ArbitraryImpl::DomainBase::corpus_type;
   using typename ArbitraryImpl::DomainBase::value_type;
 
-  using ArbitraryImpl::DomainBase::Mutate;
-
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return inner_.Init(prng);
@@ -395,8 +383,6 @@ class ArbitraryImpl<absl::string_view>
  public:
   using typename ArbitraryImpl::DomainBase::corpus_type;
   using typename ArbitraryImpl::DomainBase::value_type;
-
-  using ArbitraryImpl::DomainBase::Mutate;
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;

@@ -60,8 +60,6 @@ class FlatMapImpl
   using typename FlatMapImpl::DomainBase::corpus_type;
   using typename FlatMapImpl::DomainBase::value_type;
 
-  using FlatMapImpl::DomainBase::Mutate;
-
   FlatMapImpl() = default;
   explicit FlatMapImpl(FlatMapper flat_mapper, InputDomain... input_domains)
       : flat_mapper_(std::move(flat_mapper)),

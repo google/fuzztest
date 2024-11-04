@@ -33,8 +33,6 @@ class BitFlagCombinationOfImpl
  public:
   using typename BitFlagCombinationOfImpl::DomainBase::value_type;
 
-  using BitFlagCombinationOfImpl::DomainBase::Mutate;
-
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
       : flags_(flags.begin(), flags.end()), all_flags_combo_{} {
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(

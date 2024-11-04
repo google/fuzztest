@@ -53,8 +53,6 @@ class OptionalOfImpl
   using typename OptionalOfImpl::DomainBase::corpus_type;
   using typename OptionalOfImpl::DomainBase::value_type;
 
-  using OptionalOfImpl::DomainBase::Mutate;
-
   static_assert(Requires<T>([](auto x) -> std::void_t<decltype(!x, *x),
                                                       typename T::value_type> {
                 }),

@@ -47,8 +47,6 @@ class SmartPointerOfImpl
   using typename SmartPointerOfImpl::DomainBase::corpus_type;
   using typename SmartPointerOfImpl::DomainBase::value_type;
 
-  using SmartPointerOfImpl::DomainBase::Mutate;
-
   static_assert(
       Requires<T>(
           [](auto x) -> std::enable_if_t<std::is_pointer_v<decltype(x.get())>,

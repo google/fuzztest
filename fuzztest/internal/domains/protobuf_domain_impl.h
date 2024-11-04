@@ -431,8 +431,6 @@ class ProtobufDomainUntypedImpl
   using typename ProtobufDomainUntypedImpl::DomainBase::corpus_type;
   using typename ProtobufDomainUntypedImpl::DomainBase::value_type;
 
-  using ProtobufDomainUntypedImpl::DomainBase::Mutate;
-
   explicit ProtobufDomainUntypedImpl(PrototypePtr<Message> prototype,
                                      bool use_lazy_initialization)
       : prototype_(std::move(prototype)),
@@ -1796,8 +1794,6 @@ class ProtobufDomainImpl
   using typename ProtobufDomainImpl::DomainBase::value_type;
   using FieldDescriptor = ProtobufFieldDescriptor<typename T::Message>;
 
-  using ProtobufDomainImpl::DomainBase::Mutate;
-
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return inner_.Init(prng);
@@ -2249,8 +2245,6 @@ class ArbitraryImpl<T, std::enable_if_t<is_protocol_buffer_enum_v<T>>>
     : public domain_implementor::DomainBase<ArbitraryImpl<T>> {
  public:
   using typename ArbitraryImpl::DomainBase::value_type;
-
-  using ArbitraryImpl::DomainBase::Mutate;
 
   value_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
