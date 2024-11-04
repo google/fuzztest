@@ -54,7 +54,7 @@ class FuzzTestMutator {
   // TODO(xinhaoyuan): Support set_alignment().
 
  private:
-  class MutationMetadata;
+  struct MutationMetadata;
   class MutatorDomain;
 
   // Propagates the execution `metadata` to the internal mutation dictionary.
