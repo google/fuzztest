@@ -16,7 +16,9 @@
 // in this directory: BitFlagCombinationOf, OneOf, and OverlapOf.
 
 #include <cstdlib>
+#include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -26,6 +28,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/random.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
@@ -33,6 +37,18 @@
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
+namespace internal {
+
+class OverlapOfTestPeer {
+ public:
+  template <typename D>
+  static void SetSerializationDomain(D& domain, size_t index) {
+    domain.WithSerializationDomain(index);
+  }
+};
+
+}  // namespace internal
+
 namespace {
 
 using ::testing::AllOf;
@@ -230,6 +246,65 @@ TEST(OverlapOf, GeneratesMultipleValidValues) {
   auto domain = OverlapOf(InRange(0, 3), InRange(1, 4));
   EXPECT_THAT(GenerateNonUniqueValues(domain),
               AllOf(Each(AllOf(Ge(1), Le(3))), IsSupersetOf({1, 2, 3})));
+}
+
+TEST(OverlapOf, UsesSerializationDomain) {
+  auto domain_0 = Arbitrary<std::string>();
+  auto domain_1 =
+      ReversibleMap([](int x) -> std::string { return absl::StrCat(x); },
+                    [](const std::string& s) -> std::optional<std::tuple<int>> {
+                      int result = 0;
+                      if (!absl::SimpleAtoi(s, &result)) return std::nullopt;
+                      return result;
+                    },
+                    Arbitrary<int>());
+  auto overlapped_domain = OverlapOf(domain_0, domain_1);
+  for (const auto& v : GenerateNonUniqueValues(overlapped_domain)) {
+    auto domain_0_corpus = domain_0.FromValue(v.user_value);
+    ASSERT_TRUE(domain_0_corpus.has_value());
+    auto domain_1_corpus = domain_1.FromValue(v.user_value);
+    ASSERT_TRUE(domain_1_corpus.has_value());
+    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+        << "Expect different serialized corpora before "
+           "`WithSerializationDomain(...)`";
+    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+        << "Expect different serialized corpora before "
+           "`WithSerializationDomain(...)`";
+  }
+
+  internal::OverlapOfTestPeer::SetSerializationDomain(overlapped_domain, 0);
+  for (const auto& v : GenerateNonUniqueValues(overlapped_domain)) {
+    auto domain_0_corpus = domain_0.FromValue(v.user_value);
+    ASSERT_TRUE(domain_0_corpus.has_value());
+    auto domain_1_corpus = domain_1.FromValue(v.user_value);
+    ASSERT_TRUE(domain_1_corpus.has_value());
+    EXPECT_EQ(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+        << "Expect the same serialized corpora after "
+           "`WithSerializationDomain(0)`";
+    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+        << "Expect different serialized corpora after "
+           "`WithSerializationDomain(0)`";
+  }
+
+  internal::OverlapOfTestPeer::SetSerializationDomain(overlapped_domain, 1);
+  for (const auto& v : GenerateNonUniqueValues(overlapped_domain)) {
+    auto domain_0_corpus = domain_0.FromValue(v.user_value);
+    ASSERT_TRUE(domain_0_corpus.has_value());
+    auto domain_1_corpus = domain_1.FromValue(v.user_value);
+    ASSERT_TRUE(domain_1_corpus.has_value());
+    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+        << "Expect different serialized corpora after "
+           "`WithSerializationDomain(1)`";
+    EXPECT_EQ(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
+              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+        << "Expect the same serialized corpora after "
+           "`WithSerializationDomain(1)`";
+  }
 }
 
 }  // namespace
