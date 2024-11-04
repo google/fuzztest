@@ -299,7 +299,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
-  internal::TablesOfRecentCompares cmp_tables_;
+  TablesOfRecentCompares cmp_tables_;
   absl::BitGen prng_;
 };
 
