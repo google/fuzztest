@@ -107,7 +107,7 @@ class OverlapOfImpl
           ValidateCorpusValueForOtherDomains(*mutant_corpus).ok();
       MaybeReportOnValidationResult(valid);
       if (valid) {
-        val = *mutant_corpus;
+        val = *std::move(mutant_corpus);
         return;
       }
     }
@@ -122,9 +122,10 @@ class OverlapOfImpl
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     std::optional<corpus_type> corpus;
-    // Always use the first inner domain to get the corpus value. We could use
-    // other domains but there is little difference.
-    Switch<kNumDomains>(0, [&](auto I) {
+    // Unless the serialization domain is set, use the first inner domain to get
+    // the corpus value. We could use other domains but there is little
+    // difference.
+    Switch<kNumDomains>(serialization_domain_index_.value_or(0), [&](auto I) {
       auto inner_corpus = std::get<I>(domains_).FromValue(v);
       if (!inner_corpus.has_value()) return;
       corpus = corpus_type(std::in_place_index<I>, *std::move(inner_corpus));
@@ -138,11 +139,39 @@ class OverlapOfImpl
   auto GetPrinter() const { return VariantPrinter<Inner...>{domains_}; }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    return ParseWithDomainVariant(domains_, obj);
+    if (!serialization_domain_index_.has_value()) {
+      return ParseWithDomainVariant(domains_, obj);
+    }
+    return Switch<kNumDomains>(
+        *serialization_domain_index_,
+        [&](auto I) -> std::optional<corpus_type> {
+          auto inner_corpus = std::get<I>(domains_).ParseCorpus(obj);
+          if (!inner_corpus.has_value()) return std::nullopt;
+          return corpus_type(std::in_place_index<I>, *std::move(inner_corpus));
+        });
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
-    return SerializeWithDomainVariant(domains_, v);
+    if (!serialization_domain_index_.has_value()) {
+      return SerializeWithDomainVariant(domains_, v);
+    }
+    if (*serialization_domain_index_ == v.index()) {
+      return Switch<kNumDomains>(*serialization_domain_index_, [&](auto I) {
+        return std::get<I>(domains_).SerializeCorpus(std::get<I>(v));
+      });
+    }
+    const auto user_value = Switch<kNumDomains>(v.index(), [&](auto I) {
+      auto& domain = std::get<I>(domains_);
+      return domain.GetValue(std::get<I>(v));
+    });
+    return Switch<kNumDomains>(*serialization_domain_index_, [&](auto I) {
+      auto& domain = std::get<I>(domains_);
+      const auto inner_corpus = domain.FromValue(user_value);
+      FUZZTEST_INTERNAL_CHECK(inner_corpus.has_value(),
+                              "Mutate() called on a user value that is not "
+                              "valid in all overlapping domains");
+      return domain.SerializeCorpus(*inner_corpus);
+    });
   }
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
@@ -155,13 +184,25 @@ class OverlapOfImpl
   }
 
  private:
+  friend class OverlapOfTestPeer;
+
   static constexpr size_t kNumDomains = sizeof...(Inner);
   static_assert(kNumDomains > 1,
                 "It requires more than one domain to overlap.");
 
   std::tuple<Inner...> domains_;
+  std::optional<size_t> serialization_domain_index_;
   size_t num_validation_attempts_ = 0;
   size_t num_validation_failures_ = 0;
+
+  OverlapOfImpl& WithSerializationDomain(size_t index) {
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        index < kNumDomains,
+        absl::StrFormat("Serialization domain index must be less than %d",
+                        kNumDomains));
+    serialization_domain_index_ = index;
+    return *this;
+  }
 
   absl::Status ValidateCorpusValueForOtherDomains(
       const corpus_type& corpus_value) const {
