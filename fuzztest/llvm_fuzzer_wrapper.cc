@@ -5,20 +5,21 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/synchronization/mutex.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/fuzztest_macros.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/io.h"
-#ifndef FUZZTEST_USE_CENTIPEDE
-#include "./fuzztest/internal/coverage.h"
-#endif
+#include "./fuzztest/internal/logging.h"
 
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
@@ -127,27 +128,89 @@ class InplaceVector {
   std::size_t size_;
 };
 
-// Centipede runner also provides LLVMFuzzerMutate to support libFuzzer targets
-// on its own. So we do not define it when integrating with Centipede.
-#ifndef FUZZTEST_USE_CENTIPEDE
+namespace {
 
+using ::fuzztest::domain_implementor::MutationMetadata;
+
+// Manager that controls the access of mutation metadata for
+// LLVMFuzzerMutate/LLVMFuzzerCustomMutator.
+//
+// The metadata is supposed to be active only when FuzzTest is calling
+// LLVMFuzzerCustomMutator.
+//
+// If the metadata is active, `Acquire` would return a non-null metadata
+// pointer, and the caller should call `Release` after the metadata usage.
+// If the metadata is inactive, `Acquire` would return a null pointer, and the
+// caller should not call `Release` for it.
+class MutationMetadataManager {
+ public:
+  void Activate(const MutationMetadata& mutation_metadata) {
+    absl::MutexLock lock(&mu_);
+    FUZZTEST_INTERNAL_CHECK(
+        !active_,
+        "MutationMetadata is already active before calling Activate()!");
+    FUZZTEST_INTERNAL_CHECK(
+        acquire_count_ == 0,
+        "MutationMetadata still has readers before being calling Activate()!");
+    active_ = true;
+    mutation_metadata_ = mutation_metadata;
+  }
+
+  void Deactivate() {
+    absl::MutexLock lock(&mu_);
+    FUZZTEST_INTERNAL_CHECK(
+        active_, "MutationMetadata is not active before calling Deactivate()!");
+    FUZZTEST_INTERNAL_CHECK(
+        acquire_count_ == 0,
+        "MutationMetadata still has readers before calling Deactivate()!");
+    active_ = false;
+  }
+
+  const MutationMetadata* Acquire() {
+    absl::MutexLock lock(&mu_);
+    if (!active_) return nullptr;
+    ++acquire_count_;
+    return &mutation_metadata_;
+  }
+
+  void Release() {
+    absl::MutexLock lock(&mu_);
+    FUZZTEST_INTERNAL_CHECK(
+        active_, "MutationMetadata is not active before calling Release()!");
+    FUZZTEST_INTERNAL_CHECK(
+        acquire_count_ > 0,
+        "MutationMetadata has no readers before calling Release()!");
+    --acquire_count_;
+  }
+
+ private:
+  absl::Mutex mu_;
+  bool active_ ABSL_GUARDED_BY(mu_) = false;
+  size_t acquire_count_ ABSL_GUARDED_BY(mu_) = 0;
+  MutationMetadata mutation_metadata_ ABSL_GUARDED_BY(mu_);
+};
+
+absl::NoDestructor<MutationMetadataManager> mutation_metadata_manager;
+}  // namespace
+
+#ifdef FUZZTEST_USE_CENTIPEDE
+extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t* data, size_t size,
+                                                    size_t max_size) {
+#else   // FUZZTEST_USE_CENTIPEDE
 extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
+#endif  // FUZZTEST_USE_CENTIPEDE
   static auto domain = fuzztest::internal::SequenceContainerOfImpl<
       InplaceVector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>>();
   domain.WithMaxSize(max_size);
   absl::BitGen bitgen;
   InplaceVector<uint8_t> val(data, size);
-  fuzztest::domain_implementor::MutationMetadata metadata;
-  if (auto* coverage = fuzztest::internal::GetExecutionCoverage();
-      coverage != nullptr) {
-    metadata.cmp_tables = &coverage->GetTablesOfRecentCompares();
-  }
-  domain.Mutate(val, bitgen, metadata, false);
+  const auto* metadata = mutation_metadata_manager->Acquire();
+  domain.Mutate(val, bitgen,
+                metadata != nullptr ? *metadata : MutationMetadata{}, false);
+  if (metadata != nullptr) mutation_metadata_manager->Release();
   return val.size();
 }
-
-#endif
 
 class ArbitraryByteVector
     : public fuzztest::internal::SequenceContainerOfImpl<
@@ -160,13 +223,14 @@ class ArbitraryByteVector
   ArbitraryByteVector() { WithMaxSize(kByteArrayMaxLen); }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng,
-              const fuzztest::domain_implementor::MutationMetadata& metadata,
-              bool only_shrink) {
+              const MutationMetadata& metadata, bool only_shrink) {
     if (LLVMFuzzerCustomMutator) {
       const size_t size = val.size();
       const size_t max_size = only_shrink ? size : kByteArrayMaxLen;
       val.resize(max_size);
+      mutation_metadata_manager->Activate(metadata);
       val.resize(LLVMFuzzerCustomMutator(val.data(), size, max_size, prng()));
+      mutation_metadata_manager->Deactivate();
     } else {
       Base::Mutate(val, prng, metadata, only_shrink);
     }
