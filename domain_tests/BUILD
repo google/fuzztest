@@ -241,6 +241,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest:table_of_recent_compares",
         "@com_google_googletest//:gtest_main",
     ],
 )

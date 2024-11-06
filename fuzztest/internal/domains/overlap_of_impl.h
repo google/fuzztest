@@ -33,6 +33,10 @@
 #include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
 
+namespace fuzztest::internal_no_adl {
+auto Utf8String();
+}  // namespace fuzztest::internal_no_adl
+
 namespace fuzztest::internal {
 
 template <typename... Inner>
@@ -183,6 +187,7 @@ class OverlapOfImpl
 
  private:
   friend class OverlapOfTestPeer;
+  friend auto internal_no_adl::Utf8String();
 
   static constexpr size_t kNumDomains = sizeof...(Inner);
   static_assert(kNumDomains > 1,

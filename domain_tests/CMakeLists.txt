@@ -239,5 +239,6 @@ fuzztest_cc_test(
     absl::flat_hash_set
     absl::random_random
     fuzztest::domain_core
+    fuzztest::table_of_recent_compares
     GTest::gmock_main
 )
