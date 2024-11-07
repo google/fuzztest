@@ -320,7 +320,7 @@ void Runtime::PrintReport(RawSink out) const {
       absl::Format(out,
                    "\nPlease note that the code generated above is best effort "
                    "and is intended\n"
-                   "to use be used as a draft regression test.\n"
+                   "to be used as a draft regression test.\n"
                    "For reproducing findings please rely on file based "
                    "reproduction.\n");
     }
