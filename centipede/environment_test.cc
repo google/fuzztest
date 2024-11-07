@@ -55,6 +55,24 @@ TEST(Environment, UpdateForExperiment) {
   Experiment(11, true, 30, "E12", "use_cmp_features=true:path_level=30:");
 }
 
+TEST(Environment, UpdatesNumberOfShardsAndThreadsFromTargetConfigJobs) {
+  Environment env{.total_shards = 20, .my_shard_index = 10, .num_threads = 5};
+  fuzztest::internal::Configuration config{.jobs = 10};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.j, 10);
+  EXPECT_EQ(env.total_shards, 10);
+  EXPECT_EQ(env.my_shard_index, 0);
+  EXPECT_EQ(env.num_threads, 10);
+}
+
+TEST(Environment, DiesOnInconsistentJAndTargetConfigJobs) {
+  Environment env{.j = 10};
+  fuzztest::internal::Configuration config{.jobs = 20};
+  EXPECT_DEATH(env.UpdateWithTargetConfig(config),
+               "Value for --j is inconsistent with the value for jobs in the "
+               "target binary");
+}
+
 TEST(Environment, UpdatesTimeoutPerBatchFromTimeoutPerInputAndBatchSize) {
   Environment env{
       .batch_size = 1000, .timeout_per_input = 100, .timeout_per_batch = 0};
