@@ -81,7 +81,7 @@ TEST(SUITE_NAME, TEST_NAMERegression) {
 }
 
 Please note that the code generated above is best effort and is intended
-to use be used as a draft regression test.
+to be used as a draft regression test.
 For reproducing findings please rely on file based reproduction.
 
 =================================================================
