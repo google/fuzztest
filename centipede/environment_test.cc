@@ -55,7 +55,72 @@ TEST(Environment, UpdateForExperiment) {
   Experiment(11, true, 30, "E12", "use_cmp_features=true:path_level=30:");
 }
 
-TEST(Environment, UpdatesBatchTimeoutFromTargetConfig) {
+TEST(Environment, UpdatesTimeoutPerBatchFromTimeoutPerInputAndBatchSize) {
+  Environment env{
+      .batch_size = 1000, .timeout_per_input = 100, .timeout_per_batch = 0};
+  env.UpdateTimeoutPerBatchIfEqualTo(0);
+  EXPECT_GT(env.timeout_per_batch, 0);
+
+  env.timeout_per_batch = 123;
+  env.UpdateTimeoutPerBatchIfEqualTo(0);
+  EXPECT_EQ(env.timeout_per_batch, 123);
+}
+
+TEST(Environment,
+     UpdatesTimeoutPerInputFromFiniteTargetConfigTimeLimitPerInput) {
+  Environment env{.timeout_per_input =
+                      Environment::Default().timeout_per_input};
+  fuzztest::internal::Configuration config{.time_limit_per_input =
+                                               absl::Seconds(456)};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_input, 456);
+}
+
+TEST(Environment,
+     UpdatesTimeoutPerInputFromInfiniteTargetConfigTimeLimitPerInput) {
+  Environment env{.timeout_per_input =
+                      Environment::Default().timeout_per_input};
+  fuzztest::internal::Configuration config{.time_limit_per_input =
+                                               absl::InfiniteDuration()};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_input, 0);
+}
+
+TEST(Environment,
+     DiesOnInconsistentTimeoutPerInputAndTargetConfigTimeLimitPerInput) {
+  Environment env{.timeout_per_input = 123};
+  fuzztest::internal::Configuration config{.time_limit_per_input =
+                                               absl::Seconds(456)};
+  EXPECT_DEATH(
+      env.UpdateWithTargetConfig(config),
+      "Value for --timeout_per_input is inconsistent with the value for "
+      "time_limit_per_input in the target binary");
+}
+
+TEST(Environment,
+     UpdatesTimeoutPerBatchFromFiniteTargetConfigTimeLimitPerInput) {
+  Environment env{.timeout_per_input =
+                      Environment::Default().timeout_per_input};
+  env.UpdateTimeoutPerBatchIfEqualTo(Environment::Default().timeout_per_batch);
+  const size_t autocomputed_timeout_per_batch = env.timeout_per_batch;
+  fuzztest::internal::Configuration config{.time_limit_per_input =
+                                               absl::Seconds(456)};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_NE(env.timeout_per_batch, autocomputed_timeout_per_batch);
+}
+
+TEST(Environment,
+     UpdatesTimeoutPerBatchFromInfiniteTargetConfigTimeLimitPerInput) {
+  Environment env{.timeout_per_input =
+                      Environment::Default().timeout_per_input};
+  env.UpdateTimeoutPerBatchIfEqualTo(Environment::Default().timeout_per_batch);
+  fuzztest::internal::Configuration config{.time_limit_per_input =
+                                               absl::InfiniteDuration()};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.timeout_per_batch, 0);
+}
+
+TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
   Environment env;
   fuzztest::internal::Configuration config{
       .time_limit = absl::Seconds(123),

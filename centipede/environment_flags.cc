@@ -14,8 +14,6 @@
 
 #include "./centipede/environment_flags.h"
 
-#include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
@@ -426,37 +424,6 @@ absl::Time GetStopAtTime(absl::Time stop_at, absl::Duration stop_after) {
   }
 }
 
-// If the passed `timeout_per_batch` is 0, computes its value as a function of
-// `timeout_per_input` and `batch_size` and returns it. Otherwise, just returns
-// the `timeout_per_batch`.
-size_t ComputeTimeoutPerBatch(  //
-    size_t timeout_per_batch, size_t timeout_per_input, size_t batch_size) {
-  if (timeout_per_batch == 0) {
-    CHECK_GT(batch_size, 0);
-    // NOTE: If `timeout_per_input` == 0, leave `timeout_per_batch` at 0 too:
-    // the implementation interprets both as "no limit".
-    if (timeout_per_input != 0) {
-      // TODO(ussuri): The formula here is an unscientific heuristic conjured
-      //  up for CPU instruction fuzzing. `timeout_per_input` is interpreted as
-      //  the long tail of the input runtime distribution of yet-unknown nature.
-      //  It might be the exponential, log-normal distribution or similar, and
-      //  the distribution of the total time per batch could be modeled by the
-      //  gamma distribution. Work out the math later. Right now, this naive
-      //  formula gives ~18 min per batch with the input flags' defaults (this
-      //  has worked in test runs so far).
-      constexpr double kScale = 12;
-      const double estimated_mean_time_per_input =
-          std::max(timeout_per_input / kScale, 1.0);
-      timeout_per_batch =
-          std::ceil(std::log(estimated_mean_time_per_input + 1.0) * batch_size);
-    }
-    VLOG(1) << "--timeout_per_batch"
-            << " not set on command line: auto-computed " << timeout_per_batch
-            << " sec (see --help for details)";
-  }
-  return timeout_per_batch;
-}
-
 }  // namespace
 
 Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
@@ -490,10 +457,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .address_space_limit_mb = absl::GetFlag(FLAGS_address_space_limit_mb),
       .rss_limit_mb = absl::GetFlag(FLAGS_rss_limit_mb),
       .timeout_per_input = absl::GetFlag(FLAGS_timeout_per_input),
-      .timeout_per_batch =
-          ComputeTimeoutPerBatch(absl::GetFlag(FLAGS_timeout_per_batch),
-                                 absl::GetFlag(FLAGS_timeout_per_input),
-                                 absl::GetFlag(FLAGS_batch_size)),
+      .timeout_per_batch = absl::GetFlag(FLAGS_timeout_per_batch),
       .stop_at = GetStopAtTime(absl::GetFlag(FLAGS_stop_at),
                                absl::GetFlag(FLAGS_stop_after)),
       .fork_server = absl::GetFlag(FLAGS_fork_server),
@@ -551,6 +515,9 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
                          ? HashOfFileContents(coverage_binary)
                          : absl::GetFlag(FLAGS_binary_hash),
   };
+
+  env_from_flags.UpdateTimeoutPerBatchIfEqualTo(
+      Environment::Default().timeout_per_batch);
 
   if (size_t j = absl::GetFlag(FLAGS_j)) {
     env_from_flags.total_shards = j;

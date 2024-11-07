@@ -214,6 +214,10 @@ struct Environment {
   // if the fields are non-default and inconsistent with the corresponding
   // values in `config`.
   void UpdateWithTargetConfig(const fuzztest::internal::Configuration& config);
+  // If `timeout_per_batch` is `val`, computes it as a function of
+  // `timeout_per_input` and `batch_size` and updates it. Otherwise, leaves it
+  // unchanged.
+  void UpdateTimeoutPerBatchIfEqualTo(size_t val);
 };
 
 }  // namespace centipede
