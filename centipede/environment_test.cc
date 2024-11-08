@@ -180,4 +180,20 @@ TEST(Environment, DiesOnInconsistentRssLimitMbAndTargetConfigRssLimit) {
       "Value for --rss_limit_mb is inconsistent with the value for rss_limit "
       "in the target binary");
 }
+
+TEST(Environment, UpdatesStackLimitKbFromTargetConfigStackLimit) {
+  Environment env{.stack_limit_kb = Environment::Default().stack_limit_kb};
+  fuzztest::internal::Configuration config{.stack_limit = 5UL * 1024};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.stack_limit_kb, 5);
+}
+
+TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
+  Environment env{.stack_limit_kb = 123};
+  fuzztest::internal::Configuration config{.stack_limit = 5UL * 1024};
+  EXPECT_DEATH(env.UpdateWithTargetConfig(config),
+               "Value for --stack_limit_kb is inconsistent with the value for "
+               "stack_limit in the target binary");
+}
+
 }  // namespace centipede

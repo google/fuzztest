@@ -292,6 +292,17 @@ void Environment::UpdateWithTargetConfig(
          "rss_limit in the target binary:"
       << VV(rss_limit_mb) << VV(config.rss_limit);
   rss_limit_mb = bytes_to_mb(config.rss_limit);
+
+  // Convert bytes to KB by rounding up.
+  constexpr auto bytes_to_kb = [](size_t bytes) {
+    return bytes == 0 ? 0 : (bytes - 1) / 1024 + 1;
+  };
+  CHECK(stack_limit_kb == Default().stack_limit_kb ||
+        stack_limit_kb == bytes_to_kb(config.stack_limit))
+      << "Value for --stack_limit_kb is inconsistent with the value for "
+         "stack_limit in the target binary:"
+      << VV(stack_limit_kb) << VV(config.stack_limit);
+  stack_limit_kb = bytes_to_kb(config.stack_limit);
 }
 
 void Environment::UpdateTimeoutPerBatchIfEqualTo(size_t val) {
