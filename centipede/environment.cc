@@ -281,6 +281,17 @@ void Environment::UpdateWithTargetConfig(
             ? test_time_limit_seconds
             : std::min(timeout_per_batch, test_time_limit_seconds);
   }
+
+  // Convert bytes to MB by rounding up.
+  constexpr auto bytes_to_mb = [](size_t bytes) {
+    return bytes == 0 ? 0 : (bytes - 1) / 1024 / 1024 + 1;
+  };
+  CHECK(rss_limit_mb == Default().rss_limit_mb ||
+        rss_limit_mb == bytes_to_mb(config.rss_limit))
+      << "Value for --rss_limit_mb is inconsistent with the value for "
+         "rss_limit in the target binary:"
+      << VV(rss_limit_mb) << VV(config.rss_limit);
+  rss_limit_mb = bytes_to_mb(config.rss_limit);
 }
 
 void Environment::UpdateTimeoutPerBatchIfEqualTo(size_t val) {

@@ -163,4 +163,21 @@ TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
          "when it is longer than the previous value";
 }
 
+TEST(Environment, UpdatesRssLimitMbFromTargetConfigRssLimit) {
+  Environment env{.rss_limit_mb = Environment::Default().rss_limit_mb};
+  fuzztest::internal::Configuration config{.rss_limit =
+                                               5UL * 1024 * 1024 * 1024};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.rss_limit_mb, 5 * 1024);
+}
+
+TEST(Environment, DiesOnInconsistentRssLimitMbAndTargetConfigRssLimit) {
+  Environment env{.rss_limit_mb = 123};
+  fuzztest::internal::Configuration config{.rss_limit =
+                                               5UL * 1024 * 1024 * 1024};
+  EXPECT_DEATH(
+      env.UpdateWithTargetConfig(config),
+      "Value for --rss_limit_mb is inconsistent with the value for rss_limit "
+      "in the target binary");
+}
 }  // namespace centipede
