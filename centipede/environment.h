@@ -64,6 +64,7 @@ struct Environment {
   size_t address_space_limit_mb = 8192;
 #endif  // __APPLE__
   size_t rss_limit_mb = 4096;
+  size_t stack_limit_kb = 0;
   size_t timeout_per_input = 60;
   size_t timeout_per_batch = 0;
   absl::Time stop_at = absl::InfiniteFuture();

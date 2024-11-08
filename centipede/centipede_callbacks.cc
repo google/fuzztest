@@ -87,6 +87,7 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
       absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
+      absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
       absl::StrCat("crossover_level=", env_.crossover_level),
   };
   if (!disable_coverage) {

@@ -305,10 +305,11 @@ void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
-          " MB\n",
+          " MB; stack_limit_kb: %" PRIu64 " KB\n",
           state.run_time_flags.timeout_per_input.load(),
           state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.rss_limit_mb.load());
+          state.run_time_flags.rss_limit_mb.load(),
+          state.run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);

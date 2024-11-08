@@ -138,6 +138,9 @@ ABSL_FLAG(size_t, rss_limit_mb, Environment::Default().rss_limit_mb,
           "--rss_limit_mb allows Centipede to *report* an OOM condition in "
           "most cases, while --address_space_limit_mb will cause a crash that "
           "may be hard to attribute to OOM.");
+ABSL_FLAG(size_t, stack_limit_kb, Environment::Default().stack_limit_kb,
+          "If not zero, instructs the target to fail if stack usage goes over "
+          "this number of KiB.");
 ABSL_FLAG(size_t, timeout_per_input, Environment::Default().timeout_per_input,
           "If not zero, the timeout in seconds for a single input. If an input "
           "runs longer than this, the runner process will abort. Support may "
@@ -456,6 +459,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .prune_frequency = absl::GetFlag(FLAGS_prune_frequency),
       .address_space_limit_mb = absl::GetFlag(FLAGS_address_space_limit_mb),
       .rss_limit_mb = absl::GetFlag(FLAGS_rss_limit_mb),
+      .stack_limit_kb = absl::GetFlag(FLAGS_stack_limit_kb),
       .timeout_per_input = absl::GetFlag(FLAGS_timeout_per_input),
       .timeout_per_batch = absl::GetFlag(FLAGS_timeout_per_batch),
       .stop_at = GetStopAtTime(absl::GetFlag(FLAGS_stop_at),

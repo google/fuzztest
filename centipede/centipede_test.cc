@@ -52,6 +52,8 @@ namespace centipede {
 
 namespace {
 
+using ::testing::HasSubstr;
+
 // A mock for CentipedeCallbacks.
 class CentipedeMock : public CentipedeCallbacks {
  public:
@@ -971,6 +973,19 @@ TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   MockFactory factory(callbacks);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_TRUE(callbacks.thread_check_passed());
+}
+
+TEST(Centipede, DetectsStackOverflow) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  env.stack_limit_kb = 64;
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult batch_result;
+  const std::vector<ByteArray> inputs = {ByteArray{'s', 't', 'k'}};
+
+  ASSERT_FALSE(callbacks.Execute(env.binary, inputs, batch_result));
+  EXPECT_THAT(batch_result.log(), HasSubstr("Stack limit exceeded"));
+  EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
 }
 
 }  // namespace centipede
