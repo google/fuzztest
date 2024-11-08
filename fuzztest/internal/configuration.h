@@ -65,7 +65,7 @@ struct Configuration {
   // RSS limit in bytes. Zero indicates no limit.
   size_t rss_limit = 0;
   // Time limit per test input.
-  absl::Duration time_limit_per_input = absl::InfiniteDuration();
+  absl::Duration time_limit_per_input = absl::Seconds(60);
   // Fuzzing or corpus replay time limit.
   absl::Duration time_limit = absl::InfiniteDuration();
   // Whether the time limit is for each test or for all tests in the binary.
