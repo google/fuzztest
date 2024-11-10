@@ -54,33 +54,71 @@ decltype(auto) AutodetectTypePrinter();
 template <typename T>
 constexpr bool HasKnownPrinter();
 
-// If `needle` is present in `haystack`, consume everything until `needle` and
+// If `needle` is present in `haystack`, consume everything until last `needle` and
 // return true. Otherwise, return false.
 inline bool ConsumePrefixUntil(absl::string_view& haystack,
                                absl::string_view needle) {
-  size_t pos = haystack.find(needle);
+  size_t pos = haystack.rfind(needle);
   if (pos == haystack.npos) return false;
   haystack.remove_prefix(pos + needle.size());
   return true;
 }
 
-inline void SkipAnonymous(absl::string_view& in) {
-  while (ConsumePrefixUntil(in, "(anonymous namespace)::")) {
+constexpr inline bool ConsumeSuffix(absl::string_view& haystack,
+                                    absl::string_view needle) {
+  size_t pos = haystack.find(needle);
+  if (pos == absl::string_view::npos) {
+    return false;
   }
+  haystack.remove_suffix(haystack.size() - pos);
+  return true;
+}
+
+constexpr void SkipAnonymous(absl::string_view& in) {
+  constexpr std::array needles = {
+#if defined(__clang__)
+    "(anonymous namespace)::"
+#elif defined (__GNUC__)
+    "{anonymous}::",
+    "()::", // gcc returns function name, if type defined inside it,
+            // clang not, skip it to align with clang output
+    "(anonymous namespace)::" // absl Symbolize returns in clang style
+#endif
+  };
+  for (auto &needle: needles) {
+    ConsumePrefixUntil(in, needle);
+  }
+}
+
+constexpr std::optional<std::pair<absl::string_view, absl::string_view>> GetTypeBounds() {
+#if defined(__clang__)
+  // Format "std::string_view GetTypeName() [T = int]"
+  return std::make_pair("[T = ", "]");
+#elif defined(__GNUC__)
+  // Format: "std::string_view GetTypeName()
+  // [with T = Color; string_view = std::basic_string_view<char>]"
+  return std::make_pair("[with T = ", ";");
+#else
+  return std::nullopt;
+#endif
 }
 
 template <typename T>
 absl::string_view GetTypeName() {
-#if defined(__clang__)
-  // Format "std::string_view GetTypeName() [T = int]"
+  constexpr auto kMaybeBounds = GetTypeBounds();
+  if constexpr (!kMaybeBounds) {
+    return "<TYPE>";
+  }
+  auto [prefix, suffix] = kMaybeBounds.value();
+
   absl::string_view v = __PRETTY_FUNCTION__;
-  ConsumePrefixUntil(v, "[T = ");
+  ConsumePrefixUntil(v, prefix);
+  ConsumeSuffix(v, suffix);
+
+  // Now v is full name of T
   SkipAnonymous(v);
-  absl::ConsumeSuffix(&v, "]");
+
   return v;
-#else
-  return "<TYPE>";
-#endif
 }
 
 template <typename T>
