@@ -104,21 +104,25 @@ __thread ThreadLocalRunnerState tls;
 static void WriteFailureDescription(const char *description) {
   // TODO(b/264715830): Remove I/O error logging once the bug is fixed?
   if (state.failure_description_path == nullptr) return;
-  FILE *f = fopen(state.failure_description_path, "w");
-  if (f == nullptr) {
-    perror("FAILURE: fopen()");
-    return;
-  }
-  const auto len = strlen(description);
-  if (fwrite(description, 1, len, f) != len) {
-    perror("FAILURE: fwrite()");
-  }
-  if (fflush(f) != 0) {
-    perror("FAILURE: fflush()");
-  }
-  if (fclose(f) != 0) {
-    perror("FAILURE: fclose()");
-  }
+  // Make sure that the write is atomic and only happens once.
+  [[maybe_unused]] static int write_once = [=] {
+    FILE *f = fopen(state.failure_description_path, "w");
+    if (f == nullptr) {
+      perror("FAILURE: fopen()");
+      return 0;
+    }
+    const auto len = strlen(description);
+    if (fwrite(description, 1, len, f) != len) {
+      perror("FAILURE: fwrite()");
+    }
+    if (fflush(f) != 0) {
+      perror("FAILURE: fflush()");
+    }
+    if (fclose(f) != 0) {
+      perror("FAILURE: fclose()");
+    }
+    return 0;
+  }();
 }
 
 void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,

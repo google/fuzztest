@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstddef>
+
 #include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
 
@@ -28,5 +30,21 @@ void FailsInTwoWays(const std::vector<int>& v) {
   if (v[0] == 2 * 2025) force_write = v.data()[v.size()];
 }
 FUZZ_TEST(FuzzTest, FailsInTwoWays);
+
+int ReachStackOverflow(int n) {
+  // Use volatile to prevent the compiler from inlining the recursion.
+  volatile auto f = ReachStackOverflow;
+  return n > 0 ? 1 + f(n - 1) : 0;
+}
+
+// Stack frame consists of at least one word.
+constexpr size_t kStackFrameSizeLowerBound = sizeof(void*);
+// Default stack limit is 128 KiB.
+constexpr int kDepthToReachStackOverflow =
+    128 * 1024 / kStackFrameSizeLowerBound;
+
+void FailsWithStackOverflow(int n) { ReachStackOverflow(n); }
+FUZZ_TEST(FuzzTest, FailsWithStackOverflow)
+    .WithDomains(fuzztest::Just(kDepthToReachStackOverflow));
 
 }  // namespace

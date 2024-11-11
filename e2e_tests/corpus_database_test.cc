@@ -27,6 +27,7 @@
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
 class UpdateCorpusDatabaseTest : public testing::Test {
@@ -88,7 +89,8 @@ absl::NoDestructor<std::string> UpdateCorpusDatabaseTest::centipede_std_err_{};
 
 TEST_F(UpdateCorpusDatabaseTest, RunsFuzzTests) {
   EXPECT_THAT(GetCentipedeStdErr(),
-              HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"));
+              AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
+                    HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
 }
 
 TEST_F(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
@@ -97,6 +99,14 @@ TEST_F(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
       AllOf(HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz"),
             HasSubstr("DISTILL[S.0]: Distilling to output shard 0"),
             HasSubstr("DISTILL[S.1]: Distilling to output shard 1")));
+}
+
+TEST_F(UpdateCorpusDatabaseTest, FindsAllCrashes) {
+  EXPECT_THAT(
+      GetCentipedeStdErr(),
+      AllOf(ContainsRegex(R"re(Failure\s*: GoogleTest assertion failure)re"),
+            ContainsRegex(R"re(Failure\s*: heap-buffer-overflow)re"),
+            ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re")));
 }
 
 }  // namespace
