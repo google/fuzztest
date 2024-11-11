@@ -14,6 +14,7 @@ cat <<EOF
 # And don't forget to add the following to your project's .bazelrc:
 #
 #  try-import %workspace%/fuzztest.bazelrc
+
 EOF
 
 cat <<EOF
@@ -30,6 +31,7 @@ build:fuzztest-common --copt=-UNDEBUG
 # Enable libc++ assertions.
 # See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
 build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
+
 EOF
 
 cat <<EOF
@@ -39,6 +41,12 @@ cat <<EOF
 
 build:asan --linkopt=-fsanitize=address
 build:asan --copt=-fsanitize=address
+
+# We rely on the following flag instead of the compiler provided
+# __has_feature(address_sanitizer) to know that we have an ASAN build even in
+# the uninstrumented runtime.
+build:asan --copt=-DADDRESS_SANITIZER
+
 EOF
 
 cat <<EOF
@@ -54,10 +62,6 @@ build:fuzztest --config=fuzztest-common
 # Link statically.
 build:fuzztest --dynamic_mode=off
 
-# We rely on the following flag instead of the compiler provided
-# __has_feature(address_sanitizer) to know that we have an ASAN build even in
-# the uninstrumented runtime.
-build:fuzztest --copt=-DADDRESS_SANITIZER
 EOF
 
 REPO_NAME="${1}"
@@ -86,6 +90,7 @@ cat <<EOF
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
 build:fuzztest --copt=-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table
 build:fuzztest --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+
 EOF
 
 cat <<EOF
@@ -120,6 +125,7 @@ build:fuzztest-experimental --dynamic_mode=off
 # with clang 16+.
 build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
 build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+
 EOF
 
 # Do not use the extra configurations below, unless you know what you're doing.
@@ -155,6 +161,7 @@ build:libfuzzer --config=fuzztest-common
 build:libfuzzer --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:libfuzzer --copt=-fsanitize=fuzzer-no-link
 build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)
+
 EOF
 
 fi # libFuzzer
@@ -170,6 +177,7 @@ build:oss-fuzz --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:oss-fuzz --dynamic_mode=off
 build:oss-fuzz --action_env=CC=${CC}
 build:oss-fuzz --action_env=CXX=${CXX}
+
 EOF
 
 ossfuz_flag_to_bazel_config_flag()
