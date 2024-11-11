@@ -154,7 +154,7 @@ FUZZTEST_DEFINE_FLAG(size_t, rss_limit_mb, 0,
                      "when the limit is exceeded. 0 indicates no limit.");
 
 FUZZTEST_DEFINE_FLAG(
-    absl::Duration, time_limit_per_input, absl::Seconds(60),
+    absl::Duration, time_limit_per_input, absl::InfiniteDuration(),
     "The time limit of the property-function: A timeout bug will be reported "
     "for an input if the execution of the property-function with the input "
     "takes longer than this time limit.");
