@@ -26,7 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
-#include "./centipede/early_exit.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/test_util.h"
 
@@ -51,12 +51,12 @@ TEST(CommandTest, Execute) {
   // Check for default exit code.
   Command echo("echo");
   EXPECT_EQ(echo.Execute(), 0);
-  EXPECT_FALSE(EarlyExitRequested());
+  EXPECT_FALSE(ShouldStop());
 
   // Check for exit code 7.
   Command exit7("bash -c 'exit 7'");
   EXPECT_EQ(exit7.Execute(), 7);
-  EXPECT_FALSE(EarlyExitRequested());
+  EXPECT_FALSE(ShouldStop());
 }
 
 TEST(CommandDeathTest, Execute) {
@@ -65,12 +65,12 @@ TEST(CommandDeathTest, Execute) {
   const auto self_sigint_lambda = []() {
     Command self_sigint("bash -c 'kill -SIGINT $$'");
     self_sigint.Execute();
-    if (EarlyExitRequested()) {
-      LOG(INFO) << "Early exit requested";
+    if (ShouldStop()) {
+      LOG(INFO) << "Early stop requested";
       exit(ExitCode());
     }
   };
-  EXPECT_DEATH(self_sigint_lambda(), "Early exit requested");
+  EXPECT_DEATH(self_sigint_lambda(), "Early stop requested");
 }
 
 TEST(CommandTest, InputFileWildCard) {

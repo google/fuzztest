@@ -51,12 +51,12 @@
 #include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_interface.h"
-#include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
 #include "./fuzztest/internal/any.h"
@@ -352,9 +352,9 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
                                                    buffer_offset);
       batch_result.Read(batch_result_blobseq);
     }
-    if (runtime_.termination_requested() && !centipede::EarlyExitRequested()) {
+    if (runtime_.termination_requested() && !centipede::ShouldStop()) {
       absl::FPrintF(GetStderr(), "[.] Early termination requested.\n");
-      centipede::RequestEarlyExit(0);
+      centipede::RequestEarlyStop(0);
     }
     return true;
   }
@@ -384,9 +384,9 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
         inputs, num_mutants, [&](centipede::ByteSpan mutant) {
           mutants.emplace_back(mutant.begin(), mutant.end());
         });
-    if (runtime_.termination_requested() && !centipede::EarlyExitRequested()) {
+    if (runtime_.termination_requested() && !centipede::ShouldStop()) {
       absl::FPrintF(GetStderr(), "[.] Early termination requested.\n");
-      centipede::RequestEarlyExit(0);
+      centipede::RequestEarlyStop(0);
     }
   }
 

@@ -51,7 +51,6 @@
 #include "./centipede/command.h"
 #include "./centipede/coverage.h"
 #include "./centipede/distill.h"
-#include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
@@ -59,6 +58,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
+#include "./centipede/stop.h"
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -74,37 +74,20 @@ namespace centipede {
 
 namespace {
 
-// Sets signal handler for SIGINT and SIGALRM.
-void SetSignalHandlers(absl::Time stop_at) {
-  for (int signum : {SIGINT, SIGALRM}) {
-    struct sigaction sigact = {};
-    sigact.sa_handler = [](int received_signum) {
-      if (received_signum == SIGINT) {
-        ABSL_RAW_LOG(INFO, "Ctrl-C pressed: winding down");
-        RequestEarlyExit(EXIT_FAILURE);  // => abnormal outcome
-      } else if (received_signum == SIGALRM) {
-        ABSL_RAW_LOG(INFO, "Reached --stop_at time: winding down");
-        RequestEarlyExit(EXIT_SUCCESS);  // => expected outcome
-      } else {
-        ABSL_UNREACHABLE();
-      }
-    };
-    sigaction(signum, &sigact, nullptr);
-  }
-
-  if (stop_at != absl::InfiniteFuture()) {
-    const absl::Duration stop_in = stop_at - absl::Now();
-    // Setting an alarm works only if the delay is longer than 1 second.
-    if (stop_in >= absl::Seconds(1)) {
-      LOG(INFO) << "Setting alarm for --stop_at time " << stop_at << " (in "
-                << stop_in << ")";
-      PCHECK(alarm(absl::ToInt64Seconds(stop_in)) == 0) << "Alarm already set";
-    } else {
-      LOG(WARNING) << "Already reached --stop_at time " << stop_at
-                   << " upon starting: winding down immediately";
-      RequestEarlyExit(EXIT_SUCCESS);  // => expected outcome
+// Sets signal handler for SIGINT.
+// TODO(b/378532202): Replace this with a more generic mechanism that allows
+// the called or `CentipedeMain()` to indicate when to stop.
+void SetSignalHandlers() {
+  struct sigaction sigact = {};
+  sigact.sa_handler = [](int received_signum) {
+    if (received_signum == SIGINT) {
+      LOG(INFO) << "Ctrl-C pressed: winding down";
+      RequestEarlyStop(EXIT_FAILURE);
+      return;
     }
-  }
+    ABSL_UNREACHABLE();
+  };
+  sigaction(SIGINT, &sigact, nullptr);
 }
 
 // Runs env.for_each_blob on every blob extracted from env.args.
@@ -135,7 +118,7 @@ int ForEachBlob(const Environment &env) {
       // If this flag gets active use, we may want to define special cases,
       // e.g. if for_each_blob=="cp %P /some/where" we can do it in-process.
       cmd.Execute();
-      if (EarlyExitRequested()) return ExitCode();
+      if (ShouldStop()) return ExitCode();
     }
   }
   return EXIT_SUCCESS;
@@ -577,8 +560,8 @@ int UpdateCorpusDatabaseForFuzzTests(
     LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i]
               << "\n\tTest binary: " << env.binary;
 
-    ClearEarlyExitRequest();
-    alarm(absl::ToInt64Seconds(fuzztest_config.GetTimeLimitPerTest()));
+    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::Now() +
+                                        fuzztest_config.GetTimeLimitPerTest());
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
     if (!stats_root_path.empty()) {
       const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
@@ -624,8 +607,8 @@ int UpdateCorpusDatabaseForFuzzTests(
 
 int CentipedeMain(const Environment &env,
                   CentipedeCallbacksFactory &callbacks_factory) {
-  ClearEarlyExitRequest();
-  SetSignalHandlers(env.stop_at);
+  ClearEarlyStopRequestAndSetStopTime(env.stop_at);
+  SetSignalHandlers();
 
   if (!env.corpus_to_files.empty()) {
     Centipede::CorpusToFiles(env, env.corpus_to_files);

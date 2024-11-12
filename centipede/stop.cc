@@ -12,34 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/early_exit.h"
+#include "./centipede/stop.h"
 
 #include <atomic>
 #include <cstdlib>
 
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+
 namespace centipede {
 namespace {
 
-struct EarlyExit {
+struct EarlyStop {
   int exit_code = EXIT_SUCCESS;
   bool is_requested = false;
 };
-std::atomic<EarlyExit> early_exit;
+std::atomic<EarlyStop> early_stop;
+
+absl::Time stop_time = absl::InfiniteFuture();
+
+bool EarlyStopRequested() {
+  return early_stop.load(std::memory_order_acquire).is_requested;
+}
 
 }  // namespace
 
-void RequestEarlyExit(int exit_code) {
-  early_exit.store({exit_code, true}, std::memory_order_release);
+void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
+  early_stop.store({}, std::memory_order_release);
+  ::centipede::stop_time = stop_time;
 }
 
-void ClearEarlyExitRequest() {
-  early_exit.store({}, std::memory_order_release);
+void RequestEarlyStop(int exit_code) {
+  early_stop.store({exit_code, true}, std::memory_order_release);
 }
 
-bool EarlyExitRequested() {
-  return early_exit.load(std::memory_order_acquire).is_requested;
-}
+bool ShouldStop() { return EarlyStopRequested() || stop_time < absl::Now(); }
 
-int ExitCode() { return early_exit.load(std::memory_order_acquire).exit_code; }
+int ExitCode() { return early_stop.load(std::memory_order_acquire).exit_code; }
 
 }  // namespace centipede

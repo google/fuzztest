@@ -51,7 +51,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "./centipede/early_exit.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
 
@@ -399,7 +399,7 @@ int Command::Execute() {
   } else if (WIFSIGNALED(exit_code)) {
     const auto signal = WTERMSIG(exit_code);
     if (signal == SIGINT) {
-      RequestEarlyExit(EXIT_FAILURE);
+      RequestEarlyStop(EXIT_FAILURE);
       // When the user kills Centipede via ^C, they are unlikely to be
       // interested in any of the subprocesses' outputs. Also, ^C terminates all
       // the subprocesses, including all the runners, so all their outputs would

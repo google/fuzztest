@@ -80,7 +80,6 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
-#include "./centipede/early_exit.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
@@ -89,6 +88,7 @@
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"
 #include "./centipede/stats.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
@@ -377,14 +377,14 @@ bool Centipede::RunBatch(
   }
   if (!success && env_.exit_on_crash) {
     LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
-    RequestEarlyExit(EXIT_FAILURE);
+    RequestEarlyStop(EXIT_FAILURE);
     return false;
   }
   CHECK_EQ(batch_result.results().size(), input_vec.size());
   num_runs_ += input_vec.size();
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < input_vec.size(); i++) {
-    if (EarlyExitRequested()) break;
+    if (ShouldStop()) break;
     FeatureVec &fv = batch_result.results()[i].mutable_features();
     bool function_filter_passed = function_filter_.filter(fv);
     bool input_gained_new_coverage = fs_.PruneFeaturesAndCountUnseen(fv) != 0;
@@ -429,7 +429,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   std::vector<ByteArray> inputs_to_rerun;
   auto input_features_callback = [&](ByteArray input,
                                      FeatureVec input_features) {
-    if (EarlyExitRequested()) return;
+    if (ShouldStop()) return;
     if (input_features.empty()) {
       if (rerun) {
         inputs_to_rerun.emplace_back(std::move(input));
@@ -498,7 +498,7 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   // Re-run all inputs for which we don't know their features.
   // Run in batches of at most env_.batch_size inputs each.
   while (!to_rerun.empty()) {
-    if (EarlyExitRequested()) break;
+    if (ShouldStop()) break;
     size_t batch_size = std::min(to_rerun.size(), env_.batch_size);
     std::vector<ByteArray> batch(to_rerun.end() - batch_size, to_rerun.end());
     to_rerun.resize(to_rerun.size() - batch_size);
@@ -748,7 +748,7 @@ void Centipede::FuzzingLoop() {
   size_t new_runs = 0;
   size_t corpus_size_at_last_prune = corpus_.NumActive();
   for (size_t batch_index = 0; batch_index < number_of_batches; batch_index++) {
-    if (EarlyExitRequested()) break;
+    if (ShouldStop()) break;
     CHECK_LT(new_runs, env_.num_runs);
     auto remaining_runs = env_.num_runs - new_runs;
     auto batch_size = std::min(env_.batch_size, remaining_runs);
@@ -809,7 +809,7 @@ void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
                             const BatchResult &batch_result) {
   CHECK_EQ(input_vec.size(), batch_result.results().size());
-  if (EarlyExitRequested()) return;
+  if (ShouldStop()) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
 
@@ -867,7 +867,7 @@ void Centipede::ReportCrash(std::string_view binary,
   LOG(INFO) << log_prefix
             << "Executing inputs one-by-one, trying to find the reproducer";
   for (auto input_idx : input_idxs_to_try) {
-    if (EarlyExitRequested()) return;
+    if (ShouldStop()) return;
     const auto &one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {

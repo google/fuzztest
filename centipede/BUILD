@@ -380,10 +380,10 @@ cc_library(
     hdrs = ["minimize_crash.h"],
     deps = [
         ":centipede_callbacks",
-        ":early_exit",
         ":environment",
         ":mutation_input",
         ":runner_result",
+        ":stop",
         ":thread_pool",
         ":util",
         ":workdir",
@@ -619,7 +619,7 @@ cc_library(
     hdrs = ["command.h"],
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
-        ":early_exit",
+        ":stop",
         ":util",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
@@ -711,9 +711,9 @@ cc_library(
 )
 
 cc_library(
-    name = "early_exit",
-    srcs = ["early_exit.cc"],
-    hdrs = ["early_exit.h"],
+    name = "stop",
+    srcs = ["stop.cc"],
+    hdrs = ["stop.h"],
     linkopts = select({
         "@platforms//os:macos": [],
         "//conditions:default": [
@@ -721,6 +721,7 @@ cc_library(
         ],
     }),
     visibility = PUBLIC_API_VISIBILITY,
+    deps = ["@com_google_absl//absl/time"],
 )
 
 cc_library(
@@ -761,7 +762,6 @@ cc_library(
         ":corpus",
         ":corpus_io",
         ":coverage",
-        ":early_exit",
         ":environment",
         ":feature",
         ":feature_set",
@@ -771,6 +771,7 @@ cc_library(
         ":rusage_profiler",
         ":rusage_stats",
         ":stats",
+        ":stop",
         ":symbol_table",
         ":util",
         ":workdir",
@@ -810,7 +811,6 @@ cc_library(
         ":command",
         ":coverage",
         ":distill",
-        ":early_exit",
         ":environment",
         ":minimize_crash",
         ":pc_info",
@@ -818,6 +818,7 @@ cc_library(
         ":runner_result",
         ":seed_corpus_maker_lib",
         ":stats",
+        ":stop",
         ":thread_pool",
         ":util",
         ":workdir",
@@ -1615,7 +1616,7 @@ cc_test(
     data = [":command_test_helper"],
     deps = [
         ":command",
-        ":early_exit",
+        ":stop",
         ":util",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
