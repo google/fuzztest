@@ -90,9 +90,8 @@ jobs:
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_BUILD_TESTING=on \
-          && cmake --build build_gcc -j $(nproc)
-# TODO: Rewrite helper `PrintValue` to obtain same output under clang and gcc
-# && ctest --test-dir build_gcc -j $(nproc) --output-on-failure
+          && cmake --build build_gcc -j $(nproc) \
+          && ctest --test-dir build_gcc -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
         if: matrix.mode == 'fuzzing'
         run: |

@@ -116,8 +116,8 @@ class DomainBuilder {
           iter.second != nullptr && iter.second->has_value(),
           "Some domain is not set yet!");
     }
-    return OwningDomain<T>(GetIndirect<T>(name)->template GetAs<Domain<T>>(),
-                           std::move(domain_lookup_table_));
+    auto domain = GetIndirect<T>(name)->template GetAs<Domain<T>>();
+    return OwningDomain<T>(std::move(domain), std::move(domain_lookup_table_));
   }
 
  private:

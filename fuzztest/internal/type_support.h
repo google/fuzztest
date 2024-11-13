@@ -15,6 +15,7 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_TYPE_SUPPORT_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_TYPE_SUPPORT_H_
 
+#include <array>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -54,33 +55,52 @@ decltype(auto) AutodetectTypePrinter();
 template <typename T>
 constexpr bool HasKnownPrinter();
 
-// If `needle` is present in `haystack`, consume everything until `needle` and
-// return true. Otherwise, return false.
-inline bool ConsumePrefixUntil(absl::string_view& haystack,
-                               absl::string_view needle) {
-  size_t pos = haystack.find(needle);
-  if (pos == haystack.npos) return false;
-  haystack.remove_prefix(pos + needle.size());
+// If `prefix` is present in `name`, consume everything until the rightmost
+// occurrence of `prefix` and return true. Otherwise, return false.
+constexpr bool ConsumePrefixUntil(absl::string_view& name,
+                                  absl::string_view prefix) {
+  size_t pos = name.rfind(prefix);
+  if (name.npos == pos) return false;
+  name.remove_prefix(pos + prefix.size());
   return true;
 }
 
-inline void SkipAnonymous(absl::string_view& in) {
-  while (ConsumePrefixUntil(in, "(anonymous namespace)::")) {
+constexpr bool ConsumeUnnecessaryNamespacePrefix(absl::string_view& name) {
+  constexpr std::array prefixes = {
+      // GCC adds the function name in which the type was defined e.g.,
+      // {anonymous}::MyFunction()::MyStruct{}.
+      "()::",  // This needs to be first in the list, otherwise we'd remove
+               // {anonymous}:: and stop.
+      // Various anonymous namespace prefixes different compilers use:
+      "{anonymous}::",
+      "(anonymous namespace)::",
+      "<unnamed>::",
+  };
+  for (absl::string_view p : prefixes) {
+    if (ConsumePrefixUntil(name, p)) return true;
   }
+  return false;
 }
 
 template <typename T>
-absl::string_view GetTypeName() {
+constexpr auto GetTypeName() {
+  absl::string_view name, prefix, suffix;
+  name = __PRETTY_FUNCTION__;
 #if defined(__clang__)
-  // Format "std::string_view GetTypeName() [T = int]"
-  absl::string_view v = __PRETTY_FUNCTION__;
-  ConsumePrefixUntil(v, "[T = ");
-  SkipAnonymous(v);
-  absl::ConsumeSuffix(&v, "]");
-  return v;
+  prefix = "GetTypeName() [T = ";
+  suffix = "]";
+#elif defined(__GNUC__)
+  prefix = "GetTypeName() [with T = ";
+  suffix = "]";
 #else
-  return "<TYPE>";
+  return "<TYPE>"
 #endif
+  // First we remove the prefix and suffix to get a fully qualified type name.
+  ConsumePrefixUntil(name, prefix);
+  absl::ConsumeSuffix(&name, suffix);
+  // Then we remove any unnecessary namespaces from the type name.
+  ConsumeUnnecessaryNamespacePrefix(name);
+  return name;
 }
 
 template <typename T>
@@ -371,7 +391,7 @@ std::string GetFunctionName(const F& f, absl::string_view default_name) {
       absl::string_view v = buffer;
       absl::ConsumeSuffix(&v, "()");
       ConsumeFileAndLineNumber(v);
-      SkipAnonymous(v);
+      ConsumeUnnecessaryNamespacePrefix(v);
       return std::string(v);
     }
   }
