@@ -1179,12 +1179,17 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       time_limit_ = stats_.start_time + time_limit_per_test;
     }
 
-    runtime_.SetShouldTerminateOnNonFatalFailure(false);
+    const bool original_should_terminate_on_non_fatal_failure =
+        runtime_.should_terminate_on_non_fatal_failure();
+    if (original_should_terminate_on_non_fatal_failure) {
+      runtime_.SetShouldTerminateOnNonFatalFailure(false);
+    }
 
     auto try_input_and_process_counterexample = [&](Input input) -> void {
       TrySampleAndUpdateInMemoryCorpus(std::move(input));
 
-      if (minimal_non_fatal_counterexample_.has_value()) {
+      if (original_should_terminate_on_non_fatal_failure &&
+          minimal_non_fatal_counterexample_.has_value()) {
         // We found a failure, let's minimize it here.
         MinimizeNonFatalFailureLocally(prng);
         // Once we have minimized enough, let it crash with the best sample we
