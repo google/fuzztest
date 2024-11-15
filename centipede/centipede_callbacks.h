@@ -167,6 +167,9 @@ class CentipedeCallbacks {
   // creates one if needed.
   Command &GetOrCreateCommandForBinary(std::string_view binary);
 
+  // Prints the execution log from the last executed binary.
+  void PrintExecutionLog() const;
+
   // Variables required for ExecuteCentipedeSancovBinaryWithShmem.
   // They are computed in CTOR, to avoid extra computation in the hot loop.
   std::string temp_dir_ = TemporaryLocalDirPath();

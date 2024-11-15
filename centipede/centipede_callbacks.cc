@@ -201,14 +201,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
               << env_.shmem_size_mb;
   }
 
-  if (env_.print_runner_log) {
-    std::string log_text;
-    ReadFromLocalFile(execute_log_path_, log_text);
-    for (const auto &log_line :
-         absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
-      LOG(INFO).NoPrefix() << "LOG: " << log_line;
-    }
-  }
+  if (env_.print_runner_log) PrintExecutionLog();
 
   if (retval != EXIT_SUCCESS) {
     ReadFromLocalFile(execute_log_path_, batch_result.log());
@@ -312,6 +305,11 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
   int retval = cmd.Execute();
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
+  if (retval != EXIT_SUCCESS) {
+    LOG(WARNING) << "Custom mutator failed with exit code " << retval;
+    PrintExecutionLog();
+  }
+
   // Read all mutants.
   for (size_t i = 0; i < mutants.size(); ++i) {
     auto blob = outputs_blobseq_.Read();
@@ -362,6 +360,20 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
   LOG(INFO) << "Loaded " << unpacked_dictionary.size()
             << " dictionary entries from " << dictionary_path;
   return unpacked_dictionary.size();
+}
+
+void CentipedeCallbacks::PrintExecutionLog() const {
+  if (!std::filesystem::exists(execute_log_path_)) {
+    LOG(WARNING) << "Log file for the last executed binary does not exist: "
+                 << execute_log_path_;
+    return;
+  }
+  std::string log_text;
+  ReadFromLocalFile(execute_log_path_, log_text);
+  for (const auto &log_line :
+       absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
+    LOG(INFO).NoPrefix() << "LOG: " << log_line;
+  }
 }
 
 }  // namespace centipede
