@@ -14,6 +14,8 @@
 
 #include "./centipede/centipede_callbacks.h"
 
+#include <stdlib.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -29,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
