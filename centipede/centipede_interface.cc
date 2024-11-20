@@ -36,6 +36,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -458,6 +459,29 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
   };
 }
 
+absl::Duration ReadFuzzingTime(std::string_view fuzzing_time_file) {
+  std::string fuzzing_time_str;
+  CHECK_OK(RemoteFileGetContents(fuzzing_time_file, fuzzing_time_str));
+  absl::Duration fuzzing_time;
+  CHECK(absl::ParseDuration(absl::StripAsciiWhitespace(fuzzing_time_str),
+                            &fuzzing_time))
+      << "Failed to parse fuzzing time of a resuming fuzz test: '"
+      << fuzzing_time_str << "'";
+  return fuzzing_time;
+}
+
+PeriodicAction RecordFuzzingTime(std::string_view fuzzing_time_file,
+                                 absl::Time start_time) {
+  return {[=] {
+            absl::Status status = RemoteFileSetContents(
+                fuzzing_time_file,
+                absl::FormatDuration(absl::Now() - start_time));
+            LOG_IF(WARNING, !status.ok())
+                << "Failed to write fuzzing time: " << status;
+          },
+          PeriodicAction::ZeroDelayConstInterval(absl::Seconds(15))};
+}
+
 // TODO(b/368325638): Add tests for this.
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration &fuzztest_config,
@@ -550,19 +574,33 @@ int UpdateCorpusDatabaseForFuzzTests(
           GetSeedCorpusConfig(env, coverage_dir.c_str()), env.binary_name,
           env.binary_hash));
     }
-    is_resuming = false;
 
     // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
     env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
                               fuzztest_config.fuzz_tests[i]);
 
-    LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i]
-              << "\n\tTest binary: " << env.binary;
+    absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
+    absl::Duration time_spent = absl::ZeroDuration();
+    const std::string fuzzing_time_file =
+        std::filesystem::path(env.workdir) / "fuzzing_time";
+    if (is_resuming && RemotePathExists(fuzzing_time_file)) {
+      time_spent = ReadFuzzingTime(fuzzing_time_file);
+      time_limit = std::max(time_limit - time_spent, absl::ZeroDuration());
+    }
+    is_resuming = false;
 
-    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::Now() +
-                                        fuzztest_config.GetTimeLimitPerTest());
+    LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i] << " for "
+              << time_limit << "\n\tTest binary: " << env.binary;
+
+    const absl::Time start_time = absl::Now();
+    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time + time_limit);
+    PeriodicAction record_fuzzing_time =
+        RecordFuzzingTime(fuzzing_time_file, start_time - time_spent);
     Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+    record_fuzzing_time.Nudge();
+    record_fuzzing_time.Stop();
+
     if (!stats_root_path.empty()) {
       const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
       CHECK_OK(RemoteMkdir(stats_dir.c_str()));
