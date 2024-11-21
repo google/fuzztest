@@ -392,6 +392,8 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
              .second;
     if (!is_reproducible || is_duplicate) {
       CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
+    } else {
+      CHECK_OK(RemotePathTouchExistingFile(crashing_input_file));
     }
   }
   return remaining_crash_metadata;

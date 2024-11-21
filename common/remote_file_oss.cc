@@ -181,6 +181,10 @@ absl::Status RemotePathRename(std::string_view from, std::string_view to) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
+absl::Status RemotePathTouchExistingFile(std::string_view path) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
 absl::Status RemotePathDelete(std::string_view path, bool recursively) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
@@ -234,6 +238,22 @@ absl::Status RemotePathRename(std::string_view from, std::string_view to) {
     return absl::UnknownError(
         absl::StrCat("filesystem::rename() failed, from: ", std::string(from),
                      ", to: ", std::string(to), ", error: ", error.message()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status RemotePathTouchExistingFile(std::string_view path) {
+  if (!RemotePathExists(path)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("path: ", std::string(path), " does not exist."));
+  }
+  std::error_code error;
+  std::filesystem::last_write_time(
+      path, std::filesystem::file_time_type::clock::now(), error);
+  if (error) {
+    return absl::UnknownError(absl::StrCat(
+        "filesystem::last_write_time() failed, path: ", std::string(path),
+        ", error: ", error.message()));
   }
   return absl::OkStatus();
 }

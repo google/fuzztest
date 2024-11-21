@@ -228,6 +228,7 @@ cc_library(
         ":remote_file",
         ":test_util",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
     ],
     alwayslink = True,

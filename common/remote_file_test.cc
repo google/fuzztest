@@ -24,6 +24,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "./common/logging.h"
 #include "./common/test_util.h"
 
@@ -140,6 +142,25 @@ TEST(RemotePathDelete, RecursivelyDeletesAllFilesAndSubdirectories) {
 
   ASSERT_TRUE(RemotePathDelete(temp_dir.string(), /*recursively=*/true).ok());
   EXPECT_FALSE(fs::exists(a_b_c));
+}
+
+TEST(RemotePathTouchExistingFile, FailsWhenPathDoesNotExist) {
+  EXPECT_FALSE(RemotePathTouchExistingFile("/non/existent/path").ok());
+}
+
+TEST(RemotePathTouchExistingFile, UpdatesTheLastModifiedTime) {
+  const fs::path temp_dir = GetTestTempDir(test_info_->name());
+  const std::string file_path = temp_dir / "file";
+  CreateFileOrDie(file_path);
+
+  const auto start_time = std::filesystem::file_time_type::clock::now();
+  absl::SleepFor(absl::Milliseconds(1));
+  ASSERT_TRUE(RemotePathTouchExistingFile(file_path).ok());
+  const auto end_time = std::filesystem::file_time_type::clock::now();
+
+  const auto last_modified_time = fs::last_write_time(file_path);
+  ASSERT_LT(last_modified_time, end_time);
+  EXPECT_GT(last_modified_time, start_time);
 }
 
 }  // namespace

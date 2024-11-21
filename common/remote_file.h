@@ -136,6 +136,9 @@ absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
 // Renames `from` to `to`.
 absl::Status RemotePathRename(std::string_view from, std::string_view to);
 
+// Updates the last-modified time of `path` to the current time.
+absl::Status RemotePathTouchExistingFile(std::string_view path);
+
 // Deletes `path`. If `path` is a directory and `recursively` is true,
 // recursively deletes all files and subdirectories within `path`.
 absl::Status RemotePathDelete(std::string_view path, bool recursively);
