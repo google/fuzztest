@@ -708,9 +708,9 @@ int CentipedeMain(const Environment &env,
                                                 callbacks_factory);
       }
     } else if (std::getenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG") != nullptr) {
-      // Target config is empty when the shard does not contain any fuzz tests.
-      LOG(INFO) << "No fuzz test found!";
-      return EXIT_SUCCESS;
+      // Target config is empty and we assume the shard contain a fuzz test.
+      LOG(INFO) << "Could not run the test target properly!";
+      return EXIT_FAILURE;
     }
   }
 
