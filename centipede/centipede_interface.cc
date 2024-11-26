@@ -638,7 +638,10 @@ int UpdateCorpusDatabaseForFuzzTests(
     DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
                                   std::move(crash_metadata));
   }
-  CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
+  // Path may not exist if there are no fuzz tests in the shard.
+  if (RemotePathExists(base_workdir_path.c_str())) {
+    CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
+  }
 
   return EXIT_SUCCESS;
 }
