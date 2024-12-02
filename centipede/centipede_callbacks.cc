@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -45,6 +46,31 @@
 #include "./common/logging.h"
 
 namespace centipede {
+namespace {
+
+// When running a test binary in a subprocess, we don't want these environment
+// variables to be inherited and affect the execution of the tests.
+//
+// See list of environment variables here:
+// https://bazel.build/reference/test-encyclopedia#initial-conditions
+std::vector<std::string> EnvironmentVariablesToUnset() {
+  return {"TEST_DIAGNOSTICS_OUTPUT_DIR",              //
+          "TEST_INFRASTRUCTURE_FAILURE_FILE",         //
+          "TEST_LOGSPLITTER_OUTPUT_FILE",             //
+          "TEST_PREMATURE_EXIT_FILE",                 //
+          "TEST_RANDOM_SEED",                         //
+          "TEST_RUN_NUMBER",                          //
+          "TEST_SHARD_INDEX",                         //
+          "TEST_SHARD_STATUS_FILE",                   //
+          "TEST_TOTAL_SHARDS",                        //
+          "TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
+          "TEST_UNDECLARED_OUTPUTS_DIR",              //
+          "TEST_WARNINGS_OUTPUT_FILE",                //
+          "GTEST_OUTPUT",                             //
+          "XML_OUTPUT_FILE"};
+}
+
+}  // namespace
 
 void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
   binary_info.InitializeFromSanCovBinary(
@@ -137,13 +163,14 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  Command &cmd = commands_.emplace_back(Command(
-      /*path=*/binary, /*args=*/{},
-      /*env=*/env,
-      /*out=*/execute_log_path_,
-      /*err=*/execute_log_path_,
-      /*timeout=*/amortized_timeout,
-      /*temp_file_path=*/temp_input_file_path_));
+  Command &cmd = commands_.emplace_back(
+      Command{binary,
+              {.env_add = std::move(env),
+               .env_remove = EnvironmentVariablesToUnset(),
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .timeout = amortized_timeout,
+               .temp_file_path = temp_input_file_path_}});
   if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));
 
   return cmd;
@@ -225,13 +252,13 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(!error);
 
   Command cmd{binary,
-              {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
-                            output_dir.string(), ":")},
-              /*out=*/execute_log_path_,
-              /*err=*/execute_log_path_,
-              /*timeout=*/absl::InfiniteDuration(),
-              /*temp_file_path=*/temp_input_file_path_};
+              {.env_add = {absl::StrCat(
+                   "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
+                   output_dir.string(), ":")},
+               .env_remove = EnvironmentVariablesToUnset(),
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .temp_file_path = temp_input_file_path_}};
   const int retval = cmd.Execute();
 
   std::vector<std::string> seed_input_filenames;
@@ -261,13 +288,13 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   const auto config_file_path =
       std::filesystem::path{temp_dir_} / "configuration";
   Command cmd{binary,
-              {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
-                            config_file_path.string(), ":")},
-              /*out=*/execute_log_path_,
-              /*err=*/execute_log_path_,
-              /*timeout=*/absl::InfiniteDuration(),
-              /*temp_file_path=*/temp_input_file_path_};
+              {.env_add = {absl::StrCat(
+                   "CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
+                   config_file_path.string(), ":")},
+               .env_remove = EnvironmentVariablesToUnset(),
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .temp_file_path = temp_input_file_path_}};
   const bool is_success = cmd.Execute() == 0;
 
   if (is_success) {

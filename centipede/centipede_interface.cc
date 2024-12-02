@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cerrno>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -356,14 +355,6 @@ TestShard SetUpTestSharding() {
       test_shard_status_file != nullptr) {
     ClearLocalFileContents(test_shard_status_file);
   }
-
-  // Unset the environment variables so they don't affect the child processes.
-  CHECK_EQ(unsetenv("TEST_TOTAL_SHARDS"), 0)
-      << "Failed to unset TEST_TOTAL_SHARDS: " << std::strerror(errno);
-  CHECK_EQ(unsetenv("TEST_SHARD_INDEX"), 0)
-      << "Failed to unset TEST_SHARD_INDEX: " << std::strerror(errno);
-  CHECK_EQ(unsetenv("TEST_SHARD_STATUS_FILE"), 0)
-      << "Failed to unset TEST_SHARD_STATUS_FILE: " << std::strerror(errno);
 
   return test_shard;
 }

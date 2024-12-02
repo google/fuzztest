@@ -119,8 +119,9 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
       stats_(stats),
       input_filter_path_(std::filesystem::path(TemporaryLocalDirPath())
                              .append("filter-input")),
-      input_filter_cmd_(env_.input_filter, {input_filter_path_}, {/*env*/},
-                        "/dev/null", "/dev/null"),
+      input_filter_cmd_(env_.input_filter, {.args = {input_filter_path_},
+                                            .stdout_file = "/dev/null",
+                                            .stderr_file = "/dev/null"}),
       rusage_profiler_(
           /*scope=*/perf::RUsageScope::ThisProcess(),
           /*metrics=*/env.DumpRUsageTelemetryInThisShard()
@@ -554,7 +555,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
     merge_arguments.push_back(raw_profile);
   }
 
-  Command merge_command("llvm-profdata", merge_arguments);
+  Command merge_command("llvm-profdata", {.args = std::move(merge_arguments)});
   if (merge_command.Execute() != EXIT_SUCCESS) {
     LOG(ERROR) << "Failed to run command " << merge_command.ToString();
     return;
@@ -562,9 +563,10 @@ void Centipede::GenerateSourceBasedCoverageReport(
 
   Command generate_report_command(
       "llvm-cov",
-      {"show", "-format=html", absl::StrCat("-output-dir=", report_path),
-       absl::StrCat("-instr-profile=", indexed_profile_path),
-       env_.clang_coverage_binary});
+      {.args = {"show", "-format=html",
+                absl::StrCat("-output-dir=", report_path),
+                absl::StrCat("-instr-profile=", indexed_profile_path),
+                env_.clang_coverage_binary}});
   if (generate_report_command.Execute() != EXIT_SUCCESS) {
     LOG(ERROR) << "Failed to run command "
                << generate_report_command.ToString();
