@@ -526,7 +526,7 @@ void ExpectStackLimitExceededMessage(absl::string_view std_err,
 }
 
 TEST_F(UnitTestModeTest, StackLimitWorks) {
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
   GTEST_SKIP() << "No coverage instrumentation for GCC yet: skipping tests.";
 #endif
 #if defined(__has_feature)
@@ -679,7 +679,7 @@ class FuzzingModeCommandLineInterfaceTest
  protected:
   void SetUp() override {
     GenericCommandLineInterfaceTest::SetUp();
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
     GTEST_SKIP() << "No coverage instrumentation for GNU compiler yet: "
                     "skipping tests in fuzzing mode.";
 #endif
@@ -1218,7 +1218,7 @@ class FuzzingModeFixtureTest
     : public ::testing::TestWithParam<ExecutionModelParam> {
  protected:
   void SetUp() override {
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
     GTEST_SKIP() << "No coverage instrumentation for GNU compiler yet: "
                     "skipping tests in fuzzing mode.";
 #endif
@@ -1357,7 +1357,7 @@ class FuzzingModeCrashFindingTest
     : public ::testing::TestWithParam<ExecutionModelParam> {
  protected:
   void SetUp() override {
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
     GTEST_SKIP() << "No coverage instrumentation for GNU compiler yet: "
                     "skipping tests in fuzzing mode.";
 #endif
