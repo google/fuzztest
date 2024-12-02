@@ -307,6 +307,8 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
 
   if (retval != EXIT_SUCCESS) {
     LOG(WARNING) << "Custom mutator failed with exit code " << retval;
+  }
+  if (env_.print_runner_log || retval != EXIT_SUCCESS) {
     PrintExecutionLog();
   }
 
@@ -320,6 +322,7 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
     mutants[i].assign(blob.data, blob.data + blob.size);
   }
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval == 0;
 }
