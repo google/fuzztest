@@ -22,6 +22,7 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -148,7 +149,11 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
   }
 
   // Execute.
-  Command cmd{env_.binary, args, env, tmp_log_filepath, tmp_log_filepath};
+  Command cmd{env_.binary,
+              {.args = std::move(args),
+               .env_add = std::move(env),
+               .stdout_file = tmp_log_filepath,
+               .stderr_file = tmp_log_filepath}};
   const int retval = cmd.Execute();
 
   std::string tmp_log;

@@ -144,24 +144,23 @@ struct Command::ForkServerProps {
 Command::Command(Command &&other) noexcept = default;
 Command::~Command() = default;
 
-Command::Command(std::string_view path, std::vector<std::string> args,
-                 std::vector<std::string> env, std::string_view out,
-                 std::string_view err, absl::Duration timeout,
-                 std::string_view temp_file_path)
-    : path_(path),
-      args_(std::move(args)),
-      env_(std::move(env)),
-      out_(out),
-      err_(err),
-      timeout_(timeout),
-      temp_file_path_(temp_file_path) {}
+Command::Command(std::string_view path, Options options)
+    : path_(path), options_(std::move(options)) {}
+
+Command::Command(std::string_view path) : Command(path, {}) {}
 
 std::string Command::ToString() const {
   std::vector<std::string> ss;
+  ss.reserve(/*env*/ 1 + options_.env_add.size() + options_.env_remove.size() +
+             /*path*/ 1 + /*args*/ options_.args.size() + /*out/err*/ 2);
   // env.
-  ss.reserve(env_.size());
-  for (const auto &env : env_) {
-    ss.emplace_back(env);
+  ss.push_back("env");
+  // Arguments that unset environment variables must appear first.
+  for (const auto &var : options_.env_remove) {
+    ss.push_back(absl::StrCat("-u ", var));
+  }
+  for (const auto &var : options_.env_add) {
+    ss.push_back(var);
   }
   // path.
   std::string path = path_;
@@ -172,23 +171,24 @@ std::string Command::ToString() const {
   // Replace @@ with temp_file_path_.
   constexpr std::string_view kTempFileWildCard = "@@";
   if (absl::StrContains(path, kTempFileWildCard)) {
-    CHECK(!temp_file_path_.empty());
-    path = absl::StrReplaceAll(path, {{kTempFileWildCard, temp_file_path_}});
+    CHECK(!options_.temp_file_path.empty());
+    path = absl::StrReplaceAll(path,
+                               {{kTempFileWildCard, options_.temp_file_path}});
   }
-  ss.emplace_back(path);
+  ss.push_back(std::move(path));
   // args.
-  for (const auto &arg : args_) {
-    ss.emplace_back(arg);
+  for (const auto &arg : options_.args) {
+    ss.push_back(arg);
   }
   // out/err.
-  if (!out_.empty()) {
-    ss.emplace_back(absl::StrCat("> ", out_));
+  if (!options_.stdout_file.empty()) {
+    ss.push_back(absl::StrCat("> ", options_.stdout_file));
   }
-  if (!err_.empty()) {
-    if (out_ != err_) {
-      ss.emplace_back(absl::StrCat("2> ", err_));
+  if (!options_.stderr_file.empty()) {
+    if (options_.stdout_file != options_.stderr_file) {
+      ss.push_back(absl::StrCat("2> ", options_.stderr_file));
     } else {
-      ss.emplace_back("2>&1");
+      ss.push_back("2>&1");
     }
   }
   // Trim trailing space and return.
@@ -314,7 +314,8 @@ int Command::Execute() {
   int exit_code = EXIT_SUCCESS;
 
   if (fork_server_ != nullptr) {
-    VLOG(1) << "Sending execution request to fork server: " << VV(timeout_);
+    VLOG(1) << "Sending execution request to fork server: "
+            << VV(options_.timeout);
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
       LogProblemInfo(absl::StrCat("Fork server should be running, but isn't: ",
@@ -331,7 +332,7 @@ int Command::Execute() {
     // execution result to it).
     struct pollfd poll_fd = {};
     int poll_ret = -1;
-    auto poll_deadline = absl::Now() + timeout_;
+    auto poll_deadline = absl::Now() + options_.timeout;
     // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
     // case. We should tolerate that.
     do {
@@ -351,7 +352,7 @@ int Command::Execute() {
       if (poll_ret == 0) {
         LogProblemInfo(
             absl::StrCat("Timeout while waiting for fork server: timeout is ",
-                         absl::FormatDuration(timeout_)));
+                         absl::FormatDuration(options_.timeout)));
       } else {
         LogProblemInfo(absl::StrCat(
             "Error while waiting for fork server: poll() returned ", poll_ret));
@@ -423,8 +424,8 @@ int Command::Execute() {
 
 std::string Command::ReadRedirectedStdout() const {
   std::string ret;
-  if (!out_.empty()) {
-    ReadFromLocalFile(out_, ret);
+  if (!options_.stdout_file.empty()) {
+    ReadFromLocalFile(options_.stdout_file, ret);
     if (ret.empty()) ret = "<EMPTY>";
   }
   return ret;
@@ -432,11 +433,12 @@ std::string Command::ReadRedirectedStdout() const {
 
 std::string Command::ReadRedirectedStderr() const {
   std::string ret;
-  if (!err_.empty()) {
-    if (err_ == "2>&1" || err_ == out_) {
+  if (!options_.stderr_file.empty()) {
+    if (options_.stderr_file == "2>&1" ||
+        options_.stderr_file == options_.stdout_file) {
       ret = "<DUPED TO STDOUT>";
     } else {
-      ReadFromLocalFile(err_, ret);
+      ReadFromLocalFile(options_.stderr_file, ret);
       if (ret.empty()) ret = "<EMPTY>";
     }
   }

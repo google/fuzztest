@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -137,13 +138,13 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  Command &cmd = commands_.emplace_back(Command(
-      /*path=*/binary, /*args=*/{},
-      /*env=*/env,
-      /*out=*/execute_log_path_,
-      /*err=*/execute_log_path_,
-      /*timeout=*/amortized_timeout,
-      /*temp_file_path=*/temp_input_file_path_));
+  Command &cmd = commands_.emplace_back(
+      Command{binary,
+              {.env_add = std::move(env),
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .timeout = amortized_timeout,
+               .temp_file_path = temp_input_file_path_}});
   if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));
 
   return cmd;
@@ -225,13 +226,12 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(!error);
 
   Command cmd{binary,
-              {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
-                            output_dir.string(), ":")},
-              /*out=*/execute_log_path_,
-              /*err=*/execute_log_path_,
-              /*timeout=*/absl::InfiniteDuration(),
-              /*temp_file_path=*/temp_input_file_path_};
+              {.env_add = {absl::StrCat(
+                   "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
+                   output_dir.string(), ":")},
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .temp_file_path = temp_input_file_path_}};
   const int retval = cmd.Execute();
 
   std::vector<std::string> seed_input_filenames;
@@ -261,13 +261,12 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   const auto config_file_path =
       std::filesystem::path{temp_dir_} / "configuration";
   Command cmd{binary,
-              {},
-              {absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
-                            config_file_path.string(), ":")},
-              /*out=*/execute_log_path_,
-              /*err=*/execute_log_path_,
-              /*timeout=*/absl::InfiniteDuration(),
-              /*temp_file_path=*/temp_input_file_path_};
+              {.env_add = {absl::StrCat(
+                   "CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
+                   config_file_path.string(), ":")},
+               .stdout_file = execute_log_path_,
+               .stderr_file = execute_log_path_,
+               .temp_file_path = temp_input_file_path_}};
   const bool is_success = cmd.Execute() == 0;
 
   if (is_success) {
