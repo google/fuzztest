@@ -1796,6 +1796,16 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
               Optional(Eq("GoogleTest assertion failure")));
 }
 
+TEST_P(FuzzingModeCrashFindingTest,
+       CustomMutatorAndMutateCalllbackWorksForLLVMFuzzer) {
+  TempDir out_dir;
+  auto [status, std_out, std_err] =
+      Run("LLVMFuzzer.TestOneInput", "testdata/llvm_fuzzer_with_custom_mutator",
+          /*env=*/{}, /*timeout=*/absl::Seconds(30));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"ahmfn\""));
+  ExpectTargetAbort(status, std_err);
+}
+
 INSTANTIATE_TEST_SUITE_P(FuzzingModeCrashFindingTestWithExecutionModel,
                          FuzzingModeCrashFindingTest,
                          testing::ValuesIn(GetAvailableExecutionModels()));
