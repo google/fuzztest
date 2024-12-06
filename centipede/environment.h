@@ -127,6 +127,10 @@ struct Environment {
   bool first_corpus_dir_output_only = false;
   // If set, load/merge shards without fuzzing new inputs.
   bool load_shards_only = false;
+  bool fuzztest_single_test_mode = false;
+  std::string list_crash_ids_to_file;
+  std::string run_crash_id;
+  std::string fetch_crash_to_file;
 
   // Command line-related fields -----------------------------------------------
 

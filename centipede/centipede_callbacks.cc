@@ -264,6 +264,11 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                .temp_file_path = temp_input_file_path_}};
   const int retval = cmd.Execute();
 
+  if (env_.print_runner_log) {
+    LOG(INFO) << "Getting seeds via external binary returns " << retval;
+    PrintExecutionLog();
+  }
+
   std::vector<std::string> seed_input_filenames;
   for (const auto &dir_ent : std::filesystem::directory_iterator(output_dir)) {
     seed_input_filenames.push_back(dir_ent.path().filename());
