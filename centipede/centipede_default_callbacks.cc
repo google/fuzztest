@@ -25,6 +25,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 
@@ -83,6 +84,9 @@ void CentipedeDefaultCallbacks::Mutate(
       LOG_FIRST_N(WARNING, 5)
           << "Custom mutator returned no mutants: falling back to internal "
              "default mutator";
+    } else if (ShouldStop()) {
+      LOG(INFO) << "Stop condition detected. Ignoring mutation errors.";
+      return;
     } else {
       LOG(WARNING) << "Custom mutator undetected or misbehaving:";
       CHECK(!custom_mutator_is_usable_.has_value())
