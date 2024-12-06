@@ -456,10 +456,12 @@ absl::Duration ReadFuzzingTime(std::string_view fuzzing_time_file) {
   std::string fuzzing_time_str;
   CHECK_OK(RemoteFileGetContents(fuzzing_time_file, fuzzing_time_str));
   absl::Duration fuzzing_time;
-  CHECK(absl::ParseDuration(absl::StripAsciiWhitespace(fuzzing_time_str),
-                            &fuzzing_time))
-      << "Failed to parse fuzzing time of a resuming fuzz test: '"
-      << fuzzing_time_str << "'";
+  if (!absl::ParseDuration(absl::StripAsciiWhitespace(fuzzing_time_str),
+                           &fuzzing_time)) {
+    LOG(WARNING) << "Failed to parse fuzzing time of a resuming fuzz test: '"
+                 << fuzzing_time_str << "'. Assuming no fuzzing time so far.";
+    return absl::ZeroDuration();
+  }
   return fuzzing_time;
 }
 
