@@ -21,13 +21,17 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/feature.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 #include "./common/logging.h"  // IWYU pragma: keep
+#include "./common/remote_file.h"
 #include "./common/test_util.h"
 
 namespace centipede {
@@ -36,6 +40,7 @@ namespace {
 namespace fs = std::filesystem;
 
 using ::testing::IsSubsetOf;
+using ::testing::IsSupersetOf;
 
 inline constexpr auto kIdxDigits = WorkDir::kDigitsInShardIndex;
 
@@ -175,6 +180,66 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
           workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
     }
+  }
+}
+
+TEST(SeedCorpusMakerLibTest, LoadsBothLegacyInputsAndShardsFromSource) {
+  const fs::path test_dir = GetTestTempDir(test_info_->name());
+  chdir(test_dir.c_str());
+
+  const InputAndFeaturesVec kShardedInputs = {
+      {{0}, {}},
+      {{1}, {feature_domains::kNoFeature}},
+      {{0, 1}, {0x11, 0x23}},
+  };
+  constexpr std::string_view kCovBin = "bin";
+  constexpr std::string_view kCovHash = "hash";
+  constexpr std::string_view kRelDir1 = "dir/foo";
+
+  const std::vector<ByteArray> kLegacyInputs = {{0, 1, 2}, {0, 1, 2, 3}};
+  // Write sharded inputs.
+  {
+    constexpr size_t kNumShards = 2;
+    const SeedCorpusDestination destination = {
+        .dir_path = std::string(kRelDir1),
+        .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
+        .shard_index_digits = kIdxDigits,
+        .num_shards = kNumShards,
+    };
+    CHECK_OK(WriteSeedCorpusElementsToDestination(  //
+        kShardedInputs, kCovBin, kCovHash, destination));
+    const std::string workdir = (test_dir / kRelDir1).c_str();
+    ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
+        workdir, kCovBin, kCovHash, kNumShards, ShardType::kDistilled));
+  }
+
+  // Write legacy inputs
+  for (int i = 0; i < kLegacyInputs.size(); ++i) {
+    const auto path = std::filesystem::path(test_dir) / kRelDir1 /
+                      absl::StrCat("legacy_input_", i);
+    CHECK_OK(RemoteFileSetContents(path.string(), kLegacyInputs[i]));
+  }
+
+  // Test that sharded and legacy inputs matches what we wrote.
+  {
+    InputAndFeaturesVec elements;
+    ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
+        SeedCorpusSource{
+            .dir_glob = std::string(kRelDir1),
+            .num_recent_dirs = 1,
+            .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
+            // Intentionally try to match the shard files and test if they will
+            // be read as legacy inputs.
+            .legacy_input_rel_glob = "*",
+            .sampled_fraction_or_count = 1.0f,
+        },
+        kCovBin, kCovHash, elements));
+    EXPECT_EQ(elements.size(), kShardedInputs.size() + kLegacyInputs.size());
+    EXPECT_THAT(elements, IsSupersetOf(kShardedInputs));
+    EXPECT_THAT(elements, IsSupersetOf(InputAndFeaturesVec{
+                              {{0, 1, 2}, {}},
+                              {{0, 1, 2, 3}, {}},
+                          }));
   }
 }
 
