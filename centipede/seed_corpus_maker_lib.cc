@@ -36,6 +36,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
@@ -115,21 +116,54 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
     LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
   }
 
-  // Find all the corpus shard files in the found dirs.
+  // Find all the corpus shard and legecy input files in the found dirs.
 
   std::vector<std::string> corpus_shard_fnames;
+  std::vector<std::string> legacy_input_fnames;
   for (const auto& dir : src_dirs) {
-    const std::string shards_glob = fs::path{dir} / source.shard_rel_glob;
-    // NOTE: `RemoteGlobMatch` appends to the output list.
-    const auto prev_num_shards = corpus_shard_fnames.size();
-    RETURN_IF_NOT_OK(RemoteGlobMatch(shards_glob, corpus_shard_fnames));
-    LOG(INFO) << "Found " << (corpus_shard_fnames.size() - prev_num_shards)
-              << " shard(s) matching " << shards_glob;
+    absl::flat_hash_set<std::string> current_corpus_shard_fnames;
+    if (!source.shard_rel_glob.empty()) {
+      std::vector<std::string> matched_fnames;
+      const std::string glob = fs::path{dir} / source.shard_rel_glob;
+      const auto match_status = RemoteGlobMatch(glob, matched_fnames);
+      if (!match_status.ok() && !absl::IsNotFound(match_status)) {
+        LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
+                   << match_status;
+      } else {
+        current_corpus_shard_fnames.insert(matched_fnames.begin(),
+                                           matched_fnames.end());
+        corpus_shard_fnames.insert(corpus_shard_fnames.end(),
+                                   matched_fnames.begin(),
+                                   matched_fnames.end());
+        LOG(INFO) << "Found " << matched_fnames.size() << " shard(s) matching "
+                  << glob;
+      }
+    }
+    if (!source.legacy_input_rel_glob.empty()) {
+      std::vector<std::string> matched_fnames;
+      const std::string glob = fs::path{dir} / source.legacy_input_rel_glob;
+      const auto match_status = RemoteGlobMatch(glob, matched_fnames);
+      if (!match_status.ok() && !absl::IsNotFound(match_status)) {
+        LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
+                   << match_status;
+      } else {
+        size_t num_added_legacy_inputs = 0;
+        for (auto& fname : matched_fnames) {
+          if (current_corpus_shard_fnames.contains(fname)) continue;
+          if (RemotePathIsDirectory(fname)) continue;
+          ++num_added_legacy_inputs;
+          legacy_input_fnames.push_back(std::move(fname));
+        }
+        LOG(INFO) << "Found " << num_added_legacy_inputs
+                  << " legacy input(s) with glob " << glob;
+      }
+    }
   }
-  LOG(INFO) << "Found " << corpus_shard_fnames.size()
-            << " shard(s) total in source " << source.dir_glob;
+  LOG(INFO) << "Found " << corpus_shard_fnames.size() << " shard(s) and "
+            << legacy_input_fnames.size() << " legacy input(s) total in source "
+            << source.dir_glob;
 
-  if (corpus_shard_fnames.empty()) {
+  if (corpus_shard_fnames.empty() && legacy_input_fnames.empty()) {
     LOG(WARNING) << "Skipping empty source " << source.dir_glob;
     return absl::OkStatus();
   }
@@ -195,9 +229,41 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
     }
   }
 
-  RPROF_SNAPSHOT_AND_LOG("Done reading");
+  RPROF_SNAPSHOT_AND_LOG("Done reading shards");
 
   InputAndFeaturesVec src_elts;
+
+  if (!legacy_input_fnames.empty()) {
+    constexpr size_t kLeastNumLegacyInputsPerBatch = 256;
+    const size_t legacy_input_batches = std::max(
+        size_t{1}, legacy_input_fnames.size() / kLeastNumLegacyInputsPerBatch);
+    const size_t batch_size =
+        (legacy_input_fnames.size() - 1) / legacy_input_batches + 1;
+    constexpr int kMaxReadThreads = 32;
+    ThreadPool threads{std::min<int>(kMaxReadThreads, legacy_input_batches)};
+    src_elts.resize(legacy_input_fnames.size());
+
+    for (int batch = 0; batch < legacy_input_batches; ++batch) {
+      threads.Schedule([batch, batch_size, &legacy_input_fnames, &src_elts] {
+        for (int index = batch * batch_size; index < (batch + 1) * batch_size &&
+                                             index < legacy_input_fnames.size();
+             ++index) {
+          ByteArray input;
+          const auto& path = legacy_input_fnames[index];
+          const auto read_status = RemoteFileGetContents(path, input);
+          if (!read_status.ok()) {
+            LOG(WARNING) << "Error while reading legacy input path " << path
+                         << ": " << read_status;
+            continue;
+          }
+          src_elts[index] = {input, {}};
+        }
+      });
+    }
+  }
+
+  RPROF_SNAPSHOT_AND_LOG("Done reading");
+
   size_t src_num_features = 0;
 
   for (int s = 0; s < num_shards; ++s) {

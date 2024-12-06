@@ -483,12 +483,15 @@ int UpdateCorpusDatabaseForFuzzTests(
     CentipedeCallbacksFactory &callbacks_factory) {
   env.UpdateWithTargetConfig(fuzztest_config);
 
+  std::vector<std::string> fuzz_tests_to_run =
+      fuzztest_config.fuzz_tests_in_current_shard;
+  std::sort(fuzz_tests_to_run.begin(), fuzz_tests_to_run.end());
+
   absl::Time start_time = absl::Now();
   LOG(INFO) << "Starting the update of the corpus database for fuzz tests:"
             << "\nBinary: " << env.binary
             << "\nCorpus database: " << fuzztest_config.corpus_database
-            << "\nFuzz tests: "
-            << absl::StrJoin(fuzztest_config.fuzz_tests, ", ");
+            << "\nFuzz tests: " << absl::StrJoin(fuzz_tests_to_run, ", ");
 
   // Step 1: Preliminary set up of test sharding, binary info, etc.
   const auto [test_shard_index, total_test_shards] = SetUpTestSharding();
@@ -523,9 +526,8 @@ int UpdateCorpusDatabaseForFuzzTests(
   // Find the last index of a fuzz test for which we already have a workdir.
   bool is_resuming = false;
   int resuming_fuzztest_idx = 0;
-  for (int i = 0; i < fuzztest_config.fuzz_tests.size(); ++i) {
-    if (i % total_test_shards != test_shard_index) continue;
-    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+  for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
+    env.workdir = base_workdir_path / fuzz_tests_to_run[i];
     // Check the existence of the coverage path to not only make sure the
     // workdir exists, but also that it was created for the same binary as in
     // this run.
@@ -536,19 +538,17 @@ int UpdateCorpusDatabaseForFuzzTests(
   }
 
   LOG_IF(INFO, is_resuming) << "Resuming from the fuzz test "
-                            << fuzztest_config.fuzz_tests[resuming_fuzztest_idx]
+                            << fuzz_tests_to_run[resuming_fuzztest_idx]
                             << " (index: " << resuming_fuzztest_idx << ")";
 
   // Step 3: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
-  for (int i = resuming_fuzztest_idx; i < fuzztest_config.fuzz_tests.size();
-       ++i) {
-    if (i % total_test_shards != test_shard_index) continue;
+  for (int i = resuming_fuzztest_idx; i < fuzz_tests_to_run.size(); ++i) {
     ReportErrorWhenNotEnoughTimeToRunEverything(
         start_time, fuzztest_config.time_limit,
         /*executed_tests_in_shard=*/i / total_test_shards,
         fuzztest_config.fuzz_tests.size(), total_test_shards);
-    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+    env.workdir = base_workdir_path / fuzz_tests_to_run[i];
     if (RemotePathExists(env.workdir) && !is_resuming) {
       // This could be a workdir from a failed run that used a different version
       // of the binary. We delete it so that we don't have to deal with the
@@ -562,7 +562,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     // Seed the fuzzing session with the latest coverage corpus from the
     // previous fuzzing session.
     const std::filesystem::path fuzztest_db_path =
-        corpus_database_path / fuzztest_config.fuzz_tests[i];
+        corpus_database_path / fuzz_tests_to_run[i];
     const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
     if (RemotePathExists(coverage_dir.c_str()) && !is_resuming) {
       CHECK_OK(GenerateSeedCorpusFromConfig(
@@ -572,8 +572,8 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
-    env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
-                              fuzztest_config.fuzz_tests[i]);
+    env.binary =
+        absl::StrCat(binary, " ", kFuzzTestFuzzFlag, fuzz_tests_to_run[i]);
 
     absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
     absl::Duration time_spent = absl::ZeroDuration();
@@ -585,8 +585,8 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
     is_resuming = false;
 
-    LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i] << " for "
-              << time_limit << "\n\tTest binary: " << env.binary;
+    LOG(INFO) << "Fuzzing " << fuzz_tests_to_run[i] << " for " << time_limit
+              << "\n\tTest binary: " << env.binary;
 
     const absl::Time start_time = absl::Now();
     ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time + time_limit);
@@ -597,7 +597,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     record_fuzzing_time.Stop();
 
     if (!stats_root_path.empty()) {
-      const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
+      const auto stats_dir = stats_root_path / fuzz_tests_to_run[i];
       CHECK_OK(RemoteMkdir(stats_dir.c_str()));
       CHECK_OK(RemotePathRename(
           workdir.FuzzingStatsPath(),
