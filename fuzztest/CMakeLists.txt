@@ -128,12 +128,16 @@ fuzztest_cc_library(
     fuzztest::fuzztest
     fuzztest::io
     fuzztest::llvm_fuzzer_main
+    fuzztest::logging
+    absl::core_headers
     absl::flags
     absl::log
+    absl::no_destructor
     absl::random_random
     absl::random_bit_gen_ref
     absl::strings
     absl::string_view
+    absl::synchronization
     re2::re2
 )
 
