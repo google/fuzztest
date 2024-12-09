@@ -94,7 +94,7 @@ def __sancov_fuzz_target_impl(ctx):
             inputs = [executable_dst],
             outputs = [dsym_dst],
             command = "dsymutil %s -o %s" % (executable_dst.path, dsym_dst.path),
-            execution_requirements = {"no-remote-exec": ""},
+            execution_requirements = {"local": ""},
         )
         runfiles = runfiles.merge(ctx.runfiles(files = [dsym_dst]))
 
