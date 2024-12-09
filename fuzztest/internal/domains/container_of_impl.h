@@ -74,12 +74,11 @@ using ContainerOfImplBaseCorpusType = std::conditional_t<
     std::list<corpus_type_t<InnerDomain>>, ValueType>;
 
 // Common base for container domains. Provides common APIs.
-template <typename Derived>
-class ContainerOfImplBase : public domain_implementor::DomainBase<
-                                Derived, ExtractTemplateParameter<0, Derived>,
-                                ContainerOfImplBaseCorpusType<Derived>> {
-  using InnerDomainT = ExtractTemplateParameter<1, Derived>;
-
+template <typename Derived, typename T = ExtractTemplateParameter<0, Derived>,
+          typename InnerDomainT = ExtractTemplateParameter<1, Derived>>
+class ContainerOfImplBase
+    : public domain_implementor::DomainBase<
+          Derived, T, ContainerOfImplBaseCorpusType<Derived, T, InnerDomainT>> {
  public:
   using ContainerOfImplBase::DomainBase::has_custom_corpus_type;
   using typename ContainerOfImplBase::DomainBase::corpus_type;
@@ -124,7 +123,6 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
     const bool can_use_memory_dict = !only_shrink &&
                                      container_has_memory_dict && can_change &&
                                      metadata.cmp_tables != nullptr;
-
     const int action_count =
         can_shrink + can_grow + can_change + can_use_memory_dict;
     if (action_count == 0) return;
@@ -341,11 +339,13 @@ class ContainerOfImplBase : public domain_implementor::DomainBase<
 
   InnerDomainT Inner() const { return inner_; }
 
-  template <typename>
+  // Needed for `CopyConstraintsFrom`.
+  template <typename, typename, typename>
   friend class ContainerOfImplBase;
 
-  template <typename OtherDerived>
-  void CopyConstraintsFrom(const ContainerOfImplBase<OtherDerived>& other) {
+  template <typename OtherDerived, typename OtherT, typename OtherInnerDomain>
+  void CopyConstraintsFrom(const ContainerOfImplBase<OtherDerived, OtherT,
+                                                     OtherInnerDomain>& other) {
     min_size_ = other.min_size_;
     max_size_ = other.max_size_;
   }
@@ -524,16 +524,17 @@ Please verify that the inner domain can provide enough values.
   }
 };
 
-template <typename T, typename InnerDomain>
-class SequenceContainerOfImpl
-    : public ContainerOfImplBase<SequenceContainerOfImpl<T, InnerDomain>> {
-  using Base = typename SequenceContainerOfImpl::ContainerOfImplBase;
+template <typename Derived, typename T = ExtractTemplateParameter<0, Derived>,
+          typename InnerDomain = ExtractTemplateParameter<1, Derived>>
+class SequenceContainerOfImplBase
+    : public ContainerOfImplBase<Derived, T, InnerDomain> {
+  using Base = typename SequenceContainerOfImplBase::ContainerOfImplBase;
 
  public:
   using typename Base::corpus_type;
 
-  SequenceContainerOfImpl() = default;
-  explicit SequenceContainerOfImpl(InnerDomain inner)
+  SequenceContainerOfImplBase() = default;
+  explicit SequenceContainerOfImplBase(InnerDomain inner)
       : Base(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -580,6 +581,15 @@ class SequenceContainerOfImpl
                      bool only_shrink, typename corpus_type::iterator it) {
     this->inner_.Mutate(*it, prng, metadata, only_shrink);
   }
+};
+
+template <typename T, typename InnerDomain>
+class SequenceContainerOfImpl : public SequenceContainerOfImplBase<
+                                    SequenceContainerOfImpl<T, InnerDomain>> {
+  using Base = typename SequenceContainerOfImpl::SequenceContainerOfImplBase;
+
+ public:
+  using Base::Base;
 };
 
 template <typename T, typename InnerDomain>

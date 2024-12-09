@@ -177,8 +177,9 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
 }
 
 class ArbitraryByteVector
-    : public fuzztest::internal::SequenceContainerOfImpl<
-          std::vector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>> {
+    : public fuzztest::internal::SequenceContainerOfImplBase<
+          ArbitraryByteVector, std::vector<uint8_t>,
+          fuzztest::internal::ArbitraryImpl<uint8_t>> {
   using Base = typename ArbitraryByteVector::ContainerOfImplBase;
 
  public:
