@@ -16,9 +16,7 @@
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/io.h"
-#ifndef FUZZTEST_USE_CENTIPEDE
 #include "./fuzztest/internal/coverage.h"
-#endif
 
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
@@ -127,12 +125,13 @@ class InplaceVector {
   std::size_t size_;
 };
 
-// Centipede runner also provides LLVMFuzzerMutate to support libFuzzer targets
-// on its own. So we do not define it when integrating with Centipede.
-#ifndef FUZZTEST_USE_CENTIPEDE
-
+#ifdef FUZZTEST_USE_CENTIPEDE
+extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t* data, size_t size,
+                                                    size_t max_size) {
+#else   // FUZZTEST_USE_CENTIPEDE
 extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
+#endif  // FUZZTEST_USE_CENTIPEDE
   static auto domain = fuzztest::internal::SequenceContainerOfImpl<
       InplaceVector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>>();
   domain.WithMaxSize(max_size);
@@ -146,8 +145,6 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   domain.Mutate(val, bitgen, metadata, false);
   return val.size();
 }
-
-#endif
 
 class ArbitraryByteVector
     : public fuzztest::internal::SequenceContainerOfImpl<

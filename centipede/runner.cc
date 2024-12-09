@@ -335,8 +335,8 @@ void GlobalRunnerState::ResetTimers() {
 
 // Byte array mutation fallback for a custom mutator, as defined here:
 // https://github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
-extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
-                                   size_t max_size) {
+extern "C" __attribute__((weak)) size_t
+CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size, size_t max_size) {
   // TODO(kcc): [as-needed] fix the interface mismatch.
   // LLVMFuzzerMutate is an array-based interface (for compatibility reasons)
   // while ByteArray has a vector-based interface.
@@ -356,6 +356,11 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
   }
   memcpy(data, array.data(), array.size());
   return array.size();
+}
+
+extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
+                                   size_t max_size) {
+  return CentipedeLLVMFuzzerMutateCallback(data, size, max_size);
 }
 
 // An arbitrary large size for input data.
