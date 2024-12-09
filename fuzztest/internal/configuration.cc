@@ -206,10 +206,10 @@ std::string Configuration::Serialize() const {
              SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
              SpaceFor(fuzz_tests_in_current_shard) +
              SpaceFor(reproduce_findings_as_separate_tests) +
-             SpaceFor(stack_limit) + SpaceFor(rss_limit) +
-             SpaceFor(time_limit_per_input_str) + SpaceFor(time_limit_str) +
-             SpaceFor(time_budget_type_str) + SpaceFor(jobs) +
-             SpaceFor(crashing_input_to_reproduce) +
+             SpaceFor(only_replay_corpus) + SpaceFor(stack_limit) +
+             SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
+             SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
+             SpaceFor(jobs) + SpaceFor(crashing_input_to_reproduce) +
              SpaceFor(reproduction_command_template));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
@@ -218,6 +218,7 @@ std::string Configuration::Serialize() const {
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
+  offset = WriteIntegral(out, offset, only_replay_corpus);
   offset = WriteIntegral(out, offset, stack_limit);
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
@@ -241,6 +242,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                      ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(reproduce_findings_as_separate_tests,
                      Consume<bool>(serialized));
+    ASSIGN_OR_RETURN(only_replay_corpus, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(stack_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
@@ -266,6 +268,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *std::move(fuzz_tests),
                          *std::move(fuzz_tests_in_current_shard),
                          *reproduce_findings_as_separate_tests,
+                         *only_replay_corpus,
                          *stack_limit,
                          *rss_limit,
                          *time_limit_per_input,

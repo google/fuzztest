@@ -303,6 +303,11 @@ void Environment::UpdateWithTargetConfig(
          "stack_limit in the target binary:"
       << VV(stack_limit_kb) << VV(config.stack_limit);
   stack_limit_kb = bytes_to_kb(config.stack_limit);
+
+  if (config.only_replay_corpus) {
+    load_shards_only = true;
+    populate_binary_info = false;
+  }
 }
 
 void Environment::UpdateTimeoutPerBatchIfEqualTo(size_t val) {
