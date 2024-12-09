@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -84,52 +85,6 @@ std::vector<std::vector<uint8_t>> ReadByteArrayDictionaryFromFile() {
   return out;
 }
 
-template <typename T>
-class InplaceVector {
- public:
-  using iterator = T*;
-  using value_type = T;
-
-  InplaceVector() : data_(nullptr), size_(0) {}
-  InplaceVector(T* data, std::size_t size) : data_(data), size_(size) {}
-
-  T& operator[](int i) { return data_[i]; }
-
-  T const& operator[](int i) const { return data_[i]; }
-
-  std::size_t size() const { return size_; }
-
-  T* begin() const { return data_; }
-
-  T* end() const { return data_ + size_; }
-
-  void insert(T* index, T val) {
-    for (T* itr = data_ + size_; itr > index; --itr) {
-      *itr = *(itr - 1);
-    }
-    *index = val;
-    ++size_;
-  }
-
-  void erase(T* index) {
-    for (T* itr = index; itr < data_ + size_ - 1; ++itr) {
-      *itr = *(itr + 1);
-    }
-    --size_;
-  }
-
-  void erase(T* begin, T* end) {
-    for (T *itr = begin, *jtr = end; jtr < data_ + size_; ++itr, ++jtr) {
-      *itr = *jtr;
-    }
-    size_ -= (end - begin);
-  }
-
- private:
-  T* data_;
-  std::size_t size_;
-};
-
 namespace {
 
 using ::fuzztest::domain_implementor::MutationMetadata;
@@ -207,14 +162,17 @@ extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t* data, size_t size,
 extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
 #endif  // FUZZTEST_USE_CENTIPEDE
-  static auto domain = fuzztest::internal::SequenceContainerOfImpl<
-      InplaceVector<uint8_t>, fuzztest::internal::ArbitraryImpl<uint8_t>>();
+  static auto domain = fuzztest::Arbitrary<std::vector<uint8_t>>()
+                           .WithDictionary(ReadByteArrayDictionaryFromFile)
+                           .WithSeeds(ReadByteArraysFromDirectory);
   domain.WithMaxSize(max_size);
   absl::BitGen bitgen;
-  InplaceVector<uint8_t> val(data, size);
+  std::vector<uint8_t> val{data, data + size};
   const auto& metadata = mutation_metadata_manager->Acquire();
   domain.Mutate(val, bitgen, metadata, false);
   mutation_metadata_manager->Release();
+  // This can be eliminated if Mutate() can operate on the original `data`.
+  std::copy(val.begin(), val.end(), data);
   return val.size();
 }
 
