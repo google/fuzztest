@@ -572,7 +572,12 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
-    env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
+    constexpr std::string_view kFuzzTestReplayCorpusFlag =
+        "--replay_corpus=";
+    std::string_view test_selection_flag = fuzztest_config.only_replay_corpus
+                                               ? kFuzzTestReplayCorpusFlag
+                                               : kFuzzTestFuzzFlag;
+    env.binary = absl::StrCat(binary, " ", test_selection_flag,
                               fuzztest_config.fuzz_tests[i]);
 
     absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
@@ -604,6 +609,8 @@ int UpdateCorpusDatabaseForFuzzTests(
           (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
               .c_str()));
     }
+
+    if (fuzztest_config.only_replay_corpus) continue;
 
     // Distill and store the coverage corpus.
     Distill(env);

@@ -21,6 +21,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->fuzz_tests_in_current_shard &&
          config.reproduce_findings_as_separate_tests ==
              other->reproduce_findings_as_separate_tests &&
+         config.only_replay_corpus == other->only_replay_corpus &&
          config.stack_limit == other->stack_limit &&
          config.rss_limit == other->rss_limit &&
          config.time_limit_per_input == other->time_limit_per_input &&
@@ -41,6 +42,7 @@ TEST(ConfigurationTest,
                               /*fuzz_tests=*/{},
                               /*fuzz_tests_in_current_shard=*/{},
                               /*reproduce_findings_as_separate_tests=*/true,
+                              /*only_replay_corpus=*/true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
@@ -62,6 +64,7 @@ TEST(ConfigurationTest,
                               {"FuzzTest1", "FuzzTest2"},
                               {"FuzzTest1"},
                               /*reproduce_findings_as_separate_tests=*/true,
+                              /*only_replay_corpus=*/true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
