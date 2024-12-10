@@ -113,3 +113,19 @@ set_target_properties(
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${CMAKE_BINARY_DIR}/_main/e2e_tests/testdata"
 )
+
+add_executable(
+  llvm_fuzzer_with_custom_mutator.stripped
+  llvm_fuzzer_with_custom_mutator.cc
+)
+target_link_libraries(
+  llvm_fuzzer_with_custom_mutator.stripped
+  PRIVATE
+  fuzztest::llvm_fuzzer_main
+  fuzztest::llvm_fuzzer_wrapper
+)
+set_target_properties(
+  llvm_fuzzer_with_custom_mutator.stripped
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${CMAKE_BINARY_DIR}/_main/e2e_tests/testdata"
+)

@@ -158,3 +158,13 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
+
+cc_binary(
+    name = "llvm_fuzzer_with_custom_mutator",
+    testonly = 1,
+    srcs = ["llvm_fuzzer_with_custom_mutator.cc"],
+    deps = [
+        "@com_google_fuzztest//fuzztest:llvm_fuzzer_main",
+        "@com_google_fuzztest//fuzztest:llvm_fuzzer_wrapper",
+    ],
+)

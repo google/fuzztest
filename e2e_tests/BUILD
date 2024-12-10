@@ -47,6 +47,7 @@ cc_test(
         "@com_google_fuzztest//e2e_tests/testdata:dynamically_registered_fuzz_tests.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_with_invalid_seeds.stripped",
+        "@com_google_fuzztest//e2e_tests/testdata:llvm_fuzzer_with_custom_mutator.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:unit_test_and_fuzz_tests.stripped",
     ],
     defines = select({
