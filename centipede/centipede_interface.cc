@@ -548,10 +548,13 @@ int UpdateCorpusDatabaseForFuzzTests(
   for (int i = resuming_fuzztest_idx; i < fuzztest_config.fuzz_tests.size();
        ++i) {
     if (i % total_test_shards != test_shard_index) continue;
-    ReportErrorWhenNotEnoughTimeToRunEverything(
-        start_time, fuzztest_config.time_limit,
-        /*executed_tests_in_shard=*/i / total_test_shards,
-        fuzztest_config.fuzz_tests.size(), total_test_shards);
+    if (fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
+      // TODO(fniksic): Test this behavior in end-to-end tests.
+      ReportErrorWhenNotEnoughTimeToRunEverything(
+          start_time, fuzztest_config.GetTimeLimitPerTest(),
+          /*executed_tests_in_shard=*/i / total_test_shards,
+          fuzztest_config.fuzz_tests.size(), total_test_shards);
+    }
     env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
     if (RemotePathExists(env.workdir) && !is_resuming) {
       // This could be a workdir from a failed run that used a different version
