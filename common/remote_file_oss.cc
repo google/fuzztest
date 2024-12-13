@@ -366,6 +366,10 @@ absl::Status RemoteGlobMatch(std::string_view glob,
   if (int ret = ::glob(std::string{glob}.c_str(), GLOB_TILDE, HandleGlobError,
                        &glob_ret);
       ret != 0) {
+    if (ret == GLOB_NOMATCH) {
+      return absl::NotFoundError(absl::StrCat(
+          "glob() returned NOMATCH for pattern: ", std::string(glob)));
+    }
     return absl::UnknownError(absl::StrCat(
         "glob() failed, pattern: ", std::string(glob), ", returned: ", ret));
   }
