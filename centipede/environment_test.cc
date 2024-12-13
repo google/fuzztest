@@ -196,4 +196,12 @@ TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
                "stack_limit in the target binary");
 }
 
+TEST(Environment, UpdatesReplayOnlyConfiguration) {
+  Environment env;
+  fuzztest::internal::Configuration config{.only_replay_corpus = true};
+  env.UpdateWithTargetConfig(config);
+  EXPECT_TRUE(env.load_shards_only);
+  EXPECT_FALSE(env.populate_binary_info);
+}
+
 }  // namespace centipede

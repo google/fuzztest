@@ -172,5 +172,24 @@ TEST_F(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
             HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 1s")));
 }
 
+TEST_F(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
+  auto [status, std_out, std_err] = RunBinary(
+      CentipedePath(),
+      {.flags = {{"binary",
+                  absl::StrJoin({GetCorpusDatabaseTestingBinaryPath(),
+                                 CreateFuzzTestFlag("corpus_database",
+                                                    GetCorpusDatabasePath()),
+                                 CreateFuzzTestFlag("replay_corpus_for", "inf"),
+                                 CreateFuzzTestFlag("jobs", "2")},
+                                /*separator=*/" ")}},
+       .timeout = absl::Seconds(30)});
+
+  EXPECT_THAT(
+      std_err,
+      AllOf(HasSubstr("Replaying FuzzTest.FailsInTwoWays"),
+            HasSubstr("Replaying FuzzTest.FailsWithStackOverflow"),
+            HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz")));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

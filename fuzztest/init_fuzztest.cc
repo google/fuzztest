@@ -258,6 +258,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
       reproduce_findings_as_separate_tests,
+      /*only_replay_corpus=*/
+      replay_corpus_time_limit.has_value(),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
@@ -341,8 +343,11 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
       GTEST_FLAG_SET(filter, filter);
     }
   }
+  const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
+  const bool is_fuzzing_mode = (is_runner_mode && is_fuzzing_or_replaying) ||
+                               fuzzing_time_limit.has_value();
   const RunMode run_mode =
-      fuzzing_time_limit.has_value() ? RunMode::kFuzz : RunMode::kUnitTest;
+      is_fuzzing_mode ? RunMode::kFuzz : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
 }

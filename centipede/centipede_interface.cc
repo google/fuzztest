@@ -505,10 +505,14 @@ int UpdateCorpusDatabaseForFuzzTests(
         absl::FormatTime("%Y-%m-%d-%H-%M-%S", absl::Now(), absl::UTCTimeZone());
     return stamp;
   }();
-  // the full workdir paths will be formed by appending the fuzz test names to
-  // the base workdir path.
+  // The full workdir paths will be formed by appending the fuzz test names to
+  // the base workdir path. We use different path when only replaying to avoid
+  // replaying an unfinished fuzzing sessions.
   const auto base_workdir_path =
-      corpus_database_path / absl::StrFormat("workdir.%03d", test_shard_index);
+      corpus_database_path /
+      absl::StrFormat("workdir%s.%03d",
+                      fuzztest_config.only_replay_corpus ? "-replay" : "",
+                      test_shard_index);
   // There's no point in saving the binary info to the workdir, since the
   // workdir is deleted at the end.
   env.save_binary_info = false;
@@ -572,7 +576,12 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
     constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
-    env.binary = absl::StrCat(binary, " ", kFuzzTestFuzzFlag,
+    constexpr std::string_view kFuzzTestReplayCorpusFlag =
+        "--replay_corpus=";
+    std::string_view test_selection_flag = fuzztest_config.only_replay_corpus
+                                               ? kFuzzTestReplayCorpusFlag
+                                               : kFuzzTestFuzzFlag;
+    env.binary = absl::StrCat(binary, " ", test_selection_flag,
                               fuzztest_config.fuzz_tests[i]);
 
     absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
@@ -585,8 +594,10 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
     is_resuming = false;
 
-    LOG(INFO) << "Fuzzing " << fuzztest_config.fuzz_tests[i] << " for "
-              << time_limit << "\n\tTest binary: " << env.binary;
+    LOG(INFO) << (fuzztest_config.only_replay_corpus ? "Replaying "
+                                                     : "Fuzzing ")
+              << fuzztest_config.fuzz_tests[i] << " for " << time_limit
+              << "\n\tTest binary: " << env.binary;
 
     const absl::Time start_time = absl::Now();
     ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time + time_limit);
@@ -604,6 +615,8 @@ int UpdateCorpusDatabaseForFuzzTests(
           (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
               .c_str()));
     }
+
+    if (fuzztest_config.only_replay_corpus) continue;
 
     // Distill and store the coverage corpus.
     Distill(env);
@@ -695,7 +708,8 @@ int CentipedeMain(const Environment &env,
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
         const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
-        CHECK(time_limit_per_test < absl::InfiniteDuration())
+        CHECK(target_config->only_replay_corpus ||
+              time_limit_per_test < absl::InfiniteDuration())
             << "Updating corpus database requires specifying time limit per "
                "fuzz test.";
         CHECK(time_limit_per_test >= absl::Seconds(1))
