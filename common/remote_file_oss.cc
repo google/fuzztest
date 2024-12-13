@@ -20,6 +20,10 @@
 #define FUZZTEST_HAS_OSS_GLOB
 #endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
 
+#if defined(_MSC_VER)
+#include <windows.h>
+#endif  // defined(_MSC_VER)
+
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -247,14 +251,27 @@ absl::Status RemotePathTouchExistingFile(std::string_view path) {
     return absl::InvalidArgumentError(
         absl::StrCat("path: ", std::string(path), " does not exist."));
   }
-  std::error_code error;
-  std::filesystem::last_write_time(
-      path, std::filesystem::file_time_type::clock::now(), error);
-  if (error) {
-    return absl::UnknownError(absl::StrCat(
-        "filesystem::last_write_time() failed, path: ", std::string(path),
-        ", error: ", error.message()));
+
+#if defined(_MSC_VER)
+  HANDLE file = CreateFile(path.data(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (file == INVALID_HANDLE_VALUE) {
+    return absl::InternalError(absl::StrCat("Failed to open ", path, "."));
   }
+  SYSTEMTIME st;
+  FILETIME mtime;
+  GetSystemTime(&st);
+  SystemTimeToFileTime(&st, &mtime);
+  if (SetFileTime(file, nullptr, nullptr, &mtime)) {
+    return absl::InternalError(absl::StrCat("Failed to set mtime for ", path));
+  }
+  CloseHandle(file);
+#else
+  if (0 != utimes(path.data(), nullptr)) {
+    return absl::InternalError(absl::StrCat("Failed to set mtime for ", path,
+                                            " (errno ", errno, ")."));
+  }
+#endif
   return absl::OkStatus();
 }
 

@@ -152,13 +152,17 @@ TEST(RemotePathTouchExistingFile, UpdatesTheLastModifiedTime) {
   const fs::path temp_dir = GetTestTempDir(test_info_->name());
   const std::string file_path = temp_dir / "file";
   CreateFileOrDie(file_path);
+  absl::SleepFor(absl::Milliseconds(10));
 
-  const auto start_time = std::filesystem::file_time_type::clock::now();
-  absl::SleepFor(absl::Milliseconds(1));
+  const auto start_time = absl::Now();
+  absl::SleepFor(absl::Milliseconds(10));
   ASSERT_TRUE(RemotePathTouchExistingFile(file_path).ok());
-  const auto end_time = std::filesystem::file_time_type::clock::now();
+  absl::SleepFor(absl::Milliseconds(10));
+  const auto end_time = absl::Now();
 
-  const auto last_modified_time = fs::last_write_time(file_path);
+  struct stat st = {0};
+  ASSERT_EQ(lstat(file_path.c_str(), &st), 0);
+  auto last_modified_time = absl::TimeFromTimespec(st.st_mtim);
   ASSERT_LT(last_modified_time, end_time);
   EXPECT_GT(last_modified_time, start_time);
 }
