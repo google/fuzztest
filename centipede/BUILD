@@ -913,6 +913,7 @@ cc_library(
         ":environment",
         ":mutation_input",
         ":runner_result",
+        ":stop",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_fuzztest//common:defs",
