@@ -721,9 +721,10 @@ int CentipedeMain(const Environment &env,
                                                 callbacks_factory);
       }
     } else if (std::getenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG") != nullptr) {
-      // Target config is empty when the shard does not contain any fuzz tests.
-      LOG(INFO) << "No fuzz test found!";
-      return EXIT_SUCCESS;
+      // TODO(fniksic): Improve the GetSerializedTargetConfig interface to avoid
+      // using the environment variable.
+      LOG(INFO) << "Failed to get target config!";
+      return EXIT_FAILURE;
     }
   }
 
