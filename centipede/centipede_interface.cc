@@ -178,12 +178,25 @@ BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
   return binary_info;
 }
 
+std::vector<Environment> CreateEnvironmentsForThreads(
+    const Environment &origin_env, std::string_view pcs_file_path) {
+  std::vector<Environment> envs(origin_env.num_threads, origin_env);
+  size_t thread_idx = 0;
+  for (auto &env : envs) {
+    env.my_shard_index += thread_idx++;
+    env.UpdateForExperiment();
+    env.pcs_file_path = pcs_file_path;
+  }
+  return envs;
+}
+
 int Fuzz(const Environment &env, const BinaryInfo &binary_info,
          std::string_view pcs_file_path,
          CentipedeCallbacksFactory &callbacks_factory) {
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
-  std::vector<Environment> envs(env.num_threads, env);
+  std::vector<Environment> envs =
+      CreateEnvironmentsForThreads(env, pcs_file_path);
   std::vector<std::atomic<Stats>> stats_vec(env.num_threads);
 
   // Start periodic stats dumping and, optionally, logging.
@@ -212,14 +225,11 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
   }
 
   auto fuzzing_worker =
-      [&env, pcs_file_path, &callbacks_factory, &binary_info, &coverage_logger](
+      [&env, &callbacks_factory, &binary_info, &coverage_logger](
           Environment &my_env, std::atomic<Stats> &stats, bool create_tmpdir) {
         if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-        my_env.UpdateForExperiment();
         // Uses TID, call in this thread.
         my_env.seed = GetRandomSeed(env.seed);
-        // Same for all threads.
-        my_env.pcs_file_path = pcs_file_path;
 
         if (env.dry_run) return;
 
@@ -242,7 +252,6 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
     ThreadPool fuzzing_worker_threads{static_cast<int>(env.num_threads)};
     for (size_t thread_idx = 0; thread_idx < env.num_threads; thread_idx++) {
       Environment &my_env = envs[thread_idx];
-      my_env.my_shard_index = env.my_shard_index + thread_idx;
       std::atomic<Stats> &my_stats = stats_vec[thread_idx];
       fuzzing_worker_threads.Schedule([&fuzzing_worker, &my_env, &my_stats]() {
         fuzzing_worker(my_env, my_stats, /*create_tmpdir=*/true);
