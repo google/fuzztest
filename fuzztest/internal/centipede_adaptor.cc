@@ -161,8 +161,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       : runtime_(*runtime),
         fuzzer_impl_(*fuzzer_impl),
         configuration_(*configuration),
-        prng_(GetRandomSeed()) {
-  }
+        cmp_tables_(std::make_unique<TablesOfRecentCompares>()),
+        prng_(GetRandomSeed()) {}
 
   bool Execute(centipede::ByteSpan input) override {
     auto parsed_input =
@@ -248,7 +248,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
           parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
         }
         auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
-        fuzzer_impl_.MutateValue(mutant, prng_, {.cmp_tables = &cmp_tables_});
+        fuzzer_impl_.MutateValue(mutant, prng_,
+                                 {.cmp_tables = cmp_tables_.get()});
         mutant_data =
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }
@@ -269,7 +270,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     T b_int;
     memcpy(&a_int, a, sizeof(T));
     memcpy(&b_int, b, sizeof(T));
-    cmp_tables_.GetMutable<sizeof(T)>().Insert(a_int, b_int);
+    cmp_tables_->GetMutable<sizeof(T)>().Insert(a_int, b_int);
   }
 
   void SetMetadata(const centipede::ExecutionMetadata* metadata) {
@@ -288,7 +289,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       } else if (size == 8) {
         InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
       }
-      cmp_tables_.GetMutable<0>().Insert(a.data(), b.data(), size);
+      cmp_tables_->GetMutable<0>().Insert(a.data(), b.data(), size);
     });
   }
 
@@ -299,7 +300,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
-  TablesOfRecentCompares cmp_tables_;
+  std::unique_ptr<TablesOfRecentCompares> cmp_tables_;
   absl::BitGen prng_;
 };
 
