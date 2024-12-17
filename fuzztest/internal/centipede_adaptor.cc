@@ -479,7 +479,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
     if (runtime_.skipping_requested()) {
       CentipedeSetExecutionResult(nullptr, 0);
     }
-    if (!runner_mode) CentipedeFinalizeProcessing();
+    CentipedeFinalizeProcessing();
   }
 
   void TearDownFuzzTest() override { orig_fixture_driver_->TearDownFuzzTest(); }

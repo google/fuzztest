@@ -614,7 +614,9 @@ static void RunOneInput(const uint8_t *data, size_t size,
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  PostProcessCoverage(target_return_value);
+  if (centipede::state.input_start_time.exchange(0) != 0) {
+    PostProcessCoverage(target_return_value);
+  }
   state.stats.post_time_usec = UsecSinceLast();
   state.stats.peak_rss_mb = GetPeakRSSMb();
 }
@@ -1235,7 +1237,9 @@ extern "C" void CentipedePrepareProcessing() {
 
 extern "C" void CentipedeFinalizeProcessing() {
   centipede::CheckWatchdogLimits();
-  centipede::PostProcessCoverage(/*target_return_value=*/0);
+  if (centipede::state.input_start_time.exchange(0) != 0) {
+    centipede::PostProcessCoverage(/*target_return_value=*/0);
+  }
 }
 
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
