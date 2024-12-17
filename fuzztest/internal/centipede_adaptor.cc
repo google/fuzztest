@@ -178,13 +178,6 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       std::function<void(centipede::ByteSpan)> seed_callback) override {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
-    CorpusDatabase corpus_database(configuration_);
-    fuzzer_impl_.ForEachInput(
-        corpus_database.GetCoverageInputsIfAny(fuzzer_impl_.test_.full_name()),
-        [&](absl::string_view /*file_path*/, std::optional<int> /*blob_idx*/,
-            FuzzTestFuzzerImpl::Input input) {
-          seeds.push_back(std::move(input.args));
-        });
     constexpr int kInitialValuesInSeeds = 32;
     for (int i = 0; i < kInitialValuesInSeeds; ++i) {
       seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
