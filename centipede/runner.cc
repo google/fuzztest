@@ -283,6 +283,8 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
   // Check for the stack limit only if sp is inside the stack region.
   if (stack_limit > 0 && tls.stack_region_low &&
       tls.top_frame_sp - sp > stack_limit) {
+    const bool test_not_running = state.input_start_time == 0;
+    if (test_not_running) return;
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
             "========= Stack limit exceeded: %" PRIuPTR
