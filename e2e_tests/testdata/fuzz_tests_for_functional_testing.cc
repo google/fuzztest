@@ -65,6 +65,11 @@ using ::fuzztest::internal::TestProtobufWithRequired;
 using ::fuzztest::internal::TestSubProtobuf;
 using ::google::protobuf::FieldDescriptor;
 
+bool print_target_run_message_once = []() {
+  fputs("FuzzTest functional test target run\n", stderr);
+  return true;
+}();
+
 void PassesWithPositiveInput(int x) {
   if (x <= 0) std::abort();
 }
@@ -757,12 +762,17 @@ FUZZ_TEST_F(AlternateSignalStackFixture,
 
 void DetectRegressionAndCoverageInputs(const std::string& input) {
   if (absl::StartsWith(input, "regression")) {
-    std::cout << "regression input detected: " << input << std::endl;
+    std::cerr << "regression input detected: " << input << std::endl;
   }
   if (absl::StartsWith(input, "coverage")) {
-    std::cout << "coverage input detected: " << input << std::endl;
+    std::cerr << "coverage input detected: " << input << std::endl;
+    // Sleep for the first coverage input for depleting the replay time budget.
+    static bool first_input = true;
+    if (first_input) {
+      first_input = false;
+      absl::SleepFor(absl::Seconds(2));
+    }
   }
-  absl::SleepFor(absl::Seconds(0.1));
 }
 FUZZ_TEST(MySuite, DetectRegressionAndCoverageInputs);
 

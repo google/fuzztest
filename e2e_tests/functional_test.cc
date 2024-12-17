@@ -75,6 +75,22 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
   return env;
 }
 
+int CountSubstrs(absl::string_view haystack, absl::string_view needle) {
+  int count = 0;
+  while (true) {
+    size_t pos = haystack.find(needle);
+    if (pos == haystack.npos) return count;
+    ++count;
+    haystack.remove_prefix(pos + needle.size());
+  }
+}
+
+// Counts the number of times the target binary has been run. Needed because
+// Centipede runs the binary multiple times.
+int CountTargetRuns(absl::string_view std_err) {
+  return CountSubstrs(std_err, "FuzzTest functional test target run");
+}
+
 class UnitTestModeTest : public ::testing::Test {
  protected:
   RunResults Run(
@@ -126,16 +142,6 @@ TEST_F(UnitTestModeTest, UnitTestModeLimitsNumberOfIterationsByWallTime) {
   EXPECT_THAT(std_out,
               HasSubstr("[       OK ] MySuite.OneIterationTakesTooMuchTime"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
-}
-
-int CountSubstrs(absl::string_view haystack, absl::string_view needle) {
-  int count = 0;
-  while (true) {
-    size_t pos = haystack.find(needle);
-    if (pos == haystack.npos) return count;
-    ++count;
-    haystack.remove_prefix(pos + needle.size());
-  }
 }
 
 RE2 MakeReproducerRegex(absl::string_view suite_name,
@@ -207,18 +213,21 @@ TEST_F(UnitTestModeTest,
 
 TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestExpect");
+  EXPECT_GT(CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"),
+            0);
   EXPECT_EQ(
-      1, CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"));
-  EXPECT_EQ(1, CountSubstrs(std_err, "<<GlobalEnvironment::SetUp()>>"));
-  EXPECT_EQ(1, CountSubstrs(std_err, "<<GlobalEnvironment::TearDown()>>"));
-  EXPECT_EQ(
-      1, CountSubstrs(std_err, "<<GlobalEnvironment::~GlobalEnvironment()>>"));
+      CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"),
+      CountSubstrs(std_err, "<<GlobalEnvironment::~GlobalEnvironment()>>"));
+  EXPECT_GT(CountSubstrs(std_err, "<<GlobalEnvironment::SetUp()>>"), 0);
+  EXPECT_EQ(CountSubstrs(std_err, "<<GlobalEnvironment::SetUp()>>"),
+            CountSubstrs(std_err, "<<GlobalEnvironment::TearDown()>>"));
 }
 
 TEST_F(UnitTestModeTest, FixtureGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("FixtureTest.NeverFails");
-  EXPECT_EQ(1, CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"));
-  EXPECT_EQ(1, CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
+  EXPECT_GT(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"), 0);
+  EXPECT_EQ(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"),
+            CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
 }
 
 TEST_F(UnitTestModeTest,
@@ -231,19 +240,19 @@ TEST_F(UnitTestModeTest,
 TEST_F(UnitTestModeTest,
        GoogleTestPerFuzzTestFixtureInstantiatedOncePerFuzzTest) {
   auto [status, std_out, std_err] =
-      Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen");
-  EXPECT_EQ(
-      1, CountSubstrs(std_err, "<<CallCountGoogleTest::call_count_ == 10>>"));
+      Run("CallCountPerFuzzTest.CallCountPerFuzzTestEqualsToGlobalCount");
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST_F(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
+TEST_F(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledInBalance) {
   auto [status, std_out, std_err] =
-      Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen:"
+      Run("CallCountPerFuzzTest.CallCountPerFuzzTestEqualsToGlobalCount:"
           "CallCountPerFuzzTest.NeverFails");
-  EXPECT_EQ(1,
-            CountSubstrs(std_err, "<<CallCountGoogleTest::SetUpTestSuite()>>"));
+  EXPECT_GT(CountSubstrs(std_err, "<<CallCountGoogleTest::SetUpTestSuite()>>"),
+            0);
   EXPECT_EQ(
-      1, CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
+      CountSubstrs(std_err, "<<CallCountGoogleTest::SetUpTestSuite()>>"),
+      CountSubstrs(std_err, "<<CallCountGoogleTest::TearDownTestSuite()>>"));
 }
 
 TEST_F(UnitTestModeTest, GoogleTestWorksWithProtoExtensionsUsedInSeeds) {
@@ -769,10 +778,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
   EXPECT_THAT(std_err,
-              HasSubstr(absl::StrCat("Reproducer file was dumped at:\n",
-                                     replay_files[0].path)));
-  EXPECT_THAT(std_err, HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
-                                              replay_files[0].path)));
+              AllOf(HasSubstr("Reproducer file was dumped at:"),
+                    HasSubstr(replay_files[0].path),
+                    HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
+                                           replay_files[0].path))));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
@@ -991,8 +1000,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ReplayFile replay(std::in_place, std::tuple<uint8_t, double>{10, 1979.125});
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.WithDomainClass"}}, replay.GetReplayEnv());
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 10"));
-  EXPECT_THAT(std_err, HasSubstr("argument 1: 1979.125"));
+  EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
+  EXPECT_THAT(std_err, HasSubstr("argument 1: 1979.125")) << std_err;
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
@@ -1253,16 +1262,6 @@ class FuzzingModeFixtureTest
            .timeout = absl::InfiniteDuration()});
     }
   }
-
-  // Counts the number of times the target binary has been run. Needed because
-  // Centipede runs the binary multiple times.
-  int CountTargetRuns(absl::string_view std_err) {
-    if (GetParam().multi_process) {
-      return CountSubstrs(std_err, "Centipede fuzz target runner; argv[0]:");
-    } else {
-      return 1;
-    }
-  }
 };
 
 TEST_P(FuzzingModeFixtureTest, GlobalEnvironmentIsSetUpForFailingTest) {
@@ -1315,13 +1314,15 @@ TEST_P(FuzzingModeFixtureTest,
 TEST_P(FuzzingModeFixtureTest,
        GoogleTestPerFuzzTestFixtureInstantiatedOncePerFuzzTest) {
   auto [status, std_out, std_err] =
-      Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen", /*iterations=*/10);
-  EXPECT_THAT(std_err, HasSubstr("<<CallCountGoogleTest::call_count_ == 10>>"));
+      Run("CallCountPerFuzzTest.CallCountPerFuzzTestEqualsToGlobalCount",
+          /*iterations=*/10);
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_P(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
   auto [status, std_out, std_err] =
-      Run("CallCountPerFuzzTest.CallCountReachesAtLeastTen", /*iterations=*/10);
+      Run("CountPerFuzzTest.CallCountPerFuzzTestEqualsToGlobalCount",
+          /*iterations=*/10);
   EXPECT_GT(CountTargetRuns(std_err), 0);
   EXPECT_EQ(CountTargetRuns(std_err),
             CountSubstrs(std_err, "<<CallCountGoogleTest::SetUpTestSuite()>>"));

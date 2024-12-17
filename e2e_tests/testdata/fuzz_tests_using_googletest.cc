@@ -75,7 +75,7 @@ class CallCountGoogleTest : public testing::Test {
     fprintf(stderr, "<<CallCountGoogleTest::TearDownTestSuite()>>\n");
   }
 
-  int call_count_ = 0;
+  unsigned int call_count_ = 0;
 };
 
 class CallCountPerIteration
@@ -88,19 +88,18 @@ class CallCountPerIteration
 FUZZ_TEST_F(CallCountPerIteration,
             CallCountIsAlwaysIncrementedFromInitialValue);
 
+static unsigned int global_call_count = 0;
 class CallCountPerFuzzTest
     : public ::fuzztest::PerFuzzTestFixtureAdapter<CallCountGoogleTest> {
  public:
-  void CallCountReachesAtLeastTen(int) {
-    if (call_count_ < std::numeric_limits<int>::max()) ++call_count_;
-    if (call_count_ == 10) {
-      fprintf(stderr, "<<CallCountGoogleTest::call_count_ == %d>>\n",
-              call_count_);
-    }
+  void CallCountPerFuzzTestEqualsToGlobalCount(int) {
+    ++call_count_;
+    ++global_call_count;
+    EXPECT_EQ(call_count_, global_call_count);
   }
   void NeverFails(int) {}
 };
-FUZZ_TEST_F(CallCountPerFuzzTest, CallCountReachesAtLeastTen);
+FUZZ_TEST_F(CallCountPerFuzzTest, CallCountPerFuzzTestEqualsToGlobalCount);
 FUZZ_TEST_F(CallCountPerFuzzTest, NeverFails);
 
 TEST(SharedSuite, WorksAsUnitTest) {}
