@@ -304,7 +304,7 @@ void Environment::UpdateWithTargetConfig(
       << VV(stack_limit_kb) << VV(config.stack_limit);
   stack_limit_kb = bytes_to_kb(config.stack_limit);
 
-  if (config.only_replay_corpus) {
+  if (config.only_replay) {
     load_shards_only = true;
     populate_binary_info = false;
   }
