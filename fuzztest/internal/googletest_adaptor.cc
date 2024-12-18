@@ -36,6 +36,12 @@ std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard() const {
   return result;
 }
 
+__attribute__((weak)) std::vector<std::string> ListCrashInputs(
+    const Configuration& configuration, absl::string_view test_name) {
+  CorpusDatabase corpus_database(configuration);
+  return corpus_database.GetCrashingInputsIfAny(test_name);
+}
+
 namespace {
 template <typename T>
 void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
@@ -57,9 +63,9 @@ template <typename T>
 void RegisterSeparateRegressionTestForEachCrashingInput(
     int* argc, char*** argv, FuzzTest& test,
     const Configuration& configuration) {
-  CorpusDatabase corpus_database(configuration);
+  if (!configuration.reproduce_findings_as_separate_tests) return;
   for (const std::string& input :
-       corpus_database.GetCrashingInputsIfAny(test.full_name())) {
+       ListCrashInputs(configuration, test.full_name())) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
     const std::string suffix =

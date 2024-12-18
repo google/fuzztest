@@ -40,20 +40,20 @@ class GTest_TestAdaptor : public ::testing::Test {
   void TestBody() override {
     auto test = test_.make();
     configuration_.fuzz_tests_in_current_shard = GetFuzzTestsInCurrentShard();
+    configuration_.replay_in_single_process =
+        configuration_.crashing_input_to_reproduce.has_value() &&
+        testing::UnitTest::GetInstance()->test_to_run_count() == 1;
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       // In "bug reproduction" mode, sometimes we need to reproduce multiple
       // bugs, i.e., run multiple tests that lead to a crash.
       bool needs_subprocess = false;
-#ifdef GTEST_HAS_DEATH_TEST
+#if defined(GTEST_HAS_DEATH_TEST) && !defined(FUZZTEST_USE_CENTIPEDE)
       needs_subprocess =
           configuration_.crashing_input_to_reproduce.has_value() &&
-          (
-              // When only a single test runs, it's okay to crash the process on
-              // error, as we don't need to run other tests.
-              testing::UnitTest::GetInstance()->test_to_run_count() > 1 ||
-              // EXPECT_EXIT is required in the death-test subprocess, but in
-              // the subprocess there's only one test to run.
-              testing::internal::InDeathTestChild());
+          (!configuration_.replay_in_single_process ||
+           // EXPECT_EXIT is required in the death-test subprocess, but in
+           // the subprocess there's only one test to run.
+           testing::internal::InDeathTestChild());
 #endif
       if (needs_subprocess) {
         configuration_.preprocess_crash_reproducing = [] {
@@ -78,13 +78,14 @@ class GTest_TestAdaptor : public ::testing::Test {
         EXPECT_TRUE(false) << "Death test is not supported.";
 #endif
       } else {
-        test->RunInUnitTestMode(configuration_);
+        EXPECT_TRUE(test->RunInUnitTestMode(configuration_))
+            << "Failure(s) found in the unit-test mode.";
       }
     } else {
       // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
       // tolerate crashes in fuzzing mode.
-      ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_, configuration_))
-          << "Fuzzing failure.";
+      EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_))
+          << "Failure(s) found in the fuzzing mode.";
     }
   }
 
@@ -114,6 +115,9 @@ class GTest_EventListener : public Base {
  public:
   void OnTestPartResult(const TestPartResult& test_part_result) override {
     if (!test_part_result.failed()) return;
+#ifdef FUZZTEST_USE_CENTIPEDE
+    if (getenv("CENTIPEDE_RUNNER_FLAGS") == nullptr) return;
+#endif
     Runtime& runtime = Runtime::instance();
     runtime.SetCrashTypeIfUnset("GoogleTest assertion failure");
     if (runtime.run_mode() == RunMode::kFuzz) {

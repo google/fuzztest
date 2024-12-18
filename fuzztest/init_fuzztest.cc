@@ -163,6 +163,34 @@ FUZZTEST_DEFINE_FLAG(std::optional<size_t>, jobs, std::nullopt,
                      "The number of fuzzing jobs to run in parallel. If "
                      "unspecified, the number of jobs is 1.");
 
+FUZZTEST_DEFINE_FLAG(bool, internal_unit_test_mode, false,
+                     "Internal-only flag - do not use directly. If set, force "
+                     "to use unit test mode in fuzzing.")
+    .OnUpdate([] {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          !absl::GetFlag(FUZZTEST_FLAG(internal_unit_test_mode)) ||
+              getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr,
+          "must not set --" FUZZTEST_FLAG_PREFIX
+          "internal_unit_test_mode directly");
+    });
+
+FUZZTEST_DEFINE_FLAG(std::optional<std::string>,
+                     internal_crashing_input_to_reproduce, std::nullopt,
+                     "Internal-only flag - do not use directly. If set, replay "
+                     "the input in the corpus database with the specified ID.")
+    .OnUpdate([] {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          !absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce))
+                  .has_value() ||
+              getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr,
+          "must not set --" FUZZTEST_FLAG_PREFIX
+          "internal_crashing_input_to_reproduce directly");
+    });
+
+FUZZTEST_DEFINE_FLAG(
+    bool, print_subprocess_log, false,
+    "If set, print stdout/stderr of the subprocesses spawned by FuzzTest.");
+
 namespace fuzztest {
 
 std::vector<std::string> ListRegisteredTests() {
@@ -213,9 +241,6 @@ namespace {
 
 std::optional<absl::Duration> GetFuzzingTime() {
   absl::Duration fuzz_time_limit = absl::GetFlag(FUZZTEST_FLAG(fuzz_for));
-  if (fuzz_time_limit <= absl::ZeroDuration()) {
-    fuzz_time_limit = absl::InfiniteDuration();
-  }
   if (absl::GetFlag(FUZZTEST_FLAG(fuzz)) == kUnspecified &&
       fuzz_time_limit == absl::InfiniteDuration()) {
     return std::nullopt;
@@ -257,13 +282,22 @@ internal::Configuration CreateConfigurationsFromFlags(
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
+      /*replay_corpus=*/
+      (fuzzing_time_limit.has_value() &&
+       !absl::GetFlag(FUZZTEST_FLAG(internal_unit_test_mode))) ||
+          replay_corpus_time_limit.has_value(),
+      /*only_replay=*/
+      (fuzzing_time_limit.has_value() &&
+       *fuzzing_time_limit == absl::ZeroDuration()) ||
+          replay_corpus_time_limit.has_value(),
       reproduce_findings_as_separate_tests,
-      /*only_replay_corpus=*/
-      replay_corpus_time_limit.has_value(),
+      /*replay_in_single_process=*/false,
+      absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
-      absl::GetFlag(FUZZTEST_FLAG(time_budget_type)), jobs.value_or(0)};
+      absl::GetFlag(FUZZTEST_FLAG(time_budget_type)), jobs.value_or(0),
+      absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce))};
 }
 }  // namespace
 
@@ -305,6 +339,9 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
         GetMatchingFuzzTestOrExit(specified_test);
     // Delegate the test to GoogleTest.
     GTEST_FLAG_SET(filter, matching_fuzz_test);
+    // Do not list tests when the fuzz test is specified. Needed for
+    // multi-process mode to work where args are passed through.
+    GTEST_FLAG_SET(list_tests, false);
   }
 
   std::string derived_binary_id =
@@ -343,11 +380,11 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
       GTEST_FLAG_SET(filter, filter);
     }
   }
-  const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
-  const bool is_fuzzing_mode = (is_runner_mode && is_fuzzing_or_replaying) ||
-                               fuzzing_time_limit.has_value();
   const RunMode run_mode =
-      is_fuzzing_mode ? RunMode::kFuzz : RunMode::kUnitTest;
+      (!absl::GetFlag(FUZZTEST_FLAG(internal_unit_test_mode)) &&
+       fuzzing_time_limit.has_value())
+          ? RunMode::kFuzz
+          : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
 }

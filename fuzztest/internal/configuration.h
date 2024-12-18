@@ -56,11 +56,14 @@ struct Configuration {
   std::vector<std::string> fuzz_tests;
   // The fuzz tests in the current shard.
   std::vector<std::string> fuzz_tests_in_current_shard;
+  bool replay_corpus = true;
+  bool only_replay = false;
   // Generate separate TESTs that replay crashing inputs for the selected fuzz
   // tests.
   bool reproduce_findings_as_separate_tests = false;
-  // Do not fuzz, only replay the corpus.
-  bool only_replay_corpus = false;
+  bool replay_in_single_process = false;
+
+  bool print_subprocess_log = false;
 
   // Stack limit in bytes.
   size_t stack_limit = 128 * 1024;

@@ -19,9 +19,12 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.fuzz_tests == other->fuzz_tests &&
          config.fuzz_tests_in_current_shard ==
              other->fuzz_tests_in_current_shard &&
+         config.replay_corpus == other->replay_corpus &&
+         config.only_replay == other->only_replay &&
          config.reproduce_findings_as_separate_tests ==
              other->reproduce_findings_as_separate_tests &&
-         config.only_replay_corpus == other->only_replay_corpus &&
+         config.replay_in_single_process == other->replay_in_single_process &&
+         config.print_subprocess_log == other->print_subprocess_log &&
          config.stack_limit == other->stack_limit &&
          config.rss_limit == other->rss_limit &&
          config.time_limit_per_input == other->time_limit_per_input &&
@@ -41,8 +44,11 @@ TEST(ConfigurationTest,
                               "binary_identifier",
                               /*fuzz_tests=*/{},
                               /*fuzz_tests_in_current_shard=*/{},
+                              /*replay_corpus=*/true,
+                              /*only_replay=*/true,
                               /*reproduce_findings_as_separate_tests=*/true,
-                              /*only_replay_corpus=*/true,
+                              /*replay_in_single_process=*/true,
+                              /*print_subprocess_log*/ true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
@@ -63,8 +69,11 @@ TEST(ConfigurationTest,
                               "binary_identifier",
                               {"FuzzTest1", "FuzzTest2"},
                               {"FuzzTest1"},
+                              /*replay_corpus=*/true,
+                              /*only_replay=*/true,
                               /*reproduce_findings_as_separate_tests=*/true,
-                              /*only_replay_corpus=*/true,
+                              /*replay_in_single_process=*/true,
+                              /*print_subprocess_log*/ true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
