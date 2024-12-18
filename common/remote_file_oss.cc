@@ -253,8 +253,8 @@ absl::Status RemotePathTouchExistingFile(std::string_view path) {
   }
 
 #if defined(_MSC_VER)
-  HANDLE file = CreateFile(path.data(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  HANDLE file = CreateFileA(path.data(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
   if (file == INVALID_HANDLE_VALUE) {
     return absl::InternalError(absl::StrCat("Failed to open ", path, "."));
   }
