@@ -198,7 +198,7 @@ TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
 
 TEST(Environment, UpdatesReplayOnlyConfiguration) {
   Environment env;
-  fuzztest::internal::Configuration config{.only_replay_corpus = true};
+  fuzztest::internal::Configuration config{.only_replay = true};
   env.UpdateWithTargetConfig(config);
   EXPECT_TRUE(env.load_shards_only);
   EXPECT_FALSE(env.populate_binary_info);

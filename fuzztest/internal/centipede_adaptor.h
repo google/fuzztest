@@ -30,11 +30,14 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
  public:
   CentipedeFuzzerAdaptor(const FuzzTest& test,
                          std::unique_ptr<UntypedFixtureDriver> fixture_driver);
-  void RunInUnitTestMode(const Configuration& configuration) override;
-  int RunInFuzzingMode(int* argc, char*** argv,
-                       const Configuration& configuration) override;
+  bool RunInUnitTestMode(const Configuration& configuration) override;
+  bool RunInFuzzingMode(int* argc, char*** argv,
+                        const Configuration& configuration) override;
 
  private:
+  bool Run(int* argc, char*** argv, RunMode mode,
+           const Configuration& configuration);
+
   Runtime& runtime_ = Runtime::instance();
   const FuzzTest& test_;
   CentipedeFixtureDriver* centipede_fixture_driver_;
