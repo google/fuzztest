@@ -134,6 +134,12 @@ struct Environment {
   // If set, deserializes the configuration from the value instead of querying
   // the configuration via runner callbacks.
   std::string fuzztest_configuration;
+  // If set to non-empty, only runs or fetches (if `fetch_crash_to_file` is
+  // non-empty) the crash input of the database using the ID.
+  std::string run_or_fetch_crash_id;
+  // If set to non-empty, only fetches the crash input from the database using
+  // `run_or_fetch_crash_id`.
+  std::string fetch_crash_to_file;
 
   // Command line-related fields -----------------------------------------------
 

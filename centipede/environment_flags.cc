@@ -532,6 +532,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*fuzztest_single_test_mode=*/
       Environment::Default().fuzztest_single_test_mode,
       /*fuzztest_configuration=*/Environment::Default().fuzztest_configuration,
+      /*run_or_fetch_crash_id=*/Environment::Default().run_or_fetch_crash_id,
+      /*fetch_crash_to_file=*/Environment::Default().fetch_crash_to_file,
       /*exec_name=*/Environment::Default().exec_name,
       /*args=*/Environment::Default().args,
       /*binary_name=*/
