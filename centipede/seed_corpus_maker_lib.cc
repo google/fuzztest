@@ -105,7 +105,10 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
   // `source.num_recent_dirs()` most recent ones.
 
   std::vector<std::string> src_dirs;
-  RETURN_IF_NOT_OK(RemoteGlobMatch(source.dir_glob, src_dirs));
+  if (const auto match_status = RemoteGlobMatch(source.dir_glob, src_dirs);
+      !match_status.ok() && !absl::IsNotFound(match_status)) {
+    return match_status;
+  }
   LOG(INFO) << "Found " << src_dirs.size() << " corpus dir(s) matching "
             << source.dir_glob;
   // Sort in the ascending lexicographical order. We expect that dir names
