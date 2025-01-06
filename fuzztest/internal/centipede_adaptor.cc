@@ -165,6 +165,13 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         prng_(GetRandomSeed()) {}
 
   bool Execute(centipede::ByteSpan input) override {
+    if (!domain_setup_is_checked_) {
+      // Create a new domain input to trigger any domain setup
+      // failures here. (e.g. Ineffective Filter)
+      fuzzer_impl_.params_domain_.Init(prng_);
+      domain_setup_is_checked_ = true;
+    }
+
     auto parsed_input =
         fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
     if (parsed_input.ok()) {
@@ -300,6 +307,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
+  bool domain_setup_is_checked_ = false;
   std::unique_ptr<TablesOfRecentCompares> cmp_tables_;
   absl::BitGen prng_;
 };
@@ -518,15 +526,16 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
                           "Invalid fixture driver!");
 }
 
-void CentipedeFuzzerAdaptor::RunInUnitTestMode(
+bool CentipedeFuzzerAdaptor::RunInUnitTestMode(
     const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   CentipedeBeginExecutionBatch();
   fuzzer_impl_.RunInUnitTestMode(configuration);
   CentipedeEndExecutionBatch();
+  return true;
 }
 
-int CentipedeFuzzerAdaptor::RunInFuzzingMode(
+bool CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   runtime_.SetRunMode(RunMode::kFuzz);
@@ -535,10 +544,6 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
   runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
-  // Always create a new domain input to trigger any domain setup
-  // failures here. (e.g. Ineffective Filter)
-  FuzzTestFuzzerImpl::PRNG prng;
-  fuzzer_impl_.params_domain_.Init(prng);
   bool print_final_stats = true;
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
@@ -623,13 +628,12 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     return centipede::CentipedeMain(env, factory);
   })();
   fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-  if (result) std::exit(result);
   if (print_final_stats) {
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");
   }
-  return 0;
+  return result == 0;
 }
 
 }  // namespace fuzztest::internal
