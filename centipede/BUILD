@@ -734,6 +734,7 @@ cc_library(
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":centipede_flags",
         ":environment",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -742,6 +743,11 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:logging",
     ],
+)
+
+cc_library(
+    name = "centipede_flags",
+    textual_hdrs = ["centipede_flags.inc"],
 )
 
 cc_library(
@@ -857,6 +863,7 @@ cc_library(
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":centipede_flags",
         ":feature",
         ":knobs",
         ":util",
