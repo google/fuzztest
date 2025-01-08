@@ -78,6 +78,12 @@ class FilterImpl
   }
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    if (const auto inner_validate_status =
+            inner_.ValidateCorpusValue(corpus_value);
+        !inner_validate_status.ok()) {
+      return Prefix(inner_validate_status,
+                    "Invalid corpus value for the inner domain in Filter()");
+    }
     if (predicate_(GetValue(corpus_value))) return absl::OkStatus();
     return absl::InvalidArgumentError(
         "Value does not match Filter() predicate.");

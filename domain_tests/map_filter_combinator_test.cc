@@ -35,6 +35,7 @@ namespace {
 using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
@@ -387,6 +388,24 @@ TEST(Filter, ValidationRejectsInvalidValue) {
               IsInvalid("Value does not match Filter() predicate."));
   EXPECT_THAT(domain_b.ValidateCorpusValue(value_a.corpus_value),
               IsInvalid("Value does not match Filter() predicate."));
+
+  Domain<int> wrapped_domain_a = Filter([](int i) { return true; }, domain_a);
+  Domain<int> wrapped_domain_b = Filter([](int i) { return true; }, domain_b);
+
+  Value wrapped_value_a(wrapped_domain_a, bitgen);
+  Value wrapped_value_b(wrapped_domain_b, bitgen);
+
+  ASSERT_OK(wrapped_domain_a.ValidateCorpusValue(wrapped_value_a.corpus_value));
+  ASSERT_OK(wrapped_domain_b.ValidateCorpusValue(wrapped_value_b.corpus_value));
+
+  EXPECT_THAT(
+      wrapped_domain_a.ValidateCorpusValue(wrapped_value_b.corpus_value),
+      IsInvalid(
+          HasSubstr("Invalid corpus value for the inner domain in Filter()")));
+  EXPECT_THAT(
+      wrapped_domain_b.ValidateCorpusValue(wrapped_value_a.corpus_value),
+      IsInvalid(
+          HasSubstr("Invalid corpus value for the inner domain in Filter()")));
 }
 
 }  // namespace
