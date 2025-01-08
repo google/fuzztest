@@ -27,7 +27,9 @@ on:
 jobs:
   run_tests:
     name: Run tests
-    runs-on: ubuntu-latest
+    # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
+    # is fixed.
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       matrix:
