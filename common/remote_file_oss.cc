@@ -168,11 +168,11 @@ absl::Status RemoteMkdir(std::string_view path) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
-absl::Status RemotePathExists(std::string_view path) {
+bool RemotePathExists(std::string_view path) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
-absl::Status RemotePathIsDirectory(std::string_view path) {
+bool RemotePathIsDirectory(std::string_view path) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
