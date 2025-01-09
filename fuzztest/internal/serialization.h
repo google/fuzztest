@@ -215,6 +215,10 @@ struct IRObject {
     }
   }
 
+  static IRObject FromCorpus(absl::string_view value) {
+    return IRObject(std::string(value));
+  }
+
   template <typename T>
   std::optional<T> ToCorpus() const {
     if constexpr (std::is_const_v<T>) {
