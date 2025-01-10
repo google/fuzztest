@@ -456,7 +456,7 @@ class ProtobufDomainUntypedImpl
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     FUZZTEST_INTERNAL_CHECK(
-        !customized_fields_.empty() || !IsNonTerminatingRecursive(),
+        !customized_fields_.empty() || !IsDefinitelyRecursive(),
         "Cannot set recursive fields by default.");
     const auto* descriptor = prototype_.Get()->GetDescriptor();
     corpus_type val;
@@ -466,13 +466,12 @@ class ProtobufDomainUntypedImpl
     for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (auto* oneof = field->containing_oneof()) {
         if (!oneof_to_field.contains(oneof->index())) {
-          oneof_to_field[oneof->index()] = SelectAFieldIndexInOneof(
-              oneof, prng,
-              /*non_recursive_only=*/customized_fields_.empty());
+          oneof_to_field[oneof->index()] =
+              SelectAFieldIndexInOneof(oneof, prng);
         }
         if (oneof_to_field[oneof->index()] != field->index()) continue;
-      } else if (!IsRequired(field) && customized_fields_.empty() &&
-                 IsFieldRecursive(field)) {
+      } else if (!ShouldBeSet(field, policy_) && customized_fields_.empty() &&
+                 IsFieldPotentiallyRecursive(field)) {
         // We avoid initializing non-required recursive fields by default (if
         // they are not explicitly customized). Otherwise, the initialization
         // may never terminate. If a proto has only non-required recursive
@@ -933,12 +932,16 @@ class ProtobufDomainUntypedImpl
 
   template <typename OneofDescriptor>
   int SelectAFieldIndexInOneof(const OneofDescriptor* oneof,
-                               absl::BitGenRef prng, bool non_recursive_only) {
+                               absl::BitGenRef prng) {
     std::vector<int> fields;
     for (int i = 0; i < oneof->field_count(); ++i) {
       OptionalPolicy policy = GetOneofFieldPolicy(oneof->field(i));
       if (policy == OptionalPolicy::kAlwaysNull) continue;
-      if (non_recursive_only && IsFieldRecursive(oneof->field(i))) continue;
+      const bool should_be_set = policy == OptionalPolicy::kWithoutNull;
+      if (!should_be_set && customized_fields_.empty() &&
+          IsFieldPotentiallyRecursive(oneof->field(i))) {
+        continue;
+      }
       fields.push_back(i);
     }
     if (fields.empty()) {  // This can happen if all fields are unset.
@@ -1484,8 +1487,11 @@ class ProtobufDomainUntypedImpl
       return ModifyDomainForRequiredFieldRule(std::move(domain));
     } else {
       return ModifyDomainForOptionalFieldRule(
-          std::move(domain), use_policy ? policy_.GetOptionalPolicy(field)
-                                        : OptionalPolicy::kWithNull);
+          std::move(domain),
+          use_policy
+              ? (field->containing_oneof() ? GetOneofFieldPolicy(field)
+                                           : policy_.GetOptionalPolicy(field))
+              : OptionalPolicy::kWithNull);
     }
   }
 
@@ -1660,40 +1666,43 @@ class ProtobufDomainUntypedImpl
     return GetDomainForField<T, is_repeated>(field, /*use_policy=*/false);
   }
 
-  bool IsNonTerminatingRecursive() {
+  enum class RecursionType {
+    kDefinitelyRecursive,
+    kPotentiallyRecursive,
+  };
+
+  bool IsDefinitelyRecursive() {
     absl::flat_hash_set<decltype(prototype_.Get()->GetDescriptor())> parents;
     return IsProtoRecursive(prototype_.Get()->GetDescriptor(), parents, policy_,
-                            /*consider_non_terminating_recursions=*/true);
+                            RecursionType::kDefinitelyRecursive);
   }
 
-  bool IsFieldRecursive(const FieldDescriptor* field) {
+  bool IsFieldPotentiallyRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
     absl::flat_hash_set<decltype(field->message_type())> parents;
     return IsProtoRecursive(field->message_type(), parents, policy_,
-                            /*consider_non_terminating_recursions=*/false);
+                            RecursionType::kPotentiallyRecursive);
   }
 
   bool IsOneofRecursive(const OneofDescriptor* oneof,
                         absl::flat_hash_set<const Descriptor*>& parents,
                         const ProtoPolicy<Message>& policy,
-                        bool consider_non_terminating_recursions) const {
+                        RecursionType recursion_type) const {
     bool is_oneof_recursive = false;
     for (int i = 0; i < oneof->field_count(); ++i) {
       const auto* field = oneof->field(i);
       const auto field_policy = policy.GetOptionalPolicy(field);
       if (field_policy == OptionalPolicy::kAlwaysNull) continue;
       const auto* child = field->message_type();
-      if (consider_non_terminating_recursions) {
+      if (recursion_type == RecursionType::kDefinitelyRecursive) {
         is_oneof_recursive =
             field_policy != OptionalPolicy::kWithNull && child &&
-            IsProtoRecursive(child, parents, policy,
-                             consider_non_terminating_recursions);
+            IsProtoRecursive(child, parents, policy, recursion_type);
         if (!is_oneof_recursive) {
           return false;
         }
       } else {
-        if (child && IsProtoRecursive(child, parents, policy,
-                                      consider_non_terminating_recursions)) {
+        if (child && IsProtoRecursive(child, parents, policy, recursion_type)) {
           return true;
         }
       }
@@ -1701,17 +1710,40 @@ class ProtobufDomainUntypedImpl
     return is_oneof_recursive;
   }
 
+  bool ShouldBeSet(const FieldDescriptor* field,
+                   const ProtoPolicy<Message>& policy) const {
+    return IsRequired(field) ||
+           (field->containing_oneof() &&
+            GetOneofFieldPolicy(field) == OptionalPolicy::kWithoutNull) ||
+           (field->is_optional() &&
+            policy.GetOptionalPolicy(field) == OptionalPolicy::kWithoutNull) ||
+           (field->is_repeated() &&
+            policy.GetMinRepeatedFieldSize(field).has_value() &&
+            *policy.GetMinRepeatedFieldSize(field));
+  }
+
+  bool CanBeSet(const FieldDescriptor* field,
+                const ProtoPolicy<Message>& policy) const {
+    return IsRequired(field) ||
+           (field->containing_oneof() &&
+            GetOneofFieldPolicy(field) != OptionalPolicy::kAlwaysNull) ||
+           (field->is_optional() &&
+            policy.GetOptionalPolicy(field) != OptionalPolicy::kAlwaysNull) ||
+           (field->is_repeated() &&
+            (!policy.GetMaxRepeatedFieldSize(field).has_value() ||
+             *policy.GetMaxRepeatedFieldSize(field) > 0));
+  }
+
   template <typename Descriptor>
   bool IsProtoRecursive(const Descriptor* descriptor,
                         absl::flat_hash_set<const Descriptor*>& parents,
                         const ProtoPolicy<Message>& policy,
-                        bool consider_non_terminating_recursions) const {
+                        RecursionType recursion_type) const {
     if (parents.contains(descriptor)) return true;
     parents.insert(descriptor);
     for (int i = 0; i < descriptor->oneof_decl_count(); ++i) {
       const auto* oneof = descriptor->oneof_decl(i);
-      if (IsOneofRecursive(oneof, parents, policy,
-                           consider_non_terminating_recursions)) {
+      if (IsOneofRecursive(oneof, parents, policy, recursion_type)) {
         parents.erase(descriptor);
         return true;
       }
@@ -1725,27 +1757,12 @@ class ProtobufDomainUntypedImpl
         // its default domain. Otherwise, this field can always be set safely.
         continue;
       }
-      if (consider_non_terminating_recursions) {
-        const bool should_be_set =
-            IsRequired(field) ||
-            (field->is_optional() &&
-             policy.GetOptionalPolicy(field) == OptionalPolicy::kWithoutNull) ||
-            (field->is_repeated() &&
-             policy.GetMinRepeatedFieldSize(field).has_value() &&
-             *policy.GetMinRepeatedFieldSize(field) > 0);
-        if (!should_be_set) continue;
+      if (recursion_type == RecursionType::kDefinitelyRecursive) {
+        if (!ShouldBeSet(field, policy)) continue;
       } else {
-        const bool can_be_set =
-            IsRequired(field) ||
-            (field->is_optional() &&
-             policy.GetOptionalPolicy(field) != OptionalPolicy::kAlwaysNull) ||
-            (field->is_repeated() &&
-             (!policy.GetMaxRepeatedFieldSize(field).has_value() ||
-              *policy.GetMaxRepeatedFieldSize(field) > 0));
-        if (!can_be_set) continue;
+        if (!CanBeSet(field, policy)) continue;
       }
-      if (IsProtoRecursive(child, parents, policy,
-                           consider_non_terminating_recursions)) {
+      if (IsProtoRecursive(child, parents, policy, recursion_type)) {
         parents.erase(descriptor);
         return true;
       }
@@ -1755,10 +1772,6 @@ class ProtobufDomainUntypedImpl
   }
 
   bool IsRequired(const FieldDescriptor* field) const {
-    if (field->containing_oneof() &&
-        GetOneofFieldPolicy(field) == OptionalPolicy::kWithoutNull) {
-      return true;
-    }
     return field->is_required() || IsMapValueMessage(field);
   }
 
