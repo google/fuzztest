@@ -22,72 +22,31 @@ First, create a directory where your project will reside:
 $ mkdir -p my_workspace && cd my_workspace
 ```
 
-In this directory, create a file named `WORKSPACE` to define a
-[Bazel workspace](https://bazel.build/concepts/build-ref#workspace). The file
-will configure FuzzTest along with its transitive dependencies as Bazel external
-dependencies:
+NOTE: This document has been updated to use `MODULE.bazel` to configure the
+FuzzTest dependency. Check out the previous version if you are using the legacy
+`WORKSPACE` file.
+
+In this directory, create a file named `MODULE.bazel` with the following
+contents:
 
 ```
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+bazel_dep(name = "fuzztest", version = "20241028.0")
+bazel_dep(name = "googletest", version = "1.15.2")
 
-################################################################################
-# Direct dependencies
-################################################################################
-
-# To use the latest version of FuzzTest, update this regularly to the latest
-# commit in the main branch: https://github.com/google/fuzztest/commits/main
-FUZZTEST_COMMIT = "62cf00c7341eb05d128d0a3cbce79ac31dbda032"
-
-http_archive(
-    name = "com_google_fuzztest",
-    strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
-    url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
-)
-
-http_archive(
-    name = "com_google_googletest",
-    sha256 = "81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2",
-    strip_prefix = "googletest-release-1.12.1",
-    url = "https://github.com/google/googletest/archive/refs/tags/release-1.12.1.tar.gz",
-)
-
-################################################################################
-# Transitive dependencies
-################################################################################
-
-# Required by com_google_fuzztest.
-http_archive(
-    name = "com_googlesource_code_re2",
-    sha256 = "f89c61410a072e5cbcf8c27e3a778da7d6fd2f2b5b1445cd4f4508bee946ab0f",
-    strip_prefix = "re2-2022-06-01",
-    url = "https://github.com/google/re2/archive/refs/tags/2022-06-01.tar.gz",
-)
-
-# Required by com_google_fuzztest.
-http_archive(
-    name = "com_google_absl",
-    sha256 = "3ea49a7d97421b88a8c48a0de16c16048e17725c7ec0f1d3ea2683a2a75adc21",
-    strip_prefix = "abseil-cpp-20230125.0",
-    url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.0.tar.gz",
-)
-
-# Required by com_google_absl.
-http_archive(
-    name = "bazel_skylib",
-    sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
-    ],
+git_override(
+  module_name = "fuzztest",
+  remote = "https://github.com/google/fuzztest",
+  commit = "032f0bdd8c0a3800eb49131d212142a61df81b0c"
 )
 ```
 
-NOTE: We recommend the users to "live at head," that is, to often update the
-`com_google_fuzztest` repository to the latest commit from the main branch.
+NOTE: We use `git_override` here to let Bazel pick up a newer commit in the Git
+repository for FuzzTest. You can update the commit hash to use a different
+version, or remove the entire `git_override` to use the released version in the
+Bazel registry.
 
 NOTE: It is possible to use FuzzTest without GoogleTest, and thus without
-depending on `com_google_googletest`, but this is beyond the scope of this
-tutorial.
+depending on `googletest`, but this is beyond the scope of this tutorial.
 
 Next, create a [Bazel configuration file](https://bazel.build/run/bazelrc) named
 `.bazelrc` to configure the build flags:
@@ -106,7 +65,7 @@ test --test_output=streamed
 
 # To create this file, please run:
 #
-#  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
+#  bazel run @fuzztest//bazel:setup_configs > fuzztest.bazelrc
 #
 try-import %workspace%/fuzztest.bazelrc
 ```
@@ -116,7 +75,7 @@ additional build configurations. We generate the file using a script from the
 FuzzTest repo to make sure it contains the correct and recent settings:
 
 ```sh
-$ bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
+$ bazel run @fuzztest//bazel:setup_configs > fuzztest.bazelrc
 ```
 
 ## Create and run a fuzz test
@@ -159,9 +118,9 @@ cc_test(
     name = "first_fuzz_test",
     srcs = ["first_fuzz_test.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-        "@com_google_googletest//:gtest"
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@googletest//:gtest"
     ],
 )
 ```
