@@ -70,19 +70,10 @@ if [[ ${REPO_NAME} == "@" ]]; then
   COMMON_FILTER="//common:"
   FUZZTEST_FILTER="//fuzztest:"
   CENTIPEDE_FILTER="//centipede:,-//centipede/.*fuzz_target"
-# When used in client repo. This matches both `WORKSPACE` usage and
-# `MODULE.bazel` usage which will prepend information to the repo name to form
-# a canonical repo name.
-#
-# TODO: This will need to be adjusted when making `fuzztest` a native Bazel
-# module.
-elif [[ ${REPO_NAME} =~ ^@.*com_google_fuzztest$ ]]; then
+else  # When used in a client repo.
   COMMON_FILTER="common/.*"
   FUZZTEST_FILTER="fuzztest/.*"
   CENTIPEDE_FILTER="centipede/.*,-centipede/.*fuzz_target"
-else
-  echo "Unexpected repo name: ${REPO_NAME}"
-  exit 1
 fi
 
 cat <<EOF
