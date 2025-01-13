@@ -36,7 +36,7 @@ bazel_dep(name = "googletest", version = "1.15.2")
 git_override(
   module_name = "fuzztest",
   remote = "https://github.com/google/fuzztest",
-  commit = "032f0bdd8c0a3800eb49131d212142a61df81b0c"
+  commit = "ae6208fc45a09da94d9c0925e26cd9bbca92154b"
 )
 ```
 
