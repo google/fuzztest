@@ -172,9 +172,16 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   }
 }
 
-// Coverage only available in Clang, but only for Linux.
-// iOS and Windows and Android might not have what we need.
-#if defined(__clang__) && defined(__linux__) && !defined(__ANDROID__)
+// Coverage only available in Clang, but only for Linux and macOS.
+// Windows and Android might not have what we need.
+#if /* Supported compilers */  \
+    defined(__clang__) &&      \
+    (/* Supported platforms */ \
+     (defined(__linux__) && !defined(__ANDROID__)) || defined(__APPLE__))
+#define FUZZTEST_COVERAGE_IS_AVAILABLE
+#endif
+
+#ifdef FUZZTEST_COVERAGE_IS_AVAILABLE
 namespace {
 // Use clang's vector extensions. This way it will implement with whatever the
 // platform supports.
@@ -315,7 +322,7 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
   return new_coverage || execution_coverage->NewCoverageFound();
 }
 
-#else  // __clang__ && __linux__
+#else  // FUZZTEST_COVERAGE_IS_AVAILABLE
 
 // On other compilers we just need it to build, but we know we don't have any
 // instrumentation.
@@ -326,7 +333,7 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
   return false;
 }
 
-#endif  // __clang__ && __linux__
+#endif  // FUZZTEST_COVERAGE_IS_AVAILABLE
 
 }  // namespace fuzztest::internal
 

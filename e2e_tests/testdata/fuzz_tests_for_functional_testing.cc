@@ -552,7 +552,7 @@ FUZZ_TEST(MySuite, FailsWhenOneofFieldDoesntHaveOneofValue)
     .WithDomains(Arbitrary<TestProtobuf>()
                      .WithOneofAlwaysSet("oneof_field")
                      .WithFieldUnset("oneof_u32")
-                     .WithInt64Field("oneof_i64", fuzztest::Just(1l)));
+                     .WithInt64Field("oneof_i64", fuzztest::Just(int64_t{1})));
 
 void FailsIfProtobufEnumEqualsLabel4(TestProtobuf::Enum e) {
   if (e == TestProtobuf::Enum::TestProtobuf_Enum_Label4) {

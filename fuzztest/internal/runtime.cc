@@ -403,7 +403,7 @@ void Runtime::OnTestIterationEnd() {
   watchdog_spinlock_.clear();
 }
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 
 struct OldSignalHandler {
   int signum;
@@ -554,14 +554,14 @@ void Runtime::PrintReportOnDefaultSink() const {
   PrintReport(&signal_out_sink);
 }
 
-#else   // __linux__
+#else   // __linux__ || __APPLE__
 // TODO(sbenzaquen): We should still install signal handlers in other systems.
 void InstallSignalHandlers(FILE* out) {}
 
 void Runtime::PrintFinalStatsOnDefaultSink() const {}
 
 void Runtime::PrintReportOnDefaultSink() const {}
-#endif  // __linux__
+#endif  // __linux__ || __APPLE__
 
 using corpus_type = GenericDomainCorpusType;
 

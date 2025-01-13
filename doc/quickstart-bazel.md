@@ -10,7 +10,7 @@ more extensive showcase of the FuzzTest framework, consider doing the
 
 To use FuzzTest, you'll need:
 
-*   A Linux-based operating system
+*   A Linux-based operating system or macOS (experimental)
 *   [Clang](https://clang.llvm.org/)
 *   [Bazel](https://bazel.build/)
 
@@ -52,6 +52,8 @@ Next, create a [Bazel configuration file](https://bazel.build/run/bazelrc) named
 `.bazelrc` to configure the build flags:
 
 ```
+common --enable_platform_specific_config
+
 # Force the use of Clang for all builds. FuzzTest relies on Clang for sanitizer
 # coverage (https://clang.llvm.org/docs/SanitizerCoverage.html).
 build --action_env=CC=clang
@@ -62,6 +64,9 @@ build --cxxopt=-std=c++17
 
 # Show everything when running tests.
 test --test_output=streamed
+
+build:macos --macos_minimum_os=10.15
+build:macos --no@fuzztest//fuzztest:use_riegeli
 
 # To create this file, please run:
 #
