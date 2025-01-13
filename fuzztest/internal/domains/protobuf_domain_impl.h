@@ -1320,9 +1320,18 @@ class ProtobufDomainUntypedImpl
     return field;
   }
 
+  static bool IsMessageSet(const Descriptor* descriptor) {
+    // MessageSet needs a special handling because it's a centralized proto that
+    // is extended by many protos and can have a huge number of fields. Fuzzing
+    // such a message could be quite expensive and leads to inefficient fuzzing.
+    return descriptor->full_name() == "google.protobuf.bridge.MessageSet";
+  }
+
   static auto GetFieldCount(const Descriptor* descriptor) {
     std::vector<const FieldDescriptor*> extensions;
-    descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
+    if (!IsMessageSet(descriptor)) {
+      descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
+    }
     return descriptor->field_count() + extensions.size();
   }
 
@@ -1332,7 +1341,9 @@ class ProtobufDomainUntypedImpl
     for (int i = 0; i < descriptor->field_count(); ++i) {
       fields.push_back(descriptor->field(i));
     }
-    descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
+    if (!IsMessageSet(descriptor)) {
+      descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
+    }
     return fields;
   }
 
