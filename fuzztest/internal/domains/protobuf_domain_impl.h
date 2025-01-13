@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -1668,9 +1669,19 @@ class ProtobufDomainUntypedImpl
 
   bool IsFieldRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
+    static absl::NoDestructor<absl::flat_hash_map<const FieldDescriptor*, bool>>
+        cache;
+    auto it = cache->end();
+    if (IsCustomizedRecursivelyOnly()) {
+      it = cache->find(field);
+      if (it != cache->end()) return it->second;
+    }
     absl::flat_hash_set<decltype(field->message_type())> parents;
-    return IsProtoRecursive(field->message_type(), parents,
-                            /*consider_non_terminating_recursions=*/false);
+    bool result =
+        IsProtoRecursive(field->message_type(), parents,
+                         /*consider_non_terminating_recursions=*/false);
+    if (IsCustomizedRecursivelyOnly()) cache->insert(it, {field, result});
+    return result;
   }
 
   bool IsOneofRecursive(const OneofDescriptor* oneof,

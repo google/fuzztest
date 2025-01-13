@@ -279,6 +279,7 @@ fuzztest_cc_library(
     fuzztest::status
     fuzztest::type_support
     absl::core_headers
+    absl::no_destructor
     absl::flat_hash_map
     absl::flat_hash_set
     absl::random_random
