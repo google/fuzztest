@@ -150,7 +150,7 @@ class OptionalOfImpl
     return *this;
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(corpus_type& val) {
     if (val.index() == 1) {
       return inner_.CountNumberOfFields(std::get<1>(val));
     }

@@ -251,11 +251,12 @@ class Domain {
 
   // Return the field counts of `corpus_value` if `corpus_value` is
   // a `ProtobufDomainImpl::corpus_type`. Otherwise propagate it
-  // to inner domains and returns the sum of inner results.
+  // to inner domains and returns the sum of inner results. The corpus value is
+  // taken as mutable reference to allow memoization.
   //
   // TODO(b/303324603): Using an extension mechanism, expose this method in
   // the interface only for user value types `T` for which it makes sense.
-  uint64_t CountNumberOfFields(const corpus_type& corpus_value) {
+  uint64_t CountNumberOfFields(corpus_type& corpus_value) {
     return inner_->UntypedCountNumberOfFields(corpus_value);
   }
 

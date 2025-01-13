@@ -70,8 +70,7 @@ class UntypedDomainConcept {
       const GenericDomainCorpusType& corpus_value) const = 0;
   virtual IRObject UntypedSerializeCorpus(
       const GenericDomainCorpusType& v) const = 0;
-  virtual uint64_t UntypedCountNumberOfFields(
-      const GenericDomainCorpusType&) = 0;
+  virtual uint64_t UntypedCountNumberOfFields(GenericDomainCorpusType&) = 0;
   virtual uint64_t UntypedMutateSelectedField(
       GenericDomainCorpusType&, absl::BitGenRef,
       const domain_implementor::MutationMetadata&, bool, uint64_t) = 0;
@@ -188,7 +187,7 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
     return domain_.ValidateCorpusValue(corpus_value.GetAs<CorpusType>());
   }
 
-  uint64_t UntypedCountNumberOfFields(const GenericDomainCorpusType& v) final {
+  uint64_t UntypedCountNumberOfFields(GenericDomainCorpusType& v) final {
     return domain_.CountNumberOfFields(v.GetAs<CorpusType>());
   }
 

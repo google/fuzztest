@@ -504,6 +504,7 @@ class ProtobufDomainUntypedImpl
     value_type out(prototype_.Get()->New());
 
     for (auto& [number, data] : value) {
+      if (IsMetadataEntry(number)) continue;
       auto* field = GetField(number);
       VisitProtobufField(field, GetValueVisitor{*out, *this, data});
     }
@@ -573,6 +574,7 @@ class ProtobufDomainUntypedImpl
     auto& subs = out.MutableSubs();
     subs.reserve(v.size());
     for (auto& [number, inner] : v) {
+      if (IsMetadataEntry(number)) continue;
       auto* field = GetField(number);
       FUZZTEST_INTERNAL_CHECK(field, "Field not found by number: ", number);
       IRObject& pair = subs.emplace_back();
@@ -585,7 +587,10 @@ class ProtobufDomainUntypedImpl
     return out;
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(corpus_type& val) {
+    if (auto it = val.find(kFieldCountIndex); it != val.end()) {
+      return it->second.template GetAs<uint64_t>();
+    }
     uint64_t total_weight = 0;
     auto descriptor = prototype_.Get()->GetDescriptor();
     if (GetFieldCount(descriptor) == 0) return total_weight;
@@ -611,6 +616,8 @@ class ProtobufDomainUntypedImpl
         }
       }
     }
+    val[kFieldCountIndex] =
+        GenericDomainCorpusType(std::in_place_type<uint64_t>, total_weight);
     return total_weight;
   }
 
@@ -621,6 +628,9 @@ class ProtobufDomainUntypedImpl
     uint64_t field_counter = 0;
     auto descriptor = prototype_.Get()->GetDescriptor();
     if (GetFieldCount(descriptor) == 0) return field_counter;
+    int64_t fields_count = CountNumberOfFields(val);
+    if (fields_count < selected_field_index) return fields_count;
+    val.erase(kFieldCountIndex);  // Mutation invalidates the cache value.
 
     for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
       if (field->containing_oneof() &&
@@ -1695,6 +1705,14 @@ class ProtobufDomainUntypedImpl
     return result;
   }
 
+  // corpus_type is a map from field number to values. number -1 is reserved for
+  // storing the field count.
+  static constexpr int64_t kFieldCountIndex = -1;
+
+  static bool IsMetadataEntry(int64_t index) {
+    return index == kFieldCountIndex;
+  }
+
   bool IsOneofRecursive(const OneofDescriptor* oneof,
                         absl::flat_hash_set<const Descriptor*>& parents,
                         bool consider_non_terminating_recursions) const {
@@ -1828,7 +1846,7 @@ class ProtobufDomainImpl
     return inner_.Init(prng);
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(corpus_type& val) {
     return inner_.CountNumberOfFields(val);
   }
 

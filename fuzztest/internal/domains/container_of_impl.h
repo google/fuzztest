@@ -547,7 +547,7 @@ class SequenceContainerOfImplBase
     return val;
   }
 
-  uint64_t CountNumberOfFields(const corpus_type& val) {
+  uint64_t CountNumberOfFields(corpus_type& val) {
     uint64_t total_weight = 0;
     for (auto& i : val) {
       total_weight += this->inner_.CountNumberOfFields(i);
