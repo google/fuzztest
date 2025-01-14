@@ -130,6 +130,9 @@ struct Environment {
   // If set, operate on the corpus database for a single test specified by
   // FuzzTest instead of all the tests.
   bool fuzztest_single_test_mode = false;
+  // If set, deserializes the configuration from the value instead of querying
+  // the configuration via runner callbacks.
+  std::string fuzztest_configuration;
 
   // Command line-related fields -----------------------------------------------
 

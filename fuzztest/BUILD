@@ -216,6 +216,7 @@ cc_library(
         ":domain_core",
         ":fixture_driver",
         ":flag_name",
+        ":io",
         ":logging",
         ":runtime",
         ":table_of_recent_compares",
