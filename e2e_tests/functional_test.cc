@@ -469,6 +469,12 @@ TEST_F(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
   EXPECT_THAT(std_err, HasSubstr("recursive fields"));
 }
 
+TEST_F(UnitTestModeTest, InitializesRequiredFieldsEvenIfTheyAreRecursive) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.FailIfRequiredRecursiveFieldsAreUnset");
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
 TEST_F(UnitTestModeTest,
        AvoidsFailureIfSetByDefaultPolicyIsOverwrittenOnRecursiveStructures) {
   auto [status, std_out, std_err] =

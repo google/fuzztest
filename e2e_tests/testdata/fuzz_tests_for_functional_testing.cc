@@ -444,12 +444,24 @@ bool IsParent(const FieldDescriptor* field) {
   return absl::StrContains(field->name(), "parent");
 }
 
+bool IsParent1(const FieldDescriptor* field) {
+  return absl::StrContains(field->name(), "parent1");
+}
+
 void FailsIfCantInitializeProto(const TestProtobufWithRecursion& proto) {}
 FUZZ_TEST(MySuite, FailsIfCantInitializeProto)
     .WithDomains(Arbitrary<TestProtobufWithRecursion>()
                      .WithOptionalFieldsAlwaysSet()
                      .WithFieldsUnset(IsChildId)
                      .WithFieldUnset("id"));
+
+void FailIfRequiredRecursiveFieldsAreUnset(
+    const TestProtobufWithRecursion& proto) {
+  if (proto.has_child() && !proto.child().has_parent1()) std::abort();
+}
+FUZZ_TEST(MySuite, FailIfRequiredRecursiveFieldsAreUnset)
+    .WithDomains(
+        Arbitrary<TestProtobufWithRecursion>().WithFieldsAlwaysSet(IsParent1));
 
 void InitializesRecursiveProtoIfInfiniteRecursivePolicyIsOverwritten(
     const TestProtobufWithRecursion& proto) {}
