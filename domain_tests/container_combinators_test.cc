@@ -35,7 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/type_support.h"
+#include "./fuzztest/internal/meta.h"
 
 namespace fuzztest {
 namespace {
@@ -48,8 +48,10 @@ using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::Ge;
 using ::testing::Gt;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Le;
+using ::testing::MatchesRegex;
 using ::testing::Pair;
 using ::testing::SizeIs;
 
@@ -236,7 +238,7 @@ TEST(ContainerCombinatorTest, UniqueElementsContainerOf) {
 TEST(UniqueElementsContainerTest, InitGeneratesSeeds) {
   auto domain =
       UniqueElementsContainerOf<std::unordered_multiset<int>>(Arbitrary<int>())
-          .WithSeeds({{1, 3, 3, 7}});
+          .WithSeeds({{1, 3, 7}});
 
   EXPECT_THAT(GenerateInitialValues(domain, 1000),
               Contains(Value(domain, {1, 3, 7})));
@@ -300,12 +302,26 @@ TEST(UniqueElementsVectorOf, ValidationRejectsInvalidValue) {
 
   EXPECT_THAT(
       domain_a.ValidateCorpusValue(value_b.corpus_value),
-      IsInvalid(testing::MatchesRegex(
+      IsInvalid(MatchesRegex(
           R"(Invalid value in container at index 0 >> The value .+ is not InRange\(0, 9\))")));
   EXPECT_THAT(
       domain_b.ValidateCorpusValue(value_a.corpus_value),
-      IsInvalid(testing::MatchesRegex(
+      IsInvalid(MatchesRegex(
           R"(Invalid value in container at index 0 >> The value .+ is not InRange\(10, 19\))")));
+}
+
+TEST(UniqueElementsVectorOf, ValidationRejectsNonUniqueElements) {
+  auto domain = UniqueElementsVectorOf(InRange(1, 10));
+  Value value(domain, {1, 2, 2, 3});
+
+  EXPECT_THAT(
+      domain.ValidateCorpusValue(value.corpus_value),
+      IsInvalid(HasSubstr(R"(The container doesn't have unique elements)")));
+}
+
+TEST(UniqueElementsVectorOf, VerifyRoundTripThroughConversion) {
+  auto domain = UniqueElementsVectorOf(InRange(100, 1000)).WithMaxSize(5);
+  VerifyRoundTripThroughConversion(GenerateValues(domain), domain);
 }
 
 TEST(ContainerCombinatorTest, ArrayOfOne) {
