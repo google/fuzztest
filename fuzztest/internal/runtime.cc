@@ -94,10 +94,9 @@ constexpr size_t kValueMaxPrintLength = 2048;
 constexpr absl::string_view kTrimIndicator = " ...<value too long>";
 constexpr absl::string_view kReproducerDirName = "fuzztest_repro";
 
-std::string GetFilterForCrashingInput(absl::string_view crashing_input_path) {
-  std::vector<std::string> dirs = absl::StrSplit(crashing_input_path, '/');
-  CHECK(dirs.size() > 2) << "Invalid crashing input path!";
-  return absl::StrCat(dirs[dirs.size() - 3], "/Regression/", dirs.back());
+std::string GetFilterForCrashingInput(absl::string_view test_name,
+                                      absl::string_view crashing_input_path) {
+  return absl::StrCat(test_name, "/Regression/", Basename(crashing_input_path));
 }
 
 // Returns a reproduction command for replaying
@@ -132,7 +131,7 @@ std::string GetReproductionCommand(const Configuration* configuration,
         command_template,
         {{kTestFilterPlaceholder,
           GetFilterForCrashingInput(
-              *configuration->crashing_input_to_reproduce)},
+              test_name, *configuration->crashing_input_to_reproduce)},
          {kExtraArgsPlaceholder, absl::StrJoin(extra_args, " ")}});
   } else {
     return absl::StrReplaceAll(
