@@ -68,7 +68,7 @@ fuzztest_cc_test(
     absl::random_random
     absl::strings
     fuzztest::domain_core
-    fuzztest::type_support
+    fuzztest::meta
     GTest::gmock_main
 )
 

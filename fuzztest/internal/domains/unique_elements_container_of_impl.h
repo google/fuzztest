@@ -29,35 +29,26 @@
 namespace fuzztest::internal {
 
 template <typename InnerDomain>
-using UniqueDomainValueT = absl::flat_hash_set<value_type_t<InnerDomain>>;
-
-template <typename InnerDomain>
 using UniqueDomain =
-    AssociativeContainerOfImpl<UniqueDomainValueT<InnerDomain>, InnerDomain>;
+    AssociativeContainerOfImpl<absl::flat_hash_set<value_type_t<InnerDomain>>,
+                               InnerDomain>;
 
 // UniqueElementsContainerImpl supports producing containers of type `T`, with
 // elements of type `E` from domain `InnerDomain inner`, with a guarantee that
 // each element of the container has a unique value from `InnerDomain`. The
-// guarantee is provided by using a `absl::flat_hash_set<E>` as our corpus_type,
-// which is (effectively) produced by `UnorderedSetOf(inner)`.
+// guarantee is provided by using a `absl::flat_hash_set<E>` under the hood.
 template <typename T, typename InnerDomain>
 class UniqueElementsContainerImpl
     : public domain_implementor::DomainBase<
           UniqueElementsContainerImpl<T, InnerDomain>, T,
           corpus_type_t<UniqueDomain<InnerDomain>>> {
-  using InnerUniqueDomainValueT = UniqueDomainValueT<InnerDomain>;
-  using InnerUniqueDomain = UniqueDomain<InnerDomain>;
-
  public:
   using typename UniqueElementsContainerImpl::DomainBase::corpus_type;
   using typename UniqueElementsContainerImpl::DomainBase::value_type;
 
   UniqueElementsContainerImpl() = default;
   explicit UniqueElementsContainerImpl(InnerDomain inner)
-      : unique_domain_(std::move(inner)) {}
-
-  // All of these methods delegate at least partially to the unique_domain_
-  // member.
+      : inner_domain_(inner), unique_domain_(std::move(inner)) {}
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
@@ -71,13 +62,25 @@ class UniqueElementsContainerImpl
   }
 
   value_type GetValue(const corpus_type& v) const {
-    InnerUniqueDomainValueT unique_values = unique_domain_.GetValue(v);
-    return value_type(unique_values.begin(), unique_values.end());
+    // Converts directly via `inner_domain_` instead of via `unique_domain_` to
+    // preserve the order of elements in sequence containers.
+    value_type result;
+    for (const auto& inner_corpus_val : v) {
+      result.insert(result.end(), inner_domain_.GetValue(inner_corpus_val));
+    }
+    return result;
   }
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
-    return unique_domain_.FromValue(
-        value_type_t<InnerUniqueDomain>(v.begin(), v.end()));
+    // Converts directly via `inner_domain_` instead of via `unique_domain_` to
+    // preserve the order of elements in sequence containers.
+    corpus_type result;
+    for (const auto& inner_user_val : v) {
+      auto inner_corpus_val = inner_domain_.FromValue(inner_user_val);
+      if (!inner_corpus_val) return std::nullopt;
+      result.insert(result.end(), *std::move(inner_corpus_val));
+    }
+    return result;
   }
 
   auto GetPrinter() const { return unique_domain_.GetPrinter(); }
@@ -91,7 +94,14 @@ class UniqueElementsContainerImpl
   }
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return unique_domain_.ValidateCorpusValue(corpus_value);
+    absl::Status status = unique_domain_.ValidateCorpusValue(corpus_value);
+    if (!status.ok()) return status;
+    auto unique_values = unique_domain_.GetValue(corpus_value);
+    if (unique_values.size() != corpus_value.size()) {
+      return absl::InvalidArgumentError(
+          "The container doesn't have unique elements");
+    }
+    return absl::OkStatus();
   }
 
   auto& WithSize(size_t s) { return WithMinSize(s).WithMaxSize(s); }
@@ -105,7 +115,8 @@ class UniqueElementsContainerImpl
   }
 
  private:
-  InnerUniqueDomain unique_domain_;
+  InnerDomain inner_domain_;
+  UniqueDomain<InnerDomain> unique_domain_;
 };
 
 }  // namespace fuzztest::internal
