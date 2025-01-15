@@ -20,6 +20,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <deque>
 #include <initializer_list>
 #include <limits>
@@ -299,6 +300,12 @@ auto ElementOf(std::initializer_list<T> values) {
 template <typename T>
 auto ElementOf(std::vector<T> values) {
   return internal::ElementOfImpl<T>(std::move(values));
+}
+
+template <typename T, std::size_t N>
+auto ElementOf(std::array<T, N> values) {
+  return internal::ElementOfImpl<T>(
+      std::vector<T>(values.begin(), values.end()));
 }
 
 template <typename T>
