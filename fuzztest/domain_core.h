@@ -490,7 +490,7 @@ auto BitFlagCombinationOf(const std::vector<T>& flags) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
+      std::is_same_v<internal::DropConst<typename T::value_type>,
                      internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::ContainerOfImpl<T, Inner>(std::move(inner));
 }
@@ -508,7 +508,7 @@ template <template <typename, typename...> class T,
           typename C = T<internal::value_type_t<Inner>>>
 auto ContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<C>>,
+      std::is_same_v<internal::DropConst<typename C::value_type>,
                      internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::ContainerOfImpl<C, Inner>(std::move(inner));
 }
@@ -981,7 +981,7 @@ auto ArrayOf(const Inner& inner) {
 template <typename T, int&... ExplicitArgumentBarrier, typename Inner>
 auto UniqueElementsContainerOf(Inner inner) {
   static_assert(
-      std::is_same_v<internal::DropConst<internal::value_type_t<T>>,
+      std::is_same_v<internal::DropConst<typename T::value_type>,
                      internal::DropConst<internal::value_type_t<Inner>>>);
   return internal::UniqueElementsContainerImpl<T, Inner>(std::move(inner));
 }
