@@ -165,6 +165,13 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         prng_(GetRandomSeed()) {}
 
   bool Execute(centipede::ByteSpan input) override {
+    if (!domain_setup_is_checked_) {
+      // Create a new domain input to trigger any domain setup
+      // failures here. (e.g. Ineffective Filter)
+      fuzzer_impl_.params_domain_.Init(prng_);
+      domain_setup_is_checked_ = true;
+    }
+
     auto parsed_input =
         fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
     if (parsed_input.ok()) {
@@ -300,6 +307,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
+  bool domain_setup_is_checked_ = false;
   std::unique_ptr<TablesOfRecentCompares> cmp_tables_;
   absl::BitGen prng_;
 };
@@ -535,10 +543,6 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
   if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
   runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
-  // Always create a new domain input to trigger any domain setup
-  // failures here. (e.g. Ineffective Filter)
-  FuzzTestFuzzerImpl::PRNG prng;
-  fuzzer_impl_.params_domain_.Init(prng);
   bool print_final_stats = true;
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
