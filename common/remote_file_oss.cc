@@ -351,6 +351,7 @@ namespace {
 
 #if defined(FUZZTEST_HAS_OSS_GLOB)
 int HandleGlobError(const char *epath, int eerrno) {
+  if (eerrno == ENOENT) return 0;
   LOG(FATAL) << "Error while globbing path: " << VV(epath) << VV(eerrno);
   return -1;
 }
@@ -379,7 +380,8 @@ absl::Status RemoteGlobMatch(std::string_view glob,
   ::globfree(&glob_ret);
   return absl::OkStatus();
 #else
-  LOG(FATAL) << __func__ << "() is not supported on this platform.";
+  return absl::UnimplementedError(
+      absl::StrCat(__func__, "() is not supported on this platform"));
 #endif  // defined(FUZZTEST_HAS_OSS_GLOB)
 }
 

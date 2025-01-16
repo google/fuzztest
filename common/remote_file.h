@@ -118,6 +118,9 @@ absl::StatusOr<int64_t> RemoteFileGetSize(std::string_view path);
 
 // Finds all files matching `glob` and appends them to `matches`.
 //
+// Returns Ok when matches were found, or NotFound when no matches were found.
+// Otherwise returns a non-NotFound error.
+//
 // Note: The OSS implementation of this function fails on Windows, Android, and
 // Fuchsia. Instead of using this function, consider whether your use case can
 // be solved in a more specific way, e.g., by listing files in a directory and

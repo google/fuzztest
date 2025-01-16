@@ -176,5 +176,7 @@ fuzztest_cc_test(
     fuzztest::remote_file
     fuzztest::test_util
     absl::check
+    absl::status
+    absl::time
     GTest::gmock_main
 )
