@@ -63,10 +63,11 @@ namespace internal {
 class FuzzTestFuzzer {
  public:
   virtual ~FuzzTestFuzzer() = default;
-  virtual void RunInUnitTestMode(const Configuration& configuration) = 0;
-  // Returns fuzzing mode's exit code. Zero indicates success.
-  virtual int RunInFuzzingMode(int* argc, char*** argv,
-                               const Configuration& configuration) = 0;
+  // Returns ture if no error were detected by the FuzzTest, false otherwise.
+  virtual bool RunInUnitTestMode(const Configuration& configuration) = 0;
+  // Returns ture if no error were detected by the FuzzTest, false otherwise.
+  virtual bool RunInFuzzingMode(int* argc, char*** argv,
+                                const Configuration& configuration) = 0;
 };
 
 class FuzzTest;
@@ -280,11 +281,11 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
  private:
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
-  void RunInUnitTestMode(const Configuration& configuration) override;
+  bool RunInUnitTestMode(const Configuration& configuration) override;
 
   // TODO(fniksic): Refactor to reduce code complexity and improve readability.
-  int RunInFuzzingMode(int* argc, char*** argv,
-                       const Configuration& configuration) override;
+  bool RunInFuzzingMode(int* argc, char*** argv,
+                        const Configuration& configuration) override;
 
   // Use the standard PRNG instead of absl::BitGen because Abseil doesn't
   // guarantee seed stability

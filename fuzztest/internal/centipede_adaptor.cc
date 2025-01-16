@@ -526,15 +526,16 @@ CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
                           "Invalid fixture driver!");
 }
 
-void CentipedeFuzzerAdaptor::RunInUnitTestMode(
+bool CentipedeFuzzerAdaptor::RunInUnitTestMode(
     const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   CentipedeBeginExecutionBatch();
   fuzzer_impl_.RunInUnitTestMode(configuration);
   CentipedeEndExecutionBatch();
+  return true;
 }
 
-int CentipedeFuzzerAdaptor::RunInFuzzingMode(
+bool CentipedeFuzzerAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   centipede_fixture_driver_->set_configuration(&configuration);
   runtime_.SetRunMode(RunMode::kFuzz);
@@ -627,13 +628,12 @@ int CentipedeFuzzerAdaptor::RunInFuzzingMode(
     return centipede::CentipedeMain(env, factory);
   })();
   fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-  if (result) std::exit(result);
   if (print_final_stats) {
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");
   }
-  return 0;
+  return result == 0;
 }
 
 }  // namespace fuzztest::internal

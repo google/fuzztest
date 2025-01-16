@@ -933,7 +933,7 @@ void PopulateLimits(const Configuration& configuration,
 #endif
 }
 
-void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
+bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
   runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
   [&] {
@@ -1014,6 +1014,7 @@ void FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     runtime_.SetCurrentTest(nullptr, nullptr);
   }();
   fixture_driver_->TearDownFuzzTest();
+  return true;
 }
 
 FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
@@ -1102,16 +1103,16 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
   }
 }
 
-int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
-                                         const Configuration& configuration) {
+bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
+                                          const Configuration& configuration) {
   runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
-  const int exit_code = [&] {
+  const bool success = [&] {
     if (runtime_.skipping_requested()) {
       absl::FPrintF(GetStderr(),
                     "[.] Skipping %s per request from the test setup.\n",
                     test_.full_name());
-      return 0;
+      return true;
     }
     runtime_.StartWatchdog();
     PopulateLimits(configuration, execution_coverage_);
@@ -1125,14 +1126,14 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
     if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
       // We don't want to actually run the fuzzer so exit now.
-      return 0;
+      return true;
     }
 
     if (execution_coverage_ == nullptr) {
       absl::FPrintF(
           GetStderr(),
           "\n\n[!] To fuzz, please build with --config=fuzztest.\n\n\n");
-      return 1;
+      return false;
     }
 
     stats_.total_edges = execution_coverage_->GetCounterMap().size();
@@ -1144,7 +1145,7 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
           GetStderr(),
           "[*] Selected %d corpus inputs in minimization mode - exiting.\n",
           stats_.useful_inputs);
-      return 0;
+      return true;
     }
 
     CorpusDatabase corpus_database(configuration);
@@ -1238,10 +1239,10 @@ int FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");
-    return 0;
+    return true;
   }();
   fixture_driver_->TearDownFuzzTest();
-  return exit_code;
+  return success;
 }
 
 }  // namespace fuzztest::internal
