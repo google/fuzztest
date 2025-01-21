@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_
 
 #include <cstdint>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -126,6 +127,11 @@ namespace fuzztest {
 //     .WithSeeds(ReadFilesFromDirectory(kCorpusPath));
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir);
+
+// Overload of ReadFilesFromDirectory() that filters files by their names using regex.
+// Example: ReadFilesFromDirectory(dir, ".*\\.der$") to read only .der files.
+std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
+    std::string_view dir, std::string_view filename_pattern);
 
 // Returns parsed dictionary entries from fuzzer dictionary definition in the
 // format specified at https://llvm.org/docs/LibFuzzer.html#dictionaries.

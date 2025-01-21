@@ -87,6 +87,35 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
   return out;
 }
 
+std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
+    std::string_view dir, std::string_view filename_pattern) {
+  std::vector<std::tuple<std::string>> out;
+  const std::filesystem::path fs_dir(dir);
+  std::regex regex_pattern(filename_pattern.data());
+  if (!std::filesystem::is_directory(fs_dir)) return out;
+  for (const auto& entry :
+       std::filesystem::recursive_directory_iterator(fs_dir)) {
+    if (std::filesystem::is_directory(entry)) continue;
+
+    // Check if the file matches regex_pattern
+    if (!std::regex_match(entry.path().string(), regex_pattern)) continue;
+
+    std::ifstream stream(entry.path().string());
+    if (!stream.good()) {
+      // Using stderr instead of GetStderr() to avoid
+      // initialization-order-fiasco when reading files at static init time with
+      // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
+      absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
+                    __LINE__, entry.path().string(), errno, strerror(errno));
+      continue;
+    }
+    std::stringstream buffer;
+    buffer << stream.rdbuf();
+    out.push_back({buffer.str()});
+  }
+  return out;
+}
+
 absl::StatusOr<std::vector<std::string>> ParseDictionary(
     absl::string_view text) {
   std::vector<std::string> parsed_entries;
