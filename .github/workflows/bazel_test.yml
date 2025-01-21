@@ -43,10 +43,16 @@ jobs:
           sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
+      - name: Run clang-format
+        run: |
+          clang-format --dry-run --Werror --verbose \
+            $(git diff --name-only origin/main HEAD -- '*.cc' '*.h')
       - name: Setup --config=fuzztest for Bazel
         run: |
           bazel run //bazel:setup_configs > fuzztest.bazelrc
