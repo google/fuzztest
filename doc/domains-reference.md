@@ -24,7 +24,6 @@ protocol buffers. Specifically, for the following types:
 -   Integral types: `short`, `int`, `unsigned`, `int8_t`, `uint32_t`, `long
     long`, etc.
 -   Floating types: `float`, `double`, etc.
--   Enumeration types: `enum`, `enum class` (TBD: b/183016365).
 -   Simple user defined structs.
 -   Tuple types: `std::pair<T1,T2>`, `std::tuple<T,...>`.
 -   Smart pointers: `std::unique_ptr<T>`, `std::shared_ptr<T>`.
