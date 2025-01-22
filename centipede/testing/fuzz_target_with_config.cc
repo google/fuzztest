@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <vector>
@@ -40,6 +42,9 @@ class FakeSerializedConfigRunnerCallbacks : public centipede::RunnerCallbacks {
 };
 
 int main(int argc, absl::Nonnull<char **> argv) {
+  if (argc >= 2 && std::strcmp(argv[1], "--simulate_failure") == 0) {
+    return EXIT_FAILURE;
+  }
   FakeSerializedConfigRunnerCallbacks runner_callbacks;
   return centipede::RunnerMain(argc, argv, runner_callbacks);
 }

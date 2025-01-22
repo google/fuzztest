@@ -41,6 +41,7 @@
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -381,7 +382,7 @@ class CentipedeAdaptorEngineCallbacks : public centipede::CentipedeCallbacks {
     return num_avail_seeds;
   }
 
-  std::string GetSerializedTargetConfig() override {
+  absl::StatusOr<std::string> GetSerializedTargetConfig() override {
     return runner_callbacks_.GetSerializedTargetConfig();
   }
 

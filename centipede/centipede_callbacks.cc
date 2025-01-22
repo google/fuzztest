@@ -307,6 +307,9 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
       serialized_config = "";
     }
   }
+  if (env_.print_runner_log || !is_success) {
+    PrintExecutionLog();
+  }
   std::error_code error;
   std::filesystem::remove(config_file_path, error);
   CHECK(!error);

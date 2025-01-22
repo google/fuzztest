@@ -35,6 +35,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -708,14 +709,17 @@ int CentipedeMain(const Environment &env,
 
   // Enter the update corpus database mode only if we have a binary to invoke
   // and a corpus database to update.
-  if (!env.binary.empty()) {
-    const std::string serialized_target_config = [&] {
+  // We don't update the corpus database for standalone binaries (i.e., when
+  // `env.has_input_wildcards` is true).
+  if (!env.binary.empty() && !env.has_input_wildcards) {
+    const absl::StatusOr<std::string> serialized_target_config = [&] {
       ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
       return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
     }();
-    if (!serialized_target_config.empty()) {
+    CHECK_OK(serialized_target_config.status());
+    if (!serialized_target_config->empty()) {
       const auto target_config = fuzztest::internal::Configuration::Deserialize(
-          serialized_target_config);
+          *serialized_target_config);
       CHECK_OK(target_config.status())
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
@@ -729,11 +733,6 @@ int CentipedeMain(const Environment &env,
         return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
                                                 callbacks_factory);
       }
-    } else if (std::getenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG") != nullptr) {
-      // TODO(fniksic): Improve the GetSerializedTargetConfig interface to avoid
-      // using the environment variable.
-      LOG(INFO) << "Failed to get target config!";
-      return EXIT_FAILURE;
     }
   }
 

@@ -628,14 +628,6 @@ TEST(Centipede, FunctionFilter) {
   }
 }
 
-TEST(Centipede, SkipsFuzzingWhenNoFuzzIfNoConfigIsSet) {
-  TempDir tmp_dir{test_info_->name(), "no_config"};
-  setenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG", "true", /*replace=*/1);
-  auto observed_no_config = RunWithFunctionFilter("", tmp_dir);
-  EXPECT_TRUE(observed_no_config.empty());
-  unsetenv("CENTIPEDE_NO_FUZZ_IF_NO_CONFIG");
-}
-
 namespace {
 
 struct Crash {
@@ -908,7 +900,20 @@ TEST(Centipede, GetsSerializedTargetConfig) {
   env.binary =
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
   CentipedeDefaultCallbacks callbacks(env);
-  EXPECT_EQ(callbacks.GetSerializedTargetConfig(), "fake serialized config");
+  const auto serialized_config = callbacks.GetSerializedTargetConfig();
+  ASSERT_TRUE(serialized_config.ok());
+  EXPECT_EQ(*serialized_config, "fake serialized config");
+}
+
+TEST(Centipede, GetSerializedTargetConfigProducesFailure) {
+  Environment env;
+  env.binary = absl::StrCat(
+      GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
+          .c_str(),
+      " --simulate_failure");
+  CentipedeDefaultCallbacks callbacks(env);
+  const auto serialized_config = callbacks.GetSerializedTargetConfig();
+  EXPECT_FALSE(serialized_config.ok());
 }
 
 TEST(Centipede, CleansUpMetadataAfterStartup) {

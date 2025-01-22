@@ -23,6 +23,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/command.h"
@@ -93,7 +94,7 @@ class CentipedeCallbacks {
 
   // Returns the configuration from the test target in the serialized form.
   // Returns an empty string if the test target doesn't provide configuration.
-  virtual std::string GetSerializedTargetConfig() { return ""; }
+  virtual absl::StatusOr<std::string> GetSerializedTargetConfig() { return ""; }
 
  protected:
   // Helpers that the user-defined class may use if needed.
