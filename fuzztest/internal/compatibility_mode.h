@@ -75,9 +75,9 @@ class FuzzTestExternalEngineAdaptor : public FuzzTestFuzzer,
 
   FuzzTestExternalEngineAdaptor(const FuzzTest& test,
                                 std::unique_ptr<Driver> fixture_driver);
-  void RunInUnitTestMode(const Configuration& configuration) override;
-  int RunInFuzzingMode(int* argc, char*** argv,
-                       const Configuration& configuration) override;
+  bool RunInUnitTestMode(const Configuration& configuration) override;
+  bool RunInFuzzingMode(int* argc, char*** argv,
+                        const Configuration& configuration) override;
 
   // External engine callbacks.
 

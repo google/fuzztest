@@ -65,12 +65,12 @@ FuzzTestExternalEngineAdaptor::FuzzTestExternalEngineAdaptor(
     const FuzzTest& test, std::unique_ptr<Driver> fixture_driver)
     : test_(test), fixture_driver_staging_(std::move(fixture_driver)) {}
 
-void FuzzTestExternalEngineAdaptor::RunInUnitTestMode(
+bool FuzzTestExternalEngineAdaptor::RunInUnitTestMode(
     const Configuration& configuration) {
-  GetFuzzerImpl().RunInUnitTestMode(configuration);
+  return GetFuzzerImpl().RunInUnitTestMode(configuration);
 }
 
-int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
+bool FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
   FUZZTEST_INTERNAL_CHECK(&LLVMFuzzerRunDriver,
                           "LibFuzzer Driver API not defined.");
@@ -101,7 +101,7 @@ int FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
                           "Invalid fixture driver!");
   impl.fixture_driver_->TearDownFuzzTest();
 
-  return 0;
+  return true;
 }
 
 // External engine callbacks.
