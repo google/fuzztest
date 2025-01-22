@@ -36,11 +36,6 @@ jobs:
         config: ['default', 'fuzztest']
         compilation_mode: ['fastbuild', 'opt', 'dbg']
     steps:
-      # TODO(lszekeres): Remove once the following is fixed:
-      # https://github.com/actions/runner-images/issues/9491
-      - name: Reduce ASLR entropy as a temporary workaround
-        run: |
-          sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies
