@@ -56,6 +56,11 @@ jobs:
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
+      - name: Build test for the compatibility mode
+        if: matrix.config == 'default'
+        run: |
+          bazel build -c ${{ matrix.compilation_mode }} \
+            --copt=-DFUZZTEST_COMPATIBILITY_MODE -- //fuzztest:compatibility_mode
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
