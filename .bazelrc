@@ -20,13 +20,15 @@ build --action_env=CXX=clang++
 
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
-# ...But disable warnings about C++20 extensions.
-build --cxxopt=-Wno-c++20-extensions
+# Warn about the extensions that are not supported in C++17.
+# TODO(b/391433873): Turn warnings into errors once existing warnings are fixed.
+build --cxxopt=-Wc++17-compat-pedantic
 # Required by the cc_fuzztest_grammar_library rule, which uses the
 # "exec configuration" (https://bazel.build/reference/be/general#cross-compilation-considerations).
 # The --cxxopt flag does not apply to the exec configuration, only the
 # --host_cxxopt flag (https://bazel.build/docs/user-manual#host-cxxopt).
 build --host_cxxopt=-std=c++17
+build --host_cxxopt=-Wc++17-compat-pedantic
 
 # Build GoogleTest with ABSL support.
 build --define absl=1
