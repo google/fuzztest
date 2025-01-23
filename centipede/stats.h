@@ -48,7 +48,9 @@ struct StatsMeta {
 
   // NOTE: Ordering in general won't be applicable to metadata, so define
   // equality only.
-  friend bool operator==(const StatsMeta &, const StatsMeta &) = default;
+  friend bool operator==(const StatsMeta &lhs, const StatsMeta &rhs) {
+    return lhs.timestamp_unix_micros == rhs.timestamp_unix_micros;
+  }
 };
 
 struct ExecStats {
@@ -56,7 +58,11 @@ struct ExecStats {
   uint64_t num_executions = 0;
   uint64_t num_target_crashes = 0;
 
-  friend bool operator==(const ExecStats &, const ExecStats &) = default;
+  friend bool operator==(const ExecStats &lhs, const ExecStats &rhs) {
+    return lhs.fuzz_time_sec == rhs.fuzz_time_sec &&
+           lhs.num_executions == rhs.num_executions &&
+           lhs.num_target_crashes == rhs.num_target_crashes;
+  }
 };
 
 struct CovStats {
@@ -87,7 +93,34 @@ struct CovStats {
   uint64_t num_unknown_features = 0;
   uint64_t num_funcs_in_frontier = 0;
 
-  friend bool operator==(const CovStats &, const CovStats &) = default;
+  friend bool operator==(const CovStats &lhs, const CovStats &rhs) {
+    return lhs.num_covered_pcs == rhs.num_covered_pcs &&
+           lhs.num_8bit_counter_features == rhs.num_8bit_counter_features &&
+           lhs.num_data_flow_features == rhs.num_data_flow_features &&
+           lhs.num_cmp_features == rhs.num_cmp_features &&
+           lhs.num_call_stack_features == rhs.num_call_stack_features &&
+           lhs.num_bounded_path_features == rhs.num_bounded_path_features &&
+           lhs.num_pc_pair_features == rhs.num_pc_pair_features &&
+           lhs.num_user_features == rhs.num_user_features &&
+           lhs.num_user0_features == rhs.num_user0_features &&
+           lhs.num_user1_features == rhs.num_user1_features &&
+           lhs.num_user2_features == rhs.num_user2_features &&
+           lhs.num_user3_features == rhs.num_user3_features &&
+           lhs.num_user4_features == rhs.num_user4_features &&
+           lhs.num_user5_features == rhs.num_user5_features &&
+           lhs.num_user6_features == rhs.num_user6_features &&
+           lhs.num_user7_features == rhs.num_user7_features &&
+           lhs.num_user8_features == rhs.num_user8_features &&
+           lhs.num_user9_features == rhs.num_user9_features &&
+           lhs.num_user10_features == rhs.num_user10_features &&
+           lhs.num_user11_features == rhs.num_user11_features &&
+           lhs.num_user12_features == rhs.num_user12_features &&
+           lhs.num_user13_features == rhs.num_user13_features &&
+           lhs.num_user14_features == rhs.num_user14_features &&
+           lhs.num_user15_features == rhs.num_user15_features &&
+           lhs.num_unknown_features == rhs.num_unknown_features &&
+           lhs.num_funcs_in_frontier == rhs.num_funcs_in_frontier;
+  }
 };
 
 struct CorpusStats {
@@ -96,7 +129,12 @@ struct CorpusStats {
   uint64_t max_corpus_element_size = 0;
   uint64_t avg_corpus_element_size = 0;
 
-  friend bool operator==(const CorpusStats &, const CorpusStats &) = default;
+  friend bool operator==(const CorpusStats &lhs, const CorpusStats &rhs) {
+    return lhs.active_corpus_size == rhs.active_corpus_size &&
+           lhs.total_corpus_size == rhs.total_corpus_size &&
+           lhs.max_corpus_element_size == rhs.max_corpus_element_size &&
+           lhs.avg_corpus_element_size == rhs.avg_corpus_element_size;
+  }
 };
 
 struct RusageStats {
@@ -105,7 +143,13 @@ struct RusageStats {
   uint64_t engine_rusage_rss_mb = 0;
   uint64_t engine_rusage_vsize_mb = 0;
 
-  friend bool operator==(const RusageStats &, const RusageStats &) = default;
+  friend bool operator==(const RusageStats &lhs, const RusageStats &rhs) {
+    return lhs.engine_rusage_avg_millicores ==
+               rhs.engine_rusage_avg_millicores &&
+           lhs.engine_rusage_cpu_percent == rhs.engine_rusage_cpu_percent &&
+           lhs.engine_rusage_rss_mb == rhs.engine_rusage_rss_mb &&
+           lhs.engine_rusage_vsize_mb == rhs.engine_rusage_vsize_mb;
+  }
 };
 
 struct Stats : StatsMeta, ExecStats, CovStats, CorpusStats, RusageStats {
