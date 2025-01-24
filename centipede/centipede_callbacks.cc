@@ -254,10 +254,15 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(std::filesystem::create_directories(output_dir, error));
   CHECK(!error);
 
+  std::string centipede_runner_flags = absl::StrCat(
+      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=", output_dir.string(),
+      ":");
+  if (!env_.runner_dl_path_suffix.empty()) {
+    absl::StrAppend(&centipede_runner_flags,
+                    "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
+  }
   Command cmd{binary,
-              {.env_add = {absl::StrCat(
-                   "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=",
-                   output_dir.string(), ":")},
+              {.env_add = {std::move(centipede_runner_flags)},
                .env_remove = EnvironmentVariablesToUnset(),
                .stdout_file = execute_log_path_,
                .stderr_file = execute_log_path_,
@@ -290,10 +295,15 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
     std::string_view binary, std::string &serialized_config) {
   const auto config_file_path =
       std::filesystem::path{temp_dir_} / "configuration";
+  std::string centipede_runner_flags =
+      absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
+                   config_file_path.string(), ":");
+  if (!env_.runner_dl_path_suffix.empty()) {
+    absl::StrAppend(&centipede_runner_flags,
+                    "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
+  }
   Command cmd{binary,
-              {.env_add = {absl::StrCat(
-                   "CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
-                   config_file_path.string(), ":")},
+              {.env_add = {std::move(centipede_runner_flags)},
                .env_remove = EnvironmentVariablesToUnset(),
                .stdout_file = execute_log_path_,
                .stderr_file = execute_log_path_,
