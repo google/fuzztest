@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -57,12 +58,12 @@ void BinaryInfo::InitializeFromSanCovBinary(
   ScopedFile log_path(tmp_dir_path, "binary_info_log_tmp");
   LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
-  Command cmd(binary_path_with_args,
-              {.env_add = {absl::StrCat(
-                   "CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=",
-                   pc_table_path.path(), ":arg2=", cf_table_path.path(),
-                   ":arg3=", dso_table_path.path(), ":")},
-               .stdout_file = std::string(log_path.path())});
+  Command::Options cmd_options;
+  cmd_options.env_add = {absl::StrCat(
+      "CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=", pc_table_path.path(),
+      ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":")};
+  cmd_options.stdout_file = std::string(log_path.path());
+  Command cmd{binary_path_with_args, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     LOG(INFO) << __func__ << ": exit_code: " << exit_code;

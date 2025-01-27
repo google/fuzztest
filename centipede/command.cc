@@ -147,7 +147,7 @@ Command::~Command() = default;
 Command::Command(std::string_view path, Options options)
     : path_(path), options_(std::move(options)) {}
 
-Command::Command(std::string_view path) : Command(path, {}) {}
+Command::Command(std::string_view path) : Command{path, {}} {}
 
 std::string Command::ToString() const {
   std::vector<std::string> ss;

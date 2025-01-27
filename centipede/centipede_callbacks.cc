@@ -166,14 +166,15 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  Command &cmd = commands_.emplace_back(
-      Command{binary,
-              {.env_add = std::move(env),
-               .env_remove = EnvironmentVariablesToUnset(),
-               .stdout_file = execute_log_path_,
-               .stderr_file = execute_log_path_,
-               .timeout = amortized_timeout,
-               .temp_file_path = temp_input_file_path_}});
+  Command::Options cmd_options;
+  cmd_options.env_add = std::move(env);
+  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.stdout_file = execute_log_path_;
+  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.timeout = amortized_timeout;
+  cmd_options.temp_file_path = temp_input_file_path_;
+  Command &cmd =
+      commands_.emplace_back(Command{binary, std::move(cmd_options)});
   if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));
 
   return cmd;
@@ -261,12 +262,13 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
-  Command cmd{binary,
-              {.env_add = {std::move(centipede_runner_flags)},
-               .env_remove = EnvironmentVariablesToUnset(),
-               .stdout_file = execute_log_path_,
-               .stderr_file = execute_log_path_,
-               .temp_file_path = temp_input_file_path_}};
+  Command::Options cmd_options;
+  cmd_options.env_add = {std::move(centipede_runner_flags)};
+  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.stdout_file = execute_log_path_;
+  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.temp_file_path = temp_input_file_path_;
+  Command cmd{binary, std::move(cmd_options)};
   const int retval = cmd.Execute();
 
   std::vector<std::string> seed_input_filenames;
@@ -302,12 +304,13 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
-  Command cmd{binary,
-              {.env_add = {std::move(centipede_runner_flags)},
-               .env_remove = EnvironmentVariablesToUnset(),
-               .stdout_file = execute_log_path_,
-               .stderr_file = execute_log_path_,
-               .temp_file_path = temp_input_file_path_}};
+  Command::Options cmd_options;
+  cmd_options.env_add = {std::move(centipede_runner_flags)};
+  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.stdout_file = execute_log_path_;
+  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.temp_file_path = temp_input_file_path_;
+  Command cmd{binary, std::move(cmd_options)};
   const bool is_success = cmd.Execute() == 0;
 
   if (is_success) {

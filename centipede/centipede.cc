@@ -119,9 +119,13 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
       stats_(stats),
       input_filter_path_(std::filesystem::path(TemporaryLocalDirPath())
                              .append("filter-input")),
-      input_filter_cmd_(env_.input_filter, {.args = {input_filter_path_},
-                                            .stdout_file = "/dev/null",
-                                            .stderr_file = "/dev/null"}),
+      input_filter_cmd_{[&] {
+        Command::Options cmd_options;
+        cmd_options.args = {input_filter_path_};
+        cmd_options.stdout_file = "/dev/null";
+        cmd_options.stderr_file = "/dev/null";
+        return Command{env_.input_filter, std::move(cmd_options)};
+      }()},
       rusage_profiler_(
           /*scope=*/perf::RUsageScope::ThisProcess(),
           /*metrics=*/env.DumpRUsageTelemetryInThisShard()
@@ -555,18 +559,21 @@ void Centipede::GenerateSourceBasedCoverageReport(
     merge_arguments.push_back(raw_profile);
   }
 
-  Command merge_command("llvm-profdata", {.args = std::move(merge_arguments)});
+  Command::Options merge_cmd_options;
+  merge_cmd_options.args = std::move(merge_arguments);
+  Command merge_command{"llvm-profdata", std::move(merge_cmd_options)};
   if (merge_command.Execute() != EXIT_SUCCESS) {
     LOG(ERROR) << "Failed to run command " << merge_command.ToString();
     return;
   }
 
-  Command generate_report_command(
-      "llvm-cov",
-      {.args = {"show", "-format=html",
-                absl::StrCat("-output-dir=", report_path),
-                absl::StrCat("-instr-profile=", indexed_profile_path),
-                env_.clang_coverage_binary}});
+  Command::Options generate_report_cmd_options;
+  generate_report_cmd_options.args = {
+      "show", "-format=html", absl::StrCat("-output-dir=", report_path),
+      absl::StrCat("-instr-profile=", indexed_profile_path),
+      env_.clang_coverage_binary};
+  Command generate_report_command{"llvm-cov",
+                                  std::move(generate_report_cmd_options)};
   if (generate_report_command.Execute() != EXIT_SUCCESS) {
     LOG(ERROR) << "Failed to run command "
                << generate_report_command.ToString();
@@ -762,7 +769,7 @@ void Centipede::FuzzingLoop() {
                                       ? corpus_.WeightedRandom(rng_())
                                       : corpus_.UniformRandom(rng_());
       mutation_inputs.push_back(
-          {.data = corpus_record.data, .metadata = &corpus_record.metadata});
+          MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }
 
     user_callbacks_.Mutate(mutation_inputs, batch_size, mutants);

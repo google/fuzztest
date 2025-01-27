@@ -59,9 +59,11 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
                                         std::string_view objdump_path,
                                         std::string_view tmp_path) {
   const std::string stderr_path = absl::StrCat(tmp_path, ".log");
-  Command cmd(objdump_path, {.args = {"-d", std::string(binary_path)},
-                             .stdout_file = std::string(tmp_path),
-                             .stderr_file = stderr_path});
+  Command::Options cmd_options;
+  cmd_options.args = {"-d", std::string(binary_path)};
+  cmd_options.stdout_file = std::string(tmp_path);
+  cmd_options.stderr_file = stderr_path;
+  Command cmd{objdump_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     std::string log_text;
@@ -134,8 +136,7 @@ DsoTable ReadDsoTableFromFile(std::string_view file_path) {
     const std::vector<std::string> tokens =
         absl::StrSplit(line, ' ', absl::SkipEmpty());
     CHECK_EQ(tokens.size(), 2) << VV(line);
-    result.push_back(
-        {.path = tokens[0], .num_instrumented_pcs = std::stoul(tokens[1])});
+    result.push_back(DsoInfo{tokens[0], std::stoul(tokens[1])});
   }
   return result;
 }

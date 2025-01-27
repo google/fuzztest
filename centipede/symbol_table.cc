@@ -115,16 +115,16 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   // Run the symbolizer.
   LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
             << dso_basename;
-  Command cmd{symbolizer_path,
-              {.args =
-                   {
-                       "--no-inlines",
-                       "-e",
-                       std::string(dso_path),
-                       "<",
-                       std::string(pcs_file.path()),
-                   },
-               .stdout_file = std::string(symbols_file.path())}};
+  Command::Options cmd_options;
+  cmd_options.args = {
+      "--no-inlines",
+      "-e",
+      std::string(dso_path),
+      "<",
+      std::string(pcs_file.path()),
+  };
+  cmd_options.stdout_file = std::string(symbols_file.path());
+  Command cmd{symbolizer_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     LOG(ERROR) << "Symbolization failed, debug symbols will not be used: "

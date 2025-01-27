@@ -51,7 +51,10 @@ class SymbolTable {
       return absl::StrCat(file, line_str, col_str);
     }
 
-    friend bool operator==(const Entry &, const Entry &) = default;
+    friend bool operator==(const Entry &lhs, const Entry &rhs) {
+      return lhs.func == rhs.func && lhs.file == rhs.file &&
+             lhs.line == rhs.line && lhs.col == rhs.col;
+    }
   };
 
   SymbolTable() = default;
