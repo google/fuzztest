@@ -52,6 +52,17 @@ class FixtureWithExplicitSetUp {
   static void TearDownTestSuite() {}
 };
 
+class FixtureWithReentrantSetUp {
+ public:
+  virtual ~FixtureWithReentrantSetUp() = default;
+
+  virtual void SetUp() = 0;
+  virtual void TearDown() = 0;
+
+  static void SetUpTestSuite() {}
+  static void TearDownTestSuite() {}
+};
+
 // Marker interfaces for specifying the fixture's instantiation semantics:
 //
 // -  Per-iteration semantics: The fixture object is instantiated and discarded
