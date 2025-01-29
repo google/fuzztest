@@ -432,33 +432,43 @@ void DeduplicateAndStoreNewCrashes(
   }
 }
 
-// Seeds the corpus files in `env.workdir` with the previously distilled corpus
-// files from `src_dir`.
+// Seeds the corpus files in `env.workdir` with the inputs in `regression_dir`
+// (always used) and the previously distilled corpus files from `coverage_dir`
+// (used if non-empty).
 SeedCorpusConfig GetSeedCorpusConfig(const Environment &env,
-                                     std::string_view src_dir) {
+                                     std::string_view regression_dir,
+                                     std::string_view coverage_dir) {
   const WorkDir workdir{env};
+  SeedCorpusSource regression;
+  regression.dir_glob = std::string(regression_dir);
+  regression.num_recent_dirs = 1;
+  regression.individual_input_rel_glob = "*";
+  regression.sampled_fraction_or_count = 1.0f;
+  std::vector<SeedCorpusSource> sources = {std::move(regression)};
+  if (!coverage_dir.empty()) {
+    SeedCorpusSource coverage;
+    coverage.dir_glob = std::string(coverage_dir);
+    coverage.num_recent_dirs = 1;
+    // We're using the previously distilled corpus files as seeds.
+    coverage.shard_rel_glob =
+        std::filesystem::path{
+            workdir.DistilledCorpusFilePaths().AllShardsGlob()}
+            .filename();
+    coverage.individual_input_rel_glob = "*";
+    coverage.sampled_fraction_or_count = 1.0f;
+    sources.push_back(std::move(coverage));
+  }
+  SeedCorpusDestination destination;
+  destination.dir_path = env.workdir;
+  // We're seeding the current corpus files.
+  destination.shard_rel_glob =
+      std::filesystem::path{workdir.CorpusFilePaths().AllShardsGlob()}
+          .filename();
+  destination.shard_index_digits = WorkDir::kDigitsInShardIndex;
+  destination.num_shards = static_cast<uint32_t>(env.num_threads);
   return {
-      .sources = {SeedCorpusSource{
-          .dir_glob = std::string(src_dir),
-          .num_recent_dirs = 1,
-          // We're using the previously distilled corpus files as seeds.
-          .shard_rel_glob =
-              std::filesystem::path{
-                  workdir.DistilledCorpusFilePaths().AllShardsGlob()}
-                  .filename(),
-          .sampled_fraction_or_count = 1.0f,
-      }},
-      .destination =
-          {
-              .dir_path = env.workdir,
-              // We're seeding the current corpus files.
-              .shard_rel_glob =
-                  std::filesystem::path{
-                      workdir.CorpusFilePaths().AllShardsGlob()}
-                      .filename(),
-              .shard_index_digits = WorkDir::kDigitsInShardIndex,
-              .num_shards = static_cast<uint32_t>(env.num_threads),
-          },
+      std::move(sources),
+      std::move(destination),
   };
 }
 
@@ -496,9 +506,7 @@ int UpdateCorpusDatabaseForFuzzTests(
   absl::Time start_time = absl::Now();
   LOG(INFO) << "Starting the update of the corpus database for fuzz tests:"
             << "\nBinary: " << env.binary
-            << "\nCorpus database: " << fuzztest_config.corpus_database
-            << "\nFuzz tests: "
-            << absl::StrJoin(fuzztest_config.fuzz_tests, ", ");
+            << "\nCorpus database: " << fuzztest_config.corpus_database;
 
   // Step 1: Preliminary set up of test sharding, binary info, etc.
   const auto [test_shard_index, total_test_shards] = SetUpTestSharding();
@@ -515,14 +523,33 @@ int UpdateCorpusDatabaseForFuzzTests(
         absl::FormatTime("%Y-%m-%d-%H-%M-%S", absl::Now(), absl::UTCTimeZone());
     return stamp;
   }();
-  // The full workdir paths will be formed by appending the fuzz test names to
-  // the base workdir path. We use different path when only replaying to avoid
-  // replaying an unfinished fuzzing sessions.
+  std::vector<std::string> fuzz_tests_to_run;
+  if (env.fuzztest_single_test_mode) {
+    CHECK(fuzztest_config.fuzz_tests_in_current_shard.size() == 1)
+        << "Must select exactly one fuzz test when running in the single test "
+           "mode";
+    fuzz_tests_to_run = fuzztest_config.fuzz_tests_in_current_shard;
+  } else {
+    for (int i = 0; i < fuzztest_config.fuzz_tests.size(); ++i) {
+      if (i % total_test_shards == test_shard_index) {
+        fuzz_tests_to_run.push_back(fuzztest_config.fuzz_tests[i]);
+      }
+    }
+  }
+  LOG(INFO) << "Fuzz tests to run:" << absl::StrJoin(fuzz_tests_to_run, ", ");
+
+  const bool is_workdir_specified = !env.workdir.empty();
+  CHECK(!is_workdir_specified || env.fuzztest_single_test_mode);
+  // When env.workdir is empty, the full workdir paths will be formed by
+  // appending the fuzz test names to the base workdir path. We use different
+  // path when only replaying to avoid replaying an unfinished fuzzing sessions.
   const auto base_workdir_path =
-      corpus_database_path /
-      absl::StrFormat("workdir%s.%03d",
-                      fuzztest_config.only_replay_corpus ? "-replay" : "",
-                      test_shard_index);
+      is_workdir_specified
+          ? std::filesystem::path{}  // Will not be used.
+          : corpus_database_path /
+                absl::StrFormat("workdir%s.%03d",
+                                fuzztest_config.only_replay ? "-replay" : "",
+                                test_shard_index);
   // There's no point in saving the binary info to the workdir, since the
   // workdir is deleted at the end.
   env.save_binary_info = false;
@@ -537,9 +564,10 @@ int UpdateCorpusDatabaseForFuzzTests(
   // Find the last index of a fuzz test for which we already have a workdir.
   bool is_resuming = false;
   int resuming_fuzztest_idx = 0;
-  for (int i = 0; i < fuzztest_config.fuzz_tests.size(); ++i) {
-    if (i % total_test_shards != test_shard_index) continue;
-    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+  for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
+    if (!is_workdir_specified) {
+      env.workdir = base_workdir_path / fuzz_tests_to_run[i];
+    }
     // Check the existence of the coverage path to not only make sure the
     // workdir exists, but also that it was created for the same binary as in
     // this run.
@@ -550,22 +578,22 @@ int UpdateCorpusDatabaseForFuzzTests(
   }
 
   LOG_IF(INFO, is_resuming) << "Resuming from the fuzz test "
-                            << fuzztest_config.fuzz_tests[resuming_fuzztest_idx]
+                            << fuzz_tests_to_run[resuming_fuzztest_idx]
                             << " (index: " << resuming_fuzztest_idx << ")";
 
   // Step 3: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
-  for (int i = resuming_fuzztest_idx; i < fuzztest_config.fuzz_tests.size();
-       ++i) {
-    if (i % total_test_shards != test_shard_index) continue;
-    if (fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
-      // TODO(fniksic): Test this behavior in end-to-end tests.
+  for (int i = resuming_fuzztest_idx; i < fuzz_tests_to_run.size(); ++i) {
+    if (!env.fuzztest_single_test_mode &&
+        fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
       ReportErrorWhenNotEnoughTimeToRunEverything(
           start_time, fuzztest_config.GetTimeLimitPerTest(),
-          /*executed_tests_in_shard=*/i / total_test_shards,
-          fuzztest_config.fuzz_tests.size(), total_test_shards);
+          /*executed_tests_in_shard=*/i, fuzztest_config.fuzz_tests.size(),
+          total_test_shards);
     }
-    env.workdir = base_workdir_path / fuzztest_config.fuzz_tests[i];
+    if (!is_workdir_specified) {
+      env.workdir = base_workdir_path / fuzz_tests_to_run[i];
+    }
     if (RemotePathExists(env.workdir) && !is_resuming) {
       // This could be a workdir from a failed run that used a different version
       // of the binary. We delete it so that we don't have to deal with the
@@ -576,26 +604,35 @@ int UpdateCorpusDatabaseForFuzzTests(
     CHECK_OK(RemoteMkdir(
         workdir.CoverageDirPath()));  // Implicitly creates the workdir
 
-    // Seed the fuzzing session with the latest coverage corpus from the
-    // previous fuzzing session.
     const std::filesystem::path fuzztest_db_path =
-        corpus_database_path / fuzztest_config.fuzz_tests[i];
+        corpus_database_path / fuzz_tests_to_run[i];
+    const std::filesystem::path regression_dir =
+        fuzztest_db_path / "regression";
     const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
-    if (RemotePathExists(coverage_dir.c_str()) && !is_resuming) {
+
+    // Seed the fuzzing session with the latest coverage corpus and regression
+    // inputs from the previous fuzzing session.
+    if (!is_resuming) {
       CHECK_OK(GenerateSeedCorpusFromConfig(
-          GetSeedCorpusConfig(env, coverage_dir.c_str()), env.binary_name,
-          env.binary_hash));
+          GetSeedCorpusConfig(env, regression_dir.c_str(),
+                              fuzztest_config.replay_coverage_inputs
+                                  ? coverage_dir.c_str()
+                                  : ""),
+          env.binary_name, env.binary_hash))
+          << "while generating the seed corpus";
     }
 
-    // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
-    constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
-    constexpr std::string_view kFuzzTestReplayCorpusFlag =
-        "--replay_corpus=";
-    std::string_view test_selection_flag = fuzztest_config.only_replay_corpus
-                                               ? kFuzzTestReplayCorpusFlag
-                                               : kFuzzTestFuzzFlag;
-    env.binary = absl::StrCat(binary, " ", test_selection_flag,
-                              fuzztest_config.fuzz_tests[i]);
+    if (!env.fuzztest_single_test_mode) {
+      // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
+      constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
+      constexpr std::string_view kFuzzTestReplayCorpusFlag =
+          "--replay_corpus=";
+      std::string_view test_selection_flag = fuzztest_config.only_replay
+                                                 ? kFuzzTestReplayCorpusFlag
+                                                 : kFuzzTestFuzzFlag;
+      env.binary =
+          absl::StrCat(binary, " ", test_selection_flag, fuzz_tests_to_run[i]);
+    }
 
     absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
     absl::Duration time_spent = absl::ZeroDuration();
@@ -607,9 +644,8 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
     is_resuming = false;
 
-    LOG(INFO) << (fuzztest_config.only_replay_corpus ? "Replaying "
-                                                     : "Fuzzing ")
-              << fuzztest_config.fuzz_tests[i] << " for " << time_limit
+    LOG(INFO) << (fuzztest_config.only_replay ? "Replaying " : "Fuzzing ")
+              << fuzz_tests_to_run[i] << " for " << time_limit
               << "\n\tTest binary: " << env.binary;
 
     const absl::Time start_time = absl::Now();
@@ -621,7 +657,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     record_fuzzing_time.Stop();
 
     if (!stats_root_path.empty()) {
-      const auto stats_dir = stats_root_path / fuzztest_config.fuzz_tests[i];
+      const auto stats_dir = stats_root_path / fuzz_tests_to_run[i];
       CHECK_OK(RemoteMkdir(stats_dir.c_str()));
       CHECK_OK(RemotePathRename(
           workdir.FuzzingStatsPath(),
@@ -629,7 +665,9 @@ int UpdateCorpusDatabaseForFuzzTests(
               .c_str()));
     }
 
-    if (fuzztest_config.only_replay_corpus) continue;
+    // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
+    // of checking whether workdir is specified or not.
+    if (fuzztest_config.only_replay || is_workdir_specified) continue;
 
     // Distill and store the coverage corpus.
     Distill(env);
@@ -658,7 +696,7 @@ int UpdateCorpusDatabaseForFuzzTests(
                                   std::move(crash_metadata));
   }
   // Path may not exist if there are no fuzz tests in the shard.
-  if (RemotePathExists(base_workdir_path.c_str())) {
+  if (!is_workdir_specified && RemotePathExists(base_workdir_path.c_str())) {
     CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
   }
 
@@ -724,7 +762,7 @@ int CentipedeMain(const Environment &env,
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
         const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
-        CHECK(target_config->only_replay_corpus ||
+        CHECK(target_config->only_replay ||
               time_limit_per_test < absl::InfiniteDuration())
             << "Updating corpus database requires specifying time limit per "
                "fuzz test.";

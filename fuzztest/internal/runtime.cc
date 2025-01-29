@@ -20,6 +20,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <csignal>
 #include <cstdio>

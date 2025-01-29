@@ -818,7 +818,9 @@ void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
                             const BatchResult &batch_result) {
   CHECK_EQ(input_vec.size(), batch_result.results().size());
-  if (ShouldStop()) return;
+  // Skip reporting only if RequestEarlyStop is called with a failure exit code.
+  // Still report if time runs out.
+  if (ShouldStop() && ExitCode() != 0) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
 

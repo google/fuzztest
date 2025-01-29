@@ -35,6 +35,9 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
                         const Configuration& configuration) override;
 
  private:
+  bool Run(int* argc, char*** argv, RunMode mode,
+           const Configuration& configuration);
+
   Runtime& runtime_ = Runtime::instance();
   const FuzzTest& test_;
   CentipedeFixtureDriver* centipede_fixture_driver_;

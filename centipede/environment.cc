@@ -261,7 +261,8 @@ void Environment::UpdateWithTargetConfig(
   // Update `timeout_per_input` and consequently `timeout_per_batch`.
   const size_t time_limit_per_input_sec =
       convert_to_seconds(config.time_limit_per_input, "Time limit per input");
-  CHECK(timeout_per_input == Default().timeout_per_input ||
+  CHECK(timeout_per_input == 0 ||
+        timeout_per_input == Default().timeout_per_input ||
         timeout_per_input == time_limit_per_input_sec)
       << "Value for --timeout_per_input is inconsistent with the value for "
          "time_limit_per_input in the target binary:"
@@ -304,7 +305,7 @@ void Environment::UpdateWithTargetConfig(
       << VV(stack_limit_kb) << VV(config.stack_limit);
   stack_limit_kb = bytes_to_kb(config.stack_limit);
 
-  if (config.only_replay_corpus) {
+  if (config.only_replay) {
     load_shards_only = true;
     populate_binary_info = false;
   }

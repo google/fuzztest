@@ -125,6 +125,7 @@ cc_test(
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//centipede:weak_sancov_stubs",
         "@com_google_fuzztest//fuzztest:io",
+        "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:subprocess",
         "@com_google_googletest//:gtest_main",
     ],

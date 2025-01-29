@@ -97,7 +97,7 @@ FUZZTEST_DEFINE_FLAG(
     "Files in `crashing` directory will be used when "
     "--reproduce_findings_as_separate_tests flag is true. And finally, all "
     "files in `coverage` directory will be used when --replay_corpus flag is "
-    "true.");
+    "specified.");
 
 FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
                      "When true, the selected tests replay all crashing inputs "
@@ -162,6 +162,44 @@ FUZZTEST_DEFINE_FLAG(
 FUZZTEST_DEFINE_FLAG(std::optional<size_t>, jobs, std::nullopt,
                      "The number of fuzzing jobs to run in parallel. If "
                      "unspecified, the number of jobs is 1.");
+
+FUZZTEST_DEFINE_FLAG(
+    bool, print_subprocess_log, false,
+    "If set, print the log of the subprocesses spawned by FuzzTest.");
+
+// Internal flags - not part of the user interface.
+//
+// These flags are meant to be set only by the parent controller process for its
+// child processes.
+
+FUZZTEST_DEFINE_FLAG(
+    std::optional<std::string>, internal_override_fuzz_test, std::nullopt,
+    "Internal-only flag - do not use directly. If set, only perform operations "
+    "for the exact fuzz test regardless of other flags.")
+    .OnUpdate([] {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          !absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test))
+                  .has_value() ||
+              std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr,
+          "must not set --" FUZZTEST_FLAG_PREFIX
+          "internal_override_fuzz_test directly");
+    });
+
+FUZZTEST_DEFINE_FLAG(
+    absl::Duration, internal_override_total_time_limit,
+    absl::InfiniteDuration(),
+    "Internal-only flag - do not use directly. If --" FUZZTEST_FLAG_PREFIX
+    "internal_override_fuzz_test is set, override the time limit set by "
+    "--" FUZZTEST_FLAG_PREFIX "fuzz_for / --" FUZZTEST_FLAG_PREFIX
+    "replay_corpus_for with --time_budget_type set to total.")
+    .OnUpdate([] {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          absl::GetFlag(FUZZTEST_FLAG(internal_override_total_time_limit)) ==
+                  absl::InfiniteDuration() ||
+              std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr,
+          "must not set --" FUZZTEST_FLAG_PREFIX
+          "internal_override_total_time_limit directly");
+    });
 
 namespace fuzztest {
 
@@ -239,16 +277,26 @@ std::optional<absl::Duration> GetReplayCorpusTime() {
 
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
-  bool reproduce_findings_as_separate_tests =
+  const bool reproduce_findings_as_separate_tests =
       absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests));
-  std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
-  std::optional<absl::Duration> replay_corpus_time_limit =
+  const std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
+  const std::optional<absl::Duration> replay_corpus_time_limit =
       GetReplayCorpusTime();
-  absl::Duration time_limit = fuzzing_time_limit ? *fuzzing_time_limit
-                              : replay_corpus_time_limit
-                                  ? *replay_corpus_time_limit
-                                  : absl::ZeroDuration();
-  std::optional<size_t> jobs = absl::GetFlag(FUZZTEST_FLAG(jobs));
+  const std::optional<std::string> override_fuzz_test =
+      absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
+  const bool replay_coverage_inputs =
+      fuzzing_time_limit.has_value() || replay_corpus_time_limit.has_value();
+  const absl::Duration time_limit =
+      override_fuzz_test.has_value()
+          ? absl::GetFlag(FUZZTEST_FLAG(internal_override_total_time_limit))
+      : fuzzing_time_limit.has_value()       ? *fuzzing_time_limit
+      : replay_corpus_time_limit.has_value() ? *replay_corpus_time_limit
+                                             : absl::ZeroDuration();
+  const internal::TimeBudgetType time_budget_type =
+      override_fuzz_test.has_value()
+          ? internal::TimeBudgetType::kTotal
+          : absl::GetFlag(FUZZTEST_FLAG(time_budget_type));
+  const std::optional<size_t> jobs = absl::GetFlag(FUZZTEST_FLAG(jobs));
   FUZZTEST_INTERNAL_CHECK(!jobs.has_value() || *jobs > 0, "If specified, --",
                           FUZZTEST_FLAG(jobs).Name(), " must be positive.");
   return internal::Configuration{
@@ -257,13 +305,14 @@ internal::Configuration CreateConfigurationsFromFlags(
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
-      reproduce_findings_as_separate_tests,
-      /*only_replay_corpus=*/
+      reproduce_findings_as_separate_tests, replay_coverage_inputs,
+      /*only_replay=*/
       replay_corpus_time_limit.has_value(),
+      absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
-      absl::GetFlag(FUZZTEST_FLAG(time_budget_type)), jobs.value_or(0)};
+      time_budget_type, jobs.value_or(0)};
 }
 }  // namespace
 
@@ -297,12 +346,26 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   const auto test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
   const auto test_to_replay_corpus =
       absl::GetFlag(FUZZTEST_FLAG(replay_corpus));
-  const auto specified_test =
-      test_to_fuzz != kUnspecified ? test_to_fuzz : test_to_replay_corpus;
-  const bool is_test_specified = specified_test != kUnspecified;
-  if (is_test_specified) {
+  const auto specified_test = []() -> std::optional<std::string> {
+    if (auto internal_selected_test =
+            absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
+        internal_selected_test.has_value()) {
+      return internal_selected_test;
+    }
+    if (auto test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
+        test_to_fuzz != kUnspecified) {
+      return test_to_fuzz;
+    }
+    if (auto test_to_replay_corpus =
+            absl::GetFlag(FUZZTEST_FLAG(replay_corpus));
+        test_to_replay_corpus != kUnspecified) {
+      return test_to_replay_corpus;
+    }
+    return std::nullopt;
+  }();
+  if (specified_test.has_value()) {
     const std::string matching_fuzz_test =
-        GetMatchingFuzzTestOrExit(specified_test);
+        GetMatchingFuzzTestOrExit(*specified_test);
     // Delegate the test to GoogleTest.
     GTEST_FLAG_SET(filter, matching_fuzz_test);
   }
@@ -318,7 +381,7 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
 
   const bool is_fuzzing_or_replaying =
       (fuzzing_time_limit || replay_corpus_time_limit);
-  if (is_fuzzing_or_replaying && !is_test_specified) {
+  if (is_fuzzing_or_replaying && !specified_test.has_value()) {
     absl::flat_hash_set<std::string> fuzz_tests = {
         configuration.fuzz_tests.begin(), configuration.fuzz_tests.end()};
     std::vector<std::string> non_fuzz_tests;
@@ -343,11 +406,8 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
       GTEST_FLAG_SET(filter, filter);
     }
   }
-  const bool is_runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
-  const bool is_fuzzing_mode = (is_runner_mode && is_fuzzing_or_replaying) ||
-                               fuzzing_time_limit.has_value();
   const RunMode run_mode =
-      is_fuzzing_mode ? RunMode::kFuzz : RunMode::kUnitTest;
+      fuzzing_time_limit.has_value() ? RunMode::kFuzz : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
   internal::Runtime::instance().SetRunMode(run_mode);
 }

@@ -127,6 +127,9 @@ struct Environment {
   bool first_corpus_dir_output_only = false;
   // If set, load/merge shards without fuzzing new inputs.
   bool load_shards_only = false;
+  // If set, operate on the corpus database for a single test specified by
+  // FuzzTest instead of all the tests.
+  bool fuzztest_single_test_mode = false;
 
   // Command line-related fields -----------------------------------------------
 

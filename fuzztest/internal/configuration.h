@@ -59,8 +59,20 @@ struct Configuration {
   // Generate separate TESTs that replay crashing inputs for the selected fuzz
   // tests.
   bool reproduce_findings_as_separate_tests = false;
-  // Do not fuzz, only replay the corpus.
-  bool only_replay_corpus = false;
+  // When working on a corpus database, a few steps can be performed for each
+  // test:
+  //   1. Replaying inputs from the database, by default the regression inputs
+  //      will be used.
+  //   2. Fuzzing with generated inputs, some of which trigger crashes.
+  //   3. Updating the database with the coverage-increasing and crashing
+  //      inputs.
+  //
+  // If set, coverage inputs are included for replaying.
+  bool replay_coverage_inputs = false;
+  // If set, further steps are skipped after replaying.
+  bool only_replay = false;
+  // If set, print log from subprocesses spawned by FuzzTest.
+  bool print_subprocess_log = false;
 
   // Stack limit in bytes.
   size_t stack_limit = 128 * 1024;
