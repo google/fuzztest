@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
+#include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -1703,17 +1705,22 @@ class ProtobufDomainUntypedImpl
 
   bool IsFieldFinitelyRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
+    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
     static absl::NoDestructor<absl::flat_hash_map<const FieldDescriptor*, bool>>
-        cache;
-    auto it = cache->end();
-    if (IsCustomizedRecursivelyOnly()) {
-      it = cache->find(field);
+        cache ABSL_GUARDED_BY(mutex);
+    bool can_use_cache = IsCustomizedRecursivelyOnly();
+    if (can_use_cache) {
+      absl::MutexLock l(&mutex);
+      auto it = cache->find(field);
       if (it != cache->end()) return it->second;
     }
     absl::flat_hash_set<decltype(field->message_type())> parents;
     bool result = IsProtoRecursive(field->message_type(), parents,
                                    RecursionType::kFinitelyRecursive);
-    if (IsCustomizedRecursivelyOnly()) cache->insert(it, {field, result});
+    if (can_use_cache) {
+      absl::MutexLock l(&mutex);
+      cache->insert({field, result});
+    }
     return result;
   }
 
@@ -1831,7 +1838,7 @@ class ProtobufDomainUntypedImpl
   // policy) and no individual field is customized at the top level. This check
   // would be useful in recursion analysis. In particular, recursion analysis
   // is only meaningful when all customizations are also recursive.
-  bool IsCustomizedRecursivelyOnly() {
+  bool IsCustomizedRecursivelyOnly() const {
     return customized_fields_.empty() && always_set_oneofs_.empty() &&
            uncustomizable_oneofs_.empty() && unset_oneof_fields_.empty();
   }
