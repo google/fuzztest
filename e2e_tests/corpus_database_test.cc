@@ -200,6 +200,117 @@ TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
             HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 1s")));
 }
 
+TEST_P(UpdateCorpusDatabaseTest,
+       ResumesOrSkipsFuzzTestRunsWhenStoredAndCurrentExecutionIdsMatch) {
+  TempDir corpus_database;
+
+  // 1st run that gets interrupted.
+  RunOptions fst_run_options;
+  fst_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "300s"},
+      {"execution_id", "some_execution_id"},
+  };
+  fst_run_options.timeout = absl::Seconds(10);
+  auto [fst_status_unused, fst_std_out_unused, fst_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  fst_run_options);
+
+  // Adjust the fuzzing time so that only 1s remains.
+  const absl::StatusOr<std::string> fuzzing_time_file =
+      FindFile(corpus_database.dirname(), "fuzzing_time");
+  ASSERT_TRUE(fuzzing_time_file.ok()) << fst_std_err;
+  ASSERT_TRUE(WriteFile(*fuzzing_time_file, "299s"));
+
+  // 2nd run that should resume due to the same execution ID.
+  RunOptions snd_run_options;
+  snd_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "300s"},
+      {"execution_id", "some_execution_id"},
+  };
+  snd_run_options.timeout = absl::Seconds(10);
+  auto [snd_status_unused, snd_std_out_unused, snd_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  snd_run_options);
+  EXPECT_THAT(
+      snd_std_err,
+      // The resumed fuzz test is the first one defined in the binary.
+      AllOf(HasSubstr("Resuming running the fuzz test FuzzTest.FailsInTwoWays"),
+            HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 1s"),
+            // Make sure that FailsInTwoWays finished.
+            HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")))
+      << snd_std_err;
+
+  // 3rd run that should skip the test due the test is finished in the 2nd
+  // exeuction with the same ID.
+  RunOptions thd_run_options;
+  thd_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "300s"},
+      {"execution_id", "some_execution_id"},
+  };
+  thd_run_options.timeout = absl::Seconds(10);
+  auto [thd_status_unused, thd_std_out_unused, thd_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  thd_run_options);
+  EXPECT_THAT(
+      thd_std_err,
+      // The skipped fuzz test is the first one defined in the binary.
+      HasSubstr("Skipping running the fuzz test FuzzTest.FailsInTwoWays"))
+      << thd_std_err;
+}
+
+TEST_P(UpdateCorpusDatabaseTest,
+       StartsNewFuzzTestRunWhenStoredAndCurrentExecutionIdsMismatch) {
+  TempDir corpus_database;
+
+  // 1st run that gets interrupted.
+  RunOptions fst_run_options;
+  fst_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "300s"},
+      {"execution_id", "some_execution_id_1"},
+  };
+  fst_run_options.timeout = absl::Seconds(10);
+  auto [fst_status_unused, fst_std_out_unused, fst_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  fst_run_options);
+
+  // 2nd run that should not resume due to the different execution ID.
+  // This run should complete within the timeout.
+  RunOptions snd_run_options;
+  snd_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "1s"},
+      {"execution_id", "some_execution_id_2"},
+  };
+  snd_run_options.timeout = absl::Seconds(10);
+  auto [snd_status_unused, snd_std_out_unused, snd_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  snd_run_options);
+  EXPECT_THAT(snd_std_err,
+              AllOf(Not(HasSubstr("Resuming running the fuzz test")),
+                    HasSubstr("Starting a new run of the fuzz test")))
+      << snd_std_err;
+
+  // 3rd run that should not skip the test due the different execution ID
+  RunOptions thd_run_options;
+  thd_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.dirname()},
+      {"fuzz_for", "300s"},
+      {"execution_id", "some_execution_id_3"},
+  };
+  thd_run_options.timeout = absl::Seconds(10);
+  auto [thd_status_unused, thd_std_out_unused, thd_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  thd_run_options);
+  EXPECT_THAT(thd_std_err,
+              AllOf(Not(HasSubstr("Skipping running the fuzz test")),
+                    HasSubstr("Starting a new run of the fuzz test")))
+      << thd_std_err;
+}
+
 TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
   RunOptions run_options;
   run_options.fuzztest_flags = {{"corpus_database", GetCorpusDatabasePath()},

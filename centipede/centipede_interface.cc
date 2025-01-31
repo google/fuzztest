@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -478,19 +479,32 @@ int UpdateCorpusDatabaseForFuzzTests(
             << " Total test shards: " << total_test_shards;
 
   // Step 2: Are we resuming from a previously terminated run?
-  // Find the last index of a fuzz test for which we already have a workdir.
+  // Currently there are two ways of determining this:
+  //
+  // The old way is to find the last index of a fuzz test for which we already
+  // have a workdir, which is done below, and then resume from the test. This
+  // requires Centipede to know the order of all the tests, which is unavailable
+  // in the single test execution model.
+  //
+  // The new way is to use the per-workflow execution ID to match with any
+  // previously stored execution ID, which works independently for each test -
+  // it is implemented and documented later.
+  //
+  // TODO(xinhaoyuan): Clean up the old approach when it's no longer used.
   bool is_resuming = false;
   int resuming_fuzztest_idx = 0;
-  for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
-    if (!is_workdir_specified) {
-      env.workdir = base_workdir_path / fuzz_tests_to_run[i];
-    }
-    // Check the existence of the coverage path to not only make sure the
-    // workdir exists, but also that it was created for the same binary as in
-    // this run.
-    if (RemotePathExists(WorkDir{env}.CoverageDirPath())) {
-      is_resuming = true;
-      resuming_fuzztest_idx = i;
+  if (!fuzztest_config.execution_id.has_value()) {
+    for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
+      if (!is_workdir_specified) {
+        env.workdir = base_workdir_path / fuzz_tests_to_run[i];
+      }
+      // Check the existence of the coverage path to not only make sure the
+      // workdir exists, but also that it was created for the same binary as in
+      // this run.
+      if (RemotePathExists(WorkDir{env}.CoverageDirPath())) {
+        is_resuming = true;
+        resuming_fuzztest_idx = i;
+      }
     }
   }
 
@@ -515,15 +529,63 @@ int UpdateCorpusDatabaseForFuzzTests(
     if (!is_workdir_specified) {
       env.workdir = base_workdir_path / fuzz_tests_to_run[i];
     }
+    const auto execution_id_path =
+        (base_workdir_path /
+         absl::StrCat(fuzz_tests_to_run[i], ".execution_id"))
+            .string();
+    if (!is_workdir_specified && fuzztest_config.execution_id.has_value()) {
+      // Use the execution IDs to resume or skip tests.
+      const bool execution_id_matched = [&] {
+        if (!RemotePathExists(execution_id_path)) return false;
+        CHECK(!RemotePathIsDirectory(execution_id_path));
+        std::string prev_execution_id;
+        CHECK_OK(RemoteFileGetContents(execution_id_path, prev_execution_id));
+        return prev_execution_id == *fuzztest_config.execution_id;
+      }();
+      if (execution_id_matched) {
+        // If execution IDs match but the previous coverage is missing, it means
+        // the test was previously finished, and we skip running for the test.
+        if (!RemotePathExists(WorkDir{env}.CoverageDirPath())) {
+          LOG(INFO) << "Skipping running the fuzz test "
+                    << fuzz_tests_to_run[i];
+          continue;
+        }
+        // If execution IDs match and the previous coverage exists, it means
+        // the same workflow got interrupted when running the test. So we resume
+        // the test.
+        is_resuming = true;
+        LOG(INFO) << "Resuming running the fuzz test " << fuzz_tests_to_run[i];
+      } else {
+        // If the execution IDs mismatch, we start a new run.
+        is_resuming = false;
+        LOG(INFO) << "Starting a new run of the fuzz test "
+                  << fuzz_tests_to_run[i];
+      }
+    }
     if (RemotePathExists(env.workdir) && !is_resuming) {
       // This could be a workdir from a failed run that used a different version
-      // of the binary. We delete it so that we don't have to deal with the
-      // assumptions under which it is safe to reuse an old workdir.
+      // of the binary. We delete it so that we don't have to deal with
+      // the assumptions under which it is safe to reuse an old workdir.
       CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
     }
     const WorkDir workdir{env};
     CHECK_OK(RemoteMkdir(
         workdir.CoverageDirPath()));  // Implicitly creates the workdir
+
+    // Updating execution ID must be after creating the coverage dir. Otherwise
+    // if it fails to create coverage dir after updating execution ID, next
+    // attempt would skip this test.
+    if (!is_workdir_specified && fuzztest_config.execution_id.has_value() &&
+        !is_resuming) {
+      CHECK_OK(RemoteFileSetContents(execution_id_path,
+                                     *fuzztest_config.execution_id));
+    }
+
+    absl::Cleanup clean_up_workdir = [is_workdir_specified, &env] {
+      if (!is_workdir_specified) {
+        CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
+      }
+    };
 
     const std::filesystem::path fuzztest_db_path =
         corpus_database_path / fuzz_tests_to_run[i];
@@ -615,10 +677,6 @@ int UpdateCorpusDatabaseForFuzzTests(
                                                     callbacks_factory);
     DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
                                   std::move(crash_metadata));
-  }
-  // Path may not exist if there are no fuzz tests in the shard.
-  if (!is_workdir_specified && RemotePathExists(base_workdir_path.c_str())) {
-    CHECK_OK(RemotePathDelete(base_workdir_path.c_str(), /*recursively=*/true));
   }
 
   return EXIT_SUCCESS;

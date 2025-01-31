@@ -100,6 +100,7 @@ cc_binary(
 # Must be run with `--config=fuzztest-experimental --config=asan`.
 cc_test(
     name = "corpus_database_test",
+    size = "large",
     srcs = ["corpus_database_test.cc"],
     data = [
         "@com_google_fuzztest//centipede:centipede_uninstrumented",

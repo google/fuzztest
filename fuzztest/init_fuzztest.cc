@@ -145,6 +145,11 @@ FUZZTEST_DEFINE_FLAG(
     "time budget.");
 
 FUZZTEST_DEFINE_FLAG(
+    std::optional<std::string>, execution_id, std::nullopt,
+    "If set, will resume or skip running on the corpus database for tests that "
+    "are previously run with the same execution ID.");
+
+FUZZTEST_DEFINE_FLAG(
     size_t, stack_limit_kb, 128,
     "The soft limit of the stack size in kibibytes to abort when "
     "the limit is exceeded. 0 indicates no limit.");
@@ -308,6 +313,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       reproduce_findings_as_separate_tests, replay_coverage_inputs,
       /*only_replay=*/
       replay_corpus_time_limit.has_value(),
+      absl::GetFlag(FUZZTEST_FLAG(execution_id)),
       absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,

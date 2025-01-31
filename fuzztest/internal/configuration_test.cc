@@ -23,6 +23,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->reproduce_findings_as_separate_tests &&
          config.replay_coverage_inputs == other->replay_coverage_inputs &&
          config.only_replay == other->only_replay &&
+         config.execution_id == other->execution_id &&
          config.print_subprocess_log == other->print_subprocess_log &&
          config.stack_limit == other->stack_limit &&
          config.rss_limit == other->rss_limit &&
@@ -46,6 +47,7 @@ TEST(ConfigurationTest,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
+                              "execution_id",
                               /*print_subprocess_log=*/true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
@@ -70,6 +72,7 @@ TEST(ConfigurationTest,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
+                              "execution_id",
                               /*print_subprocess_log=*/true,
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
