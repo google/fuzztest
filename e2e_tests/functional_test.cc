@@ -1821,6 +1821,25 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
+       SetupFailureCrashMetadataIsDumpedIfEnvVarIsSet) {
+  if (GetParam() == ExecutionModelParam::kSingleBinary) {
+    // TODO(b/385113025): Get back to this once the unified execution model is
+    // complete and reconsider how we want to handle setup failures in the
+    // single-binary mode.
+    GTEST_SKIP() << "Currently not supported in single-binary mode.";
+  }
+  TempDir out_dir;
+  const std::string crash_metadata_path =
+      std::filesystem::path(out_dir.dirname()) / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("FaultySetupTest.NoOp", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("SETUP FAILURE: SIGABRT")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
        CustomMutatorAndMutateCalllbackWorksForLLVMFuzzer) {
   TempDir out_dir;
   auto [status, std_out, std_err] =
