@@ -1,16 +1,76 @@
 #include "./fuzztest/fuzztest_macros.h"
 
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
+#include "./common/temp_dir.h"
 
 namespace fuzztest::internal {
 namespace {
 
+namespace fs = std::filesystem;
+
 using ::testing::ElementsAre;
+using ::testing::FieldsAre;
+using ::testing::UnorderedElementsAre;
+
+void WriteFile(const std::string& file_name, const std::string& contents) {
+  std::ofstream f(file_name);
+  CHECK(f.is_open());
+  f << contents;
+  f.close();
+}
+
+TEST(ReadFilesFromDirectoryTest, NoFilterReturnsEverything) {
+  TempDir temp_dir;
+  WriteFile(temp_dir.path() / "file-1.txt", "content-1");
+  WriteFile(temp_dir.path() / "file-2.txt", "content-2");
+
+  auto seeds = ReadFilesFromDirectory(
+      temp_dir.path().c_str(), [](std::string_view name) { return true; });
+
+  EXPECT_THAT(seeds, UnorderedElementsAre(FieldsAre("content-1"),
+                                          FieldsAre("content-2")));
+}
+
+TEST(ReadFilesFromDirectoryTest, DirectoryIsTraversedRecursively) {
+  TempDir temp_dir;
+  WriteFile(temp_dir.path() / "file-1.txt", "content-1");
+  fs::create_directories(temp_dir.path() / "sub-dir");
+  WriteFile(temp_dir.path() / "sub-dir" / "file-2.txt", "content-2");
+
+  auto seeds = ReadFilesFromDirectory(
+      temp_dir.path().c_str(), [](std::string_view name) { return true; });
+
+  EXPECT_THAT(seeds, UnorderedElementsAre(FieldsAre("content-1"),
+                                          FieldsAre("content-2")));
+}
+
+TEST(ReadFilesFromDirectoryTest, FilterReturnsOnlyMatchingFiles) {
+  TempDir temp_dir;
+  WriteFile(temp_dir.path() / "file.png", "image");
+  WriteFile(temp_dir.path() / "file.txt", "text");
+
+  auto seeds = ReadFilesFromDirectory(
+      temp_dir.path().c_str(),
+      [](std::string_view name) { return absl::EndsWith(name, ".png"); });
+
+  EXPECT_THAT(seeds, UnorderedElementsAre(FieldsAre("image")));
+}
+
+TEST(ReadFilesFromDirectoryTest, DiesOnInvalidDirectory) {
+  EXPECT_DEATH(ReadFilesFromDirectory(
+                   "invalid_dir", [](std::string_view name) { return true; }),
+               "Not a directory: invalid_dir");
+}
 
 TEST(ParseDictionaryTest, Success) {
   // Derived from https://llvm.org/docs/LibFuzzer.html#dictionaries

@@ -77,6 +77,7 @@ cc_library(
     ],
     deps = [
         ":io",
+        ":logging",
         ":registration",
         ":registry",
         "@com_google_absl//absl/log:check",
@@ -93,7 +94,10 @@ cc_test(
     srcs = ["fuzztest_macros_test.cc"],
     deps = [
         ":fuzztest_macros",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_fuzztest//common:temp_dir",
         "@com_google_googletest//:gtest_main",
     ],
 )

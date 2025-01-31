@@ -62,8 +62,25 @@ fuzztest_cc_library(
     "fuzztest_macros.cc"
   DEPS
     fuzztest::io
+    fuzztest::logging
     fuzztest::registration
     fuzztest::registry
+)
+
+fuzztest_cc_test(
+  NAME
+    fuzztest_macros_test
+  HDRS
+    "fuzztest_macros_test.h"
+  SRCS
+    "fuzztest_macros_test.cc"
+  DEPS
+    GTest::gmock_main
+    absl::log
+    absl::status
+    absl::strings
+    fuzztest::fuzztest_macros
+    fuzztest::temp_dir
 )
 
 fuzztest_cc_library(

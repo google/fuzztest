@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -114,8 +115,8 @@ namespace fuzztest {
 #define FUZZ_TEST_F(fixture, func) \
   INTERNAL_FUZZ_TEST_F(fixture, func, fixture, func)
 
-// Reads files as strings from the directory `dir` and returns a vector usable
-// by .WithSeeds().
+// Reads files from the directory `dir` recursively. Returns the content strings
+// as a vector usable by .WithSeeds().
 //
 // Example:
 //
@@ -124,8 +125,27 @@ namespace fuzztest {
 //   }
 //   FUZZ_TEST(MySuite, MyThingNeverCrashes)
 //     .WithSeeds(ReadFilesFromDirectory(kCorpusPath));
+//
+// TODO(b/380934093): Rewrite this function as ReadFilesFromDirectory(dir,
+// [](std::string_view name) { return true; });
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir);
+
+// Reads files from the directory `dir` recursively, if the file name matches
+// the `filter` function. Returns the content strings as a vector usable by
+// .WithSeeds().
+//
+// For example to read .xml files as string seeds:
+//
+//   void MyThingNeverCrashes(const std::string& xml) {
+//     DoThingsWith(xml);
+//   }
+//   FUZZ_TEST(MySuite, MyThingNeverCrashes)
+//     .WithSeeds(ReadFilesFromDirectory(
+//        kCorpusPath,
+//        [](std::string_view name) { return absl::EndsWith(name, ".xml"; });
+std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
+    std::string_view dir, std::function<bool(std::string_view)> filter);
 
 // Returns parsed dictionary entries from fuzzer dictionary definition in the
 // format specified at https://llvm.org/docs/LibFuzzer.html#dictionaries.
