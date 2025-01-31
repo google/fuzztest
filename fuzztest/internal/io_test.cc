@@ -38,6 +38,7 @@
 #include "absl/time/time.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/temp_dir.h"
 #include "./fuzztest/fuzztest_core.h"
 
 namespace fuzztest::internal {
@@ -53,11 +54,6 @@ using ::testing::UnorderedElementsAre;
 std::string TmpFile(const std::string& name) {
   std::string filename = absl::StrCat(testing::TempDir(), "/", name, "XXXXXX");
   return mktemp(filename.data());
-}
-
-std::string TmpDir(const std::string& name) {
-  std::string filename = absl::StrCat(testing::TempDir(), "/", name, "XXXXXX");
-  return mkdtemp(filename.data());
 }
 
 // These use a different implementation of read/write.
@@ -86,26 +82,23 @@ TEST(IOTest, WriteFileWorksWhenDirectoryExists) {
 }
 
 TEST(IOTest, WriteFileWorksWhenDirectoryDoesNotExist) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
-  const std::string tmp_name = absl::StrCat(tmp_dir, "/doesnt_exist/file");
+  TempDir tmp_dir;
+  const std::string tmp_name = tmp_dir.path() / "doesnt_exist" / "file";
   EXPECT_TRUE(WriteFile(tmp_name, "Payload1"));
   EXPECT_EQ(TestRead(tmp_name), "Payload1");
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, WriteDataToDirReturnsWrittenFilePath) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
-  const std::string path = WriteDataToDir("data", tmp_dir);
+  TempDir tmp_dir;
+  const std::string path = WriteDataToDir("data", tmp_dir.path().c_str());
   EXPECT_THAT(ReadFile(path), Optional(Eq("data")));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, WriteDataToDirWritesToSameFileOnSameData) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
-  const std::string path = WriteDataToDir("data", tmp_dir);
-  EXPECT_THAT(WriteDataToDir("data", tmp_dir), Eq(path));
+  TempDir tmp_dir;
+  const std::string path = WriteDataToDir("data", tmp_dir.path().c_str());
+  EXPECT_THAT(WriteDataToDir("data", tmp_dir.path().c_str()), Eq(path));
   EXPECT_THAT(ReadFile(path), Optional(Eq("data")));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, ReadFileReturnsNulloptWhenMissing) {
@@ -124,57 +117,56 @@ TEST(IOTest, ReadFileWorksWhenFileExists) {
 }
 
 TEST(IOTest, ReadFileOrDirectoryWorks) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
-  EXPECT_THAT(ReadFileOrDirectory(tmp_dir), UnorderedElementsAre());
-  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  TempDir tmp_dir;
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir.path().c_str()),
+              UnorderedElementsAre());
+  const std::string tmp_file_1 = tmp_dir.path() / "file1";
   TestWrite(tmp_file_1, "Payload3.1");
-  EXPECT_THAT(ReadFileOrDirectory(tmp_dir),
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir.path().c_str()),
               UnorderedElementsAre(FieldsAre(tmp_file_1, "Payload3.1")));
-  const std::string tmp_file_2 = absl::StrCat(tmp_dir, "/file2");
+  const std::string tmp_file_2 = tmp_dir.path() / "file2";
   TestWrite(tmp_file_2, "Payload3.2");
-  EXPECT_THAT(ReadFileOrDirectory(tmp_dir),
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir.path().c_str()),
               UnorderedElementsAre(FieldsAre(tmp_file_1, "Payload3.1"),
                                    FieldsAre(tmp_file_2, "Payload3.2")));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, ReadFileOrDirectoryWorksRecursively) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string tmp_sub_dir = absl::StrCat(tmp_dir, "/subdir");
+  TempDir tmp_dir;
+  const std::string tmp_sub_dir = tmp_dir.path() / "subdir";
   mkdir(tmp_sub_dir.c_str(), 0700);
-  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  const std::string tmp_file_1 = tmp_dir.path() / "file1";
   TestWrite(tmp_file_1, "Payload5.1");
   const std::string tmp_file_2 = absl::StrCat(tmp_sub_dir, "/file2");
   TestWrite(tmp_file_2, "Payload5.2");
-  EXPECT_THAT(ReadFileOrDirectory(tmp_dir),
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir.path().c_str()),
               UnorderedElementsAre(FieldsAre(tmp_file_1, "Payload5.1"),
                                    FieldsAre(tmp_file_2, "Payload5.2")));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, ReadFilesFromDirectoryWorks) {
-  const std::string tmp_dir = TmpDir("write_test_dir");
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), UnorderedElementsAre());
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), SizeIs(0));
-  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  TempDir tmp_dir;
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()),
+              UnorderedElementsAre());
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()), SizeIs(0));
+  const std::string tmp_file_1 = tmp_dir.path() / "file1";
   TestWrite(tmp_file_1, "Payload4.1");
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir),
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()),
               UnorderedElementsAre(FieldsAre("Payload4.1")));
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), SizeIs(1));
-  const std::string tmp_file_2 = absl::StrCat(tmp_dir, "/file2");
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()), SizeIs(1));
+  const std::string tmp_file_2 = tmp_dir.path() / "file2";
   TestWrite(tmp_file_2, "Payload4.2");
   EXPECT_THAT(
-      ReadFilesFromDirectory(tmp_dir),
+      ReadFilesFromDirectory(tmp_dir.path().c_str()),
       UnorderedElementsAre(FieldsAre("Payload4.1"), FieldsAre("Payload4.2")));
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), SizeIs(2));
-  std::filesystem::remove_all(tmp_dir);
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()), SizeIs(2));
 }
 
 TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenNoFilesInDir) {
-  const std::string tmp_dir = TmpDir("empty_dir");
-  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir), UnorderedElementsAre());
-  EXPECT_THAT(ReadFileOrDirectory(tmp_dir), SizeIs(0));
-  std::filesystem::remove_all(tmp_dir);
+  TempDir tmp_dir;
+  EXPECT_THAT(ReadFilesFromDirectory(tmp_dir.path().c_str()),
+              UnorderedElementsAre());
+  EXPECT_THAT(ReadFileOrDirectory(tmp_dir.path().c_str()), SizeIs(0));
 }
 
 TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenMissing) {
@@ -183,20 +175,18 @@ TEST(IOTest, ReadFilesFromDirectoryReturnsEmptyVectorWhenMissing) {
 }
 
 TEST(IOTest, ListDirectoryReturnsPathsInDirectory) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string tmp_file_1 = absl::StrCat(tmp_dir, "/file1");
+  TempDir tmp_dir;
+  const std::string tmp_file_1 = tmp_dir.path() / "file1";
   TestWrite(tmp_file_1, /*contents=*/"File1");
-  const std::string tmp_file_2 = absl::StrCat(tmp_dir, "/file2");
+  const std::string tmp_file_2 = tmp_dir.path() / "file2";
   TestWrite(tmp_file_2, /*contents=*/"File2");
-  EXPECT_THAT(ListDirectory(tmp_dir),
+  EXPECT_THAT(ListDirectory(tmp_dir.path().c_str()),
               UnorderedElementsAre(tmp_file_1, tmp_file_2));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryIsEmpty) {
-  const std::string tmp_dir = TmpDir("empty_dir");
-  EXPECT_THAT(ListDirectory(tmp_dir), IsEmpty());
-  std::filesystem::remove_all(tmp_dir);
+  TempDir tmp_dir;
+  EXPECT_THAT(ListDirectory(tmp_dir.path().c_str()), IsEmpty());
 }
 
 TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryDoesNotExist) {
@@ -204,10 +194,9 @@ TEST(IOTest, ListDirectoryReturnsEmptyVectorWhenDirectoryDoesNotExist) {
 }
 
 TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string serialized_file =
-      std::filesystem::path(tmp_dir) / "serialized_file";
-  const std::string blob_file = std::filesystem::path(tmp_dir) / "blob_file";
+  TempDir tmp_dir;
+  const std::string serialized_file = tmp_dir.path() / "serialized_file";
+  const std::string blob_file = tmp_dir.path() / "blob_file";
   TestWrite(serialized_file, "Input1");
   std::unique_ptr<centipede::BlobFileWriter> writer =
       centipede::DefaultBlobFileWriterFactory();
@@ -229,12 +218,11 @@ TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
                           InputInFile{serialized_file, std::nullopt, "Input1"},
                           InputInFile{blob_file, 0, "Input2"},
                           InputInFile{blob_file, 1, "Input3"}));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string file = std::filesystem::path(tmp_dir) / "file";
+  TempDir tmp_dir;
+  const std::string file = tmp_dir.path() / "file";
   std::unique_ptr<centipede::BlobFileWriter> writer =
       centipede::DefaultBlobFileWriterFactory();
   CHECK(writer->Open(file, "w").ok());
@@ -252,16 +240,15 @@ TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
         return absl::OkStatus();
       });
   EXPECT_THAT(inputs, UnorderedElementsAre(InputInFile{file, 1, "Accept"}));
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(ForEachSerializedInputTest, ReadsInputsUntilTimeout) {
-  const std::string tmp_dir = TmpDir("test_dir");
+  TempDir tmp_dir;
   std::vector<std::string> serialized_files;
   constexpr int kInputsNum = 1000;
   constexpr absl::Duration kTimeout = absl::Seconds(1);
   for (int i = 0; i < kInputsNum; ++i) {
-    serialized_files.push_back(std::filesystem::path(tmp_dir) /
+    serialized_files.push_back(tmp_dir.path() /
                                absl::StrCat("serialized_file", i));
     TestWrite(serialized_files.back(), absl::StrCat("Input", i));
   }
@@ -276,19 +263,17 @@ TEST(ForEachSerializedInputTest, ReadsInputsUntilTimeout) {
       },
       kTimeout);
   EXPECT_LT(inputs_read, kInputsNum);
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(ForEachSerializedInputTest, DiesOnDirectoriesInFilePaths) {
-  const std::string tmp_dir = TmpDir("test_dir");
-  const std::string dir = std::filesystem::path(tmp_dir) / "dir";
+  TempDir tmp_dir;
+  const std::string dir = tmp_dir.path() / "dir";
   std::filesystem::create_directory(dir);
 
   EXPECT_DEATH(ForEachSerializedInput(
                    {dir}, [&](absl::string_view, std::optional<int>,
                               std::string) { return absl::OkStatus(); }),
                "is a directory");
-  std::filesystem::remove_all(tmp_dir);
 }
 
 TEST(ForEachSerializedInputTest, DiesOnNonExistingFilePaths) {

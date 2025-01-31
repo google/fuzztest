@@ -24,22 +24,6 @@
 
 namespace fuzztest::internal {
 
-// A helper class for creating a temporary directory. Removes the directory
-// when it goes out of scope.
-class TempDir {
- public:
-  TempDir();
-  ~TempDir();
-
-  TempDir(const TempDir& other) = delete;
-  TempDir& operator=(const TempDir& other) = delete;
-
-  const std::string& dirname() const { return dirname_; }
-
- private:
-  std::string dirname_;
-};
-
 // Returns a string of the form "--flag_name=flag_value" (or "--flag_name" if
 // `flag_value` is empty), but with the flag name transformed to take into
 // account any internal flag prefix.

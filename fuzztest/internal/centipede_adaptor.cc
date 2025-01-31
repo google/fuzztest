@@ -23,7 +23,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <cerrno>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -31,15 +30,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <filesystem>  // NOLINT
 #include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <random>
 #include <string>
-#include <system_error>  // NOLINT
-#include <thread>        // NOLINT: For thread::get_id() only.
+#include <thread>  // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
 
@@ -70,6 +67,7 @@
 #include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/temp_dir.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/domains/domain.h"
@@ -81,32 +79,6 @@
 
 namespace fuzztest::internal {
 namespace {
-
-class TempDir {
- public:
-  explicit TempDir(absl::string_view base_path) {
-    std::string filename = absl::StrCat(base_path, "XXXXXX");
-    const char* path = mkdtemp(filename.data());
-    const auto saved_errno = errno;
-    FUZZTEST_INTERNAL_CHECK(path, "Cannot create temporary dir with base path ",
-                            base_path, ": ", saved_errno);
-    path_ = path;
-  }
-
-  ~TempDir() {
-    std::error_code ec;
-    std::filesystem::remove_all(path_, ec);
-    if (ec) {
-      absl::FPrintF(GetStderr(), "[!] Unable to clean up temporary dir %s: %s",
-                    path_, ec.message());
-    }
-  }
-
-  const std::string& path() const { return path_; }
-
- private:
-  std::string path_;
-};
 
 absl::StatusOr<std::vector<std::string>> GetProcessArgs() {
   std::vector<std::string> results;
@@ -418,9 +390,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
     return true;
   }
 
-  ~CentipedeAdaptorRunnerCallbacks() override {
-    runtime_.UnsetCurrentArgs();
-  }
+  ~CentipedeAdaptorRunnerCallbacks() override { runtime_.UnsetCurrentArgs(); }
 
  private:
   template <typename T>
@@ -434,22 +404,22 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
 
   void SetMetadata(const centipede::ExecutionMetadata* metadata) {
     if (metadata == nullptr) return;
-    metadata->ForEachCmpEntry([this](centipede::ByteSpan a,
-                                     centipede::ByteSpan b) {
-      FUZZTEST_INTERNAL_CHECK(a.size() == b.size(),
-                              "cmp operands must have the same size");
-      const size_t size = a.size();
-      if (size < kMinCmpEntrySize) return;
-      if (size > kMaxCmpEntrySize) return;
-      if (size == 2) {
-        InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data());
-      } else if (size == 4) {
-        InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data());
-      } else if (size == 8) {
-        InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
-      }
-      cmp_tables_->GetMutable<0>().Insert(a.data(), b.data(), size);
-    });
+    metadata->ForEachCmpEntry(
+        [this](centipede::ByteSpan a, centipede::ByteSpan b) {
+          FUZZTEST_INTERNAL_CHECK(a.size() == b.size(),
+                                  "cmp operands must have the same size");
+          const size_t size = a.size();
+          if (size < kMinCmpEntrySize) return;
+          if (size > kMaxCmpEntrySize) return;
+          if (size == 2) {
+            InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data());
+          } else if (size == 4) {
+            InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data());
+          } else if (size == 8) {
+            InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
+          }
+          cmp_tables_->GetMutable<0>().Insert(a.data(), b.data(), size);
+        });
   }
 
   // Size limits on the cmp entries to be used in mutation.
@@ -624,7 +594,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     // Run as the fuzzing engine.
     std::unique_ptr<TempDir> workdir;
     if (configuration.corpus_database.empty() || mode == RunMode::kUnitTest)
-      workdir = std::make_unique<TempDir>("/tmp/fuzztest-workdir-");
+      workdir = std::make_unique<TempDir>("fuzztest_workdir");
     const std::string workdir_path = workdir ? workdir->path() : "";
     const auto env = CreateCentipedeEnvironmentFromConfiguration(
         configuration, workdir_path, test_.full_name(), mode);

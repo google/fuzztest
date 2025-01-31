@@ -28,6 +28,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
@@ -97,7 +98,7 @@ class UpdateCorpusDatabaseTest
 
   static std::string GetCorpusDatabasePath() {
     RunUpdateCorpusDatabase();
-    return std::filesystem::path(temp_dir_->dirname()) / "corpus_database";
+    return temp_dir_->path() / "corpus_database";
   }
 
   static absl::string_view GetUpdateCorpusDatabaseStdErr() {
@@ -170,7 +171,7 @@ TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
   // 1st run that gets interrupted.
   RunOptions fst_run_options;
   fst_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
   };
   fst_run_options.timeout = absl::Seconds(10);
@@ -179,14 +180,14 @@ TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
 
   // Adjust the fuzzing time so that only 1s remains.
   const absl::StatusOr<std::string> fuzzing_time_file =
-      FindFile(corpus_database.dirname(), "fuzzing_time");
+      FindFile(corpus_database.path().c_str(), "fuzzing_time");
   ASSERT_TRUE(fuzzing_time_file.ok()) << fst_std_err;
   ASSERT_TRUE(WriteFile(*fuzzing_time_file, "299s"));
 
   // 2nd run that resumes the fuzzing.
   RunOptions snd_run_options;
   snd_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
   };
   snd_run_options.timeout = absl::Seconds(10);
@@ -207,7 +208,7 @@ TEST_P(UpdateCorpusDatabaseTest,
   // 1st run that gets interrupted.
   RunOptions fst_run_options;
   fst_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
@@ -218,14 +219,14 @@ TEST_P(UpdateCorpusDatabaseTest,
 
   // Adjust the fuzzing time so that only 1s remains.
   const absl::StatusOr<std::string> fuzzing_time_file =
-      FindFile(corpus_database.dirname(), "fuzzing_time");
+      FindFile(corpus_database.path().c_str(), "fuzzing_time");
   ASSERT_TRUE(fuzzing_time_file.ok()) << fst_std_err;
   ASSERT_TRUE(WriteFile(*fuzzing_time_file, "299s"));
 
   // 2nd run that should resume due to the same execution ID.
   RunOptions snd_run_options;
   snd_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
@@ -246,7 +247,7 @@ TEST_P(UpdateCorpusDatabaseTest,
   // exeuction with the same ID.
   RunOptions thd_run_options;
   thd_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
@@ -268,7 +269,7 @@ TEST_P(UpdateCorpusDatabaseTest,
   // 1st run that gets interrupted.
   RunOptions fst_run_options;
   fst_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id_1"},
   };
@@ -281,7 +282,7 @@ TEST_P(UpdateCorpusDatabaseTest,
   // This run should complete within the timeout.
   RunOptions snd_run_options;
   snd_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "1s"},
       {"execution_id", "some_execution_id_2"},
   };
@@ -297,7 +298,7 @@ TEST_P(UpdateCorpusDatabaseTest,
   // 3rd run that should not skip the test due the different execution ID
   RunOptions thd_run_options;
   thd_run_options.fuzztest_flags = {
-      {"corpus_database", corpus_database.dirname()},
+      {"corpus_database", corpus_database.path()},
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id_3"},
   };

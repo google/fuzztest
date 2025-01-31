@@ -207,6 +207,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "temp_dir",
+    srcs = ["temp_dir.cc"],
+    hdrs = ["temp_dir.h"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
 ### Tests
 
 cc_test(

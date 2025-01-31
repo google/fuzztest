@@ -37,6 +37,7 @@ target_link_libraries(
   fuzztest_subprocess
   fuzztest_test_binary_util
   fuzztest_type_support
+  fuzztest_temp_dir
   re2
   absl::flat_hash_map
   absl::strings

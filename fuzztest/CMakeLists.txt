@@ -448,6 +448,7 @@ fuzztest_cc_test(
   DEPS
     fuzztest::blob_file
     fuzztest::defs
+    fuzztest::temp_dir
     fuzztest::fuzztest_core
     fuzztest::io
     absl::check

@@ -242,6 +242,7 @@ cc_library(
         "@com_google_fuzztest//centipede:stop",
         "@com_google_fuzztest//centipede:workdir",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:temp_dir",
     ],
 )
 
@@ -514,6 +515,7 @@ cc_test(
         "@com_google_absl//absl/time",
         "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:temp_dir",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -155,6 +155,19 @@ fuzztest_cc_library(
   TESTONLY
 )
 
+fuzztest_cc_library(
+  NAME
+    temp_dir
+  HDRS
+    "temp_dir.h"
+  SRCS
+    "temp_dir.cc"
+  DEPS
+    absl::check
+    absl::string_view
+    absl::strings
+)
+
 ### Tests
 
 fuzztest_cc_test(

@@ -45,16 +45,6 @@ std::string GetFullPath(const std::filesystem::path& relative_path) {
 
 }  // namespace
 
-TempDir::TempDir() {
-  std::error_code error;
-  dirname_ = std::filesystem::temp_directory_path(error) / "temp_dir_XXXXXX";
-  CHECK(!error) << "Failed to get the root temp directory path: " << error;
-  dirname_ = mkdtemp(dirname_.data());
-  CHECK(std::filesystem::is_directory(dirname_));
-}
-
-TempDir::~TempDir() { std::filesystem::remove_all(dirname_); }
-
 std::string CreateFuzzTestFlag(absl::string_view flag_name,
                                absl::string_view flag_value) {
   return absl::StrCat("--", FUZZTEST_FLAG_PREFIX, flag_name,

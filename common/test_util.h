@@ -66,6 +66,8 @@ std::string GetObjDumpPath();
 void PrependDirToPathEnvvar(std::string_view dir);
 
 // Creates or clears a tmp dir in CTOR. The dir will end with `leaf` subdir.
+//
+// TODO(b/393384208): Merge this with TempDir in temp_dir.h.
 class TempDir {
  public:
   explicit TempDir(std::string_view leaf1, std::string_view leaf2 = "")
