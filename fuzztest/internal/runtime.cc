@@ -957,6 +957,8 @@ void PopulateLimits(const Configuration& configuration,
 }
 
 bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
+  runtime_.SetCurrentTest(&test_, &configuration);
+  runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
   runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
   [&] {
@@ -968,8 +970,6 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     }
     runtime_.StartWatchdog();
     PopulateLimits(configuration, execution_coverage_);
-    runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
-    runtime_.SetCurrentTest(&test_, &configuration);
 
     // TODO(sbenzaquen): Currently, some infrastructure code assumes that replay
     // works in unit test mode, so we support it. However, we would like to
@@ -979,7 +979,6 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
       // In replay mode, we only replay.
-      runtime_.DisableReporter();
       return;
     }
 
@@ -1034,9 +1033,10 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
         break;
       }
     }
-    runtime_.SetCurrentTest(nullptr, nullptr);
   }();
   fixture_driver_->TearDownFuzzTest();
+  runtime_.DisableReporter();
+  runtime_.SetCurrentTest(nullptr, nullptr);
   return true;
 }
 
@@ -1128,6 +1128,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
 
 bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
                                           const Configuration& configuration) {
+  if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
+  runtime_.SetCurrentTest(&test_, &configuration);
+  runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
   runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpFuzzTest();
   const bool success = [&] {
@@ -1140,11 +1143,6 @@ bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
     runtime_.StartWatchdog();
     PopulateLimits(configuration, execution_coverage_);
     runtime_.SetRunMode(RunMode::kFuzz);
-
-    if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
-
-    runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
-    runtime_.SetCurrentTest(&test_, &configuration);
 
     if (ReplayInputsIfAvailable(configuration)) {
       // If ReplayInputs returns, it means the replay didn't crash.
@@ -1257,14 +1255,14 @@ bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
       }
     }
 
-    runtime_.SetCurrentTest(nullptr, nullptr);
-
     absl::FPrintF(GetStderr(), "\n[.] Fuzzing was terminated.\n");
     runtime_.PrintFinalStatsOnDefaultSink();
     absl::FPrintF(GetStderr(), "\n");
     return true;
   }();
   fixture_driver_->TearDownFuzzTest();
+  runtime_.DisableReporter();
+  runtime_.SetCurrentTest(nullptr, nullptr);
   return success;
 }
 
