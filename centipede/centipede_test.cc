@@ -993,4 +993,39 @@ TEST(Centipede, DetectsStackOverflow) {
   EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
 }
 
+namespace {
+
+class SetupFailureCallbacks : public CentipedeCallbacks {
+ public:
+  using CentipedeCallbacks::CentipedeCallbacks;
+
+  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
+               BatchResult &batch_result) override {
+    batch_result.ClearAndResize(inputs.size());
+    batch_result.exit_code() = EXIT_FAILURE;
+    batch_result.failure_description() = "SETUP FAILURE: something went wrong";
+    return false;
+  }
+
+  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
+              std::vector<ByteArray> &mutants) override {
+    mutants.resize(num_mutants, {0});
+  }
+};
+
+}  // namespace
+
+TEST(Centipede, AbortsOnSetupFailure) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = temp_dir.path();
+  env.batch_size = 7;            // Just some small number.
+  env.require_pc_table = false;  // No PC table here.
+  SetupFailureCallbacks mock(env);
+  MockFactory factory(mock);
+  EXPECT_DEATH(CentipedeMain(env, factory),
+               "Terminating Centipede due to setup failure in the test.");
+}
+
 }  // namespace centipede

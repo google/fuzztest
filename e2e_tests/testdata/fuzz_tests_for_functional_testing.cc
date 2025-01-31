@@ -840,4 +840,11 @@ void SkipInputs(uint32_t input) {
 // when initializing the corpus for fuzzing. So we provide one.
 FUZZ_TEST(MySuite, SkipInputs).WithSeeds({1});
 
+class FaultySetupTest {
+ public:
+  FaultySetupTest() { std::abort(); }
+  void NoOp(int) {}
+};
+FUZZ_TEST_F(FaultySetupTest, NoOp);
+
 }  // namespace

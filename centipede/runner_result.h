@@ -137,6 +137,10 @@ class BatchResult {
   // When running N inputs, ClearAndResize(N) must be called before Read().
   bool Read(BlobSequence& blobseq);
 
+  // Returns true if the batch execution failed due to a setup failure, and not
+  // a crash tied to a specific input.
+  bool IsSetupFailure() const;
+
   // Accessors.
   std::vector<ExecutionResult>& results() { return results_; }
   const std::vector<ExecutionResult>& results() const { return results_; }
