@@ -21,6 +21,7 @@
 #include "absl/strings/match.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 namespace fuzztest::internal {
@@ -37,6 +38,7 @@ TEST(OnFailureTest, Output) {
   EXPECT_EQ(get_failure(), "");
 
   FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
   std::tuple args(17, std::string("ABC"));
   const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
   runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
@@ -45,7 +47,7 @@ TEST(OnFailureTest, Output) {
   GenericDomainCorpusType generic_args(
       std::in_place_type<std::tuple<int, std::string>>, args);
   Runtime::Args debug_args{generic_args, domain};
-  runtime.SetCurrentTest(&test, nullptr);
+  runtime.SetCurrentTest(&test, &configuration);
   runtime.SetCurrentArgs(&debug_args);
   const std::string report = get_failure();
 

@@ -21,6 +21,20 @@ endif()
 
 fuzztest_cc_library(
   NAME
+    bazel
+  HDRS
+    "bazel.h"
+  SRCS
+    "bazel.cc"
+  DEPS
+    absl::check
+    absl::strings
+    absl::status
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
     blob_file
   HDRS
     "blob_file.h"

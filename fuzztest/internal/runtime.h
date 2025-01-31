@@ -176,11 +176,7 @@ class Runtime {
     UntypedDomain& domain;
   };
 
-  void SetCurrentTest(const FuzzTest* test,
-                      const Configuration* configuration) {
-    current_test_ = test;
-    current_configuration_ = configuration;
-  }
+  void SetCurrentTest(const FuzzTest* test, const Configuration* configuration);
   void OnTestIterationStart(const absl::Time& start_time) {
     current_iteration_start_time_ = start_time;
     test_iteration_started_ = true;
@@ -242,6 +238,9 @@ class Runtime {
 
   RunMode run_mode_ = RunMode::kUnitTest;
   std::atomic<bool> watchdog_thread_started = false;
+
+  absl::Time creation_time_ = absl::Now();
+  size_t test_counter_ = 0;
 
   bool reporter_enabled_ = false;
   Args* current_args_ = nullptr;

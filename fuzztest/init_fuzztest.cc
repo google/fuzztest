@@ -330,6 +330,7 @@ void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
 }
 
 void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
+  auto& runtime = internal::Runtime::instance();
   const bool is_listing = absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests));
   if (is_listing) {
     for (const auto& name : ListRegisteredTests()) {
@@ -409,7 +410,7 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   const RunMode run_mode =
       fuzzing_time_limit.has_value() ? RunMode::kFuzz : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
-  internal::Runtime::instance().SetRunMode(run_mode);
+  runtime.SetRunMode(run_mode);
 }
 
 void ParseAbslFlags(int argc, char** argv) {

@@ -63,6 +63,7 @@
 #include "./centipede/thread_pool.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/bazel.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
@@ -271,92 +272,9 @@ int Fuzz(const Environment &env, const BinaryInfo &binary_info,
   return ExitCode();
 }
 
-struct TestShard {
-  int index = 0;
-  int total_shards = 1;
-};
-
-// https://bazel.build/reference/test-encyclopedia#initial-conditions
-absl::Duration GetBazelTestTimeout() {
-  const char *test_timeout_env = std::getenv("TEST_TIMEOUT");
-  if (test_timeout_env == nullptr) return absl::InfiniteDuration();
-  int timeout_s = 0;
-  CHECK(absl::SimpleAtoi(test_timeout_env, &timeout_s))
-      << "Failed to parse TEST_TIMEOUT: \"" << test_timeout_env << "\"";
-  return absl::Seconds(timeout_s);
-}
-
-void ReportErrorWhenNotEnoughTimeToRunEverything(absl::Time start_time,
-                                                 absl::Duration test_time_limit,
-                                                 int executed_tests_in_shard,
-                                                 int fuzz_test_count,
-                                                 int shard_count) {
-  static const absl::Duration bazel_test_timeout = GetBazelTestTimeout();
-  constexpr float kTimeoutSafetyFactor = 1.2;
-  const auto required_test_time = kTimeoutSafetyFactor * test_time_limit;
-  const auto remaining_duration =
-      bazel_test_timeout - (absl::Now() - start_time);
-  if (required_test_time <= remaining_duration) return;
-  std::string error =
-      "Cannot fuzz a fuzz test within the given timeout. Please ";
-  if (executed_tests_in_shard == 0) {
-    // Increasing number of shards won't help.
-    const absl::Duration suggested_timeout =
-        required_test_time * ((fuzz_test_count - 1) / shard_count + 1);
-    absl::StrAppend(&error, "set the `timeout` to ", suggested_timeout,
-                    " or reduce the fuzzing time, ");
-  } else {
-    constexpr int kMaxShardCount = 50;
-    const int suggested_shard_count = std::min(
-        (fuzz_test_count - 1) / executed_tests_in_shard + 1, kMaxShardCount);
-    const int suggested_tests_per_shard =
-        (fuzz_test_count - 1) / suggested_shard_count + 1;
-    if (suggested_tests_per_shard > executed_tests_in_shard) {
-      // We wouldn't be able to execute the suggested number of tests without
-      // timeout. This case can only happen if we would in fact need more than
-      // `kMaxShardCount` shards, indicating that there are simply too many fuzz
-      // tests in a binary.
-      CHECK_EQ(suggested_shard_count, kMaxShardCount);
-      absl::StrAppend(&error,
-                      "split the fuzz tests into several test binaries where "
-                      "each binary has at most ",
-                      executed_tests_in_shard * kMaxShardCount, "tests ",
-                      "with `shard_count` = ", kMaxShardCount, ", ");
-    } else {
-      // In this case, `suggested_shard_count` must be greater than
-      // `shard_count`, otherwise we would have already executed all the tests
-      // without a timeout.
-      CHECK_GT(suggested_shard_count, shard_count);
-      absl::StrAppend(&error, "increase the `shard_count` to ",
-                      suggested_shard_count, ", ");
-    }
-  }
-  absl::StrAppend(&error, "to avoid this issue. ");
-  absl::StrAppend(&error,
-                  "(https://bazel.build/reference/be/"
-                  "common-definitions#common-attributes-tests)");
-  CHECK(false) << error;
-}
 
 TestShard SetUpTestSharding() {
-  TestShard test_shard;
-  if (const char *test_total_shards_env = std::getenv("TEST_TOTAL_SHARDS");
-      test_total_shards_env != nullptr) {
-    CHECK(absl::SimpleAtoi(test_total_shards_env, &test_shard.total_shards))
-        << "Failed to parse TEST_TOTAL_SHARDS as an integer: \""
-        << test_total_shards_env << "\"";
-    CHECK_GT(test_shard.total_shards, 0)
-        << "TEST_TOTAL_SHARDS must be greater than 0.";
-  }
-  if (const char *test_shard_index_env = std::getenv("TEST_SHARD_INDEX");
-      test_shard_index_env != nullptr) {
-    CHECK(absl::SimpleAtoi(test_shard_index_env, &test_shard.index))
-        << "Failed to parse TEST_SHARD_INDEX as an integer: \""
-        << test_shard_index_env << "\"";
-    CHECK(0 <= test_shard.index && test_shard.index < test_shard.total_shards)
-        << "TEST_SHARD_INDEX must be in the range [0, "
-        << test_shard.total_shards << ").";
-  }
+  TestShard test_shard = GetBazelTestShard();
   // Update the shard status file to indicate that we support test sharding.
   // It suffices to update the file's modification time, but we clear the
   // contents for simplicity. This is also what the GoogleTest framework does.
@@ -365,7 +283,6 @@ TestShard SetUpTestSharding() {
       test_shard_status_file != nullptr) {
     ClearLocalFileContents(test_shard_status_file);
   }
-
   return test_shard;
 }
 
@@ -586,10 +503,14 @@ int UpdateCorpusDatabaseForFuzzTests(
   for (int i = resuming_fuzztest_idx; i < fuzz_tests_to_run.size(); ++i) {
     if (!env.fuzztest_single_test_mode &&
         fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
-      ReportErrorWhenNotEnoughTimeToRunEverything(
-          start_time, fuzztest_config.GetTimeLimitPerTest(),
-          /*executed_tests_in_shard=*/i, fuzztest_config.fuzz_tests.size(),
-          total_test_shards);
+      const absl::Duration test_time_limit =
+          fuzztest_config.GetTimeLimitPerTest();
+      const absl::Status has_enough_time = VerifyBazelHasEnoughTimeToRunTest(
+          start_time, test_time_limit,
+          /*executed_tests_in_shard=*/i, fuzztest_config.fuzz_tests.size());
+      CHECK_OK(has_enough_time)
+          << "Not enough time for running the fuzz test "
+          << fuzz_tests_to_run[i] << " for " << test_time_limit;
     }
     if (!is_workdir_specified) {
       env.workdir = base_workdir_path / fuzz_tests_to_run[i];

@@ -216,6 +216,20 @@ TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
             HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz")));
 }
 
+TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
+  RunOptions run_options;
+  run_options.fuzztest_flags = {{"corpus_database", GetCorpusDatabasePath()},
+                                {"fuzz_for", "20s"}};
+  run_options.env = {{"TEST_TIMEOUT", "30"}};
+  run_options.timeout = absl::Seconds(40);
+  auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+      GetCorpusDatabaseTestingBinaryPath(), run_options);
+  EXPECT_THAT(std_err, AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
+                             HasSubstr("Not enough time for running the fuzz "
+                                       "test FuzzTest.FailsWithStackOverflow")))
+      << std_err;
+}
+
 INSTANTIATE_TEST_SUITE_P(
     UpdateCorpusDatabaseTestWithExecutionModel, UpdateCorpusDatabaseTest,
     testing::ValuesIn({ExecutionModelParam::kSingleBinary,

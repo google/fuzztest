@@ -55,6 +55,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "./common/bazel.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
@@ -395,6 +396,27 @@ void Runtime::CheckWatchdogLimits() {
     std::abort();
   }
 #endif
+}
+
+void Runtime::SetCurrentTest(const FuzzTest* test,
+                             const Configuration* configuration) {
+  CHECK((test != nullptr) == (configuration != nullptr));
+  current_test_ = test;
+  current_configuration_ = configuration;
+  if (configuration == nullptr) return;
+  if (const auto test_time_limit = configuration->GetTimeLimitPerTest();
+      test_time_limit < absl::InfiniteDuration()) {
+    const absl::Status has_enough_time =
+        centipede::VerifyBazelHasEnoughTimeToRunTest(
+            creation_time_, test_time_limit, test_counter_,
+            configuration->fuzz_tests.size());
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        has_enough_time.ok(),
+        absl::StrCat("Not enough time for running the fuzz test ",
+                     test->full_name(), " for ", test_time_limit, ": ",
+                     has_enough_time));
+  }
+  ++test_counter_;
 }
 
 void Runtime::OnTestIterationEnd() {

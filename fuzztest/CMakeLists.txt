@@ -545,6 +545,7 @@ fuzztest_cc_library(
   SRCS
     "internal/runtime.cc"
   DEPS
+    fuzztest::bazel
     fuzztest::configuration
     fuzztest::corpus_database
     fuzztest::coverage
