@@ -209,6 +209,15 @@ centipede::Environment CreateCentipedeEnvironmentFromConfiguration(
       run_mode == RunMode::kUnitTest) {
     total_time_limit = kUnitTestDefaultDuration;
   }
+  {
+    Configuration single_test_configuration = configuration;
+    single_test_configuration.fuzz_tests_in_current_shard = {
+        std::string{test_name}};
+    single_test_configuration.time_limit = total_time_limit;
+    single_test_configuration.time_budget_type = TimeBudgetType::kTotal;
+    env.fuzztest_configuration = single_test_configuration.Serialize();
+  }
+
   absl::StrAppend(&env.binary,
                   " --" FUZZTEST_FLAG_PREFIX
                   "internal_override_total_time_limit=",

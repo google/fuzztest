@@ -729,7 +729,10 @@ int CentipedeMain(const Environment &env,
   // We don't update the corpus database for standalone binaries (i.e., when
   // `env.has_input_wildcards` is true).
   if (!env.binary.empty() && !env.has_input_wildcards) {
-    const absl::StatusOr<std::string> serialized_target_config = [&] {
+    const auto serialized_target_config = [&]() -> absl::StatusOr<std::string> {
+      if (!env.fuzztest_configuration.empty()) {
+        return env.fuzztest_configuration;
+      }
       ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
       return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
     }();
