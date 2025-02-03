@@ -15,7 +15,9 @@
 #include "./centipede/runner_result.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <string_view>
 
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
@@ -108,6 +110,13 @@ bool BatchResult::Read(BlobSequence &blobseq) {
   }
   num_outputs_read_ = num_ends;
   return true;
+}
+
+bool BatchResult::IsSetupFailure() const {
+  constexpr std::string_view kSetupFailurePrefix = "SETUP FAILURE:";
+  return exit_code_ != EXIT_SUCCESS &&
+         std::string_view(failure_description_)
+                 .substr(0, kSetupFailurePrefix.size()) == kSetupFailurePrefix;
 }
 
 }  // namespace centipede

@@ -818,31 +818,43 @@ void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
                             const BatchResult &batch_result) {
   CHECK_EQ(input_vec.size(), batch_result.results().size());
+
+  const size_t suspect_input_idx = std::clamp<size_t>(
+      batch_result.num_outputs_read(), 0, input_vec.size() - 1);
+  auto log_execution_failure = [&](std::string_view log_prefix) {
+    LOG(INFO) << log_prefix << "Batch execution failed:"
+              << "\nBinary               : " << binary
+              << "\nExit code            : " << batch_result.exit_code()
+              << "\nFailure              : "
+              << batch_result.failure_description()
+              << "\nNumber of inputs     : " << input_vec.size()
+              << "\nNumber of inputs read: " << batch_result.num_outputs_read()
+              << (batch_result.IsSetupFailure()
+                      ? ""
+                      : absl::StrCat("\nSuspect input index  : ",
+                                     suspect_input_idx))
+              << "\nCrash log            :\n\n";
+    for (const auto &log_line :
+         absl::StrSplit(absl::StripAsciiWhitespace(batch_result.log()), '\n')) {
+      LOG(INFO).NoPrefix() << "CRASH LOG: " << log_line;
+    }
+    LOG(INFO).NoPrefix() << "\n";
+  };
+
+  if (batch_result.IsSetupFailure()) {
+    log_execution_failure("Test Setup Failure: ");
+    LOG(FATAL) << "Terminating Centipede due to setup failure in the test.";
+  }
+
   // Skip reporting only if RequestEarlyStop is called with a failure exit code.
   // Still report if time runs out.
   if (ShouldStop() && ExitCode() != 0) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
 
-  const size_t suspect_input_idx = std::clamp<size_t>(
-      batch_result.num_outputs_read(), 0, input_vec.size() - 1);
-
   const std::string log_prefix =
       absl::StrCat("ReportCrash[", num_crashes_, "]: ");
-
-  LOG(INFO) << log_prefix << "Batch execution failed:"
-            << "\nBinary               : " << binary
-            << "\nExit code            : " << batch_result.exit_code()
-            << "\nFailure              : " << batch_result.failure_description()
-            << "\nNumber of inputs     : " << input_vec.size()
-            << "\nNumber of inputs read: " << batch_result.num_outputs_read()
-            << "\nSuspect input index  : " << suspect_input_idx
-            << "\nCrash log            :\n\n";
-  for (const auto &log_line :
-       absl::StrSplit(absl::StripAsciiWhitespace(batch_result.log()), '\n')) {
-    LOG(INFO).NoPrefix() << "CRASH LOG: " << log_line;
-  }
-  LOG(INFO).NoPrefix() << "\n";
+  log_execution_failure(log_prefix);
 
   LOG_IF(INFO, num_crashes_ == env_.max_num_crash_reports)
       << log_prefix

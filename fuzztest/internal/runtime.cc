@@ -273,7 +273,10 @@ void Runtime::PrintReport(RawSink out) const {
   if (crash_handler_hook) crash_handler_hook();
 
   for (CrashMetadataListenerRef listener : crash_metadata_listeners_) {
-    listener(crash_type_.value_or("Generic crash"), {});
+    const std::string final_crash_type =
+        absl::StrCat(current_args_ == nullptr ? "SETUP FAILURE: " : "",
+                     crash_type_.value_or("Generic crash"));
+    listener(final_crash_type, {});
   }
 
   if (run_mode() != RunMode::kUnitTest) {

@@ -15,6 +15,7 @@
 #include "./centipede/runner_result.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <ios>
@@ -155,6 +156,14 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
                                    1, 2, 3,  // cmp0
                                    4, 5, 6   // cmp1
                                    ));
+}
+
+TEST(ExecutionResult, IdentifiesSetupFailure) {
+  BatchResult batch_result;
+  batch_result.exit_code() = EXIT_FAILURE;
+  batch_result.failure_description() = "SETUP FAILURE: something went wrong";
+
+  EXPECT_TRUE(batch_result.IsSetupFailure());
 }
 
 }  // namespace

@@ -306,10 +306,10 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
     const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
         env.binary, {crashing_input}, batch_result);
     const bool is_duplicate =
-        is_reproducible &&
+        is_reproducible && !batch_result.IsSetupFailure() &&
         !remaining_crash_metadata.insert(batch_result.failure_description())
              .second;
-    if (!is_reproducible || is_duplicate) {
+    if (!is_reproducible || batch_result.IsSetupFailure() || is_duplicate) {
       CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
     } else {
       CHECK_OK(RemotePathTouchExistingFile(crashing_input_file));
