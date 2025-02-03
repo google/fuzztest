@@ -493,10 +493,17 @@ class ProtobufDomainUntypedImpl
               bool only_shrink) {
     if (GetFieldCount(prototype_.Get()->GetDescriptor()) == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
-    uint64_t total_weight = CountNumberOfFields(val);
-    uint64_t selected_weight = absl::Uniform(absl::IntervalClosedClosed, prng,
-                                             uint64_t{1}, total_weight);
-    MutateSelectedField(val, prng, metadata, only_shrink, selected_weight);
+    // The "Mutate" function is called at most 1000 times, independent of the
+    // number of fields in the proto.
+    uint64_t iterations =
+        absl::Uniform(absl::IntervalClosedClosed, prng, uint64_t{1},
+                      CountNumberOfFields(val) / 1000 + 1);
+    for (int j = 0; j <= iterations; ++j) {
+      uint64_t total_fields = CountNumberOfFields(val);
+      uint64_t selected_field = absl::Uniform(absl::IntervalClosedClosed, prng,
+                                              uint64_t{1}, total_fields);
+      MutateSelectedField(val, prng, metadata, only_shrink, selected_field);
+    }
   }
 
   auto GetPrinter() const { return ProtobufPrinter{}; }
