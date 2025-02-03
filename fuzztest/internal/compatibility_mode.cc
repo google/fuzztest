@@ -85,6 +85,7 @@ bool FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
   FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
                           "Invalid fixture driver!");
   impl.fixture_driver_->SetUpFuzzTest();
+  runtime_.SetCurrentTest(&impl.test_, &configuration);
 
   static bool driver_started = false;
   FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
@@ -124,7 +125,6 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
     // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
     std::_Exit(0);
   }
-  runtime_.SetCurrentTest(&impl.test_, nullptr);
   if (IsEnginePlaceholderInput(data)) return;
   auto input = impl.TryParse(data);
   if (!input.ok()) return;
