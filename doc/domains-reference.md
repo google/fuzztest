@@ -1014,8 +1014,8 @@ auto AnyVectorOfEqualSizedStrings() {
 ```
 
 If `AnyVectorOfFixedLengthStrings()` had been passed to `Map()`, it would have
-generated a `Domain<Domain<std::string>>`. `FlatMap()` "flattens" this to a
-`Domain<std::string>`. Thus the name FlatMap.
+generated a `Domain<Domain<std::vector<std::string>>>`. `FlatMap()` "flattens"
+this to a `Domain<std::vector<std::string>>`. Thus the name FlatMap.
 
 Another example is a pair of numbers `(a, b)`, where `b > 2 * a`:
 
