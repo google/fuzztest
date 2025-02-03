@@ -161,6 +161,8 @@ class Runtime {
   void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
   RunMode run_mode() const { return run_mode_; }
 
+  // Enables the crash reporter.
+  // REQUIRES: `SetCurrentTest()` has been called with non-null arguments.
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
     reporter_enabled_ = true;
     stats_ = stats;
@@ -176,7 +178,11 @@ class Runtime {
     UntypedDomain& domain;
   };
 
+  // Sets the current test and configuration.
+  // REQUIRES: Before passing null arguments, the reporter must be disabled by
+  // calling `DisableReporter()`.
   void SetCurrentTest(const FuzzTest* test, const Configuration* configuration);
+
   void OnTestIterationStart(const absl::Time& start_time) {
     current_iteration_start_time_ = start_time;
     test_iteration_started_ = true;

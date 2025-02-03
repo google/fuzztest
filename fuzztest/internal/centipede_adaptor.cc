@@ -575,6 +575,8 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   runtime_.SetCurrentTest(&test_, &configuration);
   if (is_running_property_function_in_this_process) {
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
+    // TODO(b/393582695): Consider whether we need some kind of reporting
+    // enabled in the controller mode to handle test setup failures.
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
   }
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
