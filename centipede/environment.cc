@@ -238,6 +238,8 @@ void Environment::ReadKnobsFileIfSpecified() {
 
 void Environment::UpdateWithTargetConfig(
     const fuzztest::internal::Configuration &config) {
+  // FuzzTest does not use features that need binary info.
+  populate_binary_info = false;
   if (config.jobs != 0) {
     CHECK(j == Default().j || j == config.jobs)
         << "Value for --j is inconsistent with the value for jobs in the "
@@ -307,7 +309,6 @@ void Environment::UpdateWithTargetConfig(
 
   if (config.only_replay) {
     load_shards_only = true;
-    populate_binary_info = false;
   }
 }
 
