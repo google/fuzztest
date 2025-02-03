@@ -80,6 +80,7 @@ bool FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
   SetExternalEngineCallback(this);
   runtime_.SetRunMode(RunMode::kFuzz);
   auto& impl = GetFuzzerImpl();
+  runtime_.SetCurrentTest(&impl.test_, &configuration);
   runtime_.EnableReporter(&impl.stats_, [] { return absl::Now(); });
 
   FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
@@ -124,7 +125,6 @@ void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
     // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
     std::_Exit(0);
   }
-  runtime_.SetCurrentTest(&impl.test_, nullptr);
   if (IsEnginePlaceholderInput(data)) return;
   auto input = impl.TryParse(data);
   if (!input.ok()) return;
