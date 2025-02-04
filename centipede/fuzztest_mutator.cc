@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -47,11 +48,9 @@ struct FuzzTestMutator::MutationMetadata {
 class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
  public:
   MutatorDomain()
-      : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {
-  }
+      : MutatorDomainBase(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>())) {}
 
-  ~MutatorDomain() {
-  }
+  ~MutatorDomain() {}
 };
 
 FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
@@ -99,9 +98,9 @@ void FuzzTestMutator::CrossOver(ByteArray &data, const ByteArray &other) {
   }
 }
 
-void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef>& inputs,
+void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef> &inputs,
                                  size_t num_mutants,
-                                 std::vector<ByteArray>& mutants) {
+                                 std::vector<ByteArray> &mutants) {
   if (inputs.empty()) abort();
   // TODO(xinhaoyuan): Consider metadata in other inputs instead of always the
   // first one.
@@ -119,14 +118,14 @@ void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef>& inputs,
       CrossOver(mutant, other_input);
     } else {
       domain_->Mutate(mutant, prng_,
-                      {.cmp_tables = &mutation_metadata_->cmp_tables},
+                      {/*cmp_tables=*/&mutation_metadata_->cmp_tables},
                       /*only_shrink=*/false);
     }
     mutants.push_back(std::move(mutant));
   }
 }
 
-void FuzzTestMutator::SetMetadata(const ExecutionMetadata& metadata) {
+void FuzzTestMutator::SetMetadata(const ExecutionMetadata &metadata) {
   metadata.ForEachCmpEntry([this](ByteSpan a, ByteSpan b) {
     size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
@@ -145,7 +144,7 @@ bool FuzzTestMutator::set_max_len(size_t max_len) {
 }
 
 void FuzzTestMutator::AddToDictionary(
-    const std::vector<ByteArray>& dict_entries) {
+    const std::vector<ByteArray> &dict_entries) {
   domain_->WithDictionary(dict_entries);
 }
 

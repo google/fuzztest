@@ -46,7 +46,7 @@ TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
   std::vector<ByteArray> res[2];
   for (size_t i = 0; i < 2; i++) {
     ByteArray data = {0};
-    std::vector<MutationInputRef> mutation_inputs = {{.data = data}};
+    std::vector<MutationInputRef> mutation_inputs = {{data}};
     std::vector<ByteArray> mutants;
     constexpr size_t kMutantSequenceLength = 100;
     for (size_t iter = 0; iter < kMutantSequenceLength; iter++) {
@@ -68,11 +68,11 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
 
   mutator.MutateMany(
       {
-          {.data = {0, 1, 2, 3, 4, 5, 6, 7}},
-          {.data = {0}},
-          {.data = {0, 1}},
-          {.data = {0, 1, 2}},
-          {.data = {0, 1, 2, 3}},
+          {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
+          {/*data=*/{0}},
+          {/*data=*/{0, 1}},
+          {/*data=*/{0, 1, 2}},
+          {/*data=*/{0, 1, 2, 3}},
       },
       kNumMutantsToGenerate, mutants);
 
@@ -88,8 +88,8 @@ TEST(FuzzTestMutator, CrossOverInsertsDataFromOtherInputs) {
 
   mutator.MutateMany(
       {
-          {.data = {0, 1, 2, 3}},
-          {.data = {4, 5, 6, 7}},
+          {/*data=*/{0, 1, 2, 3}},
+          {/*data=*/{4, 5, 6, 7}},
       },
       kNumMutantsToGenerate, mutants);
 
@@ -121,8 +121,8 @@ TEST(FuzzTestMutator, CrossOverOverwritesDataFromOtherInputs) {
 
   mutator.MutateMany(
       {
-          {.data = {0, 1, 2, 3, 4, 5, 6, 7}},
-          {.data = {100, 101, 102, 103}},
+          {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
+          {/*data=*/{100, 101, 102, 103}},
       },
       kNumMutantsToGenerate, mutants);
 
@@ -182,9 +182,10 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   absl::flat_hash_set<ByteArray> unmatched_expected_mutants =
       GetParam().expected_mutants;
   const auto& unexpected_mutants = GetParam().unexpected_mutants;
-  ExecutionMetadata metadata = {.cmp_data = GetParam().cmp_data};
+  ExecutionMetadata metadata;
+  metadata.cmp_data = GetParam().cmp_data;
   const std::vector<MutationInputRef> inputs = {
-      {.data = GetParam().seed_input, .metadata = &metadata}};
+      {/*data=*/GetParam().seed_input, /*metadata=*/&metadata}};
   std::vector<ByteArray> mutants;
   for (size_t i = 0; i < GetParam().max_num_iterations; i++) {
     mutator.MutateMany(inputs, 1, mutants);
@@ -200,124 +201,114 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   EXPECT_TRUE(unmatched_expected_mutants.empty());
 }
 
-INSTANTIATE_TEST_SUITE_P(InsertByteUpToMaxLen, MutationStepTest,
-                         Values(MutationStepTestParameter{
-                             .seed_input = {0, 1, 2},
-                             .expected_mutants =
-                                 {
-                                     {0, 1, 2, 3},
-                                     {0, 3, 1, 2},
-                                     {3, 0, 1, 2},
-                                 },
-                             .unexpected_mutants =
-                                 {
-                                     {0, 1, 2, 3, 4},
-                                     {0, 3, 4, 1, 2},
-                                     {3, 4, 0, 1, 2},
-                                 },
-                             .max_len = 4,
-                         }));
+INSTANTIATE_TEST_SUITE_P(InsertByteUpToMaxLen, MutationStepTest, Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {0, 1, 2};
+                           params.expected_mutants = {
+                               {0, 1, 2, 3},
+                               {0, 3, 1, 2},
+                               {3, 0, 1, 2},
+                           };
+                           params.unexpected_mutants = {
+                               {0, 1, 2, 3, 4},
+                               {0, 3, 4, 1, 2},
+                               {3, 4, 0, 1, 2},
+                           };
+                           params.max_len = 4;
+                           return params;
+                         }()));
 
-INSTANTIATE_TEST_SUITE_P(OverwriteFromDictionary, MutationStepTest,
-                         Values(MutationStepTestParameter{
-                             .seed_input = {1, 2, 3, 4, 5},
-                             .expected_mutants =
-                                 {
-                                     {1, 2, 7, 8, 9},
-                                     {1, 7, 8, 9, 5},
-                                     {7, 8, 9, 4, 5},
-                                     {1, 2, 3, 0, 6},
-                                     {1, 2, 0, 6, 5},
-                                     {1, 0, 6, 4, 5},
-                                     {0, 6, 3, 4, 5},
-                                     {42, 2, 3, 4, 5},
-                                     {1, 42, 3, 4, 5},
-                                     {1, 2, 42, 4, 5},
-                                     {1, 2, 3, 42, 5},
-                                     {1, 2, 3, 4, 42},
-                                 },
-                             .dictionary =
-                                 {
-                                     {7, 8, 9},
-                                     {0, 6},
-                                     {42},
-                                 },
-                         }));
+INSTANTIATE_TEST_SUITE_P(OverwriteFromDictionary, MutationStepTest, Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {1, 2, 3, 4, 5};
+                           params.expected_mutants = {
+                               {1, 2, 7, 8, 9},  {1, 7, 8, 9, 5},
+                               {7, 8, 9, 4, 5},  {1, 2, 3, 0, 6},
+                               {1, 2, 0, 6, 5},  {1, 0, 6, 4, 5},
+                               {0, 6, 3, 4, 5},  {42, 2, 3, 4, 5},
+                               {1, 42, 3, 4, 5}, {1, 2, 42, 4, 5},
+                               {1, 2, 3, 42, 5}, {1, 2, 3, 4, 42},
+                           };
+                           params.dictionary = {
+                               {7, 8, 9},
+                               {0, 6},
+                               {42},
+                           };
+                           return params;
+                         }()));
 
-INSTANTIATE_TEST_SUITE_P(
-    OverwriteFromCmpDictionary, MutationStepTest,
-    Values(MutationStepTestParameter{
-        .seed_input = {1, 2, 40, 50, 60},
-        .expected_mutants =
-            {
-                {3, 4, 40, 50, 60},
-                {1, 2, 10, 20, 30},
-            },
-        .cmp_data = {/*size*/ 2, /*lhs*/ 1, 2, /*rhs*/ 3, 4, /*size*/ 3,
-                     /*lhs*/ 10, 20, 30, /*rhs*/ 40, 50, 60},
-    }));
+INSTANTIATE_TEST_SUITE_P(OverwriteFromCmpDictionary, MutationStepTest,
+                         Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {1, 2, 40, 50, 60};
+                           params.expected_mutants = {
+                               {3, 4, 40, 50, 60},
+                               {1, 2, 10, 20, 30},
+                           };
+                           params.cmp_data = {2,            // size
+                                              1,  2,        // lhs
+                                              3,  4,        // rhs
+                                              3,            // size
+                                              10, 20, 30,   // lhs
+                                              40, 50, 60};  // rhs
+                           return params;
+                         }()));
 
-INSTANTIATE_TEST_SUITE_P(InsertFromDictionary, MutationStepTest,
-                         Values(MutationStepTestParameter{
-                             .seed_input = {1, 2, 3},
-                             .expected_mutants =
-                                 {
-                                     {1, 2, 3, 4, 5},
-                                     {1, 2, 4, 5, 3},
-                                     {1, 4, 5, 2, 3},
-                                     {4, 5, 1, 2, 3},
-                                     {1, 2, 3, 6, 7, 8},
-                                     {1, 2, 6, 7, 8, 3},
-                                     {1, 6, 7, 8, 2, 3},
-                                     {6, 7, 8, 1, 2, 3},
-                                 },
-                             .dictionary =
-                                 {
-                                     {4, 5},
-                                     {6, 7, 8},
-                                 },
-                         }));
+INSTANTIATE_TEST_SUITE_P(InsertFromDictionary, MutationStepTest, Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {1, 2, 3};
+                           params.expected_mutants = {
+                               {1, 2, 3, 4, 5},    {1, 2, 4, 5, 3},
+                               {1, 4, 5, 2, 3},    {4, 5, 1, 2, 3},
+                               {1, 2, 3, 6, 7, 8}, {1, 2, 6, 7, 8, 3},
+                               {1, 6, 7, 8, 2, 3}, {6, 7, 8, 1, 2, 3},
+                           };
+                           params.dictionary = {
+                               {4, 5},
+                               {6, 7, 8},
+                           };
+                           return params;
+                         }()));
 
-INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest,
-                         Values(MutationStepTestParameter{
-                             .seed_input = {1, 2, 3},
-                             .expected_mutants =
-                                 {
-                                     {1, 2, 3, 4, 5},
-                                     {1, 2, 4, 5, 3},
-                                     {1, 4, 5, 2, 3},
-                                     {4, 5, 1, 2, 3},
-                                     {1, 2, 3, 6, 7, 8},
-                                     {1, 2, 6, 7, 8, 3},
-                                     {1, 6, 7, 8, 2, 3},
-                                     {6, 7, 8, 1, 2, 3},
-                                 },
-                             .cmp_data = {/*size*/ 2, /*lhs*/ 4, 5, /*rhs*/ 4,
-                                          5, /*size*/ 3,
-                                          /*lhs*/ 6, 7, 8, /*rhs*/ 6, 7, 8},
-                         }));
+INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest, Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {1, 2, 3};
+                           params.expected_mutants = {
+                               {1, 2, 3, 4, 5},    {1, 2, 4, 5, 3},
+                               {1, 4, 5, 2, 3},    {4, 5, 1, 2, 3},
+                               {1, 2, 3, 6, 7, 8}, {1, 2, 6, 7, 8, 3},
+                               {1, 6, 7, 8, 2, 3}, {6, 7, 8, 1, 2, 3},
+                           };
+                           params.cmp_data = {2,         // size
+                                              4, 5,      // lhs
+                                              4, 5,      // rhs
+                                              3,         // size
+                                              6, 7, 8,   // lhs
+                                              6, 7, 8};  // rhs
+                           return params;
+                         }()));
 
-INSTANTIATE_TEST_SUITE_P(
-    SkipsLongCmpEntry, MutationStepTest,
-    Values(MutationStepTestParameter{
-        .seed_input = {0},
-        .expected_mutants =
-            {
-                {0, 1, 2, 3, 4},
-            },
-        .unexpected_mutants =
-            {
-                {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
-                 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
-            },
-        .cmp_data = {/*size*/ 20, /*lhs*/ 1, 2,  3,  4,  5,         6,
-                     7,           8,         9,  10, 11, 12,        13,
-                     14,          15,        16, 17, 18, 19,        20,
-                     /*rhs*/ 1,   2,         3,  4,  5,  6,         7,
-                     8,           9,         10, 11, 12, 13,        14,
-                     15,          16,        17, 18, 19, 20,
-                     /*size*/ 4,  /*lhs*/ 1, 2,  3,  4,  /*rhs*/ 1, 2,
-                     3,           4}}));
+INSTANTIATE_TEST_SUITE_P(SkipsLongCmpEntry, MutationStepTest, Values([] {
+                           MutationStepTestParameter params;
+                           params.seed_input = {0};
+                           params.expected_mutants = {
+                               {0, 1, 2, 3, 4},
+                           };
+                           params.unexpected_mutants = {
+                               {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
+                                11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+                           };
+                           params.cmp_data = {
+                               20,  // size
+                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // lhs
+                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // rhs
+                               4,                                       // size
+                               1,  2,  3,  4,                           // lhs
+                               1,  2,  3,  4};                          // rhs
+                           return params;
+                         }()));
 
 }  // namespace
 
