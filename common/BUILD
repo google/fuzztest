@@ -246,6 +246,9 @@ cc_library(
     name = "remote_file_test_lib",
     testonly = True,
     srcs = ["remote_file_test.cc"],
+    defines = select({
+        "//conditions:default": [],
+    }),
     deps = [
         ":logging",
         ":remote_file",
@@ -254,7 +257,9 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
-    ],
+    ] + select({
+        "//conditions:default": [],
+    }),
     alwayslink = True,
 )
 

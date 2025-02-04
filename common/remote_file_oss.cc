@@ -181,7 +181,7 @@ absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
-absl::Status RemotePathRename(std::string_view from, std::string_view to) {
+absl::Status RemoteFileRename(std::string_view from, std::string_view to) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
@@ -235,7 +235,7 @@ absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
              : list_files(std::filesystem::directory_iterator(path));
 }
 
-absl::Status RemotePathRename(std::string_view from, std::string_view to) {
+absl::Status RemoteFileRename(std::string_view from, std::string_view to) {
   std::error_code error;
   std::filesystem::rename(from, to, error);
   if (error) {

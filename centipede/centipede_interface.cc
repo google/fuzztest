@@ -344,7 +344,7 @@ void DeduplicateAndStoreNewCrashes(
           !crash_metadata.insert(new_crash_metadata).second;
       if (is_duplicate) continue;
       CHECK_OK(
-          RemotePathRename(crashing_input_file,
+          RemoteFileRename(crashing_input_file,
                            (crashing_dir / crashing_input_file_name).c_str()));
     }
   }
@@ -642,7 +642,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     if (!stats_root_path.empty()) {
       const auto stats_dir = stats_root_path / fuzz_tests_to_run[i];
       CHECK_OK(RemoteMkdir(stats_dir.c_str()));
-      CHECK_OK(RemotePathRename(
+      CHECK_OK(RemoteFileRename(
           workdir.FuzzingStatsPath(),
           (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
               .c_str()));
@@ -667,7 +667,7 @@ int UpdateCorpusDatabaseForFuzzTests(
       const std::string file_name =
           std::filesystem::path(corpus_file).filename();
       CHECK_OK(
-          RemotePathRename(corpus_file, (coverage_dir / file_name).c_str()));
+          RemoteFileRename(corpus_file, (coverage_dir / file_name).c_str()));
     }
 
     // Deduplicate and update the crashing inputs.
