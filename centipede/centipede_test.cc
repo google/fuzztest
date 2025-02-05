@@ -589,6 +589,7 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   env.symbolizer_path = GetLLVMSymbolizerPath();
   env.objdump_path = GetObjDumpPath();
   env.log_level = 0;
+  env.populate_binary_info = true;
   env.function_filter = function_filter;
   FunctionFilterMock mock(env);
   MockFactory factory(mock);
