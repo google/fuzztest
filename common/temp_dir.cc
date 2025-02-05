@@ -18,7 +18,11 @@ TempDir::TempDir(absl::string_view custom_prefix) {
                                  absl::StrCat(prefix, "_XXXXXX");
   CHECK(!error) << "Failed to get the root temp directory path: "
                 << error.message();
+#if !defined(_MSC_VER)
   path_ = mkdtemp(path_template.string().data());
+#else
+  CHECK(false) << "Windows is not supported yet.";
+#endif
   CHECK(std::filesystem::is_directory(path_));
 }
 
