@@ -232,8 +232,8 @@ class ProtoPolicy {
 
  public:
   ProtoPolicy()
-      : optional_policies_({{.filter = IncludeAll<FieldDescriptor>(),
-                             .value = OptionalPolicy::kWithNull}}) {}
+      : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
+                             /*value=*/OptionalPolicy::kWithNull}}) {}
 
   void SetOptionalPolicy(OptionalPolicy optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
@@ -242,20 +242,20 @@ class ProtoPolicy {
   void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
     if (optional_policy == OptionalPolicy::kAlwaysNull) {
       max_repeated_fields_sizes_.push_back(
-          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
+          {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/0});
       min_repeated_fields_sizes_.push_back(
-          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 0});
+          {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/0});
     } else if (optional_policy == OptionalPolicy::kWithoutNull) {
       // TODO(b/298168054): Ideally, min/max should get updated only if the
       // fields are not already always set.
       min_repeated_fields_sizes_.push_back(
-          {.filter = And(IsRepeated<FieldDescriptor>(), filter), .value = 1});
+          {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/1});
       max_repeated_fields_sizes_.push_back(
-          {.filter = And(IsRepeated<FieldDescriptor>(), filter),
-           .value = fuzztest::internal::kDefaultContainerMaxSize});
+          {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter),
+           /*value=*/fuzztest::internal::kDefaultContainerMaxSize});
     }
     optional_policies_.push_back(
-        {.filter = std::move(filter), .value = optional_policy});
+        {/*filter=*/std::move(filter), /*value=*/optional_policy});
   }
 
   void SetMinRepeatedFieldsSize(int64_t min_size) {
@@ -264,7 +264,7 @@ class ProtoPolicy {
 
   void SetMinRepeatedFieldsSize(Filter filter, int64_t min_size) {
     min_repeated_fields_sizes_.push_back(
-        {.filter = std::move(filter), .value = min_size});
+        {/*filter=*/std::move(filter), /*value=*/min_size});
   }
 
   void SetMaxRepeatedFieldsSize(int64_t max_size) {
@@ -273,7 +273,7 @@ class ProtoPolicy {
 
   void SetMaxRepeatedFieldsSize(Filter filter, int64_t max_size) {
     max_repeated_fields_sizes_.push_back(
-        {.filter = std::move(filter), .value = max_size});
+        {/*filter=*/std::move(filter), /*value=*/max_size});
   }
 
   OptionalPolicy GetOptionalPolicy(const FieldDescriptor* field) const {
@@ -349,38 +349,39 @@ class ProtoPolicy {
   std::vector<FilterToValue<int64_t>> min_repeated_fields_sizes_;
   std::vector<FilterToValue<int64_t>> max_repeated_fields_sizes_;
 
-#define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                           \
- private:                                                                      \
-  std::vector<FilterToValue<Domain<cpp>>> domains_for_##Camel##_;              \
-  std::vector<FilterToValue<std::function<Domain<cpp>(Domain<cpp>)>>>          \
-      transformers_for_##Camel##_;                                             \
-                                                                               \
- public:                                                                       \
-  void SetDefaultDomainFor##Camel##s(                                          \
-      Domain<MakeDependentType<cpp, Message>> domain) {                        \
-    domains_for_##Camel##_.push_back({.filter = IncludeAll<FieldDescriptor>(), \
-                                      .value = std::move(domain)});            \
-  }                                                                            \
-  void SetDefaultDomainFor##Camel##s(                                          \
-      Filter filter, Domain<MakeDependentType<cpp, Message>> domain) {         \
-    domains_for_##Camel##_.push_back(                                          \
-        {.filter = std::move(filter), .value = std::move(domain)});            \
-  }                                                                            \
-  void SetDomainTransformerFor##Camel##s(                                      \
-      Filter filter, std::function<Domain<MakeDependentType<cpp, Message>>(    \
-                         Domain<MakeDependentType<cpp, Message>>)>             \
-                         transformer) {                                        \
-    transformers_for_##Camel##_.push_back(                                     \
-        {.filter = std::move(filter), .value = std::move(transformer)});       \
-  }                                                                            \
-  std::optional<Domain<MakeDependentType<cpp, Message>>>                       \
-      GetDefaultDomainFor##Camel##s(const FieldDescriptor* field) const {      \
-    return GetPolicyValue(domains_for_##Camel##_, field);                      \
-  }                                                                            \
-  std::optional<std::function<Domain<MakeDependentType<cpp, Message>>(         \
-      Domain<MakeDependentType<cpp, Message>>)>>                               \
-      GetDomainTransformerFor##Camel##s(const FieldDescriptor* field) const {  \
-    return GetPolicyValue(transformers_for_##Camel##_, field);                 \
+#define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                          \
+ private:                                                                     \
+  std::vector<FilterToValue<Domain<cpp>>> domains_for_##Camel##_;             \
+  std::vector<FilterToValue<std::function<Domain<cpp>(Domain<cpp>)>>>         \
+      transformers_for_##Camel##_;                                            \
+                                                                              \
+ public:                                                                      \
+  void SetDefaultDomainFor##Camel##s(                                         \
+      Domain<MakeDependentType<cpp, Message>> domain) {                       \
+    domains_for_##Camel##_.push_back(                                         \
+        {/*filter=*/IncludeAll<FieldDescriptor>(),                            \
+         /*value=*/std::move(domain)});                                       \
+  }                                                                           \
+  void SetDefaultDomainFor##Camel##s(                                         \
+      Filter filter, Domain<MakeDependentType<cpp, Message>> domain) {        \
+    domains_for_##Camel##_.push_back(                                         \
+        {/*filter=*/std::move(filter), /*value=*/std::move(domain)});         \
+  }                                                                           \
+  void SetDomainTransformerFor##Camel##s(                                     \
+      Filter filter, std::function<Domain<MakeDependentType<cpp, Message>>(   \
+                         Domain<MakeDependentType<cpp, Message>>)>            \
+                         transformer) {                                       \
+    transformers_for_##Camel##_.push_back(                                    \
+        {/*filter=*/std::move(filter), /*value=*/std::move(transformer)});    \
+  }                                                                           \
+  std::optional<Domain<MakeDependentType<cpp, Message>>>                      \
+      GetDefaultDomainFor##Camel##s(const FieldDescriptor* field) const {     \
+    return GetPolicyValue(domains_for_##Camel##_, field);                     \
+  }                                                                           \
+  std::optional<std::function<Domain<MakeDependentType<cpp, Message>>(        \
+      Domain<MakeDependentType<cpp, Message>>)>>                              \
+      GetDomainTransformerFor##Camel##s(const FieldDescriptor* field) const { \
+    return GetPolicyValue(transformers_for_##Camel##_, field);                \
   }
 
   FUZZTEST_INTERNAL_POLICY_MEMBERS(Bool, bool)

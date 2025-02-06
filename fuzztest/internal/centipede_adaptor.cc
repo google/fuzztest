@@ -14,15 +14,17 @@
 
 #include "./fuzztest/internal/centipede_adaptor.h"
 
-#include <sys/mman.h>
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #else                      // __APPLE__
 #include <linux/limits.h>  // ARG_MAX
 #endif                     // __APPLE__
 #include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -60,11 +62,10 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/environment.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/shared_memory_blob_sequence.h"
-#include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
 #include "./common/temp_dir.h"
@@ -389,7 +390,7 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         }
         auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
         fuzzer_impl_.MutateValue(mutant, prng_,
-                                 {.cmp_tables = cmp_tables_.get()});
+                                 {/*cmp_tables=*/cmp_tables_.get()});
         mutant_data =
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }

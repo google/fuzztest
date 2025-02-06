@@ -676,10 +676,10 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
           {}) {
     flags["print_subprocess_log"] = "true";
     return RunBinary(BinaryPath(binary),
-                     RunOptions{.flags = non_fuzztest_flags,
-                                .fuzztest_flags = flags,
-                                .env = WithTestSanitizerOptions(env),
-                                .timeout = timeout});
+                     RunOptions{/*flags=*/non_fuzztest_flags,
+                                /*fuzztest_flags=*/flags,
+                                /*env=*/WithTestSanitizerOptions(env),
+                                /*timeout=*/timeout});
   }
 };
 

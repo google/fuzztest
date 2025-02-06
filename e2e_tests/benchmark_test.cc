@@ -17,7 +17,13 @@
 // It runs each micro-benchmark fuzz test in a child process and measures the
 // time and number of iterations it takes to find the exit condition.
 
-#include <filesystem>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>  // NOLINT
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -105,11 +111,11 @@ uint64_t ExtractNumber(absl::string_view output, absl::string_view name) {
 // We might want to pass a richer format later.
 Stats ParseStats(absl::string_view output) {
   return {
-      .nanos = ExtractTime(output),
-      .runs = ExtractNumber(output, "Total runs"),
-      .edges_covered = ExtractNumber(output, "Edges covered"),
-      .total_edges = ExtractNumber(output, "Total edges"),
-      .corpus_size = ExtractNumber(output, "Corpus size"),
+      /*nanos=*/ExtractTime(output),
+      /*runs=*/ExtractNumber(output, "Total runs"),
+      /*edges_covered=*/ExtractNumber(output, "Edges covered"),
+      /*total_edges=*/ExtractNumber(output, "Total edges"),
+      /*corpus_size=*/ExtractNumber(output, "Corpus size"),
   };
 }
 

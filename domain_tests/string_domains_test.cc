@@ -52,7 +52,7 @@ class HandleTypeTest : public testing::Test {};
 using HandleTypeTypes =
     testing::Types<std::string_view, std::vector<std::string_view>>;
 
-TYPED_TEST_SUITE(HandleTypeTest, HandleTypeTypes);
+TYPED_TEST_SUITE(HandleTypeTest, HandleTypeTypes, );
 
 TYPED_TEST(HandleTypeTest, Arbitrary) {
   absl::BitGen bitgen;

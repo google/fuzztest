@@ -312,18 +312,18 @@ std::vector<DeliveryResult> RoboCourierRun(const RoboCourier560Plan& plan) {
         }
         case RoboCourier560Plan::ExtraAction::POST_NOTICE: {
           results.push_back(
-              DeliveryResult{.location_name = name,
-                             .location_address = mail.address(),
-                             .mail_name = mail.name(),
-                             .mail_content = extra_action.content()});
+              DeliveryResult{/*location_name=*/name,
+                             /*location_address=*/mail.address(),
+                             /*mail_name=*/mail.name(),
+                             /*mail_content=*/extra_action.content()});
           break;
         }
       }
     }
-    results.push_back(DeliveryResult{.location_name = name,
-                                     .location_address = mail.address(),
-                                     .mail_name = mail.name(),
-                                     .mail_content = mail.content()});
+    results.push_back(DeliveryResult{/*location_name=*/name,
+                                     /*location_address=*/mail.address(),
+                                     /*mail_name=*/mail.name(),
+                                     /*mail_content=*/mail.content()});
   }
   return results;
 }
