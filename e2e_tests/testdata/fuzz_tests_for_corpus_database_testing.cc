@@ -22,12 +22,16 @@ namespace {
 volatile int force_write = 0;
 
 // This test fails in two ways:
-// 1. It fails with an assertion failure, e.g., when `v == {2025}`.
-// 2. It fails with a heap buffer overflow, e.g., when `v == {4050}`.
+// 1. It fails with an assertion failure, e.g., when `v == {1}`.
+// 2. It fails with a heap buffer overflow, e.g., when `v == {2}`.
 void FailsInTwoWays(const std::vector<int>& v) {
   if (v.size() % 7 != 1) return;
-  ASSERT_NE(v[0], 2025);
-  if (v[0] == 2 * 2025) force_write = v.data()[v.size()];
+  // Compare A - B and 0 instead of A and B to not rely on auto-dictionary for
+  // flipping the branches. Otherwise due to the current auto-dictionary
+  // implementation sometimes the branches are not flipped evenly, causing test
+  // flakiness.
+  ASSERT_NE(v[0] % 3 - 1, 0);
+  if (v[0] % 3 - 2 == 0) force_write = v.data()[v.size()];
 }
 FUZZ_TEST(FuzzTest, FailsInTwoWays);
 

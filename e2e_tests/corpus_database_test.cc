@@ -150,19 +150,23 @@ TEST_P(UpdateCorpusDatabaseTest, RunsFuzzTests) {
 }
 
 TEST_P(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
+  const auto &std_err = GetUpdateCorpusDatabaseStdErr();
   EXPECT_THAT(
-      GetUpdateCorpusDatabaseStdErr(),
+      std_err,
       AllOf(HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz"),
             HasSubstr("DISTILL[S.0]: Distilling to output shard 0"),
-            HasSubstr("DISTILL[S.1]: Distilling to output shard 1")));
+            HasSubstr("DISTILL[S.1]: Distilling to output shard 1")))
+      << std_err;
 }
 
 TEST_P(UpdateCorpusDatabaseTest, FindsAllCrashes) {
+  const auto &std_err = GetUpdateCorpusDatabaseStdErr();
   EXPECT_THAT(
-      GetUpdateCorpusDatabaseStdErr(),
+      std_err,
       AllOf(ContainsRegex(R"re(Failure\s*: GoogleTest assertion failure)re"),
             ContainsRegex(R"re(Failure\s*: heap-buffer-overflow)re"),
-            ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re")));
+            ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re")))
+      << std_err;
 }
 
 TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {

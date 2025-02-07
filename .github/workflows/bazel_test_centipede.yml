@@ -35,6 +35,9 @@ jobs:
       matrix:
         config: ['default', 'noriegeli', 'asan']
     steps:
+      - name: Disable core dumping and piping due to slowness
+        run: |
+          sudo sysctl -w kernel.core_pattern=""
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies

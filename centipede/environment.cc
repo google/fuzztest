@@ -238,6 +238,16 @@ void Environment::ReadKnobsFileIfSpecified() {
 
 void Environment::UpdateWithTargetConfig(
     const fuzztest::internal::Configuration &config) {
+  // Allow more crashes to be reported when running with FuzzTest. This allows
+  // more unique crashes to collected after deduplication. But we don't want to
+  // make the limit too large to stress the filesystem, so this is not a perfect
+  // solution. Currently we just increase the default to be seemingly large
+  // enough.
+  if (max_num_crash_reports == Default().max_num_crash_reports) {
+    max_num_crash_reports = 20;
+    LOG(INFO) << "Overriding the default max_num_crash_reports to "
+              << max_num_crash_reports << " for FuzzTest.";
+  }
   if (config.jobs != 0) {
     CHECK(j == Default().j || j == config.jobs)
         << "Value for --j is inconsistent with the value for jobs in the "
