@@ -402,18 +402,16 @@ const RUsageProfiler::Snapshot& RUsageProfiler::TakeSnapshot(  //
     }
   }
 
-  Snapshot snapshot{
-      .id = static_cast<int64_t>(snapshots_.size()),
-      .title = std::move(title),
-      .location = loc,
-      .time = absl::Now(),
-      .profiler_id = id_,
-      .profiler_desc = description_,
-      .timing = snap_timing,
-      .delta_timing = delta_timing,
-      .memory = snap_memory,
-      .delta_memory = delta_memory,
-  };
+  Snapshot snapshot{/*id=*/static_cast<int64_t>(snapshots_.size()),
+                    /*title=*/std::move(title),
+                    /*location=*/loc,
+                    /*time=*/absl::Now(),
+                    /*profiler_id=*/id_,
+                    /*profiler_desc=*/description_,
+                    /*timing=*/snap_timing,
+                    /*delta_timing=*/delta_timing,
+                    /*memory=*/snap_memory,
+                    /*delta_memory=*/delta_memory};
 
   return snapshots_.emplace_back(std::move(snapshot));
 }

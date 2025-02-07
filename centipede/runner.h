@@ -161,20 +161,20 @@ struct GlobalRunnerState {
 
   // Flags.
   RunTimeFlags run_time_flags = {
-      .path_level = std::min(ThreadLocalRunnerState::kBoundedPathLength,
-                             HasIntFlag(":path_level=", 0)),
-      .use_pc_features = HasFlag(":use_pc_features:"),
-      .use_dataflow_features = HasFlag(":use_dataflow_features:"),
-      .use_cmp_features = HasFlag(":use_cmp_features:"),
-      .callstack_level = HasIntFlag(":callstack_level=", 0),
-      .use_counter_features = HasFlag(":use_counter_features:"),
-      .use_auto_dictionary = HasFlag(":use_auto_dictionary:"),
-      .timeout_per_input = HasIntFlag(":timeout_per_input=", 0),
-      .timeout_per_batch = HasIntFlag(":timeout_per_batch=", 0),
-      .stack_limit_kb = HasIntFlag(":stack_limit_kb=", 0),
-      .rss_limit_mb = HasIntFlag(":rss_limit_mb=", 0),
-      .crossover_level = HasIntFlag(":crossover_level=", 50),
-      .skip_seen_features = HasFlag(":skip_seen_features:")};
+      /*path_level=*/std::min(ThreadLocalRunnerState::kBoundedPathLength,
+                              HasIntFlag(":path_level=", 0)),
+      /*use_pc_features=*/HasFlag(":use_pc_features:"),
+      /*use_dataflow_features=*/HasFlag(":use_dataflow_features:"),
+      /*use_cmp_features=*/HasFlag(":use_cmp_features:"),
+      /*callstack_level=*/HasIntFlag(":callstack_level=", 0),
+      /*use_counter_features=*/HasFlag(":use_counter_features:"),
+      /*use_auto_dictionary=*/HasFlag(":use_auto_dictionary:"),
+      /*timeout_per_input=*/HasIntFlag(":timeout_per_input=", 0),
+      /*timeout_per_batch=*/HasIntFlag(":timeout_per_batch=", 0),
+      /*stack_limit_kb=*/HasIntFlag(":stack_limit_kb=", 0),
+      /*rss_limit_mb=*/HasIntFlag(":rss_limit_mb=", 0),
+      /*crossover_level=*/HasIntFlag(":crossover_level=", 50),
+      /*skip_seen_features=*/HasFlag(":skip_seen_features:")};
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.

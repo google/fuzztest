@@ -222,27 +222,27 @@ static void CheckWatchdogLimits() {
   const uint64_t batch_start_time = state.batch_start_time;
   if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
-      {
-          .what = "Per-input timeout",
-          .units = "sec",
-          .value = curr_time - input_start_time,
-          .limit = state.run_time_flags.timeout_per_input,
-          .failure = kExecutionFailurePerInputTimeout.data(),
-      },
-      {
-          .what = "Per-batch timeout",
-          .units = "sec",
-          .value = curr_time - batch_start_time,
-          .limit = state.run_time_flags.timeout_per_batch,
-          .failure = kExecutionFailurePerBatchTimeout.data(),
-      },
-      {
-          .what = "RSS limit",
-          .units = "MB",
-          .value = GetPeakRSSMb(),
-          .limit = state.run_time_flags.rss_limit_mb,
-          .failure = kExecutionFailureRssLimitExceeded.data(),
-      },
+      {Resource{
+          /*what =*/"Per-input timeout",
+          /*units =*/"sec",
+          /*value =*/curr_time - input_start_time,
+          /*limit =*/state.run_time_flags.timeout_per_input,
+          /*failure =*/kExecutionFailurePerInputTimeout.data(),
+      }},
+      {Resource{
+          /*what =*/"Per-batch timeout",
+          /*units =*/"sec",
+          /*value =*/curr_time - batch_start_time,
+          /*limit =*/state.run_time_flags.timeout_per_batch,
+          /*failure =*/kExecutionFailurePerBatchTimeout.data(),
+      }},
+      {Resource{
+          /*what =*/"RSS limit",
+          /*units =*/"MB",
+          /*value =*/GetPeakRSSMb(),
+          /*limit =*/state.run_time_flags.rss_limit_mb,
+          /*failure =*/kExecutionFailureRssLimitExceeded.data(),
+      }},
   };
   for (const auto &resource : resources) {
     if (resource.limit != 0 && resource.value > resource.limit) {
@@ -911,10 +911,12 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
     }
     auto blob = inputs_blobseq.Read();
     if (!runner_request::IsDataInput(blob)) break;
-    inputs.push_back({.data = {blob.data, blob.data + blob.size},
-                      .metadata = std::move(metadata)});
+    inputs.push_back(
+        MutationInput{/*data=*/ByteArray{blob.data, blob.data + blob.size},
+                      /*metadata=*/std::move(metadata)});
     input_refs.push_back(
-        {.data = inputs.back().data, .metadata = &inputs.back().metadata});
+        MutationInputRef{/*data=*/inputs.back().data,
+                         /*metadata=*/&inputs.back().metadata});
   }
 
   if (!callbacks.Mutate(input_refs, num_mutants, [&](ByteSpan mutant) {

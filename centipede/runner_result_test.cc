@@ -44,8 +44,10 @@ TEST(ExecutionResult, WriteThenRead) {
   FeatureVec v2{5, 6, 7, 8};
   ExecutionMetadata metadata;
   metadata.AppendCmpEntry({1, 2, 3}, {4, 5, 6});
-  ExecutionResult::Stats stats1{.peak_rss_mb = 10};
-  ExecutionResult::Stats stats2{.peak_rss_mb = 20};
+  ExecutionResult::Stats stats1;
+  stats1.peak_rss_mb = 10;
+  ExecutionResult::Stats stats2;
+  stats2.peak_rss_mb = 20;
   // First input.
   EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
   EXPECT_TRUE(BatchResult::WriteOneFeatureVec(v1.data(), v1.size(), blobseq));
@@ -103,8 +105,10 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
   // Imitate execution of two inputs.
   FeatureVec v1{1, 2, 3};
   FeatureVec v2{5, 6, 7, 8};
-  ExecutionResult::Stats stats1{.peak_rss_mb = 10};
-  ExecutionResult::Stats stats2{.peak_rss_mb = 20};
+  ExecutionResult::Stats stats1;
+  stats1.peak_rss_mb = 10;
+  ExecutionResult::Stats stats2;
+  stats2.peak_rss_mb = 20;
   ExecutionMetadata metadata;
   metadata.AppendCmpEntry({1, 2, 3}, {4, 5, 6});
 

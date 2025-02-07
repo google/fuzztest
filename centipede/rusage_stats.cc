@@ -197,13 +197,13 @@ RUsageTiming RUsageTimingOp(  //
   const Op<double> cpu_op;
   // clang-format off
   return RUsageTiming{
-      .wall_time = time_op(t1.wall_time, t2.wall_time),
-      .user_time = time_op(t1.user_time, t2.user_time),
-      .sys_time = time_op(t1.sys_time, t2.sys_time),
-      .cpu_utilization = cpu_op(t1.cpu_utilization, t2.cpu_utilization),
-      .cpu_hyper_cores = cpu_op(t1.cpu_hyper_cores, t2.cpu_hyper_cores),
-      .is_delta = is_delta,
-  };
+      /*wall_time=*/ time_op(t1.wall_time, t2.wall_time),
+      /*user_time=*/ time_op(t1.user_time, t2.user_time),
+      /*sys_time=*/ time_op(t1.sys_time, t2.sys_time),
+      /*cpu_utilization=*/ cpu_op(t1.cpu_utilization, t2.cpu_utilization),
+      /*cpu_hyper_cores=*/ cpu_op(t1.cpu_hyper_cores, t2.cpu_hyper_cores),
+      /*is_delta=*/ is_delta
+      };
   // clang-format on
 }
 
@@ -227,13 +227,13 @@ RUsageMemory RUsageMemoryOp(  //
   const Op<MemSize> mem_op;
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = mem_op(t1.mem_vsize, t2.mem_vsize),
-      .mem_vpeak = mem_op(t1.mem_vpeak, t2.mem_vpeak),
-      .mem_rss = mem_op(t1.mem_rss, t2.mem_rss),
-      .mem_data = mem_op(t1.mem_data, t2.mem_data),
-      .mem_shared = mem_op(t1.mem_shared, t2.mem_shared),
-      .is_delta = is_delta,
-  };
+      /*mem_vsize=*/ mem_op(t1.mem_vsize, t2.mem_vsize),
+      /*mem_vpeak=*/ mem_op(t1.mem_vpeak, t2.mem_vpeak),
+      /*mem_rss=*/ mem_op(t1.mem_rss, t2.mem_rss),
+      /*mem_data=*/ mem_op(t1.mem_data, t2.mem_data),
+      /*mem_shared=*/ mem_op(t1.mem_shared, t2.mem_shared),
+      /*is_delta=*/ is_delta
+      };
   // clang-format on
 }
 
@@ -325,12 +325,12 @@ RUsageTiming RUsageTiming::Zero() { return {}; }
 RUsageTiming RUsageTiming::Min() {
   // clang-format off
   return RUsageTiming{
-      .wall_time = -absl::InfiniteDuration(),
-      .user_time = -absl::InfiniteDuration(),
-      .sys_time = -absl::InfiniteDuration(),
-      .cpu_utilization = 0.0,
-      .cpu_hyper_cores = 0.0,
-      .is_delta = false,
+      /*wall_time=*/ -absl::InfiniteDuration(),
+      /*user_time=*/ -absl::InfiniteDuration(),
+      /*sys_time=*/ -absl::InfiniteDuration(),
+      /*cpu_utilization=*/ 0.0,
+      /*cpu_hyper_cores=*/ 0.0,
+      /*is_delta=*/ false,
   };
   // clang-format on
 }
@@ -338,16 +338,16 @@ RUsageTiming RUsageTiming::Min() {
 RUsageTiming RUsageTiming::Max() {
   // clang-format off
   return RUsageTiming{
-      .wall_time = absl::InfiniteDuration(),
-      .user_time = absl::InfiniteDuration(),
-      .sys_time = absl::InfiniteDuration(),
+      /*wall_time=*/ absl::InfiniteDuration(),
+      /*user_time=*/ absl::InfiniteDuration(),
+      /*sys_time=*/ absl::InfiniteDuration(),
       // Theoretical max CPU utilization is 100%, but real-life numbers can go
       // just a little higher (the OS scheduler's rounding errors?).
-      .cpu_utilization = 1.0,
+      /*cpu_utilization=*/ 1.0,
       // hardware_concurrency() returns the number of hyperthreaded contexts.
-      .cpu_hyper_cores =
+      /*cpu_hyper_cores=*/
           static_cast<double>(std::thread::hardware_concurrency()),
-      .is_delta = false,
+      /*is_delta=*/ false,
   };
   // clang-format on
 }
@@ -382,14 +382,12 @@ RUsageTiming RUsageTiming::Snapshot(  //
   constexpr double kLinuxSchedCapacityScale = 1024;
   cpu_utilization /= kLinuxSchedCapacityScale;
 #endif  // __APPLE__
-  return RUsageTiming{
-      .wall_time = absl::Seconds(wall_time),
-      .user_time = absl::Seconds(user_time),
-      .sys_time = absl::Seconds(sys_time),
-      .cpu_utilization = cpu_utilization,
-      .cpu_hyper_cores = (user_time + sys_time) / wall_time,
-      .is_delta = false,
-  };
+  return RUsageTiming{/*wall_time=*/absl::Seconds(wall_time),
+                      /*user_time=*/absl::Seconds(user_time),
+                      /*sys_time=*/absl::Seconds(sys_time),
+                      /*cpu_utilization=*/cpu_utilization,
+                      /*cpu_hyper_cores=*/(user_time + sys_time) / wall_time,
+                      /*is_delta=*/false};
 }
 
 std::string RUsageTiming::ShortStr() const {
@@ -435,12 +433,12 @@ RUsageTiming operator/(const RUsageTiming& t, int64_t div) {
   // NOTE: Can't use RUsageTimingOp() as this operation is asymmetrical.
   // clang-format off
   return RUsageTiming{
-      .wall_time = t.wall_time / div,
-      .user_time = t.user_time / div,
-      .sys_time = t.sys_time / div,
-      .cpu_utilization = t.cpu_utilization / div,
-      .cpu_hyper_cores = t.cpu_hyper_cores / div,
-      .is_delta = t.is_delta,
+      /*wall_time=*/ t.wall_time / div,
+      /*user_time=*/ t.user_time / div,
+      /*sys_time=*/ t.sys_time / div,
+      /*cpu_utilization=*/ t.cpu_utilization / div,
+      /*cpu_hyper_cores=*/ t.cpu_hyper_cores / div,
+      /*is_delta=*/ t.is_delta,
   };
   // clang-format on
 }
@@ -492,12 +490,12 @@ RUsageMemory RUsageMemory::Zero() { return {}; }
 RUsageMemory RUsageMemory::Min() {
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = std::numeric_limits<int64_t>::min(),
-      .mem_vpeak = std::numeric_limits<int64_t>::min(),
-      .mem_rss = std::numeric_limits<int64_t>::min(),
-      .mem_data = std::numeric_limits<int64_t>::min(),
-      .mem_shared = std::numeric_limits<int64_t>::min(),
-      .is_delta = false,
+      /*mem_vsize=*/ std::numeric_limits<int64_t>::min(),
+      /*mem_vpeak=*/ std::numeric_limits<int64_t>::min(),
+      /*mem_rss=*/ std::numeric_limits<int64_t>::min(),
+      /*mem_data=*/ std::numeric_limits<int64_t>::min(),
+      /*mem_shared=*/ std::numeric_limits<int64_t>::min(),
+      /*is_delta=*/ false
   };
   // clang-format on
 }
@@ -505,13 +503,13 @@ RUsageMemory RUsageMemory::Min() {
 RUsageMemory RUsageMemory::Max() {
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = std::numeric_limits<int64_t>::max(),
-      .mem_vpeak = std::numeric_limits<int64_t>::max(),
-      .mem_rss = std::numeric_limits<int64_t>::max(),
-      .mem_data = std::numeric_limits<int64_t>::max(),
-      .mem_shared = std::numeric_limits<int64_t>::max(),
-      .is_delta = false,
-  };
+      /*mem_vsize=*/ std::numeric_limits<int64_t>::max(),
+      /*mem_vpeak=*/ std::numeric_limits<int64_t>::max(),
+      /*mem_rss=*/ std::numeric_limits<int64_t>::max(),
+      /*mem_data=*/ std::numeric_limits<int64_t>::max(),
+      /*mem_shared=*/ std::numeric_limits<int64_t>::max(),
+      /*is_delta=*/ false
+      };
   // clang-format on
 }
 
@@ -561,12 +559,12 @@ RUsageMemory RUsageMemory::Snapshot(const RUsageScope& scope) {
 #endif  // __APPLE__
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = vsize,
-      .mem_vpeak = vpeak,
-      .mem_rss = rss,
-      .mem_data = data,
-      .mem_shared = shared,
-      .is_delta = false,
+      /*mem_vsize=*/ vsize,
+      /*mem_vpeak=*/ vpeak,
+      /*mem_rss=*/ rss,
+      /*mem_data=*/ data,
+      /*mem_shared=*/ shared,
+      /*is_delta=*/ false
   };
   // clang-format on
 }
@@ -614,12 +612,12 @@ RUsageMemory operator/(const RUsageMemory& m, int64_t div) {
   // NOTE: Can't use RUsageMemoryOp() as this operation is asymmetrical.
   // clang-format off
   return RUsageMemory{
-      .mem_vsize = m.mem_vsize / div,
-      .mem_vpeak = m.mem_vpeak / div,
-      .mem_rss = m.mem_rss / div,
-      .mem_data = m.mem_data / div,
-      .mem_shared = m.mem_shared / div,
-      .is_delta = m.is_delta,
+      /*mem_vsize=*/ m.mem_vsize / div,
+      /*mem_vpeak=*/ m.mem_vpeak / div,
+      /*mem_rss=*/ m.mem_rss / div,
+      /*mem_data=*/ m.mem_data / div,
+      /*mem_shared=*/ m.mem_shared / div,
+      /*is_delta=*/ m.is_delta
   };
   // clang-format on
 }
