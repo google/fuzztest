@@ -665,7 +665,7 @@ constexpr std::optional<int> ApplyIndexFor(F f) {
 template <typename T>
 constexpr std::optional<int> DetectBraceInitCount() {
   constexpr auto can_init_impl =
-      [](auto... I) -> decltype(T{(I, AnythingBut<T>{})...}) {};
+      [](auto... I) -> decltype(T{{(I, AnythingBut<T>{})}...}) {};
   constexpr auto can_init = [](auto... I) {
     return std::is_invocable_v<decltype(can_init_impl), decltype(I)...>;
   };
@@ -704,7 +704,7 @@ constexpr std::optional<int> DetectBindableFieldCount() {
 
   // Detect if the first initialization field is a base class.
   constexpr auto no_base_impl = [](auto... I)
-      -> decltype(T{AnythingButBaseOf<T>{}, (I, AnythingBut<T>{})...}) {};
+      -> decltype(T{AnythingButBaseOf<T>{}, {(I, AnythingBut<T>{})}...}) {};
   constexpr auto no_base = [](auto... I) {
     return std::is_invocable_v<decltype(no_base_impl), decltype(I)...>;
   };
@@ -717,8 +717,9 @@ constexpr std::optional<int> DetectBindableFieldCount() {
 
   // Detect if the second initialization field is a base class.
   constexpr auto no_two_bases_impl =
-      [](auto... I) -> decltype(T{AnythingBut<T>{}, AnythingButBaseOf<T>{},
-                                  (I, AnythingBut<T>{})...}) {};
+      [](auto... I) -> decltype(T{AnythingBut<T>{},
+                                  AnythingButBaseOf<T>{},
+                                  {(I, AnythingBut<T>{})}...}) {};
   constexpr auto no_two_bases = [](auto... I) {
     return std::is_invocable_v<decltype(no_two_bases_impl), decltype(I)...>;
   };
