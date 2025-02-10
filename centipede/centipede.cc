@@ -178,11 +178,6 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
         existing_hashes.insert(Hash(blob));
       }
     }
-    // At this point, it is possible that the workdir is not created yet, so
-    // we create it here.
-    const std::string corpus_dir =
-        std::filesystem::path(corpus_file_path).remove_filename();
-    CHECK_OK(RemoteMkdir(corpus_dir));
     // Add inputs to the current shard, if the shard doesn't have them already.
     auto appender = DefaultBlobFileWriterFactory(env.riegeli);
     CHECK_OK(appender->Open(corpus_file_path, "a"))
