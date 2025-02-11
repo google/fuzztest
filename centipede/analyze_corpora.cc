@@ -131,14 +131,13 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
             << VV(b_shared_indices.size()) << VV(b_unique_indices.size());
 
   // Sort PCs to put them in the canonical order, as in pc_table.
-  AnalyzeCorporaResults ret = {
-      .a_pcs = std::vector<size_t>{a_pcs.begin(), a_pcs.end()},
-      .b_pcs = std::vector<size_t>{b_pcs.begin(), b_pcs.end()},
-      .a_only_pcs = std::vector<size_t>{a_only_pcs.begin(), a_only_pcs.end()},
-      .b_only_pcs = std::vector<size_t>{b_only_pcs.begin(), b_only_pcs.end()},
-      .a_pc_to_corpus_record = std::move(a_pc_to_corpus),
-      .b_pc_to_corpus_record = std::move(b_pc_to_corpus),
-  };
+  AnalyzeCorporaResults ret;
+  ret.a_pcs = std::vector<size_t>{a_pcs.begin(), a_pcs.end()};
+  ret.b_pcs = std::vector<size_t>{b_pcs.begin(), b_pcs.end()};
+  ret.a_only_pcs = std::vector<size_t>{a_only_pcs.begin(), a_only_pcs.end()};
+  ret.b_only_pcs = std::vector<size_t>{b_only_pcs.begin(), b_only_pcs.end()};
+  ret.a_pc_to_corpus_record = std::move(a_pc_to_corpus);
+  ret.b_pc_to_corpus_record = std::move(b_pc_to_corpus);
   std::sort(ret.a_pcs.begin(), ret.a_pcs.end());
   std::sort(ret.b_pcs.begin(), ret.b_pcs.end());
   std::sort(ret.a_only_pcs.begin(), ret.a_only_pcs.end());
@@ -160,8 +159,8 @@ CoverageResults GetCoverage(const std::vector<CorpusRecord> &corpus_records,
     }
   }
   CoverageResults ret = {
-      .pcs = {pcs.begin(), pcs.end()},
-      .binary_info = std::move(binary_info),
+      /*pcs=*/{pcs.begin(), pcs.end()},
+      /*binary_info=*/std::move(binary_info),
   };
   // Sort PCs to put them in the canonical order, as in pc_table.
   std::sort(ret.pcs.begin(), ret.pcs.end());

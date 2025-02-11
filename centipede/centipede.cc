@@ -221,57 +221,58 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
 
   stats_.store(Stats{
       StatsMeta{
-          .timestamp_unix_micros =
-              static_cast<uint64_t>(absl::ToUnixMicros(absl::Now())),
+          /*timestamp_unix_micros=*/
+          static_cast<uint64_t>(absl::ToUnixMicros(absl::Now())),
       },
       ExecStats{
-          .fuzz_time_sec = static_cast<uint64_t>(std::ceil(fuzz_time_secs)),
-          .num_executions = num_runs_,
-          .num_target_crashes = static_cast<uint64_t>(num_crashes_),
+          /*fuzz_time_sec=*/static_cast<uint64_t>(std::ceil(fuzz_time_secs)),
+          /*num_executions*/ num_runs_,
+          /*num_target_crashes*/ static_cast<uint64_t>(num_crashes_),
       },
       CovStats{
-          .num_covered_pcs = fs_.CountFeatures(fd::kPCs),
-          .num_8bit_counter_features = fs_.CountFeatures(fd::k8bitCounters),
-          .num_data_flow_features = fs_.CountFeatures(fd::kDataFlow),
-          .num_cmp_features = fs_.CountFeatures(fd::kCMPDomains),
-          .num_call_stack_features = fs_.CountFeatures(fd::kCallStack),
-          .num_bounded_path_features = fs_.CountFeatures(fd::kBoundedPath),
-          .num_pc_pair_features = fs_.CountFeatures(fd::kPCPair),
-          .num_user_features = fs_.CountFeatures(fd::kUserDomains),
-          .num_user0_features = fs_.CountFeatures(fd::kUserDomains[0]),
-          .num_user1_features = fs_.CountFeatures(fd::kUserDomains[1]),
-          .num_user2_features = fs_.CountFeatures(fd::kUserDomains[2]),
-          .num_user3_features = fs_.CountFeatures(fd::kUserDomains[3]),
-          .num_user4_features = fs_.CountFeatures(fd::kUserDomains[4]),
-          .num_user5_features = fs_.CountFeatures(fd::kUserDomains[5]),
-          .num_user6_features = fs_.CountFeatures(fd::kUserDomains[6]),
-          .num_user7_features = fs_.CountFeatures(fd::kUserDomains[7]),
-          .num_user8_features = fs_.CountFeatures(fd::kUserDomains[8]),
-          .num_user9_features = fs_.CountFeatures(fd::kUserDomains[9]),
-          .num_user10_features = fs_.CountFeatures(fd::kUserDomains[10]),
-          .num_user11_features = fs_.CountFeatures(fd::kUserDomains[11]),
-          .num_user12_features = fs_.CountFeatures(fd::kUserDomains[12]),
-          .num_user13_features = fs_.CountFeatures(fd::kUserDomains[13]),
-          .num_user14_features = fs_.CountFeatures(fd::kUserDomains[14]),
-          .num_user15_features = fs_.CountFeatures(fd::kUserDomains[15]),
-          .num_unknown_features = fs_.CountFeatures(fd::kUnknown),
-          .num_funcs_in_frontier = coverage_frontier_.NumFunctionsInFrontier(),
+          /*num_covered_pcs=*/fs_.CountFeatures(fd::kPCs),
+          /*num_8bit_counter_features=*/fs_.CountFeatures(fd::k8bitCounters),
+          /*num_data_flow_features=*/fs_.CountFeatures(fd::kDataFlow),
+          /*num_cmp_features=*/fs_.CountFeatures(fd::kCMPDomains),
+          /*num_call_stack_features=*/fs_.CountFeatures(fd::kCallStack),
+          /*num_bounded_path_features=*/fs_.CountFeatures(fd::kBoundedPath),
+          /*num_pc_pair_features=*/fs_.CountFeatures(fd::kPCPair),
+          /*num_user_features=*/fs_.CountFeatures(fd::kUserDomains),
+          /*num_user0_features=*/fs_.CountFeatures(fd::kUserDomains[0]),
+          /*num_user1_features=*/fs_.CountFeatures(fd::kUserDomains[1]),
+          /*num_user2_features=*/fs_.CountFeatures(fd::kUserDomains[2]),
+          /*num_user3_features=*/fs_.CountFeatures(fd::kUserDomains[3]),
+          /*num_user4_features=*/fs_.CountFeatures(fd::kUserDomains[4]),
+          /*num_user5_features=*/fs_.CountFeatures(fd::kUserDomains[5]),
+          /*num_user6_features=*/fs_.CountFeatures(fd::kUserDomains[6]),
+          /*num_user7_features=*/fs_.CountFeatures(fd::kUserDomains[7]),
+          /*num_user8_features=*/fs_.CountFeatures(fd::kUserDomains[8]),
+          /*num_user9_features=*/fs_.CountFeatures(fd::kUserDomains[9]),
+          /*num_user10_features=*/fs_.CountFeatures(fd::kUserDomains[10]),
+          /*num_user11_features=*/fs_.CountFeatures(fd::kUserDomains[11]),
+          /*num_user12_features=*/fs_.CountFeatures(fd::kUserDomains[12]),
+          /*num_user13_features=*/fs_.CountFeatures(fd::kUserDomains[13]),
+          /*num_user14_features=*/fs_.CountFeatures(fd::kUserDomains[14]),
+          /*num_user15_features=*/fs_.CountFeatures(fd::kUserDomains[15]),
+          /*num_unknown_features=*/fs_.CountFeatures(fd::kUnknown),
+          /*num_funcs_in_frontier=*/coverage_frontier_.NumFunctionsInFrontier(),
       },
       CorpusStats{
-          .active_corpus_size = corpus_.NumActive(),
-          .total_corpus_size = corpus_.NumTotal(),
-          .max_corpus_element_size = max_corpus_size,
-          .avg_corpus_element_size = avg_corpus_size,
+          /*active_corpus_size=*/corpus_.NumActive(),
+          /*total_corpus_size=*/corpus_.NumTotal(),
+          /*max_corpus_element_size=*/max_corpus_size,
+          /*avg_corpus_element_size=*/avg_corpus_size,
       },
       RusageStats{
-          .engine_rusage_avg_millicores = static_cast<uint64_t>(
+          /*engine_rusage_avg_millicores=*/static_cast<uint64_t>(
               std::lround(rusage_timing.cpu_hyper_cores * 1000)),
-          .engine_rusage_cpu_percent = static_cast<uint64_t>(
+          /*engine_rusage_cpu_percent=*/
+          static_cast<uint64_t>(
               std::lround(rusage_timing.cpu_utilization * 100)),
-          .engine_rusage_rss_mb =
-              static_cast<uint64_t>(rusage_memory.mem_rss >> 20),
-          .engine_rusage_vsize_mb =
-              static_cast<uint64_t>(rusage_memory.mem_vsize >> 20),
+          /*engine_rusage_rss_mb=*/
+          static_cast<uint64_t>(rusage_memory.mem_rss >> 20),
+          /*engine_rusage_vsize_mb=*/
+          static_cast<uint64_t>(rusage_memory.mem_vsize >> 20),
       },
   });
 
