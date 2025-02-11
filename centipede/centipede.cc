@@ -147,8 +147,7 @@ void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
 }
 
 void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
-  WorkDir wd{env};
-  // Shard the file paths in `dir` based on hashes of filenames.
+  // Shard the file paths in the source `dir` based on hashes of filenames.
   // Such partition is stable: a given file always goes to a specific shard.
   std::vector<std::vector<std::string>> sharded_paths(env.total_shards);
   std::vector<std::string> paths;
@@ -160,7 +159,14 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     sharded_paths[filename_hash % env.total_shards].push_back(path);
     ++total_paths;
   }
-  // Iterate over all shards.
+
+  // If the destination `workdir` is specified (note that empty means "use the
+  // current directory"), we might need to create it.
+  if (!env.workdir.empty()) {
+    CHECK_OK(RemoteMkdir(env.workdir));
+  }
+
+  // Iterate over all shards, adding inputs to the current shard.
   size_t inputs_added = 0;
   size_t inputs_ignored = 0;
   const auto corpus_file_paths = WorkDir{env}.CorpusFilePaths();
