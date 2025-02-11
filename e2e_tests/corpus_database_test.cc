@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <csignal>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/no_destructor.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -60,6 +61,11 @@ enum class ExecutionModelParam {
   kWithCentipedeBinary,
 };
 
+struct UpdateCorpusDatabaseRun {
+  std::unique_ptr<TempDir> workspace;
+  std::string std_err;
+};
+
 class UpdateCorpusDatabaseTest
     : public ::testing::TestWithParam<ExecutionModelParam> {
  protected:
@@ -74,36 +80,33 @@ class UpdateCorpusDatabaseTest
     "Please run with --config=fuzztest-experimental.";
 #endif
 #endif
-    CHECK(temp_dir_ == nullptr);
   }
 
   static void RunUpdateCorpusDatabase() {
-    if (temp_dir_ != nullptr) return;
-    temp_dir_ = new TempDir();
+    if (run_map_->contains(GetParam())) return;
+    auto &run = (*run_map_)[GetParam()];
+    run.workspace = std::make_unique<TempDir>();
     RunOptions run_options;
     run_options.fuzztest_flags = {
         {"corpus_database", GetCorpusDatabasePath()},
         {"fuzz_for", "30s"},
         {"jobs", "2"},
     };
-    auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+    auto [status_unused, std_out_unused, std_err] = RunBinaryMaybeWithCentipede(
         GetCorpusDatabaseTestingBinaryPath(), run_options);
-    *update_corpus_database_std_err_ = std::move(std_err);
+    run.std_err = std::move(std_err);
   }
 
-  static void TearDownTestSuite() {
-    delete temp_dir_;
-    temp_dir_ = nullptr;
-  }
+  static void TearDownTestSuite() { run_map_->clear(); }
 
   static std::string GetCorpusDatabasePath() {
     RunUpdateCorpusDatabase();
-    return temp_dir_->path() / "corpus_database";
+    return (*run_map_)[GetParam()].workspace->path() / "corpus_database";
   }
 
   static absl::string_view GetUpdateCorpusDatabaseStdErr() {
     RunUpdateCorpusDatabase();
-    return *update_corpus_database_std_err_;
+    return (*run_map_)[GetParam()].std_err;
   }
 
   static RunResults RunBinaryMaybeWithCentipede(absl::string_view binary_path,
@@ -135,13 +138,14 @@ class UpdateCorpusDatabaseTest
   }
 
  private:
-  static TempDir *temp_dir_;
-  static absl::NoDestructor<std::string> update_corpus_database_std_err_;
+  static absl::NoDestructor<
+      absl::flat_hash_map<ExecutionModelParam, UpdateCorpusDatabaseRun>>
+      run_map_;
 };
 
-TempDir *UpdateCorpusDatabaseTest::temp_dir_ = nullptr;
-absl::NoDestructor<std::string>
-    UpdateCorpusDatabaseTest::update_corpus_database_std_err_{};
+absl::NoDestructor<
+    absl::flat_hash_map<ExecutionModelParam, UpdateCorpusDatabaseRun>>
+    UpdateCorpusDatabaseTest::run_map_{};
 
 TEST_P(UpdateCorpusDatabaseTest, RunsFuzzTests) {
   EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
