@@ -452,6 +452,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*mutate_batch_size=*/absl::GetFlag(FLAGS_mutate_batch_size),
       /*use_legacy_default_mutator=*/
       absl::GetFlag(FLAGS_use_legacy_default_mutator),
+      /*mutator_type=*/Environment::Default().mutator_type,
       /*load_other_shard_frequency=*/
       absl::GetFlag(FLAGS_load_other_shard_frequency),
       /*serialize_shard_loads=*/absl::GetFlag(FLAGS_serialize_shard_loads),

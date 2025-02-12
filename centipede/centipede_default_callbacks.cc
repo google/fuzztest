@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -77,31 +78,44 @@ void CentipedeDefaultCallbacks::Mutate(
     std::vector<ByteArray> &mutants) {
   mutants.resize(num_mutants);
   if (num_mutants == 0) return;
+  if (env_.mutator_type == MutatorType::kBuiltIn) {
+    CentipedeCallbacks::Mutate(inputs, num_mutants, mutants);
+    return;
+  }
   // Try to use the custom mutator if it hasn't been disabled.
   if (custom_mutator_is_usable_.value_or(true)) {
     if (MutateViaExternalBinary(env_.binary, inputs, mutants)) {
       if (!custom_mutator_is_usable_.has_value()) {
-        LOG(INFO) << "Custom mutator detected: will use it";
+        LOG_IF(INFO, env_.mutator_type == MutatorType::kAuto)
+            << "Custom mutator detected: will use it";
         custom_mutator_is_usable_ = true;
       }
       if (!mutants.empty()) return;
-      LOG_FIRST_N(WARNING, 5)
-          << "Custom mutator returned no mutants: falling back to internal "
-             "default mutator";
+      LOG_IF(FATAL, env_.mutator_type == MutatorType::kCustom)
+          << "Custom mutator returned no mutants.";
+      LOG_FIRST_N(WARNING, 5) << "Custom mutator returned no mutants: falling "
+                                 "back to the built-in mutator";
     } else if (ShouldStop()) {
       LOG(WARNING) << "Custom mutator failed, but ignored since the stop "
                       "condition it met. Possibly what triggered the stop "
                       "condition also interrupted the mutator.";
       return;
     } else {
-      LOG(WARNING) << "Custom mutator undetected or misbehaving:";
-      CHECK(!custom_mutator_is_usable_.has_value())
-          << "Custom mutator is unreliable, aborting";
-      LOG(WARNING) << "Falling back to internal default mutator";
+      LOG_IF(FATAL, env_.mutator_type == MutatorType::kCustom ||
+                        custom_mutator_is_usable_.has_value())
+          << "Custom mutator failed, and it was expected to succeed.";
+      // TODO(b/397945452): We want to distinguish between an undetected and a
+      // misbehaving custom mutator: fall back in the first case, but crash in
+      // the second case.
+      LOG(WARNING) << "Custom mutator undetected or misbehaving. Falling back "
+                      "to the built-in mutator.";
       custom_mutator_is_usable_ = false;
     }
   }
   // Fallback of the internal mutator.
+  CHECK(env_.mutator_type == MutatorType::kAuto)
+      << "Internal error: unexpected mutator type "
+      << std::underlying_type_t<MutatorType>(env_.mutator_type);
   CentipedeCallbacks::Mutate(inputs, num_mutants, mutants);
 }
 

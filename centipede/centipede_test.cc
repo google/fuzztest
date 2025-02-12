@@ -49,7 +49,6 @@
 #include "./common/test_util.h"
 
 namespace centipede {
-
 namespace {
 
 using ::testing::HasSubstr;
@@ -136,8 +135,6 @@ class MockFactory : public CentipedeCallbacksFactory {
  private:
   CentipedeCallbacks &cb_;
 };
-
-}  // namespace
 
 TEST(Centipede, MockTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
@@ -365,7 +362,28 @@ class MutateCallbacks : public CentipedeCallbacks {
   using CentipedeCallbacks::MutateViaExternalBinary;
 };
 
-TEST(Centipede, MutateViaExternalBinary) {
+// Maintains `TemporaryLocalDirPath()` during the lifetime.
+//
+// Some parts of Centipede rely on `TemporaryLocalDirPath()` being set up as a
+// global resource. Tests that exercise such parts of Centipede should use this
+// fixture.
+//
+// TODO(b/391433873): Get rid of this once the design of
+// `TemporaryLocalDirPath()` is revisited.
+class CentipedeWithTemporaryLocalDir : public testing::Test {
+ public:
+  CentipedeWithTemporaryLocalDir() {
+    std::filesystem::path tmp_dir = TemporaryLocalDirPath();
+    std::filesystem::remove_all(tmp_dir);
+    std::filesystem::create_directory(tmp_dir);
+  }
+
+  ~CentipedeWithTemporaryLocalDir() override {
+    std::filesystem::remove_all(TemporaryLocalDirPath());
+  }
+};
+
+TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
   // This binary contains a test-friendly custom mutator.
   const std::string binary_with_custom_mutator =
       GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
@@ -431,6 +449,7 @@ TEST(Centipede, MutateViaExternalBinary) {
     Environment env_no_crossover;
     env_no_crossover.crossover_level = 0;
     MutateCallbacks callbacks_no_crossover(env_no_crossover);
+
     mutants.resize(10000);
     EXPECT_TRUE(callbacks_no_crossover.MutateViaExternalBinary(
         binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
@@ -628,8 +647,6 @@ TEST(Centipede, FunctionFilter) {
   }
 }
 
-namespace {
-
 struct Crash {
   std::string binary;
   unsigned char input = 0;
@@ -701,8 +718,6 @@ MATCHER_P(HasFilesWithContents, expected_files_and_contents, "") {
                             result_listener);
 }
 
-}  // namespace
-
 // Tests --extra_binaries.
 // Executes one main binary (--binary) and 3 extra ones (--extra_binaries).
 // Expects the main binary and two extra ones to generate one crash each.
@@ -745,8 +760,6 @@ TEST(Centipede, ExtraBinaries) {
                   FileAndContents{Hash({30}), "b2-crash"},
                   FileAndContents{Hash({50}), "b3-crash"})));
 }
-
-namespace {
 
 // A mock for UndetectedCrashingInput test.
 class UndetectedCrashingInputMock : public CentipedeCallbacks {
@@ -815,8 +828,6 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   bool first_pass_ = true;
 };
 
-}  // namespace
-
 // Test for preserving a crashing batch when 1-by-1 exec fails to reproduce.
 // Executes one main binary (--binary).
 // Expects the binary to crash once and 1-by-1 reproduction to fail.
@@ -878,11 +889,12 @@ TEST(Centipede, UndetectedCrashingInput) {
   EXPECT_EQ(suspect_only_mock.num_inputs_triaged(), 1);
 }
 
-TEST(Centipede, GetsSeedInputs) {
+TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
+
   std::vector<ByteArray> seeds;
   EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
   EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
@@ -895,32 +907,36 @@ TEST(Centipede, GetsSeedInputs) {
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
-TEST(Centipede, GetsSerializedTargetConfig) {
+TEST_F(CentipedeWithTemporaryLocalDir, GetsSerializedTargetConfig) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
   CentipedeDefaultCallbacks callbacks(env);
+
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   ASSERT_TRUE(serialized_config.ok());
   EXPECT_EQ(*serialized_config, "fake serialized config");
 }
 
-TEST(Centipede, GetSerializedTargetConfigProducesFailure) {
+TEST_F(CentipedeWithTemporaryLocalDir,
+       GetSerializedTargetConfigProducesFailure) {
   Environment env;
   env.binary = absl::StrCat(
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
           .c_str(),
       " --simulate_failure");
   CentipedeDefaultCallbacks callbacks(env);
+
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   EXPECT_FALSE(serialized_config.ok());
 }
 
-TEST(Centipede, CleansUpMetadataAfterStartup) {
+TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
       "centipede/testing/expensive_startup_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
+
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
   ASSERT_TRUE(callbacks.Execute(env.binary, inputs, batch_result));
@@ -933,8 +949,6 @@ TEST(Centipede, CleansUpMetadataAfterStartup) {
       });
   EXPECT_FALSE(found_startup_cmp_entry);
 }
-
-namespace {
 
 class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
  public:
@@ -962,8 +976,6 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
   bool thread_check_passed_ = true;
 };
 
-}  // namespace
-
 TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
@@ -980,11 +992,12 @@ TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   EXPECT_TRUE(callbacks.thread_check_passed());
 }
 
-TEST(Centipede, DetectsStackOverflow) {
+TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   env.stack_limit_kb = 64;
   CentipedeDefaultCallbacks callbacks(env);
+
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {ByteArray{'s', 't', 'k'}};
 
@@ -992,8 +1005,6 @@ TEST(Centipede, DetectsStackOverflow) {
   EXPECT_THAT(batch_result.log(), HasSubstr("Stack limit exceeded"));
   EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
 }
-
-namespace {
 
 class SetupFailureCallbacks : public CentipedeCallbacks {
  public:
@@ -1013,8 +1024,6 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
   }
 };
 
-}  // namespace
-
 TEST(Centipede, AbortsOnSetupFailure) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
@@ -1028,4 +1037,96 @@ TEST(Centipede, AbortsOnSetupFailure) {
                "Terminating Centipede due to setup failure in the test.");
 }
 
+TEST_F(CentipedeWithTemporaryLocalDir, UsesCustomMutatorWithCustomMutatorType) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath(
+      "centipede/testing/fuzz_target_with_custom_mutator");
+  env.mutator_type = MutatorType::kCustom;
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  std::vector<ByteArray> mutants;
+  callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs), inputs.size(),
+                   mutants);
+
+  // The custom mutator just returns the original inputs as mutants.
+  EXPECT_EQ(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       FailsOnMisbehavingMutatorWithCustomMutatorType) {
+  Environment env;
+  env.binary =
+      absl::StrCat(GetDataDependencyFilepath(
+                       "centipede/testing/fuzz_target_with_custom_mutator")
+                       .c_str(),
+                   " --simulate_failure");
+  env.mutator_type = MutatorType::kCustom;
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  std::vector<ByteArray> mutants;
+  EXPECT_DEATH(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
+                                inputs.size(), mutants),
+               "Custom mutator failed");
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       DetectsCustomMutatorWithAutoMutatorType) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath(
+      "centipede/testing/fuzz_target_with_custom_mutator");
+  env.mutator_type = MutatorType::kAuto;
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  std::vector<ByteArray> mutants;
+  callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs), inputs.size(),
+                   mutants);
+
+  // The custom mutator just returns the original inputs as mutants.
+  EXPECT_EQ(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       FallsBackToBuiltInMutatorWithAutoMutatorType) {
+  Environment env;
+  env.binary =
+      absl::StrCat(GetDataDependencyFilepath(
+                       "centipede/testing/fuzz_target_with_custom_mutator")
+                       .c_str(),
+                   " --simulate_failure");
+  env.mutator_type = MutatorType::kAuto;
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  std::vector<ByteArray> mutants;
+  callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs), inputs.size(),
+                   mutants);
+
+  // The built-in mutator performs non-trivial mutations.
+  EXPECT_EQ(inputs.size(), mutants.size());
+  EXPECT_NE(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       UsesBuiltInMutatorWithBuiltInMutatorType) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath(
+      "centipede/testing/fuzz_target_with_custom_mutator");
+  env.mutator_type = MutatorType::kBuiltIn;
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  std::vector<ByteArray> mutants;
+  callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs), inputs.size(),
+                   mutants);
+
+  // The built-in mutator performs non-trivial mutations, while the custom
+  // mutator just returns the original inputs as mutants.
+  EXPECT_EQ(inputs.size(), mutants.size());
+  EXPECT_NE(inputs, mutants);
+}
+
+}  // namespace
 }  // namespace centipede

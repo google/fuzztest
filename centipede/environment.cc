@@ -250,6 +250,14 @@ void Environment::UpdateWithTargetConfig(
     LOG(INFO) << "Overriding the default max_num_crash_reports to "
               << max_num_crash_reports << " for FuzzTest.";
   }
+
+  // Use the custom mutator when running with FuzzTest to surface any errors
+  // with the mutation (e.g., ineffective filter domain).
+  if (mutator_type == Default().mutator_type) {
+    mutator_type = MutatorType::kCustom;
+    LOG(INFO) << "Switching to the custom mutator for FuzzTest.";
+  }
+
   if (config.jobs != 0) {
     CHECK(j == Default().j || j == config.jobs)
         << "Value for --j is inconsistent with the value for jobs in the "
