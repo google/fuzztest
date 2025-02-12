@@ -23,6 +23,7 @@
 #include "./centipede/runner.h"
 
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
+#include <signal.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -39,6 +40,7 @@
 #include <ctime>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -256,7 +258,17 @@ static void CheckWatchdogLimits() {
                 " (%s); exiting\n",
                 resource.what, resource.value, resource.limit, resource.units);
         WriteFailureDescription(resource.failure);
-        abort();
+        pthread_mutex_lock(&state.runner_main_thread_mu);
+        if (state.runner_main_thread.has_value()) {
+          fprintf(stderr, "Sending SIGABRT to the runner main thread.\n");
+          pthread_kill(*state.runner_main_thread, SIGABRT);
+          pthread_mutex_unlock(&state.runner_main_thread_mu);
+          return;
+        } else {
+          pthread_mutex_unlock(&state.runner_main_thread_mu);
+          fprintf(stderr, "Aborting the runner in the watchdog thread.\n");
+          std::abort();
+        }
       }
     }
   }
@@ -293,7 +305,7 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
             tls.top_frame_sp - sp, stack_limit);
     centipede::WriteFailureDescription(
         centipede::kExecutionFailureStackLimitExceeded.data());
-    abort();
+    std::abort();
   }
 }
 
@@ -1109,6 +1121,17 @@ GlobalRunnerState::~GlobalRunnerState() {
 //
 //  Note: argc/argv are used for only ReadOneInputExecuteItAndDumpCoverage().
 int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
+  {
+    LockGuard lock(state.runner_main_thread_mu);
+    state.runner_main_thread = pthread_self();
+  }
+  struct OnReturn {
+    ~OnReturn() {
+      LockGuard lock(state.runner_main_thread_mu);
+      state.runner_main_thread = std::nullopt;
+    }
+  } on_return;
+
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",

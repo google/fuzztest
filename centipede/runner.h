@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
@@ -213,7 +214,7 @@ struct GlobalRunnerState {
     return strndup(value_beg, end - value_beg);
   }
 
-  pthread_mutex_t execution_result_override_mu;
+  pthread_mutex_t execution_result_override_mu = PTHREAD_MUTEX_INITIALIZER;
   // If not nullptr, it points to a batch result with either zero or one
   // execution. When an execution result present, it will be passed as the
   // execution result of the current test input. The object is owned and cleaned
@@ -225,7 +226,8 @@ struct GlobalRunnerState {
   ThreadLocalRunnerState *tls_list;
   // Doubly linked list of detached TLSs.
   ThreadLocalRunnerState *detached_tls_list;
-  pthread_mutex_t tls_list_mu;  // Guards tls_list and detached_tls_list.
+  // Guards `tls_list` and `detached_tls_list`.
+  pthread_mutex_t tls_list_mu = PTHREAD_MUTEX_INITIALIZER;
   // Iterates all TLS objects under tls_list_mu, except those with `ignore` set.
   // Calls `callback()` on every TLS.
   template <typename Callback>
@@ -323,6 +325,11 @@ struct GlobalRunnerState {
 
   // CentipedeRunnerMain() sets this to true.
   bool centipede_runner_main_executed = false;
+
+  // The thread that runs `RunnerMain()` and executes the inputs.
+  std::optional<pthread_t> runner_main_thread;
+  // Guards `runner_main_thread`.
+  pthread_mutex_t runner_main_thread_mu = PTHREAD_MUTEX_INITIALIZER;
 
   // Timeout-related machinery.
 
