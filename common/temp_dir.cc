@@ -1,5 +1,6 @@
 #include "./common/temp_dir.h"
 
+#include <cstdlib>
 #include <filesystem>    // NOLINT
 #include <system_error>  // NOLINT
 
@@ -12,12 +13,16 @@ namespace fuzztest::internal {
 namespace fs = std::filesystem;
 
 TempDir::TempDir(absl::string_view custom_prefix) {
-  std::error_code error;
+  fs::path temp_root;
+  temp_root = absl::NullSafeStringView(getenv("TEST_TMPDIR"));
+  if (temp_root.empty()) {
+    std::error_code error;
+    temp_root = std::filesystem::temp_directory_path(error);
+    CHECK(!error) << "Failed to get the root temp directory path: "
+                  << error.message();
+  }
   absl::string_view prefix = custom_prefix.empty() ? "temp_dir" : custom_prefix;
-  const fs::path path_template = std::filesystem::temp_directory_path(error) /
-                                 absl::StrCat(prefix, "_XXXXXX");
-  CHECK(!error) << "Failed to get the root temp directory path: "
-                << error.message();
+  const fs::path path_template = temp_root / absl::StrCat(prefix, "_XXXXXX");
 #if !defined(_MSC_VER)
   path_ = mkdtemp(path_template.string().data());
 #else
