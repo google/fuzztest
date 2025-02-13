@@ -305,6 +305,7 @@ fuzztest_cc_library(
     absl::status
     absl::statusor
     absl::strings
+    absl::str_format
     absl::synchronization
     absl::span
 )

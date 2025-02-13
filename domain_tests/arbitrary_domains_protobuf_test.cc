@@ -340,6 +340,21 @@ TEST(ProtocolBufferWithRequiredFields, ShrinkingNeverRemovesRequiredFields) {
   }
 }
 
+TEST(ProtocolBufferWithRecursiveFields, InfiniteleyRecursiveFieldsAreNotSet) {
+  auto domain = Arbitrary<internal::TestProtobufWithRepeatedRecursionSubproto>()
+                    .WithRepeatedFieldsAlwaysSet();
+  absl::BitGen bitgen;
+  Value val(domain, bitgen);
+
+  ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
+
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain, bitgen, {}, false);
+    ASSERT_TRUE(val.user_value.IsInitialized()) << val.user_value;
+    ASSERT_FALSE(val.user_value.has_list()) << val.user_value;
+  }
+}
+
 TEST(ProtocolBuffer, CanUsePerFieldDomains) {
   Domain<TestProtobuf> domain =
       Arbitrary<TestProtobuf>()

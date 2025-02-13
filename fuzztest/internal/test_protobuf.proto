@@ -136,6 +136,14 @@ message TestProtobufWithRecursion {
   optional TestProtobufWithExtension ext = 4;
 }
 
+message TestProtobufWithRepeatedRecursion {
+  repeated TestProtobufWithRepeatedRecursion items = 1;
+}
+
+message TestProtobufWithRepeatedRecursionSubproto {
+  optional TestProtobufWithRepeatedRecursion list = 1;
+}
+
 message MessageWithGroup {
   optional group GroupField = 1 {
     optional int64 field1 = 2;
