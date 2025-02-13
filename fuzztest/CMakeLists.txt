@@ -578,6 +578,7 @@ fuzztest_cc_library(
     fuzztest::seed_seq
     fuzztest::serialization
     fuzztest::status
+    absl::core_headers
     absl::any_invocable
     absl::bind_front
     absl::function_ref
@@ -591,6 +592,8 @@ fuzztest_cc_library(
     absl::str_format
     absl::time
     absl::span
+  LINKOPTS
+    pthread
 )
 
 fuzztest_cc_test(

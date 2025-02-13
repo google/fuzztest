@@ -15,6 +15,10 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <pthread.h>
+#endif
+
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -28,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
@@ -36,6 +41,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/configuration.h"
@@ -156,8 +162,6 @@ class Runtime {
     return termination_requested_.load(std::memory_order_relaxed);
   }
 
-  void StartWatchdog();
-
   void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
   RunMode run_mode() const { return run_mode_; }
 
@@ -167,6 +171,11 @@ class Runtime {
     reporter_enabled_ = true;
     stats_ = stats;
     clock_fn_ = clock_fn;
+#if defined(__linux__) || defined(__APPLE__)
+    // Set this just in case that the function is called in a thread other than
+    // the one that created the runtime.
+    reporting_thread_ = pthread_self();
+#endif
     // In case we have not installed them yet, do so now.
     InstallSignalHandlers(GetStderr());
     ResetCrashType();
@@ -183,10 +192,7 @@ class Runtime {
   // calling `DisableReporter()`.
   void SetCurrentTest(const FuzzTest* test, const Configuration* configuration);
 
-  void OnTestIterationStart(const absl::Time& start_time) {
-    current_iteration_start_time_ = start_time;
-    test_iteration_started_ = true;
-  }
+  void OnTestIterationStart(const absl::Time& start_time);
   void OnTestIterationEnd();
 
   void SetCurrentArgs(Args* args) { current_args_ = args; }
@@ -209,11 +215,18 @@ class Runtime {
   }
   void ResetCrashType() { crash_type_ = std::nullopt; }
 
+  class Watchdog;
+  // Returns a watchdog that periodically checks the time and memory limits in a
+  // separate thread. The watchdog handles the logic of starting and joining the
+  // thread. The runtime must outlive the watchdog.
+  Watchdog CreateWatchdog();
+
  private:
   Runtime();
 
+  // Checks time and memory limits. If any limit is exceeded, sends SIGABRT to
+  // the runtime thread.
   void CheckWatchdogLimits();
-  void Watchdog();
 
   // Returns the file path of the reproducer.
   // Returns empty string if writing the file failed.
@@ -243,7 +256,6 @@ class Runtime {
   std::atomic<bool> termination_requested_ = false;
 
   RunMode run_mode_ = RunMode::kUnitTest;
-  std::atomic<bool> watchdog_thread_started = false;
 
   absl::Time creation_time_ = absl::Now();
   size_t test_counter_ = 0;
@@ -252,11 +264,33 @@ class Runtime {
   Args* current_args_ = nullptr;
   const FuzzTest* current_test_ = nullptr;
   const Configuration* current_configuration_;
-  absl::Time current_iteration_start_time_;
-  std::atomic<bool> test_iteration_started_ = false;
-  std::atomic_flag watchdog_spinlock_ = ATOMIC_FLAG_INIT;
   const RuntimeStats* stats_ = nullptr;
   absl::Time (*clock_fn_)() = nullptr;
+
+  // We use a simple custom spinlock instead of absl::Mutex to reduce
+  // dependencies and avoid potential issues with code instrumentation.
+  class ABSL_LOCKABLE Spinlock {
+   public:
+    Spinlock() = default;
+    Spinlock(const Spinlock&) = delete;
+    Spinlock& operator=(const Spinlock&) = delete;
+
+    void Lock() ABSL_EXCLUSIVE_LOCK_FUNCTION();
+    void Unlock() ABSL_UNLOCK_FUNCTION();
+
+   private:
+    std::atomic_flag locked_ = ATOMIC_FLAG_INIT;
+  };
+
+  Spinlock watchdog_spinlock_;
+  absl::Time current_iteration_start_time_ ABSL_GUARDED_BY(watchdog_spinlock_);
+  bool test_iteration_started_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
+  bool watchdog_limit_exceeded_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
+
+#if defined(__linux__) || defined(__APPLE__)
+  // The thread to which the watchdog sends SIGABRT.
+  pthread_t reporting_thread_ = pthread_self();
+#endif
 
   // A registry of crash metadata listeners.
   std::vector<CrashMetadataListener> crash_metadata_listeners_;

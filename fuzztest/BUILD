@@ -604,6 +604,11 @@ cc_library(
     name = "runtime",
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
+    linkopts = select({
+        "@platforms//os:linux": ["-lpthread"],
+        "@platforms//os:macos": ["-lpthread"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":configuration",
         ":corpus_database",
@@ -618,6 +623,7 @@ cc_library(
         ":seed_seq",
         ":serialization",
         ":status",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/functional:function_ref",

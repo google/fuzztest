@@ -19,6 +19,8 @@
 #include <sys/resource.h>
 #endif
 
+#include <signal.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -346,24 +348,61 @@ void Runtime::PrintReport(RawSink out) const {
   absl::Format(out, "%s", GetSeparator());
 }
 
-void Runtime::StartWatchdog() {
-  // Centipede runner has its own watchdog.
 #ifndef FUZZTEST_USE_CENTIPEDE
-  auto watchdog_thread = std::thread(std::bind(&Runtime::Watchdog, this));
-  while (!watchdog_thread_started) std::this_thread::yield();
-  watchdog_thread.detach();
-#endif
-}
 
-void Runtime::Watchdog() {
-  watchdog_thread_started = true;
-  while (true) {
-    while (watchdog_spinlock_.test_and_set()) std::this_thread::yield();
-    if (test_iteration_started_) CheckWatchdogLimits();
-    watchdog_spinlock_.clear();
-    absl::SleepFor(absl::Seconds(1));
+class Runtime::Watchdog {
+ public:
+  explicit Watchdog(Runtime& runtime) : runtime_{runtime} {
+    watchdog_thread_ =
+        std::thread(absl::bind_front(&Runtime::Watchdog::WatchdogLoop, this));
+    while (!watchdog_thread_started_) std::this_thread::yield();
+  }
+
+  ~Watchdog() {
+    stop_requested_ = true;
+    watchdog_thread_.join();
+  }
+
+ private:
+  void WatchdogLoop() {
+    watchdog_thread_started_ = true;
+    while (!stop_requested_) {
+      runtime_.CheckWatchdogLimits();
+      runtime_.watchdog_spinlock_.Lock();
+      if (runtime_.watchdog_limit_exceeded_) {
+        runtime_.watchdog_spinlock_.Unlock();
+        break;
+      }
+      runtime_.watchdog_spinlock_.Unlock();
+      absl::SleepFor(absl::Seconds(1));
+    }
+  }
+
+  std::atomic<bool> watchdog_thread_started_ = false;
+  std::atomic<bool> stop_requested_ = false;
+  std::thread watchdog_thread_;
+  Runtime& runtime_;
+};
+
+#else  // FUZZTEST_USE_CENTIPEDE
+
+// Centipede runner has its own watchdog.
+class Runtime::Watchdog {
+ public:
+  explicit Watchdog(Runtime&) {}
+};
+
+#endif  // FUZZTEST_USE_CENTIPEDE
+
+Runtime::Watchdog Runtime::CreateWatchdog() { return Watchdog{*this}; }
+
+void Runtime::Spinlock::Lock() {
+  while (locked_.test_and_set(std::memory_order_acq_rel)) {
+    std::this_thread::yield();
   }
 }
+
+void Runtime::Spinlock::Unlock() { locked_.clear(std::memory_order_release); }
 
 static size_t GetPeakRSSBytes() {
 #ifndef FUZZTEST_HAS_RUSAGE
@@ -379,7 +418,12 @@ static size_t GetPeakRSSBytes() {
 void Runtime::CheckWatchdogLimits() {
   // Centipede runner has its own watchdog.
 #ifndef FUZZTEST_USE_CENTIPEDE
-  if (current_configuration_ == nullptr) return;
+  watchdog_spinlock_.Lock();
+  if (current_configuration_ == nullptr || !test_iteration_started_ ||
+      watchdog_limit_exceeded_) {
+    watchdog_spinlock_.Unlock();
+    return;
+  }
   const absl::Duration run_duration =
       clock_fn_() - current_iteration_start_time_;
   if (current_configuration_->time_limit_per_input > absl::ZeroDuration() &&
@@ -388,7 +432,14 @@ void Runtime::CheckWatchdogLimits() {
         GetStderr(), "[!] Per-input timeout exceeded: %s > %s - aborting\n",
         absl::FormatDuration(run_duration),
         absl::FormatDuration(current_configuration_->time_limit_per_input));
+    watchdog_limit_exceeded_ = true;
+    watchdog_spinlock_.Unlock();
+#if defined(__linux__) || defined(__APPLE__)
+    pthread_kill(reporting_thread_, SIGABRT);
+    return;
+#else
     std::abort();
+#endif
   }
   const size_t rss_usage = GetPeakRSSBytes();
   if (current_configuration_->rss_limit > 0 &&
@@ -396,9 +447,17 @@ void Runtime::CheckWatchdogLimits() {
     absl::FPrintF(GetStderr(),
                   "[!] RSS limit exceeded: %zu > %zu (bytes) - aborting\n",
                   rss_usage, current_configuration_->rss_limit);
+    watchdog_limit_exceeded_ = true;
+    watchdog_spinlock_.Unlock();
+#if defined(__linux__) || defined(__APPLE__)
+    pthread_kill(reporting_thread_, SIGABRT);
+    return;
+#else
     std::abort();
-  }
 #endif
+  }
+  watchdog_spinlock_.Unlock();
+#endif  // FUZZTEST_USE_CENTIPEDE
 }
 
 void Runtime::SetCurrentTest(const FuzzTest* test,
@@ -422,11 +481,18 @@ void Runtime::SetCurrentTest(const FuzzTest* test,
   ++test_counter_;
 }
 
+void Runtime::OnTestIterationStart(const absl::Time& start_time) {
+  watchdog_spinlock_.Lock();
+  current_iteration_start_time_ = start_time;
+  test_iteration_started_ = true;
+  watchdog_spinlock_.Unlock();
+}
+
 void Runtime::OnTestIterationEnd() {
-  test_iteration_started_ = false;
-  while (watchdog_spinlock_.test_and_set()) std::this_thread::yield();
   CheckWatchdogLimits();
-  watchdog_spinlock_.clear();
+  watchdog_spinlock_.Lock();
+  test_iteration_started_ = false;
+  watchdog_spinlock_.Unlock();
 }
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -971,7 +1037,7 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
                     test_.full_name());
       return;
     }
-    runtime_.StartWatchdog();
+    [[maybe_unused]] auto watchdog = runtime_.CreateWatchdog();
     PopulateLimits(configuration, execution_coverage_);
 
     // TODO(sbenzaquen): Currently, some infrastructure code assumes that replay
@@ -1143,7 +1209,7 @@ bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
                     test_.full_name());
       return true;
     }
-    runtime_.StartWatchdog();
+    [[maybe_unused]] auto watchdog = runtime_.CreateWatchdog();
     PopulateLimits(configuration, execution_coverage_);
     runtime_.SetRunMode(RunMode::kFuzz);
 
