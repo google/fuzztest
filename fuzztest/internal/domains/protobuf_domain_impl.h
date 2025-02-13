@@ -233,7 +233,10 @@ class ProtoPolicy {
  public:
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
-                             /*value=*/OptionalPolicy::kWithNull}}) {}
+                             /*value=*/OptionalPolicy::kWithNull}}) {
+    static int64_t next_id = 0;
+    id_ = next_id++;
+  }
 
   void SetOptionalPolicy(OptionalPolicy optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
@@ -314,7 +317,11 @@ class ProtoPolicy {
     return max;
   }
 
+  int64_t id() const { return id_; }
+
  private:
+  int64_t id_;
+
   template <typename T>
   struct FilterToValue {
     Filter filter;
@@ -1707,12 +1714,13 @@ class ProtobufDomainUntypedImpl
   bool IsFieldFinitelyRecursive(const FieldDescriptor* field) {
     if (!field->message_type()) return false;
     ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
-    static absl::NoDestructor<absl::flat_hash_map<const FieldDescriptor*, bool>>
+    static absl::NoDestructor<
+        absl::flat_hash_map<std::pair<int64_t, const FieldDescriptor*>, bool>>
         cache ABSL_GUARDED_BY(mutex);
     bool can_use_cache = IsCustomizedRecursivelyOnly();
     if (can_use_cache) {
       absl::MutexLock l(&mutex);
-      auto it = cache->find(field);
+      auto it = cache->find({policy_.id(), field});
       if (it != cache->end()) return it->second;
     }
     absl::flat_hash_set<decltype(field->message_type())> parents;
@@ -1720,7 +1728,7 @@ class ProtobufDomainUntypedImpl
                                    RecursionType::kFinitelyRecursive);
     if (can_use_cache) {
       absl::MutexLock l(&mutex);
-      cache->insert({field, result});
+      cache->insert({{policy_.id(), field}, result});
     }
     return result;
   }
