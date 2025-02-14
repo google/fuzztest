@@ -336,6 +336,9 @@ void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
 }
 
 void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
+#ifdef FUZZTEST_CANARY
+  std::cout << "[*] FuzzTest is running in canary mode.\n";
+#endif
   auto& runtime = internal::Runtime::instance();
   const bool is_listing = absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests));
   if (is_listing) {
