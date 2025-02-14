@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/flags/reflection.h"
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
@@ -1134,6 +1135,7 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   runtime_.SetSkippingRequested(false);
   fixture_driver_->SetUpIteration();
   if (!runtime_.skipping_requested()) {
+    absl::FlagSaver flags;
     fixture_driver_->Test(std::move(untyped_args));
   }
   fixture_driver_->TearDownIteration();
