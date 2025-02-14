@@ -68,7 +68,7 @@ test_debug_symbols() {
 
   echo "============ ${FUNC}: run for the first time, with empty seed corpus, with feature logging"
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1000 \
-    --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
+    --populate_binary_info=true --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
   centipede::assert_regex_in_file 'Custom mutator detected: will use it' "${LOG}"
   # Note: the test assumes LLVMFuzzerTestOneInput is defined on a specific line.
   centipede::assert_regex_in_file "FUNC: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc:71" "${LOG}"
@@ -81,7 +81,8 @@ test_debug_symbols() {
   # TODO(b/282845630): Passing `--num_runs=1` only to trigger telemetry dumping.
   #  Change to `--num_runs=0` after the bug is fixed.
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1 \
-    --telemetry_frequency=1 --symbolizer_path="${LLVM_SYMBOLIZER}" 2>&1 \
+    --telemetry_frequency=1 --populate_binary_info=true \
+    --symbolizer_path="${LLVM_SYMBOLIZER}" 2>&1 \
     | tee -a "${LOG}"
   centipede::assert_regex_in_file "FUNC: SingleEdgeFunc" "${LOG}"
   centipede::assert_regex_in_file "FUNC: MultiEdgeFunc" "${LOG}"
@@ -98,7 +99,7 @@ test_debug_symbols() {
   echo "============ ${FUNC}: run w/o the symbolizer, everything else should still work."
   centipede::ensure_empty_dir "${WD}"
   test_fuzz --workdir="${WD}" --seed=1 --num_runs=1000 \
-    --symbolizer_path=/dev/null | tee "${LOG}"
+    --populate_binary_info=true --symbolizer_path=/dev/null | tee "${LOG}"
   centipede::assert_regex_in_file "Symbolizer unspecified: debug symbols will not be used" "${LOG}"
   centipede::assert_regex_in_file "end-fuzz:" "${LOG}"
 }
@@ -167,12 +168,12 @@ test_pcpair_features() {
 
   echo "============ ${FUNC}: fuzz with --use_pcpair_features"
   test_fuzz --workdir="${WD}" --use_pcpair_features --num_runs=10000 \
-    --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
+    --populate_binary_info=true --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
   centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 
   echo "============ ${FUNC}: fuzz with --use_pcpair_features w/o symbolizer"
   test_fuzz --workdir="${WD}" --use_pcpair_features --num_runs=10000 \
-    --symbolizer_path=/dev/null | tee "${LOG}"
+    --populate_binary_info=true --symbolizer_path=/dev/null | tee "${LOG}"
   centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 }
 

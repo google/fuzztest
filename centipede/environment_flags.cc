@@ -395,11 +395,12 @@ ABSL_FLAG(bool, dry_run, Environment::Default().dry_run,
 ABSL_FLAG(bool, save_binary_info, Environment::Default().save_binary_info,
           "Save the BinaryInfo from the fuzzing run within the working "
           "directory.");
-ABSL_FLAG(bool, populate_binary_info,
-          Environment::Default().populate_binary_info,
-          "Get binary info from a coverage instrumented binary. This should "
-          "only be turned off when coverage is not based on instrumenting some "
-          "binary.");
+ABSL_FLAG(
+    bool, populate_binary_info, Environment::Default().populate_binary_info,
+    "If set, get binary info from a coverage-instrumented binary specified in "
+    "--coverage_binary, or --binary in case the former is unset. This is "
+    "needed for --analyze, --function_filter, --log_features_shards, and "
+    "--use_pcpair_features.");
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 ABSL_FLAG(bool, riegeli, Environment::Default().riegeli,
           "Use Riegeli file format (instead of the legacy bespoke encoding) "

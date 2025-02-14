@@ -114,7 +114,7 @@ struct Environment {
 #endif
   bool dry_run = false;
   bool save_binary_info = false;
-  bool populate_binary_info = true;
+  bool populate_binary_info = false;
 #ifdef CENTIPEDE_DISABLE_RIEGELI
   bool riegeli = false;
 #else
