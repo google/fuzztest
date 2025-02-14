@@ -14,7 +14,7 @@
 
 module(
     name = "fuzztest",
-    version = "head",
+    version = "20250214.0",
     repo_name = "com_google_fuzztest",
 )
 
