@@ -625,6 +625,7 @@ cc_library(
         ":serialization",
         ":status",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/flags:reflection",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/functional:function_ref",
