@@ -28,7 +28,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/environment.h"
-#include "./centipede/util.h"
 #include "./common/logging.h"
 
 using ::centipede::Environment;
@@ -515,10 +514,10 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       .riegeli = absl::GetFlag(FLAGS_riegeli),
 #endif  // CENTIPEDE_DISABLE_RIEGELI
       .binary_name = std::filesystem::path(coverage_binary).filename().string(),
-      .binary_hash = absl::GetFlag(FLAGS_binary_hash).empty()
-                         ? HashOfFileContents(coverage_binary)
-                         : absl::GetFlag(FLAGS_binary_hash),
+      .binary_hash = absl::GetFlag(FLAGS_binary_hash),
   };
+
+  env_from_flags.UpdateBinaryHashIfEmpty();
 
   env_from_flags.UpdateTimeoutPerBatchIfEqualTo(
       Environment::Default().timeout_per_batch);

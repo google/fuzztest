@@ -225,6 +225,8 @@ struct Environment {
   // `timeout_per_input` and `batch_size` and updates it. Otherwise, leaves it
   // unchanged.
   void UpdateTimeoutPerBatchIfEqualTo(size_t val);
+  // If `binary_hash` is empty, updates it using the file in `coverage_binary`.
+  void UpdateBinaryHashIfEmpty();
 };
 
 }  // namespace centipede

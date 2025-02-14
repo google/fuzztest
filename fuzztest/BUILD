@@ -224,6 +224,7 @@ cc_library(
         ":runtime",
         ":table_of_recent_compares",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/random",

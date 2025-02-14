@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <limits>
 #include <memory>
@@ -43,6 +44,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/no_destructor.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
@@ -158,6 +160,20 @@ absl::StatusOr<std::vector<std::string>> GetProcessArgs() {
 #endif
 }
 
+std::string GetSelfBinaryHashForCentipedeEnvironment() {
+  static absl::NoDestructor<std::string> cached_self_binary_hash{[] {
+    centipede::Environment env;
+    const auto args = GetProcessArgs();
+    FUZZTEST_INTERNAL_CHECK(
+        args.ok(), absl::StrCat("failed to get the original process args: ",
+                                args.status()));
+    env.coverage_binary = (*args)[0];
+    env.UpdateBinaryHashIfEmpty();
+    return env.binary_hash;
+  }()};
+  return *cached_self_binary_hash;
+}
+
 std::string ShellEscape(absl::string_view str) {
   return absl::StrCat("'", absl::StrReplaceAll(str, {{"'", "'\\''"}}), "'");
 }
@@ -224,6 +240,8 @@ centipede::Environment CreateCentipedeEnvironmentFromConfiguration(
                   "internal_override_total_time_limit=",
                   total_time_limit);
   env.coverage_binary = (*args)[0];
+  env.binary_name = std::filesystem::path{(*args)[0]}.filename();
+  env.binary_hash = GetSelfBinaryHashForCentipedeEnvironment();
   env.exit_on_crash =
       // Do shallow testing when running in unit-test mode unless we are replay
       // coverage inputs.

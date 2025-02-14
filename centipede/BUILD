@@ -736,7 +736,6 @@ cc_library(
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
-        ":util",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -861,6 +860,7 @@ cc_library(
     deps = [
         ":feature",
         ":knobs",
+        ":util",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",

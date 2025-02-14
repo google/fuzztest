@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <system_error>  // NOLINT
 #include <vector>
@@ -33,6 +34,7 @@
 #include "absl/time/time.h"
 #include "./centipede/feature.h"
 #include "./centipede/knobs.h"
+#include "./centipede/util.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
@@ -326,6 +328,12 @@ void Environment::UpdateTimeoutPerBatchIfEqualTo(size_t val) {
   timeout_per_batch = ComputeTimeoutPerBatch(timeout_per_input, batch_size);
   VLOG(1) << "--timeout_per_batch auto-computed: " << timeout_per_batch
           << " sec (see --help for details)";
+}
+
+void Environment::UpdateBinaryHashIfEmpty() {
+  if (binary_hash.empty()) {
+    binary_hash = HashOfFileContents(coverage_binary);
+  }
 }
 
 }  // namespace centipede
