@@ -14,7 +14,7 @@
 
 # FuzzTest: a coverage-guided fuzzing / property-based testing framework.
 
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -48,6 +48,21 @@ bool_flag(
 config_setting(
     name = "disable_riegeli",
     flag_values = {":use_riegeli": "False"},
+)
+################################################################################
+
+################################################################################
+# Flag and setting to set FuzzTest version.
+################################################################################
+string_flag(
+    name = "version",
+    build_setting_default = "prod",
+)
+
+config_setting(
+    name = "for_canary",
+    flag_values = {":version": "canary"},
+    visibility = ["//visibility:public"],
 )
 ################################################################################
 
