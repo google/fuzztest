@@ -35,7 +35,6 @@
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
 namespace {
@@ -59,7 +58,7 @@ using ContainerTypes = testing::Types<
     std::map<int, int>, std::unordered_map<int, int>,
     absl::flat_hash_map<std::string, int>>;
 
-TYPED_TEST_SUITE(ContainerTest, ContainerTypes);
+TYPED_TEST_SUITE(ContainerTest, ContainerTypes, );
 
 TYPED_TEST(ContainerTest, Arbitrary) {
   using T = TypeParam;
@@ -74,7 +73,7 @@ TYPED_TEST(ContainerTest, Arbitrary) {
     // Basic checks to make sure we have a few sizes and values.
     // TODO: Check these values in a more principled way.
     absl::flat_hash_map<size_t, size_t> size_distribution;
-    absl::flat_hash_map<internal::value_type_t<T>, size_t> value_distribution;
+    absl::flat_hash_map<typename T::value_type, size_t> value_distribution;
     for (const auto& s : values) {
       ++size_distribution[s.user_value.size()];
       for (const auto& v : s.user_value) ++value_distribution[v];
@@ -151,7 +150,7 @@ TYPED_TEST(ContainerTest, SettingSizesLimitsOutput) {
   TestMinMaxContainerSize(Arbitrary<T>().WithMaxSize(7), 0, 7);
   TestMinMaxContainerSize(Arbitrary<T>().WithMinSize(3).WithMaxSize(7), 3, 7);
 
-  auto inner = Arbitrary<internal::value_type_t<T>>();
+  auto inner = Arbitrary<typename T::value_type>();
 
   TestMinMaxContainerSize(ContainerOf<T>(inner).WithSize(7), 7, 7);
   TestMinMaxContainerSize(ContainerOf<T>(inner).WithMinSize(7), 7, ~size_t{});
@@ -251,7 +250,7 @@ TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
   std::vector<std::string> mutants;
   for (int i = 0; i < 1000000; ++i) {
     std::string mutant = "abcdabcdabcdabcd";
-    domain.Mutate(mutant, bitgen, {.cmp_tables = &cmp_tables}, false);
+    domain.Mutate(mutant, bitgen, {/*cmp_tables=*/&cmp_tables}, false);
     mutants.push_back(std::move(mutant));
   }
 

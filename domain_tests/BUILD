@@ -94,7 +94,6 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:table_of_recent_compares",
-        "@com_google_fuzztest//fuzztest:type_support",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -60,7 +60,7 @@ using NumericTypes = testing::Types<char, signed char, unsigned char,  //
                                     long long, unsigned long long,     // NOLINT
                                     float, double,                     //
                                     absl::int128, absl::uint128>;
-TYPED_TEST_SUITE(NumericTest, NumericTypes);
+TYPED_TEST_SUITE(NumericTest, NumericTypes, );
 
 template <typename T>
 class SignedNumericTest : public testing::Test {};
@@ -68,7 +68,7 @@ using SignedNumericTypes = testing::Types<signed char,       //
                                           short, int, long,  // NOLINT
                                           long long,         // NOLINT
                                           float, double>;    //
-TYPED_TEST_SUITE(SignedNumericTest, SignedNumericTypes);
+TYPED_TEST_SUITE(SignedNumericTest, SignedNumericTypes, );
 
 TYPED_TEST(NumericTest, Arbitrary) {
   using T = TypeParam;
@@ -275,7 +275,7 @@ template <typename T>
 class CharTest : public testing::Test {};
 using CharTypes = testing::Types<char, signed char, unsigned char>;
 
-TYPED_TEST_SUITE(CharTest, CharTypes);
+TYPED_TEST_SUITE(CharTest, CharTypes, );
 
 TYPED_TEST(CharTest, GetRandomValueYieldsEveryValue) {
   using T = TypeParam;

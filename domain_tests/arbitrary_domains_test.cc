@@ -147,7 +147,7 @@ using CompoundTypeTypes =
                    std::optional<int>, std::unique_ptr<std::string>, MyStruct,
                    std::vector<bool>>;
 
-TYPED_TEST_SUITE(CompoundTypeTest, CompoundTypeTypes);
+TYPED_TEST_SUITE(CompoundTypeTest, CompoundTypeTypes, );
 
 TYPED_TEST(CompoundTypeTest, Arbitrary) {
   Domain<TypeParam> domain = Arbitrary<TypeParam>();
@@ -177,7 +177,7 @@ class MonostateTypeTest : public testing::Test {};
 using MonostateTypeTypes = testing::Types<std::true_type, std::false_type,
                                           std::array<int, 0>, std::tuple<>>;
 
-TYPED_TEST_SUITE(MonostateTypeTest, MonostateTypeTypes);
+TYPED_TEST_SUITE(MonostateTypeTest, MonostateTypeTypes, );
 
 TYPED_TEST(MonostateTypeTest, Arbitrary) {
   absl::BitGen bitgen;

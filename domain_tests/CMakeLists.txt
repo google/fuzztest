@@ -84,7 +84,6 @@ fuzztest_cc_test(
     absl::random_random
     fuzztest::domain_core
     fuzztest::table_of_recent_compares
-    fuzztest::type_support
     GTest::gmock_main
 )
 

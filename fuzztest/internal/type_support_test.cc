@@ -14,7 +14,6 @@
 
 #include "./fuzztest/internal/type_support.h"
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -102,7 +101,7 @@ using IntegralTypes = testing::Types<signed char, unsigned char,     //
                                      long long, unsigned long long,  //
                                      absl::int128, absl::uint128>;
 
-TYPED_TEST_SUITE(IntegralTest, IntegralTypes);
+TYPED_TEST_SUITE(IntegralTest, IntegralTypes, );
 
 TYPED_TEST(IntegralTest, Printer) {
   for (auto v : {TypeParam{0}, std::numeric_limits<TypeParam>::min(),
@@ -141,7 +140,7 @@ class FloatingTest : public testing::Test {};
 
 using FloatingTypes = testing::Types<float, double, long double>;
 
-TYPED_TEST_SUITE(FloatingTest, FloatingTypes);
+TYPED_TEST_SUITE(FloatingTest, FloatingTypes, );
 
 TYPED_TEST(FloatingTest, Printer) {
   absl::string_view suffix = std::is_same_v<float, TypeParam>    ? "f"
