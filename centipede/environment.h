@@ -30,6 +30,16 @@
 
 namespace centipede {
 
+enum class MutatorType {
+  // Detect whether the binary supports custom mutator and use it if it does,
+  // otherwise fall back to the built-in mutator.
+  kAuto,
+  // Use the built-in ByteArray mutator.
+  kBuiltIn,
+  // Use the custom mutator provided by the binary.
+  kCustom
+};
+
 // Fuzzing environment controlling the behavior of
 // CentipedeMain(). Centipede binaries are creating Environment instances using
 // the flags defined in environment_flags.cc, while other users can use
@@ -52,6 +62,9 @@ struct Environment {
   size_t batch_size = 1000;
   size_t mutate_batch_size = 2;
   bool use_legacy_default_mutator = false;
+  // TODO(b/397945452): Get rid of this field once we can distinguish between a
+  // failing mutator and an undefined mutator in a generic way.
+  MutatorType mutator_type = MutatorType::kAuto;
   size_t load_other_shard_frequency = 10;
   bool serialize_shard_loads = false;
   size_t seed = 0;

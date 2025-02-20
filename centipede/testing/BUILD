@@ -64,6 +64,31 @@ centipede_fuzz_target(
     fuzz_target = "_fuzz_target_with_config",
 )
 
+# Fuzz target that uses the C++ RunnerCallbacks API to mutate inputs.
+cc_binary(
+    name = "_fuzz_target_with_custom_mutator",
+    srcs = ["fuzz_target_with_custom_mutator.cc"],
+    # Cannot be built directly - build :fuzz_target_with_custom_mutator instead.
+    tags = [
+        "local",
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_fuzztest//centipede:centipede_runner_no_main",
+        "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+centipede_fuzz_target(
+    name = "fuzz_target_with_custom_mutator",
+    fuzz_target = "_fuzz_target_with_custom_mutator",
+)
+
 centipede_fuzz_target(
     name = "minimize_me_fuzz_target",
 )
