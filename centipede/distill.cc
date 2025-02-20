@@ -94,7 +94,8 @@ static_assert(kMaxReadingThreads * kMaxWritingThreads <= kMaxTotalThreads);
 inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
 // The total approximate amount of RAM to be shared by the concurrent threads.
 // TODO(ussuri): Replace by a function of free RSS on the system.
-inline constexpr perf::RUsageMemory kRamQuota{.mem_rss = 25 * kGB};
+inline constexpr perf::RUsageMemory kRamQuota{/*mem_vsize=*/0, /*mem_vpeak=*/0,
+                                              /*mem_rss=*/25 * kGB};
 // The amount of time that each thread will wait for enough RAM to be freed up
 // by its concurrent siblings.
 inline constexpr absl::Duration kRamLeaseTimeout = absl::Hours(5);
@@ -354,9 +355,11 @@ void DistillToOneOutputShard(                          //
       threads.Schedule([shard_idx, &reader, &writer, &env, num_shards,
                         &ram_pool] {
         const auto ram_lease = ram_pool.AcquireLeaseBlocking({
-            .id = absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
-            .amount = {.mem_rss = reader.EstimateRamFootprint(shard_idx)},
-            .timeout = kRamLeaseTimeout,
+            /*id=*/absl::StrCat("out_", env.my_shard_index, "/in_", shard_idx),
+            /*amount=*/
+            {/*mem_vsize=*/0, /*mem_vpeak=*/0,
+             /*mem_rss=*/reader.EstimateRamFootprint(shard_idx)},
+            /*timeout=*/kRamLeaseTimeout,
         });
         CHECK_OK(ram_lease.status());
 

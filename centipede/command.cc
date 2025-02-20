@@ -338,8 +338,8 @@ int Command::Execute() {
     do {
       // NOTE: `poll_fd` has to be reset every time.
       poll_fd = {
-          .fd = fork_server_->pipe_[1],  // The file descriptor to wait for.
-          .events = POLLIN,              // Wait until `fd` gets readable data.
+          /*fd=*/fork_server_->pipe_[1],  // The file descriptor to wait for.
+          /*events=*/POLLIN,              // Wait until `fd` gets readable data.
       };
       const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
           std::max(poll_deadline - absl::Now(), absl::Milliseconds(1))));

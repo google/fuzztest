@@ -56,8 +56,12 @@ TEST(Environment, UpdateForExperiment) {
 }
 
 TEST(Environment, UpdatesNumberOfShardsAndThreadsFromTargetConfigJobs) {
-  Environment env{.total_shards = 20, .my_shard_index = 10, .num_threads = 5};
-  fuzztest::internal::Configuration config{.jobs = 10};
+  Environment env;
+  env.total_shards = 20;
+  env.my_shard_index = 10;
+  env.num_threads = 5;
+  fuzztest::internal::Configuration config;
+  config.jobs = 10;
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.j, 10);
   EXPECT_EQ(env.total_shards, 10);
@@ -66,16 +70,20 @@ TEST(Environment, UpdatesNumberOfShardsAndThreadsFromTargetConfigJobs) {
 }
 
 TEST(Environment, DiesOnInconsistentJAndTargetConfigJobs) {
-  Environment env{.j = 10};
-  fuzztest::internal::Configuration config{.jobs = 20};
+  Environment env;
+  env.j = 10;
+  fuzztest::internal::Configuration config;
+  config.jobs = 20;
   EXPECT_DEATH(env.UpdateWithTargetConfig(config),
                "Value for --j is inconsistent with the value for jobs in the "
                "target binary");
 }
 
 TEST(Environment, UpdatesTimeoutPerBatchFromTimeoutPerInputAndBatchSize) {
-  Environment env{
-      .batch_size = 1000, .timeout_per_input = 100, .timeout_per_batch = 0};
+  Environment env;
+  env.batch_size = 1000;
+  env.timeout_per_input = 100;
+  env.timeout_per_batch = 0;
   env.UpdateTimeoutPerBatchIfEqualTo(0);
   EXPECT_GT(env.timeout_per_batch, 0);
 
@@ -86,29 +94,30 @@ TEST(Environment, UpdatesTimeoutPerBatchFromTimeoutPerInputAndBatchSize) {
 
 TEST(Environment,
      UpdatesTimeoutPerInputFromFiniteTargetConfigTimeLimitPerInput) {
-  Environment env{.timeout_per_input =
-                      Environment::Default().timeout_per_input};
-  fuzztest::internal::Configuration config{.time_limit_per_input =
-                                               absl::Seconds(456)};
+  Environment env;
+  env.timeout_per_input = Environment::Default().timeout_per_input;
+  fuzztest::internal::Configuration config;
+  config.time_limit_per_input = absl::Seconds(456);
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.timeout_per_input, 456);
 }
 
 TEST(Environment,
      UpdatesTimeoutPerInputFromInfiniteTargetConfigTimeLimitPerInput) {
-  Environment env{.timeout_per_input =
-                      Environment::Default().timeout_per_input};
-  fuzztest::internal::Configuration config{.time_limit_per_input =
-                                               absl::InfiniteDuration()};
+  Environment env;
+  env.timeout_per_input = Environment::Default().timeout_per_input;
+  fuzztest::internal::Configuration config;
+  config.time_limit_per_input = absl::InfiniteDuration();
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.timeout_per_input, 0);
 }
 
 TEST(Environment,
      DiesOnInconsistentTimeoutPerInputAndTargetConfigTimeLimitPerInput) {
-  Environment env{.timeout_per_input = 123};
-  fuzztest::internal::Configuration config{.time_limit_per_input =
-                                               absl::Seconds(456)};
+  Environment env;
+  env.timeout_per_input = 123;
+  fuzztest::internal::Configuration config;
+  config.time_limit_per_input = absl::Seconds(456);
   EXPECT_DEATH(
       env.UpdateWithTargetConfig(config),
       "Value for --timeout_per_input is inconsistent with the value for "
@@ -117,33 +126,32 @@ TEST(Environment,
 
 TEST(Environment,
      UpdatesTimeoutPerBatchFromFiniteTargetConfigTimeLimitPerInput) {
-  Environment env{.timeout_per_input =
-                      Environment::Default().timeout_per_input};
+  Environment env;
+  env.timeout_per_input = Environment::Default().timeout_per_input;
   env.UpdateTimeoutPerBatchIfEqualTo(Environment::Default().timeout_per_batch);
   const size_t autocomputed_timeout_per_batch = env.timeout_per_batch;
-  fuzztest::internal::Configuration config{.time_limit_per_input =
-                                               absl::Seconds(456)};
+  fuzztest::internal::Configuration config;
+  config.time_limit_per_input = absl::Seconds(456);
   env.UpdateWithTargetConfig(config);
   EXPECT_NE(env.timeout_per_batch, autocomputed_timeout_per_batch);
 }
 
 TEST(Environment,
      UpdatesTimeoutPerBatchFromInfiniteTargetConfigTimeLimitPerInput) {
-  Environment env{.timeout_per_input =
-                      Environment::Default().timeout_per_input};
+  Environment env;
+  env.timeout_per_input = Environment::Default().timeout_per_input;
   env.UpdateTimeoutPerBatchIfEqualTo(Environment::Default().timeout_per_batch);
-  fuzztest::internal::Configuration config{.time_limit_per_input =
-                                               absl::InfiniteDuration()};
+  fuzztest::internal::Configuration config;
+  config.time_limit_per_input = absl::InfiniteDuration();
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.timeout_per_batch, 0);
 }
 
 TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
   Environment env;
-  fuzztest::internal::Configuration config{
-      .time_limit = absl::Seconds(123),
-      .time_budget_type = fuzztest::internal::TimeBudgetType::kPerTest,
-  };
+  fuzztest::internal::Configuration config;
+  config.time_limit = absl::Seconds(123);
+  config.time_budget_type = fuzztest::internal::TimeBudgetType::kPerTest;
   CHECK(config.GetTimeLimitPerTest() == absl::Seconds(123));
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.timeout_per_batch, 123)
@@ -164,17 +172,19 @@ TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
 }
 
 TEST(Environment, UpdatesRssLimitMbFromTargetConfigRssLimit) {
-  Environment env{.rss_limit_mb = Environment::Default().rss_limit_mb};
-  fuzztest::internal::Configuration config{.rss_limit =
-                                               5UL * 1024 * 1024 * 1024};
+  Environment env;
+  env.rss_limit_mb = Environment::Default().rss_limit_mb;
+  fuzztest::internal::Configuration config;
+  config.rss_limit = 5UL * 1024 * 1024 * 1024;
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.rss_limit_mb, 5 * 1024);
 }
 
 TEST(Environment, DiesOnInconsistentRssLimitMbAndTargetConfigRssLimit) {
-  Environment env{.rss_limit_mb = 123};
-  fuzztest::internal::Configuration config{.rss_limit =
-                                               5UL * 1024 * 1024 * 1024};
+  Environment env;
+  env.rss_limit_mb = 123;
+  fuzztest::internal::Configuration config;
+  config.rss_limit = 5UL * 1024 * 1024 * 1024;
   EXPECT_DEATH(
       env.UpdateWithTargetConfig(config),
       "Value for --rss_limit_mb is inconsistent with the value for rss_limit "
@@ -182,15 +192,19 @@ TEST(Environment, DiesOnInconsistentRssLimitMbAndTargetConfigRssLimit) {
 }
 
 TEST(Environment, UpdatesStackLimitKbFromTargetConfigStackLimit) {
-  Environment env{.stack_limit_kb = Environment::Default().stack_limit_kb};
-  fuzztest::internal::Configuration config{.stack_limit = 5UL * 1024};
+  Environment env;
+  env.stack_limit_kb = Environment::Default().stack_limit_kb;
+  fuzztest::internal::Configuration config;
+  config.stack_limit = 5UL * 1024;
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.stack_limit_kb, 5);
 }
 
 TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
-  Environment env{.stack_limit_kb = 123};
-  fuzztest::internal::Configuration config{.stack_limit = 5UL * 1024};
+  Environment env;
+  env.stack_limit_kb = 123;
+  fuzztest::internal::Configuration config;
+  config.stack_limit = 5UL * 1024;
   EXPECT_DEATH(env.UpdateWithTargetConfig(config),
                "Value for --stack_limit_kb is inconsistent with the value for "
                "stack_limit in the target binary");
