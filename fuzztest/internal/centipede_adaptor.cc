@@ -320,7 +320,6 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       : runtime_(*runtime),
         fuzzer_impl_(*fuzzer_impl),
         configuration_(*configuration),
-        cmp_tables_(std::make_unique<TablesOfRecentCompares>()),
         prng_(GetRandomSeed()) {}
 
   bool Execute(centipede::ByteSpan input) override {
@@ -388,7 +387,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
       size_t num_mutants,
       std::function<void(centipede::ByteSpan)> new_mutant_callback) override {
     if (inputs.empty()) return false;
-    if (runtime_.run_mode() == RunMode::kFuzz) SetMetadata(inputs[0].metadata);
+    std::vector<std::unique_ptr<TablesOfRecentCompares>> input_cmp_tables(
+        inputs.size());
     for (size_t i = 0; i < num_mutants; ++i) {
       const auto choice = absl::Uniform<double>(prng_, 0, 1);
       std::string mutant_data;
@@ -399,16 +399,24 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
                 .SerializeCorpus(fuzzer_impl_.params_domain_.Init(prng_))
                 .ToString();
       } else {
-        const auto& origin =
-            inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
+        const auto origin_index =
+            absl::Uniform<size_t>(prng_, 0, inputs.size());
+        const auto& origin = inputs[origin_index].data;
         auto parsed_origin =
             fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
         if (!parsed_origin.ok()) {
           parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
         }
         auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
+        if (runtime_.run_mode() == RunMode::kFuzz &&
+            input_cmp_tables[origin_index] == nullptr) {
+          input_cmp_tables[origin_index] =
+              std::make_unique<TablesOfRecentCompares>();
+          PopulateMetadata(inputs[origin_index].metadata,
+                           *input_cmp_tables[origin_index]);
+        }
         fuzzer_impl_.MutateValue(mutant, prng_,
-                                 {/*cmp_tables=*/cmp_tables_.get()});
+                                 {input_cmp_tables[origin_index].get()});
         mutant_data =
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }
@@ -422,31 +430,36 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
 
  private:
   template <typename T>
-  void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b) {
+  static void InsertCmpEntryIntoIntegerDictionary(
+      const uint8_t* a, const uint8_t* b, TablesOfRecentCompares& cmp_tables) {
     T a_int;
     T b_int;
     memcpy(&a_int, a, sizeof(T));
     memcpy(&b_int, b, sizeof(T));
-    cmp_tables_->GetMutable<sizeof(T)>().Insert(a_int, b_int);
+    cmp_tables.GetMutable<sizeof(T)>().Insert(a_int, b_int);
   }
 
-  void SetMetadata(const centipede::ExecutionMetadata* metadata) {
+  static void PopulateMetadata(const centipede::ExecutionMetadata* metadata,
+                               TablesOfRecentCompares& cmp_tables) {
     if (metadata == nullptr) return;
     metadata->ForEachCmpEntry(
-        [this](centipede::ByteSpan a, centipede::ByteSpan b) {
+        [&cmp_tables](centipede::ByteSpan a, centipede::ByteSpan b) {
           FUZZTEST_INTERNAL_CHECK(a.size() == b.size(),
                                   "cmp operands must have the same size");
           const size_t size = a.size();
           if (size < kMinCmpEntrySize) return;
           if (size > kMaxCmpEntrySize) return;
           if (size == 2) {
-            InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data());
+            InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
+                                                          cmp_tables);
           } else if (size == 4) {
-            InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data());
+            InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
+                                                          cmp_tables);
           } else if (size == 8) {
-            InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data());
+            InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
+                                                          cmp_tables);
           }
-          cmp_tables_->GetMutable<0>().Insert(a.data(), b.data(), size);
+          cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
         });
   }
 
@@ -458,7 +471,6 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
   bool domain_setup_is_checked_ = false;
-  std::unique_ptr<TablesOfRecentCompares> cmp_tables_;
   absl::BitGen prng_;
 };
 
