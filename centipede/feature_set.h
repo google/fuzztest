@@ -22,6 +22,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/log/log.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/util.h"
@@ -108,6 +109,11 @@ class FeatureSet {
   // feature.
   bool ShouldDiscardFeature(feature_t feature) const {
     size_t domain_id = feature_domains::Domain::FeatureToDomainId(feature);
+    // TODO(b/385774476): Remove this check once the root cause is fixed.
+    if (domain_id >= feature_domains::kNumDomains) {
+      LOG(ERROR) << "Unexpected feature with id: " << feature;
+      return true;
+    }
     return should_discard_domain_.test(domain_id);
   }
 
