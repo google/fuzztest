@@ -42,7 +42,7 @@ void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
                              const Configuration& configuration,
                              absl::string_view suffix = "") {
   auto fixture_factory = [argc, argv, &test,
-                          configuration = configuration]() -> T* {
+                          configuration = configuration]() -> testing::Test* {
     return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv,
                                                        configuration);
   };
