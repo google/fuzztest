@@ -36,9 +36,6 @@ centipede::ensure_empty_dir "${WD}"
 TARGET_PORT=$(centipede::get_random_free_port)
 readonly TARGET_PORT
 
-echo $TARGET_PORT
-exit
-
 echo "Starting the server binary using port ${TARGET_PORT}..."
 env CENTIPEDE_RUNNER_FLAGS=":use_auto_dictionary:use_cmp_features:use_pc_features:" \
   TARGET_PORT="${TARGET_PORT}" \
