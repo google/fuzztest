@@ -20,7 +20,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>  // NOLINT
 #include <string>
 #include <system_error>  // NOLINT
 #include <vector>
