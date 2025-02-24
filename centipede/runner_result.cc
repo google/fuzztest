@@ -99,13 +99,11 @@ bool BatchResult::Read(BlobSequence &blobseq) {
       continue;
     }
     if (blob.tag == kTagFeatures) {
-      auto features_beg = reinterpret_cast<const feature_t *>(blob.data);
-      size_t features_size = blob.size / sizeof(features_beg[0]);
+      const size_t features_size = blob.size / sizeof(feature_t);
       FeatureVec &features = current_execution_result->mutable_features();
-      // if features.capacity() >= features_size, this will not cause malloc.
-      features.resize(0);
-      features.insert(features.begin(), features_beg,
-                      features_beg + features_size);
+      features.resize(features_size);
+      std::memcpy(features.data(), blob.data,
+                  features_size * sizeof(feature_t));
     }
   }
   num_outputs_read_ = num_ends;
