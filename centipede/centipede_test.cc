@@ -1066,6 +1066,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
+  GTEST_FLAG_SET(death_test_style, "threadsafe");
   Environment env;
   env.binary =
       absl::StrCat(GetDataDependencyFilepath(
