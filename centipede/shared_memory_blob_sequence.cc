@@ -147,6 +147,11 @@ void SharedMemoryBlobSequence::MmapData() {
   data_ = static_cast<uint8_t *>(
       mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
   ErrorOnFailure(data_ == MAP_FAILED, "mmap() failed");
+#ifndef __APPLE__
+  // TODO: b/385774476 - this is a temporary and Linux-only solution to protect
+  // the mmap-ed region from forked processes.
+  ErrorOnFailure(madvise(data_, size_, MADV_DONTFORK), "madvise() failed");
+#endif
 }
 
 SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
