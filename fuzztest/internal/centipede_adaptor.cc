@@ -323,13 +323,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         prng_(GetRandomSeed()) {}
 
   bool Execute(centipede::ByteSpan input) override {
-    if (!domain_setup_is_checked_) {
-      // Create a new domain input to trigger any domain setup
-      // failures here. (e.g. Ineffective Filter)
-      fuzzer_impl_.params_domain_.Init(prng_);
-      domain_setup_is_checked_ = true;
-    }
-
+    // We should avoid doing anything other than executing the input here so
+    // that we don't affect the execution time.
     auto parsed_input =
         fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
     if (parsed_input.ok()) {
@@ -472,7 +467,6 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   Runtime& runtime_;
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
-  bool domain_setup_is_checked_ = false;
   absl::BitGen prng_;
 };
 
