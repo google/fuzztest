@@ -336,9 +336,9 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
 }
 
 // See also: MutateInputsFromShmem().
-bool CentipedeCallbacks::MutateViaExternalBinary(
+MutationResult CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<MutationInputRef> &inputs,
-    std::vector<ByteArray> &mutants) {
+    size_t num_mutants) {
   CHECK(!env_.has_input_wildcards)
       << "Standalone binary does not support custom mutator";
 
@@ -347,7 +347,7 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
   outputs_blobseq_.Reset();
 
   size_t num_inputs_written =
-      runner_request::RequestMutation(mutants.size(), inputs, inputs_blobseq_);
+      runner_request::RequestMutation(num_mutants, inputs, inputs_blobseq_);
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
@@ -363,19 +363,13 @@ bool CentipedeCallbacks::MutateViaExternalBinary(
     PrintExecutionLog();
   }
 
-  // Read all mutants.
-  for (size_t i = 0; i < mutants.size(); ++i) {
-    auto blob = outputs_blobseq_.Read();
-    if (blob.size == 0) {
-      mutants.resize(i);
-      break;
-    }
-    mutants[i].assign(blob.data, blob.data + blob.size);
-  }
+  MutationResult result;
+  result.exit_code() = retval;
+  result.Read(num_mutants, outputs_blobseq_);
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
-  return retval == 0;
+  return result;
 }
 
 size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {

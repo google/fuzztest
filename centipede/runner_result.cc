@@ -22,18 +22,29 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./common/defs.h"
 
 namespace centipede {
 
 namespace {
+
+// Tags used for both the execution and mutation results. We use the same enum
+// to make the sets of tags disjoint.
 enum Tags : Blob::SizeAndTagT {
   kTagInvalid,  // 0 is an invalid tag.
+
+  // Execution result tags.
   kTagFeatures,
   kTagInputBegin,
   kTagInputEnd,
   kTagStats,
   kTagMetadata,
+
+  // Mutation result tags.
+  kTagHasCustomMutator,
+  kTagMutant,
 };
+
 }  // namespace
 
 bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
@@ -115,6 +126,35 @@ bool BatchResult::IsSetupFailure() const {
   return exit_code_ != EXIT_SUCCESS &&
          std::string_view(failure_description_)
                  .substr(0, kSetupFailurePrefix.size()) == kSetupFailurePrefix;
+}
+
+bool MutationResult::WriteHasCustomMutator(bool has_custom_mutator,
+                                           BlobSequence &blobseq) {
+  return blobseq.Write(
+      {kTagHasCustomMutator, sizeof(has_custom_mutator),
+       reinterpret_cast<const uint8_t *>(&has_custom_mutator)});
+}
+
+bool MutationResult::WriteMutant(ByteSpan mutant, BlobSequence &blobseq) {
+  return blobseq.Write({kTagMutant, mutant.size(), mutant.data()});
+}
+
+bool MutationResult::Read(size_t num_mutants, BlobSequence &blobseq) {
+  const Blob blob = blobseq.Read();
+  if (blob.tag != kTagHasCustomMutator) return false;
+  if (blob.size != sizeof(has_custom_mutator_)) return false;
+  std::memcpy(&has_custom_mutator_, blob.data, blob.size);
+  if (!has_custom_mutator_) return true;
+
+  mutants_.clear();
+  mutants_.reserve(num_mutants);
+  for (size_t i = 0; i < num_mutants; ++i) {
+    const Blob blob = blobseq.Read();
+    if (blob.tag != kTagMutant) return false;
+    if (blob.size == 0) break;
+    mutants_.emplace_back(blob.data, blob.data + blob.size);
+  }
+  return true;
 }
 
 }  // namespace centipede

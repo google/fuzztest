@@ -98,15 +98,14 @@ void FuzzTestMutator::CrossOver(ByteArray &data, const ByteArray &other) {
   }
 }
 
-void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef> &inputs,
-                                 size_t num_mutants,
-                                 std::vector<ByteArray> &mutants) {
+std::vector<ByteArray> FuzzTestMutator::MutateMany(
+    const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
   if (inputs.empty()) abort();
   // TODO(xinhaoyuan): Consider metadata in other inputs instead of always the
   // first one.
   SetMetadata(inputs[0].metadata != nullptr ? *inputs[0].metadata
                                             : ExecutionMetadata());
-  mutants.clear();
+  std::vector<ByteArray> mutants;
   mutants.reserve(num_mutants);
   for (int i = 0; i < num_mutants; ++i) {
     auto mutant = inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
@@ -123,6 +122,7 @@ void FuzzTestMutator::MutateMany(const std::vector<MutationInputRef> &inputs,
     }
     mutants.push_back(std::move(mutant));
   }
+  return mutants;
 }
 
 void FuzzTestMutator::SetMetadata(const ExecutionMetadata &metadata) {

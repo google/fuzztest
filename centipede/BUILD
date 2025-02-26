@@ -459,6 +459,7 @@ cc_library(
         ":feature",
         ":execution_metadata",
         ":shared_memory_blob_sequence",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 
@@ -1468,6 +1469,7 @@ cc_test(
         ":feature",
         ":runner_result",
         ":shared_memory_blob_sequence",
+        "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",
         "@com_google_googletest//:gtest_main",
     ],
@@ -1829,6 +1831,7 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
         "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",
         "@com_google_fuzztest//centipede/testing:fuzz_target_with_config",
+        "@com_google_fuzztest//centipede/testing:fuzz_target_with_custom_mutator",
         "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",

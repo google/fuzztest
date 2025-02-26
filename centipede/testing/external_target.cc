@@ -22,13 +22,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <functional>
-#include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "absl/strings/numbers.h"
-#include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./common/defs.h"
 
@@ -97,13 +94,7 @@ class ExternalTargetRunnerCallbacks : public centipede::RunnerCallbacks {
     return true;
   }
 
-  bool Mutate(
-      const std::vector<centipede::MutationInputRef>& inputs,
-      size_t num_mutants,
-      std::function<void(centipede::ByteSpan)> new_mutant_callback) override {
-    // Use the default Centipede mutation.
-    return false;
-  }
+  bool HasCustomMutator() const override { return false; }
 };
 
 }  // namespace

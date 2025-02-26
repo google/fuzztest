@@ -1,4 +1,4 @@
-// Copyright 2024 The Centipede Authors.
+// Copyright 2025 The Centipede Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@
 // limitations under the License.
 
 #include <cstdlib>
-#include <string>
+#include <functional>
+#include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./common/defs.h"
 
@@ -27,23 +29,30 @@ ABSL_FLAG(bool, simulate_failure, false,
 
 using ::centipede::ByteSpan;
 
-class FakeSerializedConfigRunnerCallbacks : public centipede::RunnerCallbacks {
+class CustomMutatorRunnerCallbacks : public centipede::RunnerCallbacks {
  public:
-  // Trivial implementations for the execution and mutation logic, even though
-  // they should not be used in the tests that use this test binary.
   bool Execute(ByteSpan input) override { return true; }
-  bool HasCustomMutator() const override { return false; }
 
-  std::string GetSerializedTargetConfig() override {
-    return "fake serialized config";
+  bool HasCustomMutator() const override { return true; }
+
+  bool Mutate(const std::vector<centipede::MutationInputRef>& inputs,
+              size_t num_mutants,
+              std::function<void(ByteSpan)> new_mutant_callback) override {
+    size_t i = 0;
+    for (centipede::MutationInputRef input : inputs) {
+      if (i++ >= num_mutants) break;
+      // Just return the original input as a mutant.
+      new_mutant_callback(input.data);
+    }
+    return true;
   }
 };
 
-int main(int argc, absl::Nonnull<char **> argv) {
+int main(int argc, absl::Nonnull<char**> argv) {
   absl::ParseCommandLine(argc, argv);
   if (absl::GetFlag(FLAGS_simulate_failure)) {
     return EXIT_FAILURE;
   }
-  FakeSerializedConfigRunnerCallbacks runner_callbacks;
+  CustomMutatorRunnerCallbacks runner_callbacks;
   return centipede::RunnerMain(argc, argv, runner_callbacks);
 }

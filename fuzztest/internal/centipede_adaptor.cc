@@ -382,6 +382,8 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
         }();
   }
 
+  bool HasCustomMutator() const override { return true; }
+
   bool Mutate(
       const std::vector<centipede::MutationInputRef>& inputs,
       size_t num_mutants,

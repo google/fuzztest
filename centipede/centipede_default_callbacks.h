@@ -42,8 +42,8 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
   absl::StatusOr<std::string> GetSerializedTargetConfig() override;
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
                BatchResult &batch_result) override;
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override;
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override;
 
  private:
   std::optional<bool> custom_mutator_is_usable_ = std::nullopt;

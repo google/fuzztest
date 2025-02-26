@@ -573,6 +573,15 @@ void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
 
 std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
 
+bool RunnerCallbacks::Mutate(
+    const std::vector<MutationInputRef> & /*inputs*/, size_t /*num_mutants*/,
+    std::function<void(ByteSpan)> /*new_mutant_callback*/) {
+  RunnerCheck(!HasCustomMutator(),
+              "Class deriving from RunnerCallbacks must implement Mutate() if "
+              "HasCustomMutator() returns true.");
+  return true;
+}
+
 void RunnerCallbacks::OnFailure(
     std::function<void(std::string_view)> /*failure_description_callback*/) {}
 
@@ -594,6 +603,11 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
         "test_on_input_cb returns invalid value other than -1 and 0");
     return retval == 0;
   }
+
+  bool HasCustomMutator() const override {
+    return custom_mutator_cb_ != nullptr;
+  }
+
   bool Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
               std::function<void(ByteSpan)> new_mutant_callback) override;
 
@@ -931,10 +945,17 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
                          /*metadata=*/&inputs.back().metadata});
   }
 
-  if (!callbacks.Mutate(input_refs, num_mutants, [&](ByteSpan mutant) {
-        outputs_blobseq.Write({1 /*unused tag*/, mutant.size(), mutant.data()});
-      }))
+  if (!MutationResult::WriteHasCustomMutator(callbacks.HasCustomMutator(),
+                                             outputs_blobseq)) {
     return EXIT_FAILURE;
+  }
+  if (!callbacks.HasCustomMutator()) return EXIT_SUCCESS;
+
+  if (!callbacks.Mutate(input_refs, num_mutants, [&](ByteSpan mutant) {
+        MutationResult::WriteMutant(mutant, outputs_blobseq);
+      })) {
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }
 

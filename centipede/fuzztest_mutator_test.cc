@@ -47,10 +47,10 @@ TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
   for (size_t i = 0; i < 2; i++) {
     ByteArray data = {0};
     std::vector<MutationInputRef> mutation_inputs = {{data}};
-    std::vector<ByteArray> mutants;
     constexpr size_t kMutantSequenceLength = 100;
     for (size_t iter = 0; iter < kMutantSequenceLength; iter++) {
-      mutator[i].MutateMany(mutation_inputs, 1, mutants);
+      const std::vector<ByteArray> mutants =
+          mutator[i].MutateMany(mutation_inputs, 1);
       ASSERT_EQ(mutants.size(), 1);
       res[i].push_back(mutants[0]);
     }
@@ -64,9 +64,7 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_max_len(kMaxLen));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  std::vector<ByteArray> mutants;
-
-  mutator.MutateMany(
+  const std::vector<ByteArray> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
           {/*data=*/{0}},
@@ -74,7 +72,7 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
           {/*data=*/{0, 1, 2}},
           {/*data=*/{0, 1, 2, 3}},
       },
-      kNumMutantsToGenerate, mutants);
+      kNumMutantsToGenerate);
 
   EXPECT_THAT(mutants,
               AllOf(SizeIs(kNumMutantsToGenerate), Each(SizeIs(Le(kMaxLen)))));
@@ -84,14 +82,12 @@ TEST(FuzzTestMutator, CrossOverInsertsDataFromOtherInputs) {
   const Knobs knobs;
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   constexpr size_t kNumMutantsToGenerate = 100000;
-  std::vector<ByteArray> mutants;
-
-  mutator.MutateMany(
+  const std::vector<ByteArray> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3}},
           {/*data=*/{4, 5, 6, 7}},
       },
-      kNumMutantsToGenerate, mutants);
+      kNumMutantsToGenerate);
 
   EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
                            // The entire other input
@@ -117,14 +113,12 @@ TEST(FuzzTestMutator, CrossOverOverwritesDataFromOtherInputs) {
   const Knobs knobs;
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   constexpr size_t kNumMutantsToGenerate = 100000;
-  std::vector<ByteArray> mutants;
-
-  mutator.MutateMany(
+  const std::vector<ByteArray> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
           {/*data=*/{100, 101, 102, 103}},
       },
-      kNumMutantsToGenerate, mutants);
+      kNumMutantsToGenerate);
 
   EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
                            // The entire other input
@@ -186,9 +180,8 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   metadata.cmp_data = GetParam().cmp_data;
   const std::vector<MutationInputRef> inputs = {
       {/*data=*/GetParam().seed_input, /*metadata=*/&metadata}};
-  std::vector<ByteArray> mutants;
   for (size_t i = 0; i < GetParam().max_num_iterations; i++) {
-    mutator.MutateMany(inputs, 1, mutants);
+    const std::vector<ByteArray> mutants = mutator.MutateMany(inputs, 1);
     ASSERT_EQ(mutants.size(), 1);
     const auto& mutant = mutants[0];
     EXPECT_FALSE(unexpected_mutants.contains(mutant))

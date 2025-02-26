@@ -143,6 +143,8 @@ class RunnerCallbacks {
   // Returns the serialized configuration from the test target. The default
   // implementation returns the empty string.
   virtual std::string GetSerializedTargetConfig();
+  // Returns true if and only if the test target has a custom mutator.
+  virtual bool HasCustomMutator() const = 0;
   // Generates at most `num_mutants` mutants by calling `new_mutant_callback`
   // for each mutant. Returns true on success, false otherwise.
   //
@@ -150,7 +152,7 @@ class RunnerCallbacks {
   // input shrinking.
   virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
                       size_t num_mutants,
-                      std::function<void(ByteSpan)> new_mutant_callback) = 0;
+                      std::function<void(ByteSpan)> new_mutant_callback);
   // Registers a function to be called when a failure happens. If the
   // implementation supports this functionality, it will call the function with
   // a description of the failure. Otherwise, it will do nothing.

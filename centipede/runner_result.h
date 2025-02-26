@@ -26,6 +26,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./common/defs.h"
 
 namespace centipede {
 
@@ -165,6 +166,42 @@ class BatchResult {
   // description, e.g., the crash type, stack trace...
   std::string failure_description_;
   size_t num_outputs_read_ = 0;
+};
+
+// Represents results of mutating a batch of inputs, which are communicated from
+// the runner to Centipede via a blob sequence using the following protocol:
+//
+// The runner first calls `WriteHasCustomMutator()` to indicate whether the
+// target has a custom mutator. If so, it follows up with a sequence of
+// `WriteMutant()` calls to write the mutants to the blob sequence.
+//
+// Centipede calls `Read()` to read whether the target has a custom mutator,
+// and if so, reads the mutants from the blob sequence.
+class MutationResult {
+ public:
+  // Writes a special marker to indicate whether the target has a custom
+  // mutator. Returns true iff successful.
+  static bool WriteHasCustomMutator(bool has_custom_mutator,
+                                    BlobSequence& blobseq);
+
+  // Writes one mutant to `blobseq`. Returns true iff successful.
+  static bool WriteMutant(ByteSpan mutant, BlobSequence& blobseq);
+
+  // Reads whether the target has a custom mutator, and if so, reads at most
+  // `num_mutants` mutants from `blobseq`. Returns true iff successful.
+  bool Read(size_t num_mutants, BlobSequence& blobseq);
+
+  // Accessors.
+  int exit_code() const { return exit_code_; }
+  int& exit_code() { return exit_code_; }
+  bool has_custom_mutator() const { return has_custom_mutator_; }
+  const std::vector<ByteArray>& mutants() const& { return mutants_; }
+  std::vector<ByteArray>&& mutants() && { return std::move(mutants_); }
+
+ private:
+  int exit_code_ = EXIT_SUCCESS;
+  bool has_custom_mutator_ = false;
+  std::vector<ByteArray> mutants_;
 };
 
 }  // namespace centipede

@@ -107,10 +107,9 @@ class ByteArrayMutator {
     return cmp_dictionary_.SetFromMetadata(metadata);
   }
 
-  // Takes non-empty `inputs`, produces `num_mutants` mutations in `mutants`.
-  // Old contents of `mutants` are discarded.
-  void MutateMany(const std::vector<MutationInputRef> &inputs,
-                  size_t num_mutants, std::vector<ByteArray> &mutants);
+  // Takes non-empty `inputs` and produces `num_mutants` mutants.
+  std::vector<ByteArray> MutateMany(const std::vector<MutationInputRef> &inputs,
+                                    size_t num_mutants);
 
   using CrossOverFn = void (ByteArrayMutator::*)(ByteArray &,
                                                  const ByteArray &);

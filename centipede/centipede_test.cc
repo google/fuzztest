@@ -49,10 +49,15 @@
 #include "./common/test_util.h"
 
 namespace centipede {
-
 namespace {
 
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::Each;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::IsSupersetOf;
+using ::testing::Not;
 
 // A mock for CentipedeCallbacks.
 class CentipedeMock : public CentipedeCallbacks {
@@ -99,19 +104,21 @@ class CentipedeMock : public CentipedeCallbacks {
   // (the value {0} is produced by the default GetSeeds()).
   // Next 65536 mutations are 2-byte sequences {0,0} ... {255, 255}.
   // Then repeat 2-byte sequences.
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants);
-    for (auto &mutant : mutants) {
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    std::vector<ByteArray> mutants;
+    mutants.reserve(num_mutants);
+    for (size_t i = 0; i < num_mutants; ++i) {
       num_mutations_++;
       if (num_mutations_ < 256) {
-        mutant = {static_cast<uint8_t>(num_mutations_)};
+        mutants.push_back({static_cast<uint8_t>(num_mutations_)});
         continue;
       }
       uint8_t byte0 = (num_mutations_ - 256) / 256;
       uint8_t byte1 = (num_mutations_ - 256) % 256;
-      mutant = {byte0, byte1};
+      mutants.push_back({byte0, byte1});
     }
+    return mutants;
   }
 
   absl::flat_hash_set<uint8_t> observed_1byte_inputs_;
@@ -136,8 +143,6 @@ class MockFactory : public CentipedeCallbacksFactory {
  private:
   CentipedeCallbacks &cb_;
 };
-
-}  // namespace
 
 TEST(Centipede, MockTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
@@ -356,8 +361,8 @@ class MutateCallbacks : public CentipedeCallbacks {
   }
 
   // Will not be called.
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
     CHECK(false);
   }
 
@@ -365,7 +370,28 @@ class MutateCallbacks : public CentipedeCallbacks {
   using CentipedeCallbacks::MutateViaExternalBinary;
 };
 
-TEST(Centipede, MutateViaExternalBinary) {
+// Maintains `TemporaryLocalDirPath()` during the lifetime.
+//
+// Some parts of Centipede rely on `TemporaryLocalDirPath()` being set up as a
+// global resource. Tests that exercise such parts of Centipede should use this
+// fixture.
+//
+// TODO(b/391433873): Get rid of this once the design of
+// `TemporaryLocalDirPath()` is revisited.
+class CentipedeWithTemporaryLocalDir : public testing::Test {
+ public:
+  CentipedeWithTemporaryLocalDir() {
+    std::filesystem::path tmp_dir = TemporaryLocalDirPath();
+    std::filesystem::remove_all(tmp_dir);
+    std::filesystem::create_directory(tmp_dir);
+  }
+
+  ~CentipedeWithTemporaryLocalDir() override {
+    std::filesystem::remove_all(TemporaryLocalDirPath());
+  }
+};
+
+TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
   // This binary contains a test-friendly custom mutator.
   const std::string binary_with_custom_mutator =
       GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
@@ -402,28 +428,28 @@ TEST(Centipede, MutateViaExternalBinary) {
   all_expected_mutants.insert(all_expected_mutants.end(),
                               expected_crossover_mutants.begin(),
                               expected_crossover_mutants.end());
-  std::vector<ByteArray> mutants;
 
   // Test with crossover enabled (default).
   {
     Environment env;
     MutateCallbacks callbacks(env);
-
-    // Expect to fail on the binary w/o a custom mutator.
-    mutants.resize(1);
-    EXPECT_FALSE(callbacks.MutateViaExternalBinary(
-        binary_without_custom_mutator,
-        GetMutationInputRefsFromDataInputs(inputs), mutants));
-    // Expect to succeed on the binary with a custom mutator.
-    mutants.resize(10000);
-    EXPECT_TRUE(callbacks.MutateViaExternalBinary(
-        binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
-        mutants));
-    // Check that we see all expected mutants, and that they are non-empty.
-    for (auto &mutant : mutants) {
-      EXPECT_FALSE(mutant.empty());
+    {
+      const MutationResult result = callbacks.MutateViaExternalBinary(
+          binary_without_custom_mutator,
+          GetMutationInputRefsFromDataInputs(inputs), 1);
+      EXPECT_EQ(result.exit_code(), EXIT_SUCCESS);
+      EXPECT_FALSE(result.has_custom_mutator());
     }
-    EXPECT_THAT(mutants, testing::IsSupersetOf(all_expected_mutants));
+
+    {
+      const MutationResult result = callbacks.MutateViaExternalBinary(
+          binary_with_custom_mutator,
+          GetMutationInputRefsFromDataInputs(inputs), 10000);
+      EXPECT_EQ(result.exit_code(), EXIT_SUCCESS);
+      EXPECT_TRUE(result.has_custom_mutator());
+      EXPECT_THAT(result.mutants(), AllOf(IsSupersetOf(all_expected_mutants),
+                                          Each(Not(IsEmpty()))));
+    }
   }
 
   // Test with crossover disabled.
@@ -431,14 +457,15 @@ TEST(Centipede, MutateViaExternalBinary) {
     Environment env_no_crossover;
     env_no_crossover.crossover_level = 0;
     MutateCallbacks callbacks_no_crossover(env_no_crossover);
-    mutants.resize(10000);
-    EXPECT_TRUE(callbacks_no_crossover.MutateViaExternalBinary(
-        binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
-        mutants));
+
+    const MutationResult result =
+        callbacks_no_crossover.MutateViaExternalBinary(
+            binary_with_custom_mutator,
+            GetMutationInputRefsFromDataInputs(inputs), 10000);
     // Must contain normal mutants, but not the ones from crossover.
-    EXPECT_THAT(mutants, testing::IsSupersetOf(some_of_expected_mutants));
+    EXPECT_THAT(result.mutants(), IsSupersetOf(some_of_expected_mutants));
     for (const auto &crossover_mutant : expected_crossover_mutants) {
-      EXPECT_THAT(mutants, testing::Contains(crossover_mutant).Times(0));
+      EXPECT_THAT(result.mutants(), Not(Contains(crossover_mutant)));
     }
   }
 }
@@ -462,13 +489,14 @@ class MergeMock : public CentipedeCallbacks {
   }
 
   // Every consecutive mutation is {number_of_mutations_} (starting from 1).
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants);
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    std::vector<ByteArray> mutants{num_mutants};
     for (auto &mutant : mutants) {
       mutant.resize(1);
       mutant[0] = ++number_of_mutations_;
     }
+    return mutants;
   }
 
   void Reset() { number_of_mutations_ = 0; }
@@ -544,17 +572,19 @@ class FunctionFilterMock : public CentipedeCallbacks {
   }
 
   // Sets the inputs to one of 3 pre-defined values.
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants);
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
     for (auto &input : inputs) {
       if (!seed_inputs_.contains(input.data)) {
         observed_inputs_.insert(input.data);
       }
     }
-    for (auto &mutant : mutants) {
-      mutant = GetMutant(++number_of_mutations_);
+    std::vector<ByteArray> mutants;
+    mutants.reserve(num_mutants);
+    for (size_t i = 0; i < num_mutants; ++i) {
+      mutants.push_back(GetMutant(++number_of_mutations_));
     }
+    return mutants;
   }
 
   // Returns one of 3 pre-defined values, that trigger different code paths in
@@ -628,8 +658,6 @@ TEST(Centipede, FunctionFilter) {
   }
 }
 
-namespace {
-
 struct Crash {
   std::string binary;
   unsigned char input = 0;
@@ -661,13 +689,14 @@ class ExtraBinariesMock : public CentipedeCallbacks {
   }
 
   // Sets the mutants to different 1-byte values.
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants);
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    std::vector<ByteArray> mutants{num_mutants};
     for (auto &mutant : mutants) {
       mutant.resize(1);
       mutant[0] = ++number_of_mutations_;
     }
+    return mutants;
   }
 
  private:
@@ -700,8 +729,6 @@ MATCHER_P(HasFilesWithContents, expected_files_and_contents, "") {
   return ExplainMatchResult(expected_files_and_contents, files_and_contents,
                             result_listener);
 }
-
-}  // namespace
 
 // Tests --extra_binaries.
 // Executes one main binary (--binary) and 3 extra ones (--extra_binaries).
@@ -745,8 +772,6 @@ TEST(Centipede, ExtraBinaries) {
                   FileAndContents{Hash({30}), "b2-crash"},
                   FileAndContents{Hash({50}), "b3-crash"})));
 }
-
-namespace {
 
 // A mock for UndetectedCrashingInput test.
 class UndetectedCrashingInputMock : public CentipedeCallbacks {
@@ -793,13 +818,15 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   }
 
   // Sets the mutants to different 1-byte values.
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants);
-    for (auto &mutant : mutants) {
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    std::vector<ByteArray> mutants;
+    mutants.reserve(num_mutants);
+    for (size_t i = 0; i < num_mutants; ++i) {
       // The contents of each mutant is simply its sequential number.
-      mutant = {static_cast<uint8_t>(curr_input_idx_++)};
+      mutants.push_back({static_cast<uint8_t>(curr_input_idx_++)});
     }
+    return mutants;
   }
 
   // Gets the input that triggered the crash.
@@ -814,8 +841,6 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   ByteArray crashing_input_ = {};
   bool first_pass_ = true;
 };
-
-}  // namespace
 
 // Test for preserving a crashing batch when 1-by-1 exec fails to reproduce.
 // Executes one main binary (--binary).
@@ -878,11 +903,12 @@ TEST(Centipede, UndetectedCrashingInput) {
   EXPECT_EQ(suspect_only_mock.num_inputs_triaged(), 1);
 }
 
-TEST(Centipede, GetsSeedInputs) {
+TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
+
   std::vector<ByteArray> seeds;
   EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
   EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
@@ -895,32 +921,36 @@ TEST(Centipede, GetsSeedInputs) {
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
-TEST(Centipede, GetsSerializedTargetConfig) {
+TEST_F(CentipedeWithTemporaryLocalDir, GetsSerializedTargetConfig) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
   CentipedeDefaultCallbacks callbacks(env);
+
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   ASSERT_TRUE(serialized_config.ok());
   EXPECT_EQ(*serialized_config, "fake serialized config");
 }
 
-TEST(Centipede, GetSerializedTargetConfigProducesFailure) {
+TEST_F(CentipedeWithTemporaryLocalDir,
+       GetSerializedTargetConfigProducesFailure) {
   Environment env;
   env.binary = absl::StrCat(
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
           .c_str(),
       " --simulate_failure");
   CentipedeDefaultCallbacks callbacks(env);
+
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   EXPECT_FALSE(serialized_config.ok());
 }
 
-TEST(Centipede, CleansUpMetadataAfterStartup) {
+TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
       "centipede/testing/expensive_startup_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
+
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
   ASSERT_TRUE(callbacks.Execute(env.binary, inputs, batch_result));
@@ -933,8 +963,6 @@ TEST(Centipede, CleansUpMetadataAfterStartup) {
       });
   EXPECT_FALSE(found_startup_cmp_entry);
 }
-
-namespace {
 
 class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
  public:
@@ -950,9 +978,9 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
     return true;
   }
 
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants, {0});
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    return {num_mutants, {0}};
   }
 
   bool thread_check_passed() { return thread_check_passed_; }
@@ -961,8 +989,6 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
   std::thread::id execute_thread_id_;
   bool thread_check_passed_ = true;
 };
-
-}  // namespace
 
 TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   TempDir temp_dir{test_info_->name()};
@@ -980,11 +1006,12 @@ TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   EXPECT_TRUE(callbacks.thread_check_passed());
 }
 
-TEST(Centipede, DetectsStackOverflow) {
+TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   env.stack_limit_kb = 64;
   CentipedeDefaultCallbacks callbacks(env);
+
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {ByteArray{'s', 't', 'k'}};
 
@@ -992,8 +1019,6 @@ TEST(Centipede, DetectsStackOverflow) {
   EXPECT_THAT(batch_result.log(), HasSubstr("Stack limit exceeded"));
   EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
 }
-
-namespace {
 
 class SetupFailureCallbacks : public CentipedeCallbacks {
  public:
@@ -1007,13 +1032,11 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
     return false;
   }
 
-  void Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::vector<ByteArray> &mutants) override {
-    mutants.resize(num_mutants, {0});
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    return {num_mutants, {0}};
   }
 };
-
-}  // namespace
 
 TEST(Centipede, AbortsOnSetupFailure) {
   TempDir temp_dir{test_info_->name()};
@@ -1028,4 +1051,49 @@ TEST(Centipede, AbortsOnSetupFailure) {
                "Terminating Centipede due to setup failure in the test.");
 }
 
+TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath(
+      "centipede/testing/fuzz_target_with_custom_mutator");
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  const std::vector<ByteArray> mutants = callbacks.Mutate(
+      GetMutationInputRefsFromDataInputs(inputs), inputs.size());
+
+  // The custom mutator just returns the original inputs as mutants.
+  EXPECT_EQ(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
+  Environment env;
+  env.binary =
+      absl::StrCat(GetDataDependencyFilepath(
+                       "centipede/testing/fuzz_target_with_custom_mutator")
+                       .c_str(),
+                   " --simulate_failure");
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  EXPECT_DEATH(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
+                                inputs.size()),
+               "Custom mutator failed");
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       FallsBackToBuiltInMutatorWhenCustomMutatorNotProvided) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath("centipede/testing/abort_fuzz_target");
+  CentipedeDefaultCallbacks callbacks(env);
+
+  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  const std::vector<ByteArray> mutants = callbacks.Mutate(
+      GetMutationInputRefsFromDataInputs(inputs), inputs.size());
+
+  // The built-in mutator performs non-trivial mutations.
+  EXPECT_EQ(inputs.size(), mutants.size());
+  EXPECT_NE(inputs, mutants);
+}
+
+}  // namespace
 }  // namespace centipede

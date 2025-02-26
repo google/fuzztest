@@ -895,7 +895,6 @@ TEST(ByteArrayMutator, MutateManyWithAlignedInputs) {
   ByteArrayMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_size_alignment(kSizeAlignment));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  std::vector<ByteArray> mutants;
 
   // If all inputs are aligned, expect all generated mutants to be aligned.
   const std::vector<ByteArray> aligned_inputs = {
@@ -903,8 +902,9 @@ TEST(ByteArrayMutator, MutateManyWithAlignedInputs) {
       {0, 1, 2, 3, 4, 5, 6, 7},
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
   };
-  mutator.MutateMany(GetMutationInputRefsFromDataInputs(aligned_inputs),
-                     kNumMutantsToGenerate, mutants);
+  const std::vector<ByteArray> mutants =
+      mutator.MutateMany(GetMutationInputRefsFromDataInputs(aligned_inputs),
+                         kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
   for (const ByteArray &mutant : mutants) {
     EXPECT_EQ(mutant.size() % kSizeAlignment, 0);
@@ -917,7 +917,6 @@ TEST(ByteArrayMutator, MutateManyWithUnalignedInputs) {
   ByteArrayMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_size_alignment(kSizeAlignment));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  std::vector<ByteArray> mutants;
 
   // If there are unaligned inputs, most mutants should be aligned, but the ones
   // that are unaligned should be the same size as the unaligned inputs (as they
@@ -933,8 +932,9 @@ TEST(ByteArrayMutator, MutateManyWithUnalignedInputs) {
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
   };
-  mutator.MutateMany(GetMutationInputRefsFromDataInputs(unaligned_inputs),
-                     kNumMutantsToGenerate, mutants);
+  const std::vector<ByteArray> mutants =
+      mutator.MutateMany(GetMutationInputRefsFromDataInputs(unaligned_inputs),
+                         kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
   for (const ByteArray &mutant : mutants) {
     if (mutant.size() % kSizeAlignment != 0) {
@@ -949,7 +949,6 @@ TEST(ByteArrayMutator, MutateManyWithMaxLen) {
   ByteArrayMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_max_len(kMaxLen));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  std::vector<ByteArray> mutants;
 
   const std::vector<ByteArray> inputs = {
       {0},
@@ -957,8 +956,8 @@ TEST(ByteArrayMutator, MutateManyWithMaxLen) {
       {0, 1, 2},
       {0, 1, 2, 3},
   };
-  mutator.MutateMany(GetMutationInputRefsFromDataInputs(inputs),
-                     kNumMutantsToGenerate, mutants);
+  const std::vector<ByteArray> mutants = mutator.MutateMany(
+      GetMutationInputRefsFromDataInputs(inputs), kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
 
   for (const ByteArray &mutant : mutants) {
@@ -972,13 +971,12 @@ TEST(ByteArrayMutator, MutateManyWithMaxLenWithStartingLargeInput) {
   ByteArrayMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_max_len(kMaxLen));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  std::vector<ByteArray> mutants;
 
   const std::vector<ByteArray> large_input = {
       {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {0, 1}, {0, 1, 2}, {0, 1, 2, 3},
   };
-  mutator.MutateMany(GetMutationInputRefsFromDataInputs(large_input),
-                     kNumMutantsToGenerate, mutants);
+  const std::vector<ByteArray> mutants = mutator.MutateMany(
+      GetMutationInputRefsFromDataInputs(large_input), kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
 
   for (const ByteArray &mutant : mutants) {
