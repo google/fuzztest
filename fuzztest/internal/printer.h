@@ -51,7 +51,14 @@ void PrintValue(const Domain& domain,
                                     corpus_value, out, mode)) {})) {
     printer.PrintCorpusValue(corpus_value, out, mode);
   } else {
-    printer.PrintUserValue(domain.GetValue(corpus_value), out, mode);
+    if constexpr (Domain::has_custom_corpus_type) {
+      printer.PrintUserValue(domain.GetValue(corpus_value), out, mode);
+    } else {
+      // Avoid calling `GetValue()` if possible, since it may induce a copy and
+      // memory allocation. This has previously caused problems when printing
+      // values in a signal handler after SIGABRT.
+      printer.PrintUserValue(corpus_value, out, mode);
+    }
   }
 }
 
