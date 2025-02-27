@@ -50,8 +50,8 @@ std::vector<CorpusRecord> RunInputsAndCollectCorpusRecords(
 
   corpus_records.reserve(byte_array_inputs.size());
   for (int i = 0; i < byte_array_inputs.size(); ++i) {
-    corpus_records.push_back({.data = byte_array_inputs[i],
-                              .features = execution_results[i].features()});
+    corpus_records.push_back({/*data=*/byte_array_inputs[i],
+                              /*features=*/execution_results[i].features()});
   }
   return corpus_records;
 }

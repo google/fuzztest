@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/time.h"
 #include "./centipede/environment.h"
@@ -68,58 +69,73 @@ uint64_t CivilTimeToUnixMicros(  //
       absl::CivilSecond{y, m, d, hh, mm, ss}, absl::LocalTimeZone()));
 }
 
+Environment CreateEnv(std::string_view workdir,
+                      std::string_view experiment_name = "",
+                      std::string_view experiment_flags = "") {
+  Environment env;
+  env.workdir = std::string(workdir);
+  env.experiment_name = std::string(experiment_name);
+  env.experiment_flags = std::string(experiment_flags);
+  return env;
+}
+
 }  // namespace
 
 TEST(Stats, PrintStatsToLog) {
   std::vector<std::atomic<Stats>> stats_vec(4);
   for (uint64_t i = 0; i < stats_vec.size(); ++i) {
     const uint64_t j = i + 1;
+
+    CovStats cov_stats = {/*num_covered_pcs=*/21 * j,
+                          /*num_8bit_counter_features=*/22 * j,
+                          /*num_data_flow_features=*/23 * j,
+                          /*num_cmp_features=*/24 * j,
+                          /*num_call_stack_features=*/25 * j,
+                          /*num_bounded_path_features=*/26 * j,
+                          /*num_pc_pair_features=*/27 * j,
+                          /*num_user_features=*/28 * j};
+    // NOTE: These two don't add up to `num_user_features`, but that's
+    // ok for the purposes of this test.
+    cov_stats.num_user0_features = 28 * j + 1;
+    cov_stats.num_user10_features = 28 * j + 2;
+    cov_stats.num_unknown_features = 29 * j;
+    cov_stats.num_funcs_in_frontier = 31 * j;
+
     stats_vec[i].store(Stats{
-        StatsMeta{
-            .timestamp_unix_micros = CivilTimeToUnixMicros(1970, 1, 1, 0, 0, i),
-        },
+        StatsMeta{/*timestamp_unix_micros=*/CivilTimeToUnixMicros(1970, 1, 1, 0,
+                                                                  0, i)},
         ExecStats{
-            .fuzz_time_sec = 10 * j,
-            .num_executions = 12 * j,
-            .num_target_crashes = 13 * j,
+            /*fuzz_time_sec=*/10 * j,
+            /*num_executions=*/12 * j,
+            /*num_target_crashes=*/13 * j,
         },
-        CovStats{
-            .num_covered_pcs = 21 * j,
-            .num_8bit_counter_features = 22 * j,
-            .num_data_flow_features = 23 * j,
-            .num_cmp_features = 24 * j,
-            .num_call_stack_features = 25 * j,
-            .num_bounded_path_features = 26 * j,
-            .num_pc_pair_features = 27 * j,
-            .num_user_features = 28 * j,
-            // NOTE: These two don't add up to `num_user_features`, but that's
-            // ok for the purposes of this test.
-            .num_user0_features = 28 * j + 1,
-            .num_user10_features = 28 * j + 2,
-            .num_unknown_features = 29 * j,
-            .num_funcs_in_frontier = 31 * j,
-        },
+        cov_stats,
         CorpusStats{
-            .active_corpus_size = 101 * j,
-            .total_corpus_size = 102 * j,
-            .max_corpus_element_size = 103 * j,
-            .avg_corpus_element_size = 104 * j,
+            /*active_corpus_size=*/101 * j,
+            /*total_corpus_size=*/102 * j,
+            /*max_corpus_element_size=*/103 * j,
+            /*avg_corpus_element_size=*/104 * j,
         },
         RusageStats{
-            .engine_rusage_avg_millicores = 201 * j,
-            .engine_rusage_cpu_percent = 202 * j,
-            .engine_rusage_rss_mb = 203 * j,
-            .engine_rusage_vsize_mb = 204 * j,
+            /*engine_rusage_avg_millicores=*/201 * j,
+            /*engine_rusage_cpu_percent=*/202 * j,
+            /*engine_rusage_rss_mb=*/203 * j,
+            /*engine_rusage_vsize_mb=*/204 * j,
         },
     });
   }
 
   const std::vector<Environment> env_vec = {
-      {.experiment_name = "Experiment A", .experiment_flags = "AAA"},
-      {.experiment_name = "Experiment B", .experiment_flags = "BBB"},
-      {.experiment_name = "Experiment A", .experiment_flags = "AAA"},
-      {.experiment_name = "Experiment B", .experiment_flags = "BBB"},
-  };
+      CreateEnv(
+          /*workdir=*/"", /*experiment_name=*/"Experiment A",
+          /*experiment_flags=*/"AAA"),
+      CreateEnv(/*workdir=*/"", /*experiment_name=*/"Experiment B",
+                /*experiment_flags=*/"BBB"),
+      CreateEnv(
+          /*workdir=*/"", /*experiment_name=*/"Experiment A",
+          /*experiment_flags=*/"AAA"),
+      CreateEnv(/*workdir=*/"", /*experiment_name=*/"Experiment B",
+                /*experiment_flags=*/"BBB")};
 
   StatsLogger stats_logger{stats_vec, env_vec};
 
@@ -395,68 +411,55 @@ TEST(Stats, DumpStatsToCsvFile) {
   std::vector<std::atomic<Stats>> stats_vec(4);
   for (uint64_t i = 0; i < stats_vec.size(); ++i) {
     const uint64_t j = i + 1;
+
+    CovStats cov_stats{/*num_covered_pcs=*/
+                       21 * j,
+                       /*num_8bit_counter_features=*/22 * j,
+                       /*num_data_flow_features=*/23 * j,
+                       /*num_cmp_features=*/24 * j,
+                       /*num_call_stack_features=*/25 * j,
+                       /*num_bounded_path_features=*/26 * j,
+                       /*num_pc_pair_features=*/27 * j,
+                       /*num_user_features=*/28 * j};
+    // NOTE: These two don't add up to `num_user_features`, but that's
+    // ok for the purposes of this test.
+    cov_stats.num_user0_features = 28 * j + 1;
+    cov_stats.num_user10_features = 28 * j + 2;
+    cov_stats.num_unknown_features = 29 * j;
+    cov_stats.num_funcs_in_frontier = 31 * j;
+
     stats_vec[i].store(Stats{
-        StatsMeta{
-            .timestamp_unix_micros = 1000000 * j,
-        },
+        StatsMeta{/*timestamp_unix_micros=*/1000000 * j},
         ExecStats{
-            .fuzz_time_sec = 10 * j,
-            .num_executions = 12 * j,
-            .num_target_crashes = 13 * j,
+            /*fuzz_time_sec=*/10 * j,
+            /*.num_executions=*/12 * j,
+            /*.num_target_crashes=*/13 * j,
         },
-        CovStats{
-            .num_covered_pcs = 21 * j,
-            .num_8bit_counter_features = 22 * j,
-            .num_data_flow_features = 23 * j,
-            .num_cmp_features = 24 * j,
-            .num_call_stack_features = 25 * j,
-            .num_bounded_path_features = 26 * j,
-            .num_pc_pair_features = 27 * j,
-            .num_user_features = 28 * j,
-            // NOTE: These two don't add up to `num_user_features`, but that's
-            // ok for the purposes of this test.
-            .num_user0_features = 28 * j + 1,
-            .num_user10_features = 28 * j + 2,
-            .num_unknown_features = 29 * j,
-            .num_funcs_in_frontier = 31 * j,
-        },
+        cov_stats,
         CorpusStats{
-            .active_corpus_size = 101 * j,
-            .total_corpus_size = 102 * j,
-            .max_corpus_element_size = 103 * j,
-            .avg_corpus_element_size = 104 * j,
+            /*active_corpus_size=*/101 * j,
+            /*total_corpus_size=*/102 * j,
+            /*max_corpus_element_size=*/103 * j,
+            /*avg_corpus_element_size=*/104 * j,
         },
         RusageStats{
-            .engine_rusage_avg_millicores = 201 * j,
-            .engine_rusage_cpu_percent = 202 * j,
-            .engine_rusage_rss_mb = 203 * j,
-            .engine_rusage_vsize_mb = 204 * j,
+            /*engine_rusage_avg_millicores=*/201 * j,
+            /*engine_rusage_cpu_percent=*/202 * j,
+            /*engine_rusage_rss_mb=*/203 * j,
+            /*engine_rusage_vsize_mb=*/204 * j,
         },
     });
   }
 
   const std::vector<Environment> env_vec = {
-      {
-          .workdir = workdir,
-          .experiment_name = "ExperimentA",
-          .experiment_flags = "AAA",
-      },
-      {
-          .workdir = workdir,
-          .experiment_name = "ExperimentB",
-          .experiment_flags = "BBB",
-      },
-      {
-          .workdir = workdir,
-          .experiment_name = "ExperimentA",
-          .experiment_flags = "AAA",
-      },
-      {
-          .workdir = workdir,
-          .experiment_name = "ExperimentB",
-          .experiment_flags = "BBB",
-      },
-  };
+      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentA",
+                /*experiment_flags=*/"AAA"),
+      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentB",
+                /*experiment_flags=*/"BBB"),
+      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentA",
+                /*experiment_flags=*/"AAA"),
+      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentB",
+                /*experiment_flags=*/"BBB")};
 
   {
     StatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
@@ -769,15 +772,12 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   };
 
   const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
-
-  const std::vector<Environment> env_vec = {
-      {.workdir = workdir},
-      {.workdir = workdir},
-  };
+  const std::vector<Environment> env_vec = {CreateEnv(workdir.c_str()),
+                                            CreateEnv(workdir.c_str())};
 
   std::vector<std::atomic<Stats>> stats_vec(2);
-  stats_vec[0].store({StatsMeta{.timestamp_unix_micros = 1000000}});
-  stats_vec[1].store({StatsMeta{.timestamp_unix_micros = 2000000}});
+  stats_vec[0].store({StatsMeta{/*timestamp_unix_micros=*/1000000}});
+  stats_vec[1].store({StatsMeta{/*timestamp_unix_micros=*/2000000}});
 
   const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
   const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
@@ -801,8 +801,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   // `StatsCsvFileAppender` finds an existing file with a CSV header matching
   // the current version and appends a 2nd stats line to it.
   {
-    stats_vec[0].store({StatsMeta{.timestamp_unix_micros = 3000000}});
-    stats_vec[1].store({StatsMeta{.timestamp_unix_micros = 4000000}});
+    stats_vec[0].store({StatsMeta{/*timestamp_unix_micros=*/3000000}});
+    stats_vec[1].store({StatsMeta{/*timestamp_unix_micros=*/4000000}});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -828,8 +828,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     };
     WriteToLocalFile(kExpectedCsv, absl::StrJoin(kFakeOldCsvLines, "\n"));
 
-    stats_vec[0].store({StatsMeta{.timestamp_unix_micros = 5000000}});
-    stats_vec[1].store({StatsMeta{.timestamp_unix_micros = 6000000}});
+    stats_vec[0].store({StatsMeta{/*timestamp_unix_micros=*/5000000}});
+    stats_vec[1].store({StatsMeta{/*timestamp_unix_micros=*/6000000}});
 
     TestStatsCsvFileAppender stats_csv_appender{stats_vec, env_vec};
     stats_csv_appender.ReportCurrStats();
@@ -856,13 +856,13 @@ TEST(Stats, PrintRewardValues) {
   std::stringstream ss;
   std::vector<std::atomic<Stats>> stats_vec(4);
   stats_vec[0].store(
-      {StatsMeta{}, ExecStats{}, CovStats{.num_covered_pcs = 15}});
+      {StatsMeta{}, ExecStats{}, CovStats{/*num_covered_pcs=*/15}});
   stats_vec[1].store(
-      {StatsMeta{}, ExecStats{}, CovStats{.num_covered_pcs = 10}});
+      {StatsMeta{}, ExecStats{}, CovStats{/*num_covered_pcs=*/10}});
   stats_vec[2].store(
-      {StatsMeta{}, ExecStats{}, CovStats{.num_covered_pcs = 40}});
+      {StatsMeta{}, ExecStats{}, CovStats{/*num_covered_pcs=*/40}});
   stats_vec[3].store(
-      {StatsMeta{}, ExecStats{}, CovStats{.num_covered_pcs = 25}});
+      {StatsMeta{}, ExecStats{}, CovStats{/*num_covered_pcs=*/25}});
   PrintRewardValues(stats_vec, ss);
   const char *expected =
       "REWARD_MAX 40\n"

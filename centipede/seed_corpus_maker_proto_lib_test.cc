@@ -109,10 +109,10 @@ TEST(SeedCorpusMakerProtoLibTest, MakesSeedUsingConfigProto) {
   // Prepare a seed source for tests.
   {
     const SeedCorpusDestination destination = {
-        .dir_path = std::string(kRelDir1),
-        .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
-        .shard_index_digits = kIdxDigits,
-        .num_shards = 2,
+        /*dir_path=*/std::string(kRelDir1),
+        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_index_digits=*/kIdxDigits,
+        /*num_shards=*/2,
     };
     ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
         kElements, kCovBin, kCovHash, destination));

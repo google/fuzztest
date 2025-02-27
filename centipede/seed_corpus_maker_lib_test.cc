@@ -117,10 +117,10 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   {
     constexpr size_t kNumShards = 2;
     const SeedCorpusDestination destination = {
-        .dir_path = std::string(kRelDir1),
-        .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
-        .shard_index_digits = kIdxDigits,
-        .num_shards = kNumShards,
+        /*dir_path=*/std::string(kRelDir1),
+        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_index_digits=*/kIdxDigits,
+        /*num_shards=*/kNumShards,
     };
     ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
         kElements, kCovBin, kCovHash, destination));
@@ -133,13 +133,12 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   // subsample of elements from the seed source created by the previous step.
   {
     for (const float fraction : {1.0, 0.5, 0.2}) {
-      const SeedCorpusSource source = {
-          .dir_glob = std::string(kRelDir1),
-          .num_recent_dirs =
-              2,  // Intentionally specify more than we actually have
-          .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
-          .sampled_fraction_or_count = fraction,
-      };
+      SeedCorpusSource source;
+      source.dir_glob = std::string(kRelDir1);
+      source.num_recent_dirs = 2;
+      source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+      source.sampled_fraction_or_count = fraction;
+
       InputAndFeaturesVec elements;
       ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
           source, kCovBin, kCovHash, elements));
@@ -154,23 +153,21 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   // from the source and writes expected shards to the destination.
   {
     constexpr size_t kNumShards = 3;
+
+    SeedCorpusSource source;
+    source.dir_glob = std::string(kRelDir1);
+    source.num_recent_dirs = 1;
+    source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+    source.sampled_fraction_or_count = 1.0f;
     const SeedCorpusConfig config = {
-        .sources =
-            {
-                {
-                    .dir_glob = std::string(kRelDir1),
-                    .num_recent_dirs = 1,
-                    .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
-                    .sampled_fraction_or_count = 1.0f,
-                },
-            },
-        .destination =
-            {
-                .dir_path = std::string(kRelDir2),
-                .shard_rel_glob = "corpus.*",
-                .shard_index_digits = kIdxDigits,
-                .num_shards = kNumShards,
-            },
+        /*sources=*/{{source}},
+        /*destination=*/
+        {
+            /*dir_path=*/std::string(kRelDir2),
+            /*shard_rel_glob=*/"corpus.*",
+            /*shard_index_digits=*/kIdxDigits,
+            /*num_shards=*/kNumShards,
+        },
     };
 
     {
@@ -205,10 +202,10 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
   {
     constexpr size_t kNumShards = 2;
     const SeedCorpusDestination destination = {
-        .dir_path = std::string(kRelDir),
-        .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
-        .shard_index_digits = kIdxDigits,
-        .num_shards = kNumShards,
+        /*dir_path=*/std::string(kRelDir),
+        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_index_digits=*/kIdxDigits,
+        /*num_shards=*/kNumShards,
     };
     CHECK_OK(WriteSeedCorpusElementsToDestination(  //
         kShardedInputs, kCovBin, kCovHash, destination));
@@ -229,13 +226,13 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
     InputAndFeaturesVec elements;
     ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
         SeedCorpusSource{
-            .dir_glob = std::string(kRelDir),
-            .num_recent_dirs = 1,
-            .shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*"),
+            /*dir_glob=*/std::string(kRelDir),
+            /*num_recent_dirs=*/1,
+            /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
             // Intentionally try to match the shard files and test if they will
             // be read as individual inputs.
-            .individual_input_rel_glob = "*",
-            .sampled_fraction_or_count = 1.0f,
+            /*individual_input_rel_glob=*/"*",
+            /*sampled_fraction_or_count=*/1.0f,
         },
         kCovBin, kCovHash, elements));
     EXPECT_EQ(elements.size(), 5);  // Non-empty inputs

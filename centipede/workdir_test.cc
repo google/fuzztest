@@ -29,14 +29,14 @@ TEST(WorkDirTest, Ctors) {
       /*binary_hash=*/"hash",
       /*my_shard_index=*/3,
   };
-  Environment kEnv{
-      .workdir = "/dir",
-      .my_shard_index = 3,
-      .binary_name = "bin",
-      .binary_hash = "hash",
-  };
+  Environment env;
+  env.workdir = "/dir";
+  env.my_shard_index = 3;
+  env.binary_name = "bin";
+  env.binary_hash = "hash";
+
   const std::array<WorkDir, 3> other_wds = {
-      WorkDir{/*env=*/kEnv},
+      WorkDir{env},
       WorkDir::FromCorpusShardPath(                    //
           /*corpus_shard_path=*/"/dir/corpus.000003",  //
           /*binary_name=*/"bin",                       //
