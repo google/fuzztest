@@ -114,6 +114,7 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
       "CENTIPEDE_RUNNER_FLAGS=",
       absl::StrCat("timeout_per_input=", env_.timeout_per_input),
       absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
+      absl::StrCat("watchdog_abort_timeout=", env_.watchdog_abort_timeout),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
