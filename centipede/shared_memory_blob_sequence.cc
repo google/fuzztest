@@ -44,8 +44,14 @@ bool BlobSequence::Write(Blob blob) {
   ErrorOnFailure(!blob.IsValid(), "Write(): blob.tag must not be zero");
   ErrorOnFailure(had_reads_after_reset_, "Write(): Had reads after reset");
   had_writes_after_reset_ = true;
-  if (offset_ + sizeof(blob.size) + sizeof(blob.tag) + blob.size > size_)
+  if (const auto offset_after =
+          offset_ + sizeof(blob.size) + sizeof(blob.tag) + blob.size;
+      offset_after > size_ ||
+      offset_after <
+          offset_ + sizeof(blob.size) + sizeof(blob.tag)  // Check for overflow
+  ) {
     return false;
+  }
 
   // Write tag.
   memcpy(data_ + offset_, &blob.tag, sizeof(blob.tag));
@@ -72,20 +78,31 @@ Blob BlobSequence::Read() {
   ErrorOnFailure(had_writes_after_reset_, "Had writes after reset");
   had_reads_after_reset_ = true;
   if (offset_ + sizeof(Blob::size) + sizeof(Blob::tag) > size_) return {};
+  size_t offset = offset_;
   // Read blob_tag.
   Blob::SizeAndTagT blob_tag = 0;
-  memcpy(&blob_tag, data_ + offset_, sizeof(blob_tag));
-  offset_ += sizeof(blob_tag);
+  memcpy(&blob_tag, data_ + offset, sizeof(blob_tag));
+  offset += sizeof(blob_tag);
   // Read blob_size.
   Blob::SizeAndTagT blob_size = 0;
-  memcpy(&blob_size, data_ + offset_, sizeof(Blob::size));
-  offset_ += sizeof(Blob::size);
+  memcpy(&blob_size, data_ + offset, sizeof(Blob::size));
+  offset += sizeof(Blob::size);
   // Read blob_data.
-  ErrorOnFailure(offset_ + blob_size > size_, "Not enough bytes");
+  if (offset + blob_size > size_) {
+    std::perror("Read(): not enough bytes");
+    return {};
+  }
+  if (offset + blob_size < offset) {
+    std::perror("Read(): size overflow");
+    return {};
+  }
   if (blob_tag == 0 && blob_size == 0) return {};
-  ErrorOnFailure(blob_tag == 0, "Read: blob.tag must not be zero");
-  Blob result{blob_tag, blob_size, data_ + offset_};
-  offset_ += result.size;
+  if (blob_tag == 0) {
+    std::perror("Read(): blob.tag must not be zero");
+    return {};
+  }
+  Blob result{blob_tag, blob_size, data_ + offset};
+  offset_ = offset + result.size;
   return result;
 }
 

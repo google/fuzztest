@@ -75,7 +75,8 @@ class BlobSequence {
   }
 
   // Reads the next blob from the sequence.
-  // If no more blobs are left, returns a blob with size = 0.
+  // If a failure happens or no more blobs are left, returns a invalid blob
+  // returning false on `IsValid()`, and internal state is not changed.
   // Must not be called after Write() w/o first calling Reset().
   Blob Read();
 
