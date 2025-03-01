@@ -34,7 +34,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   struct ThreadArg {
     const uint8_t *data;
     size_t size;
-  } arg = {.data = data, .size = size};
+  } arg = {data, size};
   auto pt_entry = +[](const ThreadArg *thread_arg) {
     uint32_t value, expected_value;
     if (thread_arg->size == sizeof(value)) {

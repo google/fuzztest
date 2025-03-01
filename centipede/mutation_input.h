@@ -44,7 +44,7 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
     const std::vector<ByteArray> &inputs) {
   std::vector<MutationInputRef> results;
   results.reserve(inputs.size());
-  for (const auto &input : inputs) results.push_back({.data = input});
+  for (const auto &input : inputs) results.push_back({/*data=*/input});
   return results;
 }
 

@@ -62,8 +62,8 @@ class ReversePCTable {
       const auto &pc_info = pc_table[idx];
       if (pc_info.pc >= size_) __builtin_trap();  // TODO(kcc): use RunnerCheck.
       table_[pc_info.pc] = {
-          .is_function_entry = pc_info.has_flag(PCInfo::kFuncEntry),
-          .pc_index = static_cast<uint32_t>(idx)};
+          /*is_function_entry=*/pc_info.has_flag(PCInfo::kFuncEntry),
+          /*pc_index=*/static_cast<uint32_t>(idx)};
     }
   }
 
@@ -80,8 +80,7 @@ class ReversePCTable {
 
  private:
   // A PCGuard object, such that IsValid() will return false.
-  static constexpr PCGuard kInvalidPCGuard = {
-      .is_function_entry = 0, .pc_index = PCGuard::kInvalidPcIndex};
+  static constexpr PCGuard kInvalidPCGuard = {0, PCGuard::kInvalidPcIndex};
 
   // We use size_ and table_ pointer instead of std::vector<> because
   // (1) we need ReversePCTable object to be accessible even after the

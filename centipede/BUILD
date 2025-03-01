@@ -189,10 +189,7 @@ cc_library(
     name = "reverse_pc_table",
     hdrs = ["reverse_pc_table.h"],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = [
-        ":pc_info",
-        "@com_google_absl//absl/types:span",
-    ],
+    deps = [":pc_info"],
 )
 
 cc_library(
