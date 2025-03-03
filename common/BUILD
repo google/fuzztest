@@ -62,6 +62,7 @@ cc_library(
         ":logging",
         ":remote_file",
         ":status_macros",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
