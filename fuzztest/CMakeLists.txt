@@ -88,6 +88,40 @@ fuzztest_cc_library(
     fuzztest::fuzztest_macros
 )
 
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  fuzztest_cc_library(
+    NAME
+      flatbuffers
+    HDRS
+      "flatbuffers.h"
+      "internal/domains/flatbuffers_domain_impl.h"
+    SRCS
+      "internal/domains/flatbuffers_domain_impl.cc"
+    DEPS
+      absl::algorithm_container
+      absl::core_headers
+      absl::flat_hash_map
+      absl::flat_hash_set
+      absl::nullability
+      absl::random_bit_gen_ref
+      absl::random_distributions
+      absl::random_random
+      absl::status
+      absl::statusor
+      absl::str_format
+      absl::strings
+      absl::synchronization
+      flatbuffers
+      fuzztest::any
+      fuzztest::domain_core
+      fuzztest::logging
+      fuzztest::meta
+      fuzztest::serialization
+      fuzztest::status
+      fuzztest::type_support
+  )
+endif()
+
 fuzztest_cc_library(
   NAME
     fuzztest_gtest_main

@@ -39,8 +39,10 @@ target_link_libraries(
   absl::strings
   absl::time
   re2::re2
+  fuzztest_flatbuffers
   fuzztest_googletest_fixture_adapter
   fuzztest_logging
+  fuzztest_test_flatbuffers_headers
 )
 link_fuzztest(fuzz_tests_for_functional_testing.stripped)
 set_target_properties(
