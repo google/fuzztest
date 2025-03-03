@@ -17,6 +17,8 @@
 #include <unistd.h>
 
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <thread>  // NOLINT: For thread::get_id() only.
@@ -38,18 +40,47 @@ static std::vector<uint8_t> Vec(Blob blob) {
 }
 
 // Helper: std::vector to Blob.
-static Blob Blob(const std::vector<uint8_t> &vec, uint64_t tag = 1) {
+static Blob BlobFromVec(const std::vector<uint8_t> &vec, uint64_t tag = 1) {
   return {tag, vec.size(), vec.data()};
 }
 
 TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
   std::vector<uint8_t> buffer(1000);
   BlobSequence blobseq1(buffer.data(), buffer.size());
-  ASSERT_TRUE(blobseq1.Write(Blob(/*vec=*/{}, /*tag=*/1)));
+  ASSERT_TRUE(blobseq1.Write(BlobFromVec({}, /*tag=*/1)));
   BlobSequence blobseq2(buffer.data(), blobseq1.offset());
   auto blob = blobseq2.Read();
   EXPECT_EQ(Vec(blob).size(), 0);
   EXPECT_EQ(blob.tag, 1);
+}
+
+TEST(BlobSequence, WriteReturnErrorOnOverflow) {
+  std::vector<uint8_t> buffer(1000);
+  BlobSequence blobseq(buffer.data(), buffer.size());
+  const std::vector<uint8_t> should_not_be_accessed = {1, 2, 3};
+  ASSERT_FALSE(
+      blobseq.Write(Blob{/*tag=*/1, /*size=*/std::numeric_limits<size_t>::max(),
+                         should_not_be_accessed.data()}));
+}
+
+TEST(BlobSequence, ReadReturnErrorOnNotEnoughBytes) {
+  std::vector<uint8_t> buffer(100);
+  {
+    BlobSequence blobseq(buffer.data(), buffer.size());
+    ASSERT_TRUE(blobseq.Write(
+        BlobFromVec(std::vector<uint8_t>(/*count=*/50, /*value=*/123))));
+  }
+  BlobSequence truncated_blobseq(buffer.data(), 40);
+  ASSERT_FALSE(truncated_blobseq.Read().IsValid());
+}
+
+TEST(BlobSequence, ReadReturnErrorOnSizeOverflow) {
+  // It should work on all supported platforms, but this is hacky becuase there
+  // is no API to inject fake metadata. But it seems not worthy to add a method
+  // just for this.
+  std::vector<uint8_t> buffer(/*count=*/100, /*value=*/0xff);
+  BlobSequence blobseq(buffer.data(), buffer.size());
+  ASSERT_FALSE(blobseq.Read().IsValid());
 }
 
 class SharedMemoryBlobSequenceTest
@@ -77,8 +108,8 @@ TEST_P(SharedMemoryBlobSequenceTest, ParentChild) {
 
   SharedMemoryBlobSequence parent(ShmemName().c_str(), 1000, GetParam());
   // Parent writes data.
-  EXPECT_TRUE(parent.Write(Blob(kTestData1, 123)));
-  EXPECT_TRUE(parent.Write(Blob(kTestData2, 456)));
+  EXPECT_TRUE(parent.Write(BlobFromVec(kTestData1, 123)));
+  EXPECT_TRUE(parent.Write(BlobFromVec(kTestData2, 456)));
 
   // Child created.
   SharedMemoryBlobSequence child(parent.path());
@@ -93,8 +124,8 @@ TEST_P(SharedMemoryBlobSequenceTest, ParentChild) {
 
   // Child writes data.
   child.Reset();
-  EXPECT_TRUE(child.Write(Blob(kTestData3)));
-  EXPECT_TRUE(child.Write(Blob(kTestData4)));
+  EXPECT_TRUE(child.Write(BlobFromVec(kTestData3)));
+  EXPECT_TRUE(child.Write(BlobFromVec(kTestData4)));
 
   // Parent reads data.
   parent.Reset();
@@ -109,13 +140,13 @@ TEST_P(SharedMemoryBlobSequenceTest, CheckForResourceLeaks) {
   // Create and destroy lots of parent/child blob pairs.
   for (int iter = 0; iter < kNumIters; iter++) {
     SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
-    parent.Write(Blob({1, 2, 3}));
+    parent.Write(BlobFromVec({1, 2, 3}));
     SharedMemoryBlobSequence child(parent.path());
     EXPECT_EQ(child.Read().size, 3);
   }
   // Create a parent blob, then create and destroy lots of child blobs.
   SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
-  parent.Write(Blob({1, 2, 3, 4}));
+  parent.Write(BlobFromVec({1, 2, 3, 4}));
   for (int iter = 0; iter < kNumIters; iter++) {
     SharedMemoryBlobSequence child(parent.path());
     EXPECT_EQ(child.Read().size, 4);
@@ -125,13 +156,14 @@ TEST_P(SharedMemoryBlobSequenceTest, CheckForResourceLeaks) {
 // Tests that Read-after-Write or Write-after-Read w/o Reset crashes.
 TEST_P(SharedMemoryBlobSequenceTest, ReadVsWriteWithoutReset) {
   SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1000, GetParam());
-  blobseq.Write(Blob({1, 2, 3}));
+  blobseq.Write(BlobFromVec({1, 2, 3}));
   EXPECT_DEATH(blobseq.Read(), "Had writes after reset");
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 3);
-  EXPECT_DEATH(blobseq.Write(Blob({1, 2, 3, 4})), "Had reads after reset");
+  EXPECT_DEATH(blobseq.Write(BlobFromVec({1, 2, 3, 4})),
+               "Had reads after reset");
   blobseq.Reset();
-  blobseq.Write(Blob({1, 2, 3, 4}));
+  blobseq.Write(BlobFromVec({1, 2, 3, 4}));
 }
 
 // Check cases when SharedMemoryBlobSequence is nearly full.
@@ -145,28 +177,29 @@ TEST_P(SharedMemoryBlobSequenceTest, WriteToFullSequence) {
   SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 28, GetParam());
 
   // 17 bytes: 8 bytes size, 8 bytes tag, 1 byte payload.
-  EXPECT_TRUE(blobseq.Write(Blob({1})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 1);
   EXPECT_FALSE(blobseq.Read().IsValid());
 
   // 20 bytes: 4-byte payload.
   blobseq.Reset();
-  EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1, 2, 3, 4})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 4);
   EXPECT_FALSE(blobseq.Read().IsValid());
 
   // 23 bytes: 7-byte payload.
   blobseq.Reset();
-  EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4, 5, 6, 7})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1, 2, 3, 4, 5, 6, 7})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 7);
   EXPECT_FALSE(blobseq.Read().IsValid());
 
   // 28 bytes: 12-byte payload.
   blobseq.Reset();
-  EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})));
+  EXPECT_TRUE(
+      blobseq.Write(BlobFromVec({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 12);
   EXPECT_FALSE(blobseq.Read().IsValid());
@@ -174,14 +207,14 @@ TEST_P(SharedMemoryBlobSequenceTest, WriteToFullSequence) {
   // 13-byte payload - there is not enough space (for 13+8 bytes).
   blobseq.Reset();
   EXPECT_FALSE(
-      blobseq.Write(Blob({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})));
+      blobseq.Write(BlobFromVec({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 12);  // State remained the same.
 
   // 1-, and 2- byte payloads. The last one fails.
   blobseq.Reset();
-  EXPECT_TRUE(blobseq.Write(Blob({1})));
-  EXPECT_FALSE(blobseq.Write(Blob({1, 2})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1})));
+  EXPECT_FALSE(blobseq.Write(BlobFromVec({1, 2})));
   blobseq.Reset();
   EXPECT_EQ(blobseq.Read().size, 1);
   EXPECT_FALSE(blobseq.Read().IsValid());
@@ -192,10 +225,10 @@ TEST_P(SharedMemoryBlobSequenceTest, WriteAfterReset) {
   // Allocate a blob sequence with 28 bytes of storage.
   SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 100, GetParam());
   const std::vector<uint8_t> kFirstWriteData(/*count=*/64, /*value=*/255);
-  EXPECT_TRUE(blobseq.Write(Blob(kFirstWriteData)));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec(kFirstWriteData)));
   blobseq.Reset();  // The data in shmem is unchanged.
   const std::vector<uint8_t> kSecondWriteData{42, 43};
-  EXPECT_TRUE(blobseq.Write(Blob(kSecondWriteData)));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec(kSecondWriteData)));
   blobseq.Reset();  // The data in shmem is unchanged.
   auto blob1 = blobseq.Read();
   EXPECT_TRUE(blob1.IsValid());
@@ -211,11 +244,11 @@ TEST_P(SharedMemoryBlobSequenceTest, ReleaseSharedMemory) {
   // Allocate a blob sequence with 1M bytes of storage.
   SharedMemoryBlobSequence blobseq(ShmemName().c_str(), 1 << 20, GetParam());
   EXPECT_EQ(blobseq.NumBytesUsed(), 0);
-  EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1, 2, 3, 4})));
   EXPECT_GT(blobseq.NumBytesUsed(), 5);
   blobseq.ReleaseSharedMemory();
   EXPECT_EQ(blobseq.NumBytesUsed(), 0);
-  EXPECT_TRUE(blobseq.Write(Blob({1, 2, 3, 4})));
+  EXPECT_TRUE(blobseq.Write(BlobFromVec({1, 2, 3, 4})));
   EXPECT_GT(blobseq.NumBytesUsed(), 5);
 }
 #endif
