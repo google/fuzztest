@@ -51,6 +51,7 @@ fuzztest_cc_library(
     fuzztest::remote_file
     fuzztest::status_macros
     absl::check
+    absl::core_headers
     absl::log
     absl::nullability
     absl::status
