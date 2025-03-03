@@ -211,6 +211,26 @@ static uint64_t TimeInUsec() {
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
 }
 
+static void CheckWatchdogAbortTimeout(uint64_t curr_time) {
+  // No timeout is set, ignore.
+  if (state.run_time_flags.watchdog_abort_timeout == 0) return;
+  // Watchdog did not invoke abort yet, ignore.
+  if (state.watchdog_abort_start_time == 0) return;
+  const uint64_t ongoing_abort_duration =
+      curr_time - state.watchdog_abort_start_time;
+  // The runner is still running unexpectedly long after we started
+  // aborting.
+  if (ongoing_abort_duration > state.run_time_flags.watchdog_abort_timeout) {
+    fprintf(stderr,
+            "========= Watchdog Abort timer exceeded: %" PRIu64 " > %" PRIu64
+            " (sec); std::abort() invoked.\n",
+            ongoing_abort_duration,
+            state.run_time_flags.watchdog_abort_timeout);
+    fprintf(stderr, "Aborting the runner in the watchdog thread.\n");
+    std::abort();
+  }
+}
+
 static void CheckWatchdogLimits() {
   const uint64_t curr_time = time(nullptr);
   struct Resource {
@@ -253,6 +273,7 @@ static void CheckWatchdogLimits() {
       // `RunOneInput()` after all the work is done.
       static std::atomic<bool> already_handling_failure = false;
       if (!already_handling_failure.exchange(true)) {
+        state.watchdog_abort_start_time = time(nullptr);
         fprintf(stderr,
                 "========= %s exceeded: %" PRIu64 " > %" PRIu64
                 " (%s); exiting\n",
@@ -272,6 +293,7 @@ static void CheckWatchdogLimits() {
       }
     }
   }
+  CheckWatchdogAbortTimeout(curr_time);
 }
 
 // Watchdog thread. Periodically checks if it's time to abort due to a
