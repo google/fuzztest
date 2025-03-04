@@ -134,6 +134,13 @@ class StringLiteralDomain {
     result.children.emplace<std::monostate>();
     return result;
   }
+
+  static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
+    if (!CheckASTNodeTypeIdAndChildType<std::monostate>(astnode, id)) {
+      return absl::InvalidArgumentError("Invalid node type!");
+    }
+    return absl::OkStatus();
+  }
 };
 
 template <ASTTypeId id, const absl::string_view& value>
@@ -188,6 +195,16 @@ class RegexLiteralDomain {
     }
     result.children.emplace<DFAPath>(*path);
     return result;
+  }
+
+  static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
+    if (!CheckASTNodeTypeIdAndChildType<DFAPath>(astnode, id)) {
+      return absl::InvalidArgumentError("Invalid node type!");
+    }
+    if (astnode.children.index() != 1) {
+      return absl::InvalidArgumentError("Not a regex literal!");
+    }
+    return absl::OkStatus();
   }
 
  private:
@@ -317,6 +334,20 @@ class VectorDomain {
       child_nodes.push_back(*child_node);
     }
     return result;
+  }
+
+  static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
+    if (!CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id)) {
+      return absl::InvalidArgumentError("Invalid node type!");
+    }
+    if (astnode.children.index() != 2) {
+      return absl::InvalidArgumentError("Not a vector!");
+    }
+    absl::Status status = absl::OkStatus();
+    for (const auto& child : std::get<2>(astnode.children)) {
+      status.Update(ElementT::ValidateCorpusValue(child));
+    }
+    return status;
   }
 
  private:
@@ -476,6 +507,23 @@ class TupleDomain {
     }
     return result;
   }
+
+  static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
+    if (!CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id)) {
+      return absl::InvalidArgumentError("Invalid node type!");
+    }
+    if (astnode.children.index() != 2 ||
+        std::get<2>(astnode.children).size() == sizeof...(ElementT)) {
+      return absl::InvalidArgumentError("Tuple elements number doesn't match!");
+    }
+    absl::Status status = absl::OkStatus();
+    ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
+      (status.Update(
+           ElementT::ValidateCorpusValue(std::get<2>(astnode.children)[I])),
+       ...);
+    });
+    return status;
+  }
 };
 
 template <ASTTypeId id, int fallback_index, typename... ElementT>
@@ -603,6 +651,24 @@ class VariantDomain {
     return result;
   }
 
+  static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
+    if (!CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id)) {
+      return absl::InvalidArgumentError("Invalid node type!");
+    }
+    if (std::get<2>(astnode.children).size() != 1) {
+      return absl::InvalidArgumentError("This is not a variant ast node.");
+    }
+    absl::Status status = absl::OkStatus();
+    ASTTypeId child_id = std::get<2>(astnode.children).front().type_id;
+    ((ElementT::TypeId() == child_id
+          ? (status.Update(ElementT::ValidateCorpusValue(
+                 std::get<2>(astnode.children).front())),
+             (void)0)
+          : (void)0),
+     ...);
+    return status;
+  }
+
  private:
   static void MutateCurrentValue(
       ASTNode& val, absl::BitGenRef prng,
@@ -690,8 +756,7 @@ class InGrammarImpl
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
     // Validation is currently done during Parsing, and UserToCorpusValue() is
     // not supported yet.
-    // TODO(lszekeres): Refactor so that validation happens here instead.
-    return absl::OkStatus();
+    return TopDomain::ValidateCorpusValue(corpus_value);
   }
 
  private:
