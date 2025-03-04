@@ -157,6 +157,12 @@ ABSL_FLAG(size_t, timeout_per_batch, Environment::Default().timeout_per_batch,
           "finish within --timeout_per_batch seconds. The default is computed "
           "as a function of --timeout_per_input * --batch_size. Support may "
           "vary depending on the runner.");
+ABSL_FLAG(
+    size_t, watchdog_abort_timeout,
+    Environment::Default().watchdog_abort_timeout,
+    "If not zero, the runner's watchdog thread will forcefully abort if "
+    "the process is still running for too long after a previous abort "
+    "attempt. This is useful to prevent hangs (e.g. during stacktrace dumps).");
 ABSL_FLAG(absl::Time, stop_at, Environment::Default().stop_at,
           "Stop fuzzing in all shards (--total_shards) at approximately this "
           "time in ISO-8601/RFC-3339 format, e.g. 2023-04-06T23:35:02Z. "
@@ -462,6 +468,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*stack_limit_kb=*/absl::GetFlag(FLAGS_stack_limit_kb),
       /*timeout_per_input=*/absl::GetFlag(FLAGS_timeout_per_input),
       /*timeout_per_batch=*/absl::GetFlag(FLAGS_timeout_per_batch),
+      /*watchdog_abort_timeout=*/absl::GetFlag(FLAGS_watchdog_abort_timeout),
       /*stop_at=*/
       GetStopAtTime(absl::GetFlag(FLAGS_stop_at),
                     absl::GetFlag(FLAGS_stop_after)),
