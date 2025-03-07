@@ -607,6 +607,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
   }
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
+  bool to_tear_down_fuzz_test = true;
   const int result = ([&]() {
     if (runtime_.skipping_requested()) {
       absl::FPrintF(GetStderr(),
@@ -629,6 +630,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     if (fuzzer_impl_.ReplayInputsIfAvailable(configuration)) return 0;
     // `ReplayInputsIfAvailable` overwrites the run mode - revert it back.
     runtime_.SetRunMode(mode);
+    // Tear down fixture early to avoid interfering with the runners.
+    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+    to_tear_down_fuzz_test = false;
     // Run as the fuzzing engine.
     std::unique_ptr<TempDir> workdir;
     if (configuration.corpus_database.empty() || mode == RunMode::kUnitTest)
@@ -692,7 +696,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     }
     return centipede::CentipedeMain(env, factory);
   })();
-  fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+  if (to_tear_down_fuzz_test) {
+    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+  }
   return result == 0;
 }
 
