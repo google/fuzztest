@@ -21,6 +21,7 @@
 #include <cstring>
 
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "./centipede/runner.h"
 
 using centipede::tls;
@@ -143,7 +144,7 @@ static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
 extern "C" NO_SANITIZE int memcmp(const void *s1, const void *s2, size_t n) {
   const int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
-  if (!tls.started) [[unlikely]] {
+  if (ABSL_PREDICT_FALSE(!tls.started)) {
     return result;
   }
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
@@ -167,7 +168,7 @@ extern "C" NO_SANITIZE int strcmp(const char *s1, const char *s2) {
       // Need to include one more byte than the shorter string length
       // when falling back to memcmp e.g. "foo" < "foobar".
       strcmp_orig ? strcmp_orig(s1, s2) : memcmp_fallback(s1, s2, len + 1);
-  if (!tls.started) [[unlikely]] {
+  if (ABSL_PREDICT_FALSE(!tls.started)) {
     return result;
   }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
@@ -190,7 +191,7 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
   if (n > len + 1) n = len + 1;
   const int result =
       strncmp_orig ? strncmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
-  if (!tls.started) [[unlikely]] {
+  if (ABSL_PREDICT_FALSE(!tls.started)) {
     return result;
   }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
@@ -206,7 +207,7 @@ extern "C" int pthread_create(absl::Nonnull<pthread_t *> thread,
                               absl::Nullable<const pthread_attr_t *> attr,
                               void *(*start_routine)(void *),
                               absl::Nullable<void *> arg) {
-  if (!tls.started) [[unlikely]] {
+  if (ABSL_PREDICT_FALSE(!tls.started)) {
     return REAL(pthread_create)(thread, attr, start_routine, arg);
   }
   // Wrap the arguments. Will be deleted in MyThreadStart.
