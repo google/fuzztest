@@ -101,15 +101,18 @@ bool BatchResult::Read(BlobSequence &blobseq) {
       continue;
     }
     if (blob.tag == kTagMetadata) {
+      if (current_execution_result == nullptr) return false;
       current_execution_result->metadata().Read(blob);
       continue;
     }
     if (blob.tag == kTagStats) {
+      if (current_execution_result == nullptr) return false;
       if (blob.size != sizeof(ExecutionResult::Stats)) return false;
       memcpy(&current_execution_result->stats(), blob.data, blob.size);
       continue;
     }
     if (blob.tag == kTagFeatures) {
+      if (current_execution_result == nullptr) return false;
       const size_t features_size = blob.size / sizeof(feature_t);
       FeatureVec &features = current_execution_result->mutable_features();
       features.resize(features_size);

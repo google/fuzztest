@@ -215,7 +215,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   // Get results.
   batch_result.exit_code() = retval;
-  CHECK(batch_result.Read(outputs_blobseq_));
+  const bool read_success = batch_result.Read(outputs_blobseq_);
+  LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
@@ -225,7 +226,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   //   * Will be logged by the caller.
   // * some outputs were not written because the outputs_blobseq_ overflown.
   //   * Logged by the following code.
-  if (retval == 0 && batch_result.num_outputs_read() != num_inputs_written) {
+  if (retval == 0 && read_success &&
+      batch_result.num_outputs_read() != num_inputs_written) {
     LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
               << num_inputs_written
               << " outputs; shmem_size_mb might be too small: "

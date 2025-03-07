@@ -194,5 +194,26 @@ TEST(MutationResult, WriteThenRead) {
       ElementsAre(ByteArray{1, 2, 3}, ByteArray{4, 5, 6}, ByteArray{7, 8, 9}));
 }
 
+TEST(ExecutionResult, ReadResultSucceedsOnlyWithInputBegin) {
+  auto buffer = std::make_unique<uint8_t[]>(1000);
+  BlobSequence blobseq(buffer.get(), 1000);
+  BatchResult batch_result;
+
+  EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
+  EXPECT_TRUE(BatchResult::WriteOneFeatureVec({}, 0, blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+  blobseq.Reset();
+  batch_result.ClearAndResize(1);
+  EXPECT_TRUE(batch_result.Read(blobseq));
+
+  blobseq.Reset();
+  EXPECT_TRUE(BatchResult::WriteOneFeatureVec({}, 0, blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+
+  blobseq.Reset();
+  batch_result.ClearAndResize(1);
+  EXPECT_FALSE(batch_result.Read(blobseq));
+}
+
 }  // namespace
 }  // namespace centipede
