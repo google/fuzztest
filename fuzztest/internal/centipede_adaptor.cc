@@ -634,6 +634,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
     to_tear_down_fuzz_test = false;
     // Run as the fuzzing engine.
+    runtime_.SetShouldTerminateOnNonFatalFailure(false);
     std::unique_ptr<TempDir> workdir;
     if (configuration.corpus_database.empty() || mode == RunMode::kUnitTest)
       workdir = std::make_unique<TempDir>("fuzztest_workdir");
