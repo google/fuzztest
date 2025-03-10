@@ -67,6 +67,7 @@ struct RunTimeFlags {
   uint64_t use_auto_dictionary : 1;
   std::atomic<uint64_t> timeout_per_input;
   uint64_t timeout_per_batch;
+  uint64_t force_abort_timeout;
   std::atomic<uint64_t> stack_limit_kb;
   std::atomic<uint64_t> rss_limit_mb;
   uint64_t crossover_level;
@@ -172,6 +173,7 @@ struct GlobalRunnerState {
       /*use_auto_dictionary=*/HasFlag(":use_auto_dictionary:"),
       /*timeout_per_input=*/HasIntFlag(":timeout_per_input=", 0),
       /*timeout_per_batch=*/HasIntFlag(":timeout_per_batch=", 0),
+      /*force_abort_timeout=*/HasIntFlag(":force_abort_timeout=", 0),
       /*stack_limit_kb=*/HasIntFlag(":stack_limit_kb=", 0),
       /*rss_limit_mb=*/HasIntFlag(":rss_limit_mb=", 0),
       /*crossover_level=*/HasIntFlag(":crossover_level=", 50),
@@ -345,6 +347,9 @@ struct GlobalRunnerState {
   // Per-batch timer. Initially, zero. ResetInputTimer() sets it to the current
   // time before the first input and never resets it.
   std::atomic<time_t> batch_start_time;
+  // Initially, zero. Watchdog thread sets it based on the provided timeout when
+  // it attempts to abort the runner main thread.
+  std::atomic<time_t> force_abort_deadline;
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
