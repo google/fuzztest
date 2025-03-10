@@ -72,6 +72,45 @@ std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
 
 #else
 
+std::vector<std::string> DefaultListDirectoryRecursively(
+    absl::string_view path) {
+  std::vector<std::string> output_paths;
+
+  const std::filesystem::path fs_path{
+      std::string_view{path.data(), path.size()}};
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(
+           fs_path,
+           std::filesystem::directory_options::follow_directory_symlink)) {
+    output_paths.push_back(entry.path().string());
+  }
+  return output_paths;
+}
+
+std::optional<std::string> DefaultReadFile(absl::string_view path) {
+  const std::filesystem::path fs_path{
+      std::string_view{path.data(), path.size()}};
+
+  std::ifstream stream(fs_path);
+  if (!stream.good()) {
+    // Using stderr instead of GetStderr() to avoid initialization-order-fiasco
+    // when reading files at static init time with
+    // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
+    absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
+                  __LINE__, path, errno, strerror(errno));
+    return std::nullopt;
+  }
+  std::stringstream buffer;
+  buffer << stream.rdbuf();
+  return buffer.str();
+}
+
+bool DefaultIsDirectory(absl::string_view path) {
+  const std::filesystem::path fs_path{
+      std::string_view{path.data(), path.size()}};
+
+  return std::filesystem::is_directory(fs_path);
+}
+
 bool WriteFile(absl::string_view path, absl::string_view contents) {
   const std::filesystem::path fs_path{
       std::string_view{path.data(), path.size()}};
@@ -91,29 +130,10 @@ bool WriteFile(absl::string_view path, absl::string_view contents) {
 }
 
 std::optional<std::string> ReadFile(absl::string_view path) {
-  const std::filesystem::path fs_path{
-      std::string_view{path.data(), path.size()}};
-
-  std::ifstream stream(fs_path);
-  if (!stream.good()) {
-    // Using stderr instead of GetStderr() to avoid initialization-order-fiasco
-    // when reading files at static init time with
-    // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
-    absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
-                  __LINE__, path, errno, strerror(errno));
-    return std::nullopt;
-  }
-  std::stringstream buffer;
-  buffer << stream.rdbuf();
-  return buffer.str();
+  return DefaultReadFile(path);
 }
 
-bool IsDirectory(absl::string_view path) {
-  const std::filesystem::path fs_path{
-      std::string_view{path.data(), path.size()}};
-
-  return std::filesystem::is_directory(fs_path);
-}
+bool IsDirectory(absl::string_view path) { return DefaultIsDirectory(path); }
 
 bool CreateDirectory(absl::string_view path) {
   const std::filesystem::path fs_path{
@@ -135,16 +155,7 @@ std::vector<std::string> ListDirectory(absl::string_view path) {
 }
 
 std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
-  std::vector<std::string> output_paths;
-
-  const std::filesystem::path fs_path{
-      std::string_view{path.data(), path.size()}};
-  for (const auto& entry : std::filesystem::recursive_directory_iterator(
-           fs_path,
-           std::filesystem::directory_options::follow_directory_symlink)) {
-    output_paths.push_back(entry.path().string());
-  }
-  return output_paths;
+  return DefaultListDirectoryRecursively(path);
 }
 
 #endif  // FUZZTEST_STUB_STD_FILESYSTEM
@@ -163,14 +174,14 @@ std::vector<FilePathAndData> ReadFileOrDirectory(
   std::vector<FilePathAndData> out;
 
   const auto try_append_file = [&](std::string path) {
-    std::optional<std::string> contents = ReadFile(path);
+    std::optional<std::string> contents = DefaultReadFile(path);
     if (contents.has_value()) {
       out.push_back(FilePathAndData{std::move(path), *std::move(contents)});
     }
   };
-  if (IsDirectory(file_or_dir)) {
-    for (const auto& path : ListDirectoryRecursively(file_or_dir)) {
-      if (!IsDirectory(path)) {
+  if (DefaultIsDirectory(file_or_dir)) {
+    for (const auto& path : DefaultListDirectoryRecursively(file_or_dir)) {
+      if (!DefaultIsDirectory(path)) {
         try_append_file(path);
       }
     }
