@@ -192,7 +192,6 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
       configuration && configuration->crashing_input_to_reproduce;
   if (!is_reproducer_in_corpus_db) {
     if (reproducer_path.empty()) {
-      absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
       return;
     }
   }
@@ -244,7 +243,11 @@ std::string Runtime::DumpReproducer(absl::string_view outdir) const {
   const std::string content =
       current_args_->domain.SerializeCorpus(current_args_->corpus_value)
           .ToString();
-  return WriteDataToDir(content, outdir);
+  std::string path = WriteDataToDir(content, outdir);
+  if (path.empty()) {
+    absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
+  }
+  return path;
 }
 
 void Runtime::PrintFinalStats(RawSink out) const {
