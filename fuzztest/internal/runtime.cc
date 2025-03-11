@@ -163,6 +163,18 @@ std::optional<ReproducerDirectory> GetReproducerDirectory() {
     return ReproducerDirectory{
         path.string(), ReproducerDirectory::Type::kTestUndeclaredOutputs};
   }
+#ifdef FUZZTEST_USE_CENTIPEDE
+  if (getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr) {
+    env = absl::NullSafeStringView(
+        getenv("FUZZTEST_INTERNAL_TEST_UNDECLARED_OUTPUTS_DIR"));
+    if (!env.empty()) {
+      auto path = std::filesystem::path(std::string(env)) /
+                  std::string(kReproducerDirName);
+      return ReproducerDirectory{
+          path.string(), ReproducerDirectory::Type::kTestUndeclaredOutputs};
+    }
+  }
+#endif
   return std::nullopt;
 }
 
@@ -171,7 +183,7 @@ void PrintReproductionInstructionsForUndeclaredOutputs(
     absl::string_view reproducer_path) {
   absl::string_view file_name = Basename(reproducer_path);
   absl::Format(out,
-               "Reproducer file was dumped under"
+               "Reproducer file was dumped under "
                "TEST_UNDECLARED_OUTPUTS_DIR.\n");
   absl::Format(out,
                "Make a copy of it with:\n\n"

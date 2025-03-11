@@ -174,6 +174,12 @@ std::string GetSelfBinaryHashForCentipedeEnvironment() {
   return *cached_self_binary_hash;
 }
 
+void PropagateTestUndeclaredOutputsDir() {
+  const char* env = std::getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+  if (env == nullptr) return;
+  setenv("FUZZTEST_INTERNAL_TEST_UNDECLARED_OUTPUTS_DIR", env, /*overwrite=*/1);
+}
+
 std::string ShellEscape(absl::string_view str) {
   return absl::StrCat("'", absl::StrReplaceAll(str, {{"'", "'\\''"}}), "'");
 }
@@ -695,6 +701,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
                     corpus_out_dir);
       return 0;
     }
+    if (env.exit_on_crash) PropagateTestUndeclaredOutputsDir();
     return centipede::CentipedeMain(env, factory);
   })();
   if (to_tear_down_fuzz_test) {
