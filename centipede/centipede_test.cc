@@ -34,6 +34,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
@@ -1093,6 +1094,22 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   // The built-in mutator performs non-trivial mutations.
   EXPECT_EQ(inputs.size(), mutants.size());
   EXPECT_NE(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/hanging_fuzz_target");
+  BatchResult batch_result;
+  const std::vector<ByteArray> inputs = {{0}};
+  CentipedeDefaultCallbacks callbacks(env);
+
+  env.force_abort_timeout = absl::Seconds(1);
+  env.timeout_per_batch = 1;
+  env.fork_server = false;
+
+  // Test that the process does not get stuck and exits promptly.
+  EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result));
 }
 
 }  // namespace

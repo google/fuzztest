@@ -293,6 +293,10 @@ cc_binary(
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
+centipede_fuzz_target(
+    name = "hanging_fuzz_target",
+)
+
 ################################################################################
 # This fuzz target is not currently used by any automated tests and is here for
 # manual tests only.
