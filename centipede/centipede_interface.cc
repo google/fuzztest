@@ -681,6 +681,56 @@ int UpdateCorpusDatabaseForFuzzTests(
   return EXIT_SUCCESS;
 }
 
+int RunOrFetchCrash(const Environment &env,
+                    const fuzztest::internal::Configuration &target_config,
+                    CentipedeCallbacksFactory &callbacks_factory) {
+  CHECK(target_config.fuzz_tests_in_current_shard.size() == 1)
+      << "Expecting exactly one test for run_or_fetch_crash_id";
+  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
+                         target_config.binary_identifier /
+                         target_config.fuzz_tests_in_current_shard[0] /
+                         "crashing";
+  if (env.fetch_crash_to_file.empty()) {
+    const WorkDir workdir{env};
+    SeedCorpusSource crash_corpus_source;
+    crash_corpus_source.dir_glob = crash_dir.string();
+    crash_corpus_source.num_recent_dirs = 1;
+    crash_corpus_source.individual_input_rel_glob = env.run_or_fetch_crash_id;
+    crash_corpus_source.sampled_fraction_or_count = 1.0f;
+    const SeedCorpusConfig crash_corpus_config = {
+        /*sources=*/{crash_corpus_source},
+        /*destination=*/{
+            /*dir_path=*/env.workdir,
+            /*shard_rel_glob=*/
+            std::filesystem::path{workdir.CorpusFilePaths().AllShardsGlob()}
+                .filename(),
+            /*shard_index_digits=*/WorkDir::kDigitsInShardIndex,
+            /*num_shards=*/1}};
+    CHECK_OK(GenerateSeedCorpusFromConfig(crash_corpus_config, env.binary_name,
+                                          env.binary_hash));
+    Environment run_crash_env = env;
+    run_crash_env.load_shards_only = true;
+    return Fuzz(run_crash_env, {}, "", callbacks_factory);
+  } else {
+    std::string crash_contents;
+    const auto read_status = RemoteFileGetContents(
+        (crash_dir / env.run_or_fetch_crash_id).string(), crash_contents);
+    if (!read_status.ok()) {
+      LOG(ERROR) << "Failed reading the crash " << env.run_or_fetch_crash_id
+                 << " from " << crash_dir.string() << ": " << read_status;
+      return EXIT_FAILURE;
+    }
+    const auto write_status =
+        RemoteFileSetContents(env.fetch_crash_to_file, crash_contents);
+    if (!write_status.ok()) {
+      LOG(ERROR) << "Failed write the crash " << env.run_or_fetch_crash_id
+                 << " to " << env.fetch_crash_to_file << ": " << write_status;
+      return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+  }
+}
+
 }  // namespace
 
 int CentipedeMain(const Environment &env,
@@ -742,6 +792,10 @@ int CentipedeMain(const Environment &env,
       CHECK_OK(target_config.status())
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
+        if (!env.run_or_fetch_crash_id.empty()) {
+          return RunOrFetchCrash(env, *target_config, callbacks_factory);
+        }
+
         const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
         CHECK(target_config->only_replay ||
               time_limit_per_test < absl::InfiniteDuration())

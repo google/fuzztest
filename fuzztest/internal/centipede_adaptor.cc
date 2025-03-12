@@ -239,6 +239,15 @@ centipede::Environment CreateCentipedeEnvironmentFromConfiguration(
                   " --" FUZZTEST_FLAG_PREFIX
                   "internal_override_total_time_limit=",
                   total_time_limit);
+  if (configuration.crashing_input_to_reproduce.has_value()) {
+    absl::StrAppend(&env.binary,
+                    " --" FUZZTEST_FLAG_PREFIX
+                    "internal_crashing_input_to_reproduce=",
+                    *configuration.crashing_input_to_reproduce);
+    env.run_or_fetch_crash_id =
+        std::filesystem::path(*configuration.crashing_input_to_reproduce)
+            .filename();
+  }
   env.coverage_binary = (*args)[0];
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
   env.binary_hash = GetSelfBinaryHashForCentipedeEnvironment();
@@ -586,7 +595,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   // and we should not run CentipedeMain in this process.
   const bool runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS");
   const bool is_running_property_function_in_this_process =
-      runner_mode || configuration.crashing_input_to_reproduce.has_value() ||
+      runner_mode ||
+      (configuration.crashing_input_to_reproduce.has_value() &&
+       configuration.replay_in_single_process) ||
       std::getenv("FUZZTEST_REPLAY") ||
       std::getenv("FUZZTEST_MINIMIZE_REPRODUCER");
   if (!is_running_property_function_in_this_process &&
@@ -627,7 +638,10 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     // Centipede engine does not support replay and reproducer minimization
     // (within the single process). So use the existing fuzztest implementation.
     // This is fine because it does not require coverage instrumentation.
-    if (fuzzer_impl_.ReplayInputsIfAvailable(configuration)) return 0;
+    if (!configuration.crashing_input_to_reproduce.has_value() &&
+        fuzzer_impl_.ReplayInputsIfAvailable(configuration)) {
+      return 0;
+    }
     // `ReplayInputsIfAvailable` overwrites the run mode - revert it back.
     runtime_.SetRunMode(mode);
     // Tear down fixture early to avoid interfering with the runners.
@@ -643,10 +657,30 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
         configuration, workdir_path, test_.full_name(), mode);
     centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
         factory;
-    if (const char* minimize_dir_chars =
-            std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR");
-        configuration.corpus_database.empty() &&
-        minimize_dir_chars != nullptr) {
+    if (!configuration.corpus_database.empty()) {
+      if (configuration.replay_in_single_process &&
+          configuration.crashing_input_to_reproduce.has_value()) {
+        TempDir crash_fetch_dir("fuzztest_crash");
+        auto fetch_crash_env = env;
+        std::string crash_file =
+            (std::filesystem::path(crash_fetch_dir.path()) / "crash").string();
+        fetch_crash_env.fetch_crash_to_file = crash_file;
+        if (centipede::CentipedeMain(fetch_crash_env, factory) !=
+            EXIT_SUCCESS) {
+          absl::FPrintF(
+              GetStderr(),
+              "[!] Encountered error when using Centipede to fetch the crash "
+              "input. Skipping the test to avoid confusing with a real crash");
+          return 0;
+        }
+        CentipedeAdaptorRunnerCallbacks runner_callbacks(
+            &runtime_, &fuzzer_impl_, &configuration);
+        static char replay_argv0[] = "replay_argv";
+        char* replay_argv[] = {replay_argv0, crash_file.data()};
+        return centipede::RunnerMain(/*argc=*/2, replay_argv, runner_callbacks);
+      }
+    } else if (const char* minimize_dir_chars =
+                   std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
       const std::string minimize_dir = minimize_dir_chars;
       const char* corpus_out_dir_chars =
           std::getenv("FUZZTEST_TESTSUITE_OUT_DIR");
