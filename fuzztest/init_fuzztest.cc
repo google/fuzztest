@@ -307,6 +307,7 @@ internal::Configuration CreateConfigurationsFromFlags(
   return internal::Configuration{
       absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
       /*stats_root=*/"",
+      /*workdir_root=*/"",
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
