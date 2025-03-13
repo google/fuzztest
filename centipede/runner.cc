@@ -281,16 +281,23 @@ static void CheckWatchdogLimits() {
                 resource.what, resource.value, resource.limit, resource.units);
         WriteFailureDescription(resource.failure);
         pthread_mutex_lock(&state.runner_main_thread_mu);
-        if (state.runner_main_thread.has_value()) {
+#ifndef NDEBUG
+        const bool print_test_stacktrace = state.runner_main_thread.has_value();
+#else
+        const bool print_test_stacktrace = false;
+#endif
+        if (print_test_stacktrace) {
           fprintf(stderr, "Sending SIGABRT to the runner main thread.\n");
           state.force_abort_deadline =
               time(nullptr) + state.run_time_flags.force_abort_timeout;
           pthread_kill(*state.runner_main_thread, SIGABRT);
           pthread_mutex_unlock(&state.runner_main_thread_mu);
-          return;
         } else {
           pthread_mutex_unlock(&state.runner_main_thread_mu);
-          fprintf(stderr, "Aborting the runner in the watchdog thread.\n");
+          fprintf(stderr,
+                  "Aborting the runner in the watchdog thread.\n\n"
+                  "To see the test stacktrace, rerun the test in non-opt "
+                  "mode.\n\n\n");
           std::abort();
         }
       }
