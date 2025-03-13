@@ -231,3 +231,29 @@ FUZZ_TEST_F(EchoServerFuzzTest, ReturnsTheSameString);
 Here, the "per-fuzz-test" semantics is appropriate because the test doesn't
 mutate the server in any way that would be relevant for the test, and the server
 initialization is too expensive to be performed in each iteration.
+
+## Advanced fixtures with runner functions
+
+When using non-GoogleTest fixtures, FuzzTest can make use of *runner functions*
+defined on the fixture to specify per-test or per-iteration setups. This is
+introduced to support special use cases where the property function has to be
+run inside the fixture setup. (E.g. suppose an SUT expose an interface
+`StartEventLoop(ready_cb)` where fuzzing can only be done inside `ready_cb`
+instead of before/after.)
+
+Specifically, if `RunFuzzTest(absl::AnyInvocable<void() &&> run_fuzz_test_once)`
+is defined, instead of directly operating on a fuzz test, FuzzTest will call
+`RunFuzzTest`, expecting that it will in turn:
+
+1.  Sets up anything needed for running the test.
+2.  Invokes `run_fuzz_test_once` to let FuzzTest actually operate on the fuzz
+    test; `run_fuzz_test_once` will return once FuzzTest has done with the test.
+3.  Tears down anything that is no longer needed after the test.
+
+When FuzzTest is operating on the test inside `run_fuzz_test_once`, each
+iteration of calling the property function will be wrapped into
+`RunFuzzTestIteration(absl::AnyInvocable<void() &&> run_iteration_once)` if it
+is defined in the fixture, where similarly `RunFuzzTestIteration` is expected to
+sets up/tears down anything needed for running the property function once, and
+`run_iteration_once` will have FuzzTest actually call the property function
+once.
