@@ -49,6 +49,9 @@ struct Configuration {
   // The directory path to export stats with a layout similar to
   // `corpus_database`.
   std::string stats_root;
+  // The root directory for Centipede workdirs, with a layout similar to
+  // `corpus_database`.
+  std::string workdir_root;
   // The identifier of the test binary in the corpus database (eg.,
   // relative/path/to/binary).
   std::string binary_identifier;

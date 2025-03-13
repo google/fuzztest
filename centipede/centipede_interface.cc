@@ -435,6 +435,11 @@ int UpdateCorpusDatabaseForFuzzTests(
           ? std::filesystem::path()
           : std::filesystem::path(fuzztest_config.stats_root) /
                 fuzztest_config.binary_identifier;
+  const auto workdir_root_path =
+      fuzztest_config.workdir_root.empty()
+          ? corpus_database_path
+          : std::filesystem::path(fuzztest_config.workdir_root) /
+                fuzztest_config.binary_identifier;
   const auto execution_stamp = [] {
     std::string stamp =
         absl::FormatTime("%Y-%m-%d-%H-%M-%S", absl::Now(), absl::UTCTimeZone());
@@ -463,7 +468,7 @@ int UpdateCorpusDatabaseForFuzzTests(
   const auto base_workdir_path =
       is_workdir_specified
           ? std::filesystem::path{}  // Will not be used.
-          : corpus_database_path /
+          : workdir_root_path /
                 absl::StrFormat("workdir%s.%03d",
                                 fuzztest_config.only_replay ? "-replay" : "",
                                 test_shard_index);

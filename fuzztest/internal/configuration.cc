@@ -203,8 +203,8 @@ std::string Configuration::Serialize() const {
   std::string time_budget_type_str = AbslUnparseFlag(time_budget_type);
   std::string out;
   out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
-             SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
-             SpaceFor(fuzz_tests_in_current_shard) +
+             SpaceFor(workdir_root) + SpaceFor(binary_identifier) +
+             SpaceFor(fuzz_tests) + SpaceFor(fuzz_tests_in_current_shard) +
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
              SpaceFor(execution_id) + SpaceFor(print_subprocess_log) +
@@ -216,6 +216,7 @@ std::string Configuration::Serialize() const {
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, stats_root);
+  offset = WriteString(out, offset, workdir_root);
   offset = WriteString(out, offset, binary_identifier);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
@@ -241,6 +242,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
   return [=]() mutable -> absl::StatusOr<Configuration> {
     ASSIGN_OR_RETURN(corpus_database, ConsumeString(serialized));
     ASSIGN_OR_RETURN(stats_root, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(workdir_root, ConsumeString(serialized));
     ASSIGN_OR_RETURN(binary_identifier, ConsumeString(serialized));
     ASSIGN_OR_RETURN(fuzz_tests, ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(fuzz_tests_in_current_shard,
@@ -272,6 +274,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                      ParseTimeBudgetType(*time_budget_type_str));
     return Configuration{*std::move(corpus_database),
                          *std::move(stats_root),
+                         *std::move(workdir_root),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
                          *std::move(fuzz_tests_in_current_shard),

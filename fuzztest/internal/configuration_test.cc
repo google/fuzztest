@@ -15,6 +15,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
   const absl::StatusOr<Configuration>& other = arg;
   return other.ok() && config.corpus_database == other->corpus_database &&
          config.stats_root == other->stats_root &&
+         config.workdir_root == other->workdir_root &&
          config.binary_identifier == other->binary_identifier &&
          config.fuzz_tests == other->fuzz_tests &&
          config.fuzz_tests_in_current_shard ==
@@ -41,6 +42,7 @@ TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithoutOptionalValues) {
   Configuration configuration{"corpus_database",
                               "stats_root",
+                              "workdir_root",
                               "binary_identifier",
                               /*fuzz_tests=*/{},
                               /*fuzz_tests_in_current_shard=*/{},
@@ -66,6 +68,7 @@ TEST(ConfigurationTest,
      DeserializeYieldsSerializedConfigurationWithOptionalValues) {
   Configuration configuration{"corpus_database",
                               "stats_root",
+                              "workdir_root",
                               "binary_identifier",
                               {"FuzzTest1", "FuzzTest2"},
                               {"FuzzTest1"},
