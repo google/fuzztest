@@ -1,0 +1,68 @@
+namespace fuzztest.internal;
+
+enum TestFbsEnum: byte {
+  First,
+  Second,
+  Third
+}
+
+union TestFbsUnion {
+  SimpleTestFbsStruct,
+  SimpleTestFbsTable,
+}
+
+struct SimpleTestFbsStruct {
+  i8: byte;
+  f: float;
+  e: TestFbsEnum;
+}
+
+struct SimpleRepeatedTestFbsStruct {
+  i8: [byte:3];
+  f: [float:3];
+  e: [TestFbsEnum:3];
+}
+
+struct SimpleNestedTestFbsStruct {
+  b: bool;
+  s: SimpleTestFbsStruct;
+}
+
+table SimpleTestFbsTable {
+  b: bool;
+  f: float;
+  str: string;
+  e: TestFbsEnum;
+}
+
+table NestedTestFbsTable {
+  t: SimpleTestFbsTable;
+}
+
+table OptionalRequiredTestFbsTable {
+  def_scalar: bool = true;
+  opt_scalar: bool = null;
+  req_str: string (required);
+  opt_str: string;
+}
+
+table FullTestFbsTable {
+  b: bool;
+  i8: byte;
+  i16: short;
+  i32: int;
+  i64: long;
+  u8: ubyte;
+  u16: ushort;
+  u32: uint;
+  u64: ulong;
+  f: float;
+  d: double;
+  str: string;
+  e: TestFbsEnum;
+  struct: SimpleTestFbsStruct;
+  u: TestFbsUnion;
+  t: SimpleTestFbsTable;
+}
+
+root_type FullTestFbsTable;

@@ -330,6 +330,7 @@ cc_library(
     srcs = ["internal/domains/in_grammar_impl.cc"],
     hdrs = [
         "domain.h",
+        "internal/domains/flatbuffers_domain_impl.h",
         "internal/domains/in_grammar_impl.h",
         "internal/domains/in_regexp_impl.h",
         "internal/domains/protobuf_domain_impl.h",
@@ -345,6 +346,7 @@ cc_library(
         ":serialization",
         ":status",
         ":type_support",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
