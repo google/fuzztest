@@ -149,22 +149,22 @@ absl::StatusOr<std::vector<std::string>> ParseDictionary(
 
 std::vector<std::string> ReadDictionaryFromFile(
     std::string_view dictionary_file) {
-  std::vector<fuzztest::internal::FilePathAndData> files =
-      fuzztest::internal::ReadFileOrDirectory(
-          {dictionary_file.data(), dictionary_file.size()});
-
-  std::vector<std::string> out;
-  // Dictionary must be in the format specified at
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      !std::filesystem::is_directory(dictionary_file),
+      "Not a file: ", dictionary_file);
+  const std::filesystem::path fs_path(dictionary_file);
+  std::ifstream stream(fs_path);
+  CHECK(stream.good()) << "Error reading " << fs_path.string() << ": (" << errno
+                       << ") " << strerror(errno);
+  std::stringstream buffer;
+  buffer << stream.rdbuf();
   // https://llvm.org/docs/LibFuzzer.html#dictionaries
-  for (const fuzztest::internal::FilePathAndData& file : files) {
-    absl::StatusOr<std::vector<std::string>> parsed_entries =
-        ParseDictionary(file.data);
-    CHECK(parsed_entries.status().ok())
-        << "Could not parse dictionary file " << file.path << ": "
-        << parsed_entries.status();
-    out.insert(out.end(), parsed_entries->begin(), parsed_entries->end());
-  }
-  return out;
+  absl::StatusOr<std::vector<std::string>> parsed_entries =
+      ParseDictionary(buffer.str());
+  CHECK(parsed_entries.status().ok())
+      << "Could not parse dictionary file " << fs_path << ": "
+      << parsed_entries.status();
+  return *parsed_entries;
 }
 
 }  // namespace fuzztest
