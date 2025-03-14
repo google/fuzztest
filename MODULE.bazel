@@ -48,6 +48,10 @@ bazel_dep(
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
+    name = "flatbuffers",
+    version = "25.2.10"
+)
+bazel_dep(
     name = "rules_proto",
     version = "5.3.0-21.7",
 )
