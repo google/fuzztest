@@ -43,7 +43,7 @@ void ChangeStringQuote(std::string& str) {
 std::string EscapeString(absl::string_view text) {
   std::string excape_text;
   for (int i = 0; i < text.size(); ++i) {
-    if (text[i] == '"' || text[i] == '\\') {
+    if (text[i] == '"') {
       excape_text.push_back('\\');
     }
     excape_text.push_back(text[i]);
