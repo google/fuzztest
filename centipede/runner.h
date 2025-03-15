@@ -72,6 +72,7 @@ struct RunTimeFlags {
   std::atomic<uint64_t> rss_limit_mb;
   uint64_t crossover_level;
   uint64_t skip_seen_features : 1;
+  uint64_t no_report_timeouts : 1;
 };
 
 // One such object is created in runner's TLS.
@@ -177,7 +178,9 @@ struct GlobalRunnerState {
       /*stack_limit_kb=*/HasIntFlag(":stack_limit_kb=", 0),
       /*rss_limit_mb=*/HasIntFlag(":rss_limit_mb=", 0),
       /*crossover_level=*/HasIntFlag(":crossover_level=", 50),
-      /*skip_seen_features=*/HasFlag(":skip_seen_features:")};
+      /*skip_seen_features=*/HasFlag(":skip_seen_features:"),
+      /*no_report_timeouts=*/HasFlag(":no_report_timeouts:"),
+  };
 
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
