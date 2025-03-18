@@ -77,9 +77,8 @@ class VariantOfImpl : public domain_implementor::DomainBase<
 
   value_type GetValue(const corpus_type& v) const {
     return Switch<sizeof...(Inner)>(v.index(), [&](auto I) -> value_type {
-      value_type out;
-      out.template emplace<I>(std::get<I>(inner_).GetValue(std::get<I>(v)));
-      return out;
+      return value_type(std::in_place_index<I>,
+                        std::get<I>(inner_).GetValue(std::get<I>(v)));
     });
   }
 
