@@ -106,8 +106,10 @@ class ExecutionCoverage {
   }
 
   static char* GetCurrentStackFrame() {
-#if defined(__has_builtin) && __has_builtin(__builtin_frame_address)
-    return reinterpret_cast<char*>(__builtin_frame_address(0));
+#if defined __has_builtin
+    # if __has_builtin(__builtin_frame_address)
+      return reinterpret_cast<char*>(__builtin_frame_address(0));
+    # endif
 #else
     return nullptr;
 #endif
