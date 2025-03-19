@@ -1,0 +1,44 @@
+namespace fuzztest.internal;
+
+enum TestFbsEnum: byte {
+  First,
+  Second,
+  Third
+}
+
+table SimpleTestFbsTable {
+  b: bool;
+  f: float;
+  str: string;
+  e: TestFbsEnum;
+}
+
+table NestedTestFbsTable {
+  t: SimpleTestFbsTable;
+}
+
+table OptionalRequiredTestFbsTable {
+  def_scalar: bool = true;
+  opt_scalar: bool = null;
+  req_str: string (required);
+  opt_str: string;
+}
+
+table VectorsTestFbsTable {
+  b: [bool];
+  i8: [byte];
+  i16: [short];
+  i32: [int];
+  i64: [long];
+  u8: [ubyte];
+  u16: [ushort];
+  u32: [uint];
+  u64: [ulong];
+  f: [float];
+  d: [double];
+  str: [string];
+  e: [TestFbsEnum];
+  t: [SimpleTestFbsTable];
+}
+
+root_type SimpleTestFbsTable;
