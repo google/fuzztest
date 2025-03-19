@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_TAG 20240116.0)
+set(absl_TAG 20250127.1)
 
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2024-02-01)
@@ -74,7 +74,9 @@ set(RE2_BUILD_TESTING OFF)
 FetchContent_MakeAvailable(re2)
 
 set(GTEST_HAS_ABSL ON)
-FetchContent_MakeAvailable(googletest)
+if( NOT TARGET gtest)
+  FetchContent_MakeAvailable(googletest)
+endif()
 
 FetchContent_MakeAvailable(antlr_cpp)
 

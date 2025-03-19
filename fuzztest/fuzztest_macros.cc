@@ -33,16 +33,17 @@ absl::StatusOr<std::string> ParseDictionaryEntry(absl::string_view entry) {
   // We unescape "\\", "\"", as well as each 2-digit hex codes (e.g. "\xab").
   std::string parsed_entry;
   int i = 0;
-  while (i < entry.size()) {
+  int entry_size = (int)entry.size();
+  while (i < entry_size) {
     if (entry[i] != '\\') {  // Handle unescaped character
       parsed_entry.push_back(entry[i]);
       ++i;
-    } else if (i + 1 < entry.size() &&
+    } else if (i + 1 < entry_size &&
                (entry[i + 1] == '\\' ||
                 entry[i + 1] == '"')) {  // Handle \\ and \"
       parsed_entry.push_back(entry[i + 1]);
       i += 2;
-    } else if (i + 3 < entry.size() &&
+    } else if (i + 3 < entry_sizes &&
                entry[i + 1] == 'x') {  // Handle \xHH escape sequence
       std::string unescaped_hex;
       std::string error;

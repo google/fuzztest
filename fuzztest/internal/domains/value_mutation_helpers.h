@@ -73,7 +73,7 @@ template <typename C, typename F>
 auto ChooseOneOr(const C& values, absl::BitGenRef prng, F f) {
   const int i =
       absl::Uniform<int>(absl::IntervalClosedClosed, prng, 0, values.size());
-  return i < values.size() ? values[i] : f();
+  return i < (int)values.size() ? values[i] : f();
 }
 
 template <typename T>
