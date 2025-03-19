@@ -277,7 +277,23 @@ TEST(VariantOf, WorksWithACustomVariantType) {
   EXPECT_THAT(v, AnyOf(VariantWith<int>(_), VariantWith<double>(_)));
 }
 
-TEST(Variantof, ValidationRejectsInvalidValue) {
+struct Alternative1 {};
+
+struct Alternative2 {
+  int64_t value;
+};
+
+TEST(VariantOf, WorksWithStructInnerDomain) {
+  auto domain = VariantOf(StructOf<Alternative1>(),
+                          StructOf<Alternative2>(Arbitrary<int64_t>()));
+  absl::BitGen bitgen;
+  absl::variant<Alternative1, Alternative2> v =
+      Value(domain, bitgen).user_value;
+  EXPECT_THAT(
+      v, AnyOf(VariantWith<Alternative1>(_), VariantWith<Alternative2>(_)));
+}
+
+TEST(VariantOf, ValidationRejectsInvalidValue) {
   absl::BitGen bitgen;
 
   auto domain_a = VariantOf(InRange(0, 9), InRange(0.4, 9.1));
