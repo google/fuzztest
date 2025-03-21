@@ -317,6 +317,7 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
   return remaining_crash_metadata;
 }
 
+// TODO(b/405382531): Add unit tests once the function is unit-testable.
 void DeduplicateAndStoreNewCrashes(
     const std::filesystem::path &crashing_dir, const WorkDir &workdir,
     size_t total_shards, absl::flat_hash_set<std::string> crash_metadata) {
@@ -338,7 +339,14 @@ void DeduplicateAndStoreNewCrashes(
       const std::string crash_metadata_file =
           crash_metadata_dir / crashing_input_file_name;
       std::string new_crash_metadata;
-      CHECK_OK(RemoteFileGetContents(crash_metadata_file, new_crash_metadata));
+      const absl::Status status =
+          RemoteFileGetContents(crash_metadata_file, new_crash_metadata);
+      if (!status.ok()) {
+        LOG(WARNING) << "Ignoring crashing input " << crashing_input_file_name
+                     << " due to failure to read the crash metadata file: "
+                     << status;
+        continue;
+      }
       const bool is_duplicate =
           !crash_metadata.insert(new_crash_metadata).second;
       if (is_duplicate) continue;
