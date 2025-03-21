@@ -15,6 +15,7 @@
 # FuzzTest: a coverage-guided fuzzing / property-based testing framework.
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@flatbuffers//:build_defs.bzl", "flatbuffer_library_public")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -330,6 +331,7 @@ cc_library(
     srcs = ["internal/domains/in_grammar_impl.cc"],
     hdrs = [
         "domain.h",
+        "internal/domains/flatbuffers_domain_impl.h",
         "internal/domains/in_grammar_impl.h",
         "internal/domains/in_regexp_impl.h",
         "internal/domains/protobuf_domain_impl.h",
@@ -345,6 +347,7 @@ cc_library(
         ":serialization",
         ":status",
         ":type_support",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -768,6 +771,28 @@ proto_library(
 cc_proto_library(
     name = "test_protobuf_cc_proto",
     deps = [":test_protobuf"],
+)
+
+flatbuffer_library_public(
+    name = "test_flatbuffers_fbs",
+    srcs = ["internal/test_flatbuffers.fbs"],
+    outs = [
+        "test_flatbuffers_bfbs_generated.h",
+        "test_flatbuffers_generated.h",
+    ],
+    flatc_args = [
+        "--bfbs-gen-embed",
+        "--gen-name-strings",
+    ],
+    language_flag = "-c",
+)
+
+cc_library(
+    name = "test_flatbuffers_cc_fbs",
+    srcs = [":test_flatbuffers_fbs"],
+    hdrs = [":test_flatbuffers_fbs"],
+    features = ["-parse_headers"],
+    deps = ["@flatbuffers//:runtime_cc"],
 )
 
 cc_library(
