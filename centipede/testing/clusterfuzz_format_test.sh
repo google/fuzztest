@@ -92,10 +92,10 @@ test_crashing_target "${uaf}" '.*ERROR: AddressSanitizer: heap-use-after-free'
 
 # This input triggers out-of-memory error.
 echo ======== Check OOM crash log format.
-test_crashing_target "${oom}" '========= RSS limit exceeded:'
+test_crashing_target "${oom}" '.*RSS limit exceeded'
 
 # This input triggers timeout.
 echo ======== Check timeout crash log format.
-test_crashing_target "${slo}" '========= Per-input timeout exceeded:'
+test_crashing_target "${slo}" '.*Per-input timeout exceeded'
 
 echo "PASS"

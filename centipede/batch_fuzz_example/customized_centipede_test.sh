@@ -61,11 +61,11 @@ centipede::test_replaying_target \
 export CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=1024:"
 echo -e "\n=== OOM test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
 centipede::test_replaying_target \
-  batch_fuzz 'RSS limit exceeded: [0-9][0-9]* > 1024' "oom"
+  batch_fuzz 'flag is set to 1024 (MB), but RSS limit exceeded' "oom"
 
 export CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=1:"
 echo -e "\n=== Timeout test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
 centipede::test_replaying_target \
-  batch_fuzz 'Per-input timeout exceeded: [0-9][0-9]* > 1' "slp"
+  batch_fuzz 'flag is set to 1 (sec), but Per-input timeout exceeded' "slp"
 
 echo "PASS"

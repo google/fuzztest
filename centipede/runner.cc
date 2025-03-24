@@ -47,6 +47,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/strings/string_view.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
@@ -241,32 +242,36 @@ static void CheckWatchdogLimits() {
     uint64_t value;
     uint64_t limit;
     const char *failure;
+    const char *flag_name;
   };
   const uint64_t input_start_time = state.input_start_time;
   const uint64_t batch_start_time = state.batch_start_time;
   if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
-      {Resource{
+      Resource{
           /*what =*/"Per-input timeout",
           /*units =*/"sec",
           /*value =*/curr_time - input_start_time,
           /*limit =*/state.run_time_flags.timeout_per_input,
           /*failure =*/kExecutionFailurePerInputTimeout.data(),
-      }},
-      {Resource{
+          /*flag_name =*/"fuzztest_per_input_time_limit",
+      },
+      Resource{
           /*what =*/"Per-batch timeout",
           /*units =*/"sec",
           /*value =*/curr_time - batch_start_time,
           /*limit =*/state.run_time_flags.timeout_per_batch,
           /*failure =*/kExecutionFailurePerBatchTimeout.data(),
-      }},
-      {Resource{
+          /*flag_name =*/"fuzztest_per_input_time_limit",
+      },
+      Resource{
           /*what =*/"RSS limit",
           /*units =*/"MB",
           /*value =*/GetPeakRSSMb(),
           /*limit =*/state.run_time_flags.rss_limit_mb,
           /*failure =*/kExecutionFailureRssLimitExceeded.data(),
-      }},
+          /*flag_name =*/"fuzztest_rss_limit_mb",
+      },
   };
   for (const auto &resource : resources) {
     if (resource.limit != 0 && resource.value > resource.limit) {
@@ -276,9 +281,12 @@ static void CheckWatchdogLimits() {
       static std::atomic<bool> already_handling_failure = false;
       if (!already_handling_failure.exchange(true)) {
         fprintf(stderr,
-                "========= %s exceeded: %" PRIu64 " > %" PRIu64
-                " (%s); exiting\n",
-                resource.what, resource.value, resource.limit, resource.units);
+                "=============================================================="
+                "===\n"
+                "=== BUG FOUND!\n The `--%s` flag is set to %" PRIu64
+                " (%s), but %s exceeded %" PRIu64 "; exiting\n",
+                resource.flag_name, resource.limit, resource.units,
+                resource.what, resource.value);
         WriteFailureDescription(resource.failure);
         pthread_mutex_lock(&state.runner_main_thread_mu);
         if (state.runner_main_thread.has_value()) {
