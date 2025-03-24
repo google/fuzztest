@@ -1054,7 +1054,9 @@ RUNNER_LINKOPTS = [
 
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
+    "@com_google_absl//absl/base:nullability",
     "@com_google_absl//absl/types:span",
+    "@com_google_absl//absl/strings:string_view",
     "@com_google_absl//absl/base:core_headers",
     "@com_google_absl//absl/numeric:bits",
 ]
@@ -1072,7 +1074,7 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
+    deps = RUNNER_DEPS,
 )
 
 # Same as :centipede_runner_no_main, except it can be sanitized to avoid false
@@ -1086,7 +1088,7 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
+    deps = RUNNER_DEPS,
 )
 
 # Same as :centipede_runner_no_main but as a DSO. Experimental.
@@ -1097,7 +1099,7 @@ cc_binary(
     linkopts = RUNNER_LINKOPTS,
     linkshared = 1,
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
+    deps = RUNNER_DEPS,
 )
 
 # A full self-contained library archive that external clients should link to
@@ -1111,7 +1113,7 @@ cc_library(
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS + ["@com_google_absl//absl/base:nullability"],
+    deps = RUNNER_DEPS,
 )
 
 # Utilities for seed corpus generation.
