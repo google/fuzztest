@@ -176,10 +176,37 @@ test_pcpair_features() {
   centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 }
 
+test_timeouts() {
+  FUNC="${FUNCNAME[0]}"
+  WD="${TEST_TMPDIR}/${FUNC}/WD"
+  CORPUS="${TEST_TMPDIR}/${FUNC}/corpus"
+  LOG="${TEST_TMPDIR}/${FUNC}/log"
+
+  centipede::ensure_empty_dir "${WD}"
+  centipede::ensure_empty_dir "${CORPUS}"
+  echo -n "slo" >"${CORPUS}"/input
+
+  echo "============ ${FUNC}: fuzz with --timeout_per_input"
+  test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --timeout_per_input=2 | tee "${LOG}"
+  centipede::assert_regex_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
+  centipede::assert_regex_in_file "end-fuzz:.*crash: 1" "${LOG}"
+
+  centipede::ensure_empty_dir "${WD}"
+  centipede::ensure_empty_dir "${CORPUS}"
+  echo -n "slo" >"${CORPUS}"/input
+
+  echo "============ ${FUNC}: fuzz with --timeout_per_input --ignore_timeout_reports"
+  test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --timeout_per_input=2 --ignore_timeout_reports | tee "${LOG}"
+  centipede::assert_regex_not_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
+  centipede::assert_regex_not_in_file "end-fuzz:.*crash: 1" "${LOG}"
+}
+
+
 centipede::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
 test_dictionary
 test_for_each_blob
 test_pcpair_features
+test_timeouts
 
 echo "PASS"

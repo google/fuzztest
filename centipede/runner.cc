@@ -240,6 +240,7 @@ static void CheckWatchdogLimits() {
     const char *units;
     uint64_t value;
     uint64_t limit;
+    bool ignore_report;
     const char *failure;
   };
   const uint64_t input_start_time = state.input_start_time;
@@ -247,25 +248,28 @@ static void CheckWatchdogLimits() {
   if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
       {Resource{
-          /*what =*/"Per-input timeout",
-          /*units =*/"sec",
-          /*value =*/curr_time - input_start_time,
-          /*limit =*/state.run_time_flags.timeout_per_input,
-          /*failure =*/kExecutionFailurePerInputTimeout.data(),
+          /*what=*/"Per-input timeout",
+          /*units=*/"sec",
+          /*value=*/curr_time - input_start_time,
+          /*limit=*/state.run_time_flags.timeout_per_input,
+          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
-          /*what =*/"Per-batch timeout",
-          /*units =*/"sec",
-          /*value =*/curr_time - batch_start_time,
-          /*limit =*/state.run_time_flags.timeout_per_batch,
-          /*failure =*/kExecutionFailurePerBatchTimeout.data(),
+          /*what=*/"Per-batch timeout",
+          /*units=*/"sec",
+          /*value=*/curr_time - batch_start_time,
+          /*limit=*/state.run_time_flags.timeout_per_batch,
+          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
       {Resource{
-          /*what =*/"RSS limit",
-          /*units =*/"MB",
-          /*value =*/GetPeakRSSMb(),
-          /*limit =*/state.run_time_flags.rss_limit_mb,
-          /*failure =*/kExecutionFailureRssLimitExceeded.data(),
+          /*what=*/"RSS limit",
+          /*units=*/"MB",
+          /*value=*/GetPeakRSSMb(),
+          /*limit=*/state.run_time_flags.rss_limit_mb,
+          /*ignore_report=*/false,
+          /*failure=*/kExecutionFailureRssLimitExceeded.data(),
       }},
   };
   for (const auto &resource : resources) {
@@ -275,6 +279,15 @@ static void CheckWatchdogLimits() {
       // `RunOneInput()` after all the work is done.
       static std::atomic<bool> already_handling_failure = false;
       if (!already_handling_failure.exchange(true)) {
+        if (resource.ignore_report) {
+          fprintf(stderr,
+                  "========= %s exceeded: %" PRIu64 " > %" PRIu64
+                  " (%s); exiting without reporting as an error\n",
+                  resource.what, resource.value, resource.limit,
+                  resource.units);
+          std::_Exit(0);
+          // should not return here.
+        }
         fprintf(stderr,
                 "========= %s exceeded: %" PRIu64 " > %" PRIu64
                 " (%s); exiting\n",

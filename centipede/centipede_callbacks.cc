@@ -131,6 +131,9 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
       absl::StrCat("crossover_level=", env_.crossover_level),
   };
+  if (env_.ignore_timeout_reports) {
+    flags.emplace_back("ignore_timeout_reports");
+  }
   if (!disable_coverage) {
     flags.emplace_back(absl::StrCat("path_level=", env_.path_level));
     if (env_.use_pc_features) flags.emplace_back("use_pc_features");

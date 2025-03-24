@@ -166,6 +166,9 @@ ABSL_FLAG(
                  "hangs (e.g., during stacktrace dumps). The default value is ",
                  Environment::Default().force_abort_timeout,
                  "; use 'inf' to disable."));
+ABSL_FLAG(bool, ignore_timeout_reports,
+          Environment::Default().ignore_timeout_reports,
+          "If set, will ignore reporting timeouts as errors.");
 ABSL_FLAG(absl::Time, stop_at, Environment::Default().stop_at,
           "Stop fuzzing in all shards (--total_shards) at approximately this "
           "time in ISO-8601/RFC-3339 format, e.g. 2023-04-06T23:35:02Z. "
@@ -472,6 +475,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*timeout_per_input=*/absl::GetFlag(FLAGS_timeout_per_input),
       /*timeout_per_batch=*/absl::GetFlag(FLAGS_timeout_per_batch),
       /*force_abort_timeout=*/absl::GetFlag(FLAGS_force_abort_timeout),
+      /*ignore_timeout_reports=*/absl::GetFlag(FLAGS_ignore_timeout_reports),
       /*stop_at=*/
       GetStopAtTime(absl::GetFlag(FLAGS_stop_at),
                     absl::GetFlag(FLAGS_stop_after)),
