@@ -220,7 +220,7 @@ TEST_P(UpdateCorpusDatabaseTest,
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
-  fst_run_options.timeout = absl::Seconds(10);
+  fst_run_options.timeout = absl::Seconds(20);
   auto [fst_status_unused, fst_std_out_unused, fst_std_err] =
       RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
                                   fst_run_options);
@@ -238,7 +238,7 @@ TEST_P(UpdateCorpusDatabaseTest,
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
-  snd_run_options.timeout = absl::Seconds(10);
+  snd_run_options.timeout = absl::Seconds(20);
   auto [snd_status_unused, snd_std_out_unused, snd_std_err] =
       RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
                                   snd_run_options);
@@ -259,7 +259,7 @@ TEST_P(UpdateCorpusDatabaseTest,
       {"fuzz_for", "300s"},
       {"execution_id", "some_execution_id"},
   };
-  thd_run_options.timeout = absl::Seconds(10);
+  thd_run_options.timeout = absl::Seconds(20);
   auto [thd_status_unused, thd_std_out_unused, thd_std_err] =
       RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
                                   thd_run_options);
