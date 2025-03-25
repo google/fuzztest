@@ -35,6 +35,7 @@
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/domains/aggregate_of_impl.h"
+#include "./fuzztest/internal/domains/bit_gen_ref.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
@@ -576,6 +577,18 @@ class ArbitraryImpl<absl::Time>
               return std::optional{std::tuple{time - absl::UnixEpoch()}};
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+// Arbitrary for absl::BitGenRef.
+template <>
+class ArbitraryImpl<absl::BitGenRef>
+    : public BitGenRefDomain<SequenceContainerOfImpl<std::vector<uint8_t>,
+                                                     ArbitraryImpl<uint8_t>>> {
+  using InnerContainer =
+      SequenceContainerOfImpl<std::vector<uint8_t>, ArbitraryImpl<uint8_t>>;
+
+ public:
+  ArbitraryImpl() : BitGenRefDomain(InnerContainer{}.WithMinSize(8)) {}
 };
 
 }  // namespace fuzztest::internal
