@@ -74,6 +74,8 @@ struct Configuration {
   bool replay_coverage_inputs = false;
   // If set, further steps are skipped after replaying.
   bool only_replay = false;
+  // If set, replay without spawning subprocesses.
+  bool replay_in_single_process = false;
   // If set, will be used when working on a corpus database to resume
   // the progress in case the execution got interrupted.
   std::optional<std::string> execution_id;

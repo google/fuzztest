@@ -135,6 +135,14 @@ struct Environment {
   // If set, deserializes the configuration from the value instead of querying
   // the configuration via runner callbacks.
   std::string fuzztest_configuration;
+  // The crash ID used for `replay_crash` or `export_crash`.
+  std::string crash_id;
+  // If set, replay `crash_id` in the corpus database.
+  bool replay_crash = false;
+  // If set, export the input contents of `crash_id` from the corpus database.
+  bool export_crash = false;
+  // The path to export the input contents of `crash_id` for `export_crash`.
+  std::string export_crash_file;
 
   // Command line-related fields -----------------------------------------------
 

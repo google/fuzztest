@@ -694,6 +694,70 @@ int UpdateCorpusDatabaseForFuzzTests(
   return EXIT_SUCCESS;
 }
 
+int ReplayCrash(const Environment &env,
+                const fuzztest::internal::Configuration &target_config,
+                CentipedeCallbacksFactory &callbacks_factory) {
+  CHECK(!env.crash_id.empty()) << "Need crash_id to be set for replay a crash";
+  CHECK(target_config.fuzz_tests_in_current_shard.size() == 1)
+      << "Expecting exactly one test for replay_crash";
+  // TODO: b/406003594 - move the path construction to a libarary.
+  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
+                         target_config.binary_identifier /
+                         target_config.fuzz_tests_in_current_shard[0] /
+                         "crashing";
+  const WorkDir workdir{env};
+  SeedCorpusSource crash_corpus_source;
+  crash_corpus_source.dir_glob = crash_dir;
+  crash_corpus_source.num_recent_dirs = 1;
+  crash_corpus_source.individual_input_rel_glob = env.crash_id;
+  crash_corpus_source.sampled_fraction_or_count = 1.0f;
+  const SeedCorpusConfig crash_corpus_config = {
+      /*sources=*/{crash_corpus_source},
+      /*destination=*/{
+          /*dir_path=*/env.workdir,
+          /*shard_rel_glob=*/
+          std::filesystem::path{workdir.CorpusFilePaths().AllShardsGlob()}
+              .filename(),
+          /*shard_index_digits=*/WorkDir::kDigitsInShardIndex,
+          /*num_shards=*/1}};
+  CHECK_OK(GenerateSeedCorpusFromConfig(crash_corpus_config, env.binary_name,
+                                        env.binary_hash));
+  Environment run_crash_env = env;
+  run_crash_env.load_shards_only = true;
+  return Fuzz(run_crash_env, {}, "", callbacks_factory);
+}
+
+int ExportCrash(const Environment &env,
+                const fuzztest::internal::Configuration &target_config) {
+  CHECK(!env.crash_id.empty())
+      << "Need crash_id to be set for exporting a crash";
+  CHECK(!env.export_crash_file.empty())
+      << "Need export_crash_file to be set for exporting a crash";
+  CHECK(target_config.fuzz_tests_in_current_shard.size() == 1)
+      << "Expecting exactly one test for exporting a crash";
+  // TODO: b/406003594 - move the path construction to a libarary.
+  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
+                         target_config.binary_identifier /
+                         target_config.fuzz_tests_in_current_shard[0] /
+                         "crashing";
+  std::string crash_contents;
+  const auto read_status =
+      RemoteFileGetContents((crash_dir / env.crash_id).c_str(), crash_contents);
+  if (!read_status.ok()) {
+    LOG(ERROR) << "Failed reading the crash " << env.crash_id << " from "
+               << crash_dir.c_str() << ": " << read_status;
+    return EXIT_FAILURE;
+  }
+  const auto write_status =
+      RemoteFileSetContents(env.export_crash_file, crash_contents);
+  if (!write_status.ok()) {
+    LOG(ERROR) << "Failed write the crash " << env.crash_id << " to "
+               << env.export_crash_file << ": " << write_status;
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
+}
+
 }  // namespace
 
 int CentipedeMain(const Environment &env,
@@ -755,6 +819,15 @@ int CentipedeMain(const Environment &env,
       CHECK_OK(target_config.status())
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
+        CHECK(!env.replay_crash || !env.export_crash)
+            << "replay_crash and export_crash cannot be both set";
+        if (env.replay_crash) {
+          return ReplayCrash(env, *target_config, callbacks_factory);
+        }
+        if (env.export_crash) {
+          return ExportCrash(env, *target_config);
+        }
+
         const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
         CHECK(target_config->only_replay ||
               time_limit_per_test < absl::InfiniteDuration())
