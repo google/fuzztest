@@ -694,6 +694,33 @@ int UpdateCorpusDatabaseForFuzzTests(
   return EXIT_SUCCESS;
 }
 
+int ListCrashIds(const Environment &env,
+                 const fuzztest::internal::Configuration &target_config) {
+  CHECK(!env.list_crash_ids_file.empty())
+      << "Need list_crash_ids_file to be set for listing crash IDs";
+  CHECK_EQ(target_config.fuzz_tests_in_current_shard.size(), 1);
+  std::vector<std::string> results;
+  std::vector<std::string> crash_path_strs;
+  // TODO: b/406003594 - move the path construction to a libarary.
+  const auto glob = std::filesystem::path(target_config.corpus_database) /
+                    target_config.binary_identifier /
+                    target_config.fuzz_tests_in_current_shard[0] / "crashing" /
+                    "*";
+  const absl::Status match_status =
+      RemoteGlobMatch(glob.string(), crash_path_strs);
+  CHECK(match_status.ok() || absl::IsNotFound(match_status));
+  for (const auto &crash_path_str : crash_path_strs) {
+    const std::filesystem::path crash_path = {crash_path_str};
+    const std::string crash_id = crash_path.filename();
+    const std::string test_name =
+        crash_path.parent_path().parent_path().filename();
+    results.push_back(crash_id);
+  }
+  CHECK_OK(RemoteFileSetContents(env.list_crash_ids_file,
+                                 absl::StrJoin(results, "\n")));
+  return EXIT_SUCCESS;
+}
+
 int ReplayCrash(const Environment &env,
                 const fuzztest::internal::Configuration &target_config,
                 CentipedeCallbacksFactory &callbacks_factory) {
@@ -819,8 +846,17 @@ int CentipedeMain(const Environment &env,
       CHECK_OK(target_config.status())
           << "Failed to deserialize target configuration";
       if (!target_config->corpus_database.empty()) {
-        CHECK(!env.replay_crash || !env.export_crash)
-            << "replay_crash and export_crash cannot be both set";
+        if (const int num_actions_set =
+                env.list_crash_ids + env.replay_crash + env.export_crash;
+            num_actions_set > 1) {
+          LOG(FATAL) << "At most one of "
+                        "list_crash_ids/replay_crash/export_crash can "
+                        "be set, but seeing "
+                     << num_actions_set;
+        }
+        if (env.list_crash_ids) {
+          return ListCrashIds(env, *target_config);
+        }
         if (env.replay_crash) {
           return ReplayCrash(env, *target_config, callbacks_factory);
         }
