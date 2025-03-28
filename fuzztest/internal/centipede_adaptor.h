@@ -37,6 +37,7 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
  private:
   bool Run(int* argc, char*** argv, RunMode mode,
            const Configuration& configuration);
+  bool ReplayCrashInSingleProcess(const Configuration& configuration);
 
   Runtime& runtime_ = Runtime::instance();
   const FuzzTest& test_;

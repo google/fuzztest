@@ -587,6 +587,37 @@ bool CentipedeFuzzerAdaptor::RunInFuzzingMode(
   return Run(argc, argv, RunMode::kFuzz, configuration);
 }
 
+bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
+    const Configuration& configuration) {
+  centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
+      factory;
+  TempDir crash_export_dir("fuzztest_crash");
+  auto export_crash_env = CreateCentipedeEnvironmentFromConfiguration(
+      configuration, /*workdir=*/"", test_.full_name(), runtime_.run_mode());
+  std::string crash_file =
+      (std::filesystem::path(crash_export_dir.path()) / "crash").string();
+  export_crash_env.export_crash_file = crash_file;
+  export_crash_env.replay_crash = false;
+  export_crash_env.export_crash = true;
+  if (centipede::CentipedeMain(export_crash_env, factory) != EXIT_SUCCESS) {
+    absl::FPrintF(
+        GetStderr(),
+        "[!] Encountered error when using Centipede to export the crash "
+        "input.");
+    return false;
+  }
+  CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
+                                                   &configuration);
+  static char replay_argv0[] = "replay_argv";
+  char* replay_argv[] = {replay_argv0, crash_file.data()};
+
+  fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
+  const int result =
+      centipede::RunnerMain(/*argc=*/2, replay_argv, runner_callbacks);
+  fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+  return result == 0;
+}
+
 // TODO(xinhaoyuan): Consider merging `mode` into `configuration`.
 bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
                                  const Configuration& configuration) {
@@ -617,6 +648,11 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     // TODO(b/393582695): Consider whether we need some kind of reporting
     // enabled in the controller mode to handle test setup failures.
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
+  }
+  if (!configuration.corpus_database.empty() &&
+      configuration.crashing_input_to_reproduce.has_value() &&
+      configuration.replay_in_single_process) {
+    return ReplayCrashInSingleProcess(configuration);
   }
   fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
   bool to_tear_down_fuzz_test = true;
@@ -658,31 +694,8 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
         configuration, workdir_path, test_.full_name(), mode);
     centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
         factory;
-    if (!configuration.corpus_database.empty()) {
-      if (!env.crash_id.empty() && configuration.replay_in_single_process) {
-        TempDir crash_fetch_dir("fuzztest_crash");
-        auto export_crash_env = env;
-        std::string crash_file =
-            (std::filesystem::path(crash_fetch_dir.path()) / "crash").string();
-        export_crash_env.export_crash_file = crash_file;
-        export_crash_env.replay_crash = false;
-        export_crash_env.export_crash = true;
-        if (centipede::CentipedeMain(export_crash_env, factory) !=
-            EXIT_SUCCESS) {
-          absl::FPrintF(
-              GetStderr(),
-              "[!] Encountered error when using Centipede to export the crash "
-              "input.");
-          return EXIT_FAILURE;
-        }
-        CentipedeAdaptorRunnerCallbacks runner_callbacks(
-            &runtime_, &fuzzer_impl_, &configuration);
-        static char replay_argv0[] = "replay_argv";
-        char* replay_argv[] = {replay_argv0, crash_file.data()};
-        return centipede::RunnerMain(/*argc=*/2, replay_argv, runner_callbacks);
-      }
-    } else if (const char* minimize_dir_chars =
-                   std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
+    if (const char* minimize_dir_chars =
+            std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
       const std::string minimize_dir = minimize_dir_chars;
       const char* corpus_out_dir_chars =
           std::getenv("FUZZTEST_TESTSUITE_OUT_DIR");
