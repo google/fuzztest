@@ -136,7 +136,7 @@ class RegexpDFA {
     std::vector<Edge> stack{Edge{from_state_id, 0}};
     do {
       auto [current_state_id, edge_index] = stack.back();
-      if (edge_index == states_[current_state_id].next.size()) {
+      if (edge_index == (int)states_[current_state_id].next.size()) {
         stack.pop_back();
         continue;
       }

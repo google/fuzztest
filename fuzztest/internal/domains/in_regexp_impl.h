@@ -167,11 +167,11 @@ class InRegexpImpl
   // state.
   bool ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path) {
     std::vector<std::vector<int>> state_appearances(dfa_.state_count());
-    for (int i = 0; i < path.size(); ++i) {
+    for (int i = 0; i < (int)path.size(); ++i) {
       state_appearances[path[i].from_state_id].push_back(i);
     }
     std::vector<int> states_with_loop;
-    for (int i = 0; i < dfa_.state_count(); ++i) {
+    for (int i = 0; i < (int)dfa_.state_count(); ++i) {
       if (state_appearances[i].size() > 1) states_with_loop.push_back(i);
     }
     if (!states_with_loop.empty()) {

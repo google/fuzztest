@@ -84,8 +84,8 @@ absl::StatusOr<std::string> RegexpDFA::DFAPathToString(
   std::string result;
   for (size_t i = start_offset; i < *end_offset; ++i) {
     auto& [from_state_id, edge_index] = path[i];
-    if (from_state_id >= states_.size() ||
-        edge_index >= states_[from_state_id].next.size()) {
+    if (from_state_id >= (int)states_.size() ||
+        edge_index >= (int)states_[from_state_id].next.size()) {
       return absl::InvalidArgumentError("Invalid DFA path.");
     }
     const std::vector<std::int16_t>& chars_to_match =
@@ -185,7 +185,7 @@ void RegexpDFA::BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp) {
     std::vector<int>& transition_vec = transition_table[i];
     State& state = states_[i];
 
-    for (int j = 0; j < transition_vec.size() - 1; ++j) {
+    for (int j = 0; j < (int)transition_vec.size() - 1; ++j) {
       // If `transition_vec[bytemap_idx] == state_id` at state `s`, it means
       // that given a character `c` whose bytemap index is `bytemap_idx`,
       // `s` will transition into state with id `state_id`. The bytemap index
@@ -222,7 +222,7 @@ void RegexpDFA::ComputeEdgeWeights() {
   // A graph to record the predecessor states for every state.
   std::vector<std::vector<bool>> is_predecessor(
       states_.size(), std::vector<bool>(states_.size(), false));
-  for (int i = 0; i < states_.size(); ++i) {
+  for (int i = 0; i < (int)states_.size(); ++i) {
     for (auto& transition : states_[i].next) {
       is_predecessor[transition.next_state_id][i] = true;
     }
@@ -233,18 +233,18 @@ void RegexpDFA::ComputeEdgeWeights() {
   std::queue<int> q;
   q.push(end_state_id_);
   do {
-    size_t n = q.size();
+    int n = (int)q.size();
     for (int i = 0; i < n; ++i) {
       int state_id = q.front();
       q.pop();
       if (is_safe_node[state_id]) continue;
-      for (int j = 0; j < states_.size(); ++j) {
+      for (int j = 0; j < (int)states_.size(); ++j) {
         if (is_predecessor[state_id][j]) q.push(j);
       }
       State& state = states_[state_id];
       std::vector<int> edge_to_safe_nodes;
       std::vector<int> edge_to_unsafe_nodes;
-      for (int j = 0; j < state.next.size(); ++j) {
+      for (int j = 0; j < (int)state.next.size(); ++j) {
         if (is_safe_node[state.next[j].next_state_id])
           edge_to_safe_nodes.push_back(j);
         else
@@ -285,7 +285,7 @@ void RegexpDFA::CompressStates() {
   std::vector<bool> is_dead_state(states_.size(), false);
 
   // Skip the start state as it should never be compressed.
-  for (size_t i = 1; i < states_.size(); ++i) {
+  for (int i = 1; i < (int)states_.size(); ++i) {
     State& state = states_[i];
     if (state.next.size() != 1) continue;
     const auto& [chars_to_match, next_state_id] = state.next[0];
@@ -309,7 +309,7 @@ void RegexpDFA::CompressStates() {
   absl::flat_hash_map<int, int> state_id_map;
   int live_state_num = 0;
 
-  for (int i = 0; i < states_.size(); ++i) {
+  for (int i = 0; i < (int)states_.size(); ++i) {
     if (is_dead_state[i]) continue;
     state_id_map[i] = live_state_num;
     if (states_[i].is_end_state()) end_state_id_ = live_state_num;

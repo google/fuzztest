@@ -92,14 +92,14 @@ class TableOfRecentCompares {
     // Some simple optimization.
     if (min == std::numeric_limits<ValueType>::min() &&
         max == std::numeric_limits<ValueType>::max()) {
-      for (int i = 0; i < kTableSize; ++i) {
+      for (int i = 0; i < (int)kTableSize; ++i) {
         auto dict_entry = GetMatchingIntegerDictionaryEntry(val, i);
         if (dict_entry.has_value()) {
           dictionary_set.insert(std::move(*dict_entry));
         }
       }
     } else {
-      for (int i = 0; i < kTableSize; ++i) {
+      for (int i = 0; i < (int)kTableSize; ++i) {
         auto dict_entry = GetMatchingIntegerDictionaryEntry(val, i, min, max);
         if (dict_entry.has_value()) {
           dictionary_set.insert(std::move(*dict_entry));
