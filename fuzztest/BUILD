@@ -371,6 +371,7 @@ cc_library(
         "internal/domains/aggregate_of_impl.h",
         "internal/domains/arbitrary_impl.h",
         "internal/domains/bit_flag_combination_of_impl.h",
+        "internal/domains/bit_gen_ref.h",
         "internal/domains/container_mutation_helpers.h",
         "internal/domains/container_of_impl.h",
         "internal/domains/domain.h",
@@ -396,6 +397,7 @@ cc_library(
     deps = [
         ":absl_helpers",
         ":any",
+        ":fuzzing_bit_gen",
         ":logging",
         ":meta",
         ":printer",
@@ -407,6 +409,8 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/random",
@@ -456,6 +460,21 @@ cc_test(
 cc_library(
     name = "flag_name",
     hdrs = ["internal/flag_name.h"],
+)
+
+cc_library(
+    name = "fuzzing_bit_gen",
+    srcs = ["internal/fuzzing_bit_gen.cc"],
+    hdrs = ["internal/fuzzing_bit_gen.h"],
+    deps = [
+        ":register_fuzzing_mocks",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/debugging:leak_check",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/types:span",
+    ],
 )
 
 cc_library(
@@ -565,6 +584,19 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
         "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+cc_library(
+    name = "register_fuzzing_mocks",
+    srcs = ["internal/register_fuzzing_mocks.cc"],
+    hdrs = ["internal/register_fuzzing_mocks.h"],
+    deps = [
+        "@com_google_absl//absl/base:fast_type_id",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
