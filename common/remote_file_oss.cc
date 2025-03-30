@@ -374,7 +374,7 @@ absl::Status RemoteGlobMatch(std::string_view glob,
     return absl::UnknownError(absl::StrCat(
         "glob() failed, pattern: ", std::string(glob), ", returned: ", ret));
   }
-  for (int i = 0; i < glob_ret.gl_pathc; ++i) {
+  for (size_t i = 0; i < glob_ret.gl_pathc; ++i) {
     matches.emplace_back(glob_ret.gl_pathv[i]);
   }
   ::globfree(&glob_ret);

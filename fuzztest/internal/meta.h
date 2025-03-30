@@ -28,6 +28,7 @@
 
 #include "absl/numeric/int128.h"
 
+#define UNUSED(expr) do { (void)(expr); } while (0)
 namespace google::protobuf {
 template <typename T>
 struct is_proto_enum;
@@ -708,6 +709,7 @@ constexpr std::optional<int> DetectBindableFieldCount() {
   constexpr auto no_base = [](auto... I) {
     return std::is_invocable_v<decltype(no_base_impl), decltype(I)...>;
   };
+  UNUSED(no_base);
 
   if constexpr (brace_init_count < 1) {
     return brace_init_count_opt;
@@ -722,6 +724,7 @@ constexpr std::optional<int> DetectBindableFieldCount() {
   constexpr auto no_two_bases = [](auto... I) {
     return std::is_invocable_v<decltype(no_two_bases_impl), decltype(I)...>;
   };
+  UNUSED(no_two_bases);
 
   // Check for multiple inheritance. This condition also triggers if we have a
   // struct whose first field is its base class. The latter case should be
