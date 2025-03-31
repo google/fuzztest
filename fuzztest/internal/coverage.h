@@ -41,6 +41,12 @@
 #include <pthread.h>
 #endif
 
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_frame_address)
+#define FUZZTEST_INTERNAL_HAS_BUILTIN_FRAME_ADDRESS 1
+#endif
+#endif
+
 namespace fuzztest::internal {
 
 // Stack information for a thread under test.
@@ -106,7 +112,7 @@ class ExecutionCoverage {
   }
 
   static char* GetCurrentStackFrame() {
-#if defined(__has_builtin) && __has_builtin(__builtin_frame_address)
+#if defined(FUZZTEST_INTERNAL_HAS_BUILTIN_FRAME_ADDRESS)
     return reinterpret_cast<char*>(__builtin_frame_address(0));
 #else
     return nullptr;
