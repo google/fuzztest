@@ -19,6 +19,7 @@
 #define FUZZTEST_FUZZTEST_DOMAIN_H_
 
 #include "./fuzztest/domain_core.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/flatbuffers_domain_impl.h"  // IWYU pragma: export
 #include "./fuzztest/internal/domains/in_regexp_impl.h"
 #include "./fuzztest/internal/domains/protobuf_domain_impl.h"
 
