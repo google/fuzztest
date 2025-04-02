@@ -19,6 +19,30 @@ fuzztest_cc_test(
     GTest::gmock_main
 )
 
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  fuzztest_cc_test(
+    NAME
+      arbitrary_domains_flatbuffers_test
+    SRCS
+      "arbitrary_domains_flatbuffers_test.cc"
+    DEPS
+      absl::flat_hash_set
+      absl::random_bit_gen_ref
+      absl::random_random
+      absl::strings
+      flatbuffers
+      fuzztest::flatbuffers
+      fuzztest::domain
+      fuzztest::domain_testing
+      fuzztest::flatbuffers
+      GTest::gmock_main
+      test_flatbuffers
+  )
+  add_dependencies(fuzztest_arbitrary_domains_flatbuffers_test
+    GENERATE_test_flatbuffers
+  )
+endif()
+
 fuzztest_cc_test(
   NAME
     arbitrary_domains_protobuf_test

@@ -1,0 +1,140 @@
+namespace fuzztest.internal;
+
+enum Enum: byte {
+  First,
+  Second,
+  Third
+}
+
+struct BoolStruct {
+  b: bool;
+}
+
+struct DefaultStruct {
+  b: bool;
+  i8: byte;
+  i16: short;
+  i32: int;
+  i64: long;
+  u8: ubyte;
+  u16: ushort;
+  u32: uint;
+  u64: ulong;
+  f: float;
+  d: double;
+  e: Enum;
+  s: BoolStruct;
+}
+
+table BoolTable {
+  b: bool;
+}
+
+table StringTable {
+  str: string;
+}
+
+union Union {
+  BoolTable,
+  StringTable,
+  BoolStruct,
+}
+
+table UnionTable {
+  u: Union;
+}
+
+table DefaultTable {
+  b: bool;
+  i8: byte;
+  i16: short;
+  i32: int;
+  i64: long;
+  u8: ubyte;
+  u16: ushort;
+  u32: uint;
+  u64: ulong;
+  f: float;
+  d: double;
+  str: string;
+  e: Enum;
+  t: BoolTable;
+  u: Union;
+  s: DefaultStruct;
+  v_b: [bool];
+  v_i8: [byte];
+  v_i16: [short];
+  v_i32: [int];
+  v_i64: [long];
+  v_u8: [ubyte];
+  v_u16: [ushort];
+  v_u32: [uint];
+  v_u64: [ulong];
+  v_f: [float];
+  v_d: [double];
+  v_str: [string];
+  v_e: [Enum];
+  v_t: [BoolTable];
+  v_u: [Union];
+  v_s: [DefaultStruct];
+}
+
+table OptionalTable {
+  b: bool = null;
+  i8: byte = null;
+  i16: short = null;
+  i32: int = null;
+  i64: long = null;
+  u8: ubyte = null;
+  u16: ushort = null;
+  u32: uint = null;
+  u64: ulong = null;
+  f: float = null;
+  d: double = null;
+  str: string;
+  e: Enum = null;
+  t: BoolTable;
+  u: Union;
+  s: DefaultStruct;
+  v_b: [bool];
+  v_i8: [byte];
+  v_i16: [short];
+  v_i32: [int];
+  v_i64: [long];
+  v_u8: [ubyte];
+  v_u16: [ushort];
+  v_u32: [uint];
+  v_u64: [ulong];
+  v_f: [float];
+  v_d: [double];
+  v_str: [string];
+  v_e: [Enum];
+  v_t: [BoolTable];
+  v_u: [Union];
+  v_s: [DefaultStruct];
+}
+
+table RequiredTable {
+  str: string (required);
+  t: BoolTable (required);
+  u: Union (required);
+  s: DefaultStruct (required);
+  v_b: [bool] (required);
+  v_i8: [byte] (required);
+  v_i16: [short] (required);
+  v_i32: [int] (required);
+  v_i64: [long] (required);
+  v_u8: [ubyte] (required);
+  v_u16: [ushort] (required);
+  v_u32: [uint] (required);
+  v_u64: [ulong] (required);
+  v_f: [float] (required);
+  v_d: [double] (required);
+  v_str: [string] (required);
+  v_e: [Enum] (required);
+  v_t: [BoolTable] (required);
+  v_u: [Union] (required);
+  v_s: [DefaultStruct] (required);
+}
+
+root_type DefaultTable;
