@@ -34,6 +34,19 @@ cc_test(
 )
 
 cc_test(
+    name = "arbitrary_domains_flatbuffers_test",
+    srcs = ["arbitrary_domains_flatbuffers_test.cc"],
+    deps = [
+        ":domain_testing",
+        "@com_google_absl//absl/random",
+        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:test_flatbuffers_cc_fbs",
+        "@com_google_googletest//:gtest_main",
+        "@flatbuffers//:runtime_cc",
+    ],
+)
+
+cc_test(
     name = "arbitrary_domains_protobuf_test",
     srcs = ["arbitrary_domains_protobuf_test.cc"],
     deps = [
