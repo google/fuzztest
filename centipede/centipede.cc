@@ -696,15 +696,26 @@ void Centipede::LoadSeedInputs(absl::Nonnull<BlobFileWriter *> corpus_file,
   if (num_seeds_available > env_.batch_size) {
     LOG(WARNING) << "More seeds available than requested: "
                  << num_seeds_available << " > " << env_.batch_size;
+    if (env_.require_seed_corpus) {
+      QCHECK(false) << "More seeds available than requested ("
+                    << num_seeds_available << " > " << env_.batch_size
+                    << ") and --require_seed_corpus=true, exiting early.";
+    }
   }
   if (seed_inputs.empty()) {
     LOG(WARNING)
         << "No seeds returned - will use the default seed of single byte {0}";
     seed_inputs.push_back({0});
+    if (env_.require_seed_corpus) {
+      QCHECK(false)
+          << "No seeds returned and --require_seed_corpus=true, exiting early.";
+    }
   }
 
   RunBatch(seed_inputs, corpus_file, features_file,
            /*unconditional_features_file=*/nullptr);
+  LOG(INFO) << "Number of input seeds available: " << num_seeds_available
+            << ", number included in corpus: " << corpus_.NumTotal();
 
   // Forcely add all seed inputs to avoid empty corpus if none of them increased
   // coverage and passed the filters.
