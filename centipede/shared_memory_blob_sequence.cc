@@ -29,7 +29,7 @@
 namespace centipede {
 
 // TODO(ussuri): Refactor `char *` into a `string_view`.
-static void ErrorOnFailure(bool condition, absl::Nonnull<const char *> text) {
+static void ErrorOnFailure(bool condition, const char *absl_nonnull text) {
   if (!condition) return;
   std::perror(text);
   abort();

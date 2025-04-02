@@ -575,25 +575,24 @@ class StatsCsvFileAppender : public StatsReporter {
   // pointer to `nullptr`.
   class BufferedRemoteFilePtr {
    public:
-    BufferedRemoteFilePtr(absl::Nullable<BufferedRemoteFile *> file)
+    BufferedRemoteFilePtr(BufferedRemoteFile *absl_nullable file)
         : file_(file) {}
     BufferedRemoteFilePtr(BufferedRemoteFilePtr &&other) noexcept
         : file_(std::exchange(other.file_, nullptr)) {}
-    BufferedRemoteFilePtr &operator=(
-        absl::Nullable<BufferedRemoteFile *> file) {
+    BufferedRemoteFilePtr &operator=(BufferedRemoteFile *absl_nullable file) {
       file_ = file;
       return *this;
     }
-    bool operator==(absl::Nullable<BufferedRemoteFile *> file) const {
+    bool operator==(BufferedRemoteFile *absl_nullable file) const {
       return file_ == file;
     }
-    bool operator!=(absl::Nullable<BufferedRemoteFile *> file) const {
+    bool operator!=(BufferedRemoteFile *absl_nullable file) const {
       return file_ != file;
     }
-    absl::Nullable<BufferedRemoteFile *> operator->() const { return file_; }
+    BufferedRemoteFile *absl_nullable operator->() const { return file_; }
 
    private:
-    absl::Nullable<BufferedRemoteFile *> file_ = nullptr;
+    BufferedRemoteFile *absl_nullable file_ = nullptr;
   };
 
   using BufferedRemoteFilesMap =

@@ -107,7 +107,7 @@ std::filesystem::path MaybeSaveConfigToFile(
 // - Returns the runtime state that the caller should take ownership of and
 //    keep alive the duration of the process.
 [[nodiscard]] std::unique_ptr<RuntimeState> InitCentipede(
-    int argc, absl::Nonnull<char**> argv);
+    int argc, char** absl_nonnull argv);
 
 }  // namespace centipede::config
 

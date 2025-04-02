@@ -134,7 +134,7 @@ void Convert(               //
 }  // namespace
 }  // namespace centipede
 
-int main(int argc, absl::Nonnull<char**> argv) {
+int main(int argc, char** absl_nonnull argv) {
   (void)centipede::config::InitRuntime(argc, argv);
 
   const std::string in = absl::GetFlag(FLAGS_in);

@@ -231,7 +231,7 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
 }
 
 std::string UnpackFeaturesAndHash(ByteSpan blob,
-                                  absl::Nonnull<FeatureVec *> features) {
+                                  FeatureVec *absl_nonnull features) {
   size_t features_len_in_bytes = blob.size() - kHashLen;
   features->resize(features_len_in_bytes / sizeof(feature_t));
   memcpy(features->data(), blob.data(), features_len_in_bytes);

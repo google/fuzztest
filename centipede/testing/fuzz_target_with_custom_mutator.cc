@@ -48,7 +48,7 @@ class CustomMutatorRunnerCallbacks : public centipede::RunnerCallbacks {
   }
 };
 
-int main(int argc, absl::Nonnull<char**> argv) {
+int main(int argc, char** absl_nonnull argv) {
   absl::ParseCommandLine(argc, argv);
   if (absl::GetFlag(FLAGS_simulate_failure)) {
     return EXIT_FAILURE;

@@ -38,7 +38,7 @@ class SeededRunnerCallbacks : public centipede::RunnerCallbacks {
   bool HasCustomMutator() const override { return false; }
 };
 
-int main(int argc, absl::Nonnull<char **> argv) {
+int main(int argc, char** absl_nonnull argv) {
   SeededRunnerCallbacks runner_callbacks;
   return centipede::RunnerMain(argc, argv, runner_callbacks);
 }

@@ -43,8 +43,8 @@ using FuzzerCustomCrossOverCallback = size_t (*)(
 // https://llvm.org/docs/LibFuzzer.html.
 extern "C" {
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
-__attribute__((weak)) int LLVMFuzzerInitialize(absl::Nonnull<int *> argc,
-                                               absl::Nonnull<char ***> argv);
+__attribute__((weak)) int LLVMFuzzerInitialize(int *absl_nonnull argc,
+                                               char ***absl_nonnull argv);
 __attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t *data, size_t size,
                                                      size_t max_size,
                                                      unsigned int seed);
@@ -55,7 +55,7 @@ __attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
 
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 extern "C" int LLVMFuzzerRunDriver(
-    absl::Nonnull<int *> argc, absl::Nonnull<char ***> argv,
+    int *absl_nonnull argc, char ***absl_nonnull argv,
     FuzzerTestOneInputCallback test_one_input_cb);
 
 // This interface can be used to detect presence of Centipede in the binary.
@@ -81,7 +81,7 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input);
 //
 // It should return either a nullptr or a constant string that is valid
 // throughout the entire process life-time.
-extern "C" absl::Nullable<const char *> CentipedeGetRunnerFlags();
+extern "C" const char *absl_nullable CentipedeGetRunnerFlags();
 
 // An overridable function to override `LLVMFuzzerMutate` behavior.
 extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size,
