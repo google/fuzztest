@@ -36,6 +36,12 @@ std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard() const {
   return result;
 }
 
+#ifdef FUZZTEST_USE_CENTIPEDE
+// Defined in centipede_adaptor.cc
+std::vector<std::string> ListCrashIds(const Configuration& configuration,
+                                      absl::string_view test_name);
+#endif
+
 namespace {
 template <typename T>
 void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
@@ -57,9 +63,15 @@ template <typename T>
 void RegisterSeparateRegressionTestForEachCrashingInput(
     int* argc, char*** argv, FuzzTest& test,
     const Configuration& configuration) {
+  if (!configuration.reproduce_findings_as_separate_tests) return;
+#ifdef FUZZTEST_USE_CENTIPEDE
+  const auto crash_inputs = ListCrashIds(configuration, test.full_name());
+#else
   CorpusDatabase corpus_database(configuration);
-  for (const std::string& input :
-       corpus_database.GetCrashingInputsIfAny(test.full_name())) {
+  const auto crash_inputs =
+      corpus_database.GetCrashingInputsIfAny(test.full_name());
+#endif
+  for (const std::string& input : crash_inputs) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
     const std::string suffix =
