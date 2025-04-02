@@ -437,12 +437,7 @@ void Runtime::CheckWatchdogLimits() {
         absl::FormatDuration(current_configuration_->time_limit_per_input));
     watchdog_limit_exceeded_ = true;
     watchdog_spinlock_.Unlock();
-#if defined(__linux__) || defined(__APPLE__)
-    pthread_kill(reporting_thread_, SIGABRT);
-    return;
-#else
     std::abort();
-#endif
   }
   const size_t rss_usage = GetPeakRSSBytes();
   if (current_configuration_->rss_limit > 0 &&
@@ -452,12 +447,7 @@ void Runtime::CheckWatchdogLimits() {
                   rss_usage, current_configuration_->rss_limit);
     watchdog_limit_exceeded_ = true;
     watchdog_spinlock_.Unlock();
-#if defined(__linux__) || defined(__APPLE__)
-    pthread_kill(reporting_thread_, SIGABRT);
-    return;
-#else
     std::abort();
-#endif
   }
   watchdog_spinlock_.Unlock();
 #endif  // FUZZTEST_USE_CENTIPEDE

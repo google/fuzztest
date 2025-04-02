@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
@@ -111,21 +110,10 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
 
 std::string CentipedeCallbacks::ConstructRunnerFlags(
     std::string_view extra_flags, bool disable_coverage) {
-  int64_t force_abort_timeout = 0;
-  if (env_.force_abort_timeout == absl::InfiniteDuration() ||
-      env_.force_abort_timeout <= absl::ZeroDuration()) {
-    LOG(INFO) << "Centipede's force abort feature is disabled because force "
-                 "abort timeout is set to "
-              << env_.force_abort_timeout << ".";
-    force_abort_timeout = 0;
-  } else {
-    force_abort_timeout = absl::ToInt64Seconds(env_.force_abort_timeout);
-  }
   std::vector<std::string> flags = {
       "CENTIPEDE_RUNNER_FLAGS=",
       absl::StrCat("timeout_per_input=", env_.timeout_per_input),
       absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
-      absl::StrCat("force_abort_timeout=", force_abort_timeout),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),

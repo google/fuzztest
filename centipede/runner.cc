@@ -23,7 +23,6 @@
 #include "./centipede/runner.h"
 
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
-#include <signal.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -40,7 +39,6 @@
 #include <ctime>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -211,28 +209,6 @@ static uint64_t TimeInUsec() {
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
 }
 
-static void CheckForceAbortTimeout() {
-  // No timeout is set, ignore.
-  if (state.run_time_flags.force_abort_timeout == 0) return;
-  // Watchdog did not invoke abort yet, ignore.
-  if (state.force_abort_deadline == 0) return;
-  // The runner is still running unexpectedly long after we started aborting.
-  if (time(nullptr) > state.force_abort_deadline) {
-    fprintf(stderr,
-            "========= Force Abort timer exceeded; "
-            "the program is still running after %" PRIu64
-            " seconds after raising SIGABRT. Forcefully aborting the runner in "
-            "the watchdog thread.\n",
-            state.run_time_flags.force_abort_timeout);
-    // std::_Exit() is preferred over std::abort() and std::exit().
-    // std::abort() would raise a SIGABRT and trigger the same crash handler
-    // that is currently stuck; std::exit() would trigger the onexit handlers,
-    // which may or may not be problematic. To be safe, we use _exit() to bypass
-    // these failure handlers and terminate the process immediately.
-    std::_Exit(EXIT_FAILURE);
-  }
-}
-
 static void CheckWatchdogLimits() {
   const uint64_t curr_time = time(nullptr);
   struct Resource {
@@ -293,19 +269,7 @@ static void CheckWatchdogLimits() {
                 " (%s); exiting\n",
                 resource.what, resource.value, resource.limit, resource.units);
         WriteFailureDescription(resource.failure);
-        pthread_mutex_lock(&state.runner_main_thread_mu);
-        if (state.runner_main_thread.has_value()) {
-          fprintf(stderr, "Sending SIGABRT to the runner main thread.\n");
-          state.force_abort_deadline =
-              time(nullptr) + state.run_time_flags.force_abort_timeout;
-          pthread_kill(*state.runner_main_thread, SIGABRT);
-          pthread_mutex_unlock(&state.runner_main_thread_mu);
-          return;
-        } else {
-          pthread_mutex_unlock(&state.runner_main_thread_mu);
-          fprintf(stderr, "Aborting the runner in the watchdog thread.\n");
-          std::abort();
-        }
+        std::abort();
       }
     }
   }
@@ -318,7 +282,6 @@ static void CheckWatchdogLimits() {
   state.watchdog_thread_started = true;
   while (true) {
     sleep(1);
-    CheckForceAbortTimeout();
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
     if (state.input_start_time == 0) continue;
@@ -360,12 +323,10 @@ void GlobalRunnerState::CleanUpDetachedTls() {
 void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
-          " sec; timeout_per_batch: %" PRIu64
-          " sec; force_abort_timeout: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
+          " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
           " MB; stack_limit_kb: %" PRIu64 " KB\n",
           state.run_time_flags.timeout_per_input.load(),
           state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.force_abort_timeout,
           state.run_time_flags.rss_limit_mb.load(),
           state.run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
@@ -1182,17 +1143,6 @@ GlobalRunnerState::~GlobalRunnerState() {
 //
 //  Note: argc/argv are used for only ReadOneInputExecuteItAndDumpCoverage().
 int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
-  {
-    LockGuard lock(state.runner_main_thread_mu);
-    state.runner_main_thread = pthread_self();
-  }
-  struct OnReturn {
-    ~OnReturn() {
-      LockGuard lock(state.runner_main_thread_mu);
-      state.runner_main_thread = std::nullopt;
-    }
-  } on_return;
-
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",

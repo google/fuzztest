@@ -15,10 +15,6 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 
-#if defined(__linux__) || defined(__APPLE__)
-#include <pthread.h>
-#endif
-
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -171,11 +167,6 @@ class Runtime {
     reporter_enabled_ = true;
     stats_ = stats;
     clock_fn_ = clock_fn;
-#if defined(__linux__) || defined(__APPLE__)
-    // Set this just in case that the function is called in a thread other than
-    // the one that created the runtime.
-    reporting_thread_ = pthread_self();
-#endif
     // In case we have not installed them yet, do so now.
     InstallSignalHandlers(GetStderr());
     ResetCrashType();
@@ -224,8 +215,7 @@ class Runtime {
  private:
   Runtime();
 
-  // Checks time and memory limits. If any limit is exceeded, sends SIGABRT to
-  // the runtime thread.
+  // Checks time and memory limits. Aborts the process if any limit is exceeded.
   void CheckWatchdogLimits();
 
   // Returns the file path of the reproducer.
@@ -286,11 +276,6 @@ class Runtime {
   absl::Time current_iteration_start_time_ ABSL_GUARDED_BY(watchdog_spinlock_);
   bool test_iteration_started_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
   bool watchdog_limit_exceeded_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
-
-#if defined(__linux__) || defined(__APPLE__)
-  // The thread to which the watchdog sends SIGABRT.
-  pthread_t reporting_thread_ = pthread_self();
-#endif
 
   // A registry of crash metadata listeners.
   std::vector<CrashMetadataListener> crash_metadata_listeners_;

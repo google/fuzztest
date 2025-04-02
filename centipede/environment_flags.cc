@@ -24,7 +24,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -158,14 +157,6 @@ ABSL_FLAG(size_t, timeout_per_batch, Environment::Default().timeout_per_batch,
           "finish within --timeout_per_batch seconds. The default is computed "
           "as a function of --timeout_per_input * --batch_size. Support may "
           "vary depending on the runner.");
-ABSL_FLAG(
-    absl::Duration, force_abort_timeout,
-    Environment::Default().force_abort_timeout,
-    absl::StrCat("The timeout to forcefully exit the test binary if it is "
-                 "still running after a SIGABRT. This is useful to prevent "
-                 "hangs (e.g., during stacktrace dumps). The default value is ",
-                 Environment::Default().force_abort_timeout,
-                 "; use 'inf' to disable."));
 ABSL_FLAG(bool, ignore_timeout_reports,
           Environment::Default().ignore_timeout_reports,
           "If set, will ignore reporting timeouts as errors.");
@@ -474,7 +465,6 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*stack_limit_kb=*/absl::GetFlag(FLAGS_stack_limit_kb),
       /*timeout_per_input=*/absl::GetFlag(FLAGS_timeout_per_input),
       /*timeout_per_batch=*/absl::GetFlag(FLAGS_timeout_per_batch),
-      /*force_abort_timeout=*/absl::GetFlag(FLAGS_force_abort_timeout),
       /*ignore_timeout_reports=*/absl::GetFlag(FLAGS_ignore_timeout_reports),
       /*stop_at=*/
       GetStopAtTime(absl::GetFlag(FLAGS_stop_at),

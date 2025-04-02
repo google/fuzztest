@@ -67,7 +67,6 @@ struct Environment {
   size_t stack_limit_kb = 0;
   size_t timeout_per_input = 60;
   size_t timeout_per_batch = 0;
-  absl::Duration force_abort_timeout = absl::Minutes(15);
   bool ignore_timeout_reports = false;
   absl::Time stop_at = absl::InfiniteFuture();
   bool fork_server = true;

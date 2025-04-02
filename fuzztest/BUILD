@@ -605,11 +605,6 @@ cc_library(
     name = "runtime",
     srcs = ["internal/runtime.cc"],
     hdrs = ["internal/runtime.h"],
-    linkopts = select({
-        "@platforms//os:linux": ["-lpthread"],
-        "@platforms//os:macos": ["-lpthread"],
-        "//conditions:default": [],
-    }),
     deps = [
         ":configuration",
         ":corpus_database",

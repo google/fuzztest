@@ -592,8 +592,6 @@ fuzztest_cc_library(
     absl::str_format
     absl::time
     absl::span
-  LINKOPTS
-    pthread
 )
 
 fuzztest_cc_test(
