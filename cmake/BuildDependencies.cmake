@@ -19,7 +19,7 @@ set(proto_URL https://github.com/protocolbuffers/protobuf.git)
 set(proto_TAG v28.2)
 
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
-set(nlohmann_json_TAG v3.11.2)
+set(nlohmann_json_TAG v3.11.3)
 
 if(POLICY CMP0135)
 	cmake_policy(SET CMP0135 NEW)
