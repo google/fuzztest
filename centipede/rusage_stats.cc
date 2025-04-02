@@ -135,7 +135,7 @@ const ProcessTimer global_process_timer;
 //------------------------------------------------------------------------------
 
 bool ReadProcFileFields(const std::string& path,
-                        absl::Nonnull<const char*> format, ...) {
+                        const char* absl_nonnull format, ...) {
   bool success = false;
   va_list value_list;
   va_start(value_list, format);

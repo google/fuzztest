@@ -136,7 +136,7 @@ class CentipedeMock : public CentipedeCallbacks {
 class MockFactory : public CentipedeCallbacksFactory {
  public:
   explicit MockFactory(CentipedeCallbacks &cb) : cb_(cb) {}
-  absl::Nonnull<CentipedeCallbacks *> create(const Environment &env) override {
+  CentipedeCallbacks *absl_nonnull create(const Environment &env) override {
     return &cb_;
   }
   void destroy(CentipedeCallbacks *cb) override { EXPECT_EQ(cb, &cb_); }

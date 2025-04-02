@@ -25,7 +25,7 @@
 
 // Separate no-inline function so that the compiler doesn't know
 // the size of `data`. Crashes when the input starts with 'fuz'.
-__attribute__((noinline)) static void FuzzMe(absl::Nonnull<const uint8_t*> data,
+__attribute__((noinline)) static void FuzzMe(const uint8_t* absl_nonnull data,
                                              size_t size) {
   if (size >= 3 && data[0] == 'f' && data[1] == 'u' && data[2] == 'z')
     __builtin_trap();

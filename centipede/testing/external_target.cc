@@ -99,7 +99,7 @@ class ExternalTargetRunnerCallbacks : public centipede::RunnerCallbacks {
 
 }  // namespace
 
-int main(int argc, absl::Nonnull<char**> argv) {
+int main(int argc, char** absl_nonnull argv) {
   ExternalTargetRunnerCallbacks runner_callbacks;
   return centipede::RunnerMain(argc, argv, runner_callbacks);
 }

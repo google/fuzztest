@@ -164,7 +164,7 @@ void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
 // When called from the same DSO, the arguments will always be the same.
 // If a different DSO calls this function, it will have different arguments.
 // We currently do not support more than one sancov-instrumented DSO.
-void __sanitizer_cov_pcs_init(absl::Nonnull<const PCInfo *> beg,
+void __sanitizer_cov_pcs_init(const PCInfo *absl_nonnull beg,
                               const PCInfo *end) {
   state.sancov_objects.PCInfoInit(beg, end);
 }
@@ -292,7 +292,7 @@ void __sanitizer_cov_trace_pc() {
 }
 
 // This function is called at the DSO init time.
-void __sanitizer_cov_trace_pc_guard_init(absl::Nonnull<PCGuard *> start,
+void __sanitizer_cov_trace_pc_guard_init(PCGuard *absl_nonnull start,
                                          PCGuard *stop) {
   state.sancov_objects.PCGuardInit(start, stop);
   UpdatePcCounterSetSizeAligned(state.sancov_objects.NumInstrumentedPCs());
@@ -300,7 +300,7 @@ void __sanitizer_cov_trace_pc_guard_init(absl::Nonnull<PCGuard *> start,
 
 // This function is called on every instrumented edge.
 NO_SANITIZE
-void __sanitizer_cov_trace_pc_guard(absl::Nonnull<PCGuard *> guard) {
+void __sanitizer_cov_trace_pc_guard(PCGuard *absl_nonnull guard) {
   // This function may be called very early during the DSO initialization,
   // before the values of `*guard` are initialized to non-zero.
   // But it will immidiately return bacause state.run_time_flags.use_pc_features
