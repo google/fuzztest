@@ -58,35 +58,33 @@ absl::StatusOr<RemoteFile *> RemoteFileOpen(std::string_view file_path,
                                             const char *mode);
 
 // Closes the file previously opened by RemoteFileOpen.
-absl::Status RemoteFileClose(absl::Nonnull<RemoteFile *> f);
+absl::Status RemoteFileClose(RemoteFile *absl_nonnull f);
 
 // Adjusts the buffered I/O capacity for a file opened for writing. By default,
 // the internal buffer of size `BUFSIZ` is used. May only be used after opening
 // a file, but before performing any other operations on it. Violating this
 // requirement in general can cause undefined behavior.
-absl::Status RemoteFileSetWriteBufferSize(absl::Nonnull<RemoteFile *> f,
+absl::Status RemoteFileSetWriteBufferSize(RemoteFile *absl_nonnull f,
                                           size_t size);
 
 // Appends bytes from 'ba' to 'f'.
-absl::Status RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
-                              const ByteArray &ba);
+absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f, const ByteArray &ba);
 
 // Appends characters from 'contents' to 'f'.
-absl::Status RemoteFileAppend(absl::Nonnull<RemoteFile *> f,
+absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
                               const std::string &contents);
 
 // Flushes the file's internal buffer. Some dynamic results of a running
 // pipeline are consumed by itself (e.g. shard cross-pollination) and can be
 // consumed by external processes (e.g. monitoring): for such files, call this
 // API after every write to ensure that they are in a valid state.
-absl::Status RemoteFileFlush(absl::Nonnull<RemoteFile *> f);
+absl::Status RemoteFileFlush(RemoteFile *absl_nonnull f);
 
 // Reads all current contents of 'f' into 'ba'.
-absl::Status RemoteFileRead(absl::Nonnull<RemoteFile *> f, ByteArray &ba);
+absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, ByteArray &ba);
 
 // Reads all current contents of 'f' into 'contents'.
-absl::Status RemoteFileRead(absl::Nonnull<RemoteFile *> f,
-                            std::string &contents);
+absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents);
 
 // Creates a (potentially remote) directory 'dir_path', as well as any missing
 // parent directories. No-op if the directory already exists.

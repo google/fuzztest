@@ -26,8 +26,8 @@ inline constexpr size_t kShaDigestLength = 20;
 
 // Computes the SHA1 hash of the data given by `data` and `len`, and writes the
 // result to `out`. `out` must have at least `kShaDigestLength` bytes of space.
-void SHA1(absl::Nonnull<const uint8_t *> data, size_t len,
-          absl::Nonnull<uint8_t *> out);
+void SHA1(const uint8_t* absl_nonnull data, size_t len,
+          uint8_t* absl_nonnull out);
 
 }  // namespace centipede
 
