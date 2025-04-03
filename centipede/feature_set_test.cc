@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/feature.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 TEST(FeatureSet, ComputeWeight) {
@@ -201,4 +201,4 @@ TEST(FeatureSet, PruneDiscardedDomains) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

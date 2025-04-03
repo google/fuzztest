@@ -57,7 +57,7 @@
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;
@@ -359,4 +359,4 @@ void Munmap(uint8_t *ptr, size_t size) {
   CHECK_EQ(result, 0);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

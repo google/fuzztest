@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 // A set of overloads to cast argv between vector<string> and main()-compatible
 // vector<char*> or argc/argv pair in both directions. The result can be used
@@ -95,6 +95,6 @@ std::string FormatFlagfileString(
     DefaultedFlags defaulted = DefaultedFlags::kIncluded,
     FlagComments comments = FlagComments::kNone);
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CONFIG_UTIL_H_

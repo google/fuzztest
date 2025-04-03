@@ -72,7 +72,7 @@
 #include "./common/status_macros.h"
 #include "./fuzztest/internal/configuration.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -856,4 +856,4 @@ int CentipedeMain(const Environment &env,
   return Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

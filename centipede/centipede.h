@@ -41,7 +41,7 @@
 #include "./common/blob_file.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // The main fuzzing class.
 class Centipede {
@@ -210,9 +210,9 @@ class Centipede {
   Command input_filter_cmd_;
 
   // Resource usage stats collection & reporting.
-  perf::RUsageProfiler rusage_profiler_;
+  RUsageProfiler rusage_profiler_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CENTIPEDE_H_

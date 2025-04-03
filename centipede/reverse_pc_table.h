@@ -21,7 +21,7 @@
 
 #include "./centipede/pc_info.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Maps PCs to PCGuard objects.
 class ReversePCTable {
@@ -93,6 +93,6 @@ class ReversePCTable {
   PCGuard *table_ = nullptr;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_REVERSE_PC_TABLE_H_

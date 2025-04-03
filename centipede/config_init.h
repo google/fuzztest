@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 // The runtime state returned by `InitRuntime()`. The caller should take over
 // the ownership of this and keep it alive for the duration of the process.
@@ -51,6 +51,6 @@ class [[nodiscard]] RuntimeState {
 //   duration of the process.
 [[nodiscard]] std::unique_ptr<RuntimeState> InitRuntime(int argc, char* argv[]);
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_GOOGLE_CONFIG_INIT_H_

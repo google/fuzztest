@@ -16,7 +16,7 @@
 
 #include "gtest/gtest.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 TEST(UtilTest, Hash) {
@@ -28,4 +28,4 @@ TEST(UtilTest, Hash) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

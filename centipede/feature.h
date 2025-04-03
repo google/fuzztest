@@ -41,7 +41,7 @@
 #include <cstring>
 #include <vector>
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Feature is an integer that identifies some unique behaviour
 // of the fuzz target exercised by a given input.
@@ -282,6 +282,6 @@ class FeatureArray {
   size_t num_features_ = 0;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_FEATURE_H_

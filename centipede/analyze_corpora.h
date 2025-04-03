@@ -23,7 +23,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/corpus.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // The results of comparing corpus `a` with corpus `b`.
 struct AnalyzeCorporaResults {
@@ -67,6 +67,6 @@ void AnalyzeCorporaToLog(std::string_view binary_name,
                          std::string_view binary_hash,
                          std::string_view workdir_a,
                          std::string_view workdir_b);
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_ANALYZE_CORPORA_H

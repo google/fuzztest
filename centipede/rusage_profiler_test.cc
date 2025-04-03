@@ -54,7 +54,7 @@ ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,
   EXPECT_MEM_NEAR((x).mem_data, (y).mem_data, 0.2);
 // clang-format on
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 namespace {
 
 struct BigSlowThing {
@@ -241,4 +241,4 @@ TEST(RUsageProfilerTest, ValidateReport) {
   rprof.GenerateReport(&report_capture);
 }
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal

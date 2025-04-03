@@ -30,7 +30,7 @@
 #include "./common/defs.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 class SymbolTable;  // To avoid mutual inclusion with symbol_table.h.
 
@@ -162,5 +162,5 @@ class ControlFlowGraph {
 uint32_t ComputeFunctionCyclomaticComplexity(uintptr_t pc,
                                              const ControlFlowGraph &cfg);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 #endif  // THIRD_PARTY_CENTIPEDE_CONTROL_FLOW_H_

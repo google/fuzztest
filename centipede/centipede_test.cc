@@ -48,7 +48,7 @@
 #include "./common/logging.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::AllOf;
@@ -803,11 +803,11 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
           //  that Centipede engine *expects* to have been read from *the
           //  current BatchResult* by the *particular* implementation of
           //  `CentipedeCallbacks` (and `DefaultCentipedeCallbacks` fits the
-          //  bill). `Centipede::ReportCrash()` then uses this value as a hint
-          //  for the crashing input's index, and in our case saves the batch's
-          //  inputs from 0 up to and including the crasher to a subdir. See the
-          //  bug for details. All of this is horribly convoluted and misplaced
-          //  here. Implement a cleaner solution.
+          //  bill). `fuzztest::internal::ReportCrash()` then uses this value as
+          //  a hint for the crashing input's index, and in our case saves the
+          //  batch's inputs from 0 up to and including the crasher to a subdir.
+          //  See the bug for details. All of this is horribly convoluted and
+          //  misplaced here. Implement a cleaner solution.
           batch_result.num_outputs_read() =
               crashing_input_idx_ % env_.batch_size;
           res = false;
@@ -1111,4 +1111,4 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

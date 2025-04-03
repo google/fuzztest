@@ -40,7 +40,7 @@
 #include "./common/status_macros.h"
 #include "./fuzztest/internal/configuration.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 size_t ComputeTimeoutPerBatch(size_t timeout_per_input, size_t batch_size) {
@@ -335,4 +335,4 @@ void Environment::UpdateBinaryHashIfEmpty() {
   }
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

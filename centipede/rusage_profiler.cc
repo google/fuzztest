@@ -39,7 +39,7 @@
 #include "./centipede/periodic_action.h"
 #include "./centipede/rusage_stats.h"
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 
 //------------------------------------------------------------------------------
 //                          RUsageProfiler::Snapshot
@@ -547,4 +547,4 @@ void RUsageProfiler::GenerateReport(
   }
 }
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal

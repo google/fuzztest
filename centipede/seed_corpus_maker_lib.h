@@ -28,7 +28,7 @@
 #include "./centipede/feature.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Native struct used by the seed corpus library for seed corpus source.
 //
@@ -118,6 +118,6 @@ absl::Status GenerateSeedCorpusFromConfig(  //
     std::string_view coverage_binary_name,  //
     std::string_view coverage_binary_hash);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_LIB_H_

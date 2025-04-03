@@ -42,7 +42,7 @@
 #include "./centipede/util.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   // NOTE: This function is used in a multithreaded context. Reading the whole
@@ -169,7 +169,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
     // Symbolization is quite IO-bound so we arbitrarily run 30 at once
     // even if we have few CPUs.
     const size_t num_threads = std::min(dso_table.size(), 30UL);
-    centipede::ThreadPool thread_pool(num_threads);
+    fuzztest::internal::ThreadPool thread_pool(num_threads);
     for (size_t dso_id = 0; dso_id < dso_table.size(); ++dso_id) {
       const auto &dso_info = dso_table[dso_id];
       auto &symbol_table = symbol_tables[dso_id];
@@ -248,4 +248,4 @@ std::string_view SymbolTable::GetOrInsert(std::string_view str) {
   return *table_.insert(std::string{str}).first;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

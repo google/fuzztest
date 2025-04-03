@@ -26,7 +26,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::Pointwise;
@@ -189,7 +189,7 @@ TEST(CallStack, Hash) {
   constexpr uintptr_t kStackTop = 100000000;
   static CallStack<kDepth> cs;  // CallStack should be global/tls only.
   cs.Reset(10);
-  centipede::Rng rng;
+  fuzztest::internal::Rng rng;
 
   // Push the first PC on the stack, remembers it hash.
   cs.OnFunctionEntry(42, kStackTop);
@@ -239,4 +239,4 @@ TEST(CallStack, WindowSize) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

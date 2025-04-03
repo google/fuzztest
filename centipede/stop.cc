@@ -20,7 +20,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 struct EarlyStop {
@@ -39,7 +39,7 @@ bool EarlyStopRequested() {
 
 void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
   early_stop.store({}, std::memory_order_release);
-  ::centipede::stop_time = stop_time;
+  ::fuzztest::internal::stop_time = stop_time;
 }
 
 void RequestEarlyStop(int exit_code) {
@@ -50,4 +50,4 @@ bool ShouldStop() { return EarlyStopRequested() || stop_time < absl::Now(); }
 
 int ExitCode() { return early_stop.load(std::memory_order_acquire).exit_code; }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

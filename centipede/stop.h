@@ -17,7 +17,7 @@
 
 #include "absl/time/time.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Clears the request to stop early and sets the stop time.
 //
@@ -47,6 +47,6 @@ bool ShouldStop();
 // ENSURES: Thread-safe.
 int ExitCode();
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_STOP_H_

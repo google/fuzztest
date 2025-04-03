@@ -26,7 +26,7 @@
 #include "./common/defs.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::AllOf;
@@ -124,4 +124,4 @@ TEST(BatchFuzzWithCoverageData, CollectsTheSameCoverageForSameInputs) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

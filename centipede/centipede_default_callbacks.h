@@ -32,7 +32,7 @@
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Example of customized CentipedeCallbacks.
 class CentipedeDefaultCallbacks : public CentipedeCallbacks {
@@ -49,6 +49,6 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
   std::optional<bool> custom_mutator_is_usable_ = std::nullopt;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CENTIPEDE_DEFAULT_CALLBACKS_H_

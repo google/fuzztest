@@ -20,11 +20,12 @@
 #include "./centipede/environment_flags.h"
 
 int main(int argc, absl::Nonnull<char**> argv) {
-  const auto runtime_state = centipede::config::InitCentipede(argc, argv);
+  const auto runtime_state = fuzztest::internal::InitCentipede(argc, argv);
   // Reads flags; must happen after InitCentipede().
-  const auto env =
-      centipede::CreateEnvironmentFromFlags(runtime_state->leftover_argv());
-  centipede::DefaultCallbacksFactory<centipede::CustomizedCallbacks>
+  const auto env = fuzztest::internal::CreateEnvironmentFromFlags(
+      runtime_state->leftover_argv());
+  fuzztest::internal::DefaultCallbacksFactory<
+      fuzztest::internal::CustomizedCallbacks>
       callbacks_factory;
   return CentipedeMain(env, callbacks_factory);
 }

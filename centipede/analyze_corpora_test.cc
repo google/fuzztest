@@ -33,7 +33,7 @@
 #include "./common/remote_file.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::AllOf;
@@ -121,4 +121,4 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal
