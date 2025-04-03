@@ -172,12 +172,15 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   }
 }
 
-// Coverage only available in Clang, but only for Linux and macOS.
-// Windows and Android might not have what we need.
-#if /* Supported compilers */  \
-    defined(__clang__) &&      \
-    (/* Supported platforms */ \
-     (defined(__linux__) && !defined(__ANDROID__)) || defined(__APPLE__))
+// Coverage only available in Clang, but only for Linux, macOS, and newer
+// versions of Android. Windows might not have what we need.
+#if /* Supported compilers */                         \
+    defined(__clang__) &&                             \
+    (/* Supported platforms */                        \
+     (defined(__linux__) && !defined(__ANDROID__)) || \
+     (defined(__ANDROID_MIN_SDK_VERSION__) &&         \
+      __ANDROID_MIN_SDK_VERSION__ >= 28) ||           \
+     defined(__APPLE__))
 #define FUZZTEST_COVERAGE_IS_AVAILABLE
 #endif
 
