@@ -24,6 +24,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <cstddef>
@@ -204,6 +205,28 @@ centipede::Environment CreateCentipedeEnvironmentFromConfiguration(
   centipede::Environment env = CreateDefaultCentipedeEnvironment();
   constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(3);
   env.fuzztest_single_test_mode = true;
+  if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
+    const int64_t time_limit_seconds =
+        absl::ToInt64Seconds(configuration.time_limit_per_input);
+    if (time_limit_seconds < 1) {
+      absl::FPrintF(
+          GetStderr(),
+          "[!] Input time limit %s is too small - rounding up to one second\n",
+          absl::StrCat(configuration.time_limit_per_input));
+    }
+    env.timeout_per_input = std::clamp<decltype(env.timeout_per_input)>(
+        time_limit_seconds, 1,
+        std::numeric_limits<decltype(env.timeout_per_input)>::max());
+  }
+  constexpr size_t kMiB = 1024 * 1024;
+  FUZZTEST_INTERNAL_CHECK(configuration.rss_limit % kMiB == 0,
+                          "configuration.rss_limit is not a multiple of MiB.");
+  env.rss_limit_mb = configuration.rss_limit / kMiB;
+  constexpr size_t kKiB = 1024;
+  FUZZTEST_INTERNAL_CHECK(
+      configuration.stack_limit % kKiB == 0,
+      "configuration.stack_limit is not a multiple of KiB.");
+  env.stack_limit_kb = configuration.stack_limit / kKiB;
   env.populate_binary_info = false;
   const auto args = GetProcessArgs();
   FUZZTEST_INTERNAL_CHECK(
@@ -495,19 +518,19 @@ void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
     CentipedeSetRssLimit(/*rss_limit_mb=*/configuration.rss_limit >> 20);
   }
   if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
-    const int64_t time_limit_seconds =
+    int64_t time_limit_seconds =
         absl::ToInt64Seconds(configuration.time_limit_per_input);
-    if (time_limit_seconds <= 0) {
+    if (time_limit_seconds < 1) {
       absl::FPrintF(
           GetStderr(),
-          "[!] Skip setting per-input time limit that is too short: %s\n",
-          absl::FormatDuration(configuration.time_limit_per_input));
-    } else {
-      absl::FPrintF(GetStderr(),
-                    "[.] Per-input time limit set to: %" PRId64 "s\n",
-                    time_limit_seconds);
-      CentipedeSetTimeoutPerInput(time_limit_seconds);
+          "[!] Input time limit %s is too small - rounding up to one second\n",
+          absl::StrCat(configuration.time_limit_per_input));
+      time_limit_seconds = 1;
     }
+    absl::FPrintF(GetStderr(),
+                  "[.] Per-input time limit set to: %" PRId64 "s\n",
+                  time_limit_seconds);
+    CentipedeSetTimeoutPerInput(time_limit_seconds);
   }
 }
 
