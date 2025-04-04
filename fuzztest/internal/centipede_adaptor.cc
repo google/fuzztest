@@ -52,6 +52,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -255,7 +256,8 @@ centipede::Environment CreateCentipedeEnvironmentFromConfiguration(
         std::string{test_name}};
     single_test_configuration.time_limit = total_time_limit;
     single_test_configuration.time_budget_type = TimeBudgetType::kTotal;
-    env.fuzztest_configuration = single_test_configuration.Serialize();
+    env.fuzztest_configuration =
+        absl::BytesToHexString(single_test_configuration.Serialize());
   }
 
   absl::StrAppend(&env.binary,
@@ -503,7 +505,29 @@ class CentipedeAdaptorRunnerCallbacks : public centipede::RunnerCallbacks {
   absl::BitGen prng_;
 };
 
+static absl::NoDestructor<std::string> centipede_binary_path;
+
+void SetCentipedeBinaryPath(absl::string_view path) {
+  *centipede_binary_path = path;
+}
+
 namespace {
+
+int RunCentipede(const centipede::Environment& env) {
+  if (!centipede_binary_path->empty()) {
+    std::string cmdline = ShellEscape(*centipede_binary_path);
+    for (const auto& flag : env.SerializeToCommandFlags()) {
+      absl::StrAppend(&cmdline, " ");
+      absl::StrAppend(&cmdline, ShellEscape(flag));
+    }
+    absl::FPrintF(GetStderr(), "[.] Running Centipede command %s\n", cmdline);
+    return system(cmdline.c_str());
+  }
+  static absl::NoDestructor<
+      centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>>
+      factory;
+  return centipede::CentipedeMain(env, *factory);
+}
 
 void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
   if (const size_t stack_limit =
@@ -612,8 +636,6 @@ bool CentipedeFuzzerAdaptor::RunInFuzzingMode(
 
 bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
     const Configuration& configuration) {
-  centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
-      factory;
   TempDir crash_export_dir("fuzztest_crash");
   auto export_crash_env = CreateCentipedeEnvironmentFromConfiguration(
       configuration, /*workdir=*/"", test_.full_name(), runtime_.run_mode());
@@ -622,7 +644,7 @@ bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
   export_crash_env.export_crash_file = crash_file;
   export_crash_env.replay_crash = false;
   export_crash_env.export_crash = true;
-  if (centipede::CentipedeMain(export_crash_env, factory) != EXIT_SUCCESS) {
+  if (RunCentipede(export_crash_env) != EXIT_SUCCESS) {
     absl::FPrintF(
         GetStderr(),
         "[!] Encountered error when using Centipede to export the crash "
@@ -715,8 +737,6 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     const std::string workdir_path = workdir ? workdir->path() : "";
     const auto env = CreateCentipedeEnvironmentFromConfiguration(
         configuration, workdir_path, test_.full_name(), mode);
-    centipede::DefaultCallbacksFactory<centipede::CentipedeDefaultCallbacks>
-        factory;
     if (const char* minimize_dir_chars =
             std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
       const std::string minimize_dir = minimize_dir_chars;
@@ -738,16 +758,15 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       replay_env.corpus_dir = {"", minimize_dir};
       replay_env.load_shards_only = true;
       FUZZTEST_INTERNAL_CHECK(
-          centipede::CentipedeMain(replay_env, factory) == 0,
+          RunCentipede(replay_env) == 0,
           "Failed to replaying the testsuite for minimization");
       absl::FPrintF(GetStderr(), "[.] Imported the corpus from %s.\n",
                     minimize_dir);
       // 2. Run Centipede distillation on the shard.
       auto distill_env = env;
       distill_env.distill = true;
-      FUZZTEST_INTERNAL_CHECK(
-          centipede::CentipedeMain(distill_env, factory) == 0,
-          "Failed to minimize the testsuite");
+      FUZZTEST_INTERNAL_CHECK(RunCentipede(distill_env) == 0,
+                              "Failed to minimize the testsuite");
       absl::FPrintF(GetStderr(),
                     "[.] Minimized the corpus using Centipede distillation.\n");
       // 3. Replace the shard corpus data with the distillation result.
@@ -760,14 +779,14 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       auto export_env = env;
       export_env.corpus_to_files = corpus_out_dir;
       FUZZTEST_INTERNAL_CHECK(
-          centipede::CentipedeMain(export_env, factory) == 0,
+          RunCentipede(export_env) == 0,
           "Failed to export the corpus to FUZZTEST_MINIMIZE_TESTSUITE_DIR");
       absl::FPrintF(GetStderr(),
                     "[.] Exported the minimized the corpus to %s.\n",
                     corpus_out_dir);
       return 0;
     }
-    return centipede::CentipedeMain(env, factory);
+    return RunCentipede(env);
   })();
   if (to_tear_down_fuzz_test) {
     fuzzer_impl_.fixture_driver_->TearDownFuzzTest();

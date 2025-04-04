@@ -136,7 +136,10 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest",
-    ],
+    ] + select({
+        "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
+        "//conditions:default": [],
+    }),
     alwayslink = True,
 )
 
@@ -213,6 +216,9 @@ cc_library(
     name = "centipede_adaptor",
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
+    data = [
+        "@com_google_fuzztest//centipede:centipede_uninstrumented",
+    ],
     defines = ["FUZZTEST_USE_CENTIPEDE"],
     deps = [
         ":any",
