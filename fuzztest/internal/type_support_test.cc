@@ -245,11 +245,12 @@ TEST(ProtobufTest, Printer) {
   proto.add_rep_subproto()->set_subproto_i32(17);
   std::string proto_text;
   ASSERT_TRUE(google::protobuf::TextFormat::PrintToString(proto, &proto_text));
-  EXPECT_THAT(TestPrintValue(proto),
-              ElementsAre(absl::StrCat("(", proto_text, ")"),
-                          MatchesRegex(absl::StrCat(
-                              R"re(.*ParseTe[sx]tProto.*\(R"pb\()re",
-                              proto_text, R"re(\)pb"\))re"))));
+  EXPECT_THAT(
+      TestPrintValue(proto),
+      ElementsAre(
+          MatchesRegex(absl::StrCat("\\(.*\n?", proto_text, "\\)")),
+          MatchesRegex(absl::StrCat(R"re(.*ParseTe[sx]tProto.*\(R"pb\(.*\n?)re",
+                                    proto_text, R"re(\)pb"\))re"))));
 }
 
 TEST(ProtobufEnumTest, Printer) {

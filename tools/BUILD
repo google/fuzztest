@@ -27,8 +27,8 @@ cc_binary(
     name = "grammar_domain_code_generator",
     srcs = ["grammar_domain_code_generator.cc"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//grammar_codegen:code_generation",
     ],

@@ -40,10 +40,10 @@ cc_library(
     srcs = ["bazel.cc"],
     hdrs = ["bazel.h"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -62,15 +62,15 @@ cc_library(
         ":logging",
         ":remote_file",
         ":status_macros",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/time",
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
@@ -88,7 +88,7 @@ cc_library(
     name = "defs",
     hdrs = ["defs.h"],
     visibility = PUBLIC_API_VISIBILITY,
-    deps = ["@com_google_absl//absl/types:span"],
+    deps = ["@abseil-cpp//absl/types:span"],
 )
 
 cc_library(
@@ -106,8 +106,8 @@ cc_library(
     name = "logging",
     hdrs = ["logging.h"],
     deps = [
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
@@ -123,11 +123,11 @@ cc_library(
                ":defs",
                ":logging",
                ":status_macros",
-               "@com_google_absl//absl/base:nullability",
-               "@com_google_absl//absl/log:check",
-               "@com_google_absl//absl/status",
-               "@com_google_absl//absl/status:statusor",
-               "@com_google_absl//absl/strings",
+               "@abseil-cpp//absl/base:nullability",
+               "@abseil-cpp//absl/log:check",
+               "@abseil-cpp//absl/status",
+               "@abseil-cpp//absl/status:statusor",
+               "@abseil-cpp//absl/strings",
            ] + select({
                "//conditions:default": [":remote_file_oss"],
            }) +
@@ -155,12 +155,12 @@ cc_library(
         ":defs",
         ":logging",
         ":status_macros",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
@@ -178,7 +178,7 @@ cc_library(
     hdrs = ["sha1.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "@com_google_absl//absl/base:nullability",
+        "@abseil-cpp//absl/base:nullability",
     ],
 )
 
@@ -186,8 +186,8 @@ cc_library(
     name = "status_macros",
     hdrs = ["status_macros.h"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/log",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
     ],
 )
 
@@ -200,11 +200,11 @@ cc_library(
         ":blob_file",
         ":defs",
         ":logging",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest",
     ],
 )
 
@@ -213,9 +213,9 @@ cc_library(
     srcs = ["temp_dir.cc"],
     hdrs = ["temp_dir.h"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:string_view",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
@@ -228,8 +228,8 @@ cc_test(
         ":blob_file",
         ":defs",
         ":test_util",
-        "@com_google_absl//absl/status",
-        "@com_google_googletest//:gtest_main",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -238,7 +238,7 @@ cc_test(
     srcs = ["hash_test.cc"],
     deps = [
         ":hash",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -254,10 +254,10 @@ cc_library(
         ":logging",
         ":remote_file",
         ":test_util",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest",
     ] + select({
         "//conditions:default": [],
     }),
@@ -268,6 +268,6 @@ cc_test(
     name = "remote_file_test",
     deps = [
         ":remote_file_test_lib",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )

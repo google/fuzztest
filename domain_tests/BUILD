@@ -23,13 +23,13 @@ cc_test(
     srcs = ["aggregate_combinators_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/types:optional",
+        "@abseil-cpp//absl/types:span",
+        "@abseil-cpp//absl/types:variant",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -38,15 +38,15 @@ cc_test(
     srcs = ["arbitrary_domains_protobuf_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/random:bit_gen_ref",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:string_view",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@protobuf",
     ],
 )
 
@@ -55,17 +55,17 @@ cc_test(
     srcs = ["arbitrary_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/random:bit_gen_ref",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/time",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:absl_helpers",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@com_google_fuzztest//fuzztest:type_support",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -74,13 +74,13 @@ cc_test(
     srcs = ["container_combinators_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:meta",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -89,12 +89,12 @@ cc_test(
     srcs = ["container_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:table_of_recent_compares",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -104,19 +104,19 @@ cc_library(
     hdrs = ["domain_testing.h"],
     visibility = ["@com_google_fuzztest//:__subpackages__"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/hash",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/random:bit_gen_ref",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:meta",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
+        "@protobuf",
     ],
 )
 
@@ -125,13 +125,13 @@ cc_test(
     srcs = ["in_grammar_domain_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:serialization",
         "@com_google_fuzztest//fuzztest/grammars:json_grammar",
-        "@com_google_googletest//:gtest_main",
-        "@com_nlohmann_json//:json",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
     ],
 )
 
@@ -140,14 +140,14 @@ cc_test(
     srcs = ["in_regexp_domain_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:type_support",
-        "@com_google_googletest//:gtest_main",
-        "@com_googlesource_code_re2//:re2",
+        "@googletest//:gtest_main",
+        "@re2",
     ],
 )
 
@@ -156,10 +156,10 @@ cc_test(
     srcs = ["map_filter_combinator_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -168,15 +168,15 @@ cc_test(
     srcs = ["misc_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/numeric:int128",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:meta",
         "@com_google_fuzztest//fuzztest:type_support",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -185,14 +185,14 @@ cc_test(
     srcs = ["numeric_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/numeric:int128",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:serialization",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -201,9 +201,9 @@ cc_test(
     srcs = ["pointer_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -212,9 +212,9 @@ cc_test(
     srcs = ["recursive_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -223,12 +223,12 @@ cc_test(
     srcs = ["specific_value_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -237,10 +237,10 @@ cc_test(
     srcs = ["string_domains_test.cc"],
     deps = [
         ":domain_testing",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/random",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:table_of_recent_compares",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )

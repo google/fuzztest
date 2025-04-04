@@ -26,7 +26,7 @@ def puzzle(name):
     centipede_fuzz_target(
         name = name,
         deps = [
-            "@com_google_absl//absl/base:nullability",
+            "@abseil-cpp//absl/base:nullability",
         ],
     )
 

@@ -52,9 +52,9 @@ cc_binary(
         "notap",
     ],
     deps = [
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//common:defs",
     ],
@@ -76,9 +76,9 @@ cc_binary(
         "notap",
     ],
     deps = [
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//centipede:mutation_input",
         "@com_google_fuzztest//common:defs",
@@ -114,7 +114,7 @@ cc_binary(
         "notap",
     ],
     deps = [
-        "@com_google_absl//absl/base:nullability",
+        "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//common:defs",
     ],
@@ -136,8 +136,8 @@ cc_binary(
         "notap",
     ],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
     ],
 )
@@ -157,9 +157,9 @@ cc_binary(
         "notap",
     ],
     deps = [
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//common:defs",
     ],
@@ -290,7 +290,7 @@ cc_binary(
 cc_binary(
     name = "standalone_fuzz_target_with_main",
     srcs = ["standalone_fuzz_target_with_main.cc"],
-    deps = ["@com_google_absl//absl/base:nullability"],
+    deps = ["@abseil-cpp//absl/base:nullability"],
 )
 
 centipede_fuzz_target(

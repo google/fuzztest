@@ -15,18 +15,24 @@
 module(
     name = "fuzztest",
     version = "head",
+# TODO(lszekeres): Remove and use default name.
     repo_name = "com_google_fuzztest",
 )
 
+# TODO(lszekeres): Change back from git_override to released version.
 bazel_dep(
     name = "abseil-cpp",
-    version = "20240116.1",
-    repo_name = "com_google_absl",
+    version = "0.0.0",
+)
+git_override(
+    module_name = "abseil-cpp",
+    remote = "https://github.com/abseil/abseil-cpp.git",
+    # Commit after fast_type_id was added.
+    commit = "d04b964d82ed5146f7e5e34701a5ba69f9514c9a",
 )
 bazel_dep(
     name = "re2",
-    version = "2024-04-01",
-    repo_name = "com_googlesource_code_re2",
+    version = "2024-07-02.bcr.1",
 )
 bazel_dep(
     name = "bazel_skylib",
@@ -35,34 +41,39 @@ bazel_dep(
 bazel_dep(
     name = "platforms",
     version = "0.0.10",
-    repo_name = "platforms",
 )
+# GoogleTest is not a dev dependency, because it's needed when FuzzTest is used
+# with GoogleTest integration (e.g., googletest_adaptor). Note that the FuzzTest
+# framework can be used without GoogleTest integration as well.
 bazel_dep(
     name = "googletest",
-    version = "1.14.0.bcr.1",
-    repo_name = "com_google_googletest",
+    version = "1.16.0"
 )
+# TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
+# required for testing.
 bazel_dep(
     name = "protobuf",
-    version = "28.2",
-    repo_name = "com_google_protobuf",
+    version = "30.2",
 )
+# TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
+# required for testing.
 bazel_dep(
     name = "rules_proto",
-    version = "5.3.0-21.7",
+    version = "7.1.0",
 )
 bazel_dep(
     name = "riegeli",
-    version = "0.0.0-20240606-973b6f0",
+    version = "0.0.0-20241218-3385e3c",
     repo_name = "com_google_riegeli",
 )
 
 # Dev dependencies.
+# These dependencies will be ignored if the current module is not the root
+# module (https://bazel.build/rules/lib/globals/module#bazel_dep).
 bazel_dep(
     name = "nlohmann_json",
     version = "3.11.3",
     dev_dependency = True,
-    repo_name = "com_nlohmann_json",
 )
 bazel_dep(
     name = "antlr4-cpp-runtime",

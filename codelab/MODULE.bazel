@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# https://bazel.build/external/migration#workspace.bzlmod
-#
-# This file is intentionally empty. When bzlmod is enabled and this
-# file exists, the content of WORKSPACE is ignored. This prevents
-# bzlmod builds from unintentionally depending on the WORKSPACE file.
+module(
+    name = "fuzztest_codelab",
+    version = "head",
+)
+
+bazel_dep(
+    name = "fuzztest",
+    version = "20250214.0",
+    repo_name = "com_google_fuzztest",
+)
+
+bazel_dep(
+    name = "googletest",
+    version = "1.16.0"
+)
