@@ -268,6 +268,17 @@ static void CheckWatchdogLimits() {
                 "========= %s exceeded: %" PRIu64 " > %" PRIu64
                 " (%s); exiting\n",
                 resource.what, resource.value, resource.limit, resource.units);
+        fprintf(
+            stderr,
+            "=============================================================="
+            "===\n"
+            "=== BUG FOUND!\n The %s is set to %" PRIu64
+            " (%s), but it exceeded %" PRIu64
+            ".\n"
+            "Find out how to adjust the resource limits at "
+            "https://github.com/google/fuzztest/tree/main/doc/flags-reference.md"
+            "\n",
+            resource.what, resource.limit, resource.units, resource.value);
         WriteFailureDescription(resource.failure);
         std::abort();
       }
