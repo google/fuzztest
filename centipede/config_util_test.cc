@@ -46,8 +46,8 @@ using ::testing::IsSupersetOf;
 TEST(FlagUtilTest, GetFlagsPerSource) {
   constexpr const char* kCentipedeRoot = "centipede/";
   constexpr const char* kThisCc = "centipede/config_util_test.cc";
-  constexpr const char* kEnvironmentFlagsCc =
-      "centipede/environment_flags.cc";
+  constexpr const char* kCentipedeFlagsInc =
+      "././centipede/centipede_flags.inc";
 
   // Change some flag values to non-defaults.
   absl::SetFlag(&FLAGS_foo, "baz");
@@ -61,13 +61,13 @@ TEST(FlagUtilTest, GetFlagsPerSource) {
     const FlagInfosPerSource flags = GetFlagsPerSource(kCentipedeRoot);
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 1);
+    ASSERT_EQ(flags.count(kCentipedeFlagsInc), 1);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},
                     FlagInfo{"qux", "true", "false", "qux help"},
                 }));
-    ASSERT_THAT(flags.at(kEnvironmentFlagsCc),
+    ASSERT_THAT(flags.at(kCentipedeFlagsInc),
                 IsSupersetOf({
                     FlagInfo{"binary", "*", "*", "*"},
                     FlagInfo{"workdir", "*", "*", "*"},
@@ -78,7 +78,7 @@ TEST(FlagUtilTest, GetFlagsPerSource) {
     const FlagInfosPerSource flags = GetFlagsPerSource(kThisCc);
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 0);
+    ASSERT_EQ(flags.count(kCentipedeFlagsInc), 0);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},
@@ -91,7 +91,7 @@ TEST(FlagUtilTest, GetFlagsPerSource) {
         GetFlagsPerSource(kThisCc, /*exclude_flags=*/{"qux"});
     SCOPED_TRACE(FormatFlagfileString(flags));
     ASSERT_EQ(flags.count(kThisCc), 1);
-    ASSERT_EQ(flags.count(kEnvironmentFlagsCc), 0);
+    ASSERT_EQ(flags.count(kCentipedeFlagsInc), 0);
     ASSERT_THAT(flags.at(kThisCc),
                 ElementsAreArray({
                     FlagInfo{"foo", "baz", "bar", "foo help"},
