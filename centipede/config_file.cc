@@ -251,7 +251,7 @@ $2 "$${flags[@]}"
 }
 
 std::unique_ptr<RuntimeState> InitCentipede(  //
-    int argc, absl::Nonnull<char**> argv) {
+    int argc, char** absl_nonnull argv) {
   std::vector<std::string> leftover_argv;
 
   // main_runtime_init() is allowed to remove recognized flags from `argv`, so

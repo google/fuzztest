@@ -374,9 +374,9 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 
 bool Centipede::RunBatch(
     const std::vector<ByteArray> &input_vec,
-    absl::Nullable<BlobFileWriter *> corpus_file,
-    absl::Nullable<BlobFileWriter *> features_file,
-    absl::Nullable<BlobFileWriter *> unconditional_features_file) {
+    BlobFileWriter *absl_nullable corpus_file,
+    BlobFileWriter *absl_nullable features_file,
+    BlobFileWriter *absl_nullable unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   CHECK_EQ(input_vec.size(), batch_result.results().size());
@@ -688,8 +688,8 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   }
 }
 
-void Centipede::LoadSeedInputs(absl::Nonnull<BlobFileWriter *> corpus_file,
-                               absl::Nonnull<BlobFileWriter *> features_file) {
+void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
+                               BlobFileWriter *absl_nonnull features_file) {
   std::vector<ByteArray> seed_inputs;
   const size_t num_seeds_available =
       user_callbacks_.GetSeeds(env_.batch_size, seed_inputs);

@@ -212,7 +212,7 @@ class ScopedCentipedeCallbacks {
                            const Environment &env)
       : factory_(factory), callbacks_(factory_.create(env)) {}
   ~ScopedCentipedeCallbacks() { factory_.destroy(callbacks_); }
-  absl::Nonnull<CentipedeCallbacks *> callbacks() { return callbacks_; }
+  CentipedeCallbacks *absl_nonnull callbacks() { return callbacks_; }
 
  private:
   CentipedeCallbacksFactory &factory_;

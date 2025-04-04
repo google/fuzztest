@@ -76,7 +76,7 @@ constexpr bool kForkServerDebug = false;
 }  // namespace
 
 // Writes a C string to stderr when debugging, no-op otherwise.
-void Log(absl::Nonnull<const char *> str) {
+void Log(const char *absl_nonnull str) {
   if constexpr (kForkServerDebug) {
     (void)write(STDERR_FILENO, str, strlen(str));
     fsync(STDERR_FILENO);
@@ -86,7 +86,7 @@ void Log(absl::Nonnull<const char *> str) {
 // Maybe writes the `reason` to stderr; then calls _exit. We use this instead of
 // CHECK/RunnerCheck since the fork server runs at the very early stage of the
 // process, where the logging functions used there may not work.
-void Exit(absl::Nonnull<const char *> reason) {
+void Exit(const char *absl_nonnull reason) {
   Log(reason);
   _exit(0);  // The exit code does not matter, it won't be checked anyway.
 }
@@ -157,7 +157,7 @@ void GetAllEnv() {
 }
 
 // Gets a zero-terminated string matching the environment `key` (ends with '=').
-absl::Nullable<const char *> GetOneEnv(absl::Nonnull<const char *> key) {
+const char *absl_nullable GetOneEnv(const char *absl_nonnull key) {
   size_t key_len = strlen(key);
   if (env_size < key_len) return nullptr;
   bool in_the_beginning_of_key = true;

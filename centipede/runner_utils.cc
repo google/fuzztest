@@ -24,7 +24,7 @@
 
 namespace centipede {
 
-void PrintErrorAndExitIf(bool condition, absl::Nonnull<const char *> error) {
+void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error) {
   if (!condition) return;
   fprintf(stderr, "error: %s\n", error);
   exit(1);
