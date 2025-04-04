@@ -30,7 +30,7 @@
 #include "./common/defs.h"
 #include "./common/hash.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 TEST(UtilTest, AsString) {
   EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 3), "abc");
@@ -291,4 +291,4 @@ TEST(UtilTest, RemoveSubset) {
               testing::ElementsAre(std::vector<int>{1}, std::vector<int>{3}));
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

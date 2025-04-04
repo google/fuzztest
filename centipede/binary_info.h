@@ -22,7 +22,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Information about the binary being fuzzed. Created once at program startup
 // and doesn't change (other than for lazily initialized fields).
@@ -54,6 +54,6 @@ struct BinaryInfo {
   void Read(std::string_view dir);
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_BINARY_INFO_H_

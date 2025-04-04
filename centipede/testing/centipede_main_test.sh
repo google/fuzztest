@@ -21,18 +21,18 @@ set -eu
 source "$(dirname "$0")/../test_fuzzing_util.sh"
 source "$(dirname "$0")/../test_util.sh"
 
-CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
+CENTIPEDE_TEST_SRCDIR="$(fuzztest::internal::get_centipede_test_srcdir)"
 
 # The following variables can be overridden externally by passing --test_env to
 # the build command, e.g. --test_env=EXAMPLE_TARGET_BINARY="/some/path".
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TEST_TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/test_fuzz_target"
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   ABORT_TEST_TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/abort_fuzz_target"
-centipede::maybe_set_var_to_executable_path \
-  LLVM_SYMBOLIZER "$(centipede::get_llvm_symbolizer_path)"
+fuzztest::internal::maybe_set_var_to_executable_path \
+  LLVM_SYMBOLIZER "$(fuzztest::internal::get_llvm_symbolizer_path)"
 
 # Shorthand for centipede --binary=test_fuzz_target
 test_fuzz() {
@@ -60,8 +60,8 @@ test_debug_symbols() {
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   echo -n "func1" >"${TMPCORPUS}/func1"     # induces a call to SingleEdgeFunc.
   echo -n "func2-A" >"${TMPCORPUS}/func2-A" # induces a call to MultiEdgeFunc.
@@ -69,10 +69,10 @@ test_debug_symbols() {
   echo "============ ${FUNC}: run for the first time, with empty seed corpus, with feature logging"
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1000 \
     --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
-  centipede::assert_regex_in_file 'Custom mutator detected; will use it' "${LOG}"
+  fuzztest::internal::assert_regex_in_file 'Custom mutator detected; will use it' "${LOG}"
   # Note: the test assumes LLVMFuzzerTestOneInput is defined on a specific line.
-  centipede::assert_regex_in_file "FUNC: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc:71" "${LOG}"
-  centipede::assert_regex_in_file "EDGE: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "FUNC: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc:71" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "EDGE: LLVMFuzzerTestOneInput .*testing/test_fuzz_target.cc" "${LOG}"
 
   echo "============ ${FUNC}: add func1/func2-A inputs to the corpus."
   test_fuzz --workdir="${WD}" --corpus_from_files="${TMPCORPUS}"
@@ -83,24 +83,24 @@ test_debug_symbols() {
   test_fuzz --log_features_shards=1 --workdir="${WD}" --seed=1 --num_runs=1 \
     --telemetry_frequency=1 --symbolizer_path="${LLVM_SYMBOLIZER}" 2>&1 \
     | tee -a "${LOG}"
-  centipede::assert_regex_in_file "FUNC: SingleEdgeFunc" "${LOG}"
-  centipede::assert_regex_in_file "FUNC: MultiEdgeFunc" "${LOG}"
-  centipede::assert_regex_in_file "EDGE: MultiEdgeFunc" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "FUNC: SingleEdgeFunc" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "FUNC: MultiEdgeFunc" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "EDGE: MultiEdgeFunc" "${LOG}"
 
   echo "============ ${FUNC}: checking the coverage report"
   for COV_REPORT_TYPE in "initial" "latest"; do
     COV_REPORT="${WD}/coverage-report-$(basename "${TEST_TARGET_BINARY}").000000.${COV_REPORT_TYPE}.txt"
-    centipede::assert_regex_in_file "Generate coverage report.*${COV_REPORT}" "${LOG}"
-    centipede::assert_regex_in_file "FULL: SingleEdgeFunc" "${COV_REPORT}"
-    centipede::assert_regex_in_file "PARTIAL: LLVMFuzzerTestOneInput" "${COV_REPORT}"
+    fuzztest::internal::assert_regex_in_file "Generate coverage report.*${COV_REPORT}" "${LOG}"
+    fuzztest::internal::assert_regex_in_file "FULL: SingleEdgeFunc" "${COV_REPORT}"
+    fuzztest::internal::assert_regex_in_file "PARTIAL: LLVMFuzzerTestOneInput" "${COV_REPORT}"
   done
 
   echo "============ ${FUNC}: run w/o the symbolizer, everything else should still work."
-  centipede::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
   test_fuzz --workdir="${WD}" --seed=1 --num_runs=1000 \
     --symbolizer_path=/dev/null | tee "${LOG}"
-  centipede::assert_regex_in_file "Symbolizer unspecified: debug symbols will not be used" "${LOG}"
-  centipede::assert_regex_in_file "end-fuzz:" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Symbolizer unspecified: debug symbols will not be used" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "end-fuzz:" "${LOG}"
 }
 
 # Creates workdir ($1) and tests how dictionaries are loaded.
@@ -110,12 +110,12 @@ test_dictionary() {
   TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   DICT="${TEST_TMPDIR}/${FUNC}/dict"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   echo "============ ${FUNC}: testing non-existing dictionary file"
   test_fuzz --workdir="${WD}" --num_runs=0 --dictionary=/dev/null | tee "${LOG}"
-  centipede::assert_regex_in_file "Empty or corrupt dictionary file: /dev/null" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Empty or corrupt dictionary file: /dev/null" "${LOG}"
 
   echo "============ ${FUNC}: testing plain text dictionary file"
   echo '"blah"' >"${DICT}"
@@ -123,19 +123,19 @@ test_dictionary() {
   echo '"bazz"' >>"${DICT}"
   cat "${DICT}"
   test_fuzz --workdir="${WD}" --num_runs=0 --dictionary="${DICT}" | tee "${LOG}"
-  centipede::assert_regex_in_file "Loaded 3 dictionary entries from AFL/libFuzzer dictionary ${DICT}" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Loaded 3 dictionary entries from AFL/libFuzzer dictionary ${DICT}" "${LOG}"
 
   echo "============ ${FUNC}: creating a binary dictionary file with 2 entries"
   echo "foo" >"${TMPCORPUS}"/foo
   echo "bat" >"${TMPCORPUS}"/binary
-  centipede::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
   test_fuzz --workdir="${WD}" --corpus_from_files "${TMPCORPUS}"
   cp "${WD}/corpus.000000" "${DICT}"
 
   echo "============ ${FUNC}: testing binary dictionary file"
-  centipede::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
   test_fuzz --workdir="${WD}" --num_runs=0 --dictionary="${DICT}" | tee "${LOG}"
-  centipede::assert_regex_in_file "Loaded 2 dictionary entries from ${DICT}" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Loaded 2 dictionary entries from ${DICT}" "${LOG}"
 }
 
 # Creates workdir ($1) and tests --for_each_blob.
@@ -144,8 +144,8 @@ test_for_each_blob() {
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   echo "FoO" >"${TMPCORPUS}"/a
   echo "bAr" >"${TMPCORPUS}"/b
@@ -153,9 +153,9 @@ test_for_each_blob() {
   test_fuzz --workdir="${WD}" --corpus_from_files "${TMPCORPUS}"
   echo "============ ${FUNC}: test for_each_blob"
   test_fuzz --for_each_blob="cat %P" "${WD}"/corpus.000000 | tee "${LOG}"
-  centipede::assert_regex_in_file "Running 'cat %P' on ${WD}/corpus.000000" "${LOG}"
-  centipede::assert_regex_in_file FoO "${LOG}"
-  centipede::assert_regex_in_file bAr "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Running 'cat %P' on ${WD}/corpus.000000" "${LOG}"
+  fuzztest::internal::assert_regex_in_file FoO "${LOG}"
+  fuzztest::internal::assert_regex_in_file bAr "${LOG}"
 }
 
 # Creates workdir ($1) and tests --use_pcpair_features.
@@ -163,17 +163,17 @@ test_pcpair_features() {
   FUNC="${FUNCNAME[0]}"
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
 
   echo "============ ${FUNC}: fuzz with --use_pcpair_features"
   test_fuzz --workdir="${WD}" --use_pcpair_features --num_runs=10000 \
     --symbolizer_path="${LLVM_SYMBOLIZER}" | tee "${LOG}"
-  centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 
   echo "============ ${FUNC}: fuzz with --use_pcpair_features w/o symbolizer"
   test_fuzz --workdir="${WD}" --use_pcpair_features --num_runs=10000 \
     --symbolizer_path=/dev/null | tee "${LOG}"
-  centipede::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "end-fuzz.*pair: [^0]" "${LOG}"
 }
 
 test_timeouts() {
@@ -182,27 +182,27 @@ test_timeouts() {
   CORPUS="${TEST_TMPDIR}/${FUNC}/corpus"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
 
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${CORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${CORPUS}"
   echo -n "slo" >"${CORPUS}"/input
 
   echo "============ ${FUNC}: fuzz with --timeout_per_input"
   test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --timeout_per_input=2 | tee "${LOG}"
-  centipede::assert_regex_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
-  centipede::assert_regex_in_file "end-fuzz:.*crash: 1" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "end-fuzz:.*crash: 1" "${LOG}"
 
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${CORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${CORPUS}"
   echo -n "slo" >"${CORPUS}"/input
 
   echo "============ ${FUNC}: fuzz with --timeout_per_input --ignore_timeout_reports"
   test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --timeout_per_input=2 --ignore_timeout_reports | tee "${LOG}"
-  centipede::assert_regex_not_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
-  centipede::assert_regex_not_in_file "end-fuzz:.*crash: 1" "${LOG}"
+  fuzztest::internal::assert_regex_not_in_file "Failure.*: per-input-timeout-exceeded" "${LOG}"
+  fuzztest::internal::assert_regex_not_in_file "end-fuzz:.*crash: 1" "${LOG}"
 }
 
 
-centipede::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
+fuzztest::internal::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
 test_dictionary
 test_for_each_blob

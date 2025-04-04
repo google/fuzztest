@@ -20,7 +20,7 @@ set -eu
 
 source "$(dirname "$0")/test_util.sh"
 
-centipede_test_srcdir="$(centipede::get_centipede_test_srcdir)"
+centipede_test_srcdir="$(fuzztest::internal::get_centipede_test_srcdir)"
 centipede_binary="${centipede_test_srcdir}/centipede"
 if ! [[ -x "${centipede_binary}" ]]; then
   die "Build target ':centipede' failed to create expected executable \

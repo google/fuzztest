@@ -28,7 +28,7 @@
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 
 template <typename ResourceT>
 ResourcePool<ResourceT>::LeaseToken::LeaseToken(  //
@@ -175,4 +175,4 @@ void ResourcePool<ResourceT>::ReturnLease(const LeaseToken& lease) {
 template class ResourcePool<RUsageMemory>;
 template class ResourcePool<RUsageTiming>;
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal

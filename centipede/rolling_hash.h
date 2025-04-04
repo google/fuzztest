@@ -18,8 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 
-
-namespace centipede {
+namespace fuzztest::internal {
 
 // Computes a rolling hash for a fixed-size window in a sequence of 32-bit ints.
 // Inspired by https://en.wikipedia.org/wiki/Rolling_hash#Rabin_fingerprint.
@@ -71,6 +70,6 @@ class RollingHash {
   uint64_t multiplier_power_window_size_;  // kMultiplier ** window_size.
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_ROLLING_HASH_H_

@@ -54,7 +54,7 @@
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -91,11 +91,11 @@ inline constexpr size_t kMaxWritingThreads = 100;
 inline constexpr size_t kMaxTotalThreads = 5000;
 static_assert(kMaxReadingThreads * kMaxWritingThreads <= kMaxTotalThreads);
 
-inline constexpr perf::MemSize kGB = 1024L * 1024L * 1024L;
+inline constexpr MemSize kGB = 1024L * 1024L * 1024L;
 // The total approximate amount of RAM to be shared by the concurrent threads.
 // TODO(ussuri): Replace by a function of free RSS on the system.
-inline constexpr perf::RUsageMemory kRamQuota{/*mem_vsize=*/0, /*mem_vpeak=*/0,
-                                              /*mem_rss=*/25 * kGB};
+inline constexpr RUsageMemory kRamQuota{/*mem_vsize=*/0, /*mem_vpeak=*/0,
+                                        /*mem_rss=*/25 * kGB};
 // The amount of time that each thread will wait for enough RAM to be freed up
 // by its concurrent siblings.
 inline constexpr absl::Duration kRamLeaseTimeout = absl::Hours(5);
@@ -115,12 +115,11 @@ class InputCorpusShardReader {
   InputCorpusShardReader(const Environment &env)
       : workdir_{env}, log_prefix_{LogPrefix(env)} {}
 
-  perf::MemSize EstimateRamFootprint(size_t shard_idx) const {
+  MemSize EstimateRamFootprint(size_t shard_idx) const {
     const auto corpus_path = workdir_.CorpusFilePaths().Shard(shard_idx);
     const auto features_path = workdir_.FeaturesFilePaths().Shard(shard_idx);
-    const perf::MemSize corpus_file_size =
-        ValueOrDie(RemoteFileGetSize(corpus_path));
-    const perf::MemSize features_file_size =
+    const MemSize corpus_file_size = ValueOrDie(RemoteFileGetSize(corpus_path));
+    const MemSize features_file_size =
         ValueOrDie(RemoteFileGetSize(features_path));
     // Conservative compression factors for the two file types. These have been
     // observed empirically for the Riegeli blob format. The legacy format is
@@ -142,7 +141,7 @@ class InputCorpusShardReader {
             << VV(features_path);
     CorpusEltVec elts;
     // Read elements from the current shard.
-    centipede::ReadShard(  //
+    fuzztest::internal::ReadShard(  //
         corpus_path, features_path,
         [&elts](ByteArray input, FeatureVec features) {
           elts.emplace_back(std::move(input), std::move(features));
@@ -332,11 +331,11 @@ class DistilledCorpusShardWriter : public CorpusShardWriter {
 // reading/writing threads. Values > 1 can cause non-determinism in which of the
 // same-coverage inputs gets selected to be written to the output shard; set to
 // 1 for tests.
-void DistillToOneOutputShard(                          //
-    const Environment &env,                            //
-    const std::vector<size_t> &shard_indices,          //
-    DistillingInputFilter &input_filter,               //
-    perf::ResourcePool<perf::RUsageMemory> &ram_pool,  //
+void DistillToOneOutputShard(                  //
+    const Environment &env,                    //
+    const std::vector<size_t> &shard_indices,  //
+    DistillingInputFilter &input_filter,       //
+    ResourcePool<RUsageMemory> &ram_pool,      //
     int parallelism) {
   LOG(INFO) << LogPrefix(env) << "Distilling to output shard "
             << env.my_shard_index << "; input shard indices:\n"
@@ -436,7 +435,7 @@ int Distill(const Environment &env, const DistillOptions &opts) {
             absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60)),
     };
     // The RAM pool shared between all the `DistillToOneOutputShard()` threads.
-    perf::ResourcePool ram_pool{kRamQuota};
+    ResourcePool ram_pool{kRamQuota};
     const size_t num_threads = std::min(env.num_threads, kMaxWritingThreads);
     ThreadPool threads{static_cast<int>(num_threads)};
     for (size_t thread_idx = 0; thread_idx < env.num_threads; ++thread_idx) {
@@ -464,11 +463,11 @@ void DistillForTests(const Environment &env,
       env.MakeDomainDiscardMask(),
   };
   // Do not limit the max RAM.
-  perf::ResourcePool ram_pool{perf::RUsageMemory::Max()};
+  ResourcePool ram_pool{RUsageMemory::Max()};
   // Read the input shards sequentially and in order to ensure deterministic
   // outputs.
   DistillToOneOutputShard(  //
       env, shard_indices, input_filter, ram_pool, /*parallelism=*/1);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

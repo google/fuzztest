@@ -28,7 +28,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/feature.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // Reference implementation for RollingHash.
@@ -119,4 +119,4 @@ TEST(RollingHash, RollingHash) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

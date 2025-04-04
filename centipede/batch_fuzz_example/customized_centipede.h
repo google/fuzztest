@@ -25,7 +25,7 @@
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // This class implements the `Execute()` method of the `CentipedeCallbacks`
 // class. It saves a collection of inputs into files and passes them to a target
@@ -47,6 +47,6 @@ class CustomizedCallbacks : public CentipedeCallbacks {
   const bool feature_only_feedback_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_BATCH_FUZZ_EXAMPLE_CUSTOMIZED_CENTIPEDE_H_

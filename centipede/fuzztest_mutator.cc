@@ -32,7 +32,7 @@
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -148,4 +148,4 @@ void FuzzTestMutator::AddToDictionary(
   domain_->WithDictionary(dict_entries);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

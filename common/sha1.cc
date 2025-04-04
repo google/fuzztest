@@ -19,7 +19,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // We vendor our own implementation of SHA1 (taken from public domain) to avoid
@@ -200,4 +200,4 @@ void SHA1(const uint8_t *absl_nonnull data, size_t len,
   memcpy(out, sha1_result(&s), kShaDigestLength);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

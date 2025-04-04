@@ -32,7 +32,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 class SymbolTable;  // To avoid mutual inclusion with symbol_table.h.
 
@@ -180,6 +180,6 @@ uint32_t ComputeFrontierWeight(const Coverage &coverage,
                                const ControlFlowGraph &cfg,
                                const std::vector<uintptr_t> &callees);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_COVERAGE_H_

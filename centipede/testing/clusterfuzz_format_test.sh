@@ -23,11 +23,11 @@ source "$(dirname "$0")/../test_util.sh"
 
 # Centipede and target binaries.
 declare centipede
-centipede="$(centipede::get_centipede_test_srcdir)/centipede"
+centipede="$(fuzztest::internal::get_centipede_test_srcdir)/centipede"
 declare target
-target="$(centipede::get_centipede_test_srcdir)/testing/clusterfuzz_format_target"
+target="$(fuzztest::internal::get_centipede_test_srcdir)/testing/clusterfuzz_format_target"
 declare sanitized_target
-sanitized_target="$(centipede::get_centipede_test_srcdir)/testing/clusterfuzz_format_sanitized_target"
+sanitized_target="$(fuzztest::internal::get_centipede_test_srcdir)/testing/clusterfuzz_format_sanitized_target"
 
 # Input files.
 declare -r oom="${TEST_TMPDIR}/oom"
@@ -60,8 +60,8 @@ test_crashing_target() {
   local -r WD="${TEST_TMPDIR}/${FUNC}/WD"
   local -r TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   local -r LOG="${TEST_TMPDIR}/${FUNC}/log_${input_file_basename}"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   # Create a corpus with one crasher and one other input.
   cp "$1" "${TMPCORPUS}"  # Triggers an error.
@@ -73,15 +73,15 @@ test_crashing_target() {
   abort_test_fuzz --num_runs=0 | tee "${LOG}"
 
   # Sanity check. Validate failure input bytes.
-  centipede::assert_regex_in_file \
+  fuzztest::internal::assert_regex_in_file \
     "^Input bytes[ \t]*: ${input_file_basename}" "${LOG}"
 
   # The following formats are required by ClusterFuzz.
   # Validate failure reason format.
-  centipede::assert_regex_in_file \
+  fuzztest::internal::assert_regex_in_file \
     "^CRASH LOG: ${expected_regex}" "${LOG}"
   # Validate input saving format.
-  centipede::assert_regex_in_file \
+  fuzztest::internal::assert_regex_in_file \
     '^Saving input to: .\+/crashes\.[0-9]\+/.\+' "${LOG}"
 }
 

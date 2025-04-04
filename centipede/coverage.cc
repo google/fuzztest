@@ -35,7 +35,7 @@
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
     : func_entries_(pc_table.size()),
@@ -225,4 +225,4 @@ uint32_t ComputeFrontierWeight(const Coverage &coverage,
   return weight;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

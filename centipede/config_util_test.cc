@@ -27,7 +27,7 @@
 ABSL_FLAG(std::string, foo, "bar", "foo help");
 ABSL_FLAG(bool, qux, false, "qux help");
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 // NOTE: Has to be outside the anonymous namespace.
 bool operator==(const FlagInfo& tested, const FlagInfo& expected) {
@@ -242,4 +242,4 @@ TEST(FlagUtilTest, FormatFlagfileString) {
 }
 
 }  // namespace
-}  // namespace centipede::config
+}  // namespace fuzztest::internal

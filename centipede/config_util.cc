@@ -25,7 +25,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 std::vector<char*> CastArgv(const std::vector<std::string>& argv) {
   std::vector<char*> ret_argv;
@@ -106,4 +106,4 @@ std::string FormatFlagfileString(const FlagInfosPerSource& flags,
   return absl::StrJoin(lines, "\n");
 }
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal

@@ -23,7 +23,7 @@
 #include <cstring>
 #include <functional>
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Iterates over [bytes, bytes + num_bytes) and calls action(idx, bytes[idx]),
 // for every non-zero bytes[idx]. Then clears those non-zero bytes.
@@ -65,6 +65,6 @@ inline void ForEachNonZeroByte(uint8_t *bytes, size_t num_bytes,
   }
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_FOREACH_NONZERO_H_

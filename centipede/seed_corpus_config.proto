@@ -18,7 +18,7 @@
 
 syntax = "proto3";
 
-package centipede.proto;
+package fuzztest.internal.proto;
 
 // Describes a seed corpus source as a set of directories matching a glob in
 // combination with a relative shard file glob searched under each of those

@@ -20,12 +20,12 @@ set -eu
 
 source "$(dirname "$0")/../test_util.sh"
 
-CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
+CENTIPEDE_TEST_SRCDIR="$(fuzztest::internal::get_centipede_test_srcdir)"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/minimize_me_fuzz_target"
 
 WD="${TEST_TMPDIR}/WD"
@@ -36,7 +36,7 @@ CRASHER="${TEST_TMPDIR}/crasher"
 echo -n '?f???u???z?' > "${CRASHER}"
 
 # Run minimization loop
-centipede::ensure_empty_dir "${WD}"
+fuzztest::internal::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --minimize_crash="${CRASHER}" --seed=1 --num_runs=100000 \
   2>&1 |tee "${LOG}"
@@ -45,7 +45,7 @@ centipede::ensure_empty_dir "${WD}"
 # The 3 middle bytes of it should be 'fuz'.
 # The minimization for this test target is not guaranteed to produce
 # some specific 5-byte input.
-centipede::assert_regex_in_file "Crasher: size: 5: .*fuz.*" "${LOG}"
+fuzztest::internal::assert_regex_in_file "Crasher: size: 5: .*fuz.*" "${LOG}"
 
 # Check that we actually have a 5-byte-long file in "${WD}/crashes."*.
 find "${WD}/crashes."* -size 5c
@@ -64,7 +64,7 @@ make_large_crasher() {
 make_large_crasher 50 > "${CRASHER}"
 
 # Run minimization on the large crasher in multiple threads.
-centipede::ensure_empty_dir "${WD}"
+fuzztest::internal::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --minimize_crash="${CRASHER}" --seed=1 --num_runs=100000 -j 5 \
   2>&1 |tee "${LOG}"
@@ -72,6 +72,6 @@ centipede::ensure_empty_dir "${WD}"
 # Check that we found crashers of 99 bytes or less.
 # This is not much given that the original crasher is 105 bytes,
 # but otherwise we risk making this test too flaky.
-centipede::assert_regex_in_file "Crasher: size: [0-9]\{1,2\}:" "${LOG}"
+fuzztest::internal::assert_regex_in_file "Crasher: size: [0-9]\{1,2\}:" "${LOG}"
 
 echo "PASS"

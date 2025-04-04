@@ -28,7 +28,7 @@
 #include "./centipede/mutation_input.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Tests that when alignment is not 1 byte, adding bytes to an input will result
 // in a size-aligned mutant (even if the input is not size-aligned).
@@ -991,4 +991,4 @@ TEST(ByteArrayMutator, MutateManyWithMaxLenWithStartingLargeInput) {
 
 }  // namespace
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

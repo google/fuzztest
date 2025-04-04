@@ -203,7 +203,7 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
   return out;
 }
 
-// TODO(b/348702296): Consider merging with `centipede::ReadShard()`.
+// TODO(b/348702296): Consider merging with `fuzztest::internal::ReadShard()`.
 void ForEachSerializedInput(absl::Span<const std::string> file_paths,
                             absl::FunctionRef<absl::Status(
                                 absl::string_view file_path,
@@ -214,20 +214,20 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
   int total_invalid_inputs = 0;
   const absl::Time start_time = absl::Now();
   for (const std::string& file_path : file_paths) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(centipede::RemotePathExists(file_path),
-                                         "File path ", file_path,
-                                         " does not exist.");
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !centipede::RemotePathIsDirectory(file_path), "File path ", file_path,
-        " is a directory.");
+        fuzztest::internal::RemotePathExists(file_path), "File path ",
+        file_path, " does not exist.");
+    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+        !fuzztest::internal::RemotePathIsDirectory(file_path), "File path ",
+        file_path, " is a directory.");
     int loaded_inputs_from_file = 0;
     int invalid_inputs_from_file = 0;
     // The reader cannot be reused for multiple files because of the way it
     // handles its internal state. So we instantiate a new reader for each file.
-    std::unique_ptr<centipede::BlobFileReader> reader =
-        centipede::DefaultBlobFileReaderFactory();
+    std::unique_ptr<fuzztest::internal::BlobFileReader> reader =
+        fuzztest::internal::DefaultBlobFileReaderFactory();
     if (reader->Open(file_path).ok()) {
-      centipede::ByteSpan blob;
+      fuzztest::internal::ByteSpan blob;
       for (int blob_idx = 0; reader->Read(blob).ok(); ++blob_idx) {
         if (absl::Now() - start_time > timeout) {
           absl::FPrintF(GetStderr(),
@@ -236,8 +236,9 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
                         blob_idx, file_path);
           break;
         }
-        absl::Status result = consume(
-            file_path, blob_idx, std::string(centipede::AsStringView(blob)));
+        absl::Status result =
+            consume(file_path, blob_idx,
+                    std::string(fuzztest::internal::AsStringView(blob)));
         if (result.ok()) {
           ++loaded_inputs_from_file;
         } else {
@@ -271,7 +272,7 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
     // back to reading the file directly if it is an empty blob file.
     std::string contents;
     const absl::Status get_contents_status =
-        centipede::RemoteFileGetContents(file_path, contents);
+        fuzztest::internal::RemoteFileGetContents(file_path, contents);
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(
         get_contents_status.ok(), "RemoteFileGetContents failed on ", file_path,
         ", status: ", get_contents_status.message());

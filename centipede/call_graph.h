@@ -25,7 +25,7 @@
 #include "./centipede/pc_info.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 class CallGraph {
  public:
@@ -67,6 +67,6 @@ class CallGraph {
   std::vector<uintptr_t> empty_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CALL_GRAPH_H_

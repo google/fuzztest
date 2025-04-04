@@ -25,7 +25,7 @@
 #include "./centipede/mutation_input.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Mutator based on the FuzzTest std::vector domain.  It always
 // generates non-empty results, with a default limit on the mutant
@@ -77,6 +77,6 @@ class FuzzTestMutator {
   std::unique_ptr<MutatorDomain> domain_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif

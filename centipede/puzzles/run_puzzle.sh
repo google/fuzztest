@@ -27,12 +27,12 @@ ls -la "$(dirname "$0")"
 
 source "$(dirname "$0")/../test_util.sh"
 
-readonly centipede_dir="$(centipede::get_centipede_test_srcdir)"
-centipede::maybe_set_var_to_executable_path centipede "${centipede_dir}/centipede_uninstrumented"
+readonly centipede_dir="$(fuzztest::internal::get_centipede_test_srcdir)"
+fuzztest::internal::maybe_set_var_to_executable_path centipede "${centipede_dir}/centipede_uninstrumented"
 readonly centipede
-centipede::maybe_set_var_to_executable_path llvm_symbolizer "$(centipede::get_llvm_symbolizer_path)"
+fuzztest::internal::maybe_set_var_to_executable_path llvm_symbolizer "$(fuzztest::internal::get_llvm_symbolizer_path)"
 readonly llvm_symbolizer
-centipede::maybe_set_var_to_executable_path objdump "$(centipede::get_objdump_path)"
+fuzztest::internal::maybe_set_var_to_executable_path objdump "$(fuzztest::internal::get_objdump_path)"
 readonly objdump
 
 readonly target_name="$(basename "$0")"
@@ -81,38 +81,38 @@ function Run() {
 # Checks that $1 is the solution for the puzzle.
 function SolutionIs() {
   echo "====== ${FUNCNAME[0]}: $1"
-  centipede::assert_regex_in_file "Input bytes.*: $1" "${log}"
+  fuzztest::internal::assert_regex_in_file "Input bytes.*: $1" "${log}"
 }
 
 # Expects that Centipede found a per-input timeout.
 function ExpectPerInputTimeout() {
   echo "======= ${FUNCNAME[0]}"
-  centipede::assert_regex_in_file "Per-input timeout exceeded" "${log}"
-  centipede::assert_regex_in_file "Failure.*: per-input-timeout-exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file "Per-input timeout exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file "Failure.*: per-input-timeout-exceeded" "${log}"
 }
 
 # Expects that Centipede found a per-batch timeout.
 function ExpectPerBatchTimeout() {
   echo "======= ${FUNCNAME[0]}"
-  centipede::assert_regex_in_file "Per-batch timeout exceeded" "${log}"
-  centipede::assert_regex_in_file "Failure.*: per-batch-timeout-exceeded" "${log}"
-  centipede::assert_regex_in_file \
+  fuzztest::internal::assert_regex_in_file "Per-batch timeout exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file "Failure.*: per-batch-timeout-exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file \
     "Failure applies to entire batch: not executing inputs one-by-one" "${log}"
-  centipede::assert_regex_not_in_file \
+  fuzztest::internal::assert_regex_not_in_file \
     "Executing inputs one-by-one, trying to find the reproducer" "${log}"
 }
 
 # Expects that Centipede found a OOM.
 function ExpectOOM() {
   echo "======= ${FUNCNAME[0]}"
-  centipede::assert_regex_in_file "RSS limit exceeded" "${log}"
-  centipede::assert_regex_in_file "Failure.*: rss-limit-exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file "RSS limit exceeded" "${log}"
+  fuzztest::internal::assert_regex_in_file "Failure.*: rss-limit-exceeded" "${log}"
 }
 
 # Expects that $1 is found in the log.
 function ExpectInLog() {
   echo "======= ${FUNCNAME[0]}: $1"
-  centipede::assert_regex_in_file "$1" "${log}"
+  fuzztest::internal::assert_regex_in_file "$1" "${log}"
 }
 
 ##################################### end USER_FUNCTIONS

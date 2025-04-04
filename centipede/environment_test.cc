@@ -22,7 +22,7 @@
 #include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 TEST(Environment, UpdateForExperiment) {
   Environment env;
@@ -219,4 +219,4 @@ TEST(Environment, UpdatesReplayOnlyConfiguration) {
   EXPECT_FALSE(env.populate_binary_info);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

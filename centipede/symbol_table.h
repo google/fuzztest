@@ -29,7 +29,7 @@
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Maps integer indices in [0, size) to debug symbols:
 // function names, file names, line numbers, column numbers.
@@ -141,6 +141,6 @@ class SymbolTable {
   std::vector<Entry> entries_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_SYMBOL_TABLE_H_

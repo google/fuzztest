@@ -34,7 +34,7 @@
 #include "absl/log/check.h"
 #include "absl/time/time.h"
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 
 // Memory size in bytes.
 using MemSize = int64_t;
@@ -288,6 +288,6 @@ std::string FormatInOptimalUnits(CpuUtilization util, bool always_signed);
 // positive deltas).
 std::string FormatInOptimalUnits(CpuHyperCores cores, bool always_signed);
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUSAGE_STATS_H_

@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/environment.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 TEST(WorkDirTest, Ctors) {
   const WorkDir wd{
@@ -137,4 +137,4 @@ TEST(WorkDirTest, Api) {
             "/dir/rusage-report-bin.000003.anno.txt");
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

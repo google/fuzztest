@@ -34,7 +34,7 @@
 #include "absl/status/status.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Reads blobs from a BlobFile. See the top file comment.
 class BlobFileReader {
@@ -125,6 +125,6 @@ void UnpackBytesFromAppendFile(
     std::vector<ByteArray> *absl_nullable unpacked,
     std::vector<std::string> *absl_nullable hashes = nullptr);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_BLOB_FILE_H_

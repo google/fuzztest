@@ -20,7 +20,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 inline constexpr size_t kShaDigestLength = 20;
 
@@ -29,6 +29,6 @@ inline constexpr size_t kShaDigestLength = 20;
 void SHA1(const uint8_t* absl_nonnull data, size_t len,
           uint8_t* absl_nonnull out);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_SHA1_H_

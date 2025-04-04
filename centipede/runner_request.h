@@ -25,7 +25,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
-namespace centipede::runner_request {
+namespace fuzztest::internal {
 
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
@@ -59,6 +59,6 @@ bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata);
 // Returns true iff `blob` indicates a data input.
 bool IsDataInput(Blob blob);
 
-}  // namespace centipede::runner_request
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_EXECUTION_REQUEST_H_

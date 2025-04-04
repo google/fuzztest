@@ -42,7 +42,7 @@
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 PCTable ReadPcTableFromFile(std::string_view file_path) {
   ByteArray pc_infos_as_bytes;
@@ -232,4 +232,4 @@ uint32_t ComputeFunctionCyclomaticComplexity(uintptr_t pc,
   return edge_num - node_num + 2;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

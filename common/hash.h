@@ -21,7 +21,7 @@
 
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Returns a printable hash of a byte array. Currently sha1 is used.
 std::string Hash(ByteSpan span);
@@ -30,6 +30,6 @@ std::string Hash(std::string_view str);
 // Hashes are always this many bytes.
 inline constexpr size_t kHashLen = 40;
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_UTIL_H_

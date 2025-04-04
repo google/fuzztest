@@ -24,7 +24,7 @@
 #include "./centipede/symbol_table.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
@@ -79,4 +79,4 @@ TEST(BinaryInfoTest, SerializesAndDeserializesEmptyBinaryInfoSuccessfully) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

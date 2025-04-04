@@ -24,7 +24,7 @@
 #include "./centipede/environment.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // The Centipede work directory manager.
 class WorkDir {
@@ -74,7 +74,7 @@ class WorkDir {
 
   // Constructs an object by recording referenced to the field values in the
   // passed `env` object. NOTE: `env` must outlive this object.
-  explicit WorkDir(const centipede::Environment& env);
+  explicit WorkDir(const fuzztest::internal::Environment &env);
 
   // Not copyable and not assignable due to dual nature of the reference
   // members (that reference either the internal value holders or an external
@@ -165,6 +165,6 @@ class WorkDir {
   const size_t &my_shard_index_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_WORKDIR_MGR_H_

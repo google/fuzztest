@@ -19,24 +19,24 @@
 # TODO(ussuri): Merge with the versions in testing/centipede_main_cns_test.sh?
 
 # Performs some basic fuzzing runs of target "$1".
-function centipede::run_some_fuzzing() {
+function fuzztest::internal::run_some_fuzzing() {
   local -r target=($1)
 
   FUNC="${FUNCNAME[0]}"
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
 
   echo "============ ${FUNC}: First run: 100 runs in batches of 7"
   ${target} -workdir="${WD}" -num_runs 100 --batch_size=7 | tee "${LOG}"
-  centipede::assert_regex_in_file '\[S0.100\] end-fuzz:' "${LOG}" # Check the number of runs.
-  centipede::assert_fuzzing_success "${LOG}"
+  fuzztest::internal::assert_regex_in_file '\[S0.100\] end-fuzz:' "${LOG}" # Check the number of runs.
+  fuzztest::internal::assert_fuzzing_success "${LOG}"
   ls -l "${WD}"
 
   echo "============ ${FUNC}: Second run: 300 runs in batches of 8"
   ${target} -workdir="${WD}" -num_runs 300 --batch_size=8 | tee "${LOG}"
-  centipede::assert_regex_in_file '\[S0.300\] end-fuzz:' "${LOG}" # Check the number of runs.
-  centipede::assert_fuzzing_success "${LOG}"
+  fuzztest::internal::assert_regex_in_file '\[S0.300\] end-fuzz:' "${LOG}" # Check the number of runs.
+  fuzztest::internal::assert_fuzzing_success "${LOG}"
   ls -l "${WD}"
 
   N_SHARDS=3
@@ -50,14 +50,14 @@ function centipede::run_some_fuzzing() {
   for ((s = 0; s < "${N_SHARDS}"; s++)); do
     grep -q "centipede.cc.*end-fuzz:" "${LOG}.${s}"
   done
-  centipede::assert_fuzzing_success "${LOG}".*
+  fuzztest::internal::assert_fuzzing_success "${LOG}".*
 
   ls -l "${WD}"
 }
 
 # Tests fuzzing with a target "$1" that crashes with a nice_input "$2" and
 # a crash_input "$3". The log should contain string "$4".
-function centipede::test_crashing_target() {
+function fuzztest::internal::test_crashing_target() {
   local -r target=($1)
   local -r nice_input="$2"
   local -r crash_input="$3"
@@ -67,8 +67,8 @@ function centipede::test_crashing_target() {
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   # Create a corpus with one crasher and one other input.
   echo -n "${crash_input}" >"${TMPCORPUS}/${crash_input}" # induces abort in the target.
@@ -78,11 +78,11 @@ function centipede::test_crashing_target() {
   # Run fuzzing with num_runs=0, i.e. only run the inputs from the corpus.
   # Expecting a crash to be observed and reported.
   ${target} --workdir="${WD}" --num_runs=0 | tee "${LOG}"
-  centipede::assert_regex_in_file "2 inputs to rerun" "${LOG}"
-  centipede::assert_regex_in_file "Batch execution failed:" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "2 inputs to rerun" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Batch execution failed:" "${LOG}"
 
   # Comes from test_fuzz_target.cc
-  centipede::assert_regex_in_file "${regex}" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "${regex}" "${LOG}"
 }
 
 # Replays inputs with the specified target.
@@ -91,7 +91,7 @@ function centipede::test_crashing_target() {
 #   $1 - The target to replay the tests for.
 #   $2 - The log string regex that should be present in the test results.
 #   $@ - The remaining inputs to be used for the tests.
-function centipede::test_replaying_target() {
+function fuzztest::internal::test_replaying_target() {
   local -r target="$1"; shift
   local -r regex="$1"; shift
   local -ra corpus_elts=("$@")
@@ -100,8 +100,8 @@ function centipede::test_replaying_target() {
   WD="${TEST_TMPDIR}/${FUNC}/WD"
   TMPCORPUS="${TEST_TMPDIR}/${FUNC}/C"
   LOG="${TEST_TMPDIR}/${FUNC}/log"
-  centipede::ensure_empty_dir "${WD}"
-  centipede::ensure_empty_dir "${TMPCORPUS}"
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${TMPCORPUS}"
 
   local -i n=0
   for elt in "${corpus_elts[@]}"; do
@@ -113,5 +113,5 @@ function centipede::test_replaying_target() {
 
   # Run fuzzing with num_runs=0, i.e. only run the inputs from the corpus.
   ${target} --workdir="${WD}" --num_runs=0 | tee "${LOG}"
-  centipede::assert_regex_in_file "${regex}" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "${regex}" "${LOG}"
 }

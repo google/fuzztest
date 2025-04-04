@@ -27,7 +27,7 @@ ALLOWED_SIZE=16
 
 echo "pc table allowed size: ${ALLOWED_SIZE}"
 
-target="$(centipede::get_centipede_test_srcdir)/testing/empty_fuzz_target"
+target="$(fuzztest::internal::get_centipede_test_srcdir)/testing/empty_fuzz_target"
 pc_table="${TEST_TMPDIR}/pc_table"
 unused1="${TEST_TMPDIR}/unused1"
 unused2="${TEST_TMPDIR}/unused2"

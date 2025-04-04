@@ -33,7 +33,7 @@
 #include "./common/defs.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 
-namespace centipede {
+namespace fuzztest::internal {
 
 CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
     : CentipedeCallbacks(env) {
@@ -115,4 +115,4 @@ std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
   return CentipedeCallbacks::Mutate(inputs, num_mutants);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
