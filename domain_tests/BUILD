@@ -70,6 +70,18 @@ cc_test(
 )
 
 cc_test(
+    name = "bitgen_ref_domain_test",
+    srcs = ["bitgen_ref_domain_test.cc"],
+    deps = [
+        ":domain_testing",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@com_google_fuzztest//fuzztest:domain_core",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "container_combinators_test",
     srcs = ["container_combinators_test.cc"],
     deps = [

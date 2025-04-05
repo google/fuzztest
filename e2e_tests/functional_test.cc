@@ -1588,6 +1588,12 @@ TEST_P(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
   ExpectTargetAbort(status, std_err);
 }
 
+TEST_P(FuzzingModeCrashFindingTest, BitGenRefTestFindsAbortInFuzzingMode) {
+  auto [status, std_out, std_err] = Run("MySuite.BitGenRef");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: absl::BitGenRef{}"));
+  ExpectTargetAbort(status, std_err);
+}
+
 TEST_P(FuzzingModeCrashFindingTest,
        FixedSizeVectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.FixedSizeVectorValue");

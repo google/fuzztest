@@ -12,6 +12,8 @@ target_link_libraries(
   fuzztest_status
   protobuf::libprotobuf
   test_protobuf
+  absl::random_bit_gen_ref
+  absl::random_distributions
   absl::str_format
   absl::string_view
 )
@@ -29,11 +31,13 @@ target_link_libraries(
   PUBLIC
   protobuf::libprotobuf
   test_protobuf
-  absl::check
   absl::algorithm_container
+  absl::check
   absl::flat_hash_map
   absl::flat_hash_set
   absl::function_ref
+  absl::random_bit_gen_ref
+  absl::random_distributions
   absl::span
   absl::str_format
   absl::strings

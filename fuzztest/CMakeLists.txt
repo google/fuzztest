@@ -318,6 +318,7 @@ fuzztest_cc_library(
     "internal/domains/aggregate_of_impl.h"
     "internal/domains/arbitrary_impl.h"
     "internal/domains/bit_flag_combination_of_impl.h"
+    "internal/domains/bit_gen_ref.h"
     "internal/domains/container_mutation_helpers.h"
     "internal/domains/container_of_impl.h"
     "internal/domains/domain.h"
@@ -343,6 +344,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::absl_helpers
     fuzztest::any
+    fuzztest::fuzzing_bit_gen
     fuzztest::logging
     fuzztest::meta
     fuzztest::printer
@@ -351,19 +353,21 @@ fuzztest_cc_library(
     fuzztest::status
     fuzztest::table_of_recent_compares
     fuzztest::type_support
+    absl::bits
+    absl::check
     absl::flat_hash_map
     absl::flat_hash_set
     absl::function_ref
-    absl::bits
     absl::int128
-    absl::random_random
+    absl::log
     absl::random_bit_gen_ref
     absl::random_distributions
-    absl::status
-    absl::strings
-    absl::str_format
-    absl::time
+    absl::random_random
     absl::span
+    absl::status
+    absl::str_format
+    absl::strings
+    absl::time
 )
 
 fuzztest_cc_library(
@@ -406,6 +410,24 @@ fuzztest_cc_library(
     flag_name
   HDRS
     "internal/flag_name.h"
+)
+
+fuzztest_cc_library(
+  NAME
+    fuzzing_bit_gen
+  HDRS
+    "internal/fuzzing_bit_gen.h"
+  SRCS
+    "internal/fuzzing_bit_gen.cc"
+  DEPS 
+    fuzztest::register_fuzzing_mocks
+    absl::bits
+    absl::fast_type_id
+    absl::flat_hash_map
+    absl::int128
+    absl::no_destructor
+    absl::random_bit_gen_ref
+    absl::span
 )
 
 fuzztest_cc_library(
@@ -521,6 +543,21 @@ fuzztest_cc_library(
     absl::statusor
     absl::strings
     re2::re2
+)
+
+fuzztest_cc_library(
+  NAME
+    register_fuzzing_mocks
+  HDRS
+    "internal/register_fuzzing_mocks.h"
+  SRCS
+    "internal/register_fuzzing_mocks.cc"
+  DEPS
+    absl::check
+    absl::fast_type_id
+    absl::function_ref
+    absl::random_distributions
+    absl::span
 )
 
 fuzztest_cc_library(
