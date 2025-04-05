@@ -26,6 +26,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -35,6 +36,8 @@
 #include <vector>
 
 #include "./fuzztest/fuzztest.h"
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/distributions.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -225,6 +228,16 @@ FUZZ_TEST(MySuite, VectorValue)
 constexpr auto& FixedSizeVectorValue = VectorValue;
 FUZZ_TEST(MySuite, FixedSizeVectorValue)
     .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<char>()).WithSize(4));
+
+__attribute__((optnone)) void BitGenRef(absl::BitGenRef bitgen) {
+  if (absl::Uniform(bitgen, 0, 256) == 'F' &&
+      absl::Uniform(bitgen, 0, 256) == 'U' &&
+      absl::Uniform(bitgen, 0, 256) == 'Z' &&
+      absl::Uniform(bitgen, 0, 256) == 'Z') {
+    std::abort();  // Bug!
+  }
+}
+FUZZ_TEST(MySuite, BitGenRef);
 
 __attribute__((optnone)) void WithDomainClass(uint8_t a, double d) {
   // This will only crash with a=10, to make it easier to check the results.
