@@ -371,7 +371,6 @@ cc_library(
         "internal/domains/aggregate_of_impl.h",
         "internal/domains/arbitrary_impl.h",
         "internal/domains/bit_flag_combination_of_impl.h",
-        "internal/domains/bit_gen_ref.h",
         "internal/domains/container_mutation_helpers.h",
         "internal/domains/container_of_impl.h",
         "internal/domains/domain.h",
@@ -397,7 +396,6 @@ cc_library(
     deps = [
         ":absl_helpers",
         ":any",
-        ":fuzzing_bit_gen",
         ":logging",
         ":meta",
         ":printer",
@@ -409,8 +407,6 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/random",
@@ -460,22 +456,6 @@ cc_test(
 cc_library(
     name = "flag_name",
     hdrs = ["internal/flag_name.h"],
-)
-
-cc_library(
-    name = "fuzzing_bit_gen",
-    srcs = ["internal/fuzzing_bit_gen.cc"],
-    hdrs = ["internal/fuzzing_bit_gen.h"],
-    deps = [
-        ":register_fuzzing_mocks",
-        "@abseil-cpp//absl/base:fast_type_id",
-        "@abseil-cpp//absl/base:no_destructor",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/numeric:bits",
-        "@abseil-cpp//absl/numeric:int128",
-        "@abseil-cpp//absl/random:bit_gen_ref",
-        "@abseil-cpp//absl/types:span",
-    ],
 )
 
 cc_library(
@@ -585,19 +565,6 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@re2",
-    ],
-)
-
-cc_library(
-    name = "register_fuzzing_mocks",
-    srcs = ["internal/register_fuzzing_mocks.cc"],
-    hdrs = ["internal/register_fuzzing_mocks.h"],
-    deps = [
-        "@abseil-cpp//absl/base:fast_type_id",
-        "@abseil-cpp//absl/functional:function_ref",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random:distributions",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
