@@ -22,7 +22,7 @@
 #include "absl/base/nullability.h"
 
 // A binary linked with the fork server that exits/crashes in different ways.
-int main(int argc, absl::Nonnull<char **> argv) {
+int main(int argc, char** absl_nonnull argv) {
   assert(argc == 2);
   printf("Got input: %s", argv[1]);
   fflush(stdout);

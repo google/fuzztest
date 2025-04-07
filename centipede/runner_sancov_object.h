@@ -51,11 +51,10 @@ struct SanCovObject {
 class SanCovObjectArray {
  public:
   // To be called in __sanitizer_cov_trace_pc_guard_init.
-  void PCGuardInit(absl::Nullable<PCGuard *> start, PCGuard *stop);
+  void PCGuardInit(PCGuard *absl_nullable start, PCGuard *stop);
 
   // To be called in __sanitizer_cov_pcs_init.
-  void PCInfoInit(absl::Nullable<const PCInfo *> pcs_beg,
-                  const PCInfo *pcs_end);
+  void PCInfoInit(const PCInfo *absl_nullable pcs_beg, const PCInfo *pcs_end);
 
   // To be called in __sanitizer_cov_cfs_init.
   void CFSInit(const uintptr_t *cfs_beg, const uintptr_t *cfs_end);

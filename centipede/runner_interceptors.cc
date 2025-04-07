@@ -56,7 +56,7 @@ struct ThreadCreateArgs {
 // Calls the actual start_routine and returns its results.
 // Performs custom actions before and after start_routine().
 // `arg` is a `ThreadCreateArgs *` with the actual pthread_create() args.
-void *MyThreadStart(absl::Nonnull<void *> arg) {
+void *MyThreadStart(void *absl_nonnull arg) {
   auto *args_orig_ptr = static_cast<ThreadCreateArgs *>(arg);
   auto args = *args_orig_ptr;
   delete args_orig_ptr;  // allocated in the pthread_create wrapper.
@@ -203,10 +203,10 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
 
 // pthread_create interceptor.
 // Calls real pthread_create, but wraps the start_routine() in MyThreadStart.
-extern "C" int pthread_create(absl::Nonnull<pthread_t *> thread,
-                              absl::Nullable<const pthread_attr_t *> attr,
+extern "C" int pthread_create(pthread_t *absl_nonnull thread,
+                              const pthread_attr_t *absl_nullable attr,
                               void *(*start_routine)(void *),
-                              absl::Nullable<void *> arg) {
+                              void *absl_nullable arg) {
   if (ABSL_PREDICT_FALSE(!tls.started)) {
     return REAL(pthread_create)(thread, attr, start_routine, arg);
   }

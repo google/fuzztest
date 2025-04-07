@@ -40,7 +40,7 @@ namespace centipede {
 // TODO(kcc): [impl] consider making it a class.
 struct Blob {
   using SizeAndTagT = size_t;
-  Blob(SizeAndTagT tag, SizeAndTagT size, absl::Nullable<const uint8_t *> data)
+  Blob(SizeAndTagT tag, SizeAndTagT size, const uint8_t *absl_nullable data)
       : tag(tag), size(size), data(data) {}
   Blob() = default;  // Construct an invalid Blob.
   bool IsValid() const { return tag != 0; }
@@ -172,7 +172,7 @@ class SharedMemoryBlobSequence : public BlobSequence {
 
   // Gets the file path that can be used to create new instances.
   // TODO(ussuri): Refactor `char *` into a `string_view`.
-  absl::Nonnull<const char *> path() const { return path_; }
+  const char *absl_nonnull path() const { return path_; }
 
  private:
   // mmaps `size_` bytes from `fd_`, assigns to `data_`. Crashes if mmap failed.

@@ -147,7 +147,7 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
 // `features` and return the hash.
 std::string UnpackFeaturesAndHash(ByteSpan blob,
-                                  absl::Nonnull<FeatureVec *> features);
+                                  FeatureVec *absl_nonnull features);
 
 // Parses `dictionary_text` representing an AFL/libFuzzer dictionary.
 // https://github.com/google/AFL/blob/master/dictionaries/README.dictionaries

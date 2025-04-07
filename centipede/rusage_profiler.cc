@@ -129,7 +129,7 @@ class ProfileReportGenerator {
  public:
   ProfileReportGenerator(                                     //
       const std::deque<RUsageProfiler::Snapshot>& snapshots,  //
-      absl::Nonnull<RUsageProfiler::ReportSink*> report_sink)
+      RUsageProfiler::ReportSink* absl_nonnull report_sink)
       : snapshots_{snapshots}, report_sink_{report_sink} {
     for (const auto& snapshot : snapshots_) {
       timing_low_ = RUsageTiming::LowWater(  //
@@ -482,7 +482,7 @@ void RUsageProfiler::PrintReport(  //
 }
 
 void RUsageProfiler::GenerateReport(
-    absl::Nonnull<ReportSink*> report_sink) const {
+    ReportSink* absl_nonnull report_sink) const {
   absl::ReaderMutexLock lock{&mutex_};
   // Prevent interleaved reports from multiple concurrent RUsageProfilers.
   ABSL_CONST_INIT static absl::Mutex report_generation_mutex_{absl::kConstInit};

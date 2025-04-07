@@ -19,7 +19,7 @@
 #include "./centipede/config_file.h"
 #include "./centipede/environment_flags.h"
 
-int main(int argc, absl::Nonnull<char**> argv) {
+int main(int argc, char** absl_nonnull argv) {
   const auto runtime_state = centipede::config::InitCentipede(argc, argv);
   // Reads flags; must happen after InitCentipede().
   const auto env =

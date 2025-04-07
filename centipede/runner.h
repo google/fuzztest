@@ -182,7 +182,7 @@ struct GlobalRunnerState {
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
   // TODO(ussuri): Refactor `char *` into a `string_view`.
-  bool HasFlag(absl::Nonnull<const char *> flag) const {
+  bool HasFlag(const char *absl_nonnull flag) const {
     if (!centipede_runner_flags) return false;
     return strstr(centipede_runner_flags, flag) != nullptr;
   }
@@ -191,7 +191,7 @@ struct GlobalRunnerState {
   // otherwise returns `default_value`.
   // Typical usage: pass ":some_flag=".
   // TODO(ussuri): Refactor `char *` into a `string_view`.
-  uint64_t HasIntFlag(absl::Nonnull<const char *> flag,
+  uint64_t HasIntFlag(const char *absl_nonnull flag,
                       uint64_t default_value) const {
     if (!centipede_runner_flags) return default_value;
     const char *beg = strstr(centipede_runner_flags, flag);
@@ -204,8 +204,7 @@ struct GlobalRunnerState {
   // it in `this` to avoid a leak.
   // Typical usage: pass ":some_flag=".
   // TODO(ussuri): Refactor `char *` into a `string_view`.
-  absl::Nullable<const char *> GetStringFlag(
-      absl::Nonnull<const char *> flag) const {
+  const char *absl_nullable GetStringFlag(const char *absl_nonnull flag) const {
     if (!centipede_runner_flags) return nullptr;
     // Extract "value" from ":flag=value:" inside centipede_runner_flags.
     const char *beg = strstr(centipede_runner_flags, flag);

@@ -26,7 +26,7 @@
 #include "./centipede/util.h"
 #include "./common/remote_file.h"
 
-int main(int argc, absl::Nonnull<char**> argv) {
+int main(int argc, char** absl_nonnull argv) {
   (void)centipede::config::InitRuntime(argc, argv);
 
   const std::string config = absl::GetFlag(FLAGS_config);
