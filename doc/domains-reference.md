@@ -38,7 +38,6 @@ protocol buffers. Specifically, for the following types:
     `absl::flat_hash_map`, `absl::node_hash_map`, etc.
 -   Ordered associative container types: `std::set<K>`, `std::map<K,T>`,
     `std::multiset<K>`, `std::multimap<K,T>`, etc.
--   Uniform Random Bit Generator types: `absl::BitGenRef`
 -   Protocol buffer types: `MyProtoMessage`, etc.
 -   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):
     `absl::Duration`, `absl::Time`.
@@ -227,115 +226,6 @@ enum Options {
 
 The domain `BitFlagCombinationOf({kFirst, kThird})` will include `{0, kFirst,
 kThird, kFirst | kThird}`.
-
-### Uniform Random Bit Generator (URBG) Domains
-
-When your property function relies on random functionality requiring a Uniform
-Random Bit Generator (URBG), pass the generator using
-[`absl::BitGenRef`](https://abseil.io/docs/cpp/guides/random#bitgenref-a-type-erased-urbg-interface)
-and utilize the `Arbitrary<absl::BitGenRef>()` domain. This approach provides a
-specialized random generator tailored for fuzz testing.
-
-#### Enhanced Reproducibility
-
-Using `Arbitrary<absl::BitGenRef>()` ensures test reproducibility. The random
-sequence underlying the bit generator becomes the input of the test.
-Consequently, if a bug surfaces with a specific sequence of random values, the
-test can be reliably reproduced.
-
-**Example:**
-
-```c++
-void NeverCrash(const std::vector<int>& vec, absl::BitGenRef bitgen) {
-  ...
-  std::shuffle(vec.begin(), vec.end(), bitgen);
-  DoStuffWith(vec);
-  ...
-}
-FUZZ_TEST(MySuite, NeverCrash);
-```
-
-In this example fuzz test, if a crash is found with a particular vector with a
-particular shuffle, it will be reproducible with the dumped reproducer input,
-because it contains both the vector and the `bitgen` provided values.
-
-#### Robust Boundary Condition Testing
-
-The `Arbitrary<absl::BitGenRef>()` domain also provides mocks for
-[Abseil Random Library distribution functions](https://abseil.io/docs/cpp/guides/random)
-(e.g., `absl::Uniform()`, `absl::Bernoulli()`). These mocks directly interact
-with the underlying random sequence and aid the discovery of boundary conditions
-and edge cases.
-
-**Example:**
-
-```c++
-void DistributionTest(absl::BitGenRef bitgen) {
-  EXPECT_THAT(absl::Uniform(bitgen, 0, 100), Lt(100));
-}
-FUZZ_TEST(MySuite, DistributionTest);
-```
-
-In this example, it's likely that `absl::Uniform()` will return boundary values
-like 0 and 99.
-
-#### Upgrading Randomized Tests to Coverage-Guided Fuzz Tests
-
-This domain also facilitates the transformation of existing randomized tests
-into more effective, coverage-guided fuzz tests. Consider a randomized test that
-triggers a bug only with a specific sequence of random samples:
-
-```c++
-void RandomizedTest(absl::BitGenRef bitgen) {
-  if (absl::Uniform(bitgen, 0, 256) == 'F' &&
-      absl::Uniform(bitgen, 0, 256) == 'U' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z') {
-      std::abort(); // Bug!
-    }
-}
-```
-
-Running this test independently with a standard URBG (e.g., `std::minstd_rand`
-or `absl::BitGen`) is unlikely to uncover the bug. However, integrating it with
-a fuzz test using the `Arbitrary<absl::BitGenRef>()` domain will reliably find
-the bug:
-
-```c++
-FUZZ_TEST(MySuite, RandomizedTest);
-```
-
-This is because the coverage-guided fuzzing algorithm is applied to the
-underlying random seed sequence in this case. This coverage-guidance
-significantly improves the exploration of the code paths, making the fuzz test
-more effective than the original randomized test.
-
-#### Integrating Existing Random Value Generators
-
-A common use case involves integrating existing random value generators into
-fuzz tests. This can be achieved as follows:
-
-```c++
-void MyApiReturnsTrueForValidValues(absl::BitGenRef bitgen) {
-  MyValue val = RandomMyValueGenerator(bitgen);
-  EXPECT_TRUE(MyApi(val));
-}
-FUZZ_TEST(MySuite, MyApiReturnsTrueForValidValues);
-```
-
-Again, the benefits of this approach are the following:
-
--   **Coverage-Guided Exploration:** By providing the `absl::BitGenRef` to the
-    generator, the fuzzing engine can intelligently explore the space of
-    possible random values, leading to better coverage of the `MyApi` function.
--   **Reproducibility:** The test becomes reproducible, as the random seed is
-    part of the fuzz test input.
--   **Boundary and Edge Case Discovery:** The fuzzing engine can systematically
-    probe boundary conditions and edge cases in the `RandomMyValueGenerator` and
-    `MyApi` functions, potentially uncovering hidden bugs.
--   **Improved Test Effectiveness:** This approach leverages the strengths of
-    both random value generation and coverage-guided fuzzing, resulting in a
-    more effective and robust test.
 
 ### Protocol Buffer Domains
 
@@ -709,7 +599,8 @@ that are composed only of specific characters, you can use
 StringOf(OneOf(InRange('a', 'z'), ElementOf({'.', '!', '?'})))
 ```
 
-(See [OneOf](#oneof) combinator and [ElementOf](#element-of) domain.)
+(See [OneOf](#oneof) combinator and [ElementOf](#element-of)
+domain.)
 
 Another example is the `AsciiString()`, whose implementation is
 `StringOf(AsciiChar())`.
