@@ -256,6 +256,8 @@ ABSL_FLAG(size_t, feature_frequency_threshold,
     });
 ABSL_FLAG(bool, require_pc_table, Environment::Default().require_pc_table,
           "If true, Centipede will exit if the --pc_table is not found.");
+ABSL_FLAG(bool, require_seeds, Environment::Default().require_seeds,
+          "If true, Centipede will exit if no seed inputs are found.");
 ABSL_FLAG(int, telemetry_frequency, Environment::Default().telemetry_frequency,
           "Dumping frequency for intermediate telemetry files, i.e. coverage "
           "report (workdir/coverage-report-BINARY.*.txt), corpus stats "
@@ -488,6 +490,7 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*feature_frequency_threshold=*/
       absl::GetFlag(FLAGS_feature_frequency_threshold),
       /*require_pc_table=*/absl::GetFlag(FLAGS_require_pc_table),
+      /*require_seeds=*/absl::GetFlag(FLAGS_require_seeds),
       /*telemetry_frequency=*/absl::GetFlag(FLAGS_telemetry_frequency),
       /*print_runner_log=*/absl::GetFlag(FLAGS_print_runner_log),
       /*distill=*/absl::GetFlag(FLAGS_distill),

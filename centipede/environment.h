@@ -86,6 +86,7 @@ struct Environment {
   uint64_t user_feature_domain_mask = ~0UL;
   size_t feature_frequency_threshold = 100;
   bool require_pc_table = true;
+  bool require_seeds = false;
   int telemetry_frequency = 0;
   bool print_runner_log = false;
   bool distill = false;
