@@ -380,11 +380,13 @@ bool Centipede::RunBatch(
   CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   for (const auto &extra_binary : env_.extra_binaries) {
+    if (ShouldStop()) break;
     BatchResult extra_batch_result;
     success =
         ExecuteAndReportCrash(extra_binary, input_vec, extra_batch_result) &&
         success;
   }
+  if (EarlyStopRequested()) return false;
   if (!success && env_.exit_on_crash) {
     LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
     RequestEarlyStop(EXIT_FAILURE);
@@ -850,9 +852,18 @@ void Centipede::ReportCrash(std::string_view binary,
     LOG(INFO).NoPrefix() << "\n";
   };
 
+  if (batch_result.IsSkippedTest()) {
+    log_execution_failure("Skipped Test: ");
+    LOG(INFO) << "Requesting early stop due to skipped test.";
+    RequestEarlyStop(0);
+    return;
+  }
+
   if (batch_result.IsSetupFailure()) {
     log_execution_failure("Test Setup Failure: ");
-    LOG(FATAL) << "Terminating Centipede due to setup failure in the test.";
+    LOG(INFO) << "Requesting early stop due to setup failure in the test.";
+    RequestEarlyStop(EXIT_FAILURE);
+    return;
   }
 
   // Skip reporting only if RequestEarlyStop is called - still reporting if time
