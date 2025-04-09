@@ -31,11 +31,11 @@ std::atomic<EarlyStop> early_stop;
 
 absl::Time stop_time = absl::InfiniteFuture();
 
+}  // namespace
+
 bool EarlyStopRequested() {
   return early_stop.load(std::memory_order_acquire).is_requested;
 }
-
-}  // namespace
 
 void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
   early_stop.store({}, std::memory_order_release);
