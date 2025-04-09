@@ -28,7 +28,7 @@
 #include "./centipede/knobs.h"
 #include "./fuzztest/internal/configuration.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Fuzzing environment controlling the behavior of
 // CentipedeMain(). Centipede binaries are creating Environment instances using
@@ -239,6 +239,6 @@ struct Environment {
   void UpdateBinaryHashIfEmpty();
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_ENVIRONMENT_H_

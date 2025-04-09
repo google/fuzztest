@@ -28,7 +28,7 @@
 #include "./centipede/mutation_input.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // A simple class representing an array of up to kMaxEntrySize bytes.
 class DictEntry {
@@ -250,6 +250,6 @@ extern const KnobId knob_mutate_or_crossover;
 // overwriting.
 extern const KnobId knob_cross_over_insert_or_overwrite;
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_BYTE_ARRAY_MUTATOR_H_

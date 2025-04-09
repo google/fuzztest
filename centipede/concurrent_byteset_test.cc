@@ -24,7 +24,7 @@
 #include "absl/base/const_init.h"
 #include "./centipede/thread_pool.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 TEST(ConcurrentByteSetTest, Basic) {
@@ -121,4 +121,4 @@ TEST(ConcurrentByteSetTest, TwoLayerConcurrentThreads) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

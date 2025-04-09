@@ -21,7 +21,7 @@
 
 #include "./centipede/environment.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Options for `Distill()`.
 struct DistillOptions {
@@ -46,6 +46,6 @@ int Distill(const Environment &env, const DistillOptions &opts = {});
 void DistillForTests(const Environment &env,
                      const std::vector<size_t> &shard_indices);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_DISTILL_H_

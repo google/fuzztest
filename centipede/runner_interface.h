@@ -126,7 +126,7 @@ extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity);
 // "empty" with no features or metadata.
 extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size);
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Callbacks interface implemented by the fuzzer and called by the runner.
 //
@@ -176,6 +176,6 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
 // This is not a guaranteed public interface (yet) and may disappear w/o notice.
 int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_INTERFACE_H_

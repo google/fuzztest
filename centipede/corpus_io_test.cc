@@ -32,7 +32,7 @@
 #include "./common/defs.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::UnorderedElementsAre;
@@ -125,4 +125,4 @@ TEST(ExportCorpusTest, ExportsCorpusToIndividualFiles) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -21,8 +21,8 @@ set -eu
 
 source "$(dirname "$0")/../test_util.sh"
 
-target="$(centipede::get_centipede_test_srcdir)/testing/test_fuzz_target"
-non_pie_target="$(centipede::get_centipede_test_srcdir)/testing/test_fuzz_target_non_pie"
+target="$(fuzztest::internal::get_centipede_test_srcdir)/testing/test_fuzz_target"
+non_pie_target="$(fuzztest::internal::get_centipede_test_srcdir)/testing/test_fuzz_target_non_pie"
 
 # Create input files.
 oom="${TEST_TMPDIR}/oom"

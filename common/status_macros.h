@@ -49,7 +49,7 @@
 #define CHECKS_INTERNAL_CONCAT_IMPL_(x, y) x##y
 #define CHECKS_INTERNAL_CONCAT_(x, y) CHECKS_INTERNAL_CONCAT_IMPL_(x, y)
 
-namespace centipede {
+namespace fuzztest::internal {
 template <typename T>
 decltype(auto) ValueOrDie(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           std::uint_least32_t line = __builtin_LINE(),
@@ -60,6 +60,6 @@ decltype(auto) ValueOrDie(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND,
   }
   return *std::forward<T>(value);
 }
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_STATUS_MACROS_H_

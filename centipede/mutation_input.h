@@ -24,7 +24,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // {data (required), metadata (optional)} reference pairs as mutation inputs.
 struct MutationInputRef {
@@ -48,6 +48,6 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
   return results;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_

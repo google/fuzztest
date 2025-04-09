@@ -98,9 +98,7 @@
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
 
-namespace centipede {
-
-using perf::RUsageProfiler;
+namespace fuzztest::internal {
 
 Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
                      const BinaryInfo &binary_info,
@@ -127,7 +125,7 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
         return Command{env_.input_filter, std::move(cmd_options)};
       }()},
       rusage_profiler_(
-          /*scope=*/perf::RUsageScope::ThisProcess(),
+          /*scope=*/RUsageScope::ThisProcess(),
           /*metrics=*/env.DumpRUsageTelemetryInThisShard()
               ? RUsageProfiler::kAllMetrics
               : RUsageProfiler::kMetricsOff,
@@ -219,9 +217,9 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
 
   // NOTE: For now, this will double-count rusage in every shard on the same
   // machine. The stats reporter knows and deals with that.
-  static const auto rusage_scope = perf::RUsageScope::ThisProcess();
-  const auto rusage_timing = perf::RUsageTiming::Snapshot(rusage_scope);
-  const auto rusage_memory = perf::RUsageMemory::Snapshot(rusage_scope);
+  static const auto rusage_scope = RUsageScope::ThisProcess();
+  const auto rusage_timing = RUsageTiming::Snapshot(rusage_scope);
+  const auto rusage_memory = RUsageMemory::Snapshot(rusage_scope);
 
   namespace fd = feature_domains;
 
@@ -967,4 +965,4 @@ void Centipede::ReportCrash(std::string_view binary,
                                  batch_result.failure_description()));
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

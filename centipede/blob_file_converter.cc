@@ -36,14 +36,14 @@ ABSL_FLAG(std::string, in, "", "Input path");
 ABSL_FLAG(std::string, out, "", "Output path");
 ABSL_FLAG(std::string, out_format, "riegeli", "--out format (legacy|riegeli)");
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // TODO(ussuri): Pare down excessive rusage profiling after breaking in.
 
 class StatsLogger {
  public:
-  StatsLogger(absl::Duration log_every, perf::RUsageProfiler& rprof)
+  StatsLogger(absl::Duration log_every, RUsageProfiler& rprof)
       : log_every_(log_every),
         next_log_at_(start_ + log_every),
         rprof_(rprof) {}
@@ -60,7 +60,7 @@ class StatsLogger {
         "blobs: %9lld | blobs/s: %5.0f | bytes: %12lld | bytes/s: %8.0f",
         num_blobs_, num_blobs_ / secs, num_bytes_, num_bytes_ / secs);
     if (ABSL_VLOG_IS_ON(3)) {
-      const perf::RUsageProfiler::Snapshot& snapshot = RPROF_SNAPSHOT(stats);
+      const RUsageProfiler::Snapshot& snapshot = RPROF_SNAPSHOT(stats);
       LOG(INFO) << stats << " | " << snapshot.memory.ShortStr();
     } else {
       LOG(INFO) << stats;
@@ -84,7 +84,7 @@ class StatsLogger {
   const absl::Duration log_every_;
   absl::Time next_log_at_;
 
-  perf::RUsageProfiler& rprof_;
+  RUsageProfiler& rprof_;
 };
 
 void Convert(               //
@@ -132,10 +132,10 @@ void Convert(               //
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 int main(int argc, char** absl_nonnull argv) {
-  (void)centipede::config::InitRuntime(argc, argv);
+  (void)fuzztest::internal::InitRuntime(argc, argv);
 
   const std::string in = absl::GetFlag(FLAGS_in);
   QCHECK(!in.empty());
@@ -144,7 +144,7 @@ int main(int argc, char** absl_nonnull argv) {
   const std::string out_format = absl::GetFlag(FLAGS_out_format);
   QCHECK(out_format == "legacy" || out_format == "riegeli") << VV(out_format);
 
-  centipede::Convert(in, out, out_format);
+  fuzztest::internal::Convert(in, out, out_format);
 
   return EXIT_SUCCESS;
 }

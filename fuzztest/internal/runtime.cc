@@ -462,7 +462,7 @@ void Runtime::SetCurrentTest(const FuzzTest* test,
   if (const auto test_time_limit = configuration->GetTimeLimitPerTest();
       test_time_limit < absl::InfiniteDuration()) {
     const absl::Status has_enough_time =
-        centipede::VerifyBazelHasEnoughTimeToRunTest(
+        fuzztest::internal::VerifyBazelHasEnoughTimeToRunTest(
             creation_time_, test_time_limit, test_counter_,
             configuration->fuzz_tests.size());
     FUZZTEST_INTERNAL_CHECK_PRECONDITION(

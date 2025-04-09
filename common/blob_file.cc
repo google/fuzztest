@@ -48,7 +48,7 @@
 #include "riegeli/records/record_writer.h"
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 constexpr size_t kMagicLen = 11;
@@ -504,4 +504,4 @@ std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(bool riegeli) {
     return std::make_unique<SimpleBlobFileWriter>();
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

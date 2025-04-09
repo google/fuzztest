@@ -66,7 +66,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -257,4 +257,4 @@ __attribute__((section(".preinit_array"))) auto call_very_early =
     ForkServerCallMeVeryEarly;
 #endif  // __APPLE__
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

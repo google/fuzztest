@@ -30,7 +30,7 @@
 #include "./centipede/environment.h"
 #include "./common/logging.h"
 
-using ::centipede::Environment;
+using ::fuzztest::internal::Environment;
 
 // TODO(kcc): document usage of standalone binaries and how to use @@ wildcard.
 // If the "binary" contains @@, it means the binary can only accept inputs
@@ -410,7 +410,7 @@ ABSL_FLAG(bool, riegeli, Environment::Default().riegeli,
           "for storage");
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -580,4 +580,4 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
   return env_from_flags;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

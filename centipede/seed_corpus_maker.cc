@@ -27,7 +27,7 @@
 #include "./common/remote_file.h"
 
 int main(int argc, char** absl_nonnull argv) {
-  (void)centipede::config::InitRuntime(argc, argv);
+  (void)fuzztest::internal::InitRuntime(argc, argv);
 
   const std::string config = absl::GetFlag(FLAGS_config);
   QCHECK(!config.empty());
@@ -38,15 +38,15 @@ int main(int argc, char** absl_nonnull argv) {
       << "--coverage_binary_path yields empty basename";
   std::string binary_hash = absl::GetFlag(FLAGS_coverage_binary_hash);
   if (binary_hash.empty()) {
-    QCHECK(centipede::RemotePathExists(binary_path))
+    QCHECK(fuzztest::internal::RemotePathExists(binary_path))
         << "--coverage_binary_path doesn't exist";
-    binary_hash = centipede::HashOfFileContents(binary_path);
+    binary_hash = fuzztest::internal::HashOfFileContents(binary_path);
     LOG(INFO) << "--coverage_binary_hash was not provided: computed "
               << binary_hash
               << " from actual file at --coverage_binary_path=" << binary_path;
   }
 
-  QCHECK_OK(centipede::GenerateSeedCorpusFromConfigProto(  //
+  QCHECK_OK(fuzztest::internal::GenerateSeedCorpusFromConfigProto(  //
       config, binary_name, binary_hash, override_out_dir));
 
   return EXIT_SUCCESS;

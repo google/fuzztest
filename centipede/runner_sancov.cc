@@ -29,14 +29,14 @@
 #include "./centipede/runner.h"
 #include "./centipede/runner_dl_info.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 void RunnerSancov() {}  // to be referenced in runner.cc
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
-using centipede::PCGuard;
-using centipede::PCInfo;
-using centipede::state;
-using centipede::tls;
+using fuzztest::internal::PCGuard;
+using fuzztest::internal::PCInfo;
+using fuzztest::internal::state;
+using fuzztest::internal::tls;
 
 // Tracing data flow.
 // The instrumentation is provided by
@@ -72,7 +72,7 @@ ENFORCE_INLINE static void TraceLoad(void *addr) {
   if (pc_offset >= state.main_object.size) return;  // PC outside main obj.
   auto addr_offset = load_addr - state.main_object.start_address;
   if (addr_offset >= state.main_object.size) return;  // Not a global address.
-  state.data_flow_feature_set.set(centipede::ConvertPcPairToNumber(
+  state.data_flow_feature_set.set(fuzztest::internal::ConvertPcPairToNumber(
       pc_offset, addr_offset, state.main_object.size));
 }
 
@@ -82,14 +82,17 @@ ENFORCE_INLINE static void TraceCmp(uint64_t Arg1, uint64_t Arg2) {
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   auto pc_offset = caller_pc - state.main_object.start_address;
   uintptr_t hash =
-      centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
+      fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
   if (Arg1 == Arg2) {
     state.cmp_eq_set.set(hash);
   } else {
     hash <<= 6;  // ABTo* generate 6-bit numbers.
-    state.cmp_moddiff_set.set(hash | centipede::ABToCmpModDiff(Arg1, Arg2));
-    state.cmp_hamming_set.set(hash | centipede::ABToCmpHamming(Arg1, Arg2));
-    state.cmp_difflog_set.set(hash | centipede::ABToCmpDiffLog(Arg1, Arg2));
+    state.cmp_moddiff_set.set(hash |
+                              fuzztest::internal::ABToCmpModDiff(Arg1, Arg2));
+    state.cmp_hamming_set.set(hash |
+                              fuzztest::internal::ABToCmpHamming(Arg1, Arg2));
+    state.cmp_difflog_set.set(hash |
+                              fuzztest::internal::ABToCmpDiffLog(Arg1, Arg2));
   }
 }
 
@@ -204,7 +207,7 @@ static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
                 (tls.stack_region_low == 0 || sp >= tls.stack_region_low),
             0)) {
       tls.lowest_sp = sp;
-      centipede::CheckStackLimit(sp);
+      fuzztest::internal::CheckStackLimit(sp);
     }
     if (state.run_time_flags.callstack_level != 0) {
       tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
@@ -258,7 +261,7 @@ static void UpdatePcCounterSetSizeAligned(size_t size) {
 static pthread_once_t main_object_lazy_init_once = PTHREAD_ONCE_INIT;
 static void MainObjectLazyInitOnceCallback() {
   state.main_object =
-      centipede::GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
+      fuzztest::internal::GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
   fprintf(stderr, "MainObjectLazyInitOnceCallback %zx\n",
           state.main_object.start_address);
   UpdatePcCounterSetSizeAligned(state.reverse_pc_table.NumPcs());

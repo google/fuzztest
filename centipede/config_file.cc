@@ -88,7 +88,7 @@ ABSL_DECLARE_FLAG(std::vector<std::string>, flagfile);
 
 #define DASHED_FLAG_NAME(name) "--" << FLAGS_##name.Name()
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 AugmentedArgvWithCleanup::AugmentedArgvWithCleanup(
     const std::vector<std::string>& orig_argv,
@@ -259,7 +259,7 @@ std::unique_ptr<RuntimeState> InitCentipede(  //
   const std::vector<std::string> saved_argv = CastArgv(argc, argv);
 
   // Among other things, this performs the initial command line parsing.
-  std::unique_ptr<config::RuntimeState> runtime_state = InitRuntime(argc, argv);
+  std::unique_ptr<RuntimeState> runtime_state = InitRuntime(argc, argv);
 
   // If --config=<path> was passed, replace it with the Abseil Flags' built-in
   // --flagfile=<localized_path> and reparse the command line. NOTE: It would be
@@ -294,4 +294,4 @@ std::unique_ptr<RuntimeState> InitCentipede(  //
   return runtime_state;
 }
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal

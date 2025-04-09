@@ -30,7 +30,7 @@
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_utils.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 void SanCovObjectArray::PCGuardInit(PCGuard *absl_nullable start,
                                     PCGuard *stop) {
@@ -194,4 +194,4 @@ void SanCovObjectArray::ForEachNonZeroInlineCounter(
   }
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

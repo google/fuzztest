@@ -34,7 +34,7 @@
 #include "./centipede/environment.h"
 #include "./common/remote_file.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // A set of statistics about the fuzzing progress.
 // - Each worker thread has its own `std::atomic<Stats>` object and updates it
@@ -623,6 +623,6 @@ class StatsCsvFileAppender : public StatsReporter {
 void PrintRewardValues(absl::Span<const std::atomic<Stats>> stats_vec,
                        std::ostream &os);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_STATS_H_

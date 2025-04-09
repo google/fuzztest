@@ -34,7 +34,7 @@
 #include "./common/remote_file.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 namespace fs = std::filesystem;
@@ -245,4 +245,4 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

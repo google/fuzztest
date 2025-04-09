@@ -40,7 +40,7 @@
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::ElementsAreArray;
@@ -874,4 +874,4 @@ TEST(Stats, PrintRewardValues) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

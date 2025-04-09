@@ -59,12 +59,12 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
-__attribute__((
-    weak)) extern centipede::feature_t __start___centipede_extra_features;
-__attribute__((
-    weak)) extern centipede::feature_t __stop___centipede_extra_features;
+__attribute__((weak)) extern fuzztest::internal::feature_t
+    __start___centipede_extra_features;
+__attribute__((weak)) extern fuzztest::internal::feature_t
+    __stop___centipede_extra_features;
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // Returns the length of the common prefix of `s1` and `s2`, but not more
@@ -131,7 +131,7 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
   if (state.run_time_flags.use_cmp_features) {
     const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
     const uintptr_t hash =
-        centipede::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
+        fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
     const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
     // lcp is a 6-bit number.
     state.cmp_feature_set.set((hash << 6) | lcp);
@@ -315,8 +315,8 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
             " > %zu"
             " (byte); aborting\n",
             tls.top_frame_sp - sp, stack_limit);
-    centipede::WriteFailureDescription(
-        centipede::kExecutionFailureStackLimitExceeded.data());
+    fuzztest::internal::WriteFailureDescription(
+        fuzztest::internal::kExecutionFailureStackLimitExceeded.data());
     std::abort();
   }
 }
@@ -421,7 +421,7 @@ PrepareCoverage(bool full_clear) {
     });
   }
   {
-    centipede::LockGuard lock(state.execution_result_override_mu);
+    fuzztest::internal::LockGuard lock(state.execution_result_override_mu);
     if (state.execution_result_override != nullptr) {
       state.execution_result_override->ClearAndResize(0);
     }
@@ -654,7 +654,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  if (centipede::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
     PostProcessCoverage(target_return_value);
   }
   state.stats.post_time_usec = UsecSinceLast();
@@ -789,10 +789,8 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
                                   BlobSequence &outputs_blobseq,
                                   RunnerCallbacks &callbacks) {
   size_t num_inputs = 0;
-  if (!runner_request::IsExecutionRequest(inputs_blobseq.Read()))
-    return EXIT_FAILURE;
-  if (!runner_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
-    return EXIT_FAILURE;
+  if (!IsExecutionRequest(inputs_blobseq.Read())) return EXIT_FAILURE;
+  if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return EXIT_FAILURE;
 
   CentipedeBeginExecutionBatch();
 
@@ -800,7 +798,7 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
     auto blob = inputs_blobseq.Read();
     // TODO(kcc): distinguish bad input from end of stream.
     if (!blob.IsValid()) return EXIT_SUCCESS;  // no more blobs to read.
-    if (!runner_request::IsDataInput(blob)) return EXIT_FAILURE;
+    if (!IsDataInput(blob)) return EXIT_FAILURE;
 
     // TODO(kcc): [impl] handle sizes larger than kMaxDataSize.
     size_t size = std::min(kMaxDataSize, blob.size);
@@ -920,12 +918,9 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
   // Read max_num_mutants.
   size_t num_mutants = 0;
   size_t num_inputs = 0;
-  if (!runner_request::IsMutationRequest(inputs_blobseq.Read()))
-    return EXIT_FAILURE;
-  if (!runner_request::IsNumMutants(inputs_blobseq.Read(), num_mutants))
-    return EXIT_FAILURE;
-  if (!runner_request::IsNumInputs(inputs_blobseq.Read(), num_inputs))
-    return EXIT_FAILURE;
+  if (!IsMutationRequest(inputs_blobseq.Read())) return EXIT_FAILURE;
+  if (!IsNumMutants(inputs_blobseq.Read(), num_mutants)) return EXIT_FAILURE;
+  if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return EXIT_FAILURE;
 
   // Mutation input with ownership.
   struct MutationInput {
@@ -944,11 +939,11 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
     // If inputs_blobseq have overflown in the engine, we still want to
     // handle the first few inputs.
     ExecutionMetadata metadata;
-    if (!runner_request::IsExecutionMetadata(inputs_blobseq.Read(), metadata)) {
+    if (!IsExecutionMetadata(inputs_blobseq.Read(), metadata)) {
       break;
     }
     auto blob = inputs_blobseq.Read();
-    if (!runner_request::IsDataInput(blob)) break;
+    if (!IsDataInput(blob)) break;
     inputs.push_back(
         MutationInput{/*data=*/ByteArray{blob.data, blob.data + blob.size},
                       /*metadata=*/std::move(metadata)});
@@ -1182,7 +1177,7 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     SharedMemoryBlobSequence outputs_blobseq(state.arg2);
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
-    if (runner_request::IsMutationRequest(request_type_blob)) {
+    if (IsMutationRequest(request_type_blob)) {
       // Since we are mutating, no need to spend time collecting the coverage.
       // We still pay for executing the coverage callbacks, but those will
       // return immediately.
@@ -1197,7 +1192,7 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
           new ByteArrayMutator(state.knobs, GetRandomSeed());
       return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
-    if (runner_request::IsExecutionRequest(request_type_blob)) {
+    if (IsExecutionRequest(request_type_blob)) {
       // Execution request.
       inputs_blobseq.Reset();
       return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
@@ -1212,14 +1207,14 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
   return EXIT_SUCCESS;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 extern "C" int LLVMFuzzerRunDriver(
     int *absl_nonnull argc, char ***absl_nonnull argv,
     FuzzerTestOneInputCallback test_one_input_cb) {
   if (LLVMFuzzerInitialize) LLVMFuzzerInitialize(argc, argv);
   return RunnerMain(*argc, *argv,
-                    *centipede::CreateLegacyRunnerCallbacks(
+                    *fuzztest::internal::CreateLegacyRunnerCallbacks(
                         test_one_input_cb, LLVMFuzzerCustomMutator,
                         LLVMFuzzerCustomCrossOver));
 }
@@ -1230,13 +1225,13 @@ extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
   fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu\n",
           rss_limit_mb);
-  centipede::state.run_time_flags.rss_limit_mb = rss_limit_mb;
+  fuzztest::internal::state.run_time_flags.rss_limit_mb = rss_limit_mb;
 }
 
 extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
           stack_limit_kb);
-  centipede::state.run_time_flags.stack_limit_kb = stack_limit_kb;
+  fuzztest::internal::state.run_time_flags.stack_limit_kb = stack_limit_kb;
 }
 
 extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
@@ -1244,7 +1239,8 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
           "CentipedeSetTimeoutPerInput: changing timeout_per_input to %" PRIu64
           "\n",
           timeout_per_input);
-  centipede::state.run_time_flags.timeout_per_input = timeout_per_input;
+  fuzztest::internal::state.run_time_flags.timeout_per_input =
+      timeout_per_input;
 }
 
 extern "C" __attribute__((weak)) const char *absl_nullable
@@ -1264,7 +1260,7 @@ extern "C" void CentipedeBeginExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = true;
-  centipede::PrepareCoverage(/*full_clear=*/true);
+  fuzztest::internal::PrepareCoverage(/*full_clear=*/true);
 }
 
 extern "C" void CentipedeEndExecutionBatch() {
@@ -1275,44 +1271,46 @@ extern "C" void CentipedeEndExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = false;
-  centipede::state.input_start_time = 0;
-  centipede::state.batch_start_time = 0;
+  fuzztest::internal::state.input_start_time = 0;
+  fuzztest::internal::state.batch_start_time = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {
-  centipede::PrepareCoverage(/*full_clear=*/!in_execution_batch);
-  centipede::state.ResetTimers();
+  fuzztest::internal::PrepareCoverage(/*full_clear=*/!in_execution_batch);
+  fuzztest::internal::state.ResetTimers();
 }
 
 extern "C" void CentipedeFinalizeProcessing() {
-  centipede::CheckWatchdogLimits();
-  if (centipede::state.input_start_time.exchange(0) != 0) {
-    centipede::PostProcessCoverage(/*target_return_value=*/0);
+  fuzztest::internal::CheckWatchdogLimits();
+  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+    fuzztest::internal::PostProcessCoverage(/*target_return_value=*/0);
   }
 }
 
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
-  centipede::BlobSequence outputs_blobseq(data, capacity);
-  if (!centipede::StartSendingOutputsToEngine(outputs_blobseq)) return 0;
-  if (!centipede::FinishSendingOutputsToEngine(outputs_blobseq)) return 0;
+  fuzztest::internal::BlobSequence outputs_blobseq(data, capacity);
+  if (!fuzztest::internal::StartSendingOutputsToEngine(outputs_blobseq))
+    return 0;
+  if (!fuzztest::internal::FinishSendingOutputsToEngine(outputs_blobseq))
+    return 0;
   return outputs_blobseq.offset();
 }
 
 extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity) {
-  return centipede::CopyFeatures(data, capacity);
+  return fuzztest::internal::CopyFeatures(data, capacity);
 }
 
 extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
-  using centipede::state;
-  centipede::LockGuard lock(state.execution_result_override_mu);
+  using fuzztest::internal::state;
+  fuzztest::internal::LockGuard lock(state.execution_result_override_mu);
   if (!state.execution_result_override)
-    state.execution_result_override = new centipede::BatchResult();
+    state.execution_result_override = new fuzztest::internal::BatchResult();
   state.execution_result_override->ClearAndResize(1);
   if (data == nullptr) return;
   // Removing const here should be fine as we don't write to `blobseq`.
-  centipede::BlobSequence blobseq(const_cast<uint8_t *>(data), size);
+  fuzztest::internal::BlobSequence blobseq(const_cast<uint8_t *>(data), size);
   state.execution_result_override->Read(blobseq);
-  centipede::RunnerCheck(
+  fuzztest::internal::RunnerCheck(
       state.execution_result_override->num_outputs_read() == 1,
       "Failed to set execution result from CentipedeSetExecutionResult");
 }

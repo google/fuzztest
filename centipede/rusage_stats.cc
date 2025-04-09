@@ -45,7 +45,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 
 //------------------------------------------------------------------------------
 //                               ProcessTimer
@@ -660,4 +660,4 @@ std::ostream& operator<<(std::ostream& os, const RUsageMemory& m) {
   return os << m.ShortStr();
 }
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal

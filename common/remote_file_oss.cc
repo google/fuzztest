@@ -53,7 +53,7 @@
 #include "riegeli/bytes/writer.h"
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 class LocalRemoteFile : public RemoteFile {
@@ -401,4 +401,4 @@ absl::StatusOr<std::unique_ptr<riegeli::Writer>> CreateRiegeliFileWriter(
 }
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

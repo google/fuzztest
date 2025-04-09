@@ -23,7 +23,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 static const KnobId knob0 = Knobs::NewId("kn0");
 static const KnobId knob1 = Knobs::NewId("kn1");
@@ -117,4 +117,4 @@ TEST(KnobsDeathTest, Choose) {
   EXPECT_DEATH(knobs.Choose<int>({knob1, knob2}, {1}, 0), "");
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

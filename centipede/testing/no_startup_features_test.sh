@@ -20,12 +20,12 @@ set -eu
 
 source "$(dirname "$0")/../test_util.sh"
 
-CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
+CENTIPEDE_TEST_SRCDIR="$(fuzztest::internal::get_centipede_test_srcdir)"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/expensive_startup_fuzz_target"
 
 WD="${TEST_TMPDIR}/WD"
@@ -33,14 +33,14 @@ LOG="${TEST_TMPDIR}/log"
 
 # Fuzz the target for a bit with callstacks and paths.
 # Ensure that we don't see coverage from the Startup() function.
-centipede::ensure_empty_dir "${WD}"
+fuzztest::internal::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --binary="${TARGET_BINARY}" --workdir="${WD}" \
   --num_runs=10000 --callstack_level=10 --path_level=10 2>&1 |tee "${LOG}"
 
-centipede::assert_regex_in_file "end-fuzz:.*cov: 1 " "${LOG}"
-centipede::assert_regex_in_file "end-fuzz:.*stk: 2 " "${LOG}"
-centipede::assert_regex_in_file "end-fuzz:.*path: 1 " "${LOG}"
-centipede::assert_regex_not_in_file "end-fuzz:.*cmp" "${LOG}"
-centipede::assert_regex_not_in_file "end-fuzz:.*df" "${LOG}"
+fuzztest::internal::assert_regex_in_file "end-fuzz:.*cov: 1 " "${LOG}"
+fuzztest::internal::assert_regex_in_file "end-fuzz:.*stk: 2 " "${LOG}"
+fuzztest::internal::assert_regex_in_file "end-fuzz:.*path: 1 " "${LOG}"
+fuzztest::internal::assert_regex_not_in_file "end-fuzz:.*cmp" "${LOG}"
+fuzztest::internal::assert_regex_not_in_file "end-fuzz:.*df" "${LOG}"
 
 echo "PASS"

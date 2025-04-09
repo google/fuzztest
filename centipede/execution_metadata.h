@@ -25,7 +25,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 struct ExecutionMetadata {
   // Appends a CMP entry comparing `a` and `b` to the metadata. Returns false if
@@ -55,6 +55,6 @@ struct ExecutionMetadata {
   ByteArray cmp_data;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_EXECUTION_METADATA_H_

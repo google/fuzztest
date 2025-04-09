@@ -20,7 +20,7 @@
 
 #include "./centipede/rolling_hash.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 // CallStack maintains a function call stack for the current thread.
 // It is told when a function is called, via OnFunctionEntry(pc, sp).
 // It is not told when a function exits, so every time a new function is called
@@ -113,6 +113,6 @@ class CallStack {
   size_t window_size_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CALLSTACK_H_

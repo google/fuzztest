@@ -38,7 +38,7 @@
 #include "./common/hash.h"
 #include "./common/logging.h"  // IWYU pragma: keep
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Work queue for the minimizer.
 // Thread-safe.
@@ -166,4 +166,4 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
   return queue.SmallerCrashesFound() ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -19,7 +19,7 @@
 
 #include "gtest/gtest.h"
 
-namespace centipede::config {
+namespace fuzztest::internal {
 namespace {
 
 TEST(ConfigFileTest, AugmentedArgv) {
@@ -88,4 +88,4 @@ TEST(ConfigFileTest, AugmentedArgv) {
 //  tests here too.
 
 }  // namespace
-}  // namespace centipede::config
+}  // namespace fuzztest::internal

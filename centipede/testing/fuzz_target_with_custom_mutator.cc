@@ -27,19 +27,20 @@ ABSL_FLAG(bool, simulate_failure, false,
           "If true, the binary will return EXIT_FAILURE to simulate a "
           "failure.");
 
-using ::centipede::ByteSpan;
+using fuzztest::internal::ByteSpan;
 
-class CustomMutatorRunnerCallbacks : public centipede::RunnerCallbacks {
+class CustomMutatorRunnerCallbacks
+    : public fuzztest::internal::RunnerCallbacks {
  public:
   bool Execute(ByteSpan input) override { return true; }
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(const std::vector<centipede::MutationInputRef>& inputs,
+  bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
               size_t num_mutants,
               std::function<void(ByteSpan)> new_mutant_callback) override {
     size_t i = 0;
-    for (centipede::MutationInputRef input : inputs) {
+    for (fuzztest::internal::MutationInputRef input : inputs) {
       if (i++ >= num_mutants) break;
       // Just return the original input as a mutant.
       new_mutant_callback(input.data);
@@ -54,5 +55,5 @@ int main(int argc, char** absl_nonnull argv) {
     return EXIT_FAILURE;
   }
   CustomMutatorRunnerCallbacks runner_callbacks;
-  return centipede::RunnerMain(argc, argv, runner_callbacks);
+  return fuzztest::internal::RunnerMain(argc, argv, runner_callbacks);
 }

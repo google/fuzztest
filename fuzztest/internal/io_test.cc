@@ -198,11 +198,15 @@ TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
   const std::string serialized_file = tmp_dir.path() / "serialized_file";
   const std::string blob_file = tmp_dir.path() / "blob_file";
   TestWrite(serialized_file, "Input1");
-  std::unique_ptr<centipede::BlobFileWriter> writer =
-      centipede::DefaultBlobFileWriterFactory();
+  std::unique_ptr<fuzztest::internal::BlobFileWriter> writer =
+      fuzztest::internal::DefaultBlobFileWriterFactory();
   CHECK(writer->Open(blob_file, "w").ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Input2"))).ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Input3"))).ok());
+  CHECK(
+      writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Input2")))
+          .ok());
+  CHECK(
+      writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Input3")))
+          .ok());
   CHECK(writer->Close().ok());
 
   using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;
@@ -223,11 +227,15 @@ TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
 TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
   TempDir tmp_dir;
   const std::string file = tmp_dir.path() / "file";
-  std::unique_ptr<centipede::BlobFileWriter> writer =
-      centipede::DefaultBlobFileWriterFactory();
+  std::unique_ptr<fuzztest::internal::BlobFileWriter> writer =
+      fuzztest::internal::DefaultBlobFileWriterFactory();
   CHECK(writer->Open(file, "w").ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Ignore"))).ok());
-  CHECK(writer->Write(centipede::AsByteSpan(absl::string_view("Accept"))).ok());
+  CHECK(
+      writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Ignore")))
+          .ok());
+  CHECK(
+      writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Accept")))
+          .ok());
   CHECK(writer->Close().ok());
 
   using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;

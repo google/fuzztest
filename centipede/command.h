@@ -23,7 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 class Command final {
  public:
@@ -112,6 +112,6 @@ class Command final {
   std::unique_ptr<ForkServerProps> fork_server_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_COMMAND_H_

@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Computes a hash of `bits`. The purpose is to use the result for XOR-ing with
 // some other values, such that all resulting bits look random.
@@ -28,6 +28,6 @@ inline uint64_t Hash64Bits(uint64_t bits) {
   return bits * kPrime;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_INT_UTILS_H_

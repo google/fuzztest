@@ -35,7 +35,7 @@
 #include "./centipede/util.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // User must inherit from this class and override at least the
 // pure virtual functions.
@@ -219,6 +219,6 @@ class ScopedCentipedeCallbacks {
   CentipedeCallbacks *callbacks_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CENTIPEDE_CALLBACKS_H_

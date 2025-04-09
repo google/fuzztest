@@ -29,7 +29,7 @@
 #include "absl/strings/match.h"
 #include "./centipede/config_util.h"
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 RuntimeState::RuntimeState(std::vector<std::string> leftover_argv)
     : leftover_argv_(std::move(leftover_argv)) {}
@@ -55,4 +55,4 @@ ABSL_ATTRIBUTE_WEAK std::unique_ptr<RuntimeState> InitRuntime(int argc,
   return std::make_unique<RuntimeState>(leftover_argv);
 }
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal

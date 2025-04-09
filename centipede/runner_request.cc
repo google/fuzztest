@@ -22,7 +22,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -75,8 +75,6 @@ static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
 
 }  // namespace
 
-namespace runner_request {
-
 size_t RequestExecution(const std::vector<ByteArray> &inputs,
                         BlobSequence &blobseq) {
   if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
@@ -117,6 +115,4 @@ bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
 
 bool IsDataInput(Blob blob) { return blob.tag == kTagDataInput; }
 
-}  // namespace runner_request
-
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -19,7 +19,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // If `condition` prints `error` and calls exit(1).
 // TODO(kcc): change all uses of PrintErrorAndExitIf() to RunnerCheck()
@@ -35,6 +35,6 @@ inline void RunnerCheck(bool condition, const char* absl_nonnull error) {
 // returned on failures.
 uintptr_t GetCurrentThreadStackRegionLow();
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_

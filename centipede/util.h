@@ -28,7 +28,7 @@
 #include "./centipede/feature.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Returns the hash of the contents of the file `file_path`. Supports the file
 // being remote. Returns an empty string if the `file_path` is empty.
@@ -191,6 +191,6 @@ class MmapNoReserveArray {
   uint8_t *array_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_UTIL_H_

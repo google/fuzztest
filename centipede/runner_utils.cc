@@ -22,7 +22,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error) {
   if (!condition) return;
@@ -58,4 +58,4 @@ uintptr_t GetCurrentThreadStackRegionLow() {
 #endif  // __APPLE__
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

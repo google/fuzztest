@@ -20,27 +20,27 @@ set -eu
 
 source "$(dirname "$0")/../test_util.sh"
 
-CENTIPEDE_TEST_SRCDIR="$(centipede::get_centipede_test_srcdir)"
+CENTIPEDE_TEST_SRCDIR="$(fuzztest::internal::get_centipede_test_srcdir)"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   CENTIPEDE_RUNNER_NO_MAIN_SO \
   "${CENTIPEDE_TEST_SRCDIR}/centipede_runner_no_main.so"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TARGET_BINARY "${CENTIPEDE_TEST_SRCDIR}/dso_example/main"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TARGET_BINARY_DLOPEN \
   "${CENTIPEDE_TEST_SRCDIR}/dso_example/main_with_dlopen"
 
-centipede::maybe_set_var_to_executable_path \
+fuzztest::internal::maybe_set_var_to_executable_path \
   TARGET_DSO "${CENTIPEDE_TEST_SRCDIR}/dso_example/fuzz_me.so"
 
-centipede::maybe_set_var_to_executable_path \
-  OBJDUMP "$(centipede::get_objdump_path)"
+fuzztest::internal::maybe_set_var_to_executable_path \
+  OBJDUMP "$(fuzztest::internal::get_objdump_path)"
 
 echo "Running the dso_example binary with dl_path_suffix; expecting it to pass"
 CENTIPEDE_RUNNER_FLAGS=":dl_path_suffix=/fuzz_me.so:" "${TARGET_BINARY}"
@@ -48,30 +48,30 @@ CENTIPEDE_RUNNER_FLAGS=":dl_path_suffix=/fuzz_me.so:" "${TARGET_BINARY}"
 echo "Running fuzzing for some number of iterations: ${TARGET_BINARY}"
 WD="${TEST_TMPDIR}/WD"
 LOG="${TEST_TMPDIR}/log2"
-centipede::ensure_empty_dir "${WD}"
+fuzztest::internal::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --workdir "${WD}" --binary "${TARGET_BINARY} @@" \
   --runner_dl_path_suffix "/fuzz_me.so" --coverage_binary "${TARGET_DSO}" \
   --objdump_path="${OBJDUMP}" \
   --num_runs=100  2>&1 | tee "${LOG}"
-centipede::assert_fuzzing_success "${LOG}"
+fuzztest::internal::assert_fuzzing_success "${LOG}"
 
 # Check that we observe the edge coverage, not just random features.
-centipede::assert_regex_in_file "cov: [234] " "${LOG}"
+fuzztest::internal::assert_regex_in_file "cov: [234] " "${LOG}"
 
 echo "Running fuzzing for some number of iterations: ${TARGET_BINARY_DLOPEN}"
 WD="${TEST_TMPDIR}/WD"
 LOG="${TEST_TMPDIR}/log3"
 export FUZZ_ME_PATH="${TARGET_DSO}"
-centipede::ensure_empty_dir "${WD}"
+fuzztest::internal::ensure_empty_dir "${WD}"
 "${CENTIPEDE_BINARY}" --workdir "${WD}" \
   --binary \
   "LD_PRELOAD=${CENTIPEDE_RUNNER_NO_MAIN_SO} ${TARGET_BINARY_DLOPEN} @@" \
   --runner_dl_path_suffix "/fuzz_me.so" --coverage_binary "${TARGET_DSO}" \
   --objdump_path="${OBJDUMP}" \
   --num_runs=100 --fork_server=0 2>&1 | tee "${LOG}"
-centipede::assert_fuzzing_success "${LOG}"
+fuzztest::internal::assert_fuzzing_success "${LOG}"
 
 # Check that we observe the edge coverage, not just random features.
-centipede::assert_regex_in_file "cov: [234] " "${LOG}"
+fuzztest::internal::assert_regex_in_file "cov: [234] " "${LOG}"
 
 echo "PASS"

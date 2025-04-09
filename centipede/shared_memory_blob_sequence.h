@@ -28,7 +28,7 @@
 // into coverage reporting.
 // Small exceptions for header-only parts of STL may be possible.
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Simple TLV (tag-length-value) data structure.
 // Blob does not own the memory in `data`, just references it.
@@ -187,6 +187,6 @@ class SharedMemoryBlobSequence : public BlobSequence {
   bool path_is_owned_ = false;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_SHARED_MEMORY_BLOB_SEQUENCE_H_

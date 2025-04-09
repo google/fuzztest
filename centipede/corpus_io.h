@@ -23,7 +23,7 @@
 #include "./centipede/feature.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // `corpus_path` is a path to a BlobFile with corpus elements (inputs). If the
 // path is empty or non-existent, no processing is done.
@@ -48,6 +48,6 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
 void ExportCorpus(absl::Span<const std::string> sharded_file_paths,
                   std::string_view out_dir);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_SHARD_READER_H_

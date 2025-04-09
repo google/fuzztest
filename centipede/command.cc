@@ -55,7 +55,7 @@
 #include "./centipede/util.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // See the definition of --fork_server flag.
@@ -471,4 +471,4 @@ void Command::VlogProblemInfo(std::string_view message, int vlog_level) const {
   if (ABSL_VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -32,7 +32,7 @@ function fileop() {
 }
 
 # Returns the path to Centipede TEST_SRCDIR subdirectory.
-function centipede::get_centipede_test_srcdir() {
+function fuzztest::internal::get_centipede_test_srcdir() {
   set -u
   echo "${TEST_SRCDIR}/${TEST_WORKSPACE}/centipede"
 }
@@ -50,19 +50,19 @@ function get_system_binary_path() {
 }
 
 # Returns the path to llvm-symbolizer.
-function centipede::get_llvm_symbolizer_path() {
+function fuzztest::internal::get_llvm_symbolizer_path() {
   get_system_binary_path "llvm-symbolizer"
 }
 
 # Returns the path to objdump.
-function centipede::get_objdump_path() {
+function fuzztest::internal::get_objdump_path() {
   get_system_binary_path "objdump"
 }
 
 # If the var named "$1" is unset, then sets it to "$2". If the var is set,
 # doesn't change it. In either case, verifies that the final value is a path to
 # an executable file.
-function centipede::maybe_set_var_to_executable_path() {
+function fuzztest::internal::maybe_set_var_to_executable_path() {
   local var_name="$1"
   local path="$2"
   if [[ -n "${!var_name:-}" ]]; then
@@ -76,10 +76,10 @@ function centipede::maybe_set_var_to_executable_path() {
   fi
 }
 
-# Same as centipede::maybe_set_var_to_executable_path(), but "$2" should be
+# Same as fuzztest::internal::maybe_set_var_to_executable_path(), but "$2" should be
 # a command line that builds the executable and prints its path to stdout.
 # TODO(ussuri): Reduce code duplication with the above.
-function centipede::maybe_set_var_to_built_executable_path() {
+function fuzztest::internal::maybe_set_var_to_built_executable_path() {
   local var_name="$1"
   local bazel_build_cmd="$2"
   if [[ -n "${!var_name:-}" ]]; then
@@ -94,7 +94,7 @@ function centipede::maybe_set_var_to_built_executable_path() {
 }
 
 # Makes sure that an empty directory "$1" exists. Works for local and CNS.
-function centipede::ensure_empty_dir() {
+function fuzztest::internal::ensure_empty_dir() {
   fileop mkdir -p "$1"
   fileop rm -R -f "${1:?}"/*
 }
@@ -131,13 +131,13 @@ function _assert_regex_in_file_impl() {
 }
 
 # Makes sure that string "$1" exists in file "$2". Works for local and CNS.
-function centipede::assert_regex_in_file() {
+function fuzztest::internal::assert_regex_in_file() {
   local -r regex="$1"
   local -r file="$2"
   _assert_regex_in_file_impl "${regex}" "${file}" 1
 }
 
-function centipede::assert_regex_not_in_file() {
+function fuzztest::internal::assert_regex_not_in_file() {
   local -r regex="$1"
   local -r file="$2"
   _assert_regex_in_file_impl "${regex}" "${file}" 0
@@ -145,15 +145,15 @@ function centipede::assert_regex_not_in_file() {
 
 # For each of the logs in "$@", asserts that fuzzing started and successfully
 # completed.
-function centipede::assert_fuzzing_success() {
+function fuzztest::internal::assert_fuzzing_success() {
   for log in "$@"; do
-    centipede::assert_regex_in_file "centipede.*init-done:" "${log}"
-    centipede::assert_regex_in_file "centipede.*end-fuzz:" "${log}"
+    fuzztest::internal::assert_regex_in_file "centipede.*init-done:" "${log}"
+    fuzztest::internal::assert_regex_in_file "centipede.*end-fuzz:" "${log}"
   done
 }
 
 # Returns a random free port on the local machine.
-function centipede::get_random_free_port() {
+function fuzztest::internal::get_random_free_port() {
   # Create an array with all ports in the range [1024..65535] (ports [0..1023]
   # are reserved) and append all ports in the same range that are currently in
   # use. This results in the used ports appearing twice in the array.

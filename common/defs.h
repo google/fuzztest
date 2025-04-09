@@ -26,7 +26,7 @@
 
 #include "absl/types/span.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Just a good random number generator.
 using Rng = std::mt19937_64;
@@ -57,6 +57,6 @@ inline std::string AsString(ByteSpan str) {
 #define FRIEND_TEST(test_case_name, test_name) \
   friend class test_case_name##_##test_name##_Test
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_DEFS_H_

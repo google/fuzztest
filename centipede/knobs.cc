@@ -17,7 +17,7 @@
 #include <cstdio>
 #include <string_view>
 
-namespace centipede {
+namespace fuzztest::internal {
 size_t Knobs::next_id_ = 0;
 std::string_view Knobs::knob_names_[kNumKnobs];
 
@@ -30,4 +30,4 @@ KnobId Knobs::NewId(std::string_view knob_name) {
   knob_names_[next_id_] = knob_name;
   return next_id_++;
 }
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -30,7 +30,7 @@
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 namespace fs = std::filesystem;
@@ -150,4 +150,4 @@ TEST(SeedCorpusMakerProtoLibTest, MakesSeedUsingConfigProto) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -24,7 +24,7 @@
 #include "absl/base/optimization.h"
 #include "./centipede/runner.h"
 
-using centipede::tls;
+using fuzztest::internal::tls;
 
 // Used for the interceptors to avoid sanitizing them, as they could be called
 // before or during the sanitizer initialization. Instead, we check if the
@@ -79,9 +79,9 @@ int NormalizeCmpResult(int result) {
 
 }  // namespace
 
-namespace centipede {
+namespace fuzztest::internal {
 void RunnerInterceptor() {}  // to be referenced in runner.cc
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 // A sanitizer-compatible way to intercept functions that are potentially
 // intercepted by sanitizers, in which case the symbol __interceptor_X would be

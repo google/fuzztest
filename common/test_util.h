@@ -32,7 +32,7 @@
 #define EXPECT_OK(status) EXPECT_TRUE((status).ok()) << VV(status)
 #define ASSERT_OK(status) ASSERT_TRUE((status).ok()) << VV(status)
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Returns a temp dir for use inside tests. The base dir is chosen in the
 // following order of precedence:
@@ -130,6 +130,6 @@ class TempCorpusDir : public TempDir {
   std::unique_ptr<BlobFileReader> reader_ = DefaultBlobFileReaderFactory();
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_TEST_UTIL_H_

@@ -31,7 +31,7 @@
 #include "./centipede/util.h"
 #include "./common/defs.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // WeightedDistribution maintains an array of integer weights.
 // It allows to compute a random number in range [0,size()) such that
@@ -205,6 +205,6 @@ class CoverageFrontier {
   size_t num_functions_in_frontier_ = 0;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CORPUS_H_

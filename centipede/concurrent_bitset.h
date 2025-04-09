@@ -43,7 +43,7 @@
 #include "absl/base/const_init.h"
 #include "./centipede/concurrent_byteset.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // A fixed-size bitset with a lossy concurrent set() function.
 // kSize (in bits) must be a multiple of 2**16.
@@ -145,6 +145,6 @@ class ConcurrentBitSet {
   word_t words_[kSizeInWords];
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_CONCURRENT_BITSET_H_

@@ -22,7 +22,7 @@
 #include "./common/defs.h"
 #include "./common/sha1.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 std::string Hash(ByteSpan span) {
   // Compute SHA1.
@@ -45,4 +45,4 @@ std::string Hash(std::string_view str) {
   return Hash(AsByteSpan(str));
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

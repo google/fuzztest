@@ -42,7 +42,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_sancov_object.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Like std::lock_guard, but for pthread_mutex_t.
 class LockGuard {
@@ -362,6 +362,6 @@ extern __thread ThreadLocalRunnerState tls;
 // Check for stack limit for the stack pointer `sp` in the current thread.
 void CheckStackLimit(uintptr_t sp);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_H_

@@ -48,7 +48,7 @@
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace fs = std::filesystem;
 
@@ -302,4 +302,4 @@ void PrintRewardValues(absl::Span<const std::atomic<Stats>> stats_vec,
      << "\n";
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

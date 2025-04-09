@@ -23,7 +23,7 @@
 
 #include "gtest/gtest.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 void TrivialForEachNonZeroByte(uint8_t *bytes, size_t num_bytes,
@@ -86,4 +86,4 @@ TEST(ForEachNonZeroByte, ProcessesSubArrays) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

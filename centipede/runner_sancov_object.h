@@ -29,7 +29,7 @@
 // while this code allows multiple instrumented DSO.
 // TODO(kcc): this code is not a full replacement for the old code yet.
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Information about one sancov-instrumented object (DSO).
 // See https://clang.llvm.org/docs/SanitizerCoverage.html.
@@ -110,6 +110,6 @@ class SanCovObjectArray {
   size_t num_instrumented_pcs_;  // Total number of instrumented PCs.
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_SANCOV_OBJECT_H_

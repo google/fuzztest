@@ -26,7 +26,7 @@
 #include "./centipede/pc_info.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using ::testing::Contains;
@@ -125,4 +125,4 @@ TEST(CallGraph, BuildCgFromCfTable) {
 
 }  // namespace
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

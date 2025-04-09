@@ -27,7 +27,7 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // A simple thread pool implementation based on `std::thread`.
 class ThreadPool {
@@ -95,6 +95,6 @@ class ThreadPool {
   std::vector<std::thread> threads_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_THREAD_POOL_H_

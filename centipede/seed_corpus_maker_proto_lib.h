@@ -21,7 +21,7 @@
 #include "absl/status/statusor.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Generates seed corpus similarly to `GenerateSeedCorpusFromConfig`, but using
 // `config_spec` based on its value: If a file with `config_spec` path exists,
@@ -37,6 +37,6 @@ absl::Status GenerateSeedCorpusFromConfigProto(  //
     std::string_view coverage_binary_hash,       //
     std::string_view override_out_dir);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_SEED_CORPUS_MAKER_PROTO_LIB_H_

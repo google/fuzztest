@@ -17,7 +17,7 @@ set -eu
 
 source "$(dirname "$0")/../test_util.sh"
 
-binary="$(centipede::get_centipede_test_srcdir)/testing/multi_dso_target"
+binary="$(fuzztest::internal::get_centipede_test_srcdir)/testing/multi_dso_target"
 
 pc_table="${TEST_TMPDIR}/pc_table"
 cf_table="${TEST_TMPDIR}/cf_table"
@@ -42,7 +42,7 @@ cat "${dso_table}"
 size=$(cat "${dso_table}" | wc -l)
 echo "dso table size: ${size}"
 (( size == 2 )) || die "dso table should have exactly 2 entries"
-centipede::assert_regex_in_file "lib.so [1-9]" "${dso_table}"
+fuzztest::internal::assert_regex_in_file "lib.so [1-9]" "${dso_table}"
 # Check the path to main binary in the dso table.
 # It may differe from $binary but it should point to the same file.
 binary_path=$(grep -v '.so ' "${dso_table}" | grep -o "^[^ ]\+")

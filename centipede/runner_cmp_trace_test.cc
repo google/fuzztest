@@ -22,7 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 template <typename T>
@@ -119,4 +119,4 @@ TEST(CmpTrace, T1) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

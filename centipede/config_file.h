@@ -27,7 +27,7 @@
 
 // TODO(ussuri): Move implementation-only functions to .cc.
 
-namespace centipede::config {
+namespace fuzztest::internal {
 
 // Constructs an augmented copy of `argv` with any substrings appearing in the
 // original elements replaced according to a list replacements.
@@ -109,6 +109,6 @@ std::filesystem::path MaybeSaveConfigToFile(
 [[nodiscard]] std::unique_ptr<RuntimeState> InitCentipede(
     int argc, char** absl_nonnull argv);
 
-}  // namespace centipede::config
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_GOOGLE_CONFIG_FILE_H_

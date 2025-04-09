@@ -31,7 +31,7 @@
 #include "./common/status_macros.h"
 #include "google/protobuf/text_format.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 namespace fs = std::filesystem;
@@ -175,4 +175,4 @@ absl::Status GenerateSeedCorpusFromConfigProto(  //
   return absl::OkStatus();
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

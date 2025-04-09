@@ -27,7 +27,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Set of features with their frequencies.
 // Features that have a frequency >= frequency_threshold
@@ -139,6 +139,6 @@ class FeatureSet {
 // Stream out description and count of features in feature set.
 std::ostream &operator<<(std::ostream &out, const FeatureSet &fs);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_FEATURE_SET_H_

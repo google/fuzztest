@@ -31,7 +31,7 @@
 #include "./common/defs.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 // A mock for CentipedeCallbacks.
@@ -110,4 +110,4 @@ TEST(MinimizeTest, MinimizeTest) {
 }
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

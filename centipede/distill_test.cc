@@ -35,7 +35,7 @@
 #include "./common/defs.h"
 #include "./common/test_util.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 namespace {
 
 using testing::UnorderedElementsAreArray;
@@ -190,4 +190,4 @@ TEST(Distill, BasicDistill) {
 // TODO(kcc): add more tests once we settle on the testing code above.
 
 }  // namespace
-}  // namespace centipede
+}  // namespace fuzztest::internal

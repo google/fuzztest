@@ -27,7 +27,7 @@
 #include "./common/logging.h"
 #include "./common/status_macros.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
                               const std::string &contents) {
@@ -86,4 +86,4 @@ absl::Status RemoteFileGetContents(std::string_view path,
   return RemoteFileClose(file);
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

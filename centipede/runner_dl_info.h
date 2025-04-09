@@ -20,7 +20,7 @@
 
 #include "absl/base/nullability.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 // Basic information about one dynamic library (or executable).
 // No CTOR - these objects may need to be linker-initialized.
@@ -52,6 +52,6 @@ DlInfo GetDlInfo(const char* absl_nullable dl_path_suffix);
 // Returns DlInfo for the dynamic library that contains `pc`.
 DlInfo GetDlInfo(uintptr_t pc);
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_DL_INFO_H_

@@ -38,7 +38,7 @@ ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,
           "environment on the current machine, e.g. the wall time accuracy or "
           "average CPU load");
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 namespace {
 
 class BigThing {
@@ -551,4 +551,4 @@ TEST(RUsageMemoryTest, Logging) {
       "Data:      -375.00M | ShMem:      -125.0K");
 }
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal

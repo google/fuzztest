@@ -32,7 +32,7 @@
 #include "absl/base/nullability.h"
 #include "./centipede/runner_utils.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 namespace {
 
@@ -326,4 +326,4 @@ DlInfo GetDlInfo(uintptr_t pc) {
 
 #endif  // __APPLE__
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

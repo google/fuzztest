@@ -27,7 +27,7 @@
 #include "./centipede/feature.h"
 #include "./common/logging.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 //------------------------------------------------------------------------------
 //                                FeatureSet
@@ -142,4 +142,4 @@ std::ostream &operator<<(std::ostream &out, const FeatureSet &fs) {
   return out;
 }
 
-}  // namespace centipede
+}  // namespace fuzztest::internal

@@ -39,7 +39,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/time/time.h"
 
-namespace centipede {
+namespace fuzztest::internal {
 
 class PeriodicAction {
  public:
@@ -111,6 +111,6 @@ class PeriodicAction {
   std::unique_ptr<Impl> pimpl_;
 };
 
-}  // namespace centipede
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_CENTIPEDE_PERIODIC_ACTION_H_

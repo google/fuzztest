@@ -29,7 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-namespace centipede::perf {
+namespace fuzztest::internal {
 
 //------------------------------------------------------------------------------
 //                              ResourcePool
@@ -199,6 +199,6 @@ class ResourcePool {
 template <typename R>
 ResourcePool(R r) -> ResourcePool<R>;
 
-}  // namespace centipede::perf
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_CENTIPEDE_RESOURCE_RESOURCE_POOL_H_
