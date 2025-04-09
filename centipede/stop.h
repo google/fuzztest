@@ -33,6 +33,12 @@ void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time);
 // ENSURES: Thread-safe and safe to call from signal handlers.
 void RequestEarlyStop(int exit_code);
 
+// Returns whether `RequestEarlyStop()` was called or not since the most recent
+// call to `ClearEarlyStopRequestAndSetStopTime()` (if any).
+//
+// ENSURES: Thread-safe.
+bool EarlyStopRequested();
+
 // Returns true iff it is time to stop, either because the stopping time has
 // been reached or `RequestEarlyStop()` was called since the most recent call to
 // `ClearEarlyStopRequestAndSetStopTime()` (if any).

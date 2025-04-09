@@ -855,9 +855,9 @@ void Centipede::ReportCrash(std::string_view binary,
     LOG(FATAL) << "Terminating Centipede due to setup failure in the test.";
   }
 
-  // Skip reporting only if RequestEarlyStop is called with a failure exit code.
-  // Still report if time runs out.
-  if (ShouldStop() && ExitCode() != 0) return;
+  // Skip reporting only if RequestEarlyStop is called - still reporting if time
+  // runs out.
+  if (EarlyStopRequested()) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
 
