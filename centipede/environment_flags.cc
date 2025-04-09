@@ -529,6 +529,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
       /*fuzztest_single_test_mode=*/
       Environment::Default().fuzztest_single_test_mode,
       /*fuzztest_configuration=*/Environment::Default().fuzztest_configuration,
+      /*list_crash_ids=*/Environment::Default().list_crash_ids,
+      /*list_crash_ids_file=*/Environment::Default().list_crash_ids_file,
       /*crash_id=*/Environment::Default().crash_id,
       /*replay_crash=*/Environment::Default().replay_crash,
       /*export_crash=*/Environment::Default().export_crash,

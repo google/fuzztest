@@ -220,6 +220,7 @@ cc_library(
         ":domain_core",
         ":fixture_driver",
         ":flag_name",
+        ":io",
         ":logging",
         ":runtime",
         ":table_of_recent_compares",
@@ -494,7 +495,10 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest",
-    ],
+    ] + select({
+        "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(

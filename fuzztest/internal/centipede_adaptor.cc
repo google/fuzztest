@@ -57,6 +57,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -77,6 +78,7 @@
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/flag_name.h"
+#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -267,9 +269,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
                     " --" FUZZTEST_FLAG_PREFIX
                     "internal_crashing_input_to_reproduce=",
                     *configuration.crashing_input_to_reproduce);
-    env.crash_id =
-        std::filesystem::path(*configuration.crashing_input_to_reproduce)
-            .filename();
+    env.crash_id = *configuration.crashing_input_to_reproduce;
     env.replay_crash = true;
   }
   env.coverage_binary = (*args)[0];
@@ -344,6 +344,44 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
 }
 
 }  // namespace
+
+bool IsCentipedeRunner() {
+  return std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
+}
+
+std::vector<std::string> ListCrashIdsUsingCentipede(
+    const Configuration& configuration, absl::string_view test_name) {
+  // Do not invoke Centipede to list crashes as a runner, which is also
+  // unnecessary.
+  if (IsCentipedeRunner()) return {};
+  std::vector<std::string> results;
+  TempDir workspace("/tmp/fuzztest-");
+  auto env = CreateCentipedeEnvironmentFromConfiguration(
+      configuration, /*workdir=*/"", test_name, Runtime::instance().run_mode());
+  env.list_crash_ids = true;
+  env.list_crash_ids_file =
+      std::filesystem::path{workspace.path()} / "crash_ids";
+
+  DefaultCallbacksFactory<CentipedeDefaultCallbacks> callbacks;
+  const int centipede_ret = CentipedeMain(env, callbacks);
+  if (centipede_ret != EXIT_SUCCESS) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Cannot list crash IDs using Centipede - returning "
+                  "empty results.");
+    return {};
+  }
+  const auto contents = ReadFile(env.list_crash_ids_file);
+  if (!contents.has_value()) {
+    absl::FPrintF(GetStderr(),
+                  "[!] Cannot read the result file from listing crash IDs "
+                  "with Centipede - returning empty results.");
+    return {};
+  }
+  if (contents->empty()) {
+    return {};
+  }
+  return absl::StrSplit(*contents, '\n');
+}
 
 class CentipedeAdaptorRunnerCallbacks
     : public fuzztest::internal::RunnerCallbacks {
@@ -588,7 +626,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
  private:
   const Configuration* configuration_ = nullptr;
   Runtime& runtime_;
-  const bool runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr;
+  const bool runner_mode = IsCentipedeRunner();
   std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver_;
 };
 
@@ -653,7 +691,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   // When the CENTIPEDE_RUNNER_FLAGS env var exists, the current process is
   // considered a child process spawned by the Centipede binary as the runner,
   // and we should not run CentipedeMain in this process.
-  const bool runner_mode = std::getenv("CENTIPEDE_RUNNER_FLAGS");
+  const bool runner_mode = IsCentipedeRunner();
   const bool is_running_property_function_in_this_process =
       runner_mode ||
       (configuration.crashing_input_to_reproduce.has_value() &&

@@ -135,6 +135,12 @@ struct Environment {
   // If set, deserializes the configuration from the value instead of querying
   // the configuration via runner callbacks.
   std::string fuzztest_configuration;
+  // If set, lists the crash IDs of a single test of the binary to
+  // the `crash_ids_file` with each crash ID in a single line. If there is no
+  // crash for the test, the empty content will be written to the file.
+  bool list_crash_ids = false;
+  // The path to list the crash IDs for `list_crash_ids`.
+  std::string list_crash_ids_file;
   // The crash ID used for `replay_crash` or `export_crash`.
   std::string crash_id;
   // If set, replay `crash_id` in the corpus database.

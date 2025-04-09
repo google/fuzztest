@@ -45,6 +45,13 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
   FuzzTestFuzzerImpl fuzzer_impl_;
 };
 
+// Lists crash IDs for `test_name` with `configuration` using Centipede.
+std::vector<std::string> ListCrashIdsUsingCentipede(
+    const Configuration& configuration, absl::string_view test_name);
+
+// Returns whether the current process is a Centipede runner process.
+bool IsCentipedeRunner();
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_CENTIPEDE_ADAPTOR_H_
