@@ -52,6 +52,13 @@ std::vector<std::string> ListCrashIdsUsingCentipede(
 // Returns whether the current process is a Centipede runner process.
 bool IsCentipedeRunner();
 
+// Set the Centipede binary path (which by default is empty) to run in separate
+// processes as the fuzzing engine.
+//
+// If the path is empty, will use the Centipede library to run the fuzzing
+// engine in the current process.
+void SetCentipedeBinaryPath(absl::string_view path);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_INTERNAL_CENTIPEDE_ADAPTOR_H_

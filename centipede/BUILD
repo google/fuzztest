@@ -734,6 +734,7 @@ cc_library(
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":centipede_flags",
         ":environment",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
@@ -742,6 +743,11 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
     ],
+)
+
+cc_library(
+    name = "centipede_flags",
+    textual_hdrs = ["centipede_flags.inc"],
 )
 
 cc_library(
@@ -857,11 +863,13 @@ cc_library(
     }),
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
+        ":centipede_flags",
         ":feature",
         ":knobs",
         ":util",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/flags:marshalling",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
