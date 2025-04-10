@@ -142,6 +142,10 @@ class BatchResult {
   // a crash tied to a specific input.
   bool IsSetupFailure() const;
 
+  // Returns true if the test is skipped during setup, thus there is no need to
+  // run any inputs at all.
+  bool IsSkippedTest() const;
+
   // Accessors.
   std::vector<ExecutionResult>& results() { return results_; }
   const std::vector<ExecutionResult>& results() const { return results_; }

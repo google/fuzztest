@@ -428,6 +428,16 @@ class CentipedeAdaptorRunnerCallbacks
 
   void OnFailure(std::function<void(std::string_view)>
                      failure_description_callback) override {
+    if (runtime_.skipping_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    fuzzer_impl_.test_.full_name());
+      failure_description_callback("SKIPPED TEST: Requested from setup");
+      // It has to use _Exit(1) to avoid trigger the reporting of regular setup
+      // failure while let Centipede be aware of this. Note that this skips the
+      // fixture teardown.
+      std::_Exit(1);
+    }
     // We register the callback only once. This is because `runtime_` is a
     // global singleton object, and hence previously registered callbacks remain
     // in the registry. In normal circumstances, there should be only one
@@ -720,36 +730,39 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       configuration.replay_in_single_process) {
     return ReplayCrashInSingleProcess(configuration);
   }
-  fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
-  bool to_tear_down_fuzz_test = true;
   const int result = ([&]() {
-    if (runtime_.skipping_requested()) {
-      absl::FPrintF(GetStderr(),
-                    "[.] Skipping %s per request from the test setup.\n",
-                    test_.full_name());
-      return 0;
-    }
     if (runner_mode) {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
       static char fake_argv0[] = "fake_argv";
       static char* fake_argv[] = {fake_argv0, nullptr};
-      return fuzztest::internal::RunnerMain(argc != nullptr ? *argc : 1,
-                                            argv != nullptr ? *argv : fake_argv,
-                                            runner_callbacks);
+      fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
+      const int result = fuzztest::internal::RunnerMain(
+          argc != nullptr ? *argc : 1, argv != nullptr ? *argv : fake_argv,
+          runner_callbacks);
+      fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+      return result;
     }
-    // Centipede engine does not support replay and reproducer minimization
-    // (within the single process). So use the existing fuzztest implementation.
+    // If `is_running_property_function_in_this_process` holds at this point. We
+    // assume it is for `ReplayInputsIfAvailable` to handle `FUZZTEST_REPLAY`
+    // and `FUZZTEST_MINIMIZE_REPRODUCER`, which Centipede does not support.
     // This is fine because it does not require coverage instrumentation.
-    if (!configuration.crashing_input_to_reproduce.has_value() &&
-        fuzzer_impl_.ReplayInputsIfAvailable(configuration)) {
+    if (is_running_property_function_in_this_process) {
+      FUZZTEST_INTERNAL_CHECK(
+          std::getenv("FUZZTEST_REPLAY") ||
+              std::getenv("FUZZTEST_MINIMIZE_REPRODUCER"),
+          "Both env vars `FUZZTEST_REPLAY` and `FUZZTEST_MINIMIZE_REPRODUCER` "
+          "are not set when calling the legacy input replaying - this is a "
+          "FuzzTest bug!");
+      fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          fuzzer_impl_.ReplayInputsIfAvailable(configuration),
+          "ReplayInputsIfAvailable failed to handle env vars `FUZZTEST_REPLAY` "
+          "or `FUZZTEST_MINIMIZE_REPRODUCER`. Please check if they are set "
+          "properly.");
+      fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
       return 0;
     }
-    // `ReplayInputsIfAvailable` overwrites the run mode - revert it back.
-    runtime_.SetRunMode(mode);
-    // Tear down fixture early to avoid interfering with the runners.
-    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-    to_tear_down_fuzz_test = false;
     // Run as the fuzzing engine.
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
     std::unique_ptr<TempDir> workdir;
@@ -813,9 +826,6 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     }
     return fuzztest::internal::CentipedeMain(env, factory);
   })();
-  if (to_tear_down_fuzz_test) {
-    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-  }
   return result == 0;
 }
 
