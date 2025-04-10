@@ -349,6 +349,7 @@ cc_library(
         ":serialization",
         ":status",
         ":type_support",
+        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -449,6 +450,35 @@ cc_library(
     hdrs = ["internal/escaping.h"],
     deps = [
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "flatbuffers",
+    srcs = ["internal/domains/flatbuffers_domain_impl.h"],
+    hdrs = ["flatbuffers.h"],
+    deps = [
+        ":any",
+        ":domain_core",
+        ":logging",
+        ":meta",
+        ":serialization",
+        ":status",
+        ":type_support",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/random:distributions",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@flatbuffers//:runtime_cc",
     ],
 )
 
@@ -829,6 +859,28 @@ proto_library(
 cc_proto_library(
     name = "test_protobuf_cc_proto",
     deps = [":test_protobuf"],
+)
+
+# Derived from @flatbuffers//build_defs.bzl:flatbuffer_cc_library but allows output prefix for
+# single source target and to have embedded schema file in the outputs.
+genrule(
+    name = "test_flatbuffers_fbs",
+    srcs = ["internal/test_flatbuffers.fbs"],
+    outs = [
+        "internal/test_flatbuffers_bfbs_generated.h",
+        "internal/test_flatbuffers_generated.h",
+    ],
+    cmd = "$(location @flatbuffers//:flatc) -c -o $(@D)/internal --bfbs-gen-embed --gen-name-strings $(SRCS)",
+    message = "Generating flatbuffer files for test_flatbuffers_fbs",
+    tools = ["@flatbuffers//:flatc"],
+)
+
+cc_library(
+    name = "test_flatbuffers_cc_fbs",
+    srcs = [":test_flatbuffers_fbs"],
+    hdrs = [":test_flatbuffers_fbs"],
+    features = ["-parse_headers"],
+    deps = ["@flatbuffers//:runtime_cc"],
 )
 
 cc_library(
