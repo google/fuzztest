@@ -58,6 +58,10 @@ bazel_dep(
 # TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
 # required for testing.
 bazel_dep(
+    name = "flatbuffers",
+    version = "25.2.10"
+)
+bazel_dep(
     name = "rules_proto",
     version = "7.1.0",
 )
