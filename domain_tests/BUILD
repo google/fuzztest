@@ -44,6 +44,7 @@ cc_test(
         ":domain_testing",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest:flatbuffers",
         "@com_google_fuzztest//fuzztest:fuzztest_macros",

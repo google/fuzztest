@@ -17,6 +17,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
+#include <limits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -172,6 +174,97 @@ auto VisitFlatbufferField(const reflection::Field* absl_nonnull field,
                                                   field->type()->base_type()));
   }
 }
+
+// Flatbuffers enum domain implementation.
+template <typename Underlaying>
+class FlatbuffersEnumDomainImpl
+    : public domain_implementor::DomainBase<
+          /*Derived=*/FlatbuffersEnumDomainImpl<Underlaying>,
+          /*ValueType=*/Underlaying,
+          /*CorpusType=*/ElementOfImplCorpusType> {
+ public:
+  using typename FlatbuffersEnumDomainImpl::DomainBase::corpus_type;
+  using typename FlatbuffersEnumDomainImpl::DomainBase::value_type;
+
+  explicit FlatbuffersEnumDomainImpl(const reflection::Enum* enum_def)
+      : enum_def_(enum_def), inner_(GetEnumValues(enum_def, {})) {}
+
+  void SetExcludedValues(std::initializer_list<value_type> excluded_values) {
+    inner_ =
+        ElementOfImpl<Underlaying>(GetEnumValues(enum_def_, excluded_values));
+  }
+
+  corpus_type Init(absl::BitGenRef prng) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return inner_.Init(prng);
+  }
+
+  void Mutate(corpus_type& val, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink) {
+    inner_.Mutate(val, prng, metadata, only_shrink);
+  }
+
+  value_type GetValue(corpus_type value) const {
+    return inner_.GetValue(value);
+  }
+
+  std::optional<corpus_type> FromValue(const value_type& v) const {
+    return inner_.FromValue(v);
+  }
+
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
+    return inner_.ParseCorpus(obj);
+  }
+
+  IRObject SerializeCorpus(const corpus_type& v) const {
+    return inner_.SerializeCorpus(v);
+  }
+
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
+    return inner_.ValidateCorpusValue(corpus_value);
+  }
+
+  auto GetPrinter() const { return Printer{*this}; }
+
+ private:
+  const reflection::Enum* enum_def_;
+  ElementOfImpl<Underlaying> inner_;
+
+  static std::vector<value_type> GetEnumValues(
+      const reflection::Enum* enum_def,
+      std::initializer_list<value_type> excluded_values) {
+    std::vector<value_type> values;
+    values.reserve(enum_def->values()->size());
+    for (const auto* value : *enum_def->values()) {
+      FUZZTEST_INTERNAL_CHECK(
+          value->value() >= std::numeric_limits<value_type>::min() &&
+              value->value() <= std::numeric_limits<value_type>::max(),
+          "Enum value from reflection is out of range for the target type.");
+      if (std::find(excluded_values.begin(), excluded_values.end(),
+                    value->value()) == excluded_values.end()) {
+        values.push_back(static_cast<value_type>(value->value()));
+      }
+    }
+    return values;
+  }
+
+  struct Printer {
+    const FlatbuffersEnumDomainImpl& self;
+    void PrintCorpusValue(const corpus_type& value,
+                          domain_implementor::RawSink out,
+                          domain_implementor::PrintMode mode) const {
+      if (mode == domain_implementor::PrintMode::kHumanReadable) {
+        auto user_value = self.GetValue(value);
+        absl::Format(
+            out, "%s",
+            self.enum_def_->values()->LookupByKey(user_value)->name()->str());
+      } else {
+        absl::Format(out, "%d", value);
+      }
+    }
+  };
+};
 
 // Forward declaration of the domain factory for flatbuffers fields.
 template <typename T>
@@ -541,16 +634,7 @@ auto GetDefaultDomain(const reflection::Schema* absl_nonnull schema,
     return placeholder;
   } else if constexpr (is_flatbuffers_enum_tag_v<T>) {
     auto enum_object = schema->enums()->Get(field->type()->index());
-    // For enums, build the list of valid labels.
-    std::vector<typename T::type> values;
-    values.reserve(enum_object->values()->size());
-    for (const auto* value : *enum_object->values()) {
-      values.push_back(value->value());
-    }
-    // Delay instantiation. The Domain class is not fully defined at this
-    // point yet, and neither is ElementOfImpl.
-    using LazyInt = MakeDependentType<typename T::type, T>;
-    return ElementOfImpl<LazyInt>(std::move(values));
+    return FlatbuffersEnumDomainImpl<typename T::type>(enum_object);
   } else if constexpr (std::is_same_v<T, FlatbuffersObjTag>) {
     // TODO: support objects.
     return placeholder;
