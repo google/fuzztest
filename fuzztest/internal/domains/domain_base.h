@@ -37,12 +37,6 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
-namespace fuzztest::internal {
-
-void DestabilizeBitGen(absl::BitGenRef bitgen);
-
-}  // namespace fuzztest::internal
-
 namespace fuzztest::domain_implementor {
 
 // `DomainBase` is the base class for all domain implementations.
@@ -133,15 +127,7 @@ class DomainBase {
 
   // Returns a random user value from the domain. In general, doesn't provide
   // guarantees on the distribution of the returned values.
-  //
-  // Note about stability: To prevent the callers from relying on the stability
-  // of `prng`, the function intentionally destabilizes it. For a `prng` seeded
-  // with a fixed seed, it is possible to reproduce the sequence of generated
-  // values by setting the environment variable FUZZTEST_PRNG_SEED to the value
-  // output to stderr on the first invocation. However, this is only guaranteed
-  // to work with the same version of the binary.
   ValueType GetRandomValue(absl::BitGenRef prng) {
-    internal::DestabilizeBitGen(prng);
     return derived().GetValue(derived().GetRandomCorpusValue(prng));
   }
 

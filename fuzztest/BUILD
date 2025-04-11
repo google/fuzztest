@@ -366,7 +366,6 @@ cc_library(
 # by the default Centipede mutation.
 cc_library(
     name = "domain_core",
-    srcs = ["internal/domains/domain_base.cc"],
     hdrs = [
         "domain_core.h",
         "internal/domains/aggregate_of_impl.h",
@@ -402,7 +401,6 @@ cc_library(
         ":logging",
         ":meta",
         ":printer",
-        ":seed_seq",
         ":serialization",
         ":status",
         ":table_of_recent_compares",
