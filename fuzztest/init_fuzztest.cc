@@ -362,6 +362,7 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
     for (const auto& name : ListRegisteredTests()) {
       std::cout << "[*] Fuzz test: " << name << '\n';
     }
+    std::cout << std::flush;
     std::exit(0);
   }
   std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
