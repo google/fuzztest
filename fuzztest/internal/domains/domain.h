@@ -125,14 +125,6 @@ class Domain {
   //
   // In general, `GetRandomValue()` doesn't provide any guarantees on the
   // distribution of the returned values.
-  //
-  // Note about stability: `GetRandomValue()` doesn't guarantee stability of the
-  // generated values even if `prng` is seeded with a fixed seed. With a seeded
-  // `prng`, it is possible to reproduce the sequence of generated values by
-  // setting the environment variable FUZZTEST_PRNG_SEED to the value output to
-  // stderr on the first invocation. However, this is only guaranteed to work
-  // with the same version of the binary.
-  //
   value_type GetRandomValue(absl::BitGenRef prng) {
     return inner_->TypedGetRandomValue(prng);
   }
