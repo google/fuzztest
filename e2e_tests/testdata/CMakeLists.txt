@@ -81,22 +81,6 @@ set_target_properties(
 )
 
 add_executable(
-  domain_tests.stripped
-  domain_tests.cc
-)
-target_link_libraries(
-  domain_tests.stripped
-  PUBLIC
-  absl::str_format
-)
-link_fuzztest_core(domain_tests.stripped)
-set_target_properties(
-  domain_tests.stripped
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-  "${CMAKE_BINARY_DIR}/_main/e2e_tests/testdata"
-)
-
-add_executable(
   unit_test_and_fuzz_tests.stripped
   unit_test_and_fuzz_tests.cc
 )

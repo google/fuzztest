@@ -43,7 +43,6 @@ cc_test(
     data = [
         "@com_google_fuzztest//centipede:centipede_uninstrumented",
         "@com_google_fuzztest//e2e_tests/testdata:data",
-        "@com_google_fuzztest//e2e_tests/testdata:domain_tests.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:dynamically_registered_fuzz_tests.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_with_invalid_seeds.stripped",
@@ -67,7 +66,6 @@ cc_test(
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//centipede:weak_sancov_stubs",
         "@com_google_fuzztest//common:temp_dir",
-        "@com_google_fuzztest//domain_tests:domain_testing",
         "@com_google_fuzztest//fuzztest:io",
         "@com_google_fuzztest//fuzztest:logging",
         "@com_google_fuzztest//fuzztest:printer",

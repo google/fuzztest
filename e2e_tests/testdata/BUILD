@@ -133,17 +133,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "domain_tests",
-    testonly = 1,
-    srcs = ["domain_tests.cc"],
-    deps = [
-        "@abseil-cpp//absl/strings:str_format",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-    ],
-)
-
-cc_binary(
     name = "unit_test_and_fuzz_tests",
     testonly = 1,
     srcs = ["unit_test_and_fuzz_tests.cc"],

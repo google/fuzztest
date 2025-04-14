@@ -123,16 +123,23 @@ class Domain {
   // are the only uses cases when the users should use domains directly, and
   // this is the only method that the users should call.
   //
-  // In general, `GetRandomValue()` doesn't provide any guarantees on the
+  // Important notes:
+  //
+  // -  In general, `GetRandomValue()` doesn't provide any guarantees on the
   // distribution of the returned values.
   //
-  // Note about stability: `GetRandomValue()` doesn't guarantee stability of the
-  // generated values even if `prng` is seeded with a fixed seed. With a seeded
-  // `prng`, it is possible to reproduce the sequence of generated values by
-  // setting the environment variable FUZZTEST_PRNG_SEED to the value output to
-  // stderr on the first invocation. However, this is only guaranteed to work
-  // with the same version of the binary.
+  // -  For a fixed version of FuzzTest, `GetRandomValue()` will return the same
+  // value when called with `prng`s that produce the same sequence of varieties.
+  // However, the returned value may change between different FuzzTest versions.
   //
+  // -  We strongly recommend against relying on fixed PRNG seeding in tests and
+  // for reproducing fuzzing bugs. When used for black-box fuzzing, we recommend
+  // saving the generated value as a reproducer, so that reproduction works even
+  // between different versions of FuzzTest.
+  //
+  // -  For `prng`, we recommend using Abseil generators (e.g., `absl::BitGen`),
+  // which actively prevent accidental usage of fixed PRNG seeding:
+  // https://abseil.io/docs/cpp/guides/random#seed-stability.
   value_type GetRandomValue(absl::BitGenRef prng) {
     return inner_->TypedGetRandomValue(prng);
   }
