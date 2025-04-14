@@ -273,6 +273,19 @@ TEST(ProtobufEnumTest, Printer) {
   EXPECT_THAT(TestPrintValue(internal::BareEnum::LABEL_OTHER, bare_domain),
               ElementsAre("fuzztest::internal::BareEnum::LABEL_OTHER (10)",
                           "fuzztest::internal::BareEnum::LABEL_OTHER"));
+
+  auto element_domain = ElementOf(
+      {internal::TestProtobuf::Label3, internal::TestProtobuf::Label4});
+  using corpus_type = corpus_type_t<decltype(element_domain)>;
+  EXPECT_THAT(TestPrintValue(corpus_type(0), element_domain),
+              ElementsAre("fuzztest::internal::TestProtobuf::Label3 (2)",
+                          "fuzztest::internal::TestProtobuf::Label3"));
+
+  auto bare_element_domain = ElementOf({internal::BareEnum::LABEL_OTHER});
+  using corpus_type = corpus_type_t<decltype(bare_element_domain)>;
+  EXPECT_THAT(TestPrintValue(corpus_type(0), bare_element_domain),
+              ElementsAre("fuzztest::internal::BareEnum::LABEL_OTHER (10)",
+                          "fuzztest::internal::BareEnum::LABEL_OTHER"));
 }
 
 TEST(ContainerTest, Printer) {

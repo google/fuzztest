@@ -41,6 +41,13 @@
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
 
+namespace google::protobuf {
+class EnumDescriptor;
+
+template <typename E>
+const EnumDescriptor* GetEnumDescriptor();
+}  // namespace google::protobuf
+
 namespace fuzztest::internal {
 
 // Return a best effort printer for type `T`.
@@ -575,7 +582,11 @@ struct UnknownPrinter {
 
 template <typename T>
 decltype(auto) AutodetectTypePrinter() {
-  if constexpr (std::numeric_limits<T>::is_integer || std::is_enum_v<T>) {
+  if constexpr (is_protocol_buffer_enum_v<T>) {
+    return ProtobufEnumPrinter<const google::protobuf::EnumDescriptor*>{
+        google::protobuf::GetEnumDescriptor<T>()};
+  } else if constexpr (std::numeric_limits<T>::is_integer ||
+                       std::is_enum_v<T>) {
     return IntegralPrinter{};
   } else if constexpr (std::is_floating_point_v<T>) {
     return FloatingPrinter{};
