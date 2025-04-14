@@ -380,6 +380,7 @@ bool Centipede::RunBatch(
   CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   for (const auto &extra_binary : env_.extra_binaries) {
+    if (ShouldStop()) break;
     BatchResult extra_batch_result;
     success =
         ExecuteAndReportCrash(extra_binary, input_vec, extra_batch_result) &&
@@ -852,7 +853,9 @@ void Centipede::ReportCrash(std::string_view binary,
 
   if (batch_result.IsSetupFailure()) {
     log_execution_failure("Test Setup Failure: ");
-    LOG(FATAL) << "Terminating Centipede due to setup failure in the test.";
+    LOG(INFO) << "Requesting early stop due to setup failure in the test.";
+    RequestEarlyStop(EXIT_FAILURE);
+    return;
   }
 
   // Skip reporting only if RequestEarlyStop is called - still reporting if time
