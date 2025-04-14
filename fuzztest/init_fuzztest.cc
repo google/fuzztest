@@ -38,6 +38,10 @@
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
+#ifdef FUZZTEST_USE_CENTIPEDE
+#include "./fuzztest/internal/centipede_adaptor.h"
+#endif
+
 #define FUZZTEST_DEFINE_FLAG(type, name, default_value, description) \
   ABSL_FLAG(type, FUZZTEST_FLAG_NAME(name), default_value, description)
 
@@ -167,6 +171,13 @@ FUZZTEST_DEFINE_FLAG(
 FUZZTEST_DEFINE_FLAG(std::optional<size_t>, jobs, std::nullopt,
                      "The number of fuzzing jobs to run in parallel. If "
                      "unspecified, the number of jobs is 1.");
+
+#ifdef FUZZTEST_USE_CENTIPEDE
+FUZZTEST_DEFINE_FLAG(
+    std::string, centipede_binary_path, "",
+    "If set, run the Centipede binary in separate processes as the fuzzing "
+    "engine. This flag is for internal infrastructure only.");
+#endif
 
 FUZZTEST_DEFINE_FLAG(
     bool, print_subprocess_log, false,
@@ -365,6 +376,10 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
     std::cout << std::flush;
     std::exit(0);
   }
+#ifdef FUZZTEST_USE_CENTIPEDE
+  fuzztest::internal::SetCentipedeBinaryPath(
+      absl::GetFlag(FUZZTEST_FLAG(centipede_binary_path)));
+#endif
   std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
   std::optional<absl::Duration> replay_corpus_time_limit =
       GetReplayCorpusTime();
