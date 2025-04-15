@@ -107,7 +107,6 @@ cc_library(
     testonly = 1,
     srcs = ["fuzztest_gtest_main.cc"],
     deps = [
-        "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@googletest//:gtest",
     ],
