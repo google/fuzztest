@@ -40,7 +40,7 @@
 
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
-#include "absl/log/check.h"
+#include "absl/log/absl_check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
@@ -107,7 +107,7 @@ std::string GetReproductionCommand(const Configuration* configuration,
                                    absl::string_view test_name) {
   const bool is_reproducer_in_corpus_db =
       configuration && configuration->crashing_input_to_reproduce;
-  CHECK(!reproducer_path.empty() || is_reproducer_in_corpus_db);
+  ABSL_CHECK(!reproducer_path.empty() || is_reproducer_in_corpus_db);
   if (!configuration || !configuration->reproduction_command_template) {
     absl::string_view reproducer =
         is_reproducer_in_corpus_db ? *configuration->crashing_input_to_reproduce
@@ -121,8 +121,8 @@ std::string GetReproductionCommand(const Configuration* configuration,
   }
   const std::string command_template =
       *configuration->reproduction_command_template;
-  CHECK(absl::StrContains(command_template, kTestFilterPlaceholder));
-  CHECK(absl::StrContains(command_template, kExtraArgsPlaceholder));
+  ABSL_CHECK(absl::StrContains(command_template, kTestFilterPlaceholder));
+  ABSL_CHECK(absl::StrContains(command_template, kExtraArgsPlaceholder));
   if (is_reproducer_in_corpus_db) {
     const std::string corpus_db = configuration->corpus_database;
     std::vector<std::string> extra_args = {absl::StrCat(
@@ -454,7 +454,7 @@ void Runtime::CheckWatchdogLimits() {
 
 void Runtime::SetCurrentTest(const FuzzTest* test,
                              const Configuration* configuration) {
-  CHECK((test != nullptr) == (configuration != nullptr));
+  ABSL_CHECK((test != nullptr) == (configuration != nullptr));
   current_test_ = test;
   current_configuration_ = configuration;
   if (configuration == nullptr) return;

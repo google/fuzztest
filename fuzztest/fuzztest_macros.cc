@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -154,14 +154,14 @@ std::vector<std::string> ReadDictionaryFromFile(
       "Not a file: ", dictionary_file);
   const std::filesystem::path fs_path(dictionary_file);
   std::ifstream stream(fs_path);
-  CHECK(stream.good()) << "Error reading " << fs_path.string() << ": (" << errno
-                       << ") " << strerror(errno);
+  ABSL_CHECK(stream.good()) << "Error reading " << fs_path.string() << ": ("
+                            << errno << ") " << strerror(errno);
   std::stringstream buffer;
   buffer << stream.rdbuf();
   // https://llvm.org/docs/LibFuzzer.html#dictionaries
   absl::StatusOr<std::vector<std::string>> parsed_entries =
       ParseDictionary(buffer.str());
-  CHECK(parsed_entries.status().ok())
+  ABSL_CHECK(parsed_entries.status().ok())
       << "Could not parse dictionary file " << fs_path << ": "
       << parsed_entries.status();
   return *parsed_entries;

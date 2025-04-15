@@ -46,7 +46,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
-#include "absl/log/log.h"
+#include "absl/log/absl_log.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
@@ -862,6 +862,6 @@ extern "C" const char* CentipedeGetRunnerFlags() {
   const auto env = fuzztest::internal::CreateDefaultCentipedeEnvironment();
   CentipedeCallbacksForRunnerFlagsExtraction callbacks(env);
   const std::string runner_flags = callbacks.GetRunnerFlagsContent();
-  VLOG(1) << "[.] Centipede runner flags: " << runner_flags;
+  ABSL_VLOG(1) << "[.] Centipede runner flags: " << runner_flags;
   return strdup(runner_flags.c_str());
 }

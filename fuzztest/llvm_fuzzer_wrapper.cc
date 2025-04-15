@@ -12,7 +12,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
-#include "absl/log/check.h"
+#include "absl/log/absl_check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
@@ -75,7 +75,7 @@ std::vector<std::vector<uint8_t>> ReadByteArrayDictionaryFromFile() {
   for (const fuzztest::internal::FilePathAndData& file : files) {
     absl::StatusOr<std::vector<std::string>> parsed_entries =
         fuzztest::ParseDictionary(file.data);
-    CHECK(parsed_entries.status().ok())
+    ABSL_CHECK(parsed_entries.status().ok())
         << "Could not parse dictionary file " << file.path << ": "
         << parsed_entries.status();
     for (const std::string& parsed_entry : *parsed_entries) {
