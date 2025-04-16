@@ -1,0 +1,23 @@
+namespace fuzztest.internal;
+
+enum TestFbsEnum: byte {
+  First,
+  Second,
+  Third
+}
+
+table SimpleTestFbsTable {
+  b: bool;
+  f: float;
+  str: string;
+  e: TestFbsEnum;
+}
+
+table OptionalRequiredTestFbsTable {
+  def_scalar: bool = true;
+  opt_scalar: bool = null;
+  req_str: string (required);
+  opt_str: string;
+}
+
+root_type SimpleTestFbsTable;
