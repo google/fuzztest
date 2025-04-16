@@ -1,3 +1,17 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "./fuzztest/fuzztest_macros.h"
 
 #include <cerrno>
@@ -12,14 +26,14 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/runtime.h"
 
 namespace fuzztest {
 
@@ -67,26 +81,7 @@ absl::StatusOr<std::string> ParseDictionaryEntry(absl::string_view entry) {
 
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
     std::string_view dir) {
-  std::vector<std::tuple<std::string>> out;
-  const std::filesystem::path fs_dir(dir);
-  if (!std::filesystem::is_directory(fs_dir)) return out;
-  for (const auto& entry :
-       std::filesystem::recursive_directory_iterator(fs_dir)) {
-    if (std::filesystem::is_directory(entry)) continue;
-    std::ifstream stream(entry.path());
-    if (!stream.good()) {
-      // Using stderr instead of GetStderr() to avoid
-      // initialization-order-fiasco when reading files at static init time with
-      // `.WithSeeds(fuzztest::ReadFilesFromDirectory(...))`.
-      absl::FPrintF(stderr, "[!] %s:%d: Error reading %s: (%d) %s\n", __FILE__,
-                    __LINE__, entry.path().string(), errno, strerror(errno));
-      continue;
-    }
-    std::stringstream buffer;
-    buffer << stream.rdbuf();
-    out.emplace_back(std::move(buffer).str());
-  }
-  return out;
+  return ReadFilesFromDirectory(dir, [](std::string_view) { return true; });
 }
 
 std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
@@ -113,10 +108,11 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
 }
 
 absl::StatusOr<std::vector<std::string>> ParseDictionary(
-    absl::string_view text) {
+    std::string_view text) {
   std::vector<std::string> parsed_entries;
   int line_number = 0;
-  for (absl::string_view line : absl::StrSplit(text, '\n')) {
+  for (absl::string_view line :
+       absl::StrSplit(absl::string_view{text.data(), text.size()}, '\n')) {
     ++line_number;
 
     if (line.empty() || line[0] == '#') continue;
@@ -154,17 +150,20 @@ std::vector<std::string> ReadDictionaryFromFile(
       "Not a file: ", dictionary_file);
   const std::filesystem::path fs_path(dictionary_file);
   std::ifstream stream(fs_path);
-  ABSL_CHECK(stream.good()) << "Error reading " << fs_path.string() << ": ("
-                            << errno << ") " << strerror(errno);
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(stream.good(), "Error reading ",
+                                       fs_path.string(), ": ", strerror(errno));
   std::stringstream buffer;
   buffer << stream.rdbuf();
-  // https://llvm.org/docs/LibFuzzer.html#dictionaries
   absl::StatusOr<std::vector<std::string>> parsed_entries =
       ParseDictionary(buffer.str());
-  ABSL_CHECK(parsed_entries.status().ok())
-      << "Could not parse dictionary file " << fs_path << ": "
-      << parsed_entries.status();
+  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      parsed_entries.status().ok(), "Could not parse dictionary file ",
+      fs_path.string(), ": ", parsed_entries.status());
   return *parsed_entries;
+}
+
+void SkipTestsOrCurrentInput() {
+  internal::Runtime::instance().SetSkippingRequested(true);
 }
 
 }  // namespace fuzztest

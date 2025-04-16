@@ -64,15 +64,13 @@ fuzztest_cc_library(
   SRCS
     "fuzztest_macros.cc"
   DEPS
-    fuzztest::io
     fuzztest::logging
     fuzztest::registration
     fuzztest::registry
-    absl::absl_check
+    fuzztest::runtime
     absl::status
     absl::statusor
     absl::strings
-    absl::str_format
     absl::string_view
 )
 

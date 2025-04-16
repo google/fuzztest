@@ -76,15 +76,13 @@ cc_library(
         "fuzztest_macros.h",
     ],
     deps = [
-        ":io",
         ":logging",
         ":registration",
         ":registry",
-        "@abseil-cpp//absl/log:absl_check",
+        ":runtime",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
     ],
 )
