@@ -1141,6 +1141,18 @@ GlobalRunnerState::~GlobalRunnerState() {
   CleanUpDetachedTls();
 }
 
+// Extracts the first execution metadata from the blob sequence.
+static void ExtractFirstExecutionMetadta(BlobSequence &inputs_blobseq,
+                                         ExecutionMetadata &metadata) {
+  size_t num_mutants = 0;
+  size_t num_inputs = 0;
+  if (!IsMutationRequest(inputs_blobseq.Read())) return;
+  if (!IsNumMutants(inputs_blobseq.Read(), num_mutants)) return;
+  if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return;
+  if (!num_inputs) return;
+  IsExecutionMetadata(inputs_blobseq.Read(), metadata);
+}
+
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
 //  of in/out shared memory locations.
 //  Read inputs and write outputs via shared memory.
@@ -1188,8 +1200,12 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
       state.run_time_flags.use_counter_features = false;
       // Mutation request.
       inputs_blobseq.Reset();
+      ExecutionMetadata metadata;
+      ExtractFirstExecutionMetadta(inputs_blobseq, metadata);
       state.byte_array_mutator =
           new ByteArrayMutator(state.knobs, GetRandomSeed());
+      state.byte_array_mutator->SetMetadata(metadata);
+      inputs_blobseq.Reset();
       return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
     }
     if (IsExecutionRequest(request_type_blob)) {
