@@ -59,7 +59,7 @@ replaced the old style of writing
 
 To get started, read the [Quickstart with Bazel](doc/quickstart-bazel.md) or
 [Quickstart with CMake](doc/quickstart-cmake.md), then take a look at the
-[Overview](doc/overview.md) and the [Codelab](doc/tutorial.md).
+[Overview](doc/overview.md).
 
 Once you have a high level understanding about fuzz tests, consider reading the
 rest of the documentation, including the:
