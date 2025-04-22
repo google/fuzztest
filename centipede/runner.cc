@@ -952,6 +952,10 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
                          /*metadata=*/&inputs.back().metadata});
   }
 
+  if (!inputs.empty()) {
+    state.byte_array_mutator->SetMetadata(inputs[0].metadata);
+  }
+
   if (!MutationResult::WriteHasCustomMutator(callbacks.HasCustomMutator(),
                                              outputs_blobseq)) {
     return EXIT_FAILURE;
