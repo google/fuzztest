@@ -1491,6 +1491,7 @@ cc_test(
         ":execution_metadata",
         ":knobs",
         ":mutation_input",
+        ":runner_cmp_trace",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",

@@ -33,7 +33,7 @@ namespace fuzztest::internal {
 // A simple class representing an array of up to kMaxEntrySize bytes.
 class DictEntry {
  public:
-  static constexpr uint8_t kMaxEntrySize = 15;
+  static constexpr uint8_t kMaxEntrySize = 16;
 
   explicit DictEntry(ByteSpan bytes)
       : bytes_{},  // initialize bytes_ to all zeros

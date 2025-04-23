@@ -26,6 +26,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_input.h"
+#include "./centipede/runner_cmp_trace.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
@@ -92,7 +93,8 @@ TEST(ByteArrayMutator, RoundDownToRemoveCorrectly) {
 namespace {
 
 TEST(DictEntry, DictEntry) {
-  uint8_t bytes[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  uint8_t bytes[17] = {0, 1,  2,  3,  4,  5,  6,  7, 8,
+                       9, 10, 11, 12, 13, 14, 15, 16};
   DictEntry a_0_10({bytes + 0, 10});
   DictEntry a_0_4({bytes + 0, 4});
   DictEntry a_1_8({bytes + 1, 8});
@@ -101,7 +103,7 @@ TEST(DictEntry, DictEntry) {
   EXPECT_LT(a_0_10, a_1_8);
   EXPECT_EQ(memcmp(a_0_10.begin(), bytes, a_0_10.end() - a_0_10.begin()), 0);
 
-  EXPECT_DEATH({ DictEntry a_0_10({bytes, 16}); }, "");
+  EXPECT_DEATH({ DictEntry a_0_10({bytes, 17}); }, "");
 }
 
 TEST(CmpDictionary, CmpDictionary) {
@@ -153,6 +155,30 @@ TEST(CmpDictionary, CmpDictionary) {
   dict.SuggestReplacement({15, 16, 17, 18, 0, 0}, capacity1);
   EXPECT_EQ(capacity1.size(), 1);
   EXPECT_EQ(capacity1.capacity(), 1);
+}
+
+TEST(CmpDictionary, CmpDictionaryIsCompatibleWithCmpTrace) {
+  CmpTrace<0, 13> traceN;
+  traceN.Clear();
+  constexpr uint8_t long_array[20] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
+                                      10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+  traceN.Capture(20, long_array, long_array);  // will be trimmed to 16.
+
+  ExecutionMetadata metadata;
+  bool append_failed = false;
+  int count = 0;
+  traceN.ForEachNonZero(
+      [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
+        if (!metadata.AppendCmpEntry({v0, size}, {v1, size}))
+          append_failed = true;
+        count++;
+      });
+  EXPECT_FALSE(append_failed);
+  EXPECT_EQ(1, count);
+
+  CmpDictionary dictionary;
+  EXPECT_TRUE(dictionary.SetFromMetadata(metadata));
+  EXPECT_EQ(2, dictionary.size());
 }
 
 // Tests that two mutators seeded with different rng seeds produce different
