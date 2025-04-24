@@ -231,3 +231,106 @@ FUZZ_TEST_F(EchoServerFuzzTest, ReturnsTheSameString);
 Here, the "per-fuzz-test" semantics is appropriate because the test doesn't
 mutate the server in any way that would be relevant for the test, and the server
 initialization is too expensive to be performed in each iteration.
+
+## Advanced fixtures with runner functions
+
+When using non-GoogleTest fixtures, FuzzTest can make use of *runner functions*
+on the fixture to specify per-test or per-iteration setups in a more flexible
+way. Runner functions are member functions of a fixture class, with the
+following forms:
+
+-   `void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test)`
+
+    If defined, instead of directly running the fuzz test, FuzzTest will call
+    this function, expecting that it will in turn:
+
+    1.  Set up everything needed for running the test.
+    2.  Invoke `run_test`, through which FuzzTest will essentially pass the
+        whole fuzzing loop with multiple invocations to the property function.
+        The function `run_test` will return once FuzzTest is done with the test.
+    3.  Tear down everything no longer needed after the test.
+
+-   `void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration)`
+
+    If defined, instead of directly running a fuzz test iteration, FuzzTest will
+    call this function, expecting that it will in turn:
+
+    1.  Set up everything needed for running a test iteration.
+    2.  Invoke `run_iteration`, through which FuzzTest will invoke the property
+        function once. The function `run_iteration` will return once the
+        iteration is done.
+    3.  Tear down everything no longer needed after the test iteration.
+
+Note that the type `absl::AnyInvocable<void() &&>` ensures that the functions
+`run_test` and `run_iteration` can be called only once. To call them, you must
+first move them, for example `std::move(run_test)()`. Attempting to call these
+functions more than once will result in a runtime error.
+
+The traditional SetUp/TearDown functions of a fixture can be trivially
+transformed into a runner function. For example, the `EchoServerFuzzTest`
+fixture could be defined as:
+
+```c++
+class EchoServerFuzzTest {
+ public:
+
+  void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) {
+   server_.Start("localhost:9999");
+   std::move(run_test)();
+   server_.Stop();
+  }
+
+  // The fuzz test's property function
+  void ReturnsTheSameString(const std::string& request) {
+    std::string response;
+    SendRequest("localhost:9999", request, &response);
+    EXPECT_EQ(response, request);
+  }
+
+ private:
+  EchoServer server_;
+};
+
+FUZZ_TEST_F(EchoServerFuzzTest, ReturnsTheSameString);
+```
+
+To create a new `EchoServer` instance for each fuzz test iteration, define
+`FuzzTestIterationRunner` instead:
+
+```c++
+class EchoServerFuzzTest {
+ public:
+
+  void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration) {
+   server_.Start("localhost:9999");
+   std::move(run_iteration)();
+   server_.Stop();
+  }
+
+  ...
+```
+
+Although converting SetUp/TearDown to runner functions is trivial, the other way
+around may not even be possible. For example, suppose there is a fuzz test whose
+property function must run within an SUT created by an SUT method
+`RunWithinSut(sut_ready_cb)`, which starts the SUT and calls the callback when
+the SUT is ready, and shuts down the SUT when the callback returns. Suppose
+additionally that `RunWithinSut` must be run in the main thread of the test,
+which is also the thread where FuzzTest runs the test fixture. Given these
+constraints, it is impossible to run such test with a SetUp/TearDown-style
+fixture without calling `RunWithinSut` for every iteration, which may be too
+heavy and impact the fuzzing performance. With runner functions, the fixture can
+be defined as:
+
+```c++
+class SutBasedFuzzTest {
+ public:
+
+  void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) {
+   sut_.RunWithinSut([&] { std::move(run_test)(); });`.
+  }
+
+ private:
+  SUT sut_;
+}
+```

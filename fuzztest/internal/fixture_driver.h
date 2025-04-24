@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -67,21 +68,38 @@ class UntypedFixtureDriver {
  public:
   virtual ~UntypedFixtureDriver() = 0;
 
-  // Methods for setting up and tearing down the fixture. All fixture driver
-  // implementations must ensure that every sequence of calls of the form
+  // DESIGN - FuzzTest runtime and fixture driver should follow the protocol
+  // below to run a fuzz test and its iterations:
   //
-  //  SetUpFuzzTest() SetUpIteration() [ TearDownIteration() SetUpIteration() ]*
+  // For any fuzz test, runtime calls `RunFuzzTest(run_test)` {
+  //   Fixture driver sets up the per-test fixture;
+  //   Fixture driver calls `run_test` {
+  //     Runtime runs fuzzing loop - for each iteration, runtime calls
+  //     `RunFuzzTestIteration(run_iteration)` {
+  //       Fixture driver sets up per-iteration fixture;
+  //       Fixture driver calls `run_iteration` {
+  //         Runtime calls `Test(...)` {
+  //           Fixture driver runs the property function;
+  //         }
+  //       }
+  //       Fixture driver tears down the per-iteration fixture;
+  //     }
+  //   }
+  //   Fixture driver tears down the per-test fixture;
+  // }
   //
-  // results in `fixture_ != nullptr`. Likewise, continuing any such sequence
-  // with calls to
-  //
-  //  TearDownIteration() TearDownFuzzTest()
-  //
-  // must result in `fixture_ == nullptr`.
-  virtual void SetUpFuzzTest();
-  virtual void SetUpIteration();
-  virtual void TearDownIteration();
-  virtual void TearDownFuzzTest();
+  // The reason for the nested callbacks is to support complex setup e.g.
+  // where the fixutre needs to run the test in a thread whose lifetime
+  // is limited within the setup.
+
+  // SetUp-Run-TearDowns a fuzz test using a move-only callback which should be
+  // called once and only once.
+  virtual void RunFuzzTest(absl::AnyInvocable<void() &&> run_test);
+
+  // SetUp-Run-TearDowns a test iteration using a move-only callback which
+  // should be called once and only once.
+  virtual void RunFuzzTestIteration(
+      absl::AnyInvocable<void() &&> run_iteration);
 
   // We take by rvalue ref to allow moving from it if necessary, but we want to
   // delay destroying the value until after instrumentation is turned off in the
@@ -340,10 +358,28 @@ class FixtureDriverImpl<
  public:
   using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
-  void SetUpFuzzTest() override {
+  void RunFuzzTest(absl::AnyInvocable<void() &&> run_test) override {
     this->fixture_ = std::make_unique<Fixture>();
+    if constexpr (Requires<Fixture>(
+                      [](auto&& x) -> decltype(x.FuzzTestRunner(
+                                       std::move(run_test))) {})) {
+      this->fixture_->FuzzTestRunner(std::move(run_test));
+    } else {
+      std::move(run_test)();
+    }
+    this->fixture_ = nullptr;
   }
-  void TearDownFuzzTest() override { this->fixture_ = nullptr; }
+
+  void RunFuzzTestIteration(
+      absl::AnyInvocable<void() &&> run_iteration) override {
+    if constexpr (Requires<Fixture>(
+                      [](auto&& x) -> decltype(x.FuzzTestIterationRunner(
+                                       std::move(run_iteration))) {})) {
+      this->fixture_->FuzzTestIterationRunner(std::move(run_iteration));
+    } else {
+      std::move(run_iteration)();
+    }
+  }
 };
 
 // The fixture driver for test fixtures with explicit setup that assume the
@@ -361,11 +397,15 @@ class FixtureDriverImpl<
  public:
   using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
-  void SetUpIteration() override {
+  void RunFuzzTest(absl::AnyInvocable<void() &&> run_test) override {
+    std::move(run_test)();
+  }
+
+  void RunFuzzTestIteration(
+      absl::AnyInvocable<void() &&> run_iteration) override {
     this->fixture_ = std::make_unique<Fixture>();
     this->fixture_->SetUp();
-  }
-  void TearDownIteration() override {
+    std::move(run_iteration)();
     this->fixture_->TearDown();
     this->fixture_ = nullptr;
   }
@@ -386,13 +426,17 @@ class FixtureDriverImpl<
  public:
   using FixtureDriverImpl::FixtureDriver::FixtureDriver;
 
-  void SetUpFuzzTest() override {
+  void RunFuzzTest(absl::AnyInvocable<void() &&> run_test) override {
     this->fixture_ = std::make_unique<Fixture>();
     this->fixture_->SetUp();
-  }
-  void TearDownFuzzTest() override {
+    std::move(run_test)();
     this->fixture_->TearDown();
     this->fixture_ = nullptr;
+  }
+
+  void RunFuzzTestIteration(
+      absl::AnyInvocable<void() &&> run_iteration) override {
+    std::move(run_iteration)();
   }
 };
 

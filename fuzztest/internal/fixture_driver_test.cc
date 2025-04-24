@@ -15,10 +15,12 @@
 #include "./fuzztest/internal/fixture_driver.h"
 
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
@@ -52,9 +54,10 @@ TEST(FixtureDriverTest, PropagatesCallToTargetFunction) {
 
   CallCountFixture::call_count = 0;
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
-  fixture_driver.Test(MakeArgs(7));
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration(
+        [&] { fixture_driver.Test(MakeArgs(7)); });
+  });
 
   EXPECT_EQ(CallCountFixture::call_count, 7);
 }
@@ -67,16 +70,14 @@ TEST(FixtureDriverTest, ReusesSameFixtureObjectDuringFuzzTest) {
 
   CallCountFixture::call_count = 0;
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
-  fixture_driver.Test(MakeArgs(3));
-  fixture_driver.TearDownIteration();
-  fixture_driver.SetUpIteration();
-  fixture_driver.Test(MakeArgs(3));
-  fixture_driver.TearDownIteration();
-  fixture_driver.SetUpIteration();
-  fixture_driver.Test(MakeArgs(4));
-
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration(
+        [&] { fixture_driver.Test(MakeArgs(3)); });
+    fixture_driver.RunFuzzTestIteration(
+        [&] { fixture_driver.Test(MakeArgs(3)); });
+    fixture_driver.RunFuzzTestIteration(
+        [&] { fixture_driver.Test(MakeArgs(4)); });
+  });
   EXPECT_EQ(CallCountFixture::call_count, 10);
 }
 
@@ -90,9 +91,10 @@ TEST(FixtureDriverTest, PropagatesCallToTargetFunctionOnBaseFixture) {
 
   CallCountFixture::call_count = 0;
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
-  fixture_driver.Test(MakeArgs(3));
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration(
+        [&] { fixture_driver.Test(MakeArgs(3)); });
+  });
 
   EXPECT_EQ(CallCountFixture::call_count, 3);
 }
@@ -127,16 +129,11 @@ TEST(FixtureDriverTest, FixtureGoesThroughCompleteLifecycle) {
   ASSERT_TRUE(!LifecycleRecordingFixture::was_constructed &&
               !LifecycleRecordingFixture::was_destructed);
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
-
-  EXPECT_TRUE(LifecycleRecordingFixture::was_constructed);
-
-  fixture_driver.TearDownIteration();
-
-  EXPECT_TRUE(!LifecycleRecordingFixture::was_destructed);
-
-  fixture_driver.TearDownFuzzTest();
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration(
+        [&] { EXPECT_TRUE(LifecycleRecordingFixture::was_constructed); });
+    EXPECT_TRUE(!LifecycleRecordingFixture::was_destructed);
+  });
 
   EXPECT_TRUE(LifecycleRecordingFixture::was_destructed);
 }
@@ -184,18 +181,16 @@ TEST(FixtureDriverTest, PerIterationFixtureGoesThroughCompleteLifecycle) {
               !LifecycleRecordingPerIterationFixture::was_torn_down &&
               !LifecycleRecordingPerIterationFixture::was_destructed);
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
-
-  EXPECT_TRUE(LifecycleRecordingPerIterationFixture::was_constructed &&
-              LifecycleRecordingPerIterationFixture::was_set_up &&
-              !LifecycleRecordingPerIterationFixture::was_torn_down &&
-              !LifecycleRecordingPerIterationFixture::was_destructed);
-
-  fixture_driver.TearDownIteration();
-
-  EXPECT_TRUE(LifecycleRecordingPerIterationFixture::was_torn_down &&
-              LifecycleRecordingPerIterationFixture::was_destructed);
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration([&] {
+      EXPECT_TRUE(LifecycleRecordingPerIterationFixture::was_constructed &&
+                  LifecycleRecordingPerIterationFixture::was_set_up &&
+                  !LifecycleRecordingPerIterationFixture::was_torn_down &&
+                  !LifecycleRecordingPerIterationFixture::was_destructed);
+    });
+    EXPECT_TRUE(LifecycleRecordingPerIterationFixture::was_torn_down &&
+                LifecycleRecordingPerIterationFixture::was_destructed);
+  });
 }
 
 TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
@@ -213,21 +208,62 @@ TEST(FixtureDriverTest, PerFuzzTestFixtureGoesThroughCompleteLifecycle) {
               !LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
               !LifecycleRecordingPerFuzzTestFixture::was_destructed);
 
-  fixture_driver.SetUpFuzzTest();
-  fixture_driver.SetUpIteration();
+  fixture_driver.RunFuzzTest([&] {
+    fixture_driver.RunFuzzTestIteration([&] {
+      EXPECT_TRUE(LifecycleRecordingPerFuzzTestFixture::was_constructed &&
+                  LifecycleRecordingPerFuzzTestFixture::was_set_up);
+    });
 
-  EXPECT_TRUE(LifecycleRecordingPerFuzzTestFixture::was_constructed &&
-              LifecycleRecordingPerFuzzTestFixture::was_set_up);
-
-  fixture_driver.TearDownIteration();
-
-  EXPECT_TRUE(!LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
-              !LifecycleRecordingPerFuzzTestFixture::was_destructed);
-
-  fixture_driver.TearDownFuzzTest();
+    EXPECT_TRUE(!LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
+                !LifecycleRecordingPerFuzzTestFixture::was_destructed);
+  });
 
   EXPECT_TRUE(LifecycleRecordingPerFuzzTestFixture::was_torn_down &&
               LifecycleRecordingPerFuzzTestFixture::was_destructed);
+}
+
+struct ExampleRunnerFixture {
+  void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) {
+    ++fuzz_test_runner_called;
+    std::move(run_test)();
+  }
+
+  void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration) {
+    ++fuzz_test_iteration_runner_called;
+    std::move(run_iteration)();
+  }
+
+  void NoOp() {}
+
+  static void Reset() {
+    fuzz_test_runner_called = 0;
+    fuzz_test_iteration_runner_called = 0;
+  }
+
+  static int fuzz_test_runner_called;
+  static int fuzz_test_iteration_runner_called;
+};
+
+int ExampleRunnerFixture::fuzz_test_runner_called = 0;
+int ExampleRunnerFixture::fuzz_test_iteration_runner_called = 0;
+
+TEST(FixtureDriverTest, FixtureRunnerFunctionsAreCalled) {
+  using NoOpFunc = decltype(&ExampleRunnerFixture::NoOp);
+  FixtureDriverImpl<Domain<std::tuple<>>, ExampleRunnerFixture, NoOpFunc, void*>
+      fixture_driver(&ExampleRunnerFixture::NoOp, Arbitrary<std::tuple<>>(), {},
+                     nullptr);
+
+  ExampleRunnerFixture::Reset();
+
+  fixture_driver.RunFuzzTest([&] {
+    EXPECT_EQ(ExampleRunnerFixture::fuzz_test_runner_called, 1);
+    fixture_driver.RunFuzzTestIteration([&] {
+      EXPECT_EQ(ExampleRunnerFixture::fuzz_test_iteration_runner_called, 1);
+    });
+    fixture_driver.RunFuzzTestIteration([&] {
+      EXPECT_EQ(ExampleRunnerFixture::fuzz_test_iteration_runner_called, 2);
+    });
+  });
 }
 
 template <typename T>
@@ -267,10 +303,10 @@ TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnFixture) {
                     decltype(seed_provided)>
       fixture_driver(&FixtureWithSeedProvider::TakesInt,
                      Arbitrary<std::tuple<int>>(), {}, seed_provided);
-  fixture_driver.SetUpFuzzTest();
-
-  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
-              UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+  fixture_driver.RunFuzzTest([&] {
+    EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+                UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+  });
 }
 
 struct DerivedFixtureWithSeedProvider : FixtureWithSeedProvider {};
@@ -282,10 +318,10 @@ TEST(FixtureDriverTest, PropagatesSeedsFromSeedProviderOnBaseFixture) {
                     decltype(seed_provided)>
       fixture_driver(&DerivedFixtureWithSeedProvider::TakesInt,
                      Arbitrary<std::tuple<int>>(), {}, seed_provided);
-  fixture_driver.SetUpFuzzTest();
-
-  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
-              UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+  fixture_driver.RunFuzzTest([&] {
+    EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(fixture_driver.GetSeeds()),
+                UnorderedElementsAre(std::tuple{7}, std::tuple{42}));
+  });
 }
 
 TEST(FixtureDriverTest, InvalidSeedsFromSeedProviderAreSkipped) {
@@ -297,9 +333,12 @@ TEST(FixtureDriverTest, InvalidSeedsFromSeedProviderAreSkipped) {
                  Arbitrary<std::tuple<int>>()),
           {}, GetSeeds);
 
-  EXPECT_THAT(UnpackGenericValues<std::tuple<int>>(
-                  UnpackGenericValues<CopyableAny>(fixture_driver.GetSeeds())),
-              UnorderedElementsAre(std::tuple{42}));
+  fixture_driver.RunFuzzTest([&] {
+    EXPECT_THAT(
+        UnpackGenericValues<std::tuple<int>>(
+            UnpackGenericValues<CopyableAny>(fixture_driver.GetSeeds())),
+        UnorderedElementsAre(std::tuple{42}));
+  });
 }
 
 }  // namespace

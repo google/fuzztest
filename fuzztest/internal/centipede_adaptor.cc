@@ -46,6 +46,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/absl_log.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
@@ -585,27 +586,26 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
       : runtime_(runtime),
         orig_fixture_driver_(std::move(orig_fixture_driver)) {}
 
-  void SetUpFuzzTest() override {
-    orig_fixture_driver_->SetUpFuzzTest();
-    FUZZTEST_INTERNAL_CHECK(configuration_ != nullptr,
-                            "Setting up a fuzz test without configuration!");
-    PopulateTestLimitsToCentipedeRunner(*configuration_);
+  void RunFuzzTest(absl::AnyInvocable<void() &&> run_fuzz_test_once) override {
+    orig_fixture_driver_->RunFuzzTest([&, this] {
+      FUZZTEST_INTERNAL_CHECK(configuration_ != nullptr,
+                              "Setting up a fuzz test without configuration!");
+      PopulateTestLimitsToCentipedeRunner(*configuration_);
+      std::move(run_fuzz_test_once)();
+    });
   }
 
-  void SetUpIteration() override {
-    if (!runner_mode) CentipedePrepareProcessing();
-    orig_fixture_driver_->SetUpIteration();
-  }
-
-  void TearDownIteration() override {
-    orig_fixture_driver_->TearDownIteration();
+  void RunFuzzTestIteration(
+      absl::AnyInvocable<void() &&> run_iteration_once) override {
+    orig_fixture_driver_->RunFuzzTestIteration([&, this] {
+      if (!runner_mode) CentipedePrepareProcessing();
+      std::move(run_iteration_once)();
+    });
     if (runtime_.skipping_requested()) {
       CentipedeSetExecutionResult(nullptr, 0);
     }
     CentipedeFinalizeProcessing();
   }
-
-  void TearDownFuzzTest() override { orig_fixture_driver_->TearDownFuzzTest(); }
 
   void Test(MoveOnlyAny&& args_untyped) const override {
     orig_fixture_driver_->Test(std::move(args_untyped));
@@ -677,10 +677,11 @@ bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
   static char replay_argv0[] = "replay_argv";
   char* replay_argv[] = {replay_argv0, crash_file.data()};
 
-  fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
-  const int result =
-      fuzztest::internal::RunnerMain(/*argc=*/2, replay_argv, runner_callbacks);
-  fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
+  int result = 0;
+  fuzzer_impl_.fixture_driver_->RunFuzzTest([&] {
+    result = fuzztest::internal::RunnerMain(/*argc=*/2, replay_argv,
+                                            runner_callbacks);
+  });
   return result == 0;
 }
 
@@ -720,37 +721,41 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       configuration.replay_in_single_process) {
     return ReplayCrashInSingleProcess(configuration);
   }
-  fuzzer_impl_.fixture_driver_->SetUpFuzzTest();
-  bool to_tear_down_fuzz_test = true;
-  const int result = ([&]() {
+  int result = EXIT_FAILURE;
+  bool to_run_controller = false;
+  fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
     if (runtime_.skipping_requested()) {
       absl::FPrintF(GetStderr(),
                     "[.] Skipping %s per request from the test setup.\n",
                     test_.full_name());
-      return 0;
+      result = 0;
+      return;
     }
     if (runner_mode) {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
       static char fake_argv0[] = "fake_argv";
       static char* fake_argv[] = {fake_argv0, nullptr};
-      return fuzztest::internal::RunnerMain(argc != nullptr ? *argc : 1,
-                                            argv != nullptr ? *argv : fake_argv,
-                                            runner_callbacks);
+      result = fuzztest::internal::RunnerMain(
+          argc != nullptr ? *argc : 1, argv != nullptr ? *argv : fake_argv,
+          runner_callbacks);
+      return;
     }
     // Centipede engine does not support replay and reproducer minimization
     // (within the single process). So use the existing fuzztest implementation.
     // This is fine because it does not require coverage instrumentation.
     if (!configuration.crashing_input_to_reproduce.has_value() &&
         fuzzer_impl_.ReplayInputsIfAvailable(configuration)) {
-      return 0;
+      result = 0;
+      return;
     }
     // `ReplayInputsIfAvailable` overwrites the run mode - revert it back.
     runtime_.SetRunMode(mode);
-    // Tear down fixture early to avoid interfering with the runners.
-    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-    to_tear_down_fuzz_test = false;
-    // Run as the fuzzing engine.
+    to_run_controller = true;
+  });
+  if (!to_run_controller) return result == 0;
+  // Run as the fuzzing engine.
+  [&] {
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
     std::unique_ptr<TempDir> workdir;
     if (configuration.corpus_database.empty() || mode == RunMode::kUnitTest)
@@ -809,13 +814,11 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       absl::FPrintF(GetStderr(),
                     "[.] Exported the minimized the corpus to %s.\n",
                     corpus_out_dir);
-      return 0;
+      result = 0;
+      return;
     }
-    return fuzztest::internal::CentipedeMain(env, factory);
-  })();
-  if (to_tear_down_fuzz_test) {
-    fuzzer_impl_.fixture_driver_->TearDownFuzzTest();
-  }
+    result = fuzztest::internal::CentipedeMain(env, factory);
+  }();
   return result == 0;
 }
 

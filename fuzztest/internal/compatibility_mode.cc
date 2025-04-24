@@ -85,22 +85,17 @@ bool FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
 
   FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
                           "Invalid fixture driver!");
-  impl.fixture_driver_->SetUpFuzzTest();
-
-  static bool driver_started = false;
-  FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
-  driver_started = true;
-  LLVMFuzzerRunDriver(argc, argv, [](const uint8_t* data, size_t size) -> int {
-    GetExternalEngineCallback()->RunOneInputData(
-        absl::string_view(reinterpret_cast<const char*>(data), size));
-    return 0;
+  impl.fixture_driver_->RunFuzzTest([&] {
+    static bool driver_started = false;
+    FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
+    driver_started = true;
+    LLVMFuzzerRunDriver(
+        argc, argv, [](const uint8_t* data, size_t size) -> int {
+          GetExternalEngineCallback()->RunOneInputData(
+              absl::string_view(reinterpret_cast<const char*>(data), size));
+          return 0;
+        });
   });
-
-  // If we're here, we didn't exit from RunOneInputData(), and hence we didn't
-  // tear down the fixture.
-  FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                          "Invalid fixture driver!");
-  impl.fixture_driver_->TearDownFuzzTest();
 
   return true;
 }
@@ -118,9 +113,6 @@ static bool IsEnginePlaceholderInput(absl::string_view data) {
 void FuzzTestExternalEngineAdaptor::RunOneInputData(absl::string_view data) {
   auto& impl = GetFuzzerImpl();
   if (impl.ShouldStop()) {
-    FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                            "Invalid fixture driver!");
-    impl.fixture_driver_->TearDownFuzzTest();
     runtime_.PrintFinalStatsOnDefaultSink();
     // Use _Exit instead of exit so libFuzzer does not treat it as a crash.
     std::_Exit(0);

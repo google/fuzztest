@@ -384,6 +384,7 @@ fuzztest_cc_library(
     fuzztest::printer
     fuzztest::registration
     fuzztest::type_support
+    absl::any_invocable
     absl::status
     absl::str_format
     absl::span
@@ -401,6 +402,7 @@ fuzztest_cc_test(
     fuzztest::logging
     fuzztest::registration
     GTest::gmock_main
+    absl::any_invocable
     absl::span
 )
 
