@@ -118,6 +118,7 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
       absl::StrCat("crossover_level=", env_.crossover_level),
+      absl::StrCat("max_len=", env_.max_len),
   };
   if (env_.ignore_timeout_reports) {
     flags.emplace_back("ignore_timeout_reports");

@@ -376,6 +376,7 @@ CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size, size_t max_size) {
   }
 
   ByteArray array(data, data + size);
+  state.byte_array_mutator->set_max_len(max_size);
   state.byte_array_mutator->Mutate(array);
   if (array.size() > max_size) {
     array.resize(max_size);
@@ -976,16 +977,16 @@ bool LegacyRunnerCallbacks::Mutate(
   if (custom_mutator_cb_ == nullptr) return false;
   unsigned int seed = GetRandomSeed();
   const size_t num_inputs = inputs.size();
-  constexpr size_t kMaxMutantSize = kMaxDataSize;
+  const size_t max_mutant_size = state.run_time_flags.max_len;
   constexpr size_t kAverageMutationAttempts = 2;
-  ByteArray mutant(kMaxMutantSize);
+  ByteArray mutant(max_mutant_size);
   for (size_t attempt = 0, num_outputs = 0;
        attempt < num_mutants * kAverageMutationAttempts &&
        num_outputs < num_mutants;
        ++attempt) {
     const auto &input_data = inputs[rand_r(&seed) % num_inputs].data;
 
-    size_t size = std::min(input_data.size(), kMaxMutantSize);
+    size_t size = std::min(input_data.size(), max_mutant_size);
     std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb_ != nullptr) &&
@@ -994,9 +995,9 @@ bool LegacyRunnerCallbacks::Mutate(
       const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
       new_size = custom_crossover_cb_(
           input_data.data(), input_data.size(), other_data.data(),
-          other_data.size(), mutant.data(), kMaxMutantSize, rand_r(&seed));
+          other_data.size(), mutant.data(), max_mutant_size, rand_r(&seed));
     } else {
-      new_size = custom_mutator_cb_(mutant.data(), size, kMaxMutantSize,
+      new_size = custom_mutator_cb_(mutant.data(), size, max_mutant_size,
                                     rand_r(&seed));
     }
     if (new_size == 0) continue;

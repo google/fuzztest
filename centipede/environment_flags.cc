@@ -85,7 +85,7 @@ ABSL_FLAG(size_t, j, Environment::Default().j,
           "--num_threads=N --total_shards=N --first_shard_index=0. "
           "Overrides values of these flags if they are also used.");
 ABSL_FLAG(size_t, max_len, Environment::Default().max_len,
-          "Max length of mutants. Passed to mutator.");
+          "Max length of mutants. Passed to mutator as a hint.");
 ABSL_FLAG(size_t, batch_size, Environment::Default().batch_size,
           "The number of inputs given to the target at one time. Batches of "
           "more than 1 input are used to amortize the process start-up cost.")

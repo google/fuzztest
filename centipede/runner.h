@@ -71,6 +71,7 @@ struct RunTimeFlags {
   uint64_t crossover_level;
   uint64_t skip_seen_features : 1;
   uint64_t ignore_timeout_reports : 1;
+  uint64_t max_len;
 };
 
 // One such object is created in runner's TLS.
@@ -177,6 +178,7 @@ struct GlobalRunnerState {
       /*crossover_level=*/HasIntFlag(":crossover_level=", 50),
       /*skip_seen_features=*/HasFlag(":skip_seen_features:"),
       /*ignore_timeout_reports=*/HasFlag(":ignore_timeout_reports:"),
+      /*max_len=*/HasIntFlag(":max_len=", 4000),
   };
 
   // Returns true iff `flag` is present.

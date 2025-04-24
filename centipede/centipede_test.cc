@@ -57,7 +57,9 @@ using ::testing::Each;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
+using ::testing::Le;
 using ::testing::Not;
+using ::testing::SizeIs;
 
 // A mock for CentipedeCallbacks.
 class CentipedeMock : public CentipedeCallbacks {
@@ -450,6 +452,25 @@ TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
       EXPECT_THAT(result.mutants(), AllOf(IsSupersetOf(all_expected_mutants),
                                           Each(Not(IsEmpty()))));
     }
+  }
+
+  // Test with a max_len of 10
+  {
+    Environment env;
+    env.max_len = 10;
+    MutateCallbacks callbacks(env);
+    const MutationResult result = callbacks.MutateViaExternalBinary(
+        binary_with_custom_mutator, GetMutationInputRefsFromDataInputs(inputs),
+        10000);
+    EXPECT_EQ(result.exit_code(), EXIT_SUCCESS);
+    EXPECT_TRUE(result.has_custom_mutator());
+    EXPECT_THAT(result.mutants(), AllOf(IsSupersetOf(all_expected_mutants),
+                                        Each(Not(IsEmpty()))));
+    EXPECT_THAT(result.mutants(),
+                AllOf(IsSupersetOf(all_expected_mutants), Each(Not(IsEmpty())),
+                      // The byte_array_mutator may insert up to 20 bytes to an
+                      // input, which may push the size over the max_len.
+                      Each(SizeIs(Le(30)))));
   }
 
   // Test with crossover disabled.
