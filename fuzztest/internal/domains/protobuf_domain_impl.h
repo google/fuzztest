@@ -1349,6 +1349,15 @@ class ProtobufDomainUntypedImpl
     return field;
   }
 
+  static bool IsMessageSetFuzzingEnabled() {
+    // TODO(b/413402115): Create protobuf domain API enabling MessageSet fuzzing
+#ifdef FUZZTEST_FUZZ_MESSAGE_SET
+    return true;
+#else
+    return false;
+#endif
+  }
+
   static bool IsMessageSet(const Descriptor* descriptor) {
     // MessageSet needs a special handling because it's a centralized proto that
     // is extended by many protos and can have a huge number of fields. Fuzzing
@@ -1358,7 +1367,7 @@ class ProtobufDomainUntypedImpl
 
   static auto GetFieldCount(const Descriptor* descriptor) {
     std::vector<const FieldDescriptor*> extensions;
-    if (!IsMessageSet(descriptor)) {
+    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
     }
     return descriptor->field_count() + extensions.size();
@@ -1370,7 +1379,7 @@ class ProtobufDomainUntypedImpl
     for (int i = 0; i < descriptor->field_count(); ++i) {
       fields.push_back(descriptor->field(i));
     }
-    if (!IsMessageSet(descriptor)) {
+    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
     }
     return fields;
