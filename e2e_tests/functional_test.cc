@@ -78,8 +78,8 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
 void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
 #ifdef FUZZTEST_USE_CENTIPEDE
   EXPECT_THAT(status, Ne(ExitCode(0)));
-  EXPECT_TRUE(
-      RE2::PartialMatch(std_err, absl::StrCat("Exit code\\s*:\\s*", SIGABRT)))
+  EXPECT_TRUE(RE2::PartialMatch(std_err,
+                                absl::StrCat("[Ee]xit code\\s*:\\s*", SIGABRT)))
       << std_err;
 #else
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
@@ -1196,16 +1196,36 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       UsesCentipedeBinaryWhenCentipedeBinaryPathFlagIsSet) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir temp_dir;
+  auto [status, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "1s"},
+          {"corpus_database", temp_dir.path()},
+          {"internal_centipede_binary_path", CentipedePath()},
+      },
+      /*env=*/{},
+      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
+  EXPECT_THAT(std_err, HasSubstr("Running Centipede command")) << std_err;
+  EXPECT_THAT(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
 enum class ExecutionModelParam {
-  kSingleBinary,
-  kWithCentipedeBinary,
+  kTestBinary,
+  kTestBinaryInvokingCentipedeBinary,
+  kCentipedeBinary,
 };
 
 std::vector<ExecutionModelParam> GetAvailableExecutionModels() {
-  std::vector<ExecutionModelParam> results = {
-      ExecutionModelParam::kSingleBinary};
+  std::vector<ExecutionModelParam> results = {ExecutionModelParam::kTestBinary};
 #ifdef FUZZTEST_USE_CENTIPEDE
-  results.push_back(ExecutionModelParam::kWithCentipedeBinary);
+  results.push_back(ExecutionModelParam::kTestBinaryInvokingCentipedeBinary);
+  results.push_back(ExecutionModelParam::kCentipedeBinary);
 #endif
   return results;
 }
@@ -1232,7 +1252,7 @@ class FuzzingModeFixtureTest
 
   RunResults Run(absl::string_view test_name, int iterations) {
     switch (GetParam()) {
-      case ExecutionModelParam::kSingleBinary: {
+      case ExecutionModelParam::kTestBinary: {
         RunOptions run_options;
         run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
                                       {"print_subprocess_log", "true"}};
@@ -1241,7 +1261,18 @@ class FuzzingModeFixtureTest
         run_options.timeout = absl::InfiniteDuration();
         return RunBinary(BinaryPath(kDefaultTargetBinary), run_options);
       }
-      case ExecutionModelParam::kWithCentipedeBinary: {
+      case ExecutionModelParam::kTestBinaryInvokingCentipedeBinary: {
+        RunOptions run_options;
+        run_options.fuzztest_flags = {
+            {"fuzz", std::string(test_name)},
+            {"print_subprocess_log", "true"},
+            {"internal_centipede_binary_path", CentipedePath()}};
+        run_options.env = {
+            {"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}};
+        run_options.timeout = absl::InfiniteDuration();
+        return RunBinary(BinaryPath(kDefaultTargetBinary), run_options);
+      }
+      case ExecutionModelParam::kCentipedeBinary: {
         TempDir workdir;
         RunOptions run_options;
         run_options.flags = {
@@ -1379,7 +1410,7 @@ class FuzzingModeCrashFindingTest
     // There are however env vars that we do want to propagate, which
     // we now need to do explicitly.
     env = WithTestSanitizerOptions(std::move(env));
-    if (GetParam() == ExecutionModelParam::kWithCentipedeBinary) {
+    if (GetParam() == ExecutionModelParam::kCentipedeBinary) {
       TempDir workdir;
       RunOptions run_options;
       run_options.flags = {
@@ -1392,14 +1423,18 @@ class FuzzingModeCrashFindingTest
       run_options.env = std::move(env);
       run_options.timeout = timeout + absl::Seconds(10);
       return RunBinary(CentipedePath(), run_options);
-    } else {
+    }
       RunOptions run_options;
       run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
                                     {"fuzz_for", absl::StrCat(timeout)}};
       run_options.env = std::move(env);
       run_options.timeout = timeout + absl::Seconds(10);
+      if (GetParam() ==
+          ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
+        run_options.fuzztest_flags["internal_centipede_binary_path"] =
+            CentipedePath();
+      }
       return RunBinary(BinaryPath(target_binary), run_options);
-    }
   }
 };
 
@@ -1627,16 +1662,14 @@ TEST_P(FuzzingModeCrashFindingTest, BadFilterTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadFilter");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of Filter()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
-  // TODO: b/398261908 - Change to `ExpectTargetAbort` once the bug is fixed.
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BadWithMinSizeTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadWithMinSize");
   EXPECT_THAT(std_err, HasSubstr("Ineffective use of WithSize()"));
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
-  // TODO: b/398261908 - Change to `ExpectTargetAbort` once the bug is fixed.
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SmartPointer) {
@@ -1790,11 +1823,14 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
 
 TEST_P(FuzzingModeCrashFindingTest,
        SetupFailureCrashMetadataIsDumpedIfEnvVarIsSet) {
-  if (GetParam() == ExecutionModelParam::kSingleBinary) {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  if (GetParam() == ExecutionModelParam::kTestBinary ||
+      GetParam() == ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
     // TODO(b/393582695): Reconsider how we want to handle setup failures in the
     // single-binary mode.
-    GTEST_SKIP() << "Currently not supported in single-binary mode.";
+    GTEST_SKIP() << "Currently not supported in test-binary mode.";
   }
+#endif
   TempDir out_dir;
   const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
   auto [status, std_out, std_err] =

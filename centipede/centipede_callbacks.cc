@@ -362,7 +362,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (retval != EXIT_SUCCESS) {
-    LOG(WARNING) << "Custom mutator failed with exit code " << retval;
+    LOG(WARNING) << "Custom mutator failed with exit code: " << retval;
   }
   if (env_.print_runner_log || retval != EXIT_SUCCESS) {
     PrintExecutionLog();

@@ -57,8 +57,9 @@ absl::StatusOr<std::string> FindFile(absl::string_view root_path,
 }
 
 enum class ExecutionModelParam {
-  kSingleBinary,
-  kWithCentipedeBinary,
+  kTestBinary,
+  kTestBinaryInvokingCentipedeBinary,
+  kCentipedeBinary
 };
 
 struct UpdateCorpusDatabaseRun {
@@ -112,9 +113,15 @@ class UpdateCorpusDatabaseTest
   static RunResults RunBinaryMaybeWithCentipede(absl::string_view binary_path,
                                                 const RunOptions &options) {
     switch (GetParam()) {
-      case ExecutionModelParam::kSingleBinary:
+      case ExecutionModelParam::kTestBinary:
         return RunBinary(binary_path, options);
-      case ExecutionModelParam::kWithCentipedeBinary: {
+      case ExecutionModelParam::kTestBinaryInvokingCentipedeBinary: {
+        RunOptions centipede_options = options;
+        centipede_options.fuzztest_flags["internal_centipede_binary_path"] =
+            CentipedePath();
+        return RunBinary(binary_path, centipede_options);
+      }
+      case ExecutionModelParam::kCentipedeBinary: {
         RunOptions centipede_options;
         centipede_options.env = options.env;
         centipede_options.timeout = options.timeout;
@@ -352,8 +359,9 @@ TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
 
 INSTANTIATE_TEST_SUITE_P(
     UpdateCorpusDatabaseTestWithExecutionModel, UpdateCorpusDatabaseTest,
-    testing::ValuesIn({ExecutionModelParam::kSingleBinary,
-                       ExecutionModelParam::kWithCentipedeBinary}));
+    testing::ValuesIn({ExecutionModelParam::kTestBinary,
+                       ExecutionModelParam::kTestBinaryInvokingCentipedeBinary,
+                       ExecutionModelParam::kCentipedeBinary}));
 
 }  // namespace
 }  // namespace fuzztest::internal

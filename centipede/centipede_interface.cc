@@ -38,6 +38,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -835,8 +836,13 @@ int CentipedeMain(const Environment &env,
   // `env.has_input_wildcards` is true).
   if (!env.binary.empty() && !env.has_input_wildcards) {
     const auto serialized_target_config = [&]() -> absl::StatusOr<std::string> {
+      // TODO: b/410051414 Use Centipede flags to pass necessary information
+      // instead of passing the entirely serialized Configuration once switched
+      // to the unified execution model.
       if (!env.fuzztest_configuration.empty()) {
-        return env.fuzztest_configuration;
+        std::string result;
+        CHECK(absl::WebSafeBase64Unescape(env.fuzztest_configuration, &result));
+        return result;
       }
       ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
       return scoped_callbacks.callbacks()->GetSerializedTargetConfig();

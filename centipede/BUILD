@@ -869,6 +869,7 @@ cc_library(
         ":util",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/flags:marshalling",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",

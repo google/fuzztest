@@ -210,6 +210,9 @@ cc_library(
     name = "centipede_adaptor",
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
+    data = [
+        "@com_google_fuzztest//centipede:centipede_uninstrumented",
+    ],
     defines = ["FUZZTEST_USE_CENTIPEDE"],
     deps = [
         ":any",

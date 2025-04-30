@@ -180,6 +180,11 @@ FUZZTEST_DEFINE_FLAG(
 // TODO(b/406001082): Remove these flags once they are no longer needed.
 
 FUZZTEST_DEFINE_FLAG(
+    std::optional<std::string>, internal_centipede_binary_path, std::nullopt,
+    "If set, run the Centipede binary in separate processes as the fuzzing "
+    "engine. This flag is for internal use only.");
+
+FUZZTEST_DEFINE_FLAG(
     std::optional<std::string>, internal_override_fuzz_test, std::nullopt,
     "Internal-only flag - do not use directly. If set, only perform operations "
     "for the exact fuzz test regardless of other flags.")
@@ -328,7 +333,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
-      reproduce_findings_as_separate_tests, replay_coverage_inputs,
+      reproduce_findings_as_separate_tests,
+      replay_coverage_inputs,
       /*only_replay=*/
       replay_corpus_time_limit.has_value(),
       /*replay_in_single_process=*/false,
@@ -336,9 +342,13 @@ internal::Configuration CreateConfigurationsFromFlags(
       absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
-      absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)), time_limit,
-      time_budget_type, jobs.value_or(0),
-      absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce))};
+      absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
+      time_limit,
+      time_budget_type,
+      jobs.value_or(0),
+      absl::GetFlag(FUZZTEST_FLAG(internal_centipede_binary_path)),
+      absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce)),
+  };
 }
 }  // namespace
 
