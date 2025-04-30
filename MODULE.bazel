@@ -19,10 +19,10 @@ module(
     repo_name = "com_google_fuzztest",
 )
 
-# TODO(lszekeres): Change back from git_override to released version.
+# TODO(lszekeres): Update and remove override as soon as next release is cut.
 bazel_dep(
     name = "abseil-cpp",
-    version = "0.0.0",
+    version = "20250127.1",
 )
 git_override(
     module_name = "abseil-cpp",
