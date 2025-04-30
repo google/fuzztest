@@ -236,13 +236,13 @@ initialization is too expensive to be performed in each iteration.
 
 When using non-GoogleTest fixtures, FuzzTest can make use of *runner functions*
 on the fixture to specify per-test or per-iteration setups in a more flexible
-way. Runner functions are member functions of a fixture class, with the
-following forms:
+way. FuzzTest provides the following runner interfaces for a fixture to inherit:
 
--   `void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test)`
+-   `::fuzztest::FuzzTestRunnerFixture`, which declares the runner function
+    `void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test)`
 
-    If defined, instead of directly running the fuzz test, FuzzTest will call
-    this function, expecting that it will in turn:
+    If the interface is inherited, instead of directly running the fuzz test,
+    FuzzTest will call `FuzzTestRunner`, expecting that it will in turn:
 
     1.  Set up everything needed for running the test.
     2.  Invoke `run_test`, through which FuzzTest will essentially pass the
@@ -250,10 +250,12 @@ following forms:
         The function `run_test` will return once FuzzTest is done with the test.
     3.  Tear down everything no longer needed after the test.
 
--   `void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration)`
+-   `::fuzztest::IterationRunnerFixture`, which declares the runner function
+    `void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration)`
 
-    If defined, instead of directly running a fuzz test iteration, FuzzTest will
-    call this function, expecting that it will in turn:
+    If the interface is inherited, instead of directly running a fuzz test
+    iteration, FuzzTest will call `FuzzTestIterationRunner`, expecting that it
+    will in turn:
 
     1.  Set up everything needed for running a test iteration.
     2.  Invoke `run_iteration`, through which FuzzTest will invoke the property
@@ -271,10 +273,10 @@ transformed into a runner function. For example, the `EchoServerFuzzTest`
 fixture could be defined as:
 
 ```c++
-class EchoServerFuzzTest {
+class EchoServerFuzzTest : public fuzztest::FuzzTestRunnerFixture {
  public:
 
-  void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) {
+  void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) override {
    server_.Start("localhost:9999");
    std::move(run_test)();
    server_.Stop();
@@ -298,10 +300,10 @@ To create a new `EchoServer` instance for each fuzz test iteration, define
 `FuzzTestIterationRunner` instead:
 
 ```c++
-class EchoServerFuzzTest {
+class EchoServerFuzzTest : public fuzztest::IterationRunnerFixture {
  public:
 
-  void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration) {
+  void FuzzTestIterationRunner(absl::AnyInvocable<void() &&> run_iteration) override {
    server_.Start("localhost:9999");
    std::move(run_iteration)();
    server_.Stop();
@@ -323,7 +325,7 @@ heavy and impact the fuzzing performance. With runner functions, the fixture can
 be defined as:
 
 ```c++
-class SutBasedFuzzTest {
+class SutBasedFuzzTest : public fuzztest::FuzzTestRunnerFixture {
  public:
 
   void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) {

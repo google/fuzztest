@@ -64,6 +64,19 @@ class FixtureWithExplicitSetUp {
 class PerIterationFixture : public FixtureWithExplicitSetUp {};
 class PerFuzzTestFixture : public FixtureWithExplicitSetUp {};
 
+// Marker interfaces for fixtures with runner functions.
+class FuzzTestRunnerFixture {
+ public:
+  virtual ~FuzzTestRunnerFixture() = default;
+  virtual void FuzzTestRunner(absl::AnyInvocable<void() &&> run_test) = 0;
+};
+class IterationRunnerFixture {
+ public:
+  virtual ~IterationRunnerFixture() = default;
+  virtual void FuzzTestIterationRunner(
+      absl::AnyInvocable<void() &&> run_iteration) = 0;
+};
+
 class UntypedFixtureDriver {
  public:
   virtual ~UntypedFixtureDriver() = 0;
@@ -360,9 +373,7 @@ class FixtureDriverImpl<
 
   void RunFuzzTest(absl::AnyInvocable<void() &&> run_test) override {
     this->fixture_ = std::make_unique<Fixture>();
-    if constexpr (Requires<Fixture>(
-                      [](auto&& x) -> decltype(x.FuzzTestRunner(
-                                       std::move(run_test))) {})) {
+    if constexpr (std::is_base_of_v<FuzzTestRunnerFixture, Fixture>) {
       this->fixture_->FuzzTestRunner(std::move(run_test));
     } else {
       std::move(run_test)();
@@ -372,9 +383,7 @@ class FixtureDriverImpl<
 
   void RunFuzzTestIteration(
       absl::AnyInvocable<void() &&> run_iteration) override {
-    if constexpr (Requires<Fixture>(
-                      [](auto&& x) -> decltype(x.FuzzTestIterationRunner(
-                                       std::move(run_iteration))) {})) {
+    if constexpr (std::is_base_of_v<IterationRunnerFixture, Fixture>) {
       this->fixture_->FuzzTestIterationRunner(std::move(run_iteration));
     } else {
       std::move(run_iteration)();
