@@ -528,6 +528,8 @@ int UpdateCorpusDatabaseForFuzzTests(
   // Step 3: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
   for (int i = resuming_fuzztest_idx; i < fuzz_tests_to_run.size(); ++i) {
+    // Clean up previous stop requests. stop_time will be set later.
+    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
     if (!env.fuzztest_single_test_mode &&
         fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
       const absl::Duration test_time_limit =
@@ -639,6 +641,12 @@ int UpdateCorpusDatabaseForFuzzTests(
       time_limit = std::max(time_limit - time_spent, absl::ZeroDuration());
     }
     is_resuming = false;
+
+    if (EarlyStopRequested()) {
+      LOG(INFO) << "Skipping test " << fuzz_tests_to_run[i]
+                << " because early stop requested.";
+      continue;
+    }
 
     LOG(INFO) << (fuzztest_config.only_replay ? "Replaying " : "Fuzzing ")
               << fuzz_tests_to_run[i] << " for " << time_limit

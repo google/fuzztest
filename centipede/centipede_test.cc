@@ -34,6 +34,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
@@ -41,6 +42,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
@@ -1047,6 +1049,7 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
 
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
                BatchResult &batch_result) override {
+    ++execute_count_;
     batch_result.ClearAndResize(inputs.size());
     batch_result.exit_code() = EXIT_FAILURE;
     batch_result.failure_description() = "SETUP FAILURE: something went wrong";
@@ -1057,9 +1060,14 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
                                 size_t num_mutants) override {
     return {num_mutants, {0}};
   }
+
+  int execute_count() const { return execute_count_; }
+
+ private:
+  int execute_count_ = 0;
 };
 
-TEST(Centipede, AbortsOnSetupFailure) {
+TEST(Centipede, ReturnsFailureOnSetupFailure) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
@@ -1068,8 +1076,8 @@ TEST(Centipede, AbortsOnSetupFailure) {
   env.require_pc_table = false;  // No PC table here.
   SetupFailureCallbacks mock(env);
   MockFactory factory(mock);
-  EXPECT_DEATH(CentipedeMain(env, factory),
-               "Terminating Centipede due to setup failure in the test.");
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_FAILURE);
+  EXPECT_EQ(mock.execute_count(), 1);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
@@ -1096,6 +1104,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
   CentipedeDefaultCallbacks callbacks(env);
 
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
+  // Previous stop condition could interfere here.
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
   EXPECT_DEATH(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
                                 inputs.size()),
                "Custom mutator failed");
