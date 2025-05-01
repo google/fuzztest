@@ -126,6 +126,10 @@ extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity);
 // "empty" with no features or metadata.
 extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size);
 
+// Set the failure description for the runner to propagate further. Only the
+// description from the first call will be used.
+extern "C" void CentipedeSetFailureDescription(const char *description);
+
 namespace fuzztest::internal {
 
 // Callbacks interface implemented by the fuzzer and called by the runner.
@@ -153,11 +157,6 @@ class RunnerCallbacks {
   virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
                       size_t num_mutants,
                       std::function<void(ByteSpan)> new_mutant_callback);
-  // Registers a function to be called when a failure happens. If the
-  // implementation supports this functionality, it will call the function with
-  // a description of the failure. Otherwise, it will do nothing.
-  virtual void OnFailure(
-      std::function<void(std::string_view)> failure_description_callback);
   virtual ~RunnerCallbacks() = default;
 };
 

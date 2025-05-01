@@ -453,29 +453,6 @@ class CentipedeAdaptorRunnerCallbacks
     return configuration_.Serialize();
   }
 
-  void OnFailure(std::function<void(std::string_view)>
-                     failure_description_callback) override {
-    // We register the callback only once. This is because `runtime_` is a
-    // global singleton object, and hence previously registered callbacks remain
-    // in the registry. In normal circumstances, there should be only one
-    // runner callback object and a single call to this method, but there are
-    // corner cases when multiple runner callback objects are created, e.g.,
-    // when Centipede runs multiple fuzz tests in the multi-process mode.
-    [[maybe_unused]] static bool callback_registered =
-        [this, failure_description_callback =
-                   std::move(failure_description_callback)]() mutable {
-          runtime_.RegisterCrashMetadataListener(
-              [failure_description_callback =
-                   std::move(failure_description_callback)](
-                  absl::string_view crash_type,
-                  absl::Span<const std::string> /*stack_frames*/) {
-                failure_description_callback(
-                    {crash_type.data(), crash_type.size()});
-              });
-          return true;
-        }();
-  }
-
   bool HasCustomMutator() const override { return true; }
 
   bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
@@ -738,6 +715,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     // TODO(b/393582695): Consider whether we need some kind of reporting
     // enabled in the controller mode to handle test setup failures.
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
+  }
+  if (runner_mode) {
+    runtime_.RegisterCrashMetadataListener(
+        [](absl::string_view crash_type,
+           absl::Span<const std::string> /*stack_frames*/) {
+          CentipedeSetFailureDescription(std::string{crash_type}.c_str());
+        });
   }
   if (!configuration.corpus_database.empty() &&
       configuration.crashing_input_to_reproduce.has_value() &&

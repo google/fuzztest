@@ -100,31 +100,6 @@ GlobalRunnerState state __attribute__((init_priority(200)));
 // This avoids calls to __tls_init() in hot functions that use `tls`.
 __thread ThreadLocalRunnerState tls;
 
-// Tries to write `description` to `state.failure_description_path`.
-static void WriteFailureDescription(const char *description) {
-  // TODO(b/264715830): Remove I/O error logging once the bug is fixed?
-  if (state.failure_description_path == nullptr) return;
-  // Make sure that the write is atomic and only happens once.
-  [[maybe_unused]] static int write_once = [=] {
-    FILE *f = fopen(state.failure_description_path, "w");
-    if (f == nullptr) {
-      perror("FAILURE: fopen()");
-      return 0;
-    }
-    const auto len = strlen(description);
-    if (fwrite(description, 1, len, f) != len) {
-      perror("FAILURE: fwrite()");
-    }
-    if (fflush(f) != 0) {
-      perror("FAILURE: fflush()");
-    }
-    if (fclose(f) != 0) {
-      perror("FAILURE: fclose()");
-    }
-    return 0;
-  }();
-}
-
 void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
                                          const uint8_t *s2, size_t n,
                                          bool is_equal) {
@@ -279,7 +254,7 @@ static void CheckWatchdogLimits() {
             "https://github.com/google/fuzztest/tree/main/doc/flags-reference.md"
             "\n",
             resource.what, resource.limit, resource.units, resource.value);
-        WriteFailureDescription(resource.failure);
+        CentipedeSetFailureDescription(resource.failure);
         std::abort();
       }
     }
@@ -315,7 +290,7 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
             " > %zu"
             " (byte); aborting\n",
             tls.top_frame_sp - sp, stack_limit);
-    fuzztest::internal::WriteFailureDescription(
+    CentipedeSetFailureDescription(
         fuzztest::internal::kExecutionFailureStackLimitExceeded.data());
     std::abort();
   }
@@ -594,9 +569,6 @@ bool RunnerCallbacks::Mutate(
               "HasCustomMutator() returns true.");
   return true;
 }
-
-void RunnerCallbacks::OnFailure(
-    std::function<void(std::string_view)> /*failure_description_callback*/) {}
 
 class LegacyRunnerCallbacks : public RunnerCallbacks {
  public:
@@ -1171,10 +1143,6 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     return EXIT_SUCCESS;
   }
 
-  callbacks.OnFailure([](std::string_view failure_description) {
-    WriteFailureDescription(std::string(failure_description).c_str());
-  });
-
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {
     if (!state.arg1 || !state.arg2) return EXIT_FAILURE;
@@ -1318,4 +1286,28 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
   fuzztest::internal::RunnerCheck(
       state.execution_result_override->num_outputs_read() == 1,
       "Failed to set execution result from CentipedeSetExecutionResult");
+}
+
+extern "C" void CentipedeSetFailureDescription(const char *description) {
+  using fuzztest::internal::state;
+  if (state.failure_description_path == nullptr) return;
+  // Make sure that the write is atomic and only happens once.
+  [[maybe_unused]] static int write_once = [=] {
+    FILE *f = fopen(state.failure_description_path, "w");
+    if (f == nullptr) {
+      perror("FAILURE: fopen()");
+      return 0;
+    }
+    const auto len = strlen(description);
+    if (fwrite(description, 1, len, f) != len) {
+      perror("FAILURE: fwrite()");
+    }
+    if (fflush(f) != 0) {
+      perror("FAILURE: fflush()");
+    }
+    if (fclose(f) != 0) {
+      perror("FAILURE: fclose()");
+    }
+    return 0;
+  }();
 }
