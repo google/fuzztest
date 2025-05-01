@@ -1080,6 +1080,44 @@ TEST(Centipede, ReturnsFailureOnSetupFailure) {
   EXPECT_EQ(mock.execute_count(), 1);
 }
 
+class SkippedTestCallbacks : public CentipedeCallbacks {
+ public:
+  using CentipedeCallbacks::CentipedeCallbacks;
+
+  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
+               BatchResult &batch_result) override {
+    ++execute_count_;
+    batch_result.ClearAndResize(inputs.size());
+    batch_result.exit_code() = EXIT_FAILURE;
+    batch_result.failure_description() =
+        "SKIPPED TEST: test skipped on purpose";
+    return false;
+  }
+
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    return {num_mutants, {0}};
+  }
+
+  int execute_count() const { return execute_count_; }
+
+ private:
+  int execute_count_ = 0;
+};
+
+TEST(Centipede, ReturnsSuccessOnSkippedTest) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = temp_dir.path();
+  env.batch_size = 7;            // Just some small number.
+  env.require_pc_table = false;  // No PC table here.
+  SkippedTestCallbacks mock(env);
+  MockFactory factory(mock);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  EXPECT_EQ(mock.execute_count(), 1);
+}
+
 TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
   Environment env;
   env.binary = GetDataDependencyFilepath(

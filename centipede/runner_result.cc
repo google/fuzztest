@@ -131,6 +131,13 @@ bool BatchResult::IsSetupFailure() const {
                  .substr(0, kSetupFailurePrefix.size()) == kSetupFailurePrefix;
 }
 
+bool BatchResult::IsSkippedTest() const {
+  constexpr std::string_view kSkippedTestPrefix = "SKIPPED TEST:";
+  return exit_code_ != EXIT_SUCCESS &&
+         std::string_view(failure_description_)
+                 .substr(0, kSkippedTestPrefix.size()) == kSkippedTestPrefix;
+}
+
 bool MutationResult::WriteHasCustomMutator(bool has_custom_mutator,
                                            BlobSequence &blobseq) {
   return blobseq.Write(
