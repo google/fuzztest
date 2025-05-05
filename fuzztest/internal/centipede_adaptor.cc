@@ -422,6 +422,19 @@ class CentipedeAdaptorRunnerCallbacks
         prng_(GetRandomSeed()) {}
 
   bool Execute(fuzztest::internal::ByteSpan input) override {
+    [[maybe_unused]] static bool check_if_not_skipped_on_setup = [&] {
+      if (runtime_.skipping_requested()) {
+        absl::FPrintF(GetStderr(),
+                      "[.] Skipping %s per request from the test setup.\n",
+                      fuzzer_impl_.test_.full_name());
+        CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
+        // It has to use _Exit(1) to avoid trigger the reporting of regular
+        // setup failure while let Centipede be aware of this. Note that this
+        // skips the fixture teardown.
+        std::_Exit(1);
+      }
+      return true;
+    }();
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
     auto parsed_input =
@@ -728,17 +741,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       configuration.replay_in_single_process) {
     return ReplayCrashInSingleProcess(configuration);
   }
-  int result = EXIT_FAILURE;
-  bool to_run_controller = false;
-  fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
-    if (runtime_.skipping_requested()) {
-      absl::FPrintF(GetStderr(),
-                    "[.] Skipping %s per request from the test setup.\n",
-                    test_.full_name());
-      result = 0;
-      return;
-    }
-    if (runner_mode) {
+  if (runner_mode) {
+    std::optional<int> result;
+    fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
       static char fake_argv0[] = "fake_argv";
@@ -747,21 +752,33 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
           argc != nullptr ? *argc : 1, argv != nullptr ? *argv : fake_argv,
           runner_callbacks);
       return;
-    }
-    // Centipede engine does not support replay and reproducer minimization
-    // (within the single process). So use the existing fuzztest implementation.
+    });
+    FUZZTEST_INTERNAL_CHECK(result.has_value(),
+                            "No result is set for running fuzz test");
+    return *result == EXIT_SUCCESS;
+  } else if (is_running_property_function_in_this_process) {
+    // If `is_running_property_function_in_this_process` holds at this point. We
+    // assume it is for `ReplayInputsIfAvailable` to handle `FUZZTEST_REPLAY`
+    // and `FUZZTEST_MINIMIZE_REPRODUCER`, which Centipede does not support.
     // This is fine because it does not require coverage instrumentation.
-    if (!configuration.crashing_input_to_reproduce.has_value() &&
-        fuzzer_impl_.ReplayInputsIfAvailable(configuration)) {
-      result = 0;
+    FUZZTEST_INTERNAL_CHECK(
+        std::getenv("FUZZTEST_REPLAY") ||
+            std::getenv("FUZZTEST_MINIMIZE_REPRODUCER"),
+        "Both env vars `FUZZTEST_REPLAY` and `FUZZTEST_MINIMIZE_REPRODUCER` "
+        "are not set when calling the legacy input replaying - this is a "
+        "FuzzTest bug!");
+    fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
+      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+          fuzzer_impl_.ReplayInputsIfAvailable(configuration),
+          "ReplayInputsIfAvailable failed to handle env vars `FUZZTEST_REPLAY` "
+          "or `FUZZTEST_MINIMIZE_REPRODUCER`. Please check if they are set "
+          "properly.");
       return;
-    }
-    // `ReplayInputsIfAvailable` overwrites the run mode - revert it back.
-    runtime_.SetRunMode(mode);
-    to_run_controller = true;
-  });
-  if (!to_run_controller) return result == 0;
+    });
+    return true;
+  }
   // Run as the fuzzing engine.
+  int result = EXIT_FAILURE;
   [&] {
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
     std::unique_ptr<TempDir> workdir;

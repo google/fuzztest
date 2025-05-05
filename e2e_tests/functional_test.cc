@@ -1321,10 +1321,19 @@ TEST_P(FuzzingModeFixtureTest,
 TEST_P(FuzzingModeFixtureTest, FixtureGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("FixtureTest.NeverFails",
                                         /*iterations=*/10);
-  EXPECT_GT(CountTargetRuns(std_err), 0);
-  EXPECT_EQ(CountTargetRuns(std_err),
+#ifdef FUZZTEST_USE_CENTIPEDE
+  // In the single binary execution model there is a target process running in
+  // controller mode, where no FuzzTest fixture object is created.
+  const int target_controller_runs =
+      GetParam() == ExecutionModelParam::kTestBinary ||
+      GetParam() == ExecutionModelParam::kTestBinaryInvokingCentipedeBinary;
+#else
+  const int target_controller_runs = 0;
+#endif
+  EXPECT_GT(CountTargetRuns(std_err) - target_controller_runs, 0);
+  EXPECT_EQ(CountTargetRuns(std_err) - target_controller_runs,
             CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"));
-  EXPECT_EQ(CountTargetRuns(std_err),
+  EXPECT_EQ(CountTargetRuns(std_err) - target_controller_runs,
             CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
 }
 
@@ -1823,14 +1832,6 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
 
 TEST_P(FuzzingModeCrashFindingTest,
        SetupFailureCrashMetadataIsDumpedIfEnvVarIsSet) {
-#ifdef FUZZTEST_USE_CENTIPEDE
-  if (GetParam() == ExecutionModelParam::kTestBinary ||
-      GetParam() == ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
-    // TODO(b/393582695): Reconsider how we want to handle setup failures in the
-    // single-binary mode.
-    GTEST_SKIP() << "Currently not supported in test-binary mode.";
-  }
-#endif
   TempDir out_dir;
   const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
   auto [status, std_out, std_err] =
