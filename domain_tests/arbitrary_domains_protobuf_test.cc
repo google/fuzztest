@@ -571,8 +571,7 @@ TEST(ProtocolBuffer, WithFieldsAlwaysSetResetsWithMaxRepeatedFieldsSize) {
               },
               1)
           .WithFieldsAlwaysSet();
-
-  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+  EXPECT_THAT(GenerateInitialValues(domain, 1000, /*num_mutations=*/1),
               Contains(ResultOf(
                   [](const Value<Domain<TestProtobuf>>& val) {
                     return val.user_value.rep_i32_size();

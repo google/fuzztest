@@ -144,6 +144,10 @@ class Domain {
     return inner_->TypedGetRandomValue(prng);
   }
 
+  corpus_type GetRandomCorpusValue(absl::BitGenRef prng) {
+    return inner_->GetRandomCorpusValue(prng);
+  }
+
   // The methods below are used by the FuzzTest framework and custom domain
   // implementations.
 

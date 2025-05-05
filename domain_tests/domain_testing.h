@@ -162,7 +162,7 @@ struct Value {
       Domain& domain, absl::BitGenRef prng,
       const domain_implementor::MutationMetadata& metadata = {},
       bool only_shrink = false) {
-    static constexpr int kMutations = 1000;
+    static constexpr int kMutations = 5;
     for (int i = 0; i < kMutations; ++i) {
       domain.Mutate(corpus_value, prng, metadata, only_shrink);
     }
@@ -267,10 +267,13 @@ auto GenerateValues(Domain domain, int num_seeds = 10, int num_mutations = 100,
   absl::BitGen bitgen;
 
   absl::flat_hash_set<Value<Domain>> seeds;
-  // Make sure we can make some unique seeds.
-  // Randomness might create duplicates so keep going until we got them.
   while (seeds.size() < num_seeds) {
-    seeds.insert(Value(domain, bitgen));
+    auto value = Value(domain, bitgen);
+    for (int i = 0; i < num_mutations; ++i) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
+    seeds.insert(value);
   }
 
   auto values = seeds;
@@ -321,12 +324,17 @@ auto GenerateNonUniqueValues(
 }
 
 template <typename Domain>
-auto GenerateInitialValues(Domain domain, int n) {
+auto GenerateInitialValues(Domain domain, int n, int num_mutations = 0) {
   std::vector<Value<Domain>> values;
   absl::BitGen bitgen;
   values.reserve(n);
   for (int i = 0; i < n; ++i) {
-    values.push_back(Value(domain, bitgen));
+    auto value = Value(domain, bitgen);
+    for (int j = 0; j < num_mutations; ++j) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
+    values.push_back(std::move(value));
   }
   return values;
 }
