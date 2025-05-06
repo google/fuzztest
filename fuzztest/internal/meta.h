@@ -200,6 +200,24 @@ template <typename T>
 inline constexpr bool is_protocol_buffer_enum_v =
     IsProtocolBufferEnumImpl<T>(true);
 
+template <typename T, typename = void>
+inline constexpr bool is_flatbuffers_table_v = false;
+
+// Flatbuffers tables generated structs do not have a public base class, so we
+// check for a few specific methods:
+//  - T is a struct.
+//  - T has a `Builder` type.
+//  - T has a `BinarySchema` type with a `data()` method (only available when
+//  passing `--bfbs-gen-embed` to the flatbuffer compiler)
+//  - T has a static method called `GetFullyQualifiedName` (only available when
+//  passing `--gen-name-strings` to the flatbuffer compiler).
+template <typename T>
+inline constexpr bool
+    is_flatbuffers_table_v<T, std::enable_if_t<std::is_class_v<T>>> =
+        Requires<const T*>([](auto) -> typename T::Builder {}) &&
+        Requires<const T*>([](auto) -> decltype(T::BinarySchema::data()) {}) &&
+        Requires<const T*>([](auto) -> decltype(T::GetFullyQualifiedName()) {});
+
 template <typename T>
 inline constexpr bool has_size_v =
     Requires<T>([](auto v) -> decltype(v.size()) {});
