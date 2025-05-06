@@ -203,6 +203,54 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   CHECK_EQ(total_paths, inputs_added + inputs_ignored);
 }
 
+absl::Status Centipede::CrashesToFiles(const Environment &env,
+                                       std::string_view dir) {
+  std::vector<std::string> reproducer_dirs;
+  auto reproducer_match_status = RemoteGlobMatch(
+      WorkDir{env}.CrashReproducerDirPaths().AllShardsGlob(), reproducer_dirs);
+  if (!reproducer_match_status.ok() &&
+      !absl::IsNotFound(reproducer_match_status)) {
+    return reproducer_match_status;
+  }
+  absl::flat_hash_set<std::string> crash_ids;
+  for (const auto &reproducer_dir : reproducer_dirs) {
+    ASSIGN_OR_RETURN_IF_NOT_OK(
+        std::vector<std::string> reproducer_paths,
+        RemoteListFiles(reproducer_dir, /*recursively=*/false));
+    for (const auto &reproducer_path : reproducer_paths) {
+      std::string id = std::filesystem::path{reproducer_path}.filename();
+      if (auto [_it, inserted] = crash_ids.insert(id); !inserted) {
+        continue;
+      }
+      RETURN_IF_NOT_OK(RemoteFileCopy(
+          reproducer_path,
+          (std::filesystem::path{dir} / absl::StrCat(id, ".data")).string()));
+    }
+  }
+  std::vector<std::string> metadata_dirs;
+  auto metadata_match_status = RemoteGlobMatch(
+      WorkDir{env}.CrashMetadataDirPaths().AllShardsGlob(), metadata_dirs);
+  if (!metadata_match_status.ok() && !absl::IsNotFound(metadata_match_status)) {
+    return metadata_match_status;
+  }
+  for (const auto &metadata_dir : metadata_dirs) {
+    ASSIGN_OR_RETURN_IF_NOT_OK(
+        std::vector<std::string> metadata_paths,
+        RemoteListFiles(metadata_dir, /*recursively=*/false));
+    for (const auto &metadata_path : metadata_paths) {
+      std::string id = std::filesystem::path{metadata_path}.filename();
+      if (crash_ids.erase(id) == 0) {
+        continue;
+      }
+      RETURN_IF_NOT_OK(RemoteFileCopy(
+          metadata_path,
+          (std::filesystem::path{dir} / absl::StrCat(id, ".metadata"))
+              .string()));
+    }
+  }
+  return absl::OkStatus();
+}
+
 void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
                                        size_t min_log_level) {
   // `fuzz_start_time_ == ` means that fuzzing hasn't started yet. If so, grab

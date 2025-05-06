@@ -67,6 +67,11 @@ class Centipede {
   // Ignores inputs that already exist in the shard they need to be added to.
   // Sharding is stable and depends only on env.total_shards and the file name.
   static void CorpusFromFiles(const Environment &env, std::string_view dir);
+  // Saves the sharded crash reproducers and metadata (failure description) into
+  // `dir`. Each crash with `ID` will be saved with file `ID.data` for the
+  // reproducer and `ID.metadata` metadata.
+  static absl::Status CrashesToFiles(const Environment &env,
+                                     std::string_view dir);
 
  private:
   // Executes inputs from `input_vec`.

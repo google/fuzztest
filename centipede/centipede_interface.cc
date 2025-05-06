@@ -808,6 +808,13 @@ int CentipedeMain(const Environment &env,
     return EXIT_SUCCESS;
   }
 
+  if (!env.crashes_to_files.empty()) {
+    const auto status = Centipede::CrashesToFiles(env, env.crashes_to_files);
+    if (status.ok()) return EXIT_SUCCESS;
+    LOG(ERROR) << "Got error when exporting crashes to files: " << status;
+    return EXIT_FAILURE;
+  }
+
   if (!env.for_each_blob.empty()) return ForEachBlob(env);
 
   if (!env.minimize_crash_file_path.empty()) {
