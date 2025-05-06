@@ -74,6 +74,8 @@ class UntypedDomainConcept {
   virtual uint64_t UntypedMutateSelectedField(
       GenericDomainCorpusType&, absl::BitGenRef,
       const domain_implementor::MutationMetadata&, bool, uint64_t) = 0;
+  virtual GenericDomainCorpusType GetRandomCorpusValue(
+      absl::BitGenRef prng) = 0;
   virtual GenericDomainValueType UntypedGetValue(
       const GenericDomainCorpusType& v) const = 0;
   virtual void UntypedPrintCorpusValue(
@@ -165,6 +167,12 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
     } else {
       return std::nullopt;
     }
+  }
+
+  GenericDomainCorpusType GetRandomCorpusValue(absl::BitGenRef prng) final {
+    return GenericDomainCorpusType(
+        std::in_place_type<CorpusType>,
+        std::move(domain_.GetRandomCorpusValue(prng)));
   }
 
   std::optional<GenericDomainCorpusType> UntypedParseCorpus(

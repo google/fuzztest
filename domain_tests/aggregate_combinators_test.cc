@@ -216,18 +216,22 @@ TEST(VariantOf, InitGenerateValidValues) {
   while (int_unique_value_arr[0].size() < 2 ||
          int_unique_value_arr[1].size() < n ||
          string_unique_values.size() < n) {
-    X value = Value(domain, bitgen).user_value;
-    if (value.index() == 0) {
-      int val = std::get<0>(value);
+    auto value = Value(domain, bitgen);
+    for (int j = 0; j < 10; ++j) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
+    if (value.user_value.index() == 0) {
+      int val = std::get<0>(value.user_value);
       EXPECT_THAT(val, AnyOf(5, 10));
       int_unique_value_arr[0].insert(val);
-    } else if (value.index() == 1) {
-      int val = std::get<1>(value);
+    } else if (value.user_value.index() == 1) {
+      int val = std::get<1>(value.user_value);
       EXPECT_LE(val, 500);
       EXPECT_GE(val, 50);
       int_unique_value_arr[1].insert(val);
     } else {
-      string_unique_values.insert(std::get<2>(value));
+      string_unique_values.insert(std::get<2>(value.user_value));
     }
   }
 }

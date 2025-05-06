@@ -67,7 +67,12 @@ TYPED_TEST(HandleTypeTest, Arbitrary) {
   Set<TypeParam> unique;
 
   for (int i = 0; i < 100; ++i) {
-    values.emplace_back(domain, bitgen);
+    auto value = Value(domain, bitgen);
+    for (int j = 0; j < 10; ++j) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
+    values.emplace_back(std::move(value));
     unique.insert(values.back().user_value);
   }
 
@@ -84,7 +89,8 @@ TYPED_TEST(HandleTypeTest, InitGeneratesSeeds) {
   seed.RandomizeByRepeatedMutation(domain, bitgen);
   domain.WithSeeds({seed.user_value});
 
-  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(seed));
+  EXPECT_THAT(GenerateInitialValues(domain, 1000, /*num_mutations=*/0),
+              Contains(seed));
 }
 
 TEST(Domain, Forwarding) {
