@@ -35,6 +35,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -292,7 +293,7 @@ TestShard SetUpTestSharding() {
 absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
     const std::filesystem::path &crashing_dir, const Environment &env,
     CentipedeCallbacksFactory &callbacks_factory) {
-  const std::vector<std::string> crashing_input_files =
+  std::vector<std::string> crashing_input_files =
       // The corpus database layout assumes the crash input files are located
       // directly in the crashing subdirectory, so we don't list recursively.
       ValueOrDie(RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
@@ -300,7 +301,11 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
   BatchResult batch_result;
   absl::flat_hash_set<std::string> remaining_crash_metadata;
 
+  std::shuffle(crashing_input_files.begin(), crashing_input_files.end(),
+               absl::BitGen{});
+  int crash_count = 0;
   for (const std::string &crashing_input_file : crashing_input_files) {
+    if (++crash_count > env.max_num_crash_reports) break;
     ByteArray crashing_input;
     CHECK_OK(RemoteFileGetContents(crashing_input_file, crashing_input));
     const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
