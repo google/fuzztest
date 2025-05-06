@@ -196,7 +196,7 @@ struct DlCallbackParam {
 int g_some_global;  // Used in DlIteratePhdrCallback.
 
 // Returns the size of the DL represented by `info`.
-size_t DlSize(absl::Nonnull<struct dl_phdr_info *> info) {
+size_t DlSize(struct dl_phdr_info *absl_nonnull info) {
   size_t size = 0;
   // Iterate program headers.
   for (int j = 0; j < info->dlpi_phnum; ++j) {
@@ -233,8 +233,8 @@ size_t DlSize(absl::Nonnull<struct dl_phdr_info *> info) {
 // nullptr`. The code assumes that the main binary is the first one to be
 // iterated on. If the desired library is found, sets result.start_address and
 // result.size, otherwise leaves result unchanged.
-int DlIteratePhdrCallback(absl::Nonnull<struct dl_phdr_info *> info,
-                          size_t size, void *absl_nonnull param_voidptr) {
+int DlIteratePhdrCallback(struct dl_phdr_info *absl_nonnull info, size_t size,
+                          void *absl_nonnull param_voidptr) {
   const DlCallbackParam *param = static_cast<DlCallbackParam *>(param_voidptr);
   DlInfo &result = param->result;
   RunnerCheck(!result.IsSet(), "result is already set");
@@ -284,7 +284,7 @@ int DlIteratePhdrCallback(absl::Nonnull<struct dl_phdr_info *> info,
 // See man dl_iterate_phdr.
 // `param_voidptr` is cast to a `DlCallbackParam *param`.
 // Looks for the dynamic library who's address range contains `param->pc`.
-int DlIteratePhdrPCCallback(absl::Nonnull<struct dl_phdr_info *> info,
+int DlIteratePhdrPCCallback(struct dl_phdr_info *absl_nonnull info,
                             size_t unused, void *absl_nonnull param_voidptr) {
   const DlCallbackParam *param = static_cast<DlCallbackParam *>(param_voidptr);
   DlInfo &result = param->result;
