@@ -185,6 +185,10 @@ absl::Status RemoteFileRename(std::string_view from, std::string_view to) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
+absl::Status RemoteFileCopy(std::string_view from, std::string_view to) {
+  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+}
+
 absl::Status RemotePathTouchExistingFile(std::string_view path) {
   LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
@@ -241,6 +245,18 @@ absl::Status RemoteFileRename(std::string_view from, std::string_view to) {
   if (error) {
     return absl::UnknownError(
         absl::StrCat("filesystem::rename() failed, from: ", std::string(from),
+                     ", to: ", std::string(to), ", error: ", error.message()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status RemoteFileCopy(std::string_view from, std::string_view to) {
+  std::error_code error;
+  std::filesystem::copy(
+      from, to, std::filesystem::copy_options::overwrite_existing, error);
+  if (error) {
+    return absl::UnknownError(
+        absl::StrCat("filesystem::copy() failed, from: ", std::string(from),
                      ", to: ", std::string(to), ", error: ", error.message()));
   }
   return absl::OkStatus();

@@ -137,6 +137,9 @@ absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
 // Renames a file from `from` to `to`.
 absl::Status RemoteFileRename(std::string_view from, std::string_view to);
 
+// Copies a file from `from` to `to`.
+absl::Status RemoteFileCopy(std::string_view from, std::string_view to);
+
 // Updates the last-modified time of `path` to the current time.
 absl::Status RemotePathTouchExistingFile(std::string_view path);
 
