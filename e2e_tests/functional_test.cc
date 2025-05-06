@@ -744,7 +744,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
   EXPECT_THAT(std_err, HasSubstr("Fuzzing timeout set to: 1s")) << std_err;
 }
 
-TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       ReproducerIsDumpedWhenReproducersOutDirEnvVarIsSet) {
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
@@ -761,9 +762,38 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ReproducerIsDumpedWhenEnvVarIsSet) {
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
   EXPECT_THAT(std_err,
               AllOf(HasSubstr("Reproducer file was dumped at:"),
-                    HasSubstr(replay_files[0].path),
+                    HasSubstr(out_dir.path()),
+                    HasSubstr(Basename(replay_files[0].path)),
                     HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
-                                           replay_files[0].path))));
+                                           out_dir.path().string()))))
+      << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       ReproducerIsDumpedWhenUndeclaredOutputsEnvVarIsSet) {
+  TempDir out_dir;
+
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.StringFast"}},
+              {{"TEST_UNDECLARED_OUTPUTS_DIR", out_dir.path()}});
+  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  ExpectTargetAbort(status, std_err);
+
+  auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
+  ASSERT_EQ(replay_files.size(), 1) << std_err;
+  auto parsed = IRObject::FromString(replay_files[0].data);
+  ASSERT_TRUE(parsed) << std_err;
+  auto args = parsed->ToCorpus<std::tuple<std::string>>();
+  EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
+  EXPECT_THAT(
+      std_err,
+      AllOf(HasSubstr("Reproducer file was dumped under "
+                      "TEST_UNDECLARED_OUTPUTS_DIR"
+                      ),
+            HasSubstr(out_dir.path()),
+            HasSubstr(Basename(replay_files[0].path)),
+            HasSubstr("--test_env=FUZZTEST_REPLAY=/tmp/fuzztest_repro/")))
+      << std_err;
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {

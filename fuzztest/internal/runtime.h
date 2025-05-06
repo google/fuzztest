@@ -219,8 +219,8 @@ class Runtime {
   void CheckWatchdogLimits();
 
   // Returns the file path of the reproducer.
-  // Returns empty string if writing the file failed.
-  std::string DumpReproducer(absl::string_view outdir) const;
+  // Returns empty string if no reproducer file is dumped.
+  std::string DumpReproducer() const;
 
   // Some failures are not necessarily detected by signal handlers or by
   // sanitizers. For example, we could have test framework failures like
@@ -282,6 +282,23 @@ class Runtime {
   // In case of a crash, contains the crash type.
   std::optional<std::string> crash_type_;
 };
+
+struct ReproducerOutputLocation {
+  std::string dir_path;
+  enum class Type {
+    kUnspecified,
+    kUserSpecified,
+    kTestUndeclaredOutputs,
+    kReportToController
+  };
+  Type type = Type::kUnspecified;
+};
+
+ReproducerOutputLocation GetReproducerOutputLocation();
+
+void PrintReproducerIfRequested(absl::FormatRawSink out, const FuzzTest& test,
+                                const Configuration* configuration,
+                                std::string reproducer_path);
 
 extern void (*crash_handler_hook)();
 

@@ -74,6 +74,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/remote_file.h"
 #include "./common/temp_dir.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
@@ -698,6 +699,110 @@ bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
   return result == 0;
 }
 
+struct ReportSink {
+  friend void AbslFormatFlush(ReportSink*, absl::string_view v) {
+    absl::FPrintF(GetStderr(), "%s", v);
+  }
+};
+
+absl::Status ExportReproducersFromCentipede(
+    const Environment& env, const FuzzTest& test,
+    const Configuration& configuration) {
+  const auto output = GetReproducerOutputLocation();
+  if (output.type == ReproducerOutputLocation::Type::kUnspecified)
+    return absl::OkStatus();
+
+  TempDir exported_crash_dir("fuzztest_crashes");
+  auto export_crash_env = env;
+  export_crash_env.crashes_to_files = exported_crash_dir.path();
+  if (const int export_exit_code =
+          RunCentipede(export_crash_env, configuration.centipede_binary_path);
+      export_exit_code != 0) {
+    return absl::InternalError(absl::StrCat(
+        "got error while exporting reproducers from Centipede. Exit code: ",
+        export_exit_code));
+  }
+  const absl::StatusOr<std::vector<std::string>> exported_crash_files =
+      RemoteListFiles(exported_crash_dir.path().c_str(),
+                      /*recursively=*/false);
+  if (!exported_crash_files.ok()) {
+    return absl::InternalError(
+        absl::StrCat("got error status while listing exported crash dir: ",
+                     exported_crash_files.status()));
+  }
+  if (exported_crash_files->empty()) return absl::OkStatus();
+  absl::FPrintF(GetStderr(), "\n==== Saving reproducers\n");
+
+  switch (output.type) {
+    case ReproducerOutputLocation::Type::kUserSpecified:
+      absl::FPrintF(GetStderr(),
+                    "[.] Saving reproducers to user specified dir %s\n",
+                    output.dir_path);
+      break;
+    case ReproducerOutputLocation::Type::kTestUndeclaredOutputs:
+      absl::FPrintF(GetStderr(),
+                    "[.] Saving reproducers using "
+                    "TEST_UNDECLARED_OUTPUTS_DIR to %s\n",
+                    output.dir_path);
+      break;
+    default:
+      FUZZTEST_INTERNAL_CHECK(false,
+                              "unsupported reproducer output location type "
+                              "to report reproducers from Centipede");
+  }
+
+  for (const auto& exported_crash_file : *exported_crash_files) {
+    if (!absl::EndsWith(exported_crash_file, ".data")) {
+      continue;
+    }
+    const std::string crash_id =
+        std::filesystem::path{exported_crash_file}.stem().string();
+    std::string reproducer;
+    const absl::Status read_reproducer_status =
+        RemoteFileGetContents(exported_crash_file, reproducer);
+    if (!read_reproducer_status.ok()) {
+      absl::FPrintF(GetStderr(),
+                    "[!] Got error while reading the reproducer contents: %s\n",
+                    absl::StrCat(read_reproducer_status));
+      continue;
+    }
+    const std::string metadata_file = std::filesystem::path{exported_crash_file}
+                                          .replace_extension("metadata")
+                                          .string();
+    std::string metadata;
+    const absl::Status read_metadata_status =
+        RemoteFileGetContents(metadata_file, metadata);
+    if (!read_metadata_status.ok()) {
+      absl::FPrintF(
+          GetStderr(),
+          "[!] Got error while reading the metadata for crash id %s: %s\n",
+          crash_id, absl::StrCat(read_metadata_status));
+      continue;
+    }
+    std::string reproducer_path = WriteDataToDir(reproducer, output.dir_path);
+    if (reproducer_path.empty()) {
+      absl::FPrintF(GetStderr(),
+                    "[!] Got error while saving the reproducer file for "
+                    "crash ID %s.\n",
+                    crash_id);
+      continue;
+    }
+    absl::FPrintF(GetStderr(),
+                  "[.] Saved reproducer with ID %s and crash metadata %s\n",
+                  Basename(reproducer_path), metadata);
+  }
+  absl::FPrintF(GetStderr(),
+                "[.] Please follow the guide below for fetching and/or "
+                "replaying each reproducer files. You would need to replace "
+                "REPRODUCER_ID with the actual reproducer ID to be used.\n");
+
+  ReportSink report_sink;
+  PrintReproducerIfRequested(
+      &report_sink, test, &configuration,
+      std::filesystem::path{output.dir_path}.append("REPRODUCER_ID").string());
+  return absl::OkStatus();
+}
+
 // TODO(xinhaoyuan): Consider merging `mode` into `configuration`.
 bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
                                  const Configuration& configuration) {
@@ -720,6 +825,8 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     runtime_.SetSkippingRequested(true);
     return true;
   }
+  runtime_.SetShouldTerminateOnNonFatalFailure(
+      is_running_property_function_in_this_process);
   runtime_.SetRunMode(mode);
   runtime_.SetSkippingRequested(false);
   runtime_.SetCurrentTest(&test_, &configuration);
@@ -821,10 +928,11 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       absl::FPrintF(GetStderr(),
                     "[.] Minimized the corpus using Centipede distillation.\n");
       // 3. Replace the shard corpus data with the distillation result.
-      auto workdir = fuzztest::internal::WorkDir(distill_env);
+      auto distill_workdir = fuzztest::internal::WorkDir(distill_env);
       FUZZTEST_INTERNAL_CHECK(
-          std::rename(workdir.DistilledCorpusFilePaths().MyShard().c_str(),
-                      workdir.CorpusFilePaths().MyShard().c_str()) == 0,
+          std::rename(
+              distill_workdir.DistilledCorpusFilePaths().MyShard().c_str(),
+              distill_workdir.CorpusFilePaths().MyShard().c_str()) == 0,
           "Failed to replace the corpus data with the minimized result");
       // 4. Export the corpus of the shard.
       auto export_env = env;
@@ -839,6 +947,17 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       return;
     }
     result = RunCentipede(env, configuration.centipede_binary_path);
+    if (!env.workdir.empty()) {
+      const auto status =
+          ExportReproducersFromCentipede(env, test_, configuration);
+      if (!status.ok()) {
+        absl::FPrintF(GetStderr(),
+                      "[!] Failed to export reproducers from Centipede: %s\n",
+                      absl::StrCat(status));
+        result = EXIT_FAILURE;
+        return;
+      }
+    }
   }();
   return result == 0;
 }

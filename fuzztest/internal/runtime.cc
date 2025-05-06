@@ -143,34 +143,12 @@ std::string GetReproductionCommand(const Configuration* configuration,
   }
 }
 
-struct ReproducerDirectory {
-  std::string path;
-  enum class Type { kUserSpecified, kTestUndeclaredOutputs };
-  Type type;
-};
-
-std::optional<ReproducerDirectory> GetReproducerDirectory() {
-  auto env = absl::NullSafeStringView(getenv("FUZZTEST_REPRODUCERS_OUT_DIR"));
-  if (!env.empty()) {
-    return ReproducerDirectory{std::string(env),
-                               ReproducerDirectory::Type::kUserSpecified};
-  }
-  env = absl::NullSafeStringView(getenv("TEST_UNDECLARED_OUTPUTS_DIR"));
-  if (!env.empty()) {
-    auto path = std::filesystem::path(std::string(env)) /
-                std::string(kReproducerDirName);
-    return ReproducerDirectory{
-        path.string(), ReproducerDirectory::Type::kTestUndeclaredOutputs};
-  }
-  return std::nullopt;
-}
-
 void PrintReproductionInstructionsForUndeclaredOutputs(
     RawSink out, absl::string_view test_name,
     absl::string_view reproducer_path) {
   absl::string_view file_name = Basename(reproducer_path);
   absl::Format(out,
-               "Reproducer file was dumped under"
+               "Reproducer file was dumped under "
                "TEST_UNDECLARED_OUTPUTS_DIR.\n");
   absl::Format(out,
                "Make a copy of it with:\n\n"
@@ -182,6 +160,31 @@ void PrintReproductionInstructionsForUndeclaredOutputs(
 absl::string_view GetSeparator() {
   return "\n================================================================="
          "\n";
+}
+
+}  // namespace
+
+ReproducerOutputLocation GetReproducerOutputLocation() {
+#ifdef FUZZTEST_USE_CENTIPEDE
+  if (std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr) {
+    return ReproducerOutputLocation{
+        "", ReproducerOutputLocation::Type::kReportToController};
+  }
+#endif
+  auto env = absl::NullSafeStringView(getenv("FUZZTEST_REPRODUCERS_OUT_DIR"));
+  if (!env.empty()) {
+    return ReproducerOutputLocation{
+        std::string(env), ReproducerOutputLocation::Type::kUserSpecified};
+  }
+  env = absl::NullSafeStringView(getenv("TEST_UNDECLARED_OUTPUTS_DIR"));
+  if (!env.empty()) {
+    auto path = std::filesystem::path(std::string(env)) /
+                std::string(kReproducerDirName);
+    return ReproducerOutputLocation{
+        path.string(), ReproducerOutputLocation::Type::kTestUndeclaredOutputs};
+  }
+  return ReproducerOutputLocation{"",
+                                  ReproducerOutputLocation::Type::kUnspecified};
 }
 
 void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
@@ -202,26 +205,28 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
   const std::string test_name =
       absl::StrCat(test.suite_name(), ".", test.test_name());
   if (!is_reproducer_in_corpus_db) {
-    auto out_dir = GetReproducerDirectory();
-    switch (out_dir->type) {
-      case ReproducerDirectory::Type::kUserSpecified:
+    const auto out_location = GetReproducerOutputLocation();
+    switch (out_location.type) {
+      case ReproducerOutputLocation::Type::kUserSpecified:
         absl::Format(out, "Reproducer file was dumped at:\n%s\n",
                      reproducer_path);
         break;
-      case ReproducerDirectory::Type::kTestUndeclaredOutputs:
+      case ReproducerOutputLocation::Type::kTestUndeclaredOutputs:
         PrintReproductionInstructionsForUndeclaredOutputs(out, test_name,
                                                           reproducer_path);
         reproducer_path = absl::StrCat("/tmp/", kReproducerDirName, "/",
                                        Basename(reproducer_path));
         break;
+      default:
+        FUZZTEST_INTERNAL_CHECK(false,
+                                "unsupported reproducer output location type "
+                                "to print reproduction command for");
     }
   }
   absl::Format(
       out, "%s\n\n",
       GetReproductionCommand(configuration, reproducer_path, test_name));
 }
-
-}  // namespace
 
 void (*crash_handler_hook)();
 
@@ -238,11 +243,28 @@ Runtime::Runtime() {
 }
 
 // TODO(lszekeres): Return absl::StatusOr when WriteDataToDir returns StatusOr.
-std::string Runtime::DumpReproducer(absl::string_view outdir) const {
+std::string Runtime::DumpReproducer() const {
+  const auto out_location = GetReproducerOutputLocation();
+  if (out_location.type == ReproducerOutputLocation::Type::kUnspecified) {
+    absl::FPrintF(GetStderr(),
+                  "[.] No reproducer output location specified - not writing "
+                  "the reproducer file.\n");
+    return "";
+  }
+  if (out_location.type ==
+      ReproducerOutputLocation::Type::kReportToController) {
+    absl::FPrintF(GetStderr(),
+                  "[.] Reproducer will be reported to the FuzzTest controller "
+                  "- not writing the reproducer file.\n");
+    return "";
+  }
+  FUZZTEST_INTERNAL_CHECK(!out_location.dir_path.empty(),
+                          "Reproducer output directory must not be empty if "
+                          "not reporting to controller.");
   const std::string content =
       current_args_->domain.SerializeCorpus(current_args_->corpus_value)
           .ToString();
-  std::string path = WriteDataToDir(content, outdir);
+  std::string path = WriteDataToDir(content, out_location.dir_path);
   if (path.empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
   }
@@ -333,9 +355,7 @@ void Runtime::PrintReport(RawSink out) const {
                    "For reproducing findings please rely on file based "
                    "reproduction.\n");
     }
-    std::optional<ReproducerDirectory> out_dir = GetReproducerDirectory();
-    const std::string reproducer_path =
-        out_dir.has_value() ? DumpReproducer(out_dir->path) : "";
+    const std::string reproducer_path = DumpReproducer();
     PrintReproducerIfRequested(out, *current_test_, current_configuration_,
                                reproducer_path);
   } else {

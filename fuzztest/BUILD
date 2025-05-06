@@ -245,6 +245,7 @@ cc_library(
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:workdir",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
     ],
 )
