@@ -28,6 +28,7 @@ add_executable(
 target_link_libraries(
   functional_test
   PUBLIC
+  fuzztest_escaping
   fuzztest_io
   fuzztest_logging
   fuzztest_printer

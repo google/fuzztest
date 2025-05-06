@@ -35,6 +35,7 @@
 #include "absl/time/time.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
+#include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
@@ -1235,7 +1236,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       {
           {"fuzz_for", "1s"},
           {"corpus_database", temp_dir.path()},
-          {"internal_centipede_binary_path", CentipedePath()},
+          {"internal_centipede_command", ShellEscape(CentipedePath())},
       },
       /*env=*/{},
       /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
@@ -1295,7 +1296,7 @@ class FuzzingModeFixtureTest
         run_options.fuzztest_flags = {
             {"fuzz", std::string(test_name)},
             {"print_subprocess_log", "true"},
-            {"internal_centipede_binary_path", CentipedePath()}};
+            {"internal_centipede_command", ShellEscape(CentipedePath())}};
         run_options.env = {
             {"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}};
         run_options.timeout = absl::InfiniteDuration();
@@ -1469,8 +1470,8 @@ class FuzzingModeCrashFindingTest
       run_options.timeout = timeout + absl::Seconds(10);
       if (GetParam() ==
           ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
-        run_options.fuzztest_flags["internal_centipede_binary_path"] =
-            CentipedePath();
+        run_options.fuzztest_flags["internal_centipede_command"] =
+            ShellEscape(CentipedePath());
       }
       return RunBinary(BinaryPath(target_binary), run_options);
   }
