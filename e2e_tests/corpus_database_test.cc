@@ -111,7 +111,10 @@ class UpdateCorpusDatabaseTest
   }
 
   static RunResults RunBinaryMaybeWithCentipede(absl::string_view binary_path,
-                                                const RunOptions &options) {
+                                                RunOptions options) {
+    // Dumping stack trace in gtest would slow down the execution, causing
+    // test flakiness.
+    options.flags[GTEST_FLAG_PREFIX_ "stack_trace_depth"] = "0";
     switch (GetParam()) {
       case ExecutionModelParam::kTestBinary:
         return RunBinary(binary_path, options);
