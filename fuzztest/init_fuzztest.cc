@@ -180,8 +180,8 @@ FUZZTEST_DEFINE_FLAG(
 // TODO(b/406001082): Remove these flags once they are no longer needed.
 
 FUZZTEST_DEFINE_FLAG(
-    std::optional<std::string>, internal_centipede_binary_path, std::nullopt,
-    "If set, run the Centipede binary in separate processes as the fuzzing "
+    std::optional<std::string>, internal_centipede_command, std::nullopt,
+    "If set, run the Centipede command in separate processes as the fuzzing "
     "engine. This flag is for internal use only.");
 
 FUZZTEST_DEFINE_FLAG(
@@ -346,7 +346,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       time_limit,
       time_budget_type,
       jobs.value_or(0),
-      absl::GetFlag(FUZZTEST_FLAG(internal_centipede_binary_path)),
+      absl::GetFlag(FUZZTEST_FLAG(internal_centipede_command)),
       absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce)),
   };
 }
