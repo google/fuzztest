@@ -45,11 +45,11 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
 
   constexpr static bool T_is_integer = std::numeric_limits<T>::is_integer;
   constexpr static bool T_is_signed = std::is_signed<T>::value;
-  constexpr static bool T_is_memory_dictionary_compatible =
+  constexpr static bool is_memory_dictionary_compatible_v =
       std::is_integral_v<T> &&
       (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8);
   using IntegerDictionaryT =
-      std::conditional_t<T_is_memory_dictionary_compatible,
+      std::conditional_t<is_memory_dictionary_compatible_v,
                          IntegerDictionary<T>, bool>;
 
   explicit InRangeImpl(T min, T max) : min_(min), max_(max) {
@@ -200,7 +200,7 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
 
   void UpdateMemoryDictionary(
       const value_type& val, domain_implementor::ConstCmpTablesPtr cmp_tables) {
-    if constexpr (T_is_memory_dictionary_compatible) {
+    if constexpr (is_memory_dictionary_compatible_v) {
       if (cmp_tables != nullptr) {
         temporary_dict_.MatchEntriesFromTableOfRecentCompares(val, *cmp_tables,
                                                               min_, max_);
