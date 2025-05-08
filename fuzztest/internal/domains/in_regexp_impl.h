@@ -18,7 +18,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
@@ -29,20 +28,18 @@
 
 namespace fuzztest::internal {
 
-using DFAPath = std::vector<RegexpDFA::Edge>;
-
 class InRegexpImpl
     : public domain_implementor::DomainBase<InRegexpImpl, std::string,
-                                            DFAPath> {
+                                            RegexpDFA::Path> {
  public:
   explicit InRegexpImpl(std::string_view regex_str);
 
-  DFAPath Init(absl::BitGenRef prng);
+  RegexpDFA::Path Init(absl::BitGenRef prng);
 
   // Strategy: Parse the input string into a path in the DFA. Pick a node in the
   // path and random walk from the node until we reach an end state or go back
   // to the original path.
-  void Mutate(DFAPath& path, absl::BitGenRef prng,
+  void Mutate(RegexpDFA::Path& path, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata&, bool only_shrink);
 
   StringPrinter GetPrinter() const;
@@ -58,17 +55,17 @@ class InRegexpImpl
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const;
 
  private:
-  void ValidatePathRoundtrip(const DFAPath& path) const;
+  void ValidatePathRoundtrip(const RegexpDFA::Path& path) const;
 
   // Remove a random loop in the DFA path and return the string from the
   // modified path. A loop is a subpath that starts and ends with the same
   // state.
-  bool ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path);
+  bool ShrinkByRemoveLoop(absl::BitGenRef prng, RegexpDFA::Path& path);
 
   // Randomly pick a subpath and try to replace it with a shorter one. As this
   // might fail we keep trying until success or the maximum number of trials is
   // reached.
-  bool ShrinkByFindShorterSubPath(absl::BitGenRef prng, DFAPath& path);
+  bool ShrinkByFindShorterSubPath(absl::BitGenRef prng, RegexpDFA::Path& path);
 
   std::string regex_str_;
   RegexpDFA dfa_;

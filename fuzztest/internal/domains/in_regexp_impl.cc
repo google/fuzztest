@@ -40,16 +40,16 @@ namespace fuzztest::internal {
 InRegexpImpl::InRegexpImpl(std::string_view regex_str)
     : regex_str_(regex_str), dfa_(RegexpDFA::Create(regex_str_)) {}
 
-DFAPath InRegexpImpl::Init(absl::BitGenRef prng) {
+RegexpDFA::Path InRegexpImpl::Init(absl::BitGenRef prng) {
   if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
-  absl::StatusOr<DFAPath> path =
-      dfa_.StringToDFAPath(dfa_.GenerateString(prng));
+  absl::StatusOr<RegexpDFA::Path> path =
+      dfa_.StringToPath(dfa_.GenerateString(prng));
   FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.ok(),
                                        "Init should generate valid paths");
   return *path;
 }
 
-void InRegexpImpl::Mutate(DFAPath& path, absl::BitGenRef prng,
+void InRegexpImpl::Mutate(RegexpDFA::Path& path, absl::BitGenRef prng,
                           const domain_implementor::MutationMetadata&,
                           bool only_shrink) {
   if (only_shrink) {
@@ -73,12 +73,12 @@ void InRegexpImpl::Mutate(DFAPath& path, absl::BitGenRef prng,
     if (sink_states_first_appearance[state_id].has_value()) continue;
     sink_states_first_appearance[state_id] = i;
   }
-  std::vector<RegexpDFA::Edge> new_subpath = dfa_.FindPath(
-      prng, path[rand_offset].from_state_id, sink_states_first_appearance);
+  RegexpDFA::Path new_subpath = dfa_.FindPath(
+      path[rand_offset].from_state_id, sink_states_first_appearance, prng);
   int to_state_id = new_subpath.back().from_state_id;
   new_subpath.pop_back();
 
-  DFAPath new_path;
+  RegexpDFA::Path new_path;
   for (size_t i = 0; i < rand_offset; ++i) {
     new_path.push_back(path[i]);
   }
@@ -101,14 +101,14 @@ void InRegexpImpl::Mutate(DFAPath& path, absl::BitGenRef prng,
 StringPrinter InRegexpImpl::GetPrinter() const { return StringPrinter{}; }
 
 InRegexpImpl::value_type InRegexpImpl::GetValue(const corpus_type& v) const {
-  absl::StatusOr<std::string> val = dfa_.DFAPathToString(v);
+  absl::StatusOr<std::string> val = dfa_.PathToString(v);
   FUZZTEST_INTERNAL_CHECK(val.ok(), "Corpus is invalid!");
   return *val;
 }
 
 std::optional<InRegexpImpl::corpus_type> InRegexpImpl::FromValue(
     const value_type& v) const {
-  absl::StatusOr<corpus_type> path = dfa_.StringToDFAPath(v);
+  absl::StatusOr<corpus_type> path = dfa_.StringToPath(v);
   if (!path.ok()) return std::nullopt;
   return *path;
 }
@@ -142,20 +142,21 @@ IRObject InRegexpImpl::SerializeCorpus(const corpus_type& path) const {
 absl::Status InRegexpImpl::ValidateCorpusValue(
     const corpus_type& corpus_value) const {
   // Check whether this is a valid path in the DFA.
-  absl::StatusOr<std::string> str = dfa_.DFAPathToString(corpus_value);
+  absl::StatusOr<std::string> str = dfa_.PathToString(corpus_value);
   if (str.ok()) return absl::OkStatus();
   return Prefix(str.status(), absl::StrCat("Invalid value for InRegexp(\"",
                                            regex_str_, "\")"));
 }
 
-void InRegexpImpl::ValidatePathRoundtrip(const DFAPath& path) const {
-  absl::StatusOr<std::string> str = dfa_.DFAPathToString(path);
+void InRegexpImpl::ValidatePathRoundtrip(const RegexpDFA::Path& path) const {
+  absl::StatusOr<std::string> str = dfa_.PathToString(path);
   FUZZTEST_INTERNAL_CHECK(str.ok(), "Invalid path in the DFA!");
-  absl::StatusOr<DFAPath> new_path = dfa_.StringToDFAPath(*str);
+  absl::StatusOr<RegexpDFA::Path> new_path = dfa_.StringToPath(*str);
   FUZZTEST_INTERNAL_CHECK(new_path.ok(), "Invalid path in the DFA!");
 }
 
-bool InRegexpImpl::ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path) {
+bool InRegexpImpl::ShrinkByRemoveLoop(absl::BitGenRef prng,
+                                      RegexpDFA::Path& path) {
   std::vector<std::vector<int>> state_appearances(dfa_.state_count());
   for (int i = 0; i < path.size(); ++i) {
     state_appearances[path[i].from_state_id].push_back(i);
@@ -180,7 +181,7 @@ bool InRegexpImpl::ShrinkByRemoveLoop(absl::BitGenRef prng, DFAPath& path) {
 }
 
 bool InRegexpImpl::ShrinkByFindShorterSubPath(absl::BitGenRef prng,
-                                              DFAPath& path) {
+                                              RegexpDFA::Path& path) {
   if (path.size() <= 1) {
     return false;
   }
@@ -214,12 +215,12 @@ bool InRegexpImpl::ShrinkByFindShorterSubPath(absl::BitGenRef prng,
 
     if (length == 1) continue;
 
-    std::vector<RegexpDFA::Edge> new_subpath =
-        dfa_.FindPathWithinLengthDFS(prng, from_state_id, to_state_id, length);
+    RegexpDFA::Path new_subpath =
+        dfa_.FindPathWithinLengthDFS(from_state_id, to_state_id, length, prng);
     // If the size is unchanged, keep trying.
     if (new_subpath.size() == length) continue;
 
-    DFAPath new_path(path.begin(), path.begin() + from_index);
+    RegexpDFA::Path new_path(path.begin(), path.begin() + from_index);
     new_path.insert(new_path.end(), new_subpath.begin(), new_subpath.end());
     for (size_t idx = to_index; idx < path.size(); ++idx) {
       new_path.push_back(path[idx]);

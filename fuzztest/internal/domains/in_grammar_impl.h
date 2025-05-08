@@ -33,6 +33,7 @@
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/in_regexp_impl.h"
+#include "./fuzztest/internal/domains/regexp_dfa.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -51,7 +52,7 @@ using ASTTypeId = int;
 struct ASTNode {
   ASTTypeId type_id;
   std::variant<std::monostate,        // If the node is a string terminal.
-               DFAPath,               // If the node is a regex terminal.
+               RegexpDFA::Path,       // If the node is a regex terminal.
                std::vector<ASTNode>>  // If the node is a non-terminal.
       children;
 
@@ -158,32 +159,33 @@ class RegexLiteralDomain {
   static void Mutate(ASTNode& val, absl::BitGenRef prng,
                      const domain_implementor::MutationMetadata& metadata,
                      bool only_shrink) {
-    GetInnerRegexpDomain().Mutate(std::get<DFAPath>(val.children), prng,
+    GetInnerRegexpDomain().Mutate(std::get<RegexpDFA::Path>(val.children), prng,
                                   metadata, only_shrink);
   }
 
   static ASTTypeId TypeId() { return id; }
 
   static void ToString(std::string& output, const ASTNode& val) {
-    FUZZTEST_INTERNAL_CHECK(CheckASTNodeTypeIdAndChildType<DFAPath>(val, id),
-                            "Not a regex literal!");
+    FUZZTEST_INTERNAL_CHECK(
+        CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(val, id),
+        "Not a regex literal!");
     absl::StrAppend(&output, GetInnerRegexpDomain().GetValue(
-                                 std::get<DFAPath>(val.children)));
+                                 std::get<RegexpDFA::Path>(val.children)));
   }
 
   static bool IsMutable(const ASTNode& /*val*/) { return true; }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
     FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<DFAPath>(astnode, id),
+        CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(astnode, id),
         "Not a regex literal!");
-    return WrapASTIntoIRObject(astnode,
-                               GetInnerRegexpDomain().SerializeCorpus(
-                                   std::get<DFAPath>(astnode.children)));
+    return WrapASTIntoIRObject(
+        astnode, GetInnerRegexpDomain().SerializeCorpus(
+                     std::get<RegexpDFA::Path>(astnode.children)));
   }
 
   static std::optional<ASTNode> ParseCorpus(const IRObject& obj) {
-    if (!CheckASTCorpusStructure<DFAPath>(obj)) {
+    if (!CheckASTCorpusStructure<RegexpDFA::Path>(obj)) {
       return std::nullopt;
     }
     auto subs = obj.Subs();
@@ -195,12 +197,12 @@ class RegexLiteralDomain {
     if (!path) {
       return std::nullopt;
     }
-    result.children.emplace<DFAPath>(*path);
+    result.children.emplace<RegexpDFA::Path>(*path);
     return result;
   }
 
   static absl::Status ValidateCorpusValue(const ASTNode& astnode) {
-    if (!CheckASTNodeTypeIdAndChildType<DFAPath>(astnode, id)) {
+    if (!CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(astnode, id)) {
       return absl::InvalidArgumentError("Not a regex literal!");
     }
     return absl::OkStatus();

@@ -55,30 +55,29 @@ class RegexpDFA {
     int edge_index;
   };
 
+  using Path = std::vector<Edge>;
+
   static RegexpDFA Create(absl::string_view regexp);
 
   std::string GenerateString(absl::BitGenRef prng);
 
   // Randomly walk from the state of `from_state_id` to any state of
   // `to_state_ids` or an end state.
-  std::vector<Edge> FindPath(
-      absl::BitGenRef prng, int from_state_id,
-      const std::vector<std::optional<int>>& to_state_ids);
+  Path FindPath(int from_state_id,
+                const std::vector<std::optional<int>>& to_state_ids,
+                absl::BitGenRef prng);
 
   // Randomly DFS from the state of `from_state_id` to the state of
   // `to_state_id`, trying to find a path of length less than, if no, equal to
   // `length`. If we have multiple such paths, randomly pick one of them. Since
   // this (nearly) fully explores all the paths, there is no big difference in
   // the efficiency. And we prefer DFS to BFS for better readability.
-  std::vector<Edge> FindPathWithinLengthDFS(absl::BitGenRef prng,
-                                            int from_state_id, int to_state_id,
-                                            int length);
+  Path FindPathWithinLengthDFS(int from_state_id, int to_state_id, int length,
+                               absl::BitGenRef prng);
 
-  absl::StatusOr<std::vector<Edge>> StringToDFAPath(absl::string_view s) const;
+  absl::StatusOr<Path> StringToPath(absl::string_view s) const;
 
-  absl::StatusOr<std::string> DFAPathToString(
-      const std::vector<Edge>& path, size_t start_offset = 0,
-      std::optional<size_t> end = std::nullopt) const;
+  absl::StatusOr<std::string> PathToString(const Path& path) const;
 
   size_t state_count() const { return states_.size(); }
 

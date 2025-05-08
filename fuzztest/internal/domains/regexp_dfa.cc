@@ -49,18 +49,17 @@ RegexpDFA RegexpDFA::Create(absl::string_view regexp) {
 
 std::string RegexpDFA::GenerateString(absl::BitGenRef prng) {
   std::string result;
-  State* state = &states_[0];
-  while (true) {
-    FUZZTEST_INTERNAL_CHECK(!state->next.empty(), "Empty next state!");
-
+  State* state = &states_.front();
+  while (!state->is_end_state()) {
     // Pick a random next state by weight.
     int rand_index = state->edge_weight_distribution(prng);
-    auto& [next_string, next_id] = state->next[rand_index];
+    const auto& [fragment, next_id] = state->next[rand_index];
+    result.insert(result.end(), fragment.begin(), fragment.end());
     state = &states_[next_id];
-    result.insert(result.end(), next_string.begin(), next_string.end());
-    if (next_string.back() == kEndOfString) {
-      FUZZTEST_INTERNAL_CHECK(state->is_end_state(),
-                              "EOS should lead to end state!");
+    if (state->is_end_state()) {
+      FUZZTEST_INTERNAL_CHECK(
+          fragment.back() == kEndOfString,
+          "The last character leading to the end state should be EOS!");
       result.pop_back();
       break;
     }
@@ -68,33 +67,33 @@ std::string RegexpDFA::GenerateString(absl::BitGenRef prng) {
   return result;
 }
 
-std::vector<RegexpDFA::Edge> RegexpDFA::FindPath(
-    absl::BitGenRef prng, int from_state_id,
-    const std::vector<std::optional<int>>& to_state_ids) {
-  std::vector<Edge> path;
+RegexpDFA::Path RegexpDFA::FindPath(
+    int from_state_id, const std::vector<std::optional<int>>& to_state_ids,
+    absl::BitGenRef prng) {
+  Path path;
   int cur_state_id = from_state_id;
   State* cur_state = &states_[cur_state_id];
+  FUZZTEST_INTERNAL_CHECK(!cur_state->is_end_state(),
+                          "Cannot start a DFA path from an end state!");
   while (true) {
-    FUZZTEST_INTERNAL_CHECK(!cur_state->next.empty(), "Empty next state!");
-
     // Pick a random next state.
     int offset = cur_state->edge_weight_distribution(prng);
-    auto& [next_char, next_state_id] = cur_state->next[offset];
     path.push_back({cur_state_id, offset});
-
+    const auto& [unused_next_fragment, next_state_id] = cur_state->next[offset];
     cur_state_id = next_state_id;
     cur_state = &states_[cur_state_id];
     // Reached an end state or found a state in the original path?
-    if (cur_state->is_end_state() || to_state_ids[next_state_id].has_value()) {
-      path.push_back({next_state_id, -1});
+    if (cur_state->is_end_state() || to_state_ids[cur_state_id].has_value()) {
+      path.push_back({cur_state_id, -1});
       break;
     }
   }
   return path;
 }
 
-std::vector<RegexpDFA::Edge> RegexpDFA::FindPathWithinLengthDFS(
-    absl::BitGenRef prng, int from_state_id, int to_state_id, int length) {
+RegexpDFA::Path RegexpDFA::FindPathWithinLengthDFS(int from_state_id,
+                                                   int to_state_id, int length,
+                                                   absl::BitGenRef prng) {
   // Each state maintains an edge and a counter for each possible length. The
   // edge is the last edge in the path from `from_state` to the state and can
   // be used to reconstruct the path. And the counter is the number of paths
@@ -108,8 +107,12 @@ std::vector<RegexpDFA::Edge> RegexpDFA::FindPathWithinLengthDFS(
 
   // Randomness for DFS. Instead of always starting to explore from edge index
   // 0, we start with a different random offset for each state.
-  std::vector<int> rand_edge_offsets(states_.size(), 0);
-  for (int& i : rand_edge_offsets) i = absl::Uniform<int>(prng, 0u, 256);
+  std::vector<int> rand_edge_offsets;
+  rand_edge_offsets.reserve(states_.size());
+  for (const State& state : states_) {
+    rand_edge_offsets.push_back(
+        absl::Uniform<int>(prng, 0u, state.next.size()));
+  }
 
   std::vector<Edge> stack{Edge{from_state_id, 0}};
   do {
@@ -146,12 +149,12 @@ std::vector<RegexpDFA::Edge> RegexpDFA::FindPathWithinLengthDFS(
   FUZZTEST_INTERNAL_CHECK(!candidate_lens.empty(), "Cannot find a path!");
 
   int state_id = to_state_id;
-  std::vector<Edge> result;
+  Path result;
   for (int len =
            candidate_lens[absl::Uniform<int>(prng, 0, candidate_lens.size())];
        len > 0; --len) {
     result.push_back(*(last_edges_and_counters[state_id][len].edge));
-    state_id = last_edges_and_counters[state_id][len].edge->from_state_id;
+    state_id = result.back().from_state_id;
   }
   FUZZTEST_INTERNAL_CHECK(state_id == from_state_id,
                           "Cannot find a path from from_state");
@@ -159,9 +162,9 @@ std::vector<RegexpDFA::Edge> RegexpDFA::FindPathWithinLengthDFS(
   return result;
 }
 
-absl::StatusOr<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
+absl::StatusOr<RegexpDFA::Path> RegexpDFA::StringToPath(
     absl::string_view s) const {
-  std::vector<RegexpDFA::Edge> path;
+  RegexpDFA::Path path;
   int state_id = 0;
   std::vector<std::int16_t> characters;
   characters.reserve(s.size());
@@ -190,28 +193,30 @@ absl::StatusOr<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
   return path;
 }
 
-absl::StatusOr<std::string> RegexpDFA::DFAPathToString(
-    const std::vector<RegexpDFA::Edge>& path, size_t start_offset,
-    std::optional<size_t> end_offset) const {
-  if (!end_offset.has_value()) end_offset = path.size();
-
+absl::StatusOr<std::string> RegexpDFA::PathToString(
+    const RegexpDFA::Path& path) const {
   std::string result;
-  for (size_t i = start_offset; i < *end_offset; ++i) {
-    auto& [from_state_id, edge_index] = path[i];
+  std::optional<int> next_state_id;
+  for (const auto& [from_state_id, edge_index] : path) {
     if (from_state_id >= states_.size() ||
-        edge_index >= states_[from_state_id].next.size()) {
+        edge_index >= states_[from_state_id].next.size() ||
+        (next_state_id.has_value() && next_state_id != from_state_id)) {
       return absl::InvalidArgumentError("Invalid DFA path.");
     }
-    const std::vector<std::int16_t>& chars_to_match =
-        states_[from_state_id].next[edge_index].chars_to_match;
-    result.insert(result.end(), chars_to_match.begin(), chars_to_match.end());
-    if (chars_to_match.back() == kEndOfString) {
-      if (i != *end_offset - 1) {
-        return absl::InvalidArgumentError("End state should be the last.");
-      }
+    const State::StateTransition& transition =
+        states_[from_state_id].next[edge_index];
+    next_state_id = transition.next_state_id;
+    const std::vector<std::int16_t>& fragment = transition.chars_to_match;
+    result.insert(result.end(), fragment.begin(), fragment.end());
+    if (next_state_id == end_state_id_) {
+      FUZZTEST_INTERNAL_CHECK(
+          fragment.back() == kEndOfString,
+          "The last character leading to the end state should be EOS!");
       result.pop_back();
-      break;
     }
+  }
+  if (next_state_id != end_state_id_) {
+    return absl::InternalError("DFA path doesn't end in the end state.");
   }
   return result;
 }
@@ -283,11 +288,8 @@ void RegexpDFA::BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp) {
             "i.e., any character) in your regular expression, or wait until "
             "the issue is fixed.");
 
-        auto& transition_vec =
-            transition_table.emplace_back(compiled_regexp->bytemap_range() + 1);
-        for (int b = 0; b < compiled_regexp->bytemap_range() + 1; ++b) {
-          transition_vec[b] = next[b];
-        }
+        transition_table.emplace_back(
+            next, next + compiled_regexp->bytemap_range() + 1);
         end_vec.push_back(match);
       });
 
@@ -299,7 +301,7 @@ void RegexpDFA::BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp) {
     std::vector<int>& transition_vec = transition_table[i];
     State& state = states_[i];
 
-    for (int j = 0; j < transition_vec.size() - 1; ++j) {
+    for (int j = 0; j + 1 < transition_vec.size(); ++j) {
       // If `transition_vec[bytemap_idx] == state_id` at state `s`, it means
       // that given a character `c` whose bytemap index is `bytemap_idx`,
       // `s` will transition into state with id `state_id`. The bytemap index
@@ -347,47 +349,44 @@ void RegexpDFA::ComputeEdgeWeights() {
   std::queue<int> q;
   q.push(end_state_id_);
   do {
-    size_t n = q.size();
-    for (int i = 0; i < n; ++i) {
-      int state_id = q.front();
-      q.pop();
-      if (is_safe_node[state_id]) continue;
-      for (int j = 0; j < states_.size(); ++j) {
-        if (is_predecessor[state_id][j]) q.push(j);
-      }
-      State& state = states_[state_id];
-      std::vector<int> edge_to_safe_nodes;
-      std::vector<int> edge_to_unsafe_nodes;
-      for (int j = 0; j < state.next.size(); ++j) {
-        if (is_safe_node[state.next[j].next_state_id])
-          edge_to_safe_nodes.push_back(j);
-        else
-          edge_to_unsafe_nodes.push_back(j);
-      }
-      FUZZTEST_INTERNAL_CHECK(
-          state_id == end_state_id_ || !edge_to_safe_nodes.empty(),
-          "A non-end node must have at least one safe edge");
-      double probability_to_safe_node =
-          edge_to_unsafe_nodes.empty() ? 1 : kProbToSafeNode;
-
-      // Distribute `probability_to_safe_node` evenly to every edge that leads
-      // to a safe node. Also distribute 1-`probability_to_safe_node` to the
-      // unsafe edges.
-      std::vector<double> edge_weights(state.next.size());
-      for (int edge_index : edge_to_safe_nodes) {
-        edge_weights[edge_index] =
-            probability_to_safe_node /
-            static_cast<double>(edge_to_safe_nodes.size());
-      }
-      for (int edge_index : edge_to_unsafe_nodes) {
-        edge_weights[edge_index] =
-            (1.0 - probability_to_safe_node) /
-            static_cast<double>(edge_to_unsafe_nodes.size());
-      }
-      is_safe_node[state_id] = true;
-      state.edge_weight_distribution = absl::discrete_distribution<int>(
-          edge_weights.begin(), edge_weights.end());
+    int state_id = q.front();
+    q.pop();
+    if (is_safe_node[state_id]) continue;
+    for (int j = 0; j < states_.size(); ++j) {
+      if (is_predecessor[state_id][j]) q.push(j);
     }
+    State& state = states_[state_id];
+    std::vector<int> edge_to_safe_nodes;
+    std::vector<int> edge_to_unsafe_nodes;
+    for (int j = 0; j < state.next.size(); ++j) {
+      if (is_safe_node[state.next[j].next_state_id]) {
+        edge_to_safe_nodes.push_back(j);
+      } else {
+        edge_to_unsafe_nodes.push_back(j);
+      }
+    }
+    FUZZTEST_INTERNAL_CHECK(
+        state_id == end_state_id_ || !edge_to_safe_nodes.empty(),
+        "A non-end node must have at least one safe edge");
+    double probability_to_safe_node =
+        edge_to_unsafe_nodes.empty() ? 1 : kProbToSafeNode;
+
+    // Distribute `probability_to_safe_node` evenly to every edge that leads
+    // to a safe node. Also distribute 1-`probability_to_safe_node` to the
+    // unsafe edges.
+    std::vector<double> edge_weights(state.next.size());
+    for (int edge_index : edge_to_safe_nodes) {
+      edge_weights[edge_index] = probability_to_safe_node /
+                                 static_cast<double>(edge_to_safe_nodes.size());
+    }
+    for (int edge_index : edge_to_unsafe_nodes) {
+      edge_weights[edge_index] =
+          (1.0 - probability_to_safe_node) /
+          static_cast<double>(edge_to_unsafe_nodes.size());
+    }
+    is_safe_node[state_id] = true;
+    state.edge_weight_distribution = absl::discrete_distribution<int>(
+        edge_weights.begin(), edge_weights.end());
   } while (!q.empty());
 }
 

@@ -23,11 +23,8 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
-#include "absl/types/span.h"
 #include "./fuzztest/domain.h"
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/logging.h"
-#include "./fuzztest/internal/type_support.h"
 #include "re2/re2.h"
 
 namespace fuzztest {
@@ -189,6 +186,45 @@ TEST(InRegexp, ValidationRejectsInvalidValue) {
   EXPECT_THAT(domain_b.ValidateCorpusValue(*corpus_value_a),
               IsInvalid("Invalid value for InRegexp(\"A{2,10}D{2,10}\") >> "
                         "Invalid DFA path."));
+}
+
+// Additional validation test with values from a real bug (b/339306132).
+TEST(InRegexp, ValidationRejectsInvalidValueRegression) {
+  auto domain_a =
+      InRegexp(R"re(^(sheet|empty_sheet|email_message|email_thread)$)re");
+  auto domain_b = InRegexp(
+      R"re(^(sheet|empty_sheet|email_message|email_thread|chat_message|chat_context)$)re");
+
+  auto sheet_a = domain_a.FromValue("sheet");
+  auto empty_sheet_a = domain_a.FromValue("empty_sheet");
+  auto email_message_a = domain_a.FromValue("email_message");
+  auto email_thread_a = domain_a.FromValue("email_thread");
+
+  ASSERT_TRUE(sheet_a.has_value());
+  ASSERT_TRUE(empty_sheet_a.has_value());
+  ASSERT_TRUE(email_message_a.has_value());
+  ASSERT_TRUE(email_thread_a.has_value());
+
+  EXPECT_OK(domain_a.ValidateCorpusValue(*sheet_a));
+  EXPECT_OK(domain_a.ValidateCorpusValue(*empty_sheet_a));
+  EXPECT_OK(domain_a.ValidateCorpusValue(*email_message_a));
+  EXPECT_OK(domain_a.ValidateCorpusValue(*email_thread_a));
+
+  // Even though `domain_b` subsumes `domain_a` in terms of user values, under
+  // the hood the DFAs are structurally different, so the corpus values (DFA
+  // paths) from one domain may not be valid for the other domain.
+  EXPECT_TRUE(!domain_b.ValidateCorpusValue(*sheet_a).ok() ||
+              domain_b.GetValue(*sheet_a) == "sheet")
+      << "GetValue() returns \"" << domain_b.GetValue(*sheet_a) << "\"";
+  EXPECT_TRUE(!domain_b.ValidateCorpusValue(*empty_sheet_a).ok() ||
+              domain_b.GetValue(*empty_sheet_a) == "empty_sheet")
+      << "GetValue() returns \"" << domain_b.GetValue(*empty_sheet_a) << "\"";
+  EXPECT_TRUE(!domain_b.ValidateCorpusValue(*email_message_a).ok() ||
+              domain_b.GetValue(*email_message_a) == "email_message")
+      << "GetValue() returns \"" << domain_b.GetValue(*email_message_a) << "\"";
+  EXPECT_TRUE(!domain_b.ValidateCorpusValue(*email_thread_a).ok() ||
+              domain_b.GetValue(*email_thread_a) == "email_thread")
+      << "GetValue() returns \"" << domain_b.GetValue(*email_thread_a) << "\"";
 }
 
 struct InRegexString {

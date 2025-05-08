@@ -134,10 +134,7 @@ fuzztest_cc_test(
     fuzztest::domain_testing
     absl::flat_hash_set
     absl::random_random
-    absl::span
     fuzztest::domain
-    fuzztest::logging
-    fuzztest::type_support
     GTest::gmock_main
     re2::re2
 )
