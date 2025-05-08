@@ -327,7 +327,10 @@ cc_library(
 
 cc_library(
     name = "domain",
-    srcs = ["internal/domains/in_grammar_impl.cc"],
+    srcs = [
+        "internal/domains/in_grammar_impl.cc",
+        "internal/domains/in_regexp_impl.cc",
+    ],
     hdrs = [
         "domain.h",
         "internal/domains/in_grammar_impl.h",

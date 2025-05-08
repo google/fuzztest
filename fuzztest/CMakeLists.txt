@@ -288,6 +288,7 @@ fuzztest_cc_library(
     "internal/domains/protobuf_domain_impl.h"
   SRCS
     "internal/domains/in_grammar_impl.cc"
+    "internal/domains/in_regexp_impl.cc"
   DEPS
     fuzztest::any
     fuzztest::domain_core

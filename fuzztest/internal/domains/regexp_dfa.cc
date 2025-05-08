@@ -26,7 +26,9 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
+#include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -43,6 +45,118 @@ RegexpDFA RegexpDFA::Create(absl::string_view regexp) {
   dfa.CompressStates();
   dfa.ComputeEdgeWeights();
   return dfa;
+}
+
+std::string RegexpDFA::GenerateString(absl::BitGenRef prng) {
+  std::string result;
+  State* state = &states_[0];
+  while (true) {
+    FUZZTEST_INTERNAL_CHECK(!state->next.empty(), "Empty next state!");
+
+    // Pick a random next state by weight.
+    int rand_index = state->edge_weight_distribution(prng);
+    auto& [next_string, next_id] = state->next[rand_index];
+    state = &states_[next_id];
+    result.insert(result.end(), next_string.begin(), next_string.end());
+    if (next_string.back() == kEndOfString) {
+      FUZZTEST_INTERNAL_CHECK(state->is_end_state(),
+                              "EOS should lead to end state!");
+      result.pop_back();
+      break;
+    }
+  }
+  return result;
+}
+
+std::vector<RegexpDFA::Edge> RegexpDFA::FindPath(
+    absl::BitGenRef prng, int from_state_id,
+    const std::vector<std::optional<int>>& to_state_ids) {
+  std::vector<Edge> path;
+  int cur_state_id = from_state_id;
+  State* cur_state = &states_[cur_state_id];
+  while (true) {
+    FUZZTEST_INTERNAL_CHECK(!cur_state->next.empty(), "Empty next state!");
+
+    // Pick a random next state.
+    int offset = cur_state->edge_weight_distribution(prng);
+    auto& [next_char, next_state_id] = cur_state->next[offset];
+    path.push_back({cur_state_id, offset});
+
+    cur_state_id = next_state_id;
+    cur_state = &states_[cur_state_id];
+    // Reached an end state or found a state in the original path?
+    if (cur_state->is_end_state() || to_state_ids[next_state_id].has_value()) {
+      path.push_back({next_state_id, -1});
+      break;
+    }
+  }
+  return path;
+}
+
+std::vector<RegexpDFA::Edge> RegexpDFA::FindPathWithinLengthDFS(
+    absl::BitGenRef prng, int from_state_id, int to_state_id, int length) {
+  // Each state maintains an edge and a counter for each possible length. The
+  // edge is the last edge in the path from `from_state` to the state and can
+  // be used to reconstruct the path. And the counter is the number of paths
+  // to the state, which can be used for reservoir sampling.
+  struct LastEdgeAndCounter {
+    std::optional<Edge> edge;
+    int counter;
+  };
+  std::vector<std::vector<LastEdgeAndCounter>> last_edges_and_counters(
+      states_.size(), std::vector<LastEdgeAndCounter>(length + 1));
+
+  // Randomness for DFS. Instead of always starting to explore from edge index
+  // 0, we start with a different random offset for each state.
+  std::vector<int> rand_edge_offsets(states_.size(), 0);
+  for (int& i : rand_edge_offsets) i = absl::Uniform<int>(prng, 0u, 256);
+
+  std::vector<Edge> stack{Edge{from_state_id, 0}};
+  do {
+    auto [current_state_id, edge_index] = stack.back();
+    if (edge_index == states_[current_state_id].next.size()) {
+      stack.pop_back();
+      continue;
+    }
+    ++stack.back().edge_index;
+    const int current_path_length = static_cast<int>(stack.size());
+    const int real_edge_index =
+        (edge_index + rand_edge_offsets[current_state_id]) %
+        static_cast<int>(states_[current_state_id].next.size());
+    const int next_state_id =
+        states_[current_state_id].next[real_edge_index].next_state_id;
+    const int n_path_of_current_length =
+        ++last_edges_and_counters[next_state_id][current_path_length].counter;
+    // Reservoir Sampling.
+    if (absl::Bernoulli(prng, 1.0 / n_path_of_current_length)) {
+      last_edges_and_counters[next_state_id][current_path_length].edge =
+          Edge{current_state_id, real_edge_index};
+    }
+    if (n_path_of_current_length == 1 && current_path_length != length) {
+      stack.push_back(Edge{next_state_id, 0});
+    }
+  } while (!stack.empty());
+
+  std::vector<int> candidate_lens;
+  for (int len = 1; len <= length; ++len) {
+    if (last_edges_and_counters[to_state_id][len].edge.has_value()) {
+      candidate_lens.push_back(len);
+    }
+  }
+  FUZZTEST_INTERNAL_CHECK(!candidate_lens.empty(), "Cannot find a path!");
+
+  int state_id = to_state_id;
+  std::vector<Edge> result;
+  for (int len =
+           candidate_lens[absl::Uniform<int>(prng, 0, candidate_lens.size())];
+       len > 0; --len) {
+    result.push_back(*(last_edges_and_counters[state_id][len].edge));
+    state_id = last_edges_and_counters[state_id][len].edge->from_state_id;
+  }
+  FUZZTEST_INTERNAL_CHECK(state_id == from_state_id,
+                          "Cannot find a path from from_state");
+  std::reverse(result.begin(), result.end());
+  return result;
 }
 
 absl::StatusOr<std::vector<RegexpDFA::Edge>> RegexpDFA::StringToDFAPath(
