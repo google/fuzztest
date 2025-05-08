@@ -762,10 +762,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
   EXPECT_THAT(std_err,
               AllOf(HasSubstr("Reproducer file was dumped at:"),
-                    HasSubstr(out_dir.path()),
-                    HasSubstr(Basename(replay_files[0].path)),
+                    HasSubstr(replay_files[0].path),
                     HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
-                                           out_dir.path().string()))))
+                                           replay_files[0].path))))
       << std_err;
 }
 
@@ -785,14 +784,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
-  EXPECT_THAT(
-      std_err,
-      AllOf(HasSubstr("Reproducer file was dumped under "
-                      "TEST_UNDECLARED_OUTPUTS_DIR"
-                      ),
-            HasSubstr(out_dir.path()),
-            HasSubstr(Basename(replay_files[0].path)),
-            HasSubstr("--test_env=FUZZTEST_REPLAY=/tmp/fuzztest_repro/")))
+  EXPECT_THAT(std_err,
+              AllOf(HasSubstr("Reproducer file was dumped under "
+                              "TEST_UNDECLARED_OUTPUTS_DIR"
+                              ),
+                    HasSubstr(replay_files[0].path),
+                    HasSubstr(absl::StrCat(
+                        "--test_env=FUZZTEST_REPLAY=/tmp/fuzztest_repro/",
+                        Basename(replay_files[0].path)))))
       << std_err;
 }
 

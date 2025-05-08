@@ -751,6 +751,8 @@ absl::Status ExportReproducersFromCentipede(
                               "to report reproducers from Centipede");
   }
 
+  // Will be set when there is only one reproducer - nullopt otherwise.
+  std::optional<std::string> single_reproducer_path;
   for (const auto& exported_crash_file : *exported_crash_files) {
     if (!absl::EndsWith(exported_crash_file, ".data")) {
       continue;
@@ -790,16 +792,32 @@ absl::Status ExportReproducersFromCentipede(
     absl::FPrintF(GetStderr(),
                   "[.] Saved reproducer with ID %s and crash metadata %s\n",
                   Basename(reproducer_path), metadata);
+    if (!single_reproducer_path.has_value()) {
+      single_reproducer_path = reproducer_path;
+    } else {
+      // More than one reproducers are exported - use the placeholder for
+      // the instruction.
+      single_reproducer_path = std::nullopt;
+    }
   }
-  absl::FPrintF(GetStderr(),
-                "[.] Please follow the guide below for fetching and/or "
-                "replaying each reproducer files. You would need to replace "
-                "REPRODUCER_ID with the actual reproducer ID to be used.\n");
 
   ReportSink report_sink;
-  PrintReproducerIfRequested(
-      &report_sink, test, &configuration,
-      std::filesystem::path{output.dir_path}.append("REPRODUCER_ID").string());
+  if (single_reproducer_path.has_value()) {
+    PrintReproducerIfRequested(&report_sink, test, &configuration,
+                               *single_reproducer_path);
+  } else {
+    // TODO: b/385113025 - Test this branch when we no longer need to emulate
+    // the legacy exit-on-crash behavior.
+    absl::FPrintF(GetStderr(),
+                  "[.] Please follow the guide below for fetching and/or "
+                  "replaying each reproducer files. You would need to replace "
+                  "REPRODUCER_ID with the actual reproducer ID to be used.\n");
+    PrintReproducerIfRequested(&report_sink, test, &configuration,
+                               std::filesystem::path{output.dir_path}
+                                   .append("REPRODUCER_ID")
+                                   .string());
+  }
+
   return absl::OkStatus();
 }
 
