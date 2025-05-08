@@ -1,0 +1,23 @@
+[package]
+name = "fuzztest"
+version = "0.1.0"
+edition = "2021"
+default-run = "fuzztest"
+
+[[test]]
+name = "trybuild"
+path = "tests/trybuild.rs"
+
+[dependencies]
+fuzztest-macro = { path = "impl" }
+
+[dev-dependencies.trybuild]
+version = "1.0.103"
+features = ["diff"]
+
+[profile.fuzztest]
+inherits = 'release'
+panic = 'abort'
+opt-level = "s"
+debug = true
+split-debuginfo = "packed"
