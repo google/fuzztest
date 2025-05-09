@@ -215,6 +215,7 @@ cc_library(
         ":any",
         ":configuration",
         ":domain_core",
+        ":escaping",
         ":fixture_driver",
         ":flag_name",
         ":io",
@@ -422,6 +423,15 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "escaping",
+    srcs = ["internal/escaping.cc"],
+    hdrs = ["internal/escaping.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
     ],
 )
 
