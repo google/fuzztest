@@ -351,7 +351,7 @@ TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
   run_options.fuzztest_flags = {{"corpus_database", GetCorpusDatabasePath()},
                                 {"fuzz_for", "20s"}};
   run_options.env = {{"TEST_TIMEOUT", "30"}};
-  run_options.timeout = absl::Seconds(40);
+  run_options.timeout = absl::Seconds(60);
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
   EXPECT_THAT(std_err, AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
