@@ -368,6 +368,11 @@ cc_library(
 # by the default Centipede mutation.
 cc_library(
     name = "domain_core",
+    srcs = [
+        "internal/domains/rune.cc",
+        "internal/domains/utf.cc",
+        "internal/domains/utf.h",
+    ],
     hdrs = [
         "domain_core.h",
         "internal/domains/aggregate_of_impl.h",

@@ -316,6 +316,10 @@ fuzztest_cc_library(
 fuzztest_cc_library(
   NAME
     domain_core
+  SRCS
+    "internal/domains/rune.cc"
+    "internal/domains/utf.cc"
+    "internal/domains/utf.h"
   HDRS
     "domain_core.h"
     "internal/domains/aggregate_of_impl.h"

@@ -160,5 +160,70 @@ TEST(Domain, PrintableAsciiString) {
     }
   }
 }
+
+TEST(Domain, Utf8StringWorksWithSeeds) {
+  auto domain = Utf8String().WithSeeds({"\u0414\u0430!\n"});
+  EXPECT_THAT(GenerateValues(domain),
+              Contains(Value(domain, "\u0414\u0430!\n")));
+}
+
+TEST(Domain, Utf8StringIgnoresInvalideSeeds) {
+  const std::string invalid_utf8 = "abc\x80";
+  EXPECT_THAT(Utf8String().FromValue(invalid_utf8), Eq(std::nullopt));
+}
+
+TEST(Domain, Utf8StringUsesDictionary) {
+  auto domain = Utf8String();
+  internal::TablesOfRecentCompares cmp_tables;
+  // Fill the table with the same entry.
+  for (int i = 0; i < cmp_tables.GetMutable<0>().kTableSize; ++i) {
+    cmp_tables.GetMutable<0>().Insert(reinterpret_cast<const uint8_t*>("abcd"),
+                                      reinterpret_cast<const uint8_t*>("1234"),
+                                      4);
+  }
+
+  absl::BitGen bitgen;
+  std::vector<std::string> mutants;
+  const double hit_probability =  //
+      1.0 / 2                     // to pick String() within OverlapOf(...)
+      * 1.0 / 4                   // to use dictionaries
+      * 1.0 / 4                   // to use cmp tables
+      * 1.0 / 2;                  // to pick the memcmp table
+  for (int i = 0; i < IterationsToHitAll(/*num_cases=*/1, hit_probability);
+       ++i) {
+    auto mutant = domain.FromValue("abcd");
+    ASSERT_TRUE(mutant.has_value());
+    domain.Mutate(*mutant, bitgen, {/*cmp_tables=*/&cmp_tables}, false);
+    mutants.push_back(domain.GetValue(*mutant));
+  }
+  EXPECT_THAT(mutants, Contains(HasSubstr("1234")));
+}
+
+TEST(Domain, AsciiStringUsesDictionary) {
+  auto domain = AsciiString();
+  internal::TablesOfRecentCompares cmp_tables;
+  // Fill the table with the same entry.
+  for (int i = 0; i < cmp_tables.GetMutable<0>().kTableSize; ++i) {
+    cmp_tables.GetMutable<0>().Insert(reinterpret_cast<const uint8_t*>("abcd"),
+                                      reinterpret_cast<const uint8_t*>("1234"),
+                                      4);
+  }
+
+  absl::BitGen bitgen;
+  std::vector<std::string> mutants;
+  const double hit_probability =  //
+      1.0 / 4                     // to use dictionaries
+      * 1.0 / 4                   // to use cmp tables
+      * 1.0 / 2;                  // to pick the memcmp table
+  for (int i = 0; i < IterationsToHitAll(/*num_cases=*/1, hit_probability);
+       ++i) {
+    auto mutant = domain.FromValue("abcd");
+    ASSERT_TRUE(mutant.has_value());
+    domain.Mutate(*mutant, bitgen, {/*cmp_tables=*/&cmp_tables}, false);
+    mutants.push_back(domain.GetValue(*mutant));
+  }
+  EXPECT_THAT(mutants, Contains(HasSubstr("1234")));
+}
+
 }  // namespace
 }  // namespace fuzztest
