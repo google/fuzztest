@@ -76,6 +76,7 @@ jobs:
             -c ${{ matrix.compilation_mode }} \
             --config=fuzztest-experimental --config=asan \
             --platform_suffix=fuzztest-experimental-asan \
+            --experimental_ui_max_stdouterr_bytes=4000000 \
             //e2e_tests:corpus_database_test
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'

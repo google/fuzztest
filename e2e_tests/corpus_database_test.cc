@@ -183,7 +183,7 @@ TEST_P(UpdateCorpusDatabaseTest, FindsAllCrashes) {
       << std_err;
 }
 
-TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
+TEST_P(UpdateCorpusDatabaseTest, StartsNewFuzzTestRunsWithoutExecutionIds) {
   TempDir corpus_database;
 
   // 1st run that gets interrupted.
@@ -196,13 +196,15 @@ TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
   auto [fst_status, fst_std_out, fst_std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), fst_run_options);
 
+  EXPECT_THAT(fst_std_err, HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 5m"));
+
   // Adjust the fuzzing time so that only 1s remains.
   const absl::StatusOr<std::string> fuzzing_time_file =
       FindFile(corpus_database.path().c_str(), "fuzzing_time");
   ASSERT_TRUE(fuzzing_time_file.ok()) << fst_std_err;
   ASSERT_TRUE(WriteFile(*fuzzing_time_file, "299s"));
 
-  // 2nd run that resumes the fuzzing.
+  // 2nd run that does not resume due to no execution ID.
   RunOptions snd_run_options;
   snd_run_options.fuzztest_flags = {
       {"corpus_database", corpus_database.path()},
@@ -212,11 +214,7 @@ TEST_P(UpdateCorpusDatabaseTest, ResumedFuzzTestRunsForRemainingTime) {
   auto [snd_status, snd_std_out, snd_std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), snd_run_options);
 
-  EXPECT_THAT(
-      snd_std_err,
-      // The resumed fuzz test is the first one defined in the binary.
-      AllOf(HasSubstr("Resuming from the fuzz test FuzzTest.FailsInTwoWays"),
-            HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 1s")));
+  EXPECT_THAT(snd_std_err, HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 5m"));
 }
 
 TEST_P(UpdateCorpusDatabaseTest,
