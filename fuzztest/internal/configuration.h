@@ -96,9 +96,9 @@ struct Configuration {
   // number of jobs is unspecified by the test binary.
   size_t jobs = 0;
 
-  // If set, the Centipede binary to run in separate processes as the fuzzing
+  // If set, the Centipede command to run in separate processes as the fuzzing
   // engine.
-  std::optional<std::string> centipede_binary_path;
+  std::optional<std::string> centipede_command;
 
   // When set, `FuzzTestFuzzer` replays only one input (no fuzzing is done).
   std::optional<std::string> crashing_input_to_reproduce;
