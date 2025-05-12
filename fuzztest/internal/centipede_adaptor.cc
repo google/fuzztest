@@ -166,20 +166,6 @@ absl::StatusOr<std::vector<std::string>> GetProcessArgs() {
 #endif
 }
 
-std::string GetSelfBinaryHashForCentipedeEnvironment() {
-  static absl::NoDestructor<std::string> cached_self_binary_hash{[] {
-    fuzztest::internal::Environment env;
-    const auto args = GetProcessArgs();
-    FUZZTEST_INTERNAL_CHECK(
-        args.ok(), absl::StrCat("failed to get the original process args: ",
-                                args.status()));
-    env.coverage_binary = (*args)[0];
-    env.UpdateBinaryHashIfEmpty();
-    return env.binary_hash;
-  }()};
-  return *cached_self_binary_hash;
-}
-
 std::string ShellEscape(absl::string_view str) {
   return absl::StrCat("'", absl::StrReplaceAll(str, {{"'", "'\\''"}}), "'");
 }
@@ -278,7 +264,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   }
   env.coverage_binary = (*args)[0];
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
-  env.binary_hash = GetSelfBinaryHashForCentipedeEnvironment();
+  env.binary_hash = "DUMMY_HASH";
   env.exit_on_crash =
       // Do shallow testing when running in unit-test mode unless we are replay
       // coverage inputs.
