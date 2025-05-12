@@ -56,6 +56,40 @@ fuzztest_cc_library(
     fuzztest::fuzztest_macros
 )
 
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  fuzztest_cc_library(
+    NAME
+      flatbuffers
+    HDRS
+      "flatbuffers.h"
+      "internal/domains/flatbuffers_domain_impl.h"
+    SRCS
+      "internal/domains/flatbuffers_domain_impl.cc"
+    DEPS
+      absl::algorithm_container
+      absl::core_headers
+      absl::flat_hash_map
+      absl::flat_hash_set
+      absl::nullability
+      absl::random_bit_gen_ref
+      absl::random_distributions
+      absl::random_random
+      absl::status
+      absl::statusor
+      absl::str_format
+      absl::strings
+      absl::synchronization
+      flatbuffers
+      fuzztest::any
+      fuzztest::domain_core
+      fuzztest::logging
+      fuzztest::meta
+      fuzztest::serialization
+      fuzztest::status
+      fuzztest::type_support
+  )
+endif()
+
 fuzztest_cc_library(
   NAME
     fuzztest_macros
@@ -804,6 +838,70 @@ if (FUZZTEST_BUILD_TESTING)
     PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/.."
   )
+
+  if (FUZZTEST_BUILD_FLATBUFFERS)
+    # Generate test flatbuffers
+    include_directories(${FLATBUFFERS_INCLUDE_DIR})
+    set(FBS_SCHEMA_FILE "${CMAKE_CURRENT_LIST_DIR}/internal/test_flatbuffers.fbs")
+    set(FLATC_FLAGS "--bfbs-gen-embed" "--gen-name-strings")
+
+    # Modified version of `flatbuffers_generate_headers`
+    # from https://github.com/google/flatbuffers/blob/master/CMake/BuildFlatBuffers.cmake
+    # Supports using an output prefix for single file header generation as well
+    # as the embedded schema header in the output set.
+    add_custom_command(
+      OUTPUT
+        "internal/test_flatbuffers_bfbs_generated.h"
+        "internal/test_flatbuffers_generated.h"
+      COMMAND
+        $<TARGET_FILE:flatc>
+        -o "${CMAKE_CURRENT_BINARY_DIR}/internal"
+        -c
+        ${FBS_SCHEMA_FILE}
+        ${FLATC_FLAGS}
+      DEPENDS
+        flatc
+        ${FBS_SCHEMA_FILE}
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      COMMENT "Building ${FBS_SCHEMA_FILE} flatbuffers..."
+    )
+
+    # Create an additional target as add_custom_command scope is only within 
+    # same directory (CMakeFile.txt)
+    add_custom_target(
+      GENERATE_test_flatbuffers ALL
+      DEPENDS
+        "internal/test_flatbuffers_bfbs_generated.h"
+        "internal/test_flatbuffers_generated.h"
+      COMMENT "Generating flatbuffer target test_flatbuffers"
+    )
+
+    # Set up interface library
+    add_library(test_flatbuffers INTERFACE)
+    add_dependencies(
+      test_flatbuffers
+      flatc
+      ${FBS_SCHEMA_FILE}
+    )
+    target_include_directories(
+      test_flatbuffers
+      INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/internal"
+    )
+
+    # Organize file layout for IDEs.
+    source_group(
+      TREE "${CMAKE_CURRENT_BINARY_DIR}/internal"
+      PREFIX "Flatbuffers/Generated/Headers Files"
+      FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/internal/test_flatbuffers_bfbs_generated.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/internal/test_flatbuffers_generated.h"
+    )
+    source_group(
+      TREE "${CMAKE_CURRENT_SOURCE_DIR}/internal"
+      PREFIX "Flatbuffers/Schemas"
+      FILES ${FBS_SCHEMA_FILE}
+    )
+  endif()
 
 endif ()
 
