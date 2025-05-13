@@ -14,7 +14,6 @@
 
 #include "./centipede/environment_flags.h"
 
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
