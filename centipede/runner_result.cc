@@ -124,6 +124,14 @@ bool BatchResult::Read(BlobSequence &blobseq) {
   return true;
 }
 
+bool BatchResult::IsIgnoredFailure() const {
+  constexpr std::string_view kIgnoredFailurePrefix = "IGNORED FAILURE:";
+  return exit_code_ != EXIT_SUCCESS &&
+         std::string_view(failure_description_)
+                 .substr(0, kIgnoredFailurePrefix.size()) ==
+             kIgnoredFailurePrefix;
+}
+
 bool BatchResult::IsSetupFailure() const {
   constexpr std::string_view kSetupFailurePrefix = "SETUP FAILURE:";
   return exit_code_ != EXIT_SUCCESS &&

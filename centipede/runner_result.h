@@ -138,6 +138,9 @@ class BatchResult {
   // When running N inputs, ClearAndResize(N) must be called before Read().
   bool Read(BlobSequence& blobseq);
 
+  // Returns true if the failure should be ignored.
+  bool IsIgnoredFailure() const;
+
   // Returns true if the batch execution failed due to a setup failure, and not
   // a crash tied to a specific input.
   bool IsSetupFailure() const;
