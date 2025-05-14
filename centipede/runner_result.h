@@ -138,6 +138,9 @@ class BatchResult {
   // When running N inputs, ClearAndResize(N) must be called before Read().
   bool Read(BlobSequence& blobseq);
 
+  // Returns true if the failure should be ignored.
+  bool IsIgnoredFailure() const;
+
   // Returns true if the batch execution failed due to a setup failure, and not
   // a crash tied to a specific input.
   bool IsSetupFailure() const;
@@ -159,6 +162,8 @@ class BatchResult {
   const std::string& failure_description() const {
     return failure_description_;
   }
+  std::string& failure_signature() { return failure_signature_; }
+  const std::string& failure_signature() const { return failure_signature_; }
 
  private:
   friend class MultiInputMock;
@@ -169,6 +174,9 @@ class BatchResult {
   // If the batch execution fails, this may optionally contain a failure
   // description, e.g., the crash type, stack trace...
   std::string failure_description_;
+  // Similar to failure description, but it is used for deduplication and it
+  // does not need to be human-readable.
+  std::string failure_signature_;
   size_t num_outputs_read_ = 0;
 };
 
