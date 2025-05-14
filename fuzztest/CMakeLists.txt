@@ -372,6 +372,17 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    escaping
+  HDRS
+    "internal/escaping.h"
+  SRCS
+    "internal/escaping.cc"
+  DEPS
+    absl::strings
+)
+
+fuzztest_cc_library(
+  NAME
     fixture_driver
   HDRS
     "internal/fixture_driver.h"
