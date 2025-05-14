@@ -72,6 +72,10 @@ bool BatchResult::WriteMetadata(const ExecutionMetadata &metadata,
   return metadata.Write(kTagMetadata, blobseq);
 }
 
+bool BatchResult::WriteMetadata(ByteSpan bytes, BlobSequence &blobseq) {
+  return blobseq.Write({kTagMetadata, bytes.size(), bytes.data()});
+}
+
 // The sequence we expect to receive is
 // InputBegin, Features, Stats, InputEnd, InputBegin, ...
 // with a total of results().size() tuples (InputBegin ... InputEnd).
@@ -122,6 +126,14 @@ bool BatchResult::Read(BlobSequence &blobseq) {
   }
   num_outputs_read_ = num_ends;
   return true;
+}
+
+bool BatchResult::IsIgnoredFailure() const {
+  constexpr std::string_view kIgnoredFailurePrefix = "IGNORED FAILURE:";
+  return exit_code_ != EXIT_SUCCESS &&
+         std::string_view(failure_description_)
+                 .substr(0, kIgnoredFailurePrefix.size()) ==
+             kIgnoredFailurePrefix;
 }
 
 bool BatchResult::IsSetupFailure() const {
