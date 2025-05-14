@@ -82,6 +82,7 @@ namespace {
 // the called or `CentipedeMain()` to indicate when to stop.
 void SetSignalHandlers() {
   struct sigaction sigact = {};
+  sigact.sa_flags = SA_ONSTACK;
   sigact.sa_handler = [](int received_signum) {
     if (received_signum == SIGINT) {
       LOG(INFO) << "Ctrl-C pressed: winding down";
