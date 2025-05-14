@@ -31,6 +31,7 @@
 #include "absl/time/time.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
+#include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/subprocess.h"
@@ -120,8 +121,8 @@ class UpdateCorpusDatabaseTest
         return RunBinary(binary_path, options);
       case ExecutionModelParam::kTestBinaryInvokingCentipedeBinary: {
         RunOptions centipede_options = options;
-        centipede_options.fuzztest_flags["internal_centipede_binary_path"] =
-            CentipedePath();
+        centipede_options.fuzztest_flags["internal_centipede_command"] =
+            ShellEscape(CentipedePath());
         return RunBinary(binary_path, centipede_options);
       }
       case ExecutionModelParam::kCentipedeBinary: {
