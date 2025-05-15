@@ -453,3 +453,9 @@ sh_test(
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
 )
+
+cc_test(
+    name = "dispatcher_test",
+    srcs = ["dispatcher_test.cc"],
+    deps = ["@com_google_fuzztest//centipede:dispatcher"],
+)
