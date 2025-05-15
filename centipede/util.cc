@@ -65,7 +65,7 @@ size_t GetRandomSeed(size_t seed) {
          std::hash<std::thread::id>{}(std::this_thread::get_id());
 }
 
-std::string AsPrintableString(const ByteArray &data, size_t max_len) {
+std::string AsPrintableString(ByteSpan data, size_t max_len) {
   std::ostringstream out;
   size_t len = std::min(max_len, data.size());
   for (size_t i = 0; i < len; ++i) {

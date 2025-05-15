@@ -685,6 +685,7 @@ struct Crash {
   std::string binary;
   unsigned char input = 0;
   std::string description;
+  std::string signature;
 };
 
 // A mock for ExtraBinaries test.
@@ -703,6 +704,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
       for (const Crash &crash : crashes_) {
         if (binary == crash.binary && input[0] == crash.input) {
           batch_result.failure_description() = crash.description;
+          batch_result.failure_signature() = crash.signature;
           res = false;
         }
       }
@@ -766,9 +768,9 @@ TEST(Centipede, ExtraBinaries) {
   env.binary = "b1";
   env.extra_binaries = {"b2", "b3", "b4"};
   env.require_pc_table = false;  // No PC table here.
-  ExtraBinariesMock mock(
-      env, {Crash{"b1", 10, "b1-crash"}, Crash{"b2", 30, "b2-crash"},
-            Crash{"b3", 50, "b3-crash"}});
+  ExtraBinariesMock mock(env, {Crash{"b1", 10, "b1-crash", "b1-sig"},
+                               Crash{"b2", 30, "b2-crash", "b2-sig"},
+                               Crash{"b3", 50, "b3-crash", "b3-sig"}});
   MockFactory factory(mock);
   CentipedeMain(env, factory);
 
@@ -789,11 +791,15 @@ TEST(Centipede, ExtraBinaries) {
   auto crash_metadata_dir_path = WorkDir{env}.CrashMetadataDirPaths().MyShard();
   ASSERT_TRUE(std::filesystem::exists(crash_metadata_dir_path))
       << VV(crash_metadata_dir_path);
-  EXPECT_THAT(crash_metadata_dir_path,
-              HasFilesWithContents(testing::UnorderedElementsAre(
-                  FileAndContents{Hash({10}), "b1-crash"},
-                  FileAndContents{Hash({30}), "b2-crash"},
-                  FileAndContents{Hash({50}), "b3-crash"})));
+  EXPECT_THAT(
+      crash_metadata_dir_path,
+      HasFilesWithContents(testing::UnorderedElementsAre(
+          FileAndContents{absl::StrCat(Hash({10}), ".desc"), "b1-crash"},
+          FileAndContents{absl::StrCat(Hash({10}), ".sig"), "b1-sig"},
+          FileAndContents{absl::StrCat(Hash({30}), ".desc"), "b2-crash"},
+          FileAndContents{absl::StrCat(Hash({30}), ".sig"), "b2-sig"},
+          FileAndContents{absl::StrCat(Hash({50}), ".desc"), "b3-crash"},
+          FileAndContents{absl::StrCat(Hash({50}), ".sig"), "b3-sig"})));
 }
 
 // A mock for UndetectedCrashingInput test.
@@ -1116,6 +1122,47 @@ TEST(Centipede, ReturnsSuccessOnSkippedTest) {
   MockFactory factory(mock);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_EQ(mock.execute_count(), 1);
+}
+
+class IgnoredFailureCallbacks : public CentipedeCallbacks {
+ public:
+  using CentipedeCallbacks::CentipedeCallbacks;
+
+  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
+               BatchResult &batch_result) override {
+    ++execute_count_;
+    batch_result.ClearAndResize(inputs.size());
+    batch_result.exit_code() = EXIT_FAILURE;
+    batch_result.failure_description() =
+        "IGNORED FAILURE: failure ignored on purpose";
+    return false;
+  }
+
+  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
+                                size_t num_mutants) override {
+    return {num_mutants, {0}};
+  }
+
+  int execute_count() const { return execute_count_; }
+
+ private:
+  int execute_count_ = 0;
+};
+
+TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.log_level = 0;  // Disable most of the logging in the test.
+  env.workdir = temp_dir.path();
+  env.batch_size = 7;  // Just some small number.
+  env.num_runs = 11;
+  env.require_pc_table = false;  // No PC table here.
+  IgnoredFailureCallbacks mock(env);
+  MockFactory factory(mock);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  EXPECT_EQ(mock.execute_count(),
+            // 1 batch on seeds, 2 batches for 11 runs.
+            3);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
