@@ -117,9 +117,8 @@ class StringLiteralDomain {
   static bool IsMutable(const ASTNode& /*val*/) { return false; }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<std::monostate>(astnode, id),
-        "Invalid node!");
+    FUZZTEST_CHECK(CheckASTNodeTypeIdAndChildType<std::monostate>(astnode, id))
+        << "Invalid node!";
     return WrapASTIntoIRObject(astnode, {});
   }
 
@@ -166,9 +165,8 @@ class RegexLiteralDomain {
   static ASTTypeId TypeId() { return id; }
 
   static void ToString(std::string& output, const ASTNode& val) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(val, id),
-        "Not a regex literal!");
+    FUZZTEST_CHECK(CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(val, id))
+        << "Not a regex literal!";
     absl::StrAppend(&output, GetInnerRegexpDomain().GetValue(
                                  std::get<RegexpDFA::Path>(val.children)));
   }
@@ -176,9 +174,8 @@ class RegexLiteralDomain {
   static bool IsMutable(const ASTNode& /*val*/) { return true; }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(astnode, id),
-        "Not a regex literal!");
+    FUZZTEST_CHECK(CheckASTNodeTypeIdAndChildType<RegexpDFA::Path>(astnode, id))
+        << "Not a regex literal!";
     return WrapASTIntoIRObject(
         astnode, GetInnerRegexpDomain().SerializeCorpus(
                      std::get<RegexpDFA::Path>(astnode.children)));
@@ -258,9 +255,9 @@ class VectorDomain {
   static void Mutate(ASTNode& val, absl::BitGenRef prng,
                      const domain_implementor::MutationMetadata& metadata,
                      bool only_shrink) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(val, id),
-        "Not a vector!");
+    FUZZTEST_CHECK(
+        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(val, id))
+        << "Not a vector!";
     std::vector<ASTNode>& elements =
         std::get<std::vector<ASTNode>>(val.children);
     if (only_shrink) {
@@ -272,7 +269,7 @@ class VectorDomain {
         !elements.empty() && ElementT::IsMutable(elements.back());
     constexpr bool can_change_element_num = max > min;
     if (!can_mutate_element && !can_change_element_num) {
-      FUZZTEST_INTERNAL_CHECK(false, "We shouldn't pick an unmutable node.");
+      FUZZTEST_LOG(FATAL) << "We shouldn't pick an unmutable node.";
       return;
     }
     if (!can_mutate_element) {
@@ -301,9 +298,9 @@ class VectorDomain {
   static bool IsMutable(const ASTNode& /*val*/) { return true; }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
-        "Not a vector!");
+    FUZZTEST_CHECK(
+        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id))
+        << "Not a vector!";
     IRObject expansion_obj;
     auto& inner_subs = expansion_obj.MutableSubs();
     for (auto& node : std::get<std::vector<ASTNode>>(astnode.children)) {
@@ -425,11 +422,11 @@ class TupleDomain {
   static void Mutate(ASTNode& val, absl::BitGenRef prng,
                      const domain_implementor::MutationMetadata& metadata,
                      bool only_shrink) {
-    FUZZTEST_INTERNAL_CHECK(
+    FUZZTEST_CHECK(
         CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(val, id) &&
-            std::get<std::vector<ASTNode>>(val.children).size() ==
-                sizeof...(ElementT),
-        "Tuple elements number doesn't match!");
+        std::get<std::vector<ASTNode>>(val.children).size() ==
+            sizeof...(ElementT))
+        << "Tuple elements number doesn't match!";
 
     std::vector<int> mutables;
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
@@ -439,9 +436,8 @@ class TupleDomain {
        ...);
     });
 
-    FUZZTEST_INTERNAL_CHECK(
-        !mutables.empty(),
-        "If the tuple is immutable it shouldn't be picked for mutation.");
+    FUZZTEST_CHECK(!mutables.empty())
+        << "If the tuple is immutable it shouldn't be picked for mutation.";
 
     int choice = mutables[absl::Uniform<int>(prng, 0, mutables.size())];
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
@@ -472,9 +468,9 @@ class TupleDomain {
   }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
-        "Invalid node!");
+    FUZZTEST_CHECK(
+        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id))
+        << "Invalid node!";
     IRObject expansion_obj;
     auto& inner_subs = expansion_obj.MutableSubs();
     ApplyIndex<sizeof...(ElementT)>([&](auto... I) {
@@ -571,8 +567,8 @@ class VariantDomain {
           : (void)0),
      ...);
 
-    FUZZTEST_INTERNAL_CHECK(is_current_value_mutable || has_alternative,
-                            "Impossible at" + std::to_string(id));
+    FUZZTEST_CHECK(is_current_value_mutable || has_alternative)
+        << "Impossible at" << id;
     if (only_shrink) {
       if (is_current_value_mutable) {
         MutateCurrentValue(val, prng, metadata, only_shrink);
@@ -594,9 +590,8 @@ class VariantDomain {
   }
 
   static void ToString(std::string& output, const ASTNode& val) {
-    FUZZTEST_INTERNAL_CHECK(
-        std::get<std::vector<ASTNode>>(val.children).size() == 1,
-        "This is not a variant ast node.");
+    FUZZTEST_CHECK(std::get<std::vector<ASTNode>>(val.children).size() == 1)
+        << "This is not a variant ast node.";
     auto child = std::get<std::vector<ASTNode>>(val.children).front();
     ((ElementT::TypeId() == child.type_id ? (ElementT::ToString(output, child))
                                           : (void)0),
@@ -618,9 +613,9 @@ class VariantDomain {
   }
 
   static IRObject SerializeCorpus(const ASTNode& astnode) {
-    FUZZTEST_INTERNAL_CHECK(
-        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id),
-        "Invalid node!");
+    FUZZTEST_CHECK(
+        CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id))
+        << "Invalid node!";
 
     ASTTypeId child_id =
         std::get<std::vector<ASTNode>>(astnode.children).front().type_id;
@@ -690,7 +685,7 @@ class VariantDomain {
   }
   static void SwitchToAlternative(ASTNode& val, absl::BitGenRef prng) {
     constexpr int n_alternative = sizeof...(ElementT);
-    FUZZTEST_INTERNAL_CHECK(n_alternative > 1, "No alternative to switch!");
+    FUZZTEST_CHECK(n_alternative > 1) << "No alternative to switch!";
     int child_type_id =
         std::get<std::vector<ASTNode>>(val.children).front().type_id;
     int current_choice = 0;
@@ -751,7 +746,7 @@ class InGrammarImpl
   }
 
   std::optional<corpus_type> FromValue(const value_type& /*v*/) const {
-    FUZZTEST_INTERNAL_CHECK(false, "Parsing is not implemented yet!");
+    FUZZTEST_CHECK(false) << "Parsing is not implemented yet!";
     return std::nullopt;
   }
 
@@ -790,8 +785,8 @@ class InGrammarImpl
     size_t src_index =
         absl::Uniform<size_t>(prng, dst_index + 1, candidates.size());
 
-    FUZZTEST_INTERNAL_CHECK(src_index < candidates.size(), "Out of bound!");
-    FUZZTEST_INTERNAL_CHECK(dst_index < candidates.size(), "Out of bound!");
+    FUZZTEST_CHECK(src_index < candidates.size()) << "Out of bound!";
+    FUZZTEST_CHECK(dst_index < candidates.size()) << "Out of bound!";
     if (candidates[dst_index]->NodeCount() <
         candidates[src_index]->NodeCount()) {
       std::swap(dst_index, src_index);

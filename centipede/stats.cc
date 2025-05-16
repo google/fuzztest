@@ -34,8 +34,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -60,7 +58,7 @@ using TraitBits = Stats::TraitBits;
 StatsReporter::StatsReporter(const std::vector<std::atomic<Stats>> &stats_vec,
                              const std::vector<Environment> &env_vec)
     : stats_vec_{stats_vec}, env_vec_{env_vec} {
-  CHECK_EQ(stats_vec.size(), env_vec.size());
+  FUZZTEST_CHECK_EQ(stats_vec.size(), env_vec.size());
   for (size_t i = 0; i < env_vec.size(); ++i) {
     const auto &env = env_vec[i];
     group_to_indices_[env.experiment_name].push_back(i);
@@ -162,7 +160,8 @@ void StatsLogger::ReportFlags(const GroupToFlags &group_to_flags) {
 }
 
 void StatsLogger::DoneFieldSamplesBatch() {
-  LOG(INFO) << "Current stats:\n" << absl::StripAsciiWhitespace(os_.str());
+  FUZZTEST_LOG(INFO) << "Current stats:\n"
+                     << absl::StripAsciiWhitespace(os_.str());
   // Reset the stream for the next round of logging.
   os_.str("");
 }
@@ -173,7 +172,7 @@ void StatsLogger::DoneFieldSamplesBatch() {
 StatsCsvFileAppender::~StatsCsvFileAppender() {
   if (files_ == nullptr) return;
   for (const auto &[group_name, file] : *files_) {
-    CHECK_OK(RemoteFileClose(file.file));
+    FUZZTEST_CHECK_OK(RemoteFileClose(file.file));
   }
 }
 
@@ -195,7 +194,7 @@ void StatsCsvFileAppender::PreAnnounceFields(
 }
 
 void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
-  CHECK(files_ != nullptr);
+  FUZZTEST_CHECK(files_ != nullptr);
   BufferedRemoteFile &file = (*files_)[master_env.experiment_name];
   if (file.file == nullptr) {
     const std::string filename =
@@ -208,20 +207,21 @@ void StatsCsvFileAppender::SetCurrGroup(const Environment &master_env) {
     bool append = false;
     if (RemotePathExists(filename)) {
       std::string contents;
-      CHECK_OK(RemoteFileGetContents(filename, contents));
+      FUZZTEST_CHECK_OK(RemoteFileGetContents(filename, contents));
       // NOTE: `csv_header_` ends with '\n', so the match is exact.
       if (absl::StartsWith(contents, csv_header_)) {
         append = true;
       } else {
         append = false;
-        CHECK_OK(RemoteFileSetContents(GetBackupFilename(filename), contents));
+        FUZZTEST_CHECK_OK(
+            RemoteFileSetContents(GetBackupFilename(filename), contents));
       }
     }
     file.file = *RemoteFileOpen(filename, append ? "a" : "w");
-    CHECK(file.file != nullptr) << VV(filename);
+    FUZZTEST_CHECK(file.file != nullptr) << VV(filename);
     if (!append) {
-      CHECK_OK(RemoteFileAppend(file.file, csv_header_));
-      CHECK_OK(RemoteFileFlush(file.file));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(file.file, csv_header_));
+      FUZZTEST_CHECK_OK(RemoteFileFlush(file.file));
     }
   }
   // This is OK even though hash maps provide no pointer stability because the
@@ -245,7 +245,7 @@ void StatsCsvFileAppender::ReportCurrFieldSample(
   }
   double avg = !values.empty() ? (1.0 * sum / values.size()) : 0;
 
-  CHECK(curr_file_ != nullptr);
+  FUZZTEST_CHECK(curr_file_ != nullptr);
   std::string &values_str = curr_file_->buffer;
   if (curr_field_info_.traits & TraitBits::kMin)
     absl::StrAppendFormat(&values_str, "%" PRIu64 ",", min);
@@ -263,10 +263,11 @@ void StatsCsvFileAppender::ReportFlags(const GroupToFlags &group_to_flags) {
 }
 
 void StatsCsvFileAppender::DoneFieldSamplesBatch() {
-  CHECK(files_ != nullptr);
+  FUZZTEST_CHECK(files_ != nullptr);
   for (auto &[group_name, file] : *files_) {
-    CHECK_OK(RemoteFileAppend(file.file, absl::StrCat(file.buffer, "\n")));
-    CHECK_OK(RemoteFileFlush(file.file));
+    FUZZTEST_CHECK_OK(
+        RemoteFileAppend(file.file, absl::StrCat(file.buffer, "\n")));
+    FUZZTEST_CHECK_OK(RemoteFileFlush(file.file));
     file.buffer.clear();
   }
 }
@@ -286,7 +287,7 @@ std::string StatsCsvFileAppender::GetBackupFilename(
 void PrintRewardValues(absl::Span<const std::atomic<Stats>> stats_vec,
                        std::ostream &os) {
   size_t n = stats_vec.size();
-  CHECK_GT(n, 0);
+  FUZZTEST_CHECK_GT(n, 0);
   std::vector<size_t> num_covered_pcs(n);
   for (size_t i = 0; i < n; ++i) {
     num_covered_pcs[i] = stats_vec[i].load().num_covered_pcs;

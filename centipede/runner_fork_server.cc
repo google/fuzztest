@@ -84,8 +84,8 @@ void Log(const char *absl_nonnull str) {
 }
 
 // Maybe writes the `reason` to stderr; then calls _exit. We use this instead of
-// CHECK/RunnerCheck since the fork server runs at the very early stage of the
-// process, where the logging functions used there may not work.
+// FUZZTEST_CHECK/RunnerCheck since the fork server runs at the very early stage
+// of the process, where the logging functions used there may not work.
 void Exit(const char *absl_nonnull reason) {
   Log(reason);
   _exit(0);  // The exit code does not matter, it won't be checked anyway.

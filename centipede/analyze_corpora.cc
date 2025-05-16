@@ -24,8 +24,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/corpus.h"
@@ -48,17 +46,17 @@ std::vector<CorpusRecord> ReadCorpora(std::string_view binary_name,
   WorkDir workdir(std::string(workdir_path), std::string(binary_name),
                   std::string(binary_hash), /*my_shard_index=*/0);
   std::vector<std::string> corpus_paths;
-  CHECK_OK(
+  FUZZTEST_CHECK_OK(
       RemoteGlobMatch(workdir.CorpusFilePaths().AllShardsGlob(), corpus_paths));
   std::vector<std::string> features_paths;
-  CHECK_OK(RemoteGlobMatch(workdir.FeaturesFilePaths().AllShardsGlob(),
-                           features_paths));
+  FUZZTEST_CHECK_OK(RemoteGlobMatch(workdir.FeaturesFilePaths().AllShardsGlob(),
+                                    features_paths));
 
-  CHECK_EQ(corpus_paths.size(), features_paths.size());
+  FUZZTEST_CHECK_EQ(corpus_paths.size(), features_paths.size());
   std::vector<CorpusRecord> corpus;
   for (int i = 0; i < corpus_paths.size(); ++i) {
-    LOG(INFO) << "Reading corpus at: " << corpus_paths[i];
-    LOG(INFO) << "Reading features at: " << features_paths[i];
+    FUZZTEST_LOG(INFO) << "Reading corpus at: " << corpus_paths[i];
+    FUZZTEST_LOG(INFO) << "Reading features at: " << features_paths[i];
     ReadShard(corpus_paths[i], features_paths[i],
               [&corpus](ByteArray input, FeatureVec features) {
                 corpus.push_back({std::move(input), std::move(features)});
@@ -126,9 +124,10 @@ AnalyzeCorporaResults AnalyzeCorpora(const BinaryInfo &binary_info,
       a_only_pcs.insert(pc);
     }
   }
-  LOG(INFO) << VV(a.size()) << VV(b.size()) << VV(a_pcs.size())
-            << VV(a_only_pcs.size()) << VV(b_only_pcs.size())
-            << VV(b_shared_indices.size()) << VV(b_unique_indices.size());
+  FUZZTEST_LOG(INFO) << VV(a.size()) << VV(b.size()) << VV(a_pcs.size())
+                     << VV(a_only_pcs.size()) << VV(b_only_pcs.size())
+                     << VV(b_shared_indices.size())
+                     << VV(b_unique_indices.size());
 
   // Sort PCs to put them in the canonical order, as in pc_table.
   AnalyzeCorporaResults ret;
@@ -178,7 +177,7 @@ CoverageResults GetCoverage(std::string_view binary_name,
 
 void DumpCoverageReport(const CoverageResults &coverage_results,
                         std::string_view coverage_report_path) {
-  LOG(INFO) << "Dump coverage to file: " << coverage_report_path;
+  FUZZTEST_LOG(INFO) << "Dump coverage to file: " << coverage_report_path;
 
   const fuzztest::internal::PCTable &pc_table =
       coverage_results.binary_info.pc_table;
@@ -187,7 +186,7 @@ void DumpCoverageReport(const CoverageResults &coverage_results,
 
   fuzztest::internal::SymbolTable coverage_symbol_table;
   for (const PCIndex pc : coverage_results.pcs) {
-    CHECK_LE(pc, symbols.size());
+    FUZZTEST_CHECK_LE(pc, symbols.size());
     if (!pc_table[pc].has_flag(fuzztest::internal::PCInfo::kFuncEntry))
       continue;
     const SymbolTable::Entry entry = symbols.entry(pc);
@@ -197,7 +196,7 @@ void DumpCoverageReport(const CoverageResults &coverage_results,
   std::ostringstream symbol_table_stream;
   coverage_symbol_table.WriteToLLVMSymbolizer(symbol_table_stream);
 
-  CHECK_OK(
+  FUZZTEST_CHECK_OK(
       RemoteFileSetContents(coverage_report_path, symbol_table_stream.str()));
 }
 
@@ -210,8 +209,9 @@ AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
   BinaryInfo binary_info_b =
       ReadBinaryInfo(binary_name, binary_hash, workdir_b);
 
-  CHECK_EQ(binary_info_a.pc_table.size(), binary_info_b.pc_table.size());
-  CHECK_EQ(binary_info_a.symbols.size(), binary_info_b.symbols.size());
+  FUZZTEST_CHECK_EQ(binary_info_a.pc_table.size(),
+                    binary_info_b.pc_table.size());
+  FUZZTEST_CHECK_EQ(binary_info_a.symbols.size(), binary_info_b.symbols.size());
 
   const std::vector<CorpusRecord> a =
       ReadCorpora(binary_name, binary_hash, workdir_a);
@@ -235,26 +235,26 @@ void AnalyzeCorporaToLog(std::string_view binary_name,
   CoverageLogger coverage_logger(pc_table, symbols);
 
   // TODO(kcc): use frontier_a to show the most interesting b-only PCs.
-  // TODO(kcc): these cause a CHECK-fail
+  // TODO(kcc): these cause a FUZZTEST_CHECK-fail
   // CoverageFrontier frontier_a(results.binary_info);
   // frontier_a.Compute(a);
 
   // First, print the newly covered functions (including partially covered).
-  LOG(INFO) << "B-only new functions:";
+  FUZZTEST_LOG(INFO) << "B-only new functions:";
   absl::flat_hash_set<std::string_view> b_only_new_functions;
   for (const auto pc : results.b_only_pcs) {
     if (!pc_table[pc].has_flag(PCInfo::kFuncEntry)) continue;
     auto str = coverage_logger.ObserveAndDescribeIfNew(pc);
-    if (!str.empty()) LOG(INFO).NoPrefix() << str;
+    if (!str.empty()) FUZZTEST_LOG(INFO).NoPrefix() << str;
     b_only_new_functions.insert(symbols.func(pc));
   }
 
   // Now, print newly covered edges in functions that were covered in `a`.
-  LOG(INFO) << "B-only new edges:";
+  FUZZTEST_LOG(INFO) << "B-only new edges:";
   for (const auto pc : results.b_only_pcs) {
     if (b_only_new_functions.contains(symbols.func(pc))) continue;
     auto str = coverage_logger.ObserveAndDescribeIfNew(pc);
-    if (!str.empty()) LOG(INFO).NoPrefix() << str;
+    if (!str.empty()) FUZZTEST_LOG(INFO).NoPrefix() << str;
   }
 }
 

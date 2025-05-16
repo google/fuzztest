@@ -25,6 +25,7 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/logging.h"
@@ -88,9 +89,9 @@ class OverlapOfImpl
         Switch<kNumDomains>(mutation_index, [&](auto I) {
           auto& domain = std::get<I>(domains_);
           auto inner_corpus = domain.FromValue(*orig_value);
-          FUZZTEST_INTERNAL_CHECK(inner_corpus.has_value(),
-                                  "Mutate() called on a user value that is not "
-                                  "valid in all overlapping domains");
+          FUZZTEST_CHECK(inner_corpus.has_value())
+              << "Mutate() called on a user value that is not "
+                 "valid in all overlapping domains";
           domain.Mutate(*inner_corpus, prng, metadata, only_shrink);
           mutant_corpus =
               corpus_type(std::in_place_index<I>, *std::move(inner_corpus));
@@ -103,8 +104,8 @@ class OverlapOfImpl
                         only_shrink);
         });
       }
-      FUZZTEST_INTERNAL_CHECK(mutant_corpus.has_value(),
-                              "mutant corpus value is missing");
+      FUZZTEST_CHECK(mutant_corpus.has_value())
+          << "mutant corpus value is missing";
       const bool valid =
           ValidateCorpusValueForOtherDomains(*mutant_corpus).ok();
       MaybeReportOnValidationResult(valid);
@@ -169,9 +170,9 @@ class OverlapOfImpl
     return Switch<kNumDomains>(*serialization_domain_index_, [&](auto I) {
       auto& domain = std::get<I>(domains_);
       const auto inner_corpus = domain.FromValue(user_value);
-      FUZZTEST_INTERNAL_CHECK(inner_corpus.has_value(),
-                              "Mutate() called on a user value that is not "
-                              "valid in all overlapping domains");
+      FUZZTEST_CHECK(inner_corpus.has_value())
+          << "Mutate() called on a user value that is not "
+             "valid in all overlapping domains";
       return domain.SerializeCorpus(*inner_corpus);
     });
   }
@@ -199,10 +200,8 @@ class OverlapOfImpl
   size_t num_validation_failures_ = 0;
 
   OverlapOfImpl& WithSerializationDomain(size_t index) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        index < kNumDomains,
-        absl::StrFormat("Serialization domain index must be less than %d",
-                        kNumDomains));
+    FUZZTEST_PRECONDITION(index < kNumDomains)
+        << "Serialization domain index must be less than " << kNumDomains;
     serialization_domain_index_ = index;
     return *this;
   }
@@ -235,18 +234,19 @@ class OverlapOfImpl
     ++num_validation_attempts_;
     if (!succeeded) {
       ++num_validation_failures_;
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
+      FUZZTEST_PRECONDITION(
           num_validation_attempts_ <= 100 ||
-              static_cast<double>(num_validation_failures_) <=
-                  .9 * static_cast<double>(num_validation_attempts_),
-          absl::StrFormat(R"(
+          static_cast<double>(num_validation_failures_) <=
+              .9 * static_cast<double>(num_validation_attempts_))
+          << absl::StrFormat(R"(
 
 [!] Ineffective use of overlapping domains detected!
 
 Values were not valid on all of the overlapping domains on more than 90%% of the samples.
 %d out of %d have failed.
 )",
-                          num_validation_failures_, num_validation_attempts_));
+                             num_validation_failures_,
+                             num_validation_attempts_);
     }
   }
 };

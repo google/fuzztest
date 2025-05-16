@@ -64,8 +64,6 @@
 #include "absl/base/const_init.h"  // NOLINT
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -132,15 +130,15 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
           /*raii_actions=*/RUsageProfiler::kRaiiOff,
           /*location=*/{__FILE__, __LINE__},
           /*description=*/"Engine") {
-  CHECK(env_.seed) << "env_.seed must not be zero";
+  FUZZTEST_CHECK(env_.seed) << "env_.seed must not be zero";
   if (!env_.input_filter.empty() && env_.fork_server)
     input_filter_cmd_.StartForkServer(TemporaryLocalDirPath(), "input_filter");
 }
 
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
   std::vector<std::string> sharded_corpus_files;
-  CHECK_OK(RemoteGlobMatch(WorkDir{env}.CorpusFilePaths().AllShardsGlob(),
-                           sharded_corpus_files));
+  FUZZTEST_CHECK_OK(RemoteGlobMatch(
+      WorkDir{env}.CorpusFilePaths().AllShardsGlob(), sharded_corpus_files));
   ExportCorpus(sharded_corpus_files, dir);
 }
 
@@ -161,7 +159,7 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
   // If the destination `workdir` is specified (note that empty means "use the
   // current directory"), we might need to create it.
   if (!env.workdir.empty()) {
-    CHECK_OK(RemoteMkdir(env.workdir));
+    FUZZTEST_CHECK_OK(RemoteMkdir(env.workdir));
   }
 
   // Iterate over all shards, adding inputs to the current shard.
@@ -184,23 +182,23 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
     }
     // Add inputs to the current shard, if the shard doesn't have them already.
     auto appender = DefaultBlobFileWriterFactory(env.riegeli);
-    CHECK_OK(appender->Open(corpus_file_path, "a"))
+    FUZZTEST_CHECK_OK(appender->Open(corpus_file_path, "a"))
         << "Failed to open corpus file: " << corpus_file_path;
     ByteArray shard_data;
     for (const auto &path : sharded_paths[shard]) {
       std::string input;
-      CHECK_OK(RemoteFileGetContents(path, input));
+      FUZZTEST_CHECK_OK(RemoteFileGetContents(path, input));
       if (input.empty() || existing_hashes.contains(Hash(input))) {
         ++inputs_ignored;
         continue;
       }
-      CHECK_OK(appender->Write(ByteArray{input.begin(), input.end()}));
+      FUZZTEST_CHECK_OK(appender->Write(ByteArray{input.begin(), input.end()}));
       ++inputs_added;
     }
-    LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
-              << VV(num_shard_bytes) << VV(shard_data.size());
+    FUZZTEST_LOG(INFO) << VV(shard) << VV(inputs_added) << VV(inputs_ignored)
+                       << VV(num_shard_bytes) << VV(shard_data.size());
   }
-  CHECK_EQ(total_paths, inputs_added + inputs_ignored);
+  FUZZTEST_CHECK_EQ(total_paths, inputs_added + inputs_ignored);
 }
 
 absl::Status Centipede::CrashesToFiles(const Environment &env,
@@ -228,7 +226,7 @@ absl::Status Centipede::CrashesToFiles(const Environment &env,
           (std::filesystem::path{dir} / absl::StrCat(id, ".data")).string()));
       const auto shard_index = wd.CrashReproducerDirPaths().GetShardIndex(
           std::filesystem::path{reproducer_path}.parent_path().string());
-      CHECK(shard_index.has_value());
+      FUZZTEST_CHECK(shard_index.has_value());
       const auto metadata_dir = wd.CrashMetadataDirPaths().Shard(*shard_index);
       const auto description_filename = absl::StrCat(id, ".desc");
       const auto signature_filename = absl::StrCat(id, ".sig");
@@ -339,7 +337,7 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
   os << " exec/s: "
      << (execs_per_sec < 1.0 ? execs_per_sec : std::round(execs_per_sec));
   os << " mb: " << (rusage_memory.mem_rss >> 20);
-  LOG(INFO) << os.str();
+  FUZZTEST_LOG(INFO) << os.str();
 }
 
 void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
@@ -349,7 +347,7 @@ void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
     PCIndex pc_index = ConvertPCFeatureToPcIndex(feature);
     auto description = coverage_logger_.ObserveAndDescribeIfNew(pc_index);
     if (description.empty()) continue;
-    LOG(INFO) << description;
+    FUZZTEST_LOG(INFO) << description;
   }
 }
 
@@ -417,7 +415,7 @@ bool Centipede::RunBatch(
     BlobFileWriter *absl_nullable unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
-  CHECK_EQ(input_vec.size(), batch_result.results().size());
+  FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   for (const auto &extra_binary : env_.extra_binaries) {
     if (ShouldStop()) break;
@@ -428,11 +426,11 @@ bool Centipede::RunBatch(
   }
   if (EarlyStopRequested()) return false;
   if (!success && env_.exit_on_crash) {
-    LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
+    FUZZTEST_LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
     RequestEarlyStop(EXIT_FAILURE);
     return false;
   }
-  CHECK_EQ(batch_result.results().size(), input_vec.size());
+  FUZZTEST_CHECK_EQ(batch_result.results().size(), input_vec.size());
   num_runs_ += input_vec.size();
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < input_vec.size(); i++) {
@@ -443,7 +441,7 @@ bool Centipede::RunBatch(
     if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
       input_gained_new_coverage = true;
     if (unconditional_features_file != nullptr) {
-      CHECK_OK(unconditional_features_file->Write(
+      FUZZTEST_CHECK_OK(unconditional_features_file->Write(
           PackFeaturesAndHash(input_vec[i], fv)));
     }
     if (input_gained_new_coverage) {
@@ -452,19 +450,20 @@ bool Centipede::RunBatch(
       fs_.IncrementFrequencies(fv);
       LogFeaturesAsSymbols(fv);
       batch_gained_new_coverage = true;
-      CHECK_GT(fv.size(), 0UL);
+      FUZZTEST_CHECK_GT(fv.size(), 0UL);
       if (function_filter_passed) {
         corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(), fs_,
                     coverage_frontier_);
       }
       if (corpus_file != nullptr) {
-        CHECK_OK(corpus_file->Write(input_vec[i]));
+        FUZZTEST_CHECK_OK(corpus_file->Write(input_vec[i]));
       }
       if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
         WriteToLocalHashedFileInDir(env_.corpus_dir[0], input_vec[i]);
       }
       if (features_file != nullptr) {
-        CHECK_OK(features_file->Write(PackFeaturesAndHash(input_vec[i], fv)));
+        FUZZTEST_CHECK_OK(
+            features_file->Write(PackFeaturesAndHash(input_vec[i], fv)));
       }
     }
   }
@@ -474,8 +473,8 @@ bool Centipede::RunBatch(
 // TODO(kcc): [impl] don't reread the same corpus twice.
 void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
                           bool rerun) {
-  VLOG(1) << "Loading shard " << shard_index
-          << (rerun ? " with rerunning" : " without rerunning");
+  FUZZTEST_VLOG(1) << "Loading shard " << shard_index
+                   << (rerun ? " with rerunning" : " without rerunning");
   size_t num_added_inputs = 0;
   size_t num_skipped_inputs = 0;
   std::vector<ByteArray> inputs_to_rerun;
@@ -491,14 +490,14 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
       const auto num_new_features =
           fs_.PruneFeaturesAndCountUnseen(input_features);
       if (num_new_features != 0) {
-        VLOG(10) << "Adding input " << Hash(input)
-                 << "; new features: " << num_new_features;
+        FUZZTEST_VLOG(10) << "Adding input " << Hash(input)
+                          << "; new features: " << num_new_features;
         fs_.IncrementFrequencies(input_features);
         // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
         corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
         ++num_added_inputs;
       } else {
-        VLOG(10) << "Skipping input: " << Hash(input);
+        FUZZTEST_VLOG(10) << "Skipping input: " << Hash(input);
         ++num_skipped_inputs;
       }
     }
@@ -517,8 +516,9 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
     ReadShard(corpus_path, features_path, input_features_callback);
   }
 
-  VLOG(1) << "Loaded shard " << shard_index << ": added " << num_added_inputs
-          << " / skipped " << num_skipped_inputs << " inputs";
+  FUZZTEST_VLOG(1) << "Loaded shard " << shard_index << ": added "
+                   << num_added_inputs << " / skipped " << num_skipped_inputs
+                   << " inputs";
 
   if (num_added_inputs > 0) UpdateAndMaybeLogStats("load-shard", 1);
   if (!inputs_to_rerun.empty()) Rerun(inputs_to_rerun);
@@ -536,7 +536,8 @@ void Centipede::LoadAllShardsInRandomOrder(const Environment &load_env,
   for (size_t shard_idx : shard_idxs) {
     const bool rerun = rerun_my_shard && shard_idx == env_.my_shard_index;
     LoadShard(load_env, shard_idx, rerun);
-    LOG_IF(INFO, (++num_shards_loaded % 100) == 0) << VV(num_shards_loaded);
+    FUZZTEST_LOG_IF(INFO, (++num_shards_loaded % 100) == 0)
+        << VV(num_shards_loaded);
   }
 }
 
@@ -544,9 +545,9 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   if (to_rerun.empty()) return;
   auto features_file_path = wd_.FeaturesFilePaths().Shard(env_.my_shard_index);
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
-  CHECK_OK(features_file->Open(features_file_path, "a"));
+  FUZZTEST_CHECK_OK(features_file->Open(features_file_path, "a"));
 
-  LOG(INFO) << to_rerun.size() << " inputs to rerun";
+  FUZZTEST_LOG(INFO) << to_rerun.size() << " inputs to rerun";
   // Re-run all inputs for which we don't know their features.
   // Run in batches of at most env_.batch_size inputs each.
   while (!to_rerun.empty()) {
@@ -565,8 +566,8 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
   if (pc_table_.empty()) return;
 
   auto coverage_path = wd_.CoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate coverage report [" << description << "]; "
-            << VV(coverage_path);
+  FUZZTEST_LOG(INFO) << "Generate coverage report [" << description << "]; "
+                     << VV(coverage_path);
   auto pci_vec = fs_.ToCoveragePCs();
   Coverage coverage(pc_table_, pci_vec);
   coverage.DumpReportToFile(symbols_, coverage_path, description);
@@ -575,8 +576,8 @@ void Centipede::GenerateCoverageReport(std::string_view filename_annotation,
 void Centipede::GenerateCorpusStats(std::string_view filename_annotation,
                                     std::string_view description) {
   auto stats_path = wd_.CorpusStatsPath(filename_annotation);
-  LOG(INFO) << "Generate corpus stats [" << description << "]; "
-            << VV(stats_path);
+  FUZZTEST_LOG(INFO) << "Generate corpus stats [" << description << "]; "
+                     << VV(stats_path);
   corpus_.DumpStatsToFile(fs_, stats_path, description);
 }
 
@@ -586,14 +587,14 @@ void Centipede::GenerateSourceBasedCoverageReport(
   if (env_.clang_coverage_binary.empty()) return;
 
   auto report_path = wd_.SourceBasedCoverageReportPath(filename_annotation);
-  LOG(INFO) << "Generate source based coverage report [" << description << "]; "
-            << VV(report_path);
-  CHECK_OK(RemoteMkdir(report_path));
+  FUZZTEST_LOG(INFO) << "Generate source based coverage report [" << description
+                     << "]; " << VV(report_path);
+  FUZZTEST_CHECK_OK(RemoteMkdir(report_path));
 
   std::vector<std::string> raw_profiles = wd_.EnumerateRawCoverageProfiles();
 
   if (raw_profiles.empty()) {
-    LOG(ERROR) << "No raw profiles found for coverage report";
+    FUZZTEST_LOG(ERROR) << "No raw profiles found for coverage report";
     return;
   }
 
@@ -610,7 +611,7 @@ void Centipede::GenerateSourceBasedCoverageReport(
   merge_cmd_options.args = std::move(merge_arguments);
   Command merge_command{"llvm-profdata", std::move(merge_cmd_options)};
   if (merge_command.Execute() != EXIT_SUCCESS) {
-    LOG(ERROR) << "Failed to run command " << merge_command.ToString();
+    FUZZTEST_LOG(ERROR) << "Failed to run command " << merge_command.ToString();
     return;
   }
 
@@ -622,8 +623,8 @@ void Centipede::GenerateSourceBasedCoverageReport(
   Command generate_report_command{"llvm-cov",
                                   std::move(generate_report_cmd_options)};
   if (generate_report_command.Execute() != EXIT_SUCCESS) {
-    LOG(ERROR) << "Failed to run command "
-               << generate_report_command.ToString();
+    FUZZTEST_LOG(ERROR) << "Failed to run command "
+                        << generate_report_command.ToString();
     return;
   }
 }
@@ -634,15 +635,16 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
    public:
     explicit ReportDumper(std::string_view path)
         : file_{*RemoteFileOpen(path, "w")} {
-      CHECK(file_ != nullptr) << VV(path);
-      CHECK_OK(RemoteFileSetWriteBufferSize(file_, 10UL * 1024 * 1024));
+      FUZZTEST_CHECK(file_ != nullptr) << VV(path);
+      FUZZTEST_CHECK_OK(
+          RemoteFileSetWriteBufferSize(file_, 10UL * 1024 * 1024));
     }
 
-    ~ReportDumper() override { CHECK_OK(RemoteFileClose(file_)); }
+    ~ReportDumper() override { FUZZTEST_CHECK_OK(RemoteFileClose(file_)); }
 
     ReportDumper &operator<<(std::string_view fragment) override {
-      CHECK_OK(RemoteFileAppend(file_,
-                                ByteArray{fragment.cbegin(), fragment.cend()}));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(
+          file_, ByteArray{fragment.cbegin(), fragment.cend()}));
       return *this;
     }
 
@@ -652,10 +654,11 @@ void Centipede::GenerateRUsageReport(std::string_view filename_annotation,
 
   const auto &snapshot = rusage_profiler_.TakeSnapshot(
       {__FILE__, __LINE__}, std::string{description});
-  VLOG(1) << "Rusage @ " << description << ": " << snapshot.ShortMetricsStr();
+  FUZZTEST_VLOG(1) << "Rusage @ " << description << ": "
+                   << snapshot.ShortMetricsStr();
   auto path = wd_.RUsageReportPath(filename_annotation);
-  LOG(INFO) << "Generate rusage report [" << description << "]; "
-            << VV(env_.my_shard_index) << VV(path);
+  FUZZTEST_LOG(INFO) << "Generate rusage report [" << description << "]; "
+                     << VV(env_.my_shard_index) << VV(path);
   ReportDumper dumper{path};
   rusage_profiler_.GenerateReport(&dumper);
 }
@@ -682,22 +685,23 @@ void Centipede::MaybeGenerateTelemetryAfterBatch(
 
 void Centipede::MergeFromOtherCorpus(std::string_view merge_from_dir,
                                      size_t shard_index_to_merge) {
-  LOG(INFO) << __func__ << ": " << merge_from_dir;
+  FUZZTEST_LOG(INFO) << __func__ << ": " << merge_from_dir;
   Environment merge_from_env = env_;
   merge_from_env.workdir = merge_from_dir;
   size_t initial_corpus_size = corpus_.NumActive();
   LoadShard(merge_from_env, shard_index_to_merge, /*rerun=*/true);
   size_t new_corpus_size = corpus_.NumActive();
-  CHECK_GE(new_corpus_size, initial_corpus_size);  // Corpus can't shrink here.
+  FUZZTEST_CHECK_GE(new_corpus_size,
+                    initial_corpus_size);  // Corpus can't shrink here.
   if (new_corpus_size > initial_corpus_size) {
     auto appender = DefaultBlobFileWriterFactory(env_.riegeli);
-    CHECK_OK(
+    FUZZTEST_CHECK_OK(
         appender->Open(wd_.CorpusFilePaths().Shard(env_.my_shard_index), "a"));
     for (size_t idx = initial_corpus_size; idx < new_corpus_size; ++idx) {
-      CHECK_OK(appender->Write(corpus_.Get(idx)));
+      FUZZTEST_CHECK_OK(appender->Write(corpus_.Get(idx)));
     }
-    LOG(INFO) << "Merge: " << (new_corpus_size - initial_corpus_size)
-              << " new inputs added";
+    FUZZTEST_LOG(INFO) << "Merge: " << (new_corpus_size - initial_corpus_size)
+                       << " new inputs added";
   }
 }
 
@@ -712,16 +716,16 @@ void Centipede::ReloadAllShardsAndWriteDistilledCorpus() {
   // Save the distilled corpus to a file in workdir and possibly to a hashed
   // file in the first corpus dir passed in `--corpus_dir`.
   const auto distill_to_path = wd_.DistilledCorpusFilePaths().MyShard();
-  LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
-            << " output: " << distill_to_path << " "
-            << " distilled size: " << corpus_.NumActive();
+  FUZZTEST_LOG(INFO) << "Distilling: shard: " << env_.my_shard_index
+                     << " output: " << distill_to_path << " "
+                     << " distilled size: " << corpus_.NumActive();
   const auto appender = DefaultBlobFileWriterFactory(env_.riegeli);
   // NOTE: Always overwrite distilled corpus files -- never append, unlike
   // "regular", per-shard corpus files.
-  CHECK_OK(appender->Open(distill_to_path, "w"));
+  FUZZTEST_CHECK_OK(appender->Open(distill_to_path, "w"));
   for (size_t i = 0; i < corpus_.NumActive(); ++i) {
     const ByteArray &input = corpus_.Get(i);
-    CHECK_OK(appender->Write(input));
+    FUZZTEST_CHECK_OK(appender->Write(input));
     if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
       WriteToLocalHashedFileInDir(env_.corpus_dir[0], input);
     }
@@ -734,21 +738,22 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
   const size_t num_seeds_available =
       user_callbacks_.GetSeeds(env_.batch_size, seed_inputs);
   if (num_seeds_available > env_.batch_size) {
-    LOG(WARNING) << "More seeds available than requested: "
-                 << num_seeds_available << " > " << env_.batch_size;
+    FUZZTEST_LOG(WARNING) << "More seeds available than requested: "
+                          << num_seeds_available << " > " << env_.batch_size;
   }
   if (seed_inputs.empty()) {
-    QCHECK(!env_.require_seeds)
+    FUZZTEST_QCHECK(!env_.require_seeds)
         << "No seeds returned and --require_seeds=true, exiting early.";
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "No seeds returned - will use the default seed of single byte {0}";
     seed_inputs.push_back({0});
   }
 
   RunBatch(seed_inputs, corpus_file, features_file,
            /*unconditional_features_file=*/nullptr);
-  LOG(INFO) << "Number of input seeds available: " << num_seeds_available
-            << ", number included in corpus: " << corpus_.NumTotal();
+  FUZZTEST_LOG(INFO) << "Number of input seeds available: "
+                     << num_seeds_available
+                     << ", number included in corpus: " << corpus_.NumTotal();
 
   // Forcely add all seed inputs to avoid empty corpus if none of them increased
   // coverage and passed the filters.
@@ -759,9 +764,10 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
 }
 
 void Centipede::FuzzingLoop() {
-  LOG(INFO) << "Shard: " << env_.my_shard_index << "/" << env_.total_shards
-            << " " << TemporaryLocalDirPath() << " "
-            << "seed: " << env_.seed << "\n\n\n";
+  FUZZTEST_LOG(INFO) << "Shard: " << env_.my_shard_index << "/"
+                     << env_.total_shards << " " << TemporaryLocalDirPath()
+                     << " "
+                     << "seed: " << env_.seed << "\n\n\n";
 
   UpdateAndMaybeLogStats("begin-fuzz", 0);
 
@@ -780,10 +786,10 @@ void Centipede::FuzzingLoop() {
 
   auto corpus_path = wd_.CorpusFilePaths().Shard(env_.my_shard_index);
   auto corpus_file = DefaultBlobFileWriterFactory(env_.riegeli);
-  CHECK_OK(corpus_file->Open(corpus_path, "a"));
+  FUZZTEST_CHECK_OK(corpus_file->Open(corpus_path, "a"));
   auto features_path = wd_.FeaturesFilePaths().Shard(env_.my_shard_index);
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
-  CHECK_OK(features_file->Open(features_path, "a"));
+  FUZZTEST_CHECK_OK(features_file->Open(features_path, "a"));
 
   LoadSeedInputs(corpus_file.get(), features_file.get());
 
@@ -809,7 +815,7 @@ void Centipede::FuzzingLoop() {
   size_t corpus_size_at_last_prune = corpus_.NumActive();
   for (size_t batch_index = 0; batch_index < number_of_batches; batch_index++) {
     if (ShouldStop()) break;
-    CHECK_LT(new_runs, env_.num_runs);
+    FUZZTEST_CHECK_LT(new_runs, env_.num_runs);
     auto remaining_runs = env_.num_runs - new_runs;
     auto batch_size = std::min(env_.batch_size, remaining_runs);
     std::vector<MutationInputRef> mutation_inputs;
@@ -846,7 +852,7 @@ void Centipede::FuzzingLoop() {
       size_t rand = rng_() % (env_.total_shards - 1);
       size_t other_shard_index =
           (env_.my_shard_index + 1 + rand) % env_.total_shards;
-      CHECK_NE(other_shard_index, env_.my_shard_index);
+      FUZZTEST_CHECK_NE(other_shard_index, env_.my_shard_index);
       LoadShard(env_, other_shard_index, /*rerun=*/false);
     }
 
@@ -870,49 +876,49 @@ void Centipede::FuzzingLoop() {
 void Centipede::ReportCrash(std::string_view binary,
                             const std::vector<ByteArray> &input_vec,
                             const BatchResult &batch_result) {
-  CHECK_EQ(input_vec.size(), batch_result.results().size());
+  FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
   auto log_execution_failure = [&](std::string_view log_prefix) {
-    LOG(INFO) << log_prefix << "Batch execution failed:"
-              << "\nBinary               : " << binary
-              << "\nExit code            : " << batch_result.exit_code()
-              << "\nFailure              : "
-              << batch_result.failure_description()
-              << "\nSignature            : "
-              << AsPrintableString(AsByteSpan(batch_result.failure_signature()),
-                                   /*max_len=*/32)
-              << "\nNumber of inputs     : " << input_vec.size()
-              << "\nNumber of inputs read: " << batch_result.num_outputs_read()
-              << (batch_result.IsSetupFailure()
-                      ? ""
-                      : absl::StrCat("\nSuspect input index  : ",
-                                     suspect_input_idx))
-              << "\nCrash log            :\n\n";
+    FUZZTEST_LOG(INFO)
+        << log_prefix << "Batch execution failed:"
+        << "\nBinary               : " << binary
+        << "\nExit code            : " << batch_result.exit_code()
+        << "\nFailure              : " << batch_result.failure_description()
+        << "\nSignature            : "
+        << AsPrintableString(AsByteSpan(batch_result.failure_signature()),
+                             /*max_len=*/32)
+        << "\nNumber of inputs     : " << input_vec.size()
+        << "\nNumber of inputs read: " << batch_result.num_outputs_read()
+        << (batch_result.IsSetupFailure()
+                ? ""
+                : absl::StrCat("\nSuspect input index  : ", suspect_input_idx))
+        << "\nCrash log            :\n\n";
     for (const auto &log_line :
          absl::StrSplit(absl::StripAsciiWhitespace(batch_result.log()), '\n')) {
-      LOG(INFO).NoPrefix() << "CRASH LOG: " << log_line;
+      FUZZTEST_LOG(INFO).NoPrefix() << "CRASH LOG: " << log_line;
     }
-    LOG(INFO).NoPrefix() << "\n";
+    FUZZTEST_LOG(INFO).NoPrefix() << "\n";
   };
 
   if (batch_result.IsIgnoredFailure()) {
-    LOG(INFO) << "Skip further processing of "
-              << batch_result.failure_description();
+    FUZZTEST_LOG(INFO) << "Skip further processing of "
+                       << batch_result.failure_description();
     return;
   }
 
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");
-    LOG(INFO) << "Requesting early stop due to skipped test.";
+    FUZZTEST_LOG(INFO) << "Requesting early stop due to skipped test.";
     RequestEarlyStop(EXIT_SUCCESS);
     return;
   }
 
   if (batch_result.IsSetupFailure()) {
     log_execution_failure("Test Setup Failure: ");
-    LOG(INFO) << "Requesting early stop due to setup failure in the test.";
+    FUZZTEST_LOG(INFO)
+        << "Requesting early stop due to setup failure in the test.";
     RequestEarlyStop(EXIT_FAILURE);
     return;
   }
@@ -927,14 +933,15 @@ void Centipede::ReportCrash(std::string_view binary,
       absl::StrCat("ReportCrash[", num_crashes_, "]: ");
   log_execution_failure(log_prefix);
 
-  LOG_IF(INFO, num_crashes_ == env_.max_num_crash_reports)
+  FUZZTEST_LOG_IF(INFO, num_crashes_ == env_.max_num_crash_reports)
       << log_prefix
       << "Reached --max_num_crash_reports: further reports will be suppressed";
 
   if (batch_result.failure_description() == kExecutionFailurePerBatchTimeout) {
-    LOG(INFO) << log_prefix
-              << "Failure applies to entire batch: not executing inputs "
-                 "one-by-one, trying to find the reproducer";
+    FUZZTEST_LOG(INFO)
+        << log_prefix
+        << "Failure applies to entire batch: not executing inputs "
+           "one-by-one, trying to find the reproducer";
     return;
   }
 
@@ -952,14 +959,15 @@ void Centipede::ReportCrash(std::string_view binary,
     // primed for a crash by the sequence of inputs that preceded the crasher.
     std::iota(input_idxs_to_try.begin() + 1, input_idxs_to_try.end(), 0);
   } else {
-    LOG(INFO)
+    FUZZTEST_LOG(INFO)
         << log_prefix
         << "Skip finding the reproducer from the inputs other than the suspect";
   }
 
   // Try inputs one-by-one in the determined order.
-  LOG(INFO) << log_prefix
-            << "Executing inputs one-by-one, trying to find the reproducer";
+  FUZZTEST_LOG(INFO)
+      << log_prefix
+      << "Executing inputs one-by-one, trying to find the reproducer";
   for (auto input_idx : input_idxs_to_try) {
     if (ShouldStop()) return;
     const auto &one_input = input_vec[input_idx];
@@ -967,38 +975,38 @@ void Centipede::ReportCrash(std::string_view binary,
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
-      CHECK_OK(RemoteMkdir(crash_dir));
+      FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
       std::string input_file_path = std::filesystem::path(crash_dir) / hash;
       auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
-      CHECK_OK(RemoteMkdir(crash_metadata_dir));
+      FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
       std::string crash_metadata_path_prefix =
           std::filesystem::path(crash_metadata_dir) / hash;
-      LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
-                << "\nInput index    : " << input_idx << "\nInput bytes    : "
-                << AsPrintableString(one_input, /*max_len=*/32)
-                << "\nExit code      : " << one_input_batch_result.exit_code()
-                << "\nFailure        : "
-                << one_input_batch_result.failure_description()
-                << "\nSignature      : "
-                << AsPrintableString(
-                       AsByteSpan(one_input_batch_result.failure_signature()),
-                       /*max_len=*/32)
-                << "\nSaving input to: " << input_file_path
-                << "\nSaving crash"  //
-                << "\nmetadata to    : " << crash_metadata_path_prefix << ".*";
-      CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
-      CHECK_OK(RemoteFileSetContents(
+      FUZZTEST_LOG(INFO)
+          << log_prefix << "Detected crash-reproducing input:"
+          << "\nInput index    : " << input_idx << "\nInput bytes    : "
+          << AsPrintableString(one_input, /*max_len=*/32)
+          << "\nExit code      : " << one_input_batch_result.exit_code()
+          << "\nFailure        : "
+          << one_input_batch_result.failure_description()
+          << "\nSignature      : "
+          << AsPrintableString(
+                 AsByteSpan(one_input_batch_result.failure_signature()),
+                 /*max_len=*/32)
+          << "\nSaving input to: " << input_file_path << "\nSaving crash"  //
+          << "\nmetadata to    : " << crash_metadata_path_prefix << ".*";
+      FUZZTEST_CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
+      FUZZTEST_CHECK_OK(RemoteFileSetContents(
           absl::StrCat(crash_metadata_path_prefix, ".desc"),
           one_input_batch_result.failure_description()));
-      CHECK_OK(RemoteFileSetContents(
+      FUZZTEST_CHECK_OK(RemoteFileSetContents(
           absl::StrCat(crash_metadata_path_prefix, ".sig"),
           one_input_batch_result.failure_signature()));
       return;
     }
   }
 
-  LOG(INFO) << log_prefix
-            << "Crash was not observed when running inputs one-by-one";
+  FUZZTEST_LOG(INFO) << log_prefix
+                     << "Crash was not observed when running inputs one-by-one";
 
   // There will be cases when several inputs collectively cause a crash, but no
   // single input does. Handle this by writing out the inputs from the batch
@@ -1011,27 +1019,28 @@ void Centipede::ReportCrash(std::string_view binary,
   const auto &suspect_input = input_vec[suspect_input_idx];
   auto suspect_hash = Hash(suspect_input);
   auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
-  CHECK_OK(RemoteMkdir(crash_dir));
+  FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
   std::string crashing_batch_name =
       absl::StrCat("crashing_batch-", suspect_hash);
   std::string save_dir = std::filesystem::path(crash_dir) / crashing_batch_name;
-  CHECK_OK(RemoteMkdir(save_dir));
-  LOG(INFO) << log_prefix << "Saving used inputs from batch to: " << save_dir;
+  FUZZTEST_CHECK_OK(RemoteMkdir(save_dir));
+  FUZZTEST_LOG(INFO) << log_prefix
+                     << "Saving used inputs from batch to: " << save_dir;
   for (int i = 0; i <= suspect_input_idx; ++i) {
     const auto &one_input = input_vec[i];
     auto hash = Hash(one_input);
     std::string file_path = std::filesystem::path(save_dir).append(
         absl::StrFormat("input-%010d-%s", i, hash));
-    CHECK_OK(RemoteFileSetContents(file_path, one_input));
+    FUZZTEST_CHECK_OK(RemoteFileSetContents(file_path, one_input));
   }
   auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
-  CHECK_OK(RemoteMkdir(crash_metadata_dir));
+  FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
   std::string crash_metadata_file_path =
       std::filesystem::path(crash_metadata_dir) / crashing_batch_name;
-  LOG(INFO) << log_prefix
-            << "Saving crash metadata to: " << crash_metadata_file_path;
-  CHECK_OK(RemoteFileSetContents(crash_metadata_file_path,
-                                 batch_result.failure_description()));
+  FUZZTEST_LOG(INFO) << log_prefix << "Saving crash metadata to: "
+                     << crash_metadata_file_path;
+  FUZZTEST_CHECK_OK(RemoteFileSetContents(crash_metadata_file_path,
+                                          batch_result.failure_description()));
 }
 
 }  // namespace fuzztest::internal

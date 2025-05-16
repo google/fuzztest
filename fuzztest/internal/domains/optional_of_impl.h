@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
@@ -98,12 +99,12 @@ class OptionalOfImpl
 
   value_type GetValue(const corpus_type& v) const {
     if (v.index() == 0) {
-      FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kWithoutNull,
-                              "Value cannot be null!");
+      FUZZTEST_CHECK(policy_ != OptionalPolicy::kWithoutNull)
+          << "Value cannot be null!";
       return value_type();
     }
-    FUZZTEST_INTERNAL_CHECK(policy_ != OptionalPolicy::kAlwaysNull,
-                            "Value cannot be non-null!");
+    FUZZTEST_CHECK(policy_ != OptionalPolicy::kAlwaysNull)
+        << "Value cannot be non-null!";
     return value_type(inner_.GetValue(std::get<1>(v)));
   }
 

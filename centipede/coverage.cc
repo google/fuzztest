@@ -25,13 +25,13 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
+#include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
 
@@ -41,7 +41,7 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
     : func_entries_(pc_table.size()),
       fully_covered_funcs_vec_(pc_table.size()),
       covered_pcs_vec_(pc_table.size()) {
-  CHECK_LT(pc_table.size(), std::numeric_limits<PCIndex>::max());
+  FUZZTEST_CHECK_LT(pc_table.size(), std::numeric_limits<PCIndex>::max());
   absl::flat_hash_set<PCIndex> covered_pcs(pci_vec.begin(), pci_vec.end());
   // Iterate though all the pc_table entries.
   // The first one is some function's kFuncEntry.
@@ -51,7 +51,7 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
   // to fully_covered_funcs or uncovered_funcs correspondingly.
   // For all others add them to partially_covered_funcs.
   for (size_t this_func = 0; this_func < pc_table.size();) {
-    CHECK(pc_table[this_func].has_flag(PCInfo::kFuncEntry));
+    FUZZTEST_CHECK(pc_table[this_func].has_flag(PCInfo::kFuncEntry));
     func_entries_[this_func] = true;
     // Find next entry.
     size_t next_func = this_func + 1;
@@ -78,9 +78,10 @@ Coverage::Coverage(const PCTable &pc_table, const PCIndexVec &pci_vec)
     } else if (pcf.covered.empty()) {
       uncovered_funcs.push_back(this_func);
     } else {
-      CHECK(!pcf.covered.empty());
-      CHECK(!pcf.uncovered.empty());
-      CHECK_EQ(pcf.covered.size() + pcf.uncovered.size(), num_func_pcs);
+      FUZZTEST_CHECK(!pcf.covered.empty());
+      FUZZTEST_CHECK(!pcf.uncovered.empty());
+      FUZZTEST_CHECK_EQ(pcf.covered.size() + pcf.uncovered.size(),
+                        num_func_pcs);
       partially_covered_funcs.push_back(pcf);
     }
     // Move to the next function.
@@ -92,46 +93,51 @@ void Coverage::DumpReportToFile(const SymbolTable &symbols,
                                 std::string_view filepath,
                                 std::string_view description) {
   auto *file = ValueOrDie(RemoteFileOpen(filepath, "w"));
-  CHECK(file != nullptr) << "Failed to open file: " << filepath;
-  CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
+  FUZZTEST_CHECK(file != nullptr) << "Failed to open file: " << filepath;
+  FUZZTEST_CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
   if (!description.empty()) {
-    CHECK_OK(RemoteFileAppend(file, "# "));
-    CHECK_OK(RemoteFileAppend(file, std::string{description}));
-    CHECK_OK(RemoteFileAppend(file, ":\n\n"));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "# "));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, std::string{description}));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, ":\n\n"));
   }
   // Print symbolized function names for all covered functions.
   for (auto pc_index : fully_covered_funcs) {
-    CHECK_OK(RemoteFileAppend(file, "FULL: "));
-    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
-    CHECK_OK(RemoteFileAppend(file, "\n"));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "FULL: "));
+    FUZZTEST_CHECK_OK(
+        RemoteFileAppend(file, symbols.full_description(pc_index)));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "\n"));
   }
-  CHECK_OK(RemoteFileFlush(file));
+  FUZZTEST_CHECK_OK(RemoteFileFlush(file));
   // Same for uncovered functions.
   for (auto pc_index : uncovered_funcs) {
-    CHECK_OK(RemoteFileAppend(file, "NONE: "));
-    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
-    CHECK_OK(RemoteFileAppend(file, "\n"));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "NONE: "));
+    FUZZTEST_CHECK_OK(
+        RemoteFileAppend(file, symbols.full_description(pc_index)));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "\n"));
   }
-  CHECK_OK(RemoteFileFlush(file));
+  FUZZTEST_CHECK_OK(RemoteFileFlush(file));
   // For every partially covered function, first print its name,
   // then print its covered edges, then uncovered edges.
   for (auto &pcf : partially_covered_funcs) {
-    CHECK_OK(RemoteFileAppend(file, "PARTIAL: "));
-    CHECK_OK(RemoteFileAppend(file, symbols.full_description(pcf.covered[0])));
-    CHECK_OK(RemoteFileAppend(file, "\n"));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "PARTIAL: "));
+    FUZZTEST_CHECK_OK(
+        RemoteFileAppend(file, symbols.full_description(pcf.covered[0])));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, "\n"));
     for (auto pc_index : pcf.covered) {
-      CHECK_OK(RemoteFileAppend(file, "  + "));
-      CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
-      CHECK_OK(RemoteFileAppend(file, "\n"));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(file, "  + "));
+      FUZZTEST_CHECK_OK(
+          RemoteFileAppend(file, symbols.full_description(pc_index)));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(file, "\n"));
     }
     for (auto pc_index : pcf.uncovered) {
-      CHECK_OK(RemoteFileAppend(file, "  - "));
-      CHECK_OK(RemoteFileAppend(file, symbols.full_description(pc_index)));
-      CHECK_OK(RemoteFileAppend(file, "\n"));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(file, "  - "));
+      FUZZTEST_CHECK_OK(
+          RemoteFileAppend(file, symbols.full_description(pc_index)));
+      FUZZTEST_CHECK_OK(RemoteFileAppend(file, "\n"));
     }
   }
-  CHECK_OK(RemoteFileFlush(file));
-  CHECK_OK(RemoteFileClose(file));
+  FUZZTEST_CHECK_OK(RemoteFileFlush(file));
+  FUZZTEST_CHECK_OK(RemoteFileClose(file));
 }
 
 std::string CoverageLogger::ObserveAndDescribeIfNew(PCIndex pc_index) {
@@ -215,7 +221,7 @@ uint32_t ComputeFrontierWeight(const Coverage &coverage,
     auto cyclomatic_comp = cfg.GetCyclomaticComplexity(callee);
     // Determine knob based on callee coverage kind.
     auto callee_idx = cfg.GetPcIndex(callee);
-    CHECK(cfg.BlockIsFunctionEntry(callee_idx));
+    FUZZTEST_CHECK(cfg.BlockIsFunctionEntry(callee_idx));
     auto coverage_multiplier = SelectMultiplierByCoverageKind(
         uncovered_knob, partially_covered_knob, fully_covered_knob, callee_idx,
         coverage);

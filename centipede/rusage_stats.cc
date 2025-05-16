@@ -39,11 +39,11 @@
 #include <thread>  // NOLINT: For hardware_concurrency() only.
 
 #include "absl/base/nullability.h"
-#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -102,7 +102,7 @@ class RUsageScope::PlatformInfo {
 
   // Returns a path to the /proc/<pid>/<file> or /proc/<pid>/task/<tid>/<file>.
   [[nodiscard]] const std::string& GetProcFilePath(ProcFile file) const {
-    CHECK_LT(file, proc_file_paths_.size());
+    FUZZTEST_CHECK_LT(file, proc_file_paths_.size());
     return proc_file_paths_[file];
   }
 
@@ -366,7 +366,8 @@ RUsageTiming RUsageTiming::Snapshot(  //
   int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, scope.info().pid()};
   struct kinfo_proc info = {};
   size_t size = sizeof(info);
-  CHECK(sysctl(mib, sizeof(mib) / sizeof(mib[0]), &info, &size, NULL, 0) == 0)
+  FUZZTEST_CHECK(
+      sysctl(mib, sizeof(mib) / sizeof(mib[0]), &info, &size, NULL, 0) == 0)
       << "Error getting process information: " << strerror(errno);
   cpu_utilization = info.kp_proc.p_pctcpu;
 #else   // __APPLE__
@@ -429,7 +430,7 @@ RUsageTiming operator+(const RUsageTiming& t1, const RUsageTiming& t2) {
 }
 
 RUsageTiming operator/(const RUsageTiming& t, int64_t div) {
-  CHECK_NE(div, 0);
+  FUZZTEST_CHECK_NE(div, 0);
   // NOTE: Can't use RUsageTimingOp() as this operation is asymmetrical.
   // clang-format off
   return RUsageTiming{
@@ -519,13 +520,13 @@ RUsageMemory RUsageMemory::Snapshot(const RUsageScope& scope) {
 #ifdef __APPLE__
   if (scope.info().pid() != getpid()) return {};
   struct proc_taskinfo pti = {};
-  CHECK(proc_pidinfo(scope.info().pid(), PROC_PIDTASKINFO, 0, &pti,
-                     PROC_PIDTASKINFO_SIZE) == PROC_PIDTASKINFO_SIZE)
+  FUZZTEST_CHECK(proc_pidinfo(scope.info().pid(), PROC_PIDTASKINFO, 0, &pti,
+                              PROC_PIDTASKINFO_SIZE) == PROC_PIDTASKINFO_SIZE)
       << "Unable to get system resource information";
   vsize = pti.pti_virtual_size;
   rss = pti.pti_resident_size;
   struct rusage rusage = {};
-  CHECK(getrusage(RUSAGE_SELF, &rusage) == 0)
+  FUZZTEST_CHECK(getrusage(RUSAGE_SELF, &rusage) == 0)
       << "Failed to get memory stats by getrusage";
   // `data` and `shared` are not supported in MacOS.
   // MacOS does not have a builtin way to query the peak size of virtual memory.
@@ -608,7 +609,7 @@ RUsageMemory operator+(const RUsageMemory& m1, const RUsageMemory& m2) {
 }
 
 RUsageMemory operator/(const RUsageMemory& m, int64_t div) {
-  CHECK_NE(div, 0);
+  FUZZTEST_CHECK_NE(div, 0);
   // NOTE: Can't use RUsageMemoryOp() as this operation is asymmetrical.
   // clang-format off
   return RUsageMemory{

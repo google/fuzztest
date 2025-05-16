@@ -24,7 +24,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 
 namespace fuzztest::internal {
@@ -60,7 +59,7 @@ class ThreadPool {
 
   // Schedules a function to be run on a ThreadPool thread immediately.
   void Schedule(absl::AnyInvocable<void()> func) {
-    CHECK(func != nullptr);
+    FUZZTEST_CHECK(func != nullptr);
     absl::MutexLock l{&mu_};
     queue_.push(std::move(func));
   }

@@ -26,7 +26,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
@@ -55,7 +54,7 @@ class Coverage {
   // Returns true if the function is fully covered. pc_index is for a function
   // entry.
   bool FunctionIsFullyCovered(PCIndex pc_index) const {
-    CHECK(func_entries_[pc_index]);
+    FUZZTEST_CHECK(func_entries_[pc_index]);
     return fully_covered_funcs_vec_[pc_index];
   }
   // Returns true if the given basic block is covered. pc_index is for any BB.
