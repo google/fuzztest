@@ -21,8 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "./centipede/centipede_callbacks.h"
@@ -42,7 +40,7 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
   }
 
   if (env_.has_input_wildcards) {
-    LOG(INFO) << "Disabling custom mutator for standalone target";
+    FUZZTEST_LOG(INFO) << "Disabling custom mutator for standalone target";
     custom_mutator_is_usable_ = false;
   }
 }
@@ -85,29 +83,33 @@ std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
       if (!custom_mutator_is_usable_.has_value()) {
         custom_mutator_is_usable_ = result.has_custom_mutator();
         if (*custom_mutator_is_usable_) {
-          LOG(INFO) << "Custom mutator detected; will use it.";
+          FUZZTEST_LOG(INFO) << "Custom mutator detected; will use it.";
         } else {
-          LOG(INFO) << "Custom mutator not detected; falling back to the "
-                       "built-in mutator.";
+          FUZZTEST_LOG(INFO)
+              << "Custom mutator not detected; falling back to the "
+                 "built-in mutator.";
         }
       }
       if (*custom_mutator_is_usable_) {
         // TODO(b/398261908): Exit with failure instead of crashing.
-        CHECK(result.has_custom_mutator())
+        FUZZTEST_CHECK(result.has_custom_mutator())
             << "Test binary no longer has a custom mutator, even though it was "
                "previously detected.";
         if (!result.mutants().empty()) return std::move(result).mutants();
-        LOG_FIRST_N(WARNING, 5) << "Custom mutator returned no mutants; will "
-                                   "generate some using the built-in mutator.";
+        FUZZTEST_LOG_FIRST_N(WARNING, 5)
+            << "Custom mutator returned no mutants; will "
+               "generate some using the built-in mutator.";
       }
     } else if (ShouldStop()) {
-      LOG(WARNING) << "Custom mutator failed, but ignored since the stop "
-                      "condition it met. Possibly what triggered the stop "
-                      "condition also interrupted the mutator.";
+      FUZZTEST_LOG(WARNING)
+          << "Custom mutator failed, but ignored since the stop "
+             "condition it met. Possibly what triggered the stop "
+             "condition also interrupted the mutator.";
       // Returning whatever mutants we got before the failure.
       return std::move(result).mutants();
     } else {
-      LOG(ERROR) << "Test binary failed when asked to mutate inputs - exiting.";
+      FUZZTEST_LOG(ERROR)
+          << "Test binary failed when asked to mutate inputs - exiting.";
       RequestEarlyStop(EXIT_FAILURE);
       return {};
     }

@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
@@ -53,15 +54,13 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
                          IntegerDictionary<T>, bool>;
 
   explicit InRangeImpl(T min, T max) : min_(min), max_(max) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        min <= max, "min must be less than or equal to max!");
+    FUZZTEST_PRECONDITION(min <= max)
+        << "min must be less than or equal to max!";
     if constexpr (!T_is_integer) {
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-          !(min == std::numeric_limits<T>::lowest() &&
-            max == std::numeric_limits<T>::max()),
-          "Consider using the Finite<T>() domain instead.");
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(std::isfinite(max - min),
-                                           "Range is too large!");
+      FUZZTEST_PRECONDITION(!(min == std::numeric_limits<T>::lowest() &&
+                              max == std::numeric_limits<T>::max()))
+          << "Consider using the Finite<T>() domain instead.";
+      FUZZTEST_PRECONDITION(std::isfinite(max - min)) << "Range is too large!";
     }
     if constexpr (T_is_integer) {
       // Find the longest common prefix

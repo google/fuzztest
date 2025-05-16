@@ -24,11 +24,11 @@
 #include <utility>
 
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
+#include "./common/logging.h"
 #include "./common/test_util.h"
 
 namespace fuzztest::internal {
@@ -96,7 +96,7 @@ TEST(CommandDeathTest, Execute) {
     Command self_sigint{"bash -c 'kill -SIGINT $$'"};
     self_sigint.Execute();
     if (ShouldStop()) {
-      LOG(INFO) << "Early stop requested";
+      FUZZTEST_LOG(INFO) << "Early stop requested";
       exit(ExitCode());
     }
   };

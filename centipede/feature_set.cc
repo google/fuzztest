@@ -21,7 +21,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/feature.h"
@@ -102,10 +101,10 @@ FeatureSet::ComputeWeight(const FeatureVec &features) const {
     // The less frequent is the domain, the more valuable are its features.
     auto domain_id = feature_domains::Domain::FeatureToDomainId(feature);
     auto features_in_domain = features_per_domain_[domain_id];
-    CHECK(features_in_domain);
+    FUZZTEST_CHECK(features_in_domain);
     auto domain_weight = num_features_ / features_in_domain;
     auto feature_frequency = frequencies_[feature];
-    CHECK_GT(feature_frequency, 0)
+    FUZZTEST_CHECK_GT(feature_frequency, 0)
         << VV(feature) << VV(domain_id) << VV(features_in_domain)
         << VV(domain_weight) << VV((int)feature_frequency) << DebugString();
     weight += domain_weight * (256 / feature_frequency);

@@ -35,6 +35,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -145,8 +146,8 @@ struct Value {
   Value(const Domain& domain, T user_value)
       : corpus_value([&]() {
           auto corpus_value = domain.FromValue(user_value);
-          FUZZTEST_INTERNAL_CHECK_PRECONDITION(corpus_value.has_value(),
-                                               "Invalid user_value!");
+          FUZZTEST_PRECONDITION(corpus_value.has_value())
+              << "Invalid user_value!";
           return *corpus_value;
         }()),
         user_value(std::move(user_value)) {}

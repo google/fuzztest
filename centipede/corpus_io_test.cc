@@ -22,7 +22,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "./centipede/corpus.h"
 #include "./centipede/feature.h"
@@ -30,6 +29,7 @@
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 #include "./common/test_util.h"
 
 namespace fuzztest::internal {
@@ -40,11 +40,11 @@ using ::testing::UnorderedElementsAre;
 void WriteBlobsToFile(std::string_view blob_file_path,
                       absl::Span<const ByteArray> blobs) {
   auto writer = DefaultBlobFileWriterFactory();
-  CHECK_OK(writer->Open(blob_file_path, "w"));
+  FUZZTEST_CHECK_OK(writer->Open(blob_file_path, "w"));
   for (const ByteArray& blob : blobs) {
-    CHECK_OK(writer->Write(blob));
+    FUZZTEST_CHECK_OK(writer->Write(blob));
   }
-  CHECK_OK(writer->Close());
+  FUZZTEST_CHECK_OK(writer->Close());
 }
 
 std::vector<ByteArray> ReadInputsFromFiles(std::string_view dir) {
@@ -109,7 +109,7 @@ TEST(ReadShardTest, ReadsInputsAndFeaturesAndCallsCallbackForEachPair) {
 TEST(ExportCorpusTest, ExportsCorpusToIndividualFiles) {
   const std::filesystem::path temp_dir = GetTestTempDir(test_info_->name());
   const std::filesystem::path out_dir = temp_dir / "out_dir";
-  CHECK(std::filesystem::create_directory(out_dir));
+  FUZZTEST_CHECK(std::filesystem::create_directory(out_dir));
   const WorkDir workdir{temp_dir.c_str(), "fake_binary_name",
                         "fake_binary_hash", /*my_shard_index=*/0};
   const auto corpus_file_paths = workdir.CorpusFilePaths();

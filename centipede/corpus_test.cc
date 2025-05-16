@@ -135,7 +135,7 @@ TEST(Corpus, Prune) {
   EXPECT_EQ(corpus.Prune(fs, coverage_frontier, 1, rng), 1);
   EXPECT_EQ(corpus.NumActive(), 1);
   EXPECT_DEATH(corpus.Prune(fs, coverage_frontier, 0, rng),
-               "max_corpus_size");  // CHECK-fail.
+               "max_corpus_size");  // FUZZTEST_CHECK-fail.
   EXPECT_EQ(corpus.NumTotal(), 6);
 }
 

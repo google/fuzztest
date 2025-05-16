@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/logging.h"
@@ -273,8 +274,7 @@ std::vector<T> UnpackGenericValues(
   std::vector<T> values;
   values.reserve(generic_values.size());
   for (const auto& generic_value : generic_values) {
-    FUZZTEST_INTERNAL_CHECK(generic_value.Has<T>(),
-                            "Generic value of a wrong type.");
+    FUZZTEST_CHECK(generic_value.Has<T>()) << "Generic value of a wrong type.";
     values.push_back(generic_value.GetAs<T>());
   }
   return values;

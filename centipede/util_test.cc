@@ -24,11 +24,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "./centipede/feature.h"
 #include "./centipede/thread_pool.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -106,7 +106,7 @@ TEST(UtilTest, TemporaryLocalDirPath) {
   {
     // Check that repeated calls return the same path.
     auto temp_dir = TemporaryLocalDirPath();
-    LOG(INFO) << temp_dir;
+    FUZZTEST_LOG(INFO) << temp_dir;
     EXPECT_EQ(temp_dir, TemporaryLocalDirPath());
   }
 

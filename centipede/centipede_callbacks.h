@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
@@ -54,9 +53,9 @@ class CentipedeCallbacks {
         outputs_blobseq_(shmem_name2_.c_str(), env.shmem_size_mb << 20,
                          env.use_posix_shmem) {
     if (env.use_legacy_default_mutator)
-      CHECK(byte_array_mutator_.set_max_len(env.max_len));
+      FUZZTEST_CHECK(byte_array_mutator_.set_max_len(env.max_len));
     else
-      CHECK(fuzztest_mutator_.set_max_len(env.max_len));
+      FUZZTEST_CHECK(fuzztest_mutator_.set_max_len(env.max_len));
   }
   virtual ~CentipedeCallbacks() {}
 

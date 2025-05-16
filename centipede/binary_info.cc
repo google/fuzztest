@@ -22,14 +22,13 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/util.h"
+#include "./common/logging.h"
 #include "./common/remote_file.h"
 
 namespace fuzztest::internal {
@@ -45,18 +44,18 @@ void BinaryInfo::InitializeFromSanCovBinary(
     std::string_view symbolizer_path, std::string_view tmp_dir_path) {
   if (binary_path_with_args.empty()) {
     // This usually happens in tests.
-    LOG(INFO) << __func__ << ": binary_path_with_args is empty";
+    FUZZTEST_LOG(INFO) << __func__ << ": binary_path_with_args is empty";
     return;
   }
   // Compute names for temp files.
   const std::filesystem::path tmp_dir = tmp_dir_path;
-  CHECK(std::filesystem::exists(tmp_dir) &&
-        std::filesystem::is_directory(tmp_dir));
+  FUZZTEST_CHECK(std::filesystem::exists(tmp_dir) &&
+                 std::filesystem::is_directory(tmp_dir));
   ScopedFile pc_table_path(tmp_dir_path, "pc_table_tmp");
   ScopedFile cf_table_path(tmp_dir_path, "cf_table_tmp");
   ScopedFile dso_table_path(tmp_dir_path, "dso_table_tmp");
   ScopedFile log_path(tmp_dir_path, "binary_info_log_tmp");
-  LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
+  FUZZTEST_LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
   Command::Options cmd_options;
   cmd_options.env_add = {absl::StrCat(
@@ -66,7 +65,7 @@ void BinaryInfo::InitializeFromSanCovBinary(
   Command cmd{binary_path_with_args, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
-    LOG(INFO) << __func__ << ": exit_code: " << exit_code;
+    FUZZTEST_LOG(INFO) << __func__ << ": exit_code: " << exit_code;
   }
 
   // Load PC Table.
@@ -80,24 +79,25 @@ void BinaryInfo::InitializeFromSanCovBinary(
   dso_table = ReadDsoTableFromFile(dso_table_path.path());
 
   if (pc_table.empty()) {
-    CHECK(dso_table.empty());
+    FUZZTEST_CHECK(dso_table.empty());
     // Fallback to GetPcTableFromBinaryWithTracePC().
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "Failed to dump PC table directly from binary using linked-in "
            "runner; see target execution logs above; falling back to legacy PC "
            "table extraction using trace-pc and objdump";
     pc_table = GetPcTableFromBinaryWithTracePC(
         binary_path_with_args, objdump_path, pc_table_path.path());
     if (pc_table.empty()) {
-      LOG(ERROR) << "Failed to extract PC table from binary using objdump; see "
-                    "objdump execution logs above";
+      FUZZTEST_LOG(ERROR)
+          << "Failed to extract PC table from binary using objdump; see "
+             "objdump execution logs above";
     }
     // For the legacy trace-pc instrumentation, set the dso_table
     // to 1-element array consisting of the binary name
     const std::vector<std::string> args =
         absl::StrSplit(binary_path_with_args, absl::ByAnyChar{" \t\n"},
                        absl::SkipWhitespace{});
-    CHECK(!args.empty());
+    FUZZTEST_CHECK(!args.empty());
     dso_table.push_back({args[0], pc_table.size()});
     uses_legacy_trace_pc_instrumentation = true;
   } else {
@@ -110,7 +110,7 @@ void BinaryInfo::InitializeFromSanCovBinary(
     for (const auto& dso : dso_table) {
       num_instrumened_pcs_in_all_dsos += dso.num_instrumented_pcs;
     }
-    CHECK_EQ(num_instrumened_pcs_in_all_dsos, pc_table.size());
+    FUZZTEST_CHECK_EQ(num_instrumened_pcs_in_all_dsos, pc_table.size());
   }
 
   // Load symbols, if there is a PC table.
@@ -125,14 +125,14 @@ void BinaryInfo::InitializeFromSanCovBinary(
 void BinaryInfo::Read(std::string_view dir) {
   std::string symbol_table_contents;
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  CHECK_OK(RemoteFileGetContents(
+  FUZZTEST_CHECK_OK(RemoteFileGetContents(
       (std::filesystem::path(dir) / kSymbolTableFileName).c_str(),
       symbol_table_contents));
   std::istringstream symbol_table_stream(symbol_table_contents);
   symbols.ReadFromLLVMSymbolizer(symbol_table_stream);
 
   std::string pc_table_contents;
-  CHECK_OK(RemoteFileGetContents(
+  FUZZTEST_CHECK_OK(RemoteFileGetContents(
       (std::filesystem::path(dir) / kPCTableFileName).c_str(),
       pc_table_contents));
   std::istringstream pc_table_stream(pc_table_contents);
@@ -146,19 +146,19 @@ void BinaryInfo::Write(std::string_view dir) {
   std::ostringstream symbol_table_stream;
   symbols.WriteToLLVMSymbolizer(symbol_table_stream);
   // TODO(b/295978603): move calculation of paths into WorkDir class.
-  CHECK_OK(RemoteFileSetContents(
+  FUZZTEST_CHECK_OK(RemoteFileSetContents(
       (std::filesystem::path(dir) / kSymbolTableFileName).c_str(),
       symbol_table_stream.str()));
 
   std::ostringstream pc_table_stream;
   WritePcTable(pc_table, pc_table_stream);
-  CHECK_OK(RemoteFileSetContents(
+  FUZZTEST_CHECK_OK(RemoteFileSetContents(
       (std::filesystem::path(dir) / kPCTableFileName).c_str(),
       pc_table_stream.str()));
 
   std::ostringstream cf_table_stream;
   WriteCfTable(cf_table, cf_table_stream);
-  CHECK_OK(RemoteFileSetContents(
+  FUZZTEST_CHECK_OK(RemoteFileSetContents(
       (std::filesystem::path(dir) / kCfTableFileName).c_str(),
       cf_table_stream.str()));
 }

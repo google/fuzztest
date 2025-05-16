@@ -24,8 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -81,17 +79,18 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
   // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
-      LOG(ERROR) << "Could not get PC table; exiting (override with "
-                    "--require_pc_table=false)";
+      FUZZTEST_LOG(ERROR) << "Could not get PC table; exiting (override with "
+                             "--require_pc_table=false)";
       exit(EXIT_FAILURE);
     }
-    LOG(WARNING) << "Could not get PC table; CF table and debug symbols will "
-                    "not be used";
+    FUZZTEST_LOG(WARNING)
+        << "Could not get PC table; CF table and debug symbols will "
+           "not be used";
     return;
   }
   // Check CF table.
   if (binary_info.cf_table.empty()) {
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "Could not get CF table; binary should be built with Clang 16 (or "
            "later) and with -fsanitize-coverage=control-flow flag";
   } else {
@@ -197,7 +196,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   size_t num_inputs_written = 0;
 
   if (env_.has_input_wildcards) {
-    CHECK_EQ(inputs.size(), 1);
+    FUZZTEST_CHECK_EQ(inputs.size(), 1);
     WriteToLocalFile(temp_input_file_path_, inputs[0]);
     num_inputs_written = 1;
   } else {
@@ -206,9 +205,9 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   if (num_inputs_written != inputs.size()) {
-    LOG(INFO) << "Wrote " << num_inputs_written << "/" << inputs.size()
-              << " inputs; shmem_size_mb might be too small: "
-              << env_.shmem_size_mb;
+    FUZZTEST_LOG(INFO) << "Wrote " << num_inputs_written << "/" << inputs.size()
+                       << " inputs; shmem_size_mb might be too small: "
+                       << env_.shmem_size_mb;
   }
 
   // Run.
@@ -219,7 +218,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // Get results.
   batch_result.exit_code() = retval;
   const bool read_success = batch_result.Read(outputs_blobseq_);
-  LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
+  FUZZTEST_LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
@@ -231,10 +230,10 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   //   * Logged by the following code.
   if (retval == 0 && read_success &&
       batch_result.num_outputs_read() != num_inputs_written) {
-    LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
-              << num_inputs_written
-              << " outputs; shmem_size_mb might be too small: "
-              << env_.shmem_size_mb;
+    FUZZTEST_LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
+                       << num_inputs_written
+                       << " outputs; shmem_size_mb might be too small: "
+                       << env_.shmem_size_mb;
   }
 
   if (env_.print_runner_log) PrintExecutionLog();
@@ -256,7 +255,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::filesystem::remove(failure_description_path_);
     std::filesystem::remove(failure_signature_path_);
   }
-  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+  FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
 }
 
@@ -266,8 +265,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     std::vector<ByteArray> &seeds) {
   const auto output_dir = std::filesystem::path{temp_dir_} / "seed_inputs";
   std::error_code error;
-  CHECK(std::filesystem::create_directories(output_dir, error));
-  CHECK(!error);
+  FUZZTEST_CHECK(std::filesystem::create_directories(output_dir, error));
+  FUZZTEST_CHECK(!error);
 
   std::string centipede_runner_flags = absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
@@ -286,7 +285,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   const int retval = cmd.Execute();
 
   if (env_.print_runner_log) {
-    LOG(INFO) << "Getting seeds via external binary returns " << retval;
+    FUZZTEST_LOG(INFO) << "Getting seeds via external binary returns "
+                       << retval;
     PrintExecutionLog();
   }
 
@@ -344,7 +344,7 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   }
   std::error_code error;
   std::filesystem::remove(config_file_path, error);
-  CHECK(!error);
+  FUZZTEST_CHECK(!error);
 
   return is_success;
 }
@@ -353,7 +353,7 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
 MutationResult CentipedeCallbacks::MutateViaExternalBinary(
     std::string_view binary, const std::vector<MutationInputRef> &inputs,
     size_t num_mutants) {
-  CHECK(!env_.has_input_wildcards)
+  FUZZTEST_CHECK(!env_.has_input_wildcards)
       << "Standalone binary does not support custom mutator";
 
   auto start_time = absl::Now();
@@ -362,7 +362,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
 
   size_t num_inputs_written =
       RequestMutation(num_mutants, inputs, inputs_blobseq_);
-  LOG_IF(INFO, num_inputs_written != inputs.size())
+  FUZZTEST_LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
@@ -371,7 +371,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (retval != EXIT_SUCCESS) {
-    LOG(WARNING) << "Custom mutator failed with exit code: " << retval;
+    FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: " << retval;
   }
   if (env_.print_runner_log || retval != EXIT_SUCCESS) {
     PrintExecutionLog();
@@ -382,7 +382,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
   result.Read(num_mutants, outputs_blobseq_);
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
-  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+  FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return result;
 }
 
@@ -398,43 +398,44 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
     env_.use_legacy_default_mutator
         ? byte_array_mutator_.AddToDictionary(entries)
         : fuzztest_mutator_.AddToDictionary(entries);
-    LOG(INFO) << "Loaded " << entries.size()
-              << " dictionary entries from AFL/libFuzzer dictionary "
-              << dictionary_path;
+    FUZZTEST_LOG(INFO) << "Loaded " << entries.size()
+                       << " dictionary entries from AFL/libFuzzer dictionary "
+                       << dictionary_path;
     return entries.size();
   }
   // Didn't parse as plain text. Assume encoded corpus format.
   auto reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(reader->Open(dictionary_path))
+  FUZZTEST_CHECK_OK(reader->Open(dictionary_path))
       << "Error in opening dictionary file: " << dictionary_path;
   std::vector<ByteArray> unpacked_dictionary;
   ByteSpan blob;
   while (reader->Read(blob).ok()) {
     unpacked_dictionary.emplace_back(blob.begin(), blob.end());
   }
-  CHECK_OK(reader->Close())
+  FUZZTEST_CHECK_OK(reader->Close())
       << "Error in closing dictionary file: " << dictionary_path;
-  CHECK(!unpacked_dictionary.empty())
+  FUZZTEST_CHECK(!unpacked_dictionary.empty())
       << "Empty or corrupt dictionary file: " << dictionary_path;
   env_.use_legacy_default_mutator
       ? byte_array_mutator_.AddToDictionary(unpacked_dictionary)
       : fuzztest_mutator_.AddToDictionary(unpacked_dictionary);
-  LOG(INFO) << "Loaded " << unpacked_dictionary.size()
-            << " dictionary entries from " << dictionary_path;
+  FUZZTEST_LOG(INFO) << "Loaded " << unpacked_dictionary.size()
+                     << " dictionary entries from " << dictionary_path;
   return unpacked_dictionary.size();
 }
 
 void CentipedeCallbacks::PrintExecutionLog() const {
   if (!std::filesystem::exists(execute_log_path_)) {
-    LOG(WARNING) << "Log file for the last executed binary does not exist: "
-                 << execute_log_path_;
+    FUZZTEST_LOG(WARNING)
+        << "Log file for the last executed binary does not exist: "
+        << execute_log_path_;
     return;
   }
   std::string log_text;
   ReadFromLocalFile(execute_log_path_, log_text);
   for (const auto &log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
-    LOG(INFO).NoPrefix() << "LOG: " << log_line;
+    FUZZTEST_LOG(INFO).NoPrefix() << "FUZZTEST_LOG: " << log_line;
   }
 }
 

@@ -20,10 +20,10 @@
 #include <system_error>  // NOLINT
 #include <vector>
 
-#include "absl/log/check.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/subprocess.h"
 
@@ -34,12 +34,14 @@ namespace {
 // root.
 std::string GetFullPath(const std::filesystem::path& relative_path) {
   const auto test_srcdir = absl::NullSafeStringView(std::getenv("TEST_SRCDIR"));
-  CHECK(!test_srcdir.empty()) << "Please set TEST_SRCDIR to non-empty value or "
-                                 "use bazel to run the test.";
+  FUZZTEST_CHECK(!test_srcdir.empty())
+      << "Please set TEST_SRCDIR to non-empty value or "
+         "use bazel to run the test.";
   const std::string full_path =
       std::filesystem::path(test_srcdir) / "_main"
       / relative_path;
-  CHECK(std::filesystem::exists(full_path)) << "Can't find " << full_path;
+  FUZZTEST_CHECK(std::filesystem::exists(full_path))
+      << "Can't find " << full_path;
   return full_path;
 }
 

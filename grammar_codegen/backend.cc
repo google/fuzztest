@@ -24,6 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./grammar_codegen/grammar_info.h"
 #include "./fuzztest/internal/logging.h"
 
@@ -45,11 +46,9 @@ void SwitchBlockToNewNonTerminal(Block& block, std::string symbol_name) {
 
 std::string CreateIRNodeNameForClass(absl::string_view symbol_name) {
   static int counter = 0;
-  FUZZTEST_INTERNAL_CHECK(
-      symbol_name.size() > 4 &&
-          symbol_name.substr(symbol_name.size() - 4) == "Node",
-      std::string("Not a valid symbol class name: ") + "  " +
-          std::string(symbol_name));
+  FUZZTEST_CHECK(symbol_name.size() > 4 &&
+                 symbol_name.substr(symbol_name.size() - 4) == "Node")
+      << "Not a valid symbol class name: " << symbol_name;
   return absl::StrFormat(
       "%sSubNode%d", symbol_name.substr(0, symbol_name.size() - 4), counter++);
 }
@@ -284,18 +283,16 @@ std::string CodeGenerator::BuildBaseTypeForGrammarRule(
   std::string class_name = GetClassNameForSymbol(rule.symbol_name);
   const std::vector<ProductionRule>& prod_rules =
       rule.productions.production_rules;
-  FUZZTEST_INTERNAL_CHECK(!prod_rules.empty(), "No expansion!");
+  FUZZTEST_CHECK(!prod_rules.empty()) << "No expansion!";
   if (prod_rules.size() > 1) {
     // This is a variant.
     std::vector<std::string> production_child_types;
     for (const ProductionRule& prod_rule : prod_rules) {
-      FUZZTEST_INTERNAL_CHECK(prod_rule.blocks.size() == 1,
-                              "Incorrect preprocess.");
+      FUZZTEST_CHECK(prod_rule.blocks.size() == 1) << "Incorrect preprocess.";
       auto block = prod_rule.blocks[0];
-      FUZZTEST_INTERNAL_CHECK(
-          block.range == Range::kNoRange &&
-              block.element.index() != BlockType::kSubProductions,
-          "Incorrect preprocess.");
+      FUZZTEST_CHECK(block.range == Range::kNoRange &&
+                     block.element.index() != BlockType::kSubProductions)
+          << "Incorrect preprocess.";
       production_child_types.push_back(GetClassName(block));
     }
     return absl::StrFormat("VariantDomain<k%s, %d, %s>", class_name,
@@ -312,10 +309,9 @@ std::string CodeGenerator::BuildBaseTypeForGrammarRule(
     std::vector<std::string> production_child_types;
     auto blocks = prod_rules[0].blocks;
     for (const auto& block : blocks) {
-      FUZZTEST_INTERNAL_CHECK(
-          block.range == Range::kNoRange &&
-              block.element.index() != BlockType::kSubProductions,
-          "Incorrect preprocess.");
+      FUZZTEST_CHECK(block.range == Range::kNoRange &&
+                     block.element.index() != BlockType::kSubProductions)
+          << "Incorrect preprocess.";
       production_child_types.push_back(GetClassName(block));
     }
     return absl::StrFormat("TupleDomain<k%s, %s>", class_name,
@@ -390,7 +386,7 @@ bool CodeGenerator::TryMarkBlockAsSafe(Block& block) {
       return is_safe;
     }
     default:
-      FUZZTEST_INTERNAL_CHECK(false, "The execution should never reach here!");
+      FUZZTEST_LOG(FATAL) << "unreachable";
   }
 }
 
@@ -422,9 +418,8 @@ void CodeGenerator::CalculateFallBackIndex(std::vector<GrammarRule>& rules) {
   } while (has_change);
 
   for (size_t i = 0; i < safe_rule_indexes.size(); ++i) {
-    FUZZTEST_INTERNAL_CHECK(
-        safe_rule_indexes[i],
-        absl::StrCat("Some node is not safe: ", rules[i].symbol_name));
+    FUZZTEST_CHECK(safe_rule_indexes[i])
+        << "Some node is not safe: " << rules[i].symbol_name;
   }
 
   // Ensure that every sub-block is marked safe. For example, a grammar rule
@@ -453,13 +448,13 @@ std::string CodeGenerator::GetClassName(const Block& block) {
       return GetClassNameForSymbol(
           std::get<BlockType::kNonTerminal>(block.element).name);
     default:
-      FUZZTEST_INTERNAL_CHECK(false, "A sub-block doesn't have a name!");
+      FUZZTEST_LOG(FATAL) << "A sub-block doesn't have a name!";
   }
   return "";
 }
 
 std::string CodeGenerator::GetClassNameForSymbol(std::string id) {
-  FUZZTEST_INTERNAL_CHECK(!id.empty(), "Empty node name!");
+  FUZZTEST_CHECK(!id.empty()) << "Empty node name!";
   id[0] = toupper(id[0]);
   if (std::isdigit(id.back())) {
     return id;

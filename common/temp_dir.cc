@@ -4,9 +4,9 @@
 #include <filesystem>    // NOLINT
 #include <system_error>  // NOLINT
 
-#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -18,24 +18,24 @@ TempDir::TempDir(absl::string_view custom_prefix) {
   if (temp_root.empty()) {
     std::error_code error;
     temp_root = std::filesystem::temp_directory_path(error);
-    CHECK(!error) << "Failed to get the root temp directory path: "
-                  << error.message();
+    FUZZTEST_CHECK(!error) << "Failed to get the root temp directory path: "
+                           << error.message();
   }
   absl::string_view prefix = custom_prefix.empty() ? "temp_dir" : custom_prefix;
   const fs::path path_template = temp_root / absl::StrCat(prefix, "_XXXXXX");
 #if !defined(_MSC_VER)
   path_ = mkdtemp(path_template.string().data());
 #else
-  CHECK(false) << "Windows is not supported yet.";
+  FUZZTEST_CHECK(false) << "Windows is not supported yet.";
 #endif
-  CHECK(std::filesystem::is_directory(path_));
+  FUZZTEST_CHECK(std::filesystem::is_directory(path_));
 }
 
 TempDir::~TempDir() {
   std::error_code error;
   std::filesystem::remove_all(path_, error);
-  CHECK(!error) << "Unable to clean up temporary dir " << path_ << ": "
-                << error.message();
+  FUZZTEST_CHECK(!error) << "Unable to clean up temporary dir " << path_ << ": "
+                         << error.message();
 }
 
 }  // namespace fuzztest::internal

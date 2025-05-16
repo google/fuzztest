@@ -106,18 +106,21 @@
 //    ...
 //    profiler.TakeSnapshot(ABSL_LOC).Log();  // Records and logs a snapshot
 //    ...
-//    VLOG(1) << profiler.TakeSnapshot(ABSL_LOC);  // A different way to log
+//    FUZZTEST_VLOG(1) << profiler.TakeSnapshot(ABSL_LOC);  // A different way
+//    to log
 //    ...
 //  }  // Dtor logs a final snapshot
 //
 //                           EXAMPLE USAGE - MACROS
 //
 //  void foo() {
-//    RPROF_THIS_FUNCTION(VLOG_IS_ON(2));  // Profile the function @ --v>=2
+//    RPROF_THIS_FUNCTION(FUZZTEST_VLOG_IS_ON(2));  // Profile the function @
+//    --v>=2
 //    ...
-//    RPROF_SNAPSHOT_AND_LOG();  // Record and log a function-level snapshot
-//    for (...) {
-//        RPROF_THIS_SCOPE(VLOG_IS_ON(3));  // Profile loop iterations @ --v>=3
+//    RPROF_SNAPSHOT_AND_FUZZTEST_LOG();  // Record and log a function-level
+//    snapshot for (...) {
+//        RPROF_THIS_SCOPE(FUZZTEST_VLOG_IS_ON(3));  // Profile loop iterations
+//        @ --v>=3
 //        ...
 //    }
 //    RPROF_SNAPSHOT();  // Record (not log) another function-level snapshot
@@ -261,9 +264,9 @@ class RUsageProfiler {
     // table-like formatting.
     std::string ShortMetricsStr() const;
 
-    // Logs this snapshot to LOG(INFO). The source location that annotates the
-    // log message is set to `location` instead of the actual call's location.
-    // Returns *this so clients can do either of
+    // Logs this snapshot to FUZZTEST_LOG(INFO). The source location that
+    // annotates the log message is set to `location` instead of the actual
+    // call's location. Returns *this so clients can do either of
     //   Snapshot s = profiler.TakeSnapshot();
     //   Snapshot s = profiler.TakeSnapshot().Log();
     const Snapshot& Log() const;
@@ -289,8 +292,8 @@ class RUsageProfiler {
   };
 
   // An abstract interface used to stream in a profiling report in
-  // GenerateReport(). Also used inside PrintReport() to overcome the LOG()'s
-  // limitation on the size of a single printed message.
+  // GenerateReport(). Also used inside PrintReport() to overcome the
+  // FUZZTEST_LOG()'s limitation on the size of a single printed message.
   class ReportSink {
    public:
     virtual ~ReportSink() = default;
@@ -529,7 +532,7 @@ class RUsageProfiler {
 // earlier RPROF_THIS_FUNCTION() in the same function. An optional snapshot
 // title can be passed as a macro argument.
 // clang-format off
-#define RPROF_SNAPSHOT_AND_LOG(...) \
+#define RPROF_SNAPSHOT_AND_FUZZTEST_LOG(...) \
   FUNCTION_LEVEL_RPROF_NAME.TakeSnapshot( \
       {__FILE__, __LINE__}, ##__VA_ARGS__).Log()
 // clang-format on
@@ -550,7 +553,7 @@ class RUsageProfiler {
 // RPROF_THIS_FUNCTION in the same function. An optional report title can be
 // passed as a macro argument.
 // clang-format off
-#define RPROF_DUMP_REPORT_TO_LOG(...) \
+#define RPROF_DUMP_REPORT_TO_FUZZTEST_LOG(...) \
   FUNCTION_LEVEL_RPROF_NAME.PrintReport({__FILE__, __LINE__}, ##__VA_ARGS__)
 // clang-format on
 

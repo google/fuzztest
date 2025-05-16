@@ -26,7 +26,6 @@
 
 #include "absl/base/fast_type_id.h"
 #include "absl/functional/function_ref.h"
-#include "absl/log/absl_check.h"
 #include "absl/random/bernoulli_distribution.h"
 #include "absl/random/beta_distribution.h"
 #include "absl/random/distributions.h"
@@ -36,6 +35,7 @@
 #include "absl/random/poisson_distribution.h"
 #include "absl/random/zipf_distribution.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -103,7 +103,7 @@ struct DataStreamConsumer {
   // Returns a value in the closed-closed range [min, max].
   template <typename T>
   T ConsumeValueInRange(T min, T max) {
-    ABSL_CHECK_LE(min, max);
+    FUZZTEST_CHECK_LE(min, max);
 
     if (min == max) return min;
 

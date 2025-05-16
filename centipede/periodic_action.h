@@ -19,7 +19,7 @@
 // Example:
 //   MyStats stats = ...;
 //   PeriodicAction stats_logger{
-//       [&stats]() { LOG(INFO) << "Current stats are: " << stats; },
+//       [&stats]() { FUZZTEST_LOG(INFO) << "Current stats are: " << stats; },
 //       {.delay = absl::Minutes(5), .interval = absl::Minutes(1)}
 //   };
 //   while (true) {

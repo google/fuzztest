@@ -24,6 +24,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
@@ -42,8 +43,8 @@ class ElementOfImpl
   using typename ElementOfImpl::DomainBase::value_type;
 
   explicit ElementOfImpl(std::vector<T> values) : values_(values) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !values.empty(), "ElementOf requires a non empty list.");
+    FUZZTEST_PRECONDITION(!values.empty())
+        << "ElementOf requires a non empty list.";
   }
 
   corpus_type Init(absl::BitGenRef prng) {
