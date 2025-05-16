@@ -35,6 +35,9 @@ set(proto_TAG v30.2)
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
 set(nlohmann_json_TAG v3.11.3)
 
+set(flatbuffers_URL https://github.com/google/flatbuffers.git)
+set(flatbuffers_TAG v25.2.10)
+
 if(POLICY CMP0135)
 	cmake_policy(SET CMP0135 NEW)
 	set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
@@ -63,6 +66,14 @@ FetchContent_Declare(
   URL      ${antlr_cpp_URL}
   URL_HASH MD5=${antlr_cpp_MD5}
 )
+
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  FetchContent_Declare(
+    flatbuffers
+    GIT_REPOSITORY ${flatbuffers_URL}
+    GIT_TAG        ${flatbuffers_TAG}
+  )
+endif()
 
 if (FUZZTEST_BUILD_TESTING)
 
@@ -101,3 +112,9 @@ if (FUZZTEST_BUILD_TESTING)
   FetchContent_MakeAvailable(nlohmann_json)
 
 endif ()
+
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  set(FLATBUFFERS_BUILD_TESTS OFF)
+  set(FLATBUFFERS_BUILD_INSTALL OFF)
+  FetchContent_MakeAvailable(flatbuffers)
+endif()

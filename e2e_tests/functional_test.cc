@@ -1857,6 +1857,33 @@ TEST_P(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
+TEST_P(FuzzingModeCrashFindingTest, FlatbuffersFailsWhenFieldsAreNotDefault) {
+  TempDir out_dir;
+  auto [status, std_out, std_err] =
+      Run("MySuite.FlatbuffersFailsWhenFieldsAreNotDefault");
+  EXPECT_THAT(std_err, HasSubstr("argument 0: {b: ("));
+  EXPECT_THAT(std_err, HasSubstr("i8: ("));
+  EXPECT_THAT(std_err, HasSubstr("i16: ("));
+  EXPECT_THAT(std_err, HasSubstr("i32: ("));
+  EXPECT_THAT(std_err, HasSubstr("i64: ("));
+  EXPECT_THAT(std_err, HasSubstr("u8: ("));
+  EXPECT_THAT(std_err, HasSubstr("u16: ("));
+  EXPECT_THAT(std_err, HasSubstr("u32: ("));
+  EXPECT_THAT(std_err, HasSubstr("u64: ("));
+  EXPECT_THAT(std_err, HasSubstr("f: ("));
+  EXPECT_THAT(std_err, HasSubstr("d: ("));
+  EXPECT_THAT(std_err, HasSubstr("str: "));
+  EXPECT_THAT(std_err, HasSubstr("ei8: ("));
+  EXPECT_THAT(std_err, HasSubstr("ei16: ("));
+  EXPECT_THAT(std_err, HasSubstr("ei32: ("));
+  EXPECT_THAT(std_err, HasSubstr("ei64: ("));
+  EXPECT_THAT(std_err, HasSubstr("eu8: ("));
+  EXPECT_THAT(std_err, HasSubstr("eu16: ("));
+  EXPECT_THAT(std_err, HasSubstr("eu32: ("));
+  EXPECT_THAT(std_err, HasSubstr("eu64: ("));
+  ExpectTargetAbort(status, std_err);
+}
+
 INSTANTIATE_TEST_SUITE_P(FuzzingModeCrashFindingTestWithExecutionModel,
                          FuzzingModeCrashFindingTest,
                          testing::ValuesIn(GetAvailableExecutionModels()));

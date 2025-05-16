@@ -66,6 +66,7 @@ TRANSLATE_NAME = {
     "@abseil-cpp//absl/types:optional": "absl::optional",
     "@abseil-cpp//absl/types:span": "absl::span",
     "@abseil-cpp//absl/types:variant": "absl::variant",
+    "@flatbuffers//:runtime_cc": "flatbuffers",
     "@googletest//:gtest": "GTest::gtest",
     "@googletest//:gtest_main": "GTest::gmock_main",
     "@protobuf//:protobuf": "protobuf::libprotobuf",
