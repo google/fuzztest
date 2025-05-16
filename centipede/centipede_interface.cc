@@ -492,43 +492,9 @@ int UpdateCorpusDatabaseForFuzzTests(
   LOG(INFO) << "Test shard index: " << test_shard_index
             << " Total test shards: " << total_test_shards;
 
-  // Step 2: Are we resuming from a previously terminated run?
-  // Currently there are two ways of determining this:
-  //
-  // The old way is to find the last index of a fuzz test for which we already
-  // have a workdir, which is done below, and then resume from the test. This
-  // requires Centipede to know the order of all the tests, which is unavailable
-  // in the single test execution model.
-  //
-  // The new way is to use the per-workflow execution ID to match with any
-  // previously stored execution ID, which works independently for each test -
-  // it is implemented and documented later.
-  //
-  // TODO(xinhaoyuan): Clean up the old approach when it's no longer used.
-  bool is_resuming = false;
-  int resuming_fuzztest_idx = 0;
-  if (!fuzztest_config.execution_id.has_value()) {
-    for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
-      if (!is_workdir_specified) {
-        env.workdir = base_workdir_path / fuzz_tests_to_run[i];
-      }
-      // Check the existence of the coverage path to not only make sure the
-      // workdir exists, but also that it was created for the same binary as in
-      // this run.
-      if (RemotePathExists(WorkDir{env}.CoverageDirPath())) {
-        is_resuming = true;
-        resuming_fuzztest_idx = i;
-      }
-    }
-  }
-
-  LOG_IF(INFO, is_resuming) << "Resuming from the fuzz test "
-                            << fuzz_tests_to_run[resuming_fuzztest_idx]
-                            << " (index: " << resuming_fuzztest_idx << ")";
-
-  // Step 3: Iterate over the fuzz tests and run them.
+  // Step 2: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
-  for (int i = resuming_fuzztest_idx; i < fuzz_tests_to_run.size(); ++i) {
+  for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
     // Clean up previous stop requests. stop_time will be set later.
     ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
     if (!env.fuzztest_single_test_mode &&
@@ -549,6 +515,8 @@ int UpdateCorpusDatabaseForFuzzTests(
         (base_workdir_path /
          absl::StrCat(fuzz_tests_to_run[i], ".execution_id"))
             .string();
+
+    bool is_resuming = false;
     if (!is_workdir_specified && fuzztest_config.execution_id.has_value()) {
       // Use the execution IDs to resume or skip tests.
       const bool execution_id_matched = [&] {
