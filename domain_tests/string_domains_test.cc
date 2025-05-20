@@ -67,12 +67,7 @@ TYPED_TEST(HandleTypeTest, Arbitrary) {
   Set<TypeParam> unique;
 
   for (int i = 0; i < 100; ++i) {
-    auto value = Value(domain, bitgen);
-    for (int j = 0; j < 10; ++j) {
-      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
-                   /*only_shrink=*/false);
-    }
-    values.emplace_back(value, domain);
+    values.emplace_back(domain, bitgen);
     unique.insert(values.back().user_value);
   }
 

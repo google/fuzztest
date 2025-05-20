@@ -275,8 +275,6 @@ TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
   // Generate something shrinkable
   while (!value.has_value() || value->user_value.empty()) {
     value = Value(domain, bitgen);
-    value->Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
-                  /*only_shrink=*/false);
   }
   auto mutated = value->corpus_value;
   while (!domain.GetValue(mutated).empty()) {

@@ -353,6 +353,21 @@ class ContainerOfImplBase
  protected:
   InnerDomainT inner_;
 
+  size_t ChooseRandomInitialSize(absl::BitGenRef prng) {
+    // The container size should not be empty (unless max_size_ = 0) because the
+    // initialization should be random if possible.
+    // TODO(changochen): Increase the number of generated elements.
+    // Currently we make container generate zero or one element to avoid
+    // infinite recursion in recursive data structures. For the example, we want
+    // to build a domain for `struct X{ int leaf; vector<X> recursive`, the
+    // expected generated length is `E(X) = E(leaf) + E(recursive)`. If the
+    // container generate `0-10` elements when calling `Init`, then
+    // `E(recursive) =  4.5 E(X)`, which will make `E(X) = Infinite`.
+    // Make some smallish random seed containers.
+    return absl::Uniform(prng, min_size(),
+                         std::min(max_size() + 1, min_size() + 2));
+  }
+
   size_t min_size() const { return min_size_; }
   size_t max_size() const {
     return max_size_.value_or(std::max(min_size_, kDefaultContainerMaxSize));
@@ -416,9 +431,10 @@ class AssociativeContainerOfImpl
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    const size_t size = this->ChooseRandomInitialSize(prng);
 
     corpus_type val;
-    Grow(val, prng, this->min_size(), 10000);
+    Grow(val, prng, size, 10000);
     if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
       // could not after a lot of attempts. This could be caused by an
@@ -534,8 +550,9 @@ class SequenceContainerOfImplBase
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    const size_t size = this->ChooseRandomInitialSize(prng);
     corpus_type val;
-    while (val.size() < this->min_size()) {
+    while (val.size() < size) {
       val.insert(val.end(), GetRandomInnerValue(prng));
     }
     return val;
