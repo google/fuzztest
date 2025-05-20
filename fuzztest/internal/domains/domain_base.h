@@ -203,21 +203,6 @@ class DomainBase {
     return derived();
   }
 
- protected:
-  // `Derived::Init()` can use this to sample seeds for this domain.
-  std::optional<CorpusType> MaybeGetRandomSeed(absl::BitGenRef prng) {
-    if (seed_provider_ != nullptr) {
-      WithSeeds(std::invoke(seed_provider_));
-      seed_provider_ = nullptr;
-    }
-
-    static constexpr double kProbabilityToReturnSeed = 0.5;
-    if (seeds_.empty() || !absl::Bernoulli(prng, kProbabilityToReturnSeed)) {
-      return std::nullopt;
-    }
-    return seeds_[fuzztest::internal::ChooseOffset(seeds_.size(), prng)];
-  }
-
   // Default implementation of GetRandomCorpusValue() without guarantees on the
   // distribution of the returned values. If possible, the derived domain should
   // override this with a better implementation.
@@ -233,6 +218,21 @@ class DomainBase {
                        /*only_shrink=*/false);
     }
     return corpus_val;
+  }
+
+ protected:
+  // `Derived::Init()` can use this to sample seeds for this domain.
+  std::optional<CorpusType> MaybeGetRandomSeed(absl::BitGenRef prng) {
+    if (seed_provider_ != nullptr) {
+      WithSeeds(std::invoke(seed_provider_));
+      seed_provider_ = nullptr;
+    }
+
+    static constexpr double kProbabilityToReturnSeed = 0.5;
+    if (seeds_.empty() || !absl::Bernoulli(prng, kProbabilityToReturnSeed)) {
+      return std::nullopt;
+    }
+    return seeds_[absl::Uniform(prng, 0u, seeds_.size())];
   }
 
  private:
