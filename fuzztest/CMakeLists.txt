@@ -315,6 +315,19 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    utf
+  HDRS
+    "internal/domains/utf.h"
+  SRCS
+    "internal/domains/rune.cc"
+    "internal/domains/rune.h"
+    "internal/domains/utf.cc"
+  DEPS
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
     domain_core
   HDRS
     "domain_core.h"
@@ -353,6 +366,7 @@ fuzztest_cc_library(
     fuzztest::status
     fuzztest::table_of_recent_compares
     fuzztest::type_support
+    fuzztest::utf
     absl::flat_hash_map
     absl::flat_hash_set
     absl::function_ref

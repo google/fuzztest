@@ -126,6 +126,7 @@ You can use the following basic string domains:
 -   `String()` is an alias for `Arbitrary<std::string>()`.
 -   `AsciiString()` represents strings of ASCII characters.
 -   `PrintableAsciiString()` represents printable strings.
+-   `Utf8String()` represents valid UTF-8 strings.
 
 You also define your string domains with custom character domains using the
 [StringOf()](#string-combinator) domain combinator.

@@ -365,6 +365,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "utf",
+    srcs = [
+        "internal/domains/rune.cc",
+        "internal/domains/rune.h",
+        "internal/domains/utf.cc",
+    ],
+    hdrs = [
+        "internal/domains/utf.h",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
 # The core domain library without external dependencies e.g. re2. Mainly used
 # by the default Centipede mutation.
 cc_library(
@@ -408,6 +424,7 @@ cc_library(
         ":status",
         ":table_of_recent_compares",
         ":type_support",
+        ":utf",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",

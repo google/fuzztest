@@ -61,6 +61,7 @@
 #include "./fuzztest/internal/domains/overlap_of_impl.h"
 #include "./fuzztest/internal/domains/smart_pointer_of_impl.h"
 #include "./fuzztest/internal/domains/unique_elements_container_of_impl.h"
+#include "./fuzztest/internal/domains/utf.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
@@ -1036,6 +1037,30 @@ auto ConstructorOf(Inner... inner) {
 template <int&... ExplicitArgumentBarrier, typename Inner>
 auto NonEmpty(Inner inner) {
   return inner.WithMinSize(1);
+}
+
+inline auto Utf8String() {
+  // Generate valid UTF-8 by first generating a sequence of valid Unicode code
+  // points and converting it into UTF-8. This will improve the efficiency of
+  // the test.
+  // Valid Unicode code point values are in [0, 0x10FFFF], excluding
+  // [0xD800, 0xDFFF], so generate code points from the two valid subranges.
+  auto utf8_string = ReversibleMap(
+      internal::EncodeAsUTF8,
+      [](const std::string& utf8)
+          -> std::optional<std::tuple<std::vector<int>>> {
+        auto code_points = internal::DecodeFromUTF8(utf8);
+        if (!code_points.has_value()) return std::nullopt;
+        return *code_points;
+      },
+      ContainerOf<std::vector<int>>(
+          OneOf(InRange(0, 0xD7FF), InRange(0xE000, 0x10FFFF))));
+  // We further overlap it with String() to be able to use the
+  // dictionary-based mutation.
+  return OverlapOf(utf8_string, String())
+      // Use the same serialization as the previous domain definition to avoid
+      // widely invalidating the existing corpora/reproducers.
+      .WithSerializationDomain(0);
 }
 
 }  // namespace internal_no_adl
