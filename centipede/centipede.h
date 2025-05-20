@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/centipede_callbacks.h"
