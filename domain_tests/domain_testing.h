@@ -267,10 +267,12 @@ auto GenerateValues(Domain domain, int num_seeds = 10, int num_mutations = 100,
   absl::BitGen bitgen;
 
   absl::flat_hash_set<Value<Domain>> seeds;
-  // Make sure we can make some unique seeds.
-  // Randomness might create duplicates so keep going until we got them.
   while (seeds.size() < num_seeds) {
-    seeds.insert(Value(domain, bitgen));
+    auto value = Value(domain, bitgen);
+    while (!seeds.insert(value).second) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
   }
 
   auto values = seeds;
@@ -326,7 +328,8 @@ auto GenerateInitialValues(Domain domain, int n) {
   absl::BitGen bitgen;
   values.reserve(n);
   for (int i = 0; i < n; ++i) {
-    values.push_back(Value(domain, bitgen));
+    auto value = Value(domain, bitgen);
+    values.push_back(std::move(value));
   }
   return values;
 }

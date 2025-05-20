@@ -353,21 +353,6 @@ class ContainerOfImplBase
  protected:
   InnerDomainT inner_;
 
-  size_t ChooseRandomInitialSize(absl::BitGenRef prng) {
-    // The container size should not be empty (unless max_size_ = 0) because the
-    // initialization should be random if possible.
-    // TODO(changochen): Increase the number of generated elements.
-    // Currently we make container generate zero or one element to avoid
-    // infinite recursion in recursive data structures. For the example, we want
-    // to build a domain for `struct X{ int leaf; vector<X> recursive`, the
-    // expected generated length is `E(X) = E(leaf) + E(recursive)`. If the
-    // container generate `0-10` elements when calling `Init`, then
-    // `E(recursive) =  4.5 E(X)`, which will make `E(X) = Infinite`.
-    // Make some smallish random seed containers.
-    return absl::Uniform(prng, min_size(),
-                         std::min(max_size() + 1, min_size() + 2));
-  }
-
   size_t min_size() const { return min_size_; }
   size_t max_size() const {
     return max_size_.value_or(std::max(min_size_, kDefaultContainerMaxSize));
@@ -431,10 +416,9 @@ class AssociativeContainerOfImpl
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const size_t size = this->ChooseRandomInitialSize(prng);
 
     corpus_type val;
-    Grow(val, prng, size, 10000);
+    Grow(val, prng, this->min_size(), 10000);
     if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
       // could not after a lot of attempts. This could be caused by an
@@ -468,6 +452,17 @@ Please verify that the inner domain can provide enough values.
     Grow(val, prng, 1, kFailuresAllowed);
   }
 
+  auto GetRandomInnerValue(absl::BitGenRef prng) {
+    constexpr int kMaxMutations = 100;
+    const int num_mutations = absl::Zipf(prng, /*hi=*/kMaxMutations);
+    auto element = this->inner_.Init(prng);
+    for (int i = 0; i < num_mutations; ++i) {
+      this->inner_.Mutate(element, prng, domain_implementor::MutationMetadata(),
+                          /*only_shrink=*/false);
+    }
+    return element;
+  }
+
   // Try to grow `val` by `n` elements.
   void Grow(corpus_type& val, absl::BitGenRef prng, size_t n,
             size_t failures_allowed) {
@@ -481,7 +476,7 @@ Please verify that the inner domain can provide enough values.
     auto real_value = this->GetValue(val);
     const size_t final_size = real_value.size() + n;
     while (real_value.size() < final_size) {
-      auto new_element = this->inner_.Init(prng);
+      auto new_element = GetRandomInnerValue(prng);
       if (real_value.insert(this->inner_.GetValue(new_element)).second) {
         val.push_back(std::move(new_element));
       } else {
@@ -539,10 +534,9 @@ class SequenceContainerOfImplBase
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    const size_t size = this->ChooseRandomInitialSize(prng);
     corpus_type val;
-    while (val.size() < size) {
-      val.insert(val.end(), this->inner_.Init(prng));
+    while (val.size() < this->min_size()) {
+      val.insert(val.end(), GetRandomInnerValue(prng));
     }
     return val;
   }
@@ -574,6 +568,17 @@ class SequenceContainerOfImplBase
   void GrowOne(corpus_type& val, absl::BitGenRef prng) {
     val.insert(ChoosePosition(val, IncludeEnd::kYes, prng),
                this->inner_.Init(prng));
+  }
+
+  auto GetRandomInnerValue(absl::BitGenRef prng) {
+    constexpr int kMaxMutations = 100;
+    int num_mutations = absl::Zipf<int>(prng, /*hi=*/kMaxMutations);
+    auto element = this->inner_.Init(prng);
+    for (int i = 0; i < num_mutations; ++i) {
+      this->inner_.Mutate(element, prng, domain_implementor::MutationMetadata(),
+                          /*only_shrink=*/false);
+    }
+    return element;
   }
 
   void MutateElement(corpus_type&, absl::BitGenRef prng,
