@@ -784,6 +784,7 @@ cc_library(
     deps = [
         ":logging",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],

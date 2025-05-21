@@ -16,11 +16,13 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SUBPROCESS_H_
 
 #include <iostream>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
@@ -93,12 +95,30 @@ struct RunResults {
   std::string stderr_output;
 };
 
-// Runs `command_line` in a subprocess. Environment variables can be set via
-// `environment`. If optional `timeout` is provided, the process is terminated
-// after the given timeout. The timeout will be rounded up to seconds.
+// Runs `command_line` in a subprocess and passes through its stdout/stderr to
+// `on_stdout_output` and `on_stderr_output` callbacks. Environment variables
+// can be set via `environment` if it is not std::nullopt, otherwise environment
+// will be inherited from the current process (`environ`). If optional `timeout`
+// is provided, the process is terminated after the given timeout. The timeout
+// will be rounded up to seconds.
+TerminationStatus RunCommandWithOutputCallbacks(
+    const std::vector<std::string>& command_line,
+    absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+    absl::FunctionRef<void(const char*, size_t)> on_stderr_output,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment = {{}},
+    absl::Duration timeout = absl::InfiniteDuration());
+
+// Runs `command_line` in a subprocess and returns the run results that captures
+// the stdout/stderr as strings. Environment variables
+// can be set via `environment` if it is not std::nullopt, otherwise environment
+// will be inherited from the current process (`environ`). `environment`. If
+// optional `timeout` is provided, the process is terminated after the given
+// timeout. The timeout will be rounded up to seconds.
 RunResults RunCommand(
     const std::vector<std::string>& command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment = {},
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment = {{}},
     absl::Duration timeout = absl::InfiniteDuration());
 
 }  // namespace fuzztest::internal
