@@ -44,7 +44,7 @@ class FilterImpl
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     while (true) {
-      auto v = inner_.Init(prng);
+      auto v = inner_.GetRandomCorpusValue(prng);
       if (RunFilter(v)) return v;
     }
   }

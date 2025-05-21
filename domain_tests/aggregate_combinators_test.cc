@@ -207,27 +207,27 @@ TEST(ConstructorOf, WorksWithMoveConstructors) {
 
 TEST(VariantOf, InitGenerateValidValues) {
   using X = std::variant<int, int, std::string>;
-  Domain<X> domain =
-      VariantOf(ElementOf({5, 10}), InRange(50, 500), PrintableAsciiString());
+  Domain<X> domain = VariantOf(
+      ElementOf({5, 10}), InRange(50, 500),
+      PrintableAsciiString().WithSeeds({"goober", "doober", "skoober"}));
   absl::BitGen bitgen;
   std::vector<absl::flat_hash_set<int>> int_unique_value_arr(2);
   absl::flat_hash_set<std::string> string_unique_values;
-  constexpr int n = 20;
   while (int_unique_value_arr[0].size() < 2 ||
-         int_unique_value_arr[1].size() < n ||
-         string_unique_values.size() < n) {
-    X value = Value(domain, bitgen).user_value;
-    if (value.index() == 0) {
-      int val = std::get<0>(value);
+         int_unique_value_arr[1].size() < 20 ||
+         string_unique_values.size() < 4) {
+    auto value = Value(domain, bitgen);
+    if (value.user_value.index() == 0) {
+      int val = std::get<0>(value.user_value);
       EXPECT_THAT(val, AnyOf(5, 10));
       int_unique_value_arr[0].insert(val);
-    } else if (value.index() == 1) {
-      int val = std::get<1>(value);
+    } else if (value.user_value.index() == 1) {
+      int val = std::get<1>(value.user_value);
       EXPECT_LE(val, 500);
       EXPECT_GE(val, 50);
       int_unique_value_arr[1].insert(val);
     } else {
-      string_unique_values.insert(std::get<2>(value));
+      string_unique_values.insert(std::get<2>(value.user_value));
     }
   }
 }

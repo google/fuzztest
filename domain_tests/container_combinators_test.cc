@@ -324,6 +324,20 @@ TEST(UniqueElementsVectorOf, VerifyRoundTripThroughConversion) {
   VerifyRoundTripThroughConversion(GenerateValues(domain), domain);
 }
 
+// Reproducer for b/394904065
+TEST(UniqueElementsVectorOf, GeneratesValuesFromInnerDomainWithMaxSize) {
+  const int kNumElementsThatWillWork = 3 /* num chars */ + 1 /* empty string */
+                                       + 1;
+  auto string_domain =
+      StringOf(fuzztest::InRange<char>('a', 'c')).WithMaxSize(400);
+  auto domain =
+      UniqueElementsVectorOf(string_domain).WithSize(kNumElementsThatWillWork);
+  for (const auto& value : GenerateValues(domain)) {
+    ASSERT_THAT(value.user_value, Each(MatchesRegex("[abc]*")));
+    ASSERT_THAT(value.user_value, SizeIs(kNumElementsThatWillWork));
+  }
+}
+
 TEST(ContainerCombinatorTest, ArrayOfOne) {
   // A domain of std::array<T, 1> values can be defined in two ways:
   auto with_explicit_size = ArrayOf<1>(InRange(0.0, 1.0));

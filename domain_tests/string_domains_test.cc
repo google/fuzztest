@@ -67,7 +67,12 @@ TYPED_TEST(HandleTypeTest, Arbitrary) {
   Set<TypeParam> unique;
 
   for (int i = 0; i < 100; ++i) {
-    values.emplace_back(domain, bitgen);
+    auto value = Value(domain, bitgen);
+    for (int j = 0; j < 10; ++j) {
+      value.Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                   /*only_shrink=*/false);
+    }
+    values.emplace_back(value, domain);
     unique.insert(values.back().user_value);
   }
 
@@ -163,8 +168,10 @@ TEST(Domain, PrintableAsciiString) {
 
 TEST(Domain, Utf8StringWorksWithSeeds) {
   auto domain = Utf8String().WithSeeds({"\u0414\u0430!\n"});
-  EXPECT_THAT(GenerateValues(domain),
-              Contains(Value(domain, "\u0414\u0430!\n")));
+  EXPECT_THAT(
+      GenerateInitialValues(
+          domain, IterationsToHitAll(/*num_cases=*/1, /*hit_probability=*/0.5)),
+      Contains(Value(domain, "\u0414\u0430!\n")));
 }
 
 TEST(Domain, Utf8StringIgnoresInvalideSeeds) {
