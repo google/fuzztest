@@ -25,8 +25,8 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "./fuzztest/fuzzing_bit_gen.h"
 #include "./fuzztest/internal/domains/domain_base.h"
-#include "./fuzztest/internal/fuzzing_bit_gen.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 

@@ -443,9 +443,9 @@ fuzztest_cc_library(
   NAME
     fuzzing_bit_gen
   HDRS
-    "internal/fuzzing_bit_gen.h"
+    "fuzzing_bit_gen.h"
   SRCS
-    "internal/fuzzing_bit_gen.cc"
+    "fuzzing_bit_gen.cc"
   DEPS
     fuzztest::register_fuzzing_mocks
     absl::fast_type_id

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./fuzztest/internal/fuzzing_bit_gen.h"
+#include "./fuzztest/fuzzing_bit_gen.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -25,7 +25,7 @@
 #include "absl/types/span.h"
 #include "./fuzztest/internal/register_fuzzing_mocks.h"
 
-namespace fuzztest::internal {
+namespace fuzztest {
 
 FuzzingBitGen::FuzzingBitGen(absl::Span<const uint8_t> data_stream)
     : data_stream_(data_stream) {
@@ -58,14 +58,14 @@ FuzzingBitGen::result_type FuzzingBitGen::operator()() {
 
 bool FuzzingBitGen::InvokeMock(absl::FastTypeIdType key_id, void* args_tuple,
                                void* result) {
-  using FuzzMapT =
-      absl::flat_hash_map<absl::FastTypeIdType, TypeErasedFuzzFunctionT>;
+  using FuzzMapT = absl::flat_hash_map<absl::FastTypeIdType,
+                                       internal::TypeErasedFuzzFunctionT>;
   static const absl::NoDestructor<FuzzMapT> fuzzing_map([]() {
     FuzzMapT map;
     auto register_fn = [&map](absl::FastTypeIdType key, auto fn) {
       map[key] = fn;
     };
-    fuzztest::internal::RegisterAbslRandomFuzzingMocks(register_fn);
+    internal::RegisterAbslRandomFuzzingMocks(register_fn);
     return map;
   }());
 
@@ -77,4 +77,4 @@ bool FuzzingBitGen::InvokeMock(absl::FastTypeIdType key_id, void* args_tuple,
   return true;
 }
 
-}  // namespace fuzztest::internal
+}  // namespace fuzztest

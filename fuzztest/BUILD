@@ -494,8 +494,8 @@ cc_library(
 
 cc_library(
     name = "fuzzing_bit_gen",
-    srcs = ["internal/fuzzing_bit_gen.cc"],
-    hdrs = ["internal/fuzzing_bit_gen.h"],
+    srcs = ["fuzzing_bit_gen.cc"],
+    hdrs = ["fuzzing_bit_gen.h"],
     deps = [
         ":register_fuzzing_mocks",
         "@abseil-cpp//absl/base:fast_type_id",

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FUZZTEST_FUZZTEST_INTERNAL_FUZZING_BIT_GEN_H_
-#define FUZZTEST_FUZZTEST_INTERNAL_FUZZING_BIT_GEN_H_
+#ifndef FUZZTEST_FUZZTEST_FUZZING_BIT_GEN_H_
+#define FUZZTEST_FUZZTEST_FUZZING_BIT_GEN_H_
 
 #include <cstdint>
 #include <limits>
@@ -24,7 +24,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/types/span.h"
 
-namespace fuzztest::internal {
+namespace fuzztest {
 
 /// FuzzingBitGen is a BitGen instance which uses the Abseil mock mechanisms
 /// to return distribution specific variates based on the fuzz data stream.
@@ -114,6 +114,6 @@ class FuzzingBitGen {
   friend class ::absl::BitGenRef;                             // for InvokeMock
 };
 
-}  // namespace fuzztest::internal
+}  // namespace fuzztest
 
-#endif  // FUZZTEST_FUZZTEST_INTERNAL_FUZZING_BIT_GEN_H_
+#endif  // FUZZTEST_FUZZTEST_FUZZING_BIT_GEN_H_
