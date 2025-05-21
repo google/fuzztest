@@ -435,7 +435,7 @@ class AssociativeContainerOfImpl
 
     corpus_type val;
     Grow(val, prng, size, 10000);
-    if (val.size() < size) {
+    if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
       // could not after a lot of attempts. This could be caused by an
       // unsatisfiable domain, such as one where the minimum desired size is
@@ -492,7 +492,7 @@ Please verify that the inner domain can provide enough values.
     auto real_value = this->GetValue(val);
     const size_t final_size = real_value.size() + n;
     while (real_value.size() < final_size) {
-      auto new_element = this->inner_.Init(prng);
+      auto new_element = GetRandomInnerValue(prng);
       if (real_value.insert(this->inner_.GetValue(new_element)).second) {
         val.push_back(std::move(new_element));
       } else {
@@ -553,7 +553,7 @@ class SequenceContainerOfImplBase
     const size_t size = this->ChooseRandomInitialSize(prng);
     corpus_type val;
     while (val.size() < size) {
-      val.insert(val.end(), this->inner_.Init(prng));
+      val.insert(val.end(), GetRandomInnerValue(prng));
     }
     return val;
   }
