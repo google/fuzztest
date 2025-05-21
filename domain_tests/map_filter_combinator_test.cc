@@ -275,6 +275,8 @@ TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
   // Generate something shrinkable
   while (!value.has_value() || value->user_value.empty()) {
     value = Value(domain, bitgen);
+    value->Mutate(domain, bitgen, domain_implementor::MutationMetadata(),
+                  /*only_shrink=*/false);
   }
   auto mutated = value->corpus_value;
   while (!domain.GetValue(mutated).empty()) {
@@ -334,6 +336,17 @@ TEST(Filter, CanFilterInitCalls) {
     seen.insert(Value(domain, bitgen).user_value);
   }
   EXPECT_THAT(seen, UnorderedElementsAre(2, 4, 6, 8, 10));
+}
+
+TEST(Filter, CanFilterInitCallsOnUtf8String) {
+  Domain<std::string> domain =
+      Filter([](const std::string& s) { return !s.empty(); }, Utf8String());
+  absl::BitGen bitgen;
+  Set<std::string> seen;
+  while (seen.size() < 2) {
+    seen.insert(Value(domain, bitgen).user_value);
+  }
+  EXPECT_THAT(seen, Not(IsEmpty()));
 }
 
 TEST(Filter, CanFilterMutateCalls) {

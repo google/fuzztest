@@ -108,12 +108,15 @@ void TestMinMaxContainerSize(Domain domain, size_t min_size, size_t max_size) {
 
     ASSERT_THAT(v.user_value, size_match);
     sizes.insert(v.user_value.size());
-    v.Mutate(domain, bitgen, {}, false);
-    ASSERT_THAT(v.user_value, size_match);
+    for (int j = 0; j < 10; ++j) {
+      v.Mutate(domain, bitgen, {}, false);
+      ASSERT_THAT(v.user_value, size_match);
+      sizes.insert(v.user_value.size());
+    }
 
     // Mutating the value can reach the max, but only for small max sizes
     // because it would otherwise take too long.
-    if (max_size <= 10) {
+    if (max_size <= v.user_value.size() + 10) {
       auto max_v = v;
       while (max_v.user_value.size() < max_size) {
         v.Mutate(domain, bitgen, {}, false);
