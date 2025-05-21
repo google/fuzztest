@@ -435,7 +435,7 @@ class AssociativeContainerOfImpl
 
     corpus_type val;
     Grow(val, prng, size, 10000);
-    if (val.size() < size) {
+    if (val.size() < this->min_size()) {
       // We tried to make a container with the minimum specified size and we
       // could not after a lot of attempts. This could be caused by an
       // unsatisfiable domain, such as one where the minimum desired size is
