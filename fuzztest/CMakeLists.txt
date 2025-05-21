@@ -756,6 +756,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::logging
     absl::flat_hash_map
+    absl::function_ref
     absl::strings
     absl::time
 )
