@@ -32,6 +32,10 @@
 #include <string>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -40,8 +44,10 @@
 
 namespace fuzztest::internal {
 
-#if !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) && \
-                            __ANDROID_MIN_SDK_VERSION__ < 28)
+#if !defined(_MSC_VER) &&                     \
+    !(defined(__ANDROID_MIN_SDK_VERSION__) && \
+      __ANDROID_MIN_SDK_VERSION__ < 28) &&    \
+    !(defined(TARGET_OS_TV) && TARGET_OS_TV)
 
 TerminationStatus::TerminationStatus(int status) : status_(status) {}
 
@@ -303,6 +309,9 @@ RunResults RunCommand(
   FUZZTEST_INTERNAL_CHECK(
       false,
       "Subprocess library not implemented on older Android NDK versions yet");
+#elif defined(TARGET_OS_TV) && TARGET_OS_TV
+  FUZZTEST_INTERNAL_CHECK(
+      false, "Subprocess library not implemented on Apple tvOS yet");
 #else
   SubProcess proc;
   return proc.Run(command_line, environment, timeout);
