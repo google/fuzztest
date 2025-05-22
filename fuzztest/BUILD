@@ -221,6 +221,7 @@ cc_library(
         ":io",
         ":logging",
         ":runtime",
+        ":subprocess",
         ":table_of_recent_compares",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:no_destructor",
@@ -784,6 +785,7 @@ cc_library(
     deps = [
         ":logging",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
