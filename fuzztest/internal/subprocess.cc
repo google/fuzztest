@@ -29,14 +29,19 @@
 #endif  // !defined(_MSC_VER)
 
 #include <future>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
+
+extern char** environ;
 
 namespace fuzztest::internal {
 
@@ -58,9 +63,12 @@ std::variant<ExitCodeT, SignalT> TerminationStatus::Status() const {
 // Helper class for running commands in a subprocess.
 class SubProcess {
  public:
-  RunResults Run(
+  TerminationStatus Run(
       const std::vector<std::string>& command_line,
-      const absl::flat_hash_map<std::string, std::string>& environment,
+      absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+      absl::FunctionRef<void(const char*, size_t)> on_stderr_output,
+      const std::optional<absl::flat_hash_map<std::string, std::string>>&
+          environment,
       absl::Duration timeout);
 
  private:
@@ -71,8 +79,11 @@ class SubProcess {
   void StartWatchdog(absl::Duration timeout);
   pid_t StartChild(
       const std::vector<std::string>& command_line,
-      const absl::flat_hash_map<std::string, std::string>& environment);
-  void ReadChildOutput(std::string* stdout_output, std::string* stderr_output);
+      const std::optional<absl::flat_hash_map<std::string, std::string>>&
+          environment);
+  void ReadChildOutput(
+      absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+      absl::FunctionRef<void(const char*, size_t)> on_stderr_output);
 
   // Pipe file descriptors pairs. Index 0 is for stdout, index 1 is for stderr.
   static constexpr int kStdOutIdx = 0;
@@ -148,7 +159,8 @@ posix_spawn_file_actions_t SubProcess::CreateChildFileActions() {
 // Do fork() and exec() in one step, using posix_spawnp().
 pid_t SubProcess::StartChild(
     const std::vector<std::string>& command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment) {
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment) {
   posix_spawn_file_actions_t actions = CreateChildFileActions();
 
   // Create `argv` and `envp` parameters for exec().
@@ -159,18 +171,21 @@ pid_t SubProcess::StartChild(
   }
   argv[argc] = nullptr;
 
-  size_t envc = environment.size();
-  std::vector<char*> envp(envc + 1);
-  int i = 0;
-  for (const auto& [key, value] : environment) {
-    envp[i++] = strdup(absl::StrCat(key, "=", value).c_str());
+  std::vector<char*> envp;
+  if (environment.has_value()) {
+    size_t envc = environment->size();
+    envp.resize(envc + 1);
+    int i = 0;
+    for (const auto& [key, value] : *environment) {
+      envp[i++] = strdup(absl::StrCat(key, "=", value).c_str());
+    }
+    envp[envc] = nullptr;
   }
-  envp[envc] = nullptr;
 
   pid_t child_pid;
   int err;
   err = posix_spawnp(&child_pid, argv[0], &actions, nullptr, argv.data(),
-                     envp.data());
+                     environment.has_value() ? envp.data() : environ);
   FUZZTEST_INTERNAL_CHECK(err == 0,
                           "Cannot spawn child process: ", strerror(err));
 
@@ -189,21 +204,23 @@ static bool ShouldRetry(int e) {
   return ((e == EINTR) || (e == EAGAIN) || (e == EWOULDBLOCK));
 }
 
-void SubProcess::ReadChildOutput(std::string* stdout_output,
-                                 std::string* stderr_output) {
+void SubProcess::ReadChildOutput(
+    absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+    absl::FunctionRef<void(const char*, size_t)> on_stderr_output) {
   // Set up poll()-ing the pipes.
   constexpr int fd_count = 2;
+  bool fd_done[fd_count];
   struct pollfd pfd[fd_count];
-  std::string* out_str[fd_count];
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
+    fd_done[channel] = false;
     pfd[channel].fd = parent_pipe_[channel];
     pfd[channel].events = POLLIN;
     pfd[channel].revents = 0;
-    out_str[channel] = channel == kStdOutIdx ? stdout_output : stderr_output;
   }
 
   // Loop reading stdout and stderr from the child process.
   int fd_remain = fd_count;
+
   char buf[4096];
   while (fd_remain > 0) {
     int ret = poll(pfd, fd_count, -1);
@@ -213,14 +230,21 @@ void SubProcess::ReadChildOutput(std::string* stdout_output,
       FUZZTEST_INTERNAL_CHECK(false, "Impossible timeout: ", strerror(errno));
     } else if (ret > 0) {
       for (int channel : {kStdOutIdx, kStdErrIdx}) {
+        if (fd_done[channel]) {
+          continue;
+        }
         if ((pfd[channel].revents & (POLLIN | POLLHUP)) != 0) {
           ssize_t n = read(pfd[channel].fd, buf, sizeof(buf));
           if (n > 0) {
-            out_str[channel]->append(buf, n);
+            auto on_output =
+                channel == kStdOutIdx ? on_stdout_output : on_stderr_output;
+            on_output(buf, n);
           } else if ((n == 0) || !ShouldRetry(errno)) {
+            fd_done[channel] = true;
             fd_remain--;
           }
         } else if ((pfd[channel].revents & (POLLERR | POLLNVAL)) != 0) {
+          fd_done[channel] = true;
           fd_remain--;
         }
       }
@@ -274,9 +298,12 @@ int WaitWithTimeout(pid_t pid, absl::Duration timeout) {
 
 }  // anonymous namespace
 
-RunResults SubProcess::Run(
+TerminationStatus SubProcess::Run(
     const std::vector<std::string>& command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment,
+    absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+    absl::FunctionRef<void(const char*, size_t)> on_stderr_output,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
     absl::Duration timeout) {
   CreatePipes();
   pid_t child_pid = StartChild(command_line, environment);
@@ -284,17 +311,20 @@ RunResults SubProcess::Run(
   std::future<int> status =
       std::async(std::launch::async, &WaitWithTimeout, child_pid, timeout);
   std::string stdout_output, stderr_output;
-  ReadChildOutput(&stdout_output, &stderr_output);
+  ReadChildOutput(on_stdout_output, on_stderr_output);
   CloseParentPipes();
-  return {TerminationStatus(status.get()), stdout_output, stderr_output};
+  return TerminationStatus(status.get());
 }
 
 #endif  // !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) &&
         // __ANDROID_MIN_SDK_VERSION__ < 28)
 
-RunResults RunCommand(
+TerminationStatus RunCommandWithOutputCallbacks(
     const std::vector<std::string>& command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment,
+    absl::FunctionRef<void(const char*, size_t)> on_stdout_output,
+    absl::FunctionRef<void(const char*, size_t)> on_stderr_output,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
     absl::Duration timeout) {
 #if defined(_MSC_VER)
   FUZZTEST_INTERNAL_CHECK(false,
@@ -305,8 +335,28 @@ RunResults RunCommand(
       "Subprocess library not implemented on older Android NDK versions yet");
 #else
   SubProcess proc;
-  return proc.Run(command_line, environment, timeout);
+  return proc.Run(command_line, on_stdout_output, on_stderr_output, environment,
+                  timeout);
 #endif
+}
+
+RunResults RunCommand(
+    const std::vector<std::string>& command_line,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
+    absl::Duration timeout) {
+  std::string stdout;
+  std::string stderr;
+  auto status = RunCommandWithOutputCallbacks(
+      command_line,
+      [&stdout](const char* output, size_t size) {
+        stdout.append(output, size);
+      },
+      [&stderr](const char* output, size_t size) {
+        stderr.append(output, size);
+      },
+      environment, timeout);
+  return {status, std::move(stdout), std::move(stderr)};
 }
 
 }  // namespace fuzztest::internal
