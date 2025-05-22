@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,12 +25,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
 namespace {
@@ -444,6 +449,49 @@ TEST(TupleOf, ValidationRejectsInvalidInnerValue) {
       domain_b.ValidateCorpusValue(value_a.corpus_value),
       IsInvalid(testing::MatchesRegex(
           R"(Invalid value in aggregate >> The value .+ is not InRange\(.+\))")));
+}
+
+TEST(TupleOf, DomainWithCustomPairCorpusType) {
+  class DomainWithCustomPairCorpusType
+      : public fuzztest::domain_implementor::DomainBase<
+            DomainWithCustomPairCorpusType, std::pair<uint8_t, uint8_t>,
+            std::pair<uint64_t, uint64_t>> {
+   public:
+    using corpus_type = DomainWithCustomPairCorpusType::DomainBase::corpus_type;
+    using value_type = DomainWithCustomPairCorpusType::DomainBase::value_type;
+
+    corpus_type Init(absl::BitGenRef prng) { return {0, 0}; }
+
+    void Mutate(corpus_type& val, absl::BitGenRef prng,
+                const domain_implementor::MutationMetadata& metadata,
+                bool only_shrink) {}
+
+    absl::Status ValidateCorpusValue(const corpus_type& value) const {
+      return absl::OkStatus();
+    }
+
+    auto GetPrinter() const { return internal::UnknownPrinter(); }
+
+    value_type GetValue(const corpus_type& v) const { return value_type(v); }
+
+    std::optional<corpus_type> FromValue(const value_type& v) const {
+      return corpus_type(v);
+    }
+
+    std::optional<corpus_type> ParseCorpus(
+        const internal::IRObject& obj) const {
+      return corpus_type{};
+    }
+
+    internal::IRObject SerializeCorpus(const corpus_type& v) const {
+      return internal::IRObject{};
+    }
+  };
+
+  auto domain = TupleOf(DomainWithCustomPairCorpusType{});
+  std::tuple<std::pair<uint8_t, uint8_t>> value{{1, 2}};
+  auto optional_corpus_tuple = domain.FromValue(value);
+  EXPECT_TRUE(optional_corpus_tuple.has_value());
 }
 
 }  // namespace

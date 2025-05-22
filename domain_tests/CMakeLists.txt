@@ -11,11 +11,15 @@ fuzztest_cc_test(
   DEPS
     fuzztest::domain_testing
     absl::flat_hash_set
+    absl::random_bit_gen_ref
     absl::random_random
     absl::optional
     absl::span
+    absl::status
     absl::variant
     fuzztest::domain_core
+    fuzztest::serialization
+    fuzztest::type_support
     GTest::gmock_main
 )
 

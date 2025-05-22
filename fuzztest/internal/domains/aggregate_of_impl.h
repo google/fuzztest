@@ -140,7 +140,7 @@ class AggregateOfImpl
             value, std::integral_constant<int, sizeof...(Inner)>{});
         return [](auto... optional_values) -> std::optional<corpus_type> {
           if ((optional_values.has_value() && ...)) {
-            return std::tuple(*std::move(optional_values)...);
+            return corpus_type(*std::move(optional_values)...);
           } else {
             return std::nullopt;
           }
