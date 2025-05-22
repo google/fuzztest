@@ -1629,8 +1629,11 @@ class ProtobufDomainUntypedImpl
   auto GetBaseDefaultDomainForFieldType(const FieldDescriptor* field) const {
     if constexpr (std::is_same_v<T, std::string>) {
       if (field->type() == FieldDescriptor::TYPE_STRING) {
-        // Can only use UTF-8. For now, simplify as just ASCII.
-        return Domain<T>(AsciiString());
+        if (field->requires_utf8_validation()) {
+          return Domain<T>(Utf8String());
+        } else {
+          return Domain<T>(String());
+        }
       }
     }
 
