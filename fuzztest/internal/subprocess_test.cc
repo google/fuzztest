@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
@@ -77,6 +78,15 @@ TEST(SubProcessTest, TimeoutIsEnforced) {
   EXPECT_EQ(ToString(status), absl::StrCat("Signal: ", SIGTERM));
   EXPECT_GT(std_out.size(), 0);
   EXPECT_EQ(std_err.size(), 0);
+}
+
+TEST(SubProcessTest, ReturnsAfterChildProcessEnds) {
+  const auto before_time = absl::Now();
+  auto [status, std_out, std_err] = RunCommand({"bash", "-c", "sleep 4&"});
+  const auto after_time = absl::Now();
+  EXPECT_TRUE(status.Exited());
+  EXPECT_EQ(status, ExitCode(0));
+  EXPECT_LT(after_time - before_time, absl::Seconds(2));
 }
 
 }  // namespace
