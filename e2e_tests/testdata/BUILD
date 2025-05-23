@@ -36,7 +36,7 @@ cc_binary(
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
     ],
 )
 
@@ -55,7 +55,7 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@googletest//:gtest",
         "@protobuf",
         "@re2",
@@ -103,8 +103,8 @@ cc_binary(
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@com_google_fuzztest//fuzztest:logging",
+        "@com_google_fuzztest//fuzztest:test_protobuf_cc_proto",
         "@protobuf",
         "@re2",
     ],
