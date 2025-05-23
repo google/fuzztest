@@ -1,3 +1,17 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 cmake_minimum_required(VERSION 3.19)
 project(fuzztest)
 
@@ -36,6 +50,7 @@ fuzztest_setup_fuzzing_flags()
 
 include(cmake/BuildDependencies.cmake)
 include(cmake/FuzzTestHelpers.cmake)
+include(cmake/CompatibilityModeLinkLibFuzzer.cmake)
 
 include_directories(${re2_SOURCE_DIR})
 
@@ -48,12 +63,16 @@ if (FUZZTEST_BUILD_TESTING)
   include(${protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake)
 endif ()
 
-add_subdirectory(grammar_codegen)
-add_subdirectory(tools)
 add_subdirectory(common)
 add_subdirectory(fuzztest)
-
+add_subdirectory(fuzztest/grammars)
+add_subdirectory(fuzztest/internal)
+add_subdirectory(fuzztest/internal/domains)
+add_subdirectory(grammar_codegen)
+add_subdirectory(grammar_codegen/generated_antlr_parser)
+add_subdirectory(tools)
 if (FUZZTEST_BUILD_TESTING)
   add_subdirectory(domain_tests)
   add_subdirectory(e2e_tests)
+  add_subdirectory(e2e_tests/testdata)
 endif ()

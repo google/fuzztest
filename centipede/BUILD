@@ -845,7 +845,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
-        "@com_google_fuzztest//fuzztest:configuration",
+        "@com_google_fuzztest//fuzztest/internal:configuration",
     ],
 )
 
@@ -878,7 +878,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
-        "@com_google_fuzztest//fuzztest:configuration",
+        "@com_google_fuzztest//fuzztest/internal:configuration",
     ],
 )
 
@@ -947,7 +947,7 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_fuzztest//fuzztest:table_of_recent_compares",
+        "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
     ],
 )
 
@@ -1252,7 +1252,7 @@ cc_test(
         ":environment",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
-        "@com_google_fuzztest//fuzztest:configuration",
+        "@com_google_fuzztest//fuzztest/internal:configuration",
         "@googletest//:gtest_main",
     ],
 )

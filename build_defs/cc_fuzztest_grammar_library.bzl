@@ -56,5 +56,5 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None, insert_whites
     native.cc_library(
         name = name,
         hdrs = [output_file_name],
-        deps = ["@com_google_fuzztest//fuzztest:domain"],
+        deps = ["@com_google_fuzztest//fuzztest/internal/domains:in_grammar_impl"],
     )
