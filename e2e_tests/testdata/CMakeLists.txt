@@ -1,7 +1,3 @@
-get_filename_component(PARENT_DIR ../ ABSOLUTE)
-include_directories(${PARENT_DIR})
-
-include_directories(${CMAKE_BINARY_DIR})
 add_executable(
   fuzz_tests_for_microbenchmarking
   fuzz_tests_for_microbenchmarking.cc

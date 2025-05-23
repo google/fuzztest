@@ -52,13 +52,9 @@ include(cmake/BuildDependencies.cmake)
 include(cmake/FuzzTestHelpers.cmake)
 include(cmake/CompatibilityModeLinkLibFuzzer.cmake)
 
-include_directories(${re2_SOURCE_DIR})
-
 if (FUZZTEST_BUILD_TESTING)
   enable_testing()
-endif ()
 
-if (FUZZTEST_BUILD_TESTING)
   set(protobuf_PROTOC_EXE "${protobuf_BINARY_DIR}/protoc")
   include(${protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake)
 endif ()
@@ -71,6 +67,7 @@ add_subdirectory(fuzztest/internal/domains)
 add_subdirectory(grammar_codegen)
 add_subdirectory(grammar_codegen/generated_antlr_parser)
 add_subdirectory(tools)
+
 if (FUZZTEST_BUILD_TESTING)
   add_subdirectory(domain_tests)
   add_subdirectory(e2e_tests)
