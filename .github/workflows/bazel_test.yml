@@ -63,7 +63,7 @@ jobs:
         if: matrix.config == 'default'
         run: |
           bazel build -c ${{ matrix.compilation_mode }} \
-            --copt=-DFUZZTEST_COMPATIBILITY_MODE -- //fuzztest:compatibility_mode
+            --copt=-DFUZZTEST_COMPATIBILITY_MODE -- //fuzztest/internal:compatibility_mode
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |

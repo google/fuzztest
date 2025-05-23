@@ -37,9 +37,6 @@
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/domains/absl_helpers.h"
-#include "./fuzztest/internal/domains/arbitrary_impl.h"
-#include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
