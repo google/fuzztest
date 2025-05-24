@@ -52,7 +52,6 @@ fuzztest_cc_test(
     absl::random_bit_gen_ref
     absl::status
     absl::time
-    fuzztest::absl_helpers
     fuzztest::domain_core
     fuzztest::serialization
     test_protobuf
