@@ -37,11 +37,18 @@
 #endif  // CENTIPEDE_DISABLE_RIEGELI
 
 #if defined(__APPLE__)
-#if (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&       \
-     __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_15) || \
-    (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&      \
-     __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0)
-// std::filesystem requires macOS 10.15+ or iOS 13+.
+#include <TargetConditionals.h>
+
+#if (defined(TARGET_OS_OSX) && TARGET_OS_OSX &&           \
+     defined(__MAC_OS_X_VERSION_MIN_REQUIRED) &&          \
+     __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_15) ||    \
+    (defined(TARGET_OS_IOS) && TARGET_OS_IOS &&           \
+     defined(__IPHONE_OS_VERSION_MIN_REQUIRED) &&         \
+     __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_13_0) || \
+    (defined(TARGET_OS_TV) && TARGET_OS_TV &&             \
+     defined(__TV_OS_VERSION_MIN_REQUIRED) &&             \
+     __TV_OS_VERSION_MIN_REQUIRED < __TVOS_13_0)
+// std::filesystem requires macOS 10.15+ or iOS 13+ or tvOS 13+.
 // Use this macro to stub out code that depends on std::filesystem.
 #define FUZZTEST_STUB_STD_FILESYSTEM
 #endif
