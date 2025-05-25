@@ -332,12 +332,12 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
 int RunCentipede(const Environment& env,
                  const std::optional<std::string>& centipede_command) {
   if (centipede_command.has_value()) {
-    std::string cmdline = *centipede_command;
+    std::string cmdline = "exec 2>&1 ";
+    absl::StrAppend(&cmdline, *centipede_command);
     for (const auto& flag : env.CreateFlags()) {
       absl::StrAppend(&cmdline, " ");
       absl::StrAppend(&cmdline, ShellEscape(flag));
     }
-    absl::StrAppend(&cmdline, " 2>&1");
     absl::FPrintF(GetStderr(), "[.] Running Centipede command %s\n", cmdline);
     FILE* pipe = popen(cmdline.c_str(), "r");
     FUZZTEST_INTERNAL_CHECK(pipe != nullptr, "popen failed with errno %d",

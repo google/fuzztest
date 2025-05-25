@@ -57,6 +57,16 @@ TEST(SubProcessTest, StdErrIsCaptured) {
   EXPECT_THAT(std_err, HasSubstr("command not found"));
 }
 
+TEST(SubProcessTest, StdErrIsCapturedIfStdOutIsClosedEarly) {
+  auto [status, std_out, std_err] = RunCommand(
+      {"bash", "-c",
+       "exec >&- bash -c 'sleep 1; echo some stderr output >&2; exit 0'"});
+  EXPECT_TRUE(status.Exited());
+  EXPECT_EQ(status, ExitCode(0));
+  EXPECT_EQ(std_out, "");
+  EXPECT_THAT(std_err, HasSubstr("some stderr output"));
+}
+
 TEST(SubProcessTest, CrashesWithWrongArguments) {
   EXPECT_DEATH(RunCommand({"not-a-binary"}), "Cannot spawn child process");
 }
