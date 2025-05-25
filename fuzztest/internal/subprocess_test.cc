@@ -15,6 +15,7 @@
 #include "./fuzztest/internal/subprocess.h"
 
 #include <csignal>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -27,6 +28,7 @@ namespace fuzztest::internal {
 namespace {
 
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 template <typename T>
 std::string ToString(T v) {
@@ -71,8 +73,27 @@ TEST(SubProcessTest, CrashesWithWrongArguments) {
   EXPECT_DEATH(RunCommand({"not-a-binary"}), "Cannot spawn child process");
 }
 
+TEST(SubProcessTest, EnvironmentIsNotInheritedByDefault) {
+  setenv("THING", "1", /*overwrite=*/1);
+  auto [status, std_out, std_err] = RunCommand({"env"});
+  EXPECT_TRUE(status.Exited());
+  EXPECT_EQ(status, ExitCode(0));
+  EXPECT_THAT(std_out, Not(HasSubstr("THING=1")));
+  EXPECT_EQ(std_err, "");
+}
+
+TEST(SubProcessTest, EnvironmentIsInheritedIfRequested) {
+  setenv("THING", "1", /*overwrite=*/1);
+  auto [status, std_out, std_err] =
+      RunCommand({"env"}, /*environment=*/std::nullopt);
+  EXPECT_TRUE(status.Exited());
+  EXPECT_EQ(status, ExitCode(0));
+  EXPECT_THAT(std_out, HasSubstr("THING=1")) << std_out;
+  EXPECT_EQ(std_err, "");
+}
+
 TEST(SubProcessTest, PassedEnvironmentIsSet) {
-  auto [status, std_out, std_err] = RunCommand({"env"}, {{"THING", "42"}});
+  auto [status, std_out, std_err] = RunCommand({"env"}, {{{"THING", "42"}}});
   EXPECT_TRUE(status.Exited());
   EXPECT_EQ(status, ExitCode(0));
   EXPECT_EQ(std_out, "THING=42\n");

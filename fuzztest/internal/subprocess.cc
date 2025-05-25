@@ -29,6 +29,7 @@
 #endif  // !defined(_MSC_VER)
 
 #include <future>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -41,6 +42,10 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/logging.h"
+
+// Needed to pass the current environment to posix_spawn, which needs an
+// explicit envp without an option to inherit implicitly.
+extern char** environ;
 
 namespace fuzztest::internal {
 
@@ -66,7 +71,8 @@ class SubProcess {
       absl::Span<const std::string> command_line,
       absl::FunctionRef<void(absl::string_view)> on_stdout_output,
       absl::FunctionRef<void(absl::string_view)> on_stderr_output,
-      const absl::flat_hash_map<std::string, std::string>& environment,
+      const std::optional<absl::flat_hash_map<std::string, std::string>>&
+          environment,
       absl::Duration timeout);
 
  private:
@@ -77,13 +83,13 @@ class SubProcess {
   void StartWatchdog(absl::Duration timeout);
   pid_t StartChild(
       absl::Span<const std::string> command_line,
-      const absl::flat_hash_map<std::string, std::string>& environment);
+      const std::optional<absl::flat_hash_map<std::string, std::string>>&
+          environment);
   void ReadChildOutput(
       absl::FunctionRef<void(absl::string_view)> on_stdout_output,
       absl::FunctionRef<void(absl::string_view)> on_stderr_output);
 
-  // Pipe file descriptors pairs. Index 0 is for stdout, index 1 is for
-  // stderr.
+  // Pipe file descriptors pairs. Index 0 is for stdout, index 1 is for stderr.
   static constexpr int kStdOutIdx = 0;
   static constexpr int kStdErrIdx = 1;
   int parent_pipe_[2];
@@ -157,7 +163,8 @@ posix_spawn_file_actions_t SubProcess::CreateChildFileActions() {
 // Do fork() and exec() in one step, using posix_spawnp().
 pid_t SubProcess::StartChild(
     absl::Span<const std::string> command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment) {
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment) {
   posix_spawn_file_actions_t actions = CreateChildFileActions();
 
   // Create `argv` and `envp` parameters for exec().
@@ -168,18 +175,21 @@ pid_t SubProcess::StartChild(
   }
   argv[argc] = nullptr;
 
-  size_t envc = environment.size();
-  std::vector<char*> envp(envc + 1);
-  int i = 0;
-  for (const auto& [key, value] : environment) {
-    envp[i++] = strdup(absl::StrCat(key, "=", value).c_str());
+  std::vector<char*> envp;
+  if (environment.has_value()) {
+    size_t envc = environment->size();
+    envp.resize(envc + 1);
+    int i = 0;
+    for (const auto& [key, value] : *environment) {
+      envp[i++] = strdup(absl::StrCat(key, "=", value).c_str());
+    }
+    envp[envc] = nullptr;
   }
-  envp[envc] = nullptr;
 
   pid_t child_pid;
   int err;
   err = posix_spawnp(&child_pid, argv[0], &actions, nullptr, argv.data(),
-                     envp.data());
+                     environment.has_value() ? envp.data() : environ);
   FUZZTEST_INTERNAL_CHECK(err == 0,
                           "Cannot spawn child process: ", strerror(err));
 
@@ -212,6 +222,7 @@ void SubProcess::ReadChildOutput(
 
   // Loop reading stdout and stderr from the child process.
   int fd_remain = fd_count;
+
   char buf[4096];
   while (fd_remain > 0) {
     int ret = poll(pfd, fd_count, -1);
@@ -294,7 +305,8 @@ TerminationStatus SubProcess::Run(
     absl::Span<const std::string> command_line,
     absl::FunctionRef<void(absl::string_view)> on_stdout_output,
     absl::FunctionRef<void(absl::string_view)> on_stderr_output,
-    const absl::flat_hash_map<std::string, std::string>& environment,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
     absl::Duration timeout) {
   CreatePipes();
   pid_t child_pid = StartChild(command_line, environment);
@@ -313,7 +325,8 @@ TerminationStatus RunCommandWithOutputCallbacks(
     absl::Span<const std::string> command_line,
     absl::FunctionRef<void(absl::string_view)> on_stdout_output,
     absl::FunctionRef<void(absl::string_view)> on_stderr_output,
-    const absl::flat_hash_map<std::string, std::string>& environment,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
     absl::Duration timeout) {
 #if defined(_MSC_VER)
   FUZZTEST_INTERNAL_CHECK(false,
@@ -331,7 +344,8 @@ TerminationStatus RunCommandWithOutputCallbacks(
 
 RunResults RunCommand(
     absl::Span<const std::string> command_line,
-    const absl::flat_hash_map<std::string, std::string>& environment,
+    const std::optional<absl::flat_hash_map<std::string, std::string>>&
+        environment,
     absl::Duration timeout) {
   std::string stdout;
   std::string stderr;
