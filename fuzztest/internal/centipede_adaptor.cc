@@ -84,6 +84,7 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest::internal {
@@ -339,14 +340,26 @@ int RunCentipede(const Environment& env,
       absl::StrAppend(&cmdline, ShellEscape(flag));
     }
     absl::FPrintF(GetStderr(), "[.] Running Centipede command %s\n", cmdline);
-    FILE* pipe = popen(cmdline.c_str(), "r");
-    FUZZTEST_INTERNAL_CHECK(pipe != nullptr, "popen failed with errno %d",
-                            errno);
-    char buf[1024];
-    while (std::fgets(buf, sizeof(buf), pipe)) {
-      std::fputs(buf, GetStderr());
+    const std::vector<std::string> shell_cmd = {"/bin/sh", "-c",
+                                                std::move(cmdline)};
+    const TerminationStatus status = RunCommandWithOutputCallbacks(
+        shell_cmd,
+        [](absl::string_view stdout_output) {
+          std::fwrite(stdout_output.data(), 1, stdout_output.size(),
+                      GetStderr());
+        },
+        [](absl::string_view stderr_output) {
+          std::fwrite(stderr_output.data(), 1, stderr_output.size(),
+                      GetStderr());
+        },
+        /*environment=*/std::nullopt);
+    if (status.Signaled()) {
+      // Encoding signaled exit similarly as Bash.
+      return 128 + static_cast<int>(std::get<SignalT>(status.Status()));
     }
-    return pclose(pipe);
+    FUZZTEST_INTERNAL_CHECK(
+        status.Exited(), "Termination status must be Exited if not Signaled");
+    return static_cast<int>(std::get<ExitCodeT>(status.Status()));
   }
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;

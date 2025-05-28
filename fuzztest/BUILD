@@ -221,6 +221,7 @@ cc_library(
         ":io",
         ":logging",
         ":runtime",
+        ":subprocess",
         ":table_of_recent_compares",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:no_destructor",
