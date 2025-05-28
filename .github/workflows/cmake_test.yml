@@ -30,7 +30,7 @@ jobs:
     # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
     # is fixed.
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -63,7 +63,7 @@ jobs:
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
-            -D FUZZTEST_REPO="${{ github.event.pull_request.head.repo.full_name }}" \
+            -D FUZZTEST_REPO="${{ github.event.pull_request.head.repo.full_name || github.repository }}" \
             -D FUZZTEST_REPO_BRANCH="${{ github.head_ref || github.ref_name }}" \
           && cmake --build build_codelab -j $(nproc)
       - name: Run all tests in default mode with clang
