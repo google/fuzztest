@@ -47,9 +47,11 @@
 #include "absl/types/span.h"
 #include "./fuzztest/internal/logging.h"
 
+#if !defined(_MSC_VER)
 // Needed to pass the current environment to posix_spawn, which needs an
 // explicit envp without an option to inherit implicitly.
 extern char** environ;
+#endif
 
 namespace fuzztest::internal {
 
@@ -356,14 +358,14 @@ RunResults RunCommand(
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
         environment,
     absl::Duration timeout) {
-  std::string stdout;
-  std::string stderr;
+  std::string stdout_str;
+  std::string stderr_str;
   auto status = RunCommandWithOutputCallbacks(
       command_line,
-      [&stdout](absl::string_view output) { stdout.append(output); },
-      [&stderr](absl::string_view output) { stderr.append(output); },
+      [&stdout_str](absl::string_view output) { stdout_str.append(output); },
+      [&stderr_str](absl::string_view output) { stderr_str.append(output); },
       environment, timeout);
-  return {std::move(status), std::move(stdout), std::move(stderr)};
+  return {std::move(status), std::move(stdout_str), std::move(stderr_str)};
 }
 
 }  // namespace fuzztest::internal
