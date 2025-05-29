@@ -63,9 +63,9 @@ echo -e "\n=== OOM test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
 fuzztest::internal::test_replaying_target \
   batch_fuzz 'RSS limit exceeded: [0-9][0-9]* > 1024' "oom"
 
-export CENTIPEDE_RUNNER_FLAGS=":timeout_per_input=1:"
+export CENTIPEDE_RUNNER_FLAGS=":timeout_per_input_ms=1000:"
 echo -e "\n=== Timeout test with CENTIPEDE_RUNNER_FLAGS=${CENTIPEDE_RUNNER_FLAGS}\n"
 fuzztest::internal::test_replaying_target \
-  batch_fuzz 'Per-input timeout exceeded: [0-9][0-9]* > 1' "slp"
+  batch_fuzz 'Per-input timeout exceeded: [0-9][0-9]* > 1000' "slp"
 
 echo "PASS"
