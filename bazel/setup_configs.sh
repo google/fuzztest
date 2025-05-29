@@ -68,7 +68,7 @@ REPO_NAME="${1}"
 # When used in the fuzztest repo itself.
 if [[ ${REPO_NAME} == "@" ]]; then
   COMMON_FILTER="//common:"
-  FUZZTEST_FILTER="//fuzztest:"
+  FUZZTEST_FILTER="//fuzztest:,//fuzztest/internal:,//fuzztest/internal/domains:"
   CENTIPEDE_FILTER="//centipede:,-//centipede/.*fuzz_target"
 else  # When used in a client repo.
   COMMON_FILTER="common/.*"
