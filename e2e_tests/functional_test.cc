@@ -1103,32 +1103,6 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
-       ConfiguresStackLimitByEnvVarWithWarning) {
-  auto [status, std_out, std_err] =
-      RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"}},
-              {{"FUZZTEST_STACK_LIMIT", "512000"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err,
-              HasSubstr(absl::StrCat(
-                  "Stack limit is set by FUZZTEST_STACK_LIMIT env var - this "
-                  "is going to be deprecated soon. Consider switching to ",
-                  CreateFuzzTestFlag("stack_limit_kb", ""), " flag.")));
-  ExpectStackLimitExceededMessage(std_err, 512000);
-  ExpectTargetAbort(status, std_err);
-}
-
-TEST_F(FuzzingModeCommandLineInterfaceTest,
-       ConfiguresStackLimitByEnvVarAndOverridesFlag) {
-  auto [status, std_out, std_err] =
-      RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
-               {"stack_limit_kb", "1000"}},
-              {{"FUZZTEST_STACK_LIMIT", "512000"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  ExpectStackLimitExceededMessage(std_err, 512000);
-  ExpectTargetAbort(status, std_err);
-}
-
-TEST_F(FuzzingModeCommandLineInterfaceTest,
        DoesNotPrintWarningForDisabledLimitFlagsByDefault) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "10s"}},
