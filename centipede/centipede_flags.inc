@@ -49,6 +49,8 @@ CENTIPEDE_FLAG(
     "the reports. --workdir in turn must be local in order for this "
     "functionality to work. See "
     "https://clang.llvm.org/docs/SourceBasedCodeCoverage.html")
+CENTIPEDE_FLAG(std::string, test_name, "",
+               "The name of test to pass to the binary to operate on.")
 CENTIPEDE_FLAG(
     std::vector<std::string>, extra_binaries, {},
     "A comma-separated list of extra target binaries. These binaries are "
@@ -293,11 +295,10 @@ CENTIPEDE_FLAG(
 CENTIPEDE_FLAG(
     std::string, crashes_to_files, "",
     "When set to a directory path, save the crashing reproducers and "
-    "metadata from the workdir to the given path. Each crash with `ID`"
-    "will be saved with file `ID.data` for the reproducer and "
-    "`ID.metadata` the metadata, which currently contains the failure "
-    "description. If multiple crashes with the same ID exist, only one "
-    "crash will be saved.")
+    "metadata from the workdir to the given path: Each crash with `ID`"
+    "will be saved with file `ID.data` for the reproducer, `ID.desc` the "
+    "description, `ID.sig` the signature. If multiple crashes with the same ID "
+    "exist, only one crash will be saved.")
 CENTIPEDE_FLAG(
     std::string, corpus_from_files, "",
     "Export a corpus from a local directory with one file per input into "
