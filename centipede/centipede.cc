@@ -900,6 +900,12 @@ void Centipede::ReportCrash(std::string_view binary,
     LOG(INFO).NoPrefix() << "\n";
   };
 
+  if (batch_result.IsIgnoredFailure()) {
+    LOG(INFO) << "Skip further processing of "
+              << batch_result.failure_description();
+    return;
+  }
+
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");
     LOG(INFO) << "Requesting early stop due to skipped test.";
