@@ -560,4 +560,67 @@ if (FUZZTEST_BUILD_TESTING)
 
   add_library(fuzztest::test_protobuf_cc_proto ALIAS test_protobuf)
 
+  if (FUZZTEST_BUILD_FLATBUFFERS)
+    # Generate test flatbuffers
+    include_directories(${FLATBUFFERS_INCLUDE_DIR})
+    set(FBS_SCHEMA_FILE "${CMAKE_CURRENT_LIST_DIR}/test_flatbuffers.fbs")
+    set(FLATC_FLAGS "--bfbs-gen-embed" "--gen-name-strings")
+
+    # Modified version of `flatbuffers_generate_headers`
+    # from https://github.com/google/flatbuffers/blob/master/CMake/BuildFlatBuffers.cmake
+    # Supports having the embedded schema header in the output set.
+    add_custom_command(
+      OUTPUT
+        "test_flatbuffers_bfbs_generated.h"
+        "test_flatbuffers_generated.h"
+      COMMAND
+        $<TARGET_FILE:flatc>
+        -o "${CMAKE_CURRENT_BINARY_DIR}"
+        -c
+        ${FBS_SCHEMA_FILE}
+        ${FLATC_FLAGS}
+      DEPENDS
+        flatc
+        ${FBS_SCHEMA_FILE}
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      COMMENT "Building ${FBS_SCHEMA_FILE} flatbuffers..."
+    )
+
+    # Create an additional target as add_custom_command scope is only within
+    # same directory (CMakeFile.txt)
+    add_custom_target(
+      GENERATE_test_flatbuffers ALL
+      DEPENDS
+        "test_flatbuffers_bfbs_generated.h"
+        "test_flatbuffers_generated.h"
+      COMMENT "Generating flatbuffer target test_flatbuffers"
+    )
+
+    # Set up interface library
+    add_library(test_flatbuffers INTERFACE)
+    add_dependencies(
+      test_flatbuffers
+      flatc
+      ${FBS_SCHEMA_FILE}
+    )
+    target_include_directories(
+      test_flatbuffers
+      INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+
+    # Organize file layout for IDEs.
+    source_group(
+      TREE "${CMAKE_CURRENT_BINARY_DIR}"
+      PREFIX "Flatbuffers/Generated/Headers Files"
+      FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/test_flatbuffers_bfbs_generated.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/test_flatbuffers_generated.h"
+    )
+    source_group(
+      TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+      PREFIX "Flatbuffers/Schemas"
+      FILES ${FBS_SCHEMA_FILE}
+    )
+  endif()
+
 endif ()
