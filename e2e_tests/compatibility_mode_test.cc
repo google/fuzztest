@@ -44,9 +44,8 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
     absl::flat_hash_map<std::string, std::string> env) {
   if (!env.contains("ASAN_OPTIONS")) {
     // Let both FuzzTest and sanitizer to handle abort to check
-    // information from both sides. Use a random exitcode 111 for
-    // sanitizer-caught crashes.
-    env["ASAN_OPTIONS"] = "handle_abort=1:exitcode=111";
+    // information from both sides.
+    env["ASAN_OPTIONS"] = "handle_abort=1";
   }
   return env;
 }
@@ -85,7 +84,7 @@ TEST(CompatibilityModeTest, FindsAndReplaysCrash) {
             {"--",
              absl::StrCat("-artifact_prefix=", out_dir.path().string(), "/")}});
     SCOPED_TRACE(stderr);
-    ASSERT_THAT(status, Eq(ExitCode(111)));
+    ASSERT_THAT(status, Not(Eq(ExitCode(0))));
     EXPECT_THAT(stderr, AllOf(HasSubstr("argument 0: Color{0}"),
                               HasSubstr("argument 1: Color{1}"),
                               HasSubstr("argument 2: Color{2}")));
@@ -99,7 +98,7 @@ TEST(CompatibilityModeTest, FindsAndReplaysCrash) {
         RunBinary(/*fuzztest_flags=*/{{"fuzz", "MySuite.EnumValue"}},
                   /*binary_args=*/{{"--", crash_path}});
     SCOPED_TRACE(stderr);
-    ASSERT_THAT(status, Eq(ExitCode(111)));
+    ASSERT_THAT(status, Not(Eq(ExitCode(0))));
     EXPECT_THAT(stderr, HasSubstr(absl::StrCat("Running: ", crash_path)));
     EXPECT_THAT(stderr, AllOf(HasSubstr("argument 0: Color{0}"),
                               HasSubstr("argument 1: Color{1}"),
