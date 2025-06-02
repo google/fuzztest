@@ -1010,30 +1010,12 @@ void FuzzTestFuzzerImpl::PopulateFromSeeds(
                });
 }
 
-size_t GetStackLimitFromEnvOrConfiguration(const Configuration& configuration) {
-  size_t env_stack_limit;
-  if (const char* env = getenv("FUZZTEST_STACK_LIMIT");
-      (env != nullptr && absl::SimpleAtoi(env, &env_stack_limit))) {
-    absl::FPrintF(
-        GetStderr(),
-        "[!] Stack limit is set by FUZZTEST_STACK_LIMIT env var - this is "
-        "going to be deprecated soon. Consider switching to "
-        "--" FUZZTEST_FLAG_PREFIX "stack_limit_kb flag.\n");
-    return env_stack_limit;
-  }
-  return configuration.stack_limit;
-}
-
 void PopulateLimits(const Configuration& configuration,
                     ExecutionCoverage* execution_coverage) {
   // centipede_adaptor would populate the limits to Centipede.
 #ifndef FUZZTEST_USE_CENTIPEDE
-  // TODO(b/273276918): For now, let existing FUZZTEST_STACK_LIMIT overwrite the
-  // stack limit. So that the existing targets that set the env var could still
-  // work.
   if (execution_coverage)
-    execution_coverage->SetStackLimit(
-        GetStackLimitFromEnvOrConfiguration(configuration));
+    execution_coverage->SetStackLimit(configuration.stack_limit);
 #endif
 }
 

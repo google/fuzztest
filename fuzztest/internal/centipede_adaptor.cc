@@ -559,9 +559,7 @@ class CentipedeAdaptorRunnerCallbacks
 namespace {
 
 void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
-  if (const size_t stack_limit =
-          GetStackLimitFromEnvOrConfiguration(configuration);
-      stack_limit > 0) {
+  if (const size_t stack_limit = configuration.stack_limit; stack_limit > 0) {
     absl::FPrintF(GetStderr(), "[.] Stack limit set to: %zu\n", stack_limit);
     CentipedeSetStackLimit(/*stack_limit_kb=*/stack_limit >> 10);
   }

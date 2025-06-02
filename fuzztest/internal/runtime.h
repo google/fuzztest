@@ -431,8 +431,6 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
   friend class CentipedeAdaptorEngineCallbacks;
 };
 
-size_t GetStackLimitFromEnvOrConfiguration(const Configuration& configuration);
-
 // A reproduction command template will include these placeholders. These
 // placeholders then will be replaced by the proper test filter when creating
 // the final reproduction command from the template.
