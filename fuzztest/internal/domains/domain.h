@@ -183,6 +183,12 @@ class Domain {
     return Mutate(corpus_value, prng, {}, only_shrink);
   }
 
+  // See the important notes on GetRandomValue() above on caveats of getting
+  // random values.
+  corpus_type GetRandomCorpusValue(absl::BitGenRef prng) {
+    return inner_->UntypedGetRandomCorpusValue(prng);
+  }
+
   // The methods below are responsible for transforming between the above
   // described three types that domains deal with. Here's a quick overview:
   //
