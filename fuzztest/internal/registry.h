@@ -34,6 +34,41 @@
 namespace fuzztest {
 namespace internal {
 
+template <typename Fixture, typename = void>
+class FuzzTestFuzzerProvider;
+
+#if defined(FUZZTEST_COMPATIBILITY_MODE) && defined(FUZZTEST_USE_CENTIPEDE)
+#error FuzzTest compatibility mode cannot work together with Centipede.
+#endif
+#if defined(FUZZTEST_COMPATIBILITY_MODE)
+template <typename Fixture>
+class FuzzTestFuzzerProvider<
+    Fixture, std::enable_if_t<std::negation_v<
+                 std::is_base_of<FixtureWithReentrantSetUp, Fixture>>>>
+    : public FuzzTestExternalEngineAdaptor {
+ public:
+  using FuzzTestExternalEngineAdaptor::FuzzTestExternalEngineAdaptor;
+};
+#elif defined(FUZZTEST_USE_CENTIPEDE)
+template <typename Fixture>
+class FuzzTestFuzzerProvider<
+    Fixture, std::enable_if_t<std::negation_v<
+                 std::is_base_of<FixtureWithReentrantSetUp, Fixture>>>>
+    : public CentipedeFuzzerAdaptor {
+ public:
+  using CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor;
+};
+#else
+template <typename Fixture>
+class FuzzTestFuzzerProvider<
+    Fixture, std::enable_if_t<std::negation_v<
+                 std::is_base_of<FixtureWithReentrantSetUp, Fixture>>>>
+    : public FuzzTestFuzzerImpl {
+ public:
+  using FuzzTestFuzzerImpl::FuzzTestFuzzerImpl;
+};
+#endif
+
 void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
 
 void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func);
@@ -70,16 +105,7 @@ struct RegistrationToken {
             typename SeedProvider>
   static FuzzTestFuzzerFactory GetFuzzTestFuzzerFactory(
       Registration<Fixture, TargetFunction, RegBase, SeedProvider>&& reg) {
-#if defined(FUZZTEST_COMPATIBILITY_MODE) && defined(FUZZTEST_USE_CENTIPEDE)
-#error FuzzTest compatibility mode cannot work together with Centipede.
-#endif
-#if defined(FUZZTEST_COMPATIBILITY_MODE)
-    using FuzzerImpl = FuzzTestExternalEngineAdaptor;
-#elif defined(FUZZTEST_USE_CENTIPEDE)
-    using FuzzerImpl = CentipedeFuzzerAdaptor;
-#else
-    using FuzzerImpl = FuzzTestFuzzerImpl;
-#endif
+    using FuzzerImpl = FuzzTestFuzzerProvider<Fixture>;
 
     return [target_function = reg.target_function_, domain = reg.GetDomains(),
             seeds = reg.seeds(), seed_provider = reg.seed_provider()](
