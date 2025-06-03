@@ -185,7 +185,7 @@ static uint64_t TimeInUsec() {
 }
 
 static void CheckWatchdogLimits() {
-  const uint64_t curr_time = time(nullptr);
+  const uint64_t curr_time_ms = TimeInUsec() / 1000;
   struct Resource {
     const char *what;
     const char *units;
@@ -194,23 +194,23 @@ static void CheckWatchdogLimits() {
     bool ignore_report;
     const char *failure;
   };
-  const uint64_t input_start_time = state.input_start_time;
-  const uint64_t batch_start_time = state.batch_start_time;
-  if (input_start_time == 0 || batch_start_time == 0) return;
+  const uint64_t input_start_time_ms = state.input_start_time_ms;
+  const uint64_t batch_start_time_ms = state.batch_start_time_ms;
+  if (input_start_time_ms == 0 || batch_start_time_ms == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
-          /*units=*/"sec",
-          /*value=*/curr_time - input_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_input,
+          /*units=*/"ms",
+          /*value=*/curr_time_ms - input_start_time_ms,
+          /*limit=*/state.run_time_flags.timeout_per_input_ms,
           /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
           /*what=*/"Per-batch timeout",
-          /*units=*/"sec",
-          /*value=*/curr_time - batch_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_batch,
+          /*units=*/"ms",
+          /*value=*/curr_time_ms - batch_start_time_ms,
+          /*limit=*/state.run_time_flags.timeout_per_batch_ms,
           /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
@@ -270,7 +270,7 @@ static void CheckWatchdogLimits() {
     sleep(1);
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
-    if (state.input_start_time == 0) continue;
+    if (state.input_start_time_ms == 0) continue;
 
     CheckWatchdogLimits();
   }
@@ -282,7 +282,7 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
   // Check for the stack limit only if sp is inside the stack region.
   if (stack_limit > 0 && tls.stack_region_low &&
       tls.top_frame_sp - sp > stack_limit) {
-    const bool test_not_running = state.input_start_time == 0;
+    const bool test_not_running = state.input_start_time_ms == 0;
     if (test_not_running) return;
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
@@ -308,11 +308,11 @@ void GlobalRunnerState::CleanUpDetachedTls() {
 
 void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
-          "Starting watchdog thread: timeout_per_input: %" PRIu64
-          " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
-          " MB; stack_limit_kb: %" PRIu64 " KB\n",
-          state.run_time_flags.timeout_per_input.load(),
-          state.run_time_flags.timeout_per_batch,
+          "Starting watchdog thread: timeout_per_input_ms: %" PRIu64
+          "; timeout_per_batch_ms: %" PRIu64 "; rss_limit_mb: %" PRIu64
+          "; stack_limit_kb: %" PRIu64 "\n",
+          state.run_time_flags.timeout_per_input_ms.load(),
+          state.run_time_flags.timeout_per_batch_ms,
           state.run_time_flags.rss_limit_mb.load(),
           state.run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
@@ -325,12 +325,12 @@ void GlobalRunnerState::StartWatchdogThread() {
 }
 
 void GlobalRunnerState::ResetTimers() {
-  const auto curr_time = time(nullptr);
-  input_start_time = curr_time;
-  // batch_start_time is set only once -- just before the first input of the
+  const auto curr_time_ms = TimeInUsec() / 1000;
+  input_start_time_ms = curr_time_ms;
+  // batch_start_time_ms is set only once -- just before the first input of the
   // batch is about to start running.
-  if (batch_start_time == 0) {
-    batch_start_time = curr_time;
+  if (batch_start_time_ms == 0) {
+    batch_start_time_ms = curr_time_ms;
   }
 }
 
@@ -627,7 +627,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state.input_start_time_ms.exchange(0) != 0) {
     PostProcessCoverage(target_return_value);
   }
   state.stats.post_time_usec = UsecSinceLast();
@@ -1207,13 +1207,14 @@ extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fuzztest::internal::state.run_time_flags.stack_limit_kb = stack_limit_kb;
 }
 
-extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
-  fprintf(stderr,
-          "CentipedeSetTimeoutPerInput: changing timeout_per_input to %" PRIu64
-          "\n",
-          timeout_per_input);
-  fuzztest::internal::state.run_time_flags.timeout_per_input =
-      timeout_per_input;
+extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input_ms) {
+  fprintf(
+      stderr,
+      "CentipedeSetTimeoutPerInput: changing timeout_per_input_ms to %" PRIu64
+      "\n",
+      timeout_per_input_ms);
+  fuzztest::internal::state.run_time_flags.timeout_per_input_ms =
+      timeout_per_input_ms;
 }
 
 extern "C" __attribute__((weak)) const char *absl_nullable
@@ -1244,8 +1245,8 @@ extern "C" void CentipedeEndExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = false;
-  fuzztest::internal::state.input_start_time = 0;
-  fuzztest::internal::state.batch_start_time = 0;
+  fuzztest::internal::state.input_start_time_ms = 0;
+  fuzztest::internal::state.batch_start_time_ms = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {
@@ -1255,7 +1256,7 @@ extern "C" void CentipedePrepareProcessing() {
 
 extern "C" void CentipedeFinalizeProcessing() {
   fuzztest::internal::CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state.input_start_time_ms.exchange(0) != 0) {
     fuzztest::internal::PostProcessCoverage(/*target_return_value=*/0);
   }
 }
