@@ -639,6 +639,7 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
     return RunBinary(BinaryPath(binary),
                      RunOptions{/*flags=*/non_fuzztest_flags,
                                 /*fuzztest_flags=*/flags,
+                                /*raw_args=*/{},
                                 /*env=*/WithTestSanitizerOptions(env),
                                 /*timeout=*/timeout});
   }

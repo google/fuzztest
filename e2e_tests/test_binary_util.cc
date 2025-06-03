@@ -66,7 +66,8 @@ std::string CentipedePath() {
 
 RunResults RunBinary(absl::string_view binary_path, const RunOptions& options) {
   std::vector<std::string> args;
-  args.reserve(1 + options.fuzztest_flags.size() + options.flags.size());
+  args.reserve(1 + options.fuzztest_flags.size() + options.flags.size() +
+               options.raw_args.size());
   args.push_back(std::string(binary_path));
   for (const auto& [key, value] : options.fuzztest_flags) {
     args.push_back(CreateFuzzTestFlag(key, value));
@@ -74,6 +75,7 @@ RunResults RunBinary(absl::string_view binary_path, const RunOptions& options) {
   for (const auto& [key, value] : options.flags) {
     args.push_back(absl::StrCat("--", key, "=", value));
   }
+  args.insert(args.end(), options.raw_args.begin(), options.raw_args.end());
   return RunCommand(args, options.env, options.timeout);
 }
 

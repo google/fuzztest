@@ -41,11 +41,15 @@ std::string CentipedePath();
 
 struct RunOptions {
   // General flags to pass to the binary. Useful when passing flags to
-  // binaries like Centipede.
+  // binaries like Centipede, e.g., {"binary", SOME_BINARY_PATH}
   absl::flat_hash_map<std::string, std::string> flags;
   // Flags to pass to a FuzzTest binary. These should be given without the
   // internal flag prefix, e.g., just ("fuzz_for", "1s").
   absl::flat_hash_map<std::string, std::string> fuzztest_flags;
+  // Raw args to append after `fuzztest_flags` and `flags`. Useful when passing
+  // positional arguments or non-standard flags, e.g. "--" for ending absl flag
+  // processing, and `-NAME=VALUE` for libFuzzer flags.
+  std::vector<std::string> raw_args;
   // Environment variables to pass to the binary.
   absl::flat_hash_map<std::string, std::string> env;
   // Duration after which the binary will be terminated.

@@ -97,6 +97,32 @@ cc_binary(
     ],
 )
 
+# Must be run with `--config=libfuzzer`
+cc_test(
+    name = "compatibility_mode_test",
+    timeout = "long",
+    srcs = ["compatibility_mode_test.cc"],
+    data = [
+        "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
+    ],
+    tags = [
+        # Don't cache the results.
+        "external",
+        # Don't include in wildcard expansions (:..., :all).
+        "manual",
+    ],
+    deps = [
+        ":test_binary_util",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:temp_dir",
+        "@com_google_fuzztest//fuzztest/internal:io",
+        "@com_google_fuzztest//fuzztest/internal:subprocess",
+        "@googletest//:gtest_main",
+    ],
+)
+
 # Must be run with `--config=fuzztest-experimental --config=asan`.
 cc_test(
     name = "corpus_database_test",

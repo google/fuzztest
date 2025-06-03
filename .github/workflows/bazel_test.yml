@@ -47,7 +47,7 @@ jobs:
             clang
       - name: Setup --config=fuzztest for Bazel
         run: |
-          bazel run //bazel:setup_configs > fuzztest.bazelrc
+          EXTRA_CONFIGS=libfuzzer bazel run //bazel:setup_configs > fuzztest.bazelrc
       - name: Restore latest cache
         uses: actions/cache/restore@v4
         with:
@@ -59,11 +59,6 @@ jobs:
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
-      - name: Build test for the compatibility mode
-        if: matrix.config == 'default'
-        run: |
-          bazel build -c ${{ matrix.compilation_mode }} \
-            --copt=-DFUZZTEST_COMPATIBILITY_MODE -- //fuzztest/internal:compatibility_mode
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
@@ -77,6 +72,13 @@ jobs:
             --config=fuzztest-experimental --config=asan \
             --platform_suffix=fuzztest-experimental-asan \
             //e2e_tests:corpus_database_test
+      - name: Run end-to-end tests with --config=libfuzzer
+        if: matrix.config == 'fuzztest'
+        run: |
+          bazel test --build_tests_only --test_output=errors \
+            -c ${{ matrix.compilation_mode }} --config=libfuzzer \
+            --platform_suffix=fuzztest-libfuzzer \
+            //e2e_tests:compatibility_mode_test
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
