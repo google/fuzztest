@@ -154,10 +154,10 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
                 binary) != env_.extra_binaries.end();
 
   std::vector<std::string> env = {ConstructRunnerFlags(
-      absl::StrCat(":shmem:arg1=", inputs_blobseq_.path(),
-                   ":arg2=", outputs_blobseq_.path(),
+      absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
+                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
-                   ":"),
+                   ":failure_signature_path=", failure_signature_path_, ":"),
       disable_coverage)};
 
   if (env_.clang_coverage_binary == binary)
@@ -243,9 +243,18 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     ReadFromLocalFile(execute_log_path_, batch_result.log());
     ReadFromLocalFile(failure_description_path_,
                       batch_result.failure_description());
-    // Remove failure_description_ here so that it doesn't stay until another
-    // failed execution.
+    if (std::filesystem::exists(failure_signature_path_)) {
+      ReadFromLocalFile(failure_signature_path_,
+                        batch_result.failure_signature());
+    } else {
+      // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch can
+      // be removed.
+      batch_result.failure_signature() = batch_result.failure_description();
+    }
+    // Remove the failure description and signature files here so that they do
+    // not stay until another failed execution.
     std::filesystem::remove(failure_description_path_);
+    std::filesystem::remove(failure_signature_path_);
   }
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
@@ -261,8 +270,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(!error);
 
   std::string centipede_runner_flags = absl::StrCat(
-      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=", output_dir.string(),
-      ":");
+      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
+      ":arg1=", output_dir.string(), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
