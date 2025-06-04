@@ -191,7 +191,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
     const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name, RunMode run_mode) {
   fuzztest::internal::Environment env = CreateDefaultCentipedeEnvironment();
-  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(1);
+  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(3);
   env.fuzztest_single_test_mode = true;
   if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
     const int64_t time_limit_seconds =
