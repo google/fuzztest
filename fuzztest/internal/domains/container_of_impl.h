@@ -172,9 +172,16 @@ class ContainerOfImplBase
     if constexpr (container_has_memory_dict) {
       if (can_use_memory_dict) {
         if (action-- == 0) {
+          auto old_val = val;
           bool mutated = MemoryDictionaryMutation(
               val, prng, metadata.cmp_tables, temporary_dict_, GetManualDict(),
               permanent_dict_, permanent_dict_candidate_, max_size());
+          // Applying memory dictionary may violate the inner domain - fail the
+          // mutation if so.
+          if (mutated && !ValidateCorpusValue(val).ok()) {
+            val = std::move(old_val);
+            mutated = false;
+          }
           // If dict failed, fall back to changing an element.
           if (!mutated) {
             Self().MutateElement(val, prng, metadata, only_shrink,

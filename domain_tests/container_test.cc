@@ -41,6 +41,7 @@ namespace {
 
 using ::testing::Contains;
 using ::testing::Gt;
+using ::testing::Not;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
@@ -260,6 +261,41 @@ TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
                            "abcdabcd1234abcd",
                            "abcdabcdabcd1234",
                        }));
+}
+
+TEST(Container, ValidatesMemoryDictionaryMutationForInnerDomain) {
+  auto domain = VectorOf(InRange<uint8_t>(10, 128));
+  internal::TablesOfRecentCompares cmp_tables;
+  std::vector<std::vector<uint8_t>> cmp_entries = {{10, 11, 12, 13},
+                                                   {129, 129, 129, 129},
+                                                   {10, 11, 12, 13},
+                                                   {17, 31, 113, 71}};
+  // Fill the table with the same entries repeatly.
+  for (int i = 0; i < cmp_tables.GetMutable<0>().kTableSize; ++i) {
+    cmp_tables.GetMutable<0>().Insert(cmp_entries[0].data(),
+                                      cmp_entries[1].data(), 4);
+    cmp_tables.GetMutable<0>().Insert(cmp_entries[2].data(),
+                                      cmp_entries[3].data(), 4);
+  }
+
+  absl::BitGen bitgen;
+  std::vector<std::vector<uint8_t>> mutants;
+  const double hit_probability =  //
+      1.0 / 4                     // to use dictionaries
+      * 1.0 / 4                   // to use cmp tables
+      * 1.0 / 2                   // to pick the memcmp table
+      * 1.0 / 2                   // to pick one of the entries
+      * 1.0 / 2                   // to apply replacement
+      ;
+  for (int i = 0; i < 1 * IterationsToHitAll(/*num_cases=*/2, hit_probability);
+       ++i) {
+    std::vector<uint8_t> mutant = {10, 11, 12, 13};
+    domain.Mutate(mutant, bitgen, {/*cmp_tables=*/&cmp_tables}, false);
+    mutants.push_back(std::move(mutant));
+  }
+
+  EXPECT_THAT(mutants, Contains(std::vector<uint8_t>{17, 31, 113, 71}));
+  EXPECT_THAT(mutants, Not(Contains(std::vector<uint8_t>{129, 129, 129, 129})));
 }
 
 }  // namespace
