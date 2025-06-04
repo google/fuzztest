@@ -486,6 +486,14 @@ fuzztest_cc_test(
     GTest::gmock_main
 )
 
+fuzztest_proto_library(
+  NAME
+    test_protobuf_cc_proto
+  SRCS
+    test_protobuf.proto
+  TESTONLY
+)
+
 fuzztest_cc_library(
   NAME
     type_support
@@ -524,40 +532,3 @@ fuzztest_cc_test(
     protobuf::libprotobuf
 )
 
-if (FUZZTEST_BUILD_TESTING)
-
-  include_directories(${PROTOBUF_INCLUDE_DIR})
-
-  add_library(
-      test_protobuf
-    OBJECT
-      "${CMAKE_CURRENT_LIST_DIR}/test_protobuf.proto"
-  )
-
-  target_link_libraries(
-      test_protobuf
-    PUBLIC
-      protobuf::libprotobuf
-  )
-
-  # The output dir might not be created by `protobuf_generate`.
-  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-  protobuf_generate(
-    TARGET
-      test_protobuf
-    IMPORT_DIRS
-      ${CMAKE_CURRENT_LIST_DIR}
-    PROTOC_OUT_DIR
-      ${CMAKE_CURRENT_BINARY_DIR}
-  )
-
-  target_include_directories(
-      test_protobuf
-    PUBLIC
-      "${CMAKE_CURRENT_BINARY_DIR}/../.."
-  )
-
-  add_library(fuzztest::test_protobuf_cc_proto ALIAS test_protobuf)
-
-endif ()

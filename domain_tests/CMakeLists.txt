@@ -30,7 +30,7 @@ fuzztest_cc_test(
     absl::random_bit_gen_ref
     absl::strings
     fuzztest::domain
-    test_protobuf
+    fuzztest::test_protobuf_cc_proto
     GTest::gmock_main
     protobuf::libprotobuf
 )
@@ -49,7 +49,7 @@ fuzztest_cc_test(
     absl::time
     fuzztest::domain_core
     fuzztest::serialization
-    test_protobuf
+    fuzztest::test_protobuf_cc_proto
     fuzztest::type_support
     GTest::gmock_main
 )
@@ -101,7 +101,7 @@ fuzztest_cc_library(
     fuzztest::logging
     fuzztest::meta
     fuzztest::serialization
-    test_protobuf
+    fuzztest::test_protobuf_cc_proto
     fuzztest::type_support
     GTest::gtest
     protobuf::libprotobuf
