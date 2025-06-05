@@ -566,7 +566,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
 
     absl::Cleanup clean_up_workdir = [is_workdir_specified, &env] {
-      if (!is_workdir_specified) {
+      if (!is_workdir_specified && !EarlyStopRequested()) {
         CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
       }
     };
@@ -636,6 +636,11 @@ int UpdateCorpusDatabaseForFuzzTests(
           workdir.FuzzingStatsPath(),
           (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
               .c_str()));
+    }
+
+    if (EarlyStopRequested()) {
+      LOG(INFO) << "Skip updating corpus database due to early stop requested.";
+      continue;
     }
 
     // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
