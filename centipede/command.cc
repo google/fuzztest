@@ -224,7 +224,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   {
     CENTIPEDE_FORK_SERVER_FIFO0="%s" \
     CENTIPEDE_FORK_SERVER_FIFO1="%s" \
-    %s
+    exec %s
   } &
   printf "%%s" $! > "%s"
 )sh";
