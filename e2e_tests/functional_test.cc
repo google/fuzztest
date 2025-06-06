@@ -480,8 +480,7 @@ TEST_F(
 
 TEST_F(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
   auto [status, std_out, std_err] = Run("MySuite.FailsIfCantInitializeProto");
-  // TODO: b/398261908 - Change to `ExpectTargetAbort` once the bug is fixed.
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  ExpectTargetAbort(status, std_err);
   EXPECT_THAT(std_err, HasSubstr("recursive fields"));
 }
 
@@ -516,8 +515,7 @@ TEST_F(UnitTestModeTest,
 TEST_F(UnitTestModeTest, FailsWhenRepeatedFieldsSizeRangeIsInvalid) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsToInitializeIfRepeatedFieldsSizeRangeIsInvalid");
-  // TODO: b/398261908 - Change to `ExpectTargetAbort` once the bug is fixed.
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  ExpectTargetAbort(status, std_err);
   EXPECT_THAT(std_err, HasSubstr("size range is not valid"));
 }
 
@@ -530,8 +528,7 @@ TEST_F(UnitTestModeTest, UsesPolicyProvidedDefaultDomainForProtos) {
 TEST_F(UnitTestModeTest, ChecksTypeOfProvidedDefaultDomainForProtos) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsWhenWrongDefaultProtobufDomainIsProvided");
-  // TODO: b/398261908 - Change to `ExpectTargetAbort` once the bug is fixed.
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  ExpectTargetAbort(status, std_err);
   EXPECT_THAT(std_err, HasSubstr("does not match the expected message type"));
 }
 

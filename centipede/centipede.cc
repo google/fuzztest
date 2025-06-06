@@ -832,6 +832,8 @@ void Centipede::FuzzingLoop() {
 
     const std::vector<ByteArray> mutants =
         user_callbacks_.Mutate(mutation_inputs, batch_size);
+    if (ShouldStop()) break;
+
     bool gained_new_coverage =
         RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
     new_runs += mutants.size();

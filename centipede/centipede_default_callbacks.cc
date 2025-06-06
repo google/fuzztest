@@ -107,8 +107,9 @@ std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
       // Returning whatever mutants we got before the failure.
       return std::move(result).mutants();
     } else {
-      // TODO(b/398261908): Exit with failure instead of crashing.
-      LOG(FATAL) << "Test binary failed when asked to mutate inputs.";
+      LOG(ERROR) << "Test binary failed when asked to mutate inputs - exiting.";
+      RequestEarlyStop(EXIT_FAILURE);
+      return {};
     }
   }
   // Fall back to the internal mutator.

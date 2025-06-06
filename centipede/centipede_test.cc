@@ -1144,9 +1144,11 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
   // Previous stop condition could interfere here.
   ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
-  EXPECT_DEATH(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
-                                inputs.size()),
-               "Custom mutator failed");
+  EXPECT_THAT(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
+                               inputs.size()),
+              IsEmpty());
+  EXPECT_TRUE(EarlyStopRequested());
+  EXPECT_EQ(ExitCode(), EXIT_FAILURE);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir,
