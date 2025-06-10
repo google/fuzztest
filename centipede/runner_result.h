@@ -162,6 +162,8 @@ class BatchResult {
   const std::string& failure_description() const {
     return failure_description_;
   }
+  std::string& failure_signature() { return failure_signature_; }
+  const std::string& failure_signature() const { return failure_signature_; }
 
  private:
   friend class MultiInputMock;
@@ -169,9 +171,13 @@ class BatchResult {
   std::vector<ExecutionResult> results_;
   std::string log_;  // log_ is populated optionally, e.g. if there was a crash.
   int exit_code_ = EXIT_SUCCESS;  // Process exit code.
-  // If the batch execution fails, this may optionally contain a failure
-  // description, e.g., the crash type, stack trace...
+  // If the batch execution fails, this may optionally contain a human-readable
+  // failure description, e.g., the crash type, stack trace...
   std::string failure_description_;
+  // A signature uniquely identifying the failure, which does not need to be
+  // human-readable. Specially, failures with empty signatures are always
+  // considered unique.
+  std::string failure_signature_;
   size_t num_outputs_read_ = 0;
 };
 
