@@ -260,6 +260,28 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   return retval;
 }
 
+void CentipedeCallbacks::GetBinaryId(std::string_view binary) {
+  const auto binary_id_file_path =
+      env_.binary_id_output.empty()
+          ? std::filesystem::path{temp_dir_} / "binary_id.txt"
+          : std::filesystem::path{env_.binary_id_output} / "binary_id.txt";
+  std::string centipede_runner_flags =
+      absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_binary_id:binary_id_output=",
+                   binary_id_file_path.string(), ":");
+  if (!env_.runner_dl_path_suffix.empty()) {
+    absl::StrAppend(&centipede_runner_flags,
+                    "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
+  }
+  Command::Options cmd_options;
+  cmd_options.env_add = {std::move(centipede_runner_flags)};
+  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.stdout_file = execute_log_path_;
+  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.temp_file_path = temp_input_file_path_;
+  Command cmd{binary, std::move(cmd_options)};
+  cmd.Execute();
+}
+
 // See also: `DumpSeedsToDir()`.
 bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     std::string_view binary, size_t &num_avail_seeds,

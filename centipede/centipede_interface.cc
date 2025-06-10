@@ -819,6 +819,11 @@ int CentipedeMain(const Environment &env,
   const auto tmpdir = TemporaryLocalDirPath();
   CreateLocalDirRemovedAtExit(tmpdir);
 
+  if (env.get_binary_id) {
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    scoped_callbacks.callbacks()->GetBinaryId(env.binary);
+  }
+
   // Enter the update corpus database mode only if we have a binary to invoke
   // and a corpus database to update.
   // We don't update the corpus database for standalone binaries (i.e., when

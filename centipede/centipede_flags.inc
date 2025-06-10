@@ -418,6 +418,13 @@ CENTIPEDE_FLAG(
     "only be turned off when coverage is not based on instrumenting some "
     "binary.")
 CENTIPEDE_FLAG(
+    bool, get_binary_id, false,
+    "If true, write binary id to txt file in binary_id_output.")
+CENTIPEDE_FLAG(
+    std::string, binary_id_output, "",
+    "The output directory for the binary id. If empty, the binary id will be "
+    "written to the tmp directory.")
+CENTIPEDE_FLAG(
     bool, riegeli,
 #ifdef CENTIPEDE_DISABLE_RIEGELI
     false
