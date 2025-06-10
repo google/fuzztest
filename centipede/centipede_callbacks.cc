@@ -154,8 +154,8 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
                 binary) != env_.extra_binaries.end();
 
   std::vector<std::string> env = {ConstructRunnerFlags(
-      absl::StrCat(":shmem:arg1=", inputs_blobseq_.path(),
-                   ":arg2=", outputs_blobseq_.path(),
+      absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
+                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
                    ":failure_signature_path=", failure_signature_path_, ":"),
       disable_coverage)};
@@ -270,8 +270,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   CHECK(!error);
 
   std::string centipede_runner_flags = absl::StrCat(
-      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:arg1=", output_dir.string(),
-      ":");
+      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
+      ":arg1=", output_dir.string(), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");

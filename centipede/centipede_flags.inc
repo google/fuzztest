@@ -49,6 +49,8 @@ CENTIPEDE_FLAG(
     "the reports. --workdir in turn must be local in order for this "
     "functionality to work. See "
     "https://clang.llvm.org/docs/SourceBasedCodeCoverage.html")
+CENTIPEDE_FLAG(std::string, test_name, "",
+               "The name of test to pass to the binary to operate on.")
 CENTIPEDE_FLAG(
     std::vector<std::string>, extra_binaries, {},
     "A comma-separated list of extra target binaries. These binaries are "
