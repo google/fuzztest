@@ -374,7 +374,7 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                                       BatchResult &batch_result) {
   bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
   if (!success) ReportCrash(binary, input_vec, batch_result);
-  return success;
+  return success || batch_result.IsIgnoredFailure();
 }
 
 // *** Highly experimental and risky. May not scale well for large targets. ***
@@ -901,6 +901,12 @@ void Centipede::ReportCrash(std::string_view binary,
     }
     LOG(INFO).NoPrefix() << "\n";
   };
+
+  if (batch_result.IsIgnoredFailure()) {
+    LOG(INFO) << "Skip further processing of "
+              << batch_result.failure_description();
+    return;
+  }
 
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");
