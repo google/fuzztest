@@ -163,6 +163,7 @@ BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
   // For those target, we should not populate binary info.
   if (env.populate_binary_info) {
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    scoped_callbacks.callbacks()->DumpBinaryId(env.binary);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }
   if (env.save_binary_info) {

@@ -60,6 +60,8 @@ class CentipedeCallbacks {
   }
   virtual ~CentipedeCallbacks() {}
 
+  void DumpBinaryId(std::string_view binary_id);
+
   // Feeds `inputs` into the `binary`, for every input populates `batch_result`.
   // Old contents of `batch_result` are cleared.
   // Returns true on success, false on failure.
