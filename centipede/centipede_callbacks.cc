@@ -157,7 +157,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
                    inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
-                   ":failure_signature_path=", failure_signature_path_, ":"),
+                   ":"),
       disable_coverage)};
 
   if (env_.clang_coverage_binary == binary)
@@ -243,18 +243,9 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     ReadFromLocalFile(execute_log_path_, batch_result.log());
     ReadFromLocalFile(failure_description_path_,
                       batch_result.failure_description());
-    if (std::filesystem::exists(failure_signature_path_)) {
-      ReadFromLocalFile(failure_signature_path_,
-                        batch_result.failure_signature());
-    } else {
-      // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch can
-      // be removed.
-      batch_result.failure_signature() = batch_result.failure_description();
-    }
-    // Remove the failure description and signature files here so that they do
-    // not stay until another failed execution.
+    // Remove failure_description_ here so that it doesn't stay until another
+    // failed execution.
     std::filesystem::remove(failure_description_path_);
-    std::filesystem::remove(failure_signature_path_);
   }
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;

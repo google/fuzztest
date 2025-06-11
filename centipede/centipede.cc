@@ -206,9 +206,8 @@ void Centipede::CorpusFromFiles(const Environment &env, std::string_view dir) {
 absl::Status Centipede::CrashesToFiles(const Environment &env,
                                        std::string_view dir) {
   std::vector<std::string> reproducer_dirs;
-  const auto wd = WorkDir{env};
   auto reproducer_match_status = RemoteGlobMatch(
-      wd.CrashReproducerDirPaths().AllShardsGlob(), reproducer_dirs);
+      WorkDir{env}.CrashReproducerDirPaths().AllShardsGlob(), reproducer_dirs);
   if (!reproducer_match_status.ok() &&
       !absl::IsNotFound(reproducer_match_status)) {
     return reproducer_match_status;
@@ -226,18 +225,27 @@ absl::Status Centipede::CrashesToFiles(const Environment &env,
       RETURN_IF_NOT_OK(RemoteFileCopy(
           reproducer_path,
           (std::filesystem::path{dir} / absl::StrCat(id, ".data")).string()));
-      const auto shard_index = wd.CrashReproducerDirPaths().GetShardIndex(
-          std::filesystem::path{reproducer_path}.parent_path().string());
-      CHECK(shard_index.has_value());
-      const auto metadata_dir = wd.CrashMetadataDirPaths().Shard(*shard_index);
-      const auto description_filename = absl::StrCat(id, ".desc");
-      const auto signature_filename = absl::StrCat(id, ".sig");
+    }
+  }
+  std::vector<std::string> metadata_dirs;
+  auto metadata_match_status = RemoteGlobMatch(
+      WorkDir{env}.CrashMetadataDirPaths().AllShardsGlob(), metadata_dirs);
+  if (!metadata_match_status.ok() && !absl::IsNotFound(metadata_match_status)) {
+    return metadata_match_status;
+  }
+  for (const auto &metadata_dir : metadata_dirs) {
+    ASSIGN_OR_RETURN_IF_NOT_OK(
+        std::vector<std::string> metadata_paths,
+        RemoteListFiles(metadata_dir, /*recursively=*/false));
+    for (const auto &metadata_path : metadata_paths) {
+      std::string id = std::filesystem::path{metadata_path}.filename();
+      if (crash_ids.erase(id) == 0) {
+        continue;
+      }
       RETURN_IF_NOT_OK(RemoteFileCopy(
-          (std::filesystem::path{metadata_dir} / description_filename).string(),
-          (std::filesystem::path{dir} / description_filename).string()));
-      RETURN_IF_NOT_OK(RemoteFileCopy(
-          (std::filesystem::path{metadata_dir} / signature_filename).string(),
-          (std::filesystem::path{dir} / signature_filename).string()));
+          metadata_path,
+          (std::filesystem::path{dir} / absl::StrCat(id, ".metadata"))
+              .string()));
     }
   }
   return absl::OkStatus();
@@ -880,9 +888,6 @@ void Centipede::ReportCrash(std::string_view binary,
               << "\nExit code            : " << batch_result.exit_code()
               << "\nFailure              : "
               << batch_result.failure_description()
-              << "\nSignature            : "
-              << AsPrintableString(AsByteSpan(batch_result.failure_signature()),
-                                   /*max_len=*/32)
               << "\nNumber of inputs     : " << input_vec.size()
               << "\nNumber of inputs read: " << batch_result.num_outputs_read()
               << (batch_result.IsSetupFailure()
@@ -971,7 +976,7 @@ void Centipede::ReportCrash(std::string_view binary,
       std::string input_file_path = std::filesystem::path(crash_dir) / hash;
       auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
       CHECK_OK(RemoteMkdir(crash_metadata_dir));
-      std::string crash_metadata_path_prefix =
+      std::string crash_metadata_file_path =
           std::filesystem::path(crash_metadata_dir) / hash;
       LOG(INFO) << log_prefix << "Detected crash-reproducing input:"
                 << "\nInput index    : " << input_idx << "\nInput bytes    : "
@@ -979,20 +984,13 @@ void Centipede::ReportCrash(std::string_view binary,
                 << "\nExit code      : " << one_input_batch_result.exit_code()
                 << "\nFailure        : "
                 << one_input_batch_result.failure_description()
-                << "\nSignature      : "
-                << AsPrintableString(
-                       AsByteSpan(one_input_batch_result.failure_signature()),
-                       /*max_len=*/32)
                 << "\nSaving input to: " << input_file_path
                 << "\nSaving crash"  //
-                << "\nmetadata to    : " << crash_metadata_path_prefix << ".*";
+                << "\nmetadata to    : " << crash_metadata_file_path;
       CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
-      CHECK_OK(RemoteFileSetContents(
-          absl::StrCat(crash_metadata_path_prefix, ".desc"),
-          one_input_batch_result.failure_description()));
-      CHECK_OK(RemoteFileSetContents(
-          absl::StrCat(crash_metadata_path_prefix, ".sig"),
-          one_input_batch_result.failure_signature()));
+      CHECK_OK(
+          RemoteFileSetContents(crash_metadata_file_path,
+                                one_input_batch_result.failure_description()));
       return;
     }
   }

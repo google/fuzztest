@@ -16,7 +16,6 @@
 #define THIRD_PARTY_CENTIPEDE_WORKDIR_MGR_H_
 
 #include <cstddef>
-#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -48,9 +47,6 @@ class WorkDir {
     // but `path` must have the exact `base_dir`/`rel_prefix` prefix,
     // including any relative "." and ".." path elements.
     bool IsShard(std::string_view path) const;
-    // Returns the shard index of `path` if it is a shard parth, `nullopt`
-    // otherwise.
-    std::optional<size_t> GetShardIndex(std::string_view path) const;
 
    private:
     friend class WorkDir;

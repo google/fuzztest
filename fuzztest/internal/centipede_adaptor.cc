@@ -760,18 +760,17 @@ absl::Status ExportReproducersFromCentipede(
                     absl::StrCat(read_reproducer_status));
       continue;
     }
-    const std::string description_file =
-        std::filesystem::path{exported_crash_file}
-            .replace_extension("desc")
-            .string();
-    std::string description;
-    const absl::Status read_description_status =
-        RemoteFileGetContents(description_file, description);
-    if (!read_description_status.ok()) {
+    const std::string metadata_file = std::filesystem::path{exported_crash_file}
+                                          .replace_extension("metadata")
+                                          .string();
+    std::string metadata;
+    const absl::Status read_metadata_status =
+        RemoteFileGetContents(metadata_file, metadata);
+    if (!read_metadata_status.ok()) {
       absl::FPrintF(
           GetStderr(),
-          "[!] Got error while reading the description for crash id %s: %s\n",
-          crash_id, absl::StrCat(read_description_status));
+          "[!] Got error while reading the metadata for crash id %s: %s\n",
+          crash_id, absl::StrCat(read_metadata_status));
       continue;
     }
     std::string reproducer_path = WriteDataToDir(reproducer, output.dir_path);
@@ -783,8 +782,8 @@ absl::Status ExportReproducersFromCentipede(
       continue;
     }
     absl::FPrintF(GetStderr(),
-                  "[.] Saved reproducer with ID %s and crash description %s\n",
-                  Basename(reproducer_path), description);
+                  "[.] Saved reproducer with ID %s and crash metadata %s\n",
+                  Basename(reproducer_path), metadata);
     if (!single_reproducer_path.has_value()) {
       single_reproducer_path = reproducer_path;
     } else {

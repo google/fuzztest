@@ -288,9 +288,9 @@ TestShard SetUpTestSharding() {
   return test_shard;
 }
 
-// Prunes non-reproducible and duplicate crashes and returns the crash
-// signatures of the remaining crashes.
-absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
+// Prunes non-reproducible and duplicate crashes and returns the crash metadata
+// of the remaining crashes.
+absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashMetadata(
     const std::filesystem::path &crashing_dir, const Environment &env,
     CentipedeCallbacksFactory &callbacks_factory) {
   const std::vector<std::string> crashing_input_files =
@@ -299,7 +299,7 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
       ValueOrDie(RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
   ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
   BatchResult batch_result;
-  absl::flat_hash_set<std::string> remaining_crash_signatures;
+  absl::flat_hash_set<std::string> remaining_crash_metadata;
 
   for (const std::string &crashing_input_file : crashing_input_files) {
     ByteArray crashing_input;
@@ -308,8 +308,7 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
         env.binary, {crashing_input}, batch_result);
     const bool is_duplicate =
         is_reproducible && !batch_result.IsSetupFailure() &&
-        !batch_result.failure_signature().empty() &&
-        !remaining_crash_signatures.insert(batch_result.failure_signature())
+        !remaining_crash_metadata.insert(batch_result.failure_description())
              .second;
     if (!is_reproducible || batch_result.IsSetupFailure() || is_duplicate) {
       CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
@@ -317,13 +316,13 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
       CHECK_OK(RemotePathTouchExistingFile(crashing_input_file));
     }
   }
-  return remaining_crash_signatures;
+  return remaining_crash_metadata;
 }
 
 // TODO(b/405382531): Add unit tests once the function is unit-testable.
 void DeduplicateAndStoreNewCrashes(
     const std::filesystem::path &crashing_dir, const WorkDir &workdir,
-    size_t total_shards, absl::flat_hash_set<std::string> crash_signatures) {
+    size_t total_shards, absl::flat_hash_set<std::string> crash_metadata) {
   for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
     const std::vector<std::string> new_crashing_input_files =
         // The crash reproducer directory may contain subdirectories with
@@ -339,20 +338,19 @@ void DeduplicateAndStoreNewCrashes(
     for (const std::string &crashing_input_file : new_crashing_input_files) {
       const std::string crashing_input_file_name =
           std::filesystem::path(crashing_input_file).filename();
-      const std::string crash_signature_path =
-          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".sig");
-      std::string new_crash_signature;
+      const std::string crash_metadata_file =
+          crash_metadata_dir / crashing_input_file_name;
+      std::string new_crash_metadata;
       const absl::Status status =
-          RemoteFileGetContents(crash_signature_path, new_crash_signature);
+          RemoteFileGetContents(crash_metadata_file, new_crash_metadata);
       if (!status.ok()) {
         LOG(WARNING) << "Ignoring crashing input " << crashing_input_file_name
-                     << " due to failure to read the crash signature: "
+                     << " due to failure to read the crash metadata file: "
                      << status;
         continue;
       }
       const bool is_duplicate =
-          !new_crash_signature.empty() &&
-          !crash_signatures.insert(new_crash_signature).second;
+          !crash_metadata.insert(new_crash_metadata).second;
       if (is_duplicate) continue;
       CHECK_OK(
           RemoteFileRename(crashing_input_file,
@@ -669,11 +667,11 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // Deduplicate and update the crashing inputs.
     const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
-    absl::flat_hash_set<std::string> crash_signatures =
-        PruneOldCrashesAndGetRemainingCrashSignatures(crashing_dir, env,
-                                                      callbacks_factory);
+    absl::flat_hash_set<std::string> crash_metadata =
+        PruneOldCrashesAndGetRemainingCrashMetadata(crashing_dir, env,
+                                                    callbacks_factory);
     DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
-                                  std::move(crash_signatures));
+                                  std::move(crash_metadata));
   }
 
   return EXIT_SUCCESS;

@@ -16,7 +16,6 @@
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
-#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -29,7 +28,6 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/strip.h"
 #include "./centipede/environment.h"
 #include "./common/logging.h"
 
@@ -80,15 +78,6 @@ bool WorkDir::PathShards::IsShard(std::string_view path) const {
   //  improvements: 1. Make `path` & `prefix_` absolute before comparing (or in
   //  ctor for `prefix_`). 2. Add option to require the actual file's existence.
   return absl::StartsWith(path, prefix_);
-}
-
-std::optional<size_t> WorkDir::PathShards::GetShardIndex(
-    std::string_view path) const {
-  if (!absl::ConsumePrefix(&path, prefix_)) return std::nullopt;
-  if (path.size() != kDigitsInShardIndex) return std::nullopt;
-  size_t shard = 0;
-  if (!absl::SimpleAtoi(path, &shard)) return std::nullopt;
-  return shard;
 }
 
 //------------------------------------------------------------------------------

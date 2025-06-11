@@ -685,7 +685,6 @@ struct Crash {
   std::string binary;
   unsigned char input = 0;
   std::string description;
-  std::string signature;
 };
 
 // A mock for ExtraBinaries test.
@@ -704,7 +703,6 @@ class ExtraBinariesMock : public CentipedeCallbacks {
       for (const Crash &crash : crashes_) {
         if (binary == crash.binary && input[0] == crash.input) {
           batch_result.failure_description() = crash.description;
-          batch_result.failure_signature() = crash.signature;
           res = false;
         }
       }
@@ -768,9 +766,9 @@ TEST(Centipede, ExtraBinaries) {
   env.binary = "b1";
   env.extra_binaries = {"b2", "b3", "b4"};
   env.require_pc_table = false;  // No PC table here.
-  ExtraBinariesMock mock(env, {Crash{"b1", 10, "b1-crash", "b1-sig"},
-                               Crash{"b2", 30, "b2-crash", "b2-sig"},
-                               Crash{"b3", 50, "b3-crash", "b3-sig"}});
+  ExtraBinariesMock mock(
+      env, {Crash{"b1", 10, "b1-crash"}, Crash{"b2", 30, "b2-crash"},
+            Crash{"b3", 50, "b3-crash"}});
   MockFactory factory(mock);
   CentipedeMain(env, factory);
 
@@ -791,15 +789,11 @@ TEST(Centipede, ExtraBinaries) {
   auto crash_metadata_dir_path = WorkDir{env}.CrashMetadataDirPaths().MyShard();
   ASSERT_TRUE(std::filesystem::exists(crash_metadata_dir_path))
       << VV(crash_metadata_dir_path);
-  EXPECT_THAT(
-      crash_metadata_dir_path,
-      HasFilesWithContents(testing::UnorderedElementsAre(
-          FileAndContents{absl::StrCat(Hash({10}), ".desc"), "b1-crash"},
-          FileAndContents{absl::StrCat(Hash({10}), ".sig"), "b1-sig"},
-          FileAndContents{absl::StrCat(Hash({30}), ".desc"), "b2-crash"},
-          FileAndContents{absl::StrCat(Hash({30}), ".sig"), "b2-sig"},
-          FileAndContents{absl::StrCat(Hash({50}), ".desc"), "b3-crash"},
-          FileAndContents{absl::StrCat(Hash({50}), ".sig"), "b3-sig"})));
+  EXPECT_THAT(crash_metadata_dir_path,
+              HasFilesWithContents(testing::UnorderedElementsAre(
+                  FileAndContents{Hash({10}), "b1-crash"},
+                  FileAndContents{Hash({30}), "b2-crash"},
+                  FileAndContents{Hash({50}), "b3-crash"})));
 }
 
 // A mock for UndetectedCrashingInput test.
