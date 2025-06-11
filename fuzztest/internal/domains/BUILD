@@ -214,3 +214,15 @@ cc_library(
     hdrs = ["utf.h"],
     deps = ["@abseil-cpp//absl/strings:string_view"],
 )
+
+cc_library(
+    name = "xml_domain_impl",
+    hdrs = ["xml_domain.h"],
+    deps = [
+        ":core_domains_impl",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:variant", # For std::variant
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        # Add other necessary Abseil or FuzzTest internal dependencies if xml_domain.h evolves
+    ],
+)
