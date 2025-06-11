@@ -19,16 +19,9 @@ module(
     repo_name = "com_google_fuzztest",
 )
 
-# TODO(lszekeres): Update and remove override as soon as next release is cut.
 bazel_dep(
     name = "abseil-cpp",
-    version = "20250127.1",
-)
-git_override(
-    module_name = "abseil-cpp",
-    remote = "https://github.com/abseil/abseil-cpp.git",
-    # Commit after fast_type_id was added.
-    commit = "d04b964d82ed5146f7e5e34701a5ba69f9514c9a",
+    version = "20250512.0",
 )
 bazel_dep(
     name = "re2",
@@ -63,7 +56,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "riegeli",
-    version = "0.0.0-20241218-3385e3c",
+    version = "0.0.0-20250706-c4d1f27",
     repo_name = "com_google_riegeli",
 )
 
