@@ -29,6 +29,10 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef __APPLE__
+#include <functional>
+#endif  // __APPLE__
+
 #include "absl/base/nullability.h"
 #include "./centipede/runner_utils.h"
 
