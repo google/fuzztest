@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cinttypes>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -71,6 +72,7 @@
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
 #include "./common/remote_file.h"
@@ -330,8 +332,35 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   return env;
 }
 
+void InstallCentipedeTerminationHandler() {
+  [[maybe_unused]] static bool install_once = [] {
+    for (int signum : {SIGTERM, SIGHUP}) {
+      struct sigaction new_sigact = {};
+      sigemptyset(&new_sigact.sa_mask);
+      new_sigact.sa_handler = [](int unused_signum) {
+        Runtime::instance().SetTerminationRequested();
+        RequestEarlyStop(EXIT_FAILURE);
+      };
+
+      // We make use of the SA_ONSTACK flag so that signal handlers are
+      // executed on a separate stack. This is needed to properly handle
+      // cases where stack space is limited and the delivery of a signal
+      // needs to be properly handled.
+      new_sigact.sa_flags = SA_ONSTACK;
+
+      FUZZTEST_INTERNAL_CHECK(sigaction(signum, &new_sigact, nullptr) == 0,
+                              "Error installing signal handler: %s\n",
+                              strerror(errno));
+    }
+    return true;
+  }();
+}
+
 int RunCentipede(const Environment& env,
                  const std::optional<std::string>& centipede_command) {
+  if (Runtime::instance().termination_requested()) {
+    return EXIT_FAILURE;
+  }
   if (centipede_command.has_value()) {
     std::string cmdline = "exec 2>&1 ";
     absl::StrAppend(&cmdline, *centipede_command);
@@ -342,7 +371,7 @@ int RunCentipede(const Environment& env,
     absl::FPrintF(GetStderr(), "[.] Running Centipede command %s\n", cmdline);
     const std::vector<std::string> shell_cmd = {"/bin/sh", "-c",
                                                 std::move(cmdline)};
-    const TerminationStatus status = RunCommandWithOutputCallbacks(
+    const TerminationStatus status = RunCommandWithCallbacks(
         shell_cmd,
         [](absl::string_view stdout_output) {
           std::fwrite(stdout_output.data(), 1, stdout_output.size(),
@@ -352,6 +381,7 @@ int RunCentipede(const Environment& env,
           std::fwrite(stderr_output.data(), 1, stderr_output.size(),
                       GetStderr());
         },
+        [] { return Runtime::instance().termination_requested(); },
         /*environment=*/std::nullopt);
     if (status.Signaled()) {
       // Encoding signaled exit similarly as Bash.
@@ -845,6 +875,8 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     // TODO(b/393582695): Consider whether we need some kind of reporting
     // enabled in the controller mode to handle test setup failures.
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
+  } else {
+    InstallCentipedeTerminationHandler();
   }
   if (runner_mode) {
     runtime_.RegisterCrashMetadataListener(

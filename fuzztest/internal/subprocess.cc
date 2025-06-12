@@ -79,9 +79,9 @@ class SubProcess {
       absl::Span<const std::string> command_line,
       absl::FunctionRef<void(absl::string_view)> on_stdout_output,
       absl::FunctionRef<void(absl::string_view)> on_stderr_output,
+      absl::FunctionRef<bool()> should_stop,
       const std::optional<absl::flat_hash_map<std::string, std::string>>&
-          environment,
-      absl::Duration timeout);
+          environment);
 
  private:
   void CreatePipes();
@@ -282,16 +282,15 @@ int Wait(pid_t pid) {
 // TODO(lszekeres): Consider optimizing this further by eliminating polling.
 // Could potentially be done using pselect() to wait for SIGCHLD with a timeout.
 // I.e., by setting all args to null, except timeout with a sigmask for SIGCHLD.
-int WaitWithTimeout(pid_t pid, absl::Duration timeout) {
+int WaitWithStopChecker(pid_t pid, absl::FunctionRef<bool()> should_stop) {
   int status;
-  const absl::Time wait_until = absl::Now() + timeout;
   constexpr absl::Duration sleep_duration = absl::Milliseconds(100);
   while (true) {
     pid_t ret = waitpid(pid, &status, WNOHANG);
     if (ret == -1 && ShouldRetry(errno)) {
       continue;
     } else if (ret == 0) {  // Still running.
-      if (absl::Now() > wait_until) {
+      if (should_stop()) {
         FUZZTEST_INTERNAL_CHECK(kill(pid, SIGTERM) == 0,
                                 "Cannot kill(): ", strerror(errno));
         return Wait(pid);
@@ -313,14 +312,14 @@ TerminationStatus SubProcess::Run(
     absl::Span<const std::string> command_line,
     absl::FunctionRef<void(absl::string_view)> on_stdout_output,
     absl::FunctionRef<void(absl::string_view)> on_stderr_output,
+    absl::FunctionRef<bool()> should_stop,
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
-        environment,
-    absl::Duration timeout) {
+        environment) {
   CreatePipes();
   pid_t child_pid = StartChild(command_line, environment);
   CloseChildPipes();
-  std::future<int> status =
-      std::async(std::launch::async, &WaitWithTimeout, child_pid, timeout);
+  std::future<int> status = std::async(std::launch::async, &WaitWithStopChecker,
+                                       child_pid, should_stop);
   ReadChildOutput(on_stdout_output, on_stderr_output);
   CloseParentPipes();
   return TerminationStatus(status.get());
@@ -329,13 +328,13 @@ TerminationStatus SubProcess::Run(
 #endif  // !defined(_MSC_VER) && !(defined(__ANDROID_MIN_SDK_VERSION__) &&
         // __ANDROID_MIN_SDK_VERSION__ < 28)
 
-TerminationStatus RunCommandWithOutputCallbacks(
+TerminationStatus RunCommandWithCallbacks(
     absl::Span<const std::string> command_line,
     absl::FunctionRef<void(absl::string_view)> on_stdout_output,
     absl::FunctionRef<void(absl::string_view)> on_stderr_output,
+    absl::FunctionRef<bool()> should_stop,
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
-        environment,
-    absl::Duration timeout) {
+        environment) {
 #if defined(_MSC_VER)
   FUZZTEST_INTERNAL_CHECK(false,
                           "Subprocess library not implemented on Windows yet.");
@@ -348,8 +347,8 @@ TerminationStatus RunCommandWithOutputCallbacks(
       false, "Subprocess library not implemented on Apple tvOS yet");
 #else
   SubProcess proc;
-  return proc.Run(command_line, on_stdout_output, on_stderr_output, environment,
-                  timeout);
+  return proc.Run(command_line, on_stdout_output, on_stderr_output, should_stop,
+                  environment);
 #endif
 }
 
@@ -358,13 +357,14 @@ RunResults RunCommand(
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
         environment,
     absl::Duration timeout) {
+  const absl::Time wait_until = absl::Now() + timeout;
   std::string stdout_str;
   std::string stderr_str;
-  auto status = RunCommandWithOutputCallbacks(
+  auto status = RunCommandWithCallbacks(
       command_line,
       [&stdout_str](absl::string_view output) { stdout_str.append(output); },
       [&stderr_str](absl::string_view output) { stderr_str.append(output); },
-      environment, timeout);
+      [wait_until]() { return absl::Now() > wait_until; }, environment);
   return {std::move(status), std::move(stdout_str), std::move(stderr_str)};
 }
 
