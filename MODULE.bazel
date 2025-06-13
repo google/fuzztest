@@ -46,7 +46,7 @@ bazel_dep(
 # required for testing.
 bazel_dep(
     name = "protobuf",
-    version = "30.2",
+    version = "31.1",
 )
 # TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
 # required for testing.
