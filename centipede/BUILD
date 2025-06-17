@@ -982,6 +982,20 @@ cc_library(
     # This has no dependency and only uses string, pair and vector.
 )
 
+cc_library(
+    name = "dispatcher",
+    srcs = ["dispatcher.cc"],
+    hdrs = ["dispatcher.h"],
+    deps = [
+        ":execution_metadata",
+        ":runner_request",
+        ":runner_result",
+        ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
 # The runner library is special:
 #   * It must not be instrumented with asan, sancov, etc.
 #   * It must not have heavy dependencies, and ideally not at all.
