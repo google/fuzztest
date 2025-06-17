@@ -174,6 +174,8 @@ class CentipedeCallbacks {
       std::filesystem::path(temp_dir_).append("log");
   std::string failure_description_path_ =
       std::filesystem::path(temp_dir_).append("failure_description");
+  std::string failure_signature_path_ =
+      std::filesystem::path(temp_dir_).append("failure_signature");
   const std::string shmem_name1_ = ProcessAndThreadUniqueID("/ctpd-shm1-");
   const std::string shmem_name2_ = ProcessAndThreadUniqueID("/ctpd-shm2-");
 
