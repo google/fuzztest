@@ -215,5 +215,51 @@ TEST(ExecutionResult, ReadResultSucceedsOnlyWithInputBegin) {
   EXPECT_FALSE(batch_result.Read(blobseq));
 }
 
+TEST(ExecutionResult, ReadDispatcher32BitFeatures) {
+  auto buffer = std::make_unique<uint8_t[]>(1000);
+  BlobSequence blobseq(buffer.get(), 1000);
+  BatchResult batch_result;
+
+  std::vector<uint32_t> dispatcher_features = {0, 1, 0x7fffffff, 0xffffffff};
+
+  EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
+  EXPECT_TRUE(BatchResult::WriteDispatcher32BitFeatures(
+      dispatcher_features.data(), dispatcher_features.size(), blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+  blobseq.Reset();
+  batch_result.ClearAndResize(1);
+  EXPECT_TRUE(batch_result.Read(blobseq));
+
+  ASSERT_EQ(batch_result.num_outputs_read(), 1);
+  EXPECT_THAT(batch_result.results()[0].features(),
+              ElementsAre(feature_domains::kUserDomains[0].ConvertToMe(0),
+                          feature_domains::kUserDomains[0].ConvertToMe(1),
+                          feature_domains::kUserDomains[15].ConvertToMe(
+                              feature_domains::Domain::kDomainSize - 1),
+                          feature_domains::kUserDomains[15].ConvertToMe(
+                              feature_domains::Domain::kDomainSize - 1)));
+}
+
+TEST(ExecutionResult, KeepArbitraryBytesFromMetadata) {
+  auto buffer = std::make_unique<uint8_t[]>(1000);
+  BlobSequence blobseq(buffer.get(), 1000);
+  BatchResult batch_result;
+
+  ByteArray bytes = {13, 14, 15, 16};
+
+  EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
+  EXPECT_TRUE(BatchResult::WriteMetadata(bytes, blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+  blobseq.Reset();
+  batch_result.ClearAndResize(1);
+  EXPECT_TRUE(batch_result.Read(blobseq));
+
+  ASSERT_EQ(batch_result.num_outputs_read(), 1);
+  EXPECT_EQ(batch_result.results()[0].metadata().cmp_data, bytes);
+  // `ForEachEntry()` should fail but not crash.
+  EXPECT_FALSE(batch_result.results()[0].metadata().ForEachCmpEntry(
+      [](ByteSpan, ByteSpan) {}));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal
