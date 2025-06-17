@@ -39,6 +39,7 @@
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -101,9 +102,9 @@ class UpdateCorpusDatabaseTest
 
   static void TearDownTestSuite() { run_map_->clear(); }
 
-  static std::string GetCorpusDatabasePath() {
+  static std::string UpdateCorpusDatabaseAndGetPath() {
     RunUpdateCorpusDatabase();
-    return (*run_map_)[GetParam()].workspace->path() / "corpus_database";
+    return GetCorpusDatabasePath();
   }
 
   static absl::string_view GetUpdateCorpusDatabaseStdErr() {
@@ -149,6 +150,10 @@ class UpdateCorpusDatabaseTest
   }
 
  private:
+  static std::string GetCorpusDatabasePath() {
+    return (*run_map_)[GetParam()].workspace->path() / "corpus_database";
+  }
+
   static absl::NoDestructor<
       absl::flat_hash_map<ExecutionModelParam, UpdateCorpusDatabaseRun>>
       run_map_;
@@ -182,6 +187,12 @@ TEST_P(UpdateCorpusDatabaseTest, FindsAllCrashes) {
             ContainsRegex(R"re(Failure\s*: heap-buffer-overflow)re"),
             ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re")))
       << std_err;
+}
+
+TEST_P(UpdateCorpusDatabaseTest, DeduplicatesCrashes) {
+  EXPECT_THAT(
+      ListDirectoryRecursively(UpdateCorpusDatabaseAndGetPath()),
+      Contains(HasSubstr("FuzzTest.FailsInTwoWays/crashing/")).Times(2));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, StartsNewFuzzTestRunsWithoutExecutionIds) {
@@ -331,9 +342,10 @@ TEST_P(UpdateCorpusDatabaseTest,
 
 TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
   RunOptions run_options;
-  run_options.fuzztest_flags = {{"corpus_database", GetCorpusDatabasePath()},
-                                {"replay_corpus_for", "inf"},
-                                {"jobs", "2"}};
+  run_options.fuzztest_flags = {
+      {"corpus_database", UpdateCorpusDatabaseAndGetPath()},
+      {"replay_corpus_for", "inf"},
+      {"jobs", "2"}};
   run_options.timeout = absl::Seconds(30);
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
@@ -347,8 +359,9 @@ TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
 
 TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
   RunOptions run_options;
-  run_options.fuzztest_flags = {{"corpus_database", GetCorpusDatabasePath()},
-                                {"fuzz_for", "20s"}};
+  run_options.fuzztest_flags = {
+      {"corpus_database", UpdateCorpusDatabaseAndGetPath()},
+      {"fuzz_for", "20s"}};
   run_options.env = {{"TEST_TIMEOUT", "30"}};
   run_options.timeout = absl::Seconds(60);
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
