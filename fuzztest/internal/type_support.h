@@ -177,21 +177,28 @@ struct FloatingPrinter {
 };
 
 struct StringPrinter {
+  static constexpr int kMaxStringSize = 1000;
   template <typename T>
   void PrintUserValue(const T& v, domain_implementor::RawSink out,
                       domain_implementor::PrintMode mode) const {
     switch (mode) {
-      case domain_implementor::PrintMode::kHumanReadable:
+      case domain_implementor::PrintMode::kHumanReadable: {
         absl::Format(out, "\"");
+        int i = 0;
         for (char c : v) {
           if (std::isprint(c)) {
             absl::Format(out, "%c", c);
           } else {
             absl::Format(out, "\\%03o", c);
           }
+          if (++i >= kMaxStringSize) {
+            absl::Format(out, " ...");
+            break;
+          }
         }
         absl::Format(out, "\"");
         break;
+      }
       case domain_implementor::PrintMode::kSourceCode: {
         // Make sure to properly C-escape strings when printing source code, and
         // explicitly construct a std::string of the right length if there is an
