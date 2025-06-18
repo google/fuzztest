@@ -815,6 +815,7 @@ cc_library(
         ":centipede_lib",
         ":command",
         ":coverage",
+        ":crash_summary",
         ":distill",
         ":environment",
         ":minimize_crash",
@@ -846,7 +847,9 @@ cc_library(
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//fuzztest/internal:configuration",
-    ],
+    ] + select({
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -948,6 +951,16 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
+    ],
+)
+
+cc_library(
+    name = "crash_summary",
+    srcs = ["crash_summary.cc"],
+    hdrs = ["crash_summary.h"],
+    deps = [
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -1836,6 +1849,16 @@ cc_test(
     deps = [
         ":int_utils",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "crash_summary_test",
+    srcs = ["crash_summary_test.cc"],
+    deps = [
+        ":crash_summary",
+        "@abseil-cpp//absl/log:check",
         "@googletest//:gtest_main",
     ],
 )
