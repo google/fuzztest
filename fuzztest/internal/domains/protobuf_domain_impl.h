@@ -38,6 +38,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
@@ -237,8 +239,7 @@ class ProtoPolicy {
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
                              /*value=*/OptionalPolicy::kWithNull}}) {
-    static int64_t next_id = 0;
-    id_ = next_id++;
+    id_ = absl::ToUnixMillis(absl::Now());
   }
 
   void SetOptionalPolicy(OptionalPolicy optional_policy) {

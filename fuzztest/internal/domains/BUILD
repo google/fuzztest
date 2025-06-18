@@ -176,6 +176,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:any",
