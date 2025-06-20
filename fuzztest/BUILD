@@ -205,6 +205,14 @@ cc_library(
 )
 
 cc_library(
+    name = "flatbuffers",
+    hdrs = ["flatbuffers.h"],
+    deps = [
+        "@com_google_fuzztest//fuzztest/internal/domains:flatbuffers_domain_impl",
+    ],
+)
+
+cc_library(
     name = "fuzzing_bit_gen",
     srcs = ["fuzzing_bit_gen.cc"],
     hdrs = ["fuzzing_bit_gen.h"],
