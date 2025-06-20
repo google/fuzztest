@@ -37,8 +37,6 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -69,7 +67,8 @@ class LocalRemoteFile : public RemoteFile {
   }
 
   ~LocalRemoteFile() {
-    CHECK(file_ == nullptr) << "Dtor called before Close(): " << VV(path_);
+    FUZZTEST_CHECK(file_ == nullptr)
+        << "Dtor called before Close(): " << VV(path_);
   }
 
   // Movable but not copyable.
@@ -123,7 +122,7 @@ class LocalRemoteFile : public RemoteFile {
                                              ": ", std::strerror(errno)));
     }
     static constexpr auto elt_size = sizeof(ba[0]);
-    CHECK_EQ(file_size % elt_size, 0)
+    FUZZTEST_CHECK_EQ(file_size % elt_size, 0)
         << VV(file_size) << VV(elt_size) << VV(path_);
     if (file_size % elt_size != 0) {
       return absl::FailedPreconditionError(
@@ -165,36 +164,36 @@ class LocalRemoteFile : public RemoteFile {
 #if defined(FUZZTEST_STUB_STD_FILESYSTEM)
 
 absl::Status RemoteMkdir(std::string_view path) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 bool RemotePathExists(std::string_view path) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 bool RemotePathIsDirectory(std::string_view path) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
                                                          bool recursively) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 absl::Status RemoteFileRename(std::string_view from, std::string_view to) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 absl::Status RemoteFileCopy(std::string_view from, std::string_view to) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 absl::Status RemotePathTouchExistingFile(std::string_view path) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 absl::Status RemotePathDelete(std::string_view path, bool recursively) {
-  LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 #else
@@ -310,7 +309,7 @@ absl::Status RemotePathDelete(std::string_view path, bool recursively) {
 
 // TODO(ussuri): For now, simulate the old behavior, where a failure to open
 //  a file returned nullptr. Adjust the clients to expect non-null and use a
-//  normal ctor with a CHECK instead of `Create()` here instead.
+//  normal ctor with a FUZZTEST_CHECK instead of `Create()` here instead.
 absl::StatusOr<RemoteFile *> RemoteFileOpen(std::string_view path,
                                             const char *mode) {
   return LocalRemoteFile::Create(std::string(path), mode);
@@ -367,7 +366,8 @@ namespace {
 #if defined(FUZZTEST_HAS_OSS_GLOB)
 int HandleGlobError(const char *epath, int eerrno) {
   if (eerrno == ENOENT) return 0;
-  LOG(FATAL) << "Error while globbing path: " << VV(epath) << VV(eerrno);
+  FUZZTEST_LOG(FATAL) << "Error while globbing path: " << VV(epath)
+                      << VV(eerrno);
   return -1;
 }
 #endif  // defined(FUZZTEST_HAS_OSS_GLOB)

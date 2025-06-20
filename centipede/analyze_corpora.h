@@ -62,7 +62,7 @@ AnalyzeCorporaResults AnalyzeCorpora(std::string_view binary_name,
                                      std::string_view workdir_a,
                                      std::string_view workdir_b);
 
-// Same as above but `LOG`s the results for human consumption.
+// Same as above but `FUZZTEST_LOG`s the results for human consumption.
 void AnalyzeCorporaToLog(std::string_view binary_name,
                          std::string_view binary_hash,
                          std::string_view workdir_a,

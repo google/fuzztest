@@ -33,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
 #include "re2/prog.h"
 #include "re2/regexp.h"
@@ -57,9 +58,8 @@ std::string RegexpDFA::GenerateString(absl::BitGenRef prng) {
     result.insert(result.end(), fragment.begin(), fragment.end());
     state = &states_[next_id];
     if (state->is_end_state()) {
-      FUZZTEST_INTERNAL_CHECK(
-          fragment.back() == kEndOfString,
-          "The last character leading to the end state should be EOS!");
+      FUZZTEST_CHECK(fragment.back() == kEndOfString)
+          << "The last character leading to the end state should be EOS!";
       result.pop_back();
       break;
     }
@@ -73,8 +73,8 @@ RegexpDFA::Path RegexpDFA::FindPath(
   Path path;
   int cur_state_id = from_state_id;
   State* cur_state = &states_[cur_state_id];
-  FUZZTEST_INTERNAL_CHECK(!cur_state->is_end_state(),
-                          "Cannot start a DFA path from an end state!");
+  FUZZTEST_CHECK(!cur_state->is_end_state())
+      << "Cannot start a DFA path from an end state!";
   while (true) {
     // Pick a random next state.
     int offset = cur_state->edge_weight_distribution(prng);
@@ -146,7 +146,7 @@ RegexpDFA::Path RegexpDFA::FindPathWithinLengthDFS(int from_state_id,
       candidate_lens.push_back(len);
     }
   }
-  FUZZTEST_INTERNAL_CHECK(!candidate_lens.empty(), "Cannot find a path!");
+  FUZZTEST_CHECK(!candidate_lens.empty()) << "Cannot find a path!";
 
   int state_id = to_state_id;
   Path result;
@@ -156,8 +156,8 @@ RegexpDFA::Path RegexpDFA::FindPathWithinLengthDFS(int from_state_id,
     result.push_back(*(last_edges_and_counters[state_id][len].edge));
     state_id = result.back().from_state_id;
   }
-  FUZZTEST_INTERNAL_CHECK(state_id == from_state_id,
-                          "Cannot find a path from from_state");
+  FUZZTEST_CHECK(state_id == from_state_id)
+      << "Cannot find a path from from_state";
   std::reverse(result.begin(), result.end());
   return result;
 }
@@ -209,9 +209,8 @@ absl::StatusOr<std::string> RegexpDFA::PathToString(
     const std::vector<std::int16_t>& fragment = transition.chars_to_match;
     result.insert(result.end(), fragment.begin(), fragment.end());
     if (next_state_id == end_state_id_) {
-      FUZZTEST_INTERNAL_CHECK(
-          fragment.back() == kEndOfString,
-          "The last character leading to the end state should be EOS!");
+      FUZZTEST_CHECK(fragment.back() == kEndOfString)
+          << "The last character leading to the end state should be EOS!";
       result.pop_back();
     }
   }
@@ -230,7 +229,7 @@ std::optional<int> RegexpDFA::NextState(
                   const std::vector<std::int16_t>& chars) {
         const size_t compare_size = std::min(transition.chars_to_match.size(),
                                              chars.size() - cur_index);
-        FUZZTEST_INTERNAL_CHECK(compare_size != 0, "Nothing to compare!");
+        FUZZTEST_CHECK(compare_size != 0) << "Nothing to compare!";
         for (size_t i = 0; i < compare_size; ++i) {
           if (transition.chars_to_match[i] == chars[cur_index + i]) continue;
           return transition.chars_to_match[i] < chars[cur_index + i];
@@ -262,10 +261,9 @@ std::unique_ptr<re2::Prog> RegexpDFA::CompileRegexp(absl::string_view regexp) {
       re2::Regexp::Parse(full_text_regexp, re2::Regexp::LikePerl, nullptr);
 
   // Is the regexp valid?
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(re != nullptr,
-                                       "Invalid RE2 regular expression.");
+  FUZZTEST_PRECONDITION(re != nullptr) << "Invalid RE2 regular expression.";
   re2::Prog* prog = re->CompileToProg(0);
-  FUZZTEST_INTERNAL_CHECK(prog != nullptr, "RE2 compilation failed!");
+  FUZZTEST_CHECK(prog != nullptr) << "RE2 compilation failed!";
   re->Decref();
   return std::unique_ptr<re2::Prog>(prog);
 }
@@ -279,14 +277,13 @@ void RegexpDFA::BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp) {
   // Full match has no effect on re2::Prog::BuildEntireDFA.
   int state_n = compiled_regexp->BuildEntireDFA(
       re2::Prog::kFirstMatch, [&](const int* next, bool match) {
-        FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-            next != nullptr,
-            "The memory budget for building the state machine (DFA) for the "
-            "given regular expression has been exhausted. "
-            "You might try to reduce the number of states by using more "
-            "specific character classes (e.g., [[:alpha:]] instead of `.`, "
-            "i.e., any character) in your regular expression, or wait until "
-            "the issue is fixed.");
+        FUZZTEST_PRECONDITION(next != nullptr)
+            << "The memory budget for building the state machine (DFA) for the "
+               "given regular expression has been exhausted. "
+               "You might try to reduce the number of states by using more "
+               "specific character classes (e.g., [[:alpha:]] instead of `.`, "
+               "i.e., any character) in your regular expression, or wait until "
+               "the issue is fixed.";
 
         transition_table.emplace_back(
             next, next + compiled_regexp->bytemap_range() + 1);
@@ -328,8 +325,8 @@ void RegexpDFA::BuildEntireDFA(std::unique_ptr<re2::Prog> compiled_regexp) {
           return a.chars_to_match.front() < b.chars_to_match.front();
         });
     if (end_vec[i]) end_state_id_ = i;
-    FUZZTEST_INTERNAL_CHECK((!end_vec[i] || state.next.empty()),
-                            "An end state must have no outgoing edges!");
+    FUZZTEST_CHECK((!end_vec[i] || state.next.empty()))
+        << "An end state must have no outgoing edges!";
   }
 }
 
@@ -365,9 +362,8 @@ void RegexpDFA::ComputeEdgeWeights() {
         edge_to_unsafe_nodes.push_back(j);
       }
     }
-    FUZZTEST_INTERNAL_CHECK(
-        state_id == end_state_id_ || !edge_to_safe_nodes.empty(),
-        "A non-end node must have at least one safe edge");
+    FUZZTEST_CHECK(state_id == end_state_id_ || !edge_to_safe_nodes.empty())
+        << "A non-end node must have at least one safe edge";
     double probability_to_safe_node =
         edge_to_unsafe_nodes.empty() ? 1 : kProbToSafeNode;
 
@@ -402,9 +398,8 @@ void RegexpDFA::CompressStates() {
     State& state = states_[i];
     if (state.next.size() != 1) continue;
     const auto& [chars_to_match, next_state_id] = state.next[0];
-    FUZZTEST_INTERNAL_CHECK(
-        next_state_id != i,
-        "A self-loop state should have at least two outgoing edges.");
+    FUZZTEST_CHECK(next_state_id != i)
+        << "A self-loop state should have at least two outgoing edges.";
     for (size_t j = 0; j < states_.size(); ++j) {
       for (auto& [next_chars_to_match, state_id] : states_[j].next) {
         if (state_id == i) {

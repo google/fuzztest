@@ -29,9 +29,11 @@ cc_library(
     features = ["-use_header_modules"],  # Incompatible with -fexceptions.
     deps = [
         ":grammar_info",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_fuzztest//fuzztest/internal:logging",
+        "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//grammar_codegen/generated_antlr_parser",
     ],
 )
@@ -46,6 +48,7 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:logging",
     ],
 )

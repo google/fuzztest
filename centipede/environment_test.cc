@@ -18,8 +18,8 @@
 #include <string_view>
 
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/configuration.h"
 
 namespace fuzztest::internal {
@@ -152,7 +152,7 @@ TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
   fuzztest::internal::Configuration config;
   config.time_limit = absl::Seconds(123);
   config.time_budget_type = fuzztest::internal::TimeBudgetType::kPerTest;
-  CHECK(config.GetTimeLimitPerTest() == absl::Seconds(123));
+  FUZZTEST_CHECK(config.GetTimeLimitPerTest() == absl::Seconds(123));
   env.UpdateWithTargetConfig(config);
   EXPECT_EQ(env.timeout_per_batch, 123)
       << "`timeout_per_batch` should be set to the test time limit when it was "

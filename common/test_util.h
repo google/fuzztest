@@ -22,10 +22,10 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 #include "./common/logging.h"
 
@@ -116,7 +116,7 @@ class TempCorpusDir : public TempDir {
     while (reader_->Read(blob).ok()) {
       corpus.emplace_back(blob.begin(), blob.end());
     }
-    CHECK_OK(reader_->Close());
+    FUZZTEST_CHECK_OK(reader_->Close());
     return corpus;
   }
 

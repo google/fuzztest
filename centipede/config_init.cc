@@ -37,7 +37,7 @@ RuntimeState::RuntimeState(std::vector<std::string> leftover_argv)
 ABSL_ATTRIBUTE_WEAK std::unique_ptr<RuntimeState> InitRuntime(int argc,
                                                               char* argv[]) {
   // NB: The invocation order below is very important. Do not change.
-  // Make `LOG(INFO)` to go to stderr by default. Note that an explicit
+  // Make `FUZZTEST_LOG(INFO)` to go to stderr by default. Note that an explicit
   // `--stderrthreshold=N` on the command line will override this.
   absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
   // Make --help print any flags defined by any Centipede source.

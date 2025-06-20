@@ -21,6 +21,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/type_support.h"
@@ -35,19 +36,18 @@ class BitFlagCombinationOfImpl
 
   explicit BitFlagCombinationOfImpl(absl::Span<const T> flags)
       : flags_(flags.begin(), flags.end()), all_flags_combo_{} {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !flags.empty(), "BitFlagCombinationOf requires a non empty list.");
+    FUZZTEST_PRECONDITION(!flags.empty())
+        << "BitFlagCombinationOf requires a non empty list.";
     // Make sure they are mutually exclusive metadata, only_shrink and none are
     // empty.
     for (int i = 0; i < flags.size(); ++i) {
       T v1 = flags[i];
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-          v1 != T{}, "BitFlagCombinationOf requires non zero flags.");
+      FUZZTEST_PRECONDITION(v1 != T{})
+          << "BitFlagCombinationOf requires non zero flags.";
       for (int j = i + 1; j < flags.size(); ++j) {
         T v2 = flags[j];
-        FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-            BitAnd(v1, v2) == T{},
-            "BitFlagCombinationOf requires flags to be mutually exclusive.");
+        FUZZTEST_PRECONDITION(BitAnd(v1, v2) == T{})
+            << "BitFlagCombinationOf requires flags to be mutually exclusive.";
       }
       all_flags_combo_ = BitOr(all_flags_combo_, v1);
     }

@@ -45,7 +45,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "./fuzztest/internal/logging.h"
+#include "./common/logging.h"
 
 #if !defined(_MSC_VER)
 // Needed to pass the current environment to posix_spawn, which needs an
@@ -68,7 +68,7 @@ bool TerminationStatus::Signaled() const { return WIFSIGNALED(status_); }
 
 std::variant<ExitCodeT, SignalT> TerminationStatus::Status() const {
   if (Exited()) return static_cast<ExitCodeT>(WEXITSTATUS(status_));
-  FUZZTEST_INTERNAL_CHECK(Signaled(), "!Exited && !Signaled");
+  FUZZTEST_CHECK(Signaled()) << "!Exited && !Signaled";
   return static_cast<SignalT>(WTERMSIG(status_));
 }
 
@@ -108,29 +108,28 @@ class SubProcess {
 void SubProcess::CreatePipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
     int pipe_fds[2];
-    FUZZTEST_INTERNAL_CHECK(pipe(pipe_fds) == 0,
-                            "Cannot create pipe: ", strerror(errno));
+    FUZZTEST_CHECK(pipe(pipe_fds) == 0) << "Cannot create pipe: ",
+        strerror(errno);
 
     parent_pipe_[channel] = pipe_fds[0];
     child_pipe_[channel] = pipe_fds[1];
 
-    FUZZTEST_INTERNAL_CHECK(
-        fcntl(parent_pipe_[channel], F_SETFL, O_NONBLOCK) != -1,
-        "Cannot make pipe non-blocking: ", strerror(errno));
+    FUZZTEST_CHECK(fcntl(parent_pipe_[channel], F_SETFL, O_NONBLOCK) != -1)
+        << "Cannot make pipe non-blocking: " << strerror(errno);
   }
 }
 
 void SubProcess::CloseChildPipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
-    FUZZTEST_INTERNAL_CHECK(close(child_pipe_[channel]) != -1,
-                            "Cannot close pipe: ", strerror(errno));
+    FUZZTEST_CHECK(close(child_pipe_[channel]) != -1)
+        << "Cannot close pipe: " << strerror(errno);
   }
 }
 
 void SubProcess::CloseParentPipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
-    FUZZTEST_INTERNAL_CHECK(close(parent_pipe_[channel]) != -1,
-                            "Cannot close pipe: ", strerror(errno));
+    FUZZTEST_CHECK(close(parent_pipe_[channel]) != -1)
+        << "Cannot close pipe: " << strerror(errno);
   }
 }
 
@@ -141,28 +140,24 @@ posix_spawn_file_actions_t SubProcess::CreateChildFileActions() {
 
   int err;
   err = posix_spawn_file_actions_init(&actions);
-  FUZZTEST_INTERNAL_CHECK(err == 0,
-                          "Cannot initialize file actions: ", strerror(err));
+  FUZZTEST_CHECK(err == 0) << "Cannot initialize file actions: "
+                           << strerror(err);
 
   // Close stdin.
   err = posix_spawn_file_actions_addclose(&actions, STDIN_FILENO);
-  FUZZTEST_INTERNAL_CHECK(err == 0,
-                          "Cannot add close() action: ", strerror(err));
+  FUZZTEST_CHECK(err == 0) << "Cannot add close() action: " << strerror(err);
 
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
     // Close parent-side pipes.
     err = posix_spawn_file_actions_addclose(&actions, parent_pipe_[channel]);
-    FUZZTEST_INTERNAL_CHECK(err == 0,
-                            "Cannot add close() action: ", strerror(err));
+    FUZZTEST_CHECK(err == 0) << "Cannot add close() action: " << strerror(err);
 
     // Replace stdout/stderr file descriptors with the pipes.
     int fd = channel == kStdOutIdx ? STDOUT_FILENO : STDERR_FILENO;
     err = posix_spawn_file_actions_adddup2(&actions, child_pipe_[channel], fd);
-    FUZZTEST_INTERNAL_CHECK(err == 0,
-                            "Cannot add dup2() action: ", strerror(err));
+    FUZZTEST_CHECK(err == 0) << "Cannot add dup2() action: " << strerror(err);
     err = posix_spawn_file_actions_addclose(&actions, child_pipe_[channel]);
-    FUZZTEST_INTERNAL_CHECK(err == 0,
-                            "Cannot add close() action: ", strerror(err));
+    FUZZTEST_CHECK(err == 0) << "Cannot add close() action: " << strerror(err);
   }
 
   return actions;
@@ -198,16 +193,15 @@ pid_t SubProcess::StartChild(
   int err;
   err = posix_spawnp(&child_pid, argv[0], &actions, nullptr, argv.data(),
                      environment.has_value() ? envp.data() : environ);
-  FUZZTEST_INTERNAL_CHECK(err == 0,
-                          "Cannot spawn child process: ", strerror(err));
+  FUZZTEST_CHECK(err == 0) << "Cannot spawn child process: ", strerror(err);
 
   // Free up the used parameters.
   for (char* p : argv) free(p);
   for (char* p : envp) free(p);
 
   err = posix_spawn_file_actions_destroy(&actions);
-  FUZZTEST_INTERNAL_CHECK(err == 0,
-                          "Cannot destroy file actions: ", strerror(err));
+  FUZZTEST_CHECK(err == 0)
+  "Cannot destroy file actions: " << strerror(err);
 
   return child_pid;
 }
@@ -235,9 +229,9 @@ void SubProcess::ReadChildOutput(
   while (fd_remain > 0) {
     int ret = poll(pfd, fd_count, -1);
     if ((ret == -1) && !ShouldRetry(errno)) {
-      FUZZTEST_INTERNAL_CHECK(false, "Cannot poll(): ", strerror(errno));
+      FUZZTEST_CHECK(false) << "Cannot poll(): " << strerror(errno);
     } else if (ret == 0) {
-      FUZZTEST_INTERNAL_CHECK(false, "Impossible timeout: ", strerror(errno));
+      FUZZTEST_CHECK(false) << "Impossible timeout: " << strerror(errno);
     } else if (ret > 0) {
       for (int channel : {kStdOutIdx, kStdErrIdx}) {
         // According to the poll() spec, use -1 for ignored entries.
@@ -274,7 +268,7 @@ int Wait(pid_t pid) {
     } else if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
       return status;
     } else {
-      FUZZTEST_INTERNAL_CHECK(false, "wait() error: ", strerror(errno));
+      FUZZTEST_CHECK(false) << "wait() error: " << strerror(errno);
     }
   }
 }
@@ -291,8 +285,8 @@ int WaitWithStopChecker(pid_t pid, absl::FunctionRef<bool()> should_stop) {
       continue;
     } else if (ret == 0) {  // Still running.
       if (should_stop()) {
-        FUZZTEST_INTERNAL_CHECK(kill(pid, SIGTERM) == 0,
-                                "Cannot kill(): ", strerror(errno));
+        FUZZTEST_CHECK(kill(pid, SIGTERM) == 0)
+            << "Cannot kill(): " << strerror(errno);
         return Wait(pid);
       } else {
         absl::SleepFor(sleep_duration);
@@ -301,7 +295,7 @@ int WaitWithStopChecker(pid_t pid, absl::FunctionRef<bool()> should_stop) {
     } else if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
       return status;
     } else {
-      FUZZTEST_INTERNAL_CHECK(false, "wait() error: ", strerror(errno));
+      FUZZTEST_CHECK(false) "wait() error: " << strerror(errno);
     }
   }
 }
@@ -336,15 +330,13 @@ TerminationStatus RunCommandWithCallbacks(
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
         environment) {
 #if defined(_MSC_VER)
-  FUZZTEST_INTERNAL_CHECK(false,
-                          "Subprocess library not implemented on Windows yet.");
+  FUZZTEST_CHECK(false) << "Subprocess library not implemented on Windows yet.";
 #elif defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 28
-  FUZZTEST_INTERNAL_CHECK(
-      false,
-      "Subprocess library not implemented on older Android NDK versions yet");
+  FUZZTEST_CHECK(false)
+      << "Subprocess library not implemented on older Android NDK versions yet";
 #elif defined(TARGET_OS_TV) && TARGET_OS_TV
-  FUZZTEST_INTERNAL_CHECK(
-      false, "Subprocess library not implemented on Apple tvOS yet");
+  FUZZTEST_INTERNAL_CHECK(false)
+      << "Subprocess library not implemented on Apple tvOS yet";
 #else
   SubProcess proc;
   return proc.Run(command_line, on_stdout_output, on_stderr_output, should_stop,

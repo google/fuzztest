@@ -20,8 +20,6 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
@@ -64,7 +62,7 @@ namespace {
 absl::Time GetStopAtTime(absl::Time stop_at, absl::Duration stop_after) {
   const bool stop_at_is_non_default = stop_at != absl::InfiniteFuture();
   const bool stop_after_is_non_default = stop_after != absl::InfiniteDuration();
-  CHECK_LE(stop_at_is_non_default + stop_after_is_non_default, 1)
+  FUZZTEST_CHECK_LE(stop_at_is_non_default + stop_after_is_non_default, 1)
       << "At most one of --stop_at and --stop_after should be specified, "
          "including via --config file: "
       << VV(stop_at) << VV(stop_after);
@@ -106,12 +104,12 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
     env_from_flags.num_threads = j;
     env_from_flags.my_shard_index = 0;
   }
-  CHECK_GE(env_from_flags.total_shards, 1);
-  CHECK_GE(env_from_flags.batch_size, 1);
-  CHECK_GE(env_from_flags.num_threads, 1);
-  CHECK_LE(env_from_flags.num_threads, env_from_flags.total_shards);
-  CHECK_LE(env_from_flags.my_shard_index + env_from_flags.num_threads,
-           env_from_flags.total_shards)
+  FUZZTEST_CHECK_GE(env_from_flags.total_shards, 1);
+  FUZZTEST_CHECK_GE(env_from_flags.batch_size, 1);
+  FUZZTEST_CHECK_GE(env_from_flags.num_threads, 1);
+  FUZZTEST_CHECK_LE(env_from_flags.num_threads, env_from_flags.total_shards);
+  FUZZTEST_CHECK_LE(env_from_flags.my_shard_index + env_from_flags.num_threads,
+                    env_from_flags.total_shards)
       << VV(env_from_flags.my_shard_index) << VV(env_from_flags.num_threads);
 
   if (!argv.empty()) {
@@ -126,7 +124,8 @@ Environment CreateEnvironmentFromFlags(const std::vector<std::string> &argv) {
         env_from_flags.clang_coverage_binary);
 
   if (absl::StrContains(env_from_flags.binary, "@@")) {
-    LOG(INFO) << "@@ detected; running in standalone mode with batch_size=1";
+    FUZZTEST_LOG(INFO)
+        << "@@ detected; running in standalone mode with batch_size=1";
     env_from_flags.has_input_wildcards = true;
     env_from_flags.batch_size = 1;
     // TODO(kcc): do we need to check if extra_binaries have @@?

@@ -260,10 +260,9 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
         target_function_(target_function) {}
 
   void Test(MoveOnlyAny&& args_untyped) const override {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        fixture_ != nullptr,
-        "fixture is nullptr. Did you forget to instantiate it in one of the "
-        "SetUp methods?");
+    FUZZTEST_PRECONDITION(fixture_ != nullptr)
+        << "fixture is nullptr. Did you forget to instantiate it in one of the "
+           "SetUp methods?";
     std::apply(
         [&](auto&&... args) {
           (fixture_.get()->*target_function_)(
@@ -277,10 +276,10 @@ class FixtureDriver<DomainT, Fixture, void (BaseFixture::*)(Args...),
     if constexpr (std::is_invocable_v<SeedProvider, Fixture*>) {
       static_assert(std::is_same_v<std::invoke_result_t<SeedProvider, Fixture*>,
                                    std::vector<value_type_t<DomainT>>>);
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-          fixture_ != nullptr,
-          "fixture is nullptr. Did you forget to instantiate it in one of the "
-          "SetUp methods?");
+      FUZZTEST_PRECONDITION(fixture_ != nullptr)
+          << "fixture is nullptr. Did you forget to instantiate it in one of "
+             "the "
+             "SetUp methods?";
       return this->GetSeedsFromUserValues(
           std::invoke(this->seed_provider(), fixture_.get()));
     } else if constexpr (std::is_invocable_v<SeedProvider>) {

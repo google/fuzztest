@@ -76,7 +76,7 @@ namespace fuzztest::internal {
 //                 .amount = RUsageMemory{.mem_rss = EstimateShardPeakRss()},
 //                 .timeout = absl::Minutes(10),
 //             });
-//         CHECK_OK(rss_lease.status());
+//         FUZZTEST_CHECK_OK(rss_lease.status());
 //         ...
 //       }
 //       // `rss_lease` dtor returns the leased RSS to `rss_pool` and unblocks
@@ -138,7 +138,7 @@ class ResourcePool {
 
     // The outcome of resource acquisition (ie. of
     // `ResourcePool::AcquireLeaseBlocking()`). Must be consulted by the client
-    // at least once, otherwise the dtor will CHECK.
+    // at least once, otherwise the dtor will FUZZTEST_CHECK.
     const absl::Status& status() const;
     // The originating request.
     const LeaseRequest& request() const;

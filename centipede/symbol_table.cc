@@ -27,8 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -68,13 +66,15 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
   if (lines_view.size() == 1 && lines_view.back().empty()) return;
 
   while (!lines_view.empty()) {
-    CHECK_GE(lines_view.size(), 3) << "Unexpected symbolizer output format.";
+    FUZZTEST_CHECK_GE(lines_view.size(), 3)
+        << "Unexpected symbolizer output format.";
 
     std::string_view func = lines_view[0];
     std::string_view file = lines_view[1];
     std::string_view empty = lines_view[2];
-    CHECK(empty.empty()) << "Unexpected symbolizer output format: " << VV(func)
-                         << VV(file) << VV(empty);
+    FUZZTEST_CHECK(empty.empty())
+        << "Unexpected symbolizer output format: " << VV(func) << VV(file)
+        << VV(empty);
     for (auto &useless_prefix : {"/proc/self/cwd/", "./"}) {
       file = absl::StripPrefix(file, useless_prefix);
     }
@@ -113,8 +113,8 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   WriteToLocalFile(pcs_file.path(), pcs_string);
 
   // Run the symbolizer.
-  LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
-            << dso_basename;
+  FUZZTEST_LOG(INFO) << "Symbolizing " << pc_infos.size() << " PCs from "
+                     << dso_basename;
   Command::Options cmd_options;
   cmd_options.args = {
       "--no-inlines",
@@ -127,8 +127,9 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   Command cmd{symbolizer_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
-    LOG(ERROR) << "Symbolization failed, debug symbols will not be used: "
-               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code);
+    FUZZTEST_LOG(ERROR)
+        << "Symbolization failed, debug symbols will not be used: "
+        << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code);
     return;
   }
 
@@ -139,9 +140,10 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   size_t new_size = size();
   size_t added_size = new_size - old_size;
   if (added_size != pc_infos.size()) {
-    LOG(ERROR) << "Symbolization failed: debug symbols will not be used: "
-               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code)
-               << VV(pc_infos.size()) << VV(added_size);
+    FUZZTEST_LOG(ERROR)
+        << "Symbolization failed: debug symbols will not be used: "
+        << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code)
+        << VV(pc_infos.size()) << VV(added_size);
   }
 }
 
@@ -152,12 +154,14 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
   // NOTE: --symbolizer_path=/dev/null is a somewhat expected alternative to
   // "" that users might pass.
   if (symbolizer_path.empty() || symbolizer_path == "/dev/null") {
-    LOG(WARNING) << "Symbolizer unspecified: debug symbols will not be used";
+    FUZZTEST_LOG(WARNING)
+        << "Symbolizer unspecified: debug symbols will not be used";
     SetAllToUnknown(pc_table.size());
     return;
   }
 
-  LOG(INFO) << "Symbolizing " << dso_table.size() << " instrumented DSOs.";
+  FUZZTEST_LOG(INFO) << "Symbolizing " << dso_table.size()
+                     << " instrumented DSOs.";
 
   // Iterate all DSOs, symbolize their respective PCs.
   // Symbolizing the PCs can take time, so we
@@ -173,7 +177,8 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
     for (size_t dso_id = 0; dso_id < dso_table.size(); ++dso_id) {
       const auto &dso_info = dso_table[dso_id];
       auto &symbol_table = symbol_tables[dso_id];
-      CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs, pc_table.size())
+      FUZZTEST_CHECK_LE(pc_idx_begin + dso_info.num_instrumented_pcs,
+                        pc_table.size())
           << VV(pc_idx_begin) << VV(dso_info.num_instrumented_pcs);
       const absl::Span<const PCInfo> pc_infos = {pc_table.data() + pc_idx_begin,
                                                  dso_info.num_instrumented_pcs};
@@ -188,7 +193,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
   for (const auto &table : symbol_tables) {
     AddEntries(table);
   }
-  CHECK_EQ(pc_idx_begin, pc_table.size());
+  FUZZTEST_CHECK_EQ(pc_idx_begin, pc_table.size());
 
   if (size() != pc_table.size()) {
     // Something went wrong. Set symbols to unknown so the sizes of pc_table and
@@ -214,19 +219,19 @@ void SymbolTable::AddEntry(std::string_view func,
   }
   const std::vector<std::string_view> file_line_col_split =
       absl::StrSplit(file_line_col, ':');
-  CHECK_LE(file_line_col_split.size(), 3);
-  CHECK_GE(file_line_col_split.size(), 1)
+  FUZZTEST_CHECK_LE(file_line_col_split.size(), 3);
+  FUZZTEST_CHECK_GE(file_line_col_split.size(), 1)
       << "Unexpected symbolizer input format when getting source location: "
       << file_line_col;
   int line = -1;
   int col = -1;
   if (file_line_col_split.size() >= 2) {
-    CHECK(absl::SimpleAtoi(file_line_col_split[1], &line))
+    FUZZTEST_CHECK(absl::SimpleAtoi(file_line_col_split[1], &line))
         << "Unable to convert line number string to an int: "
         << file_line_col_split[1];
   }
   if (file_line_col_split.size() == 3) {
-    CHECK(absl::SimpleAtoi(file_line_col_split[2], &col))
+    FUZZTEST_CHECK(absl::SimpleAtoi(file_line_col_split[2], &col))
         << "Unable to convert column number string to an int: "
         << file_line_col_split[2];
   }
