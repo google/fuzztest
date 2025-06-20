@@ -188,6 +188,33 @@ cc_library(
 )
 
 cc_library(
+    name = "flatbuffers_domain_impl",
+    srcs = ["flatbuffers_domain_impl.cc"],
+    hdrs = ["flatbuffers_domain_impl.h"],
+    deps = [
+        ":core_domains_impl",
+        "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/random:distributions",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest/internal:any",
+        "@com_google_fuzztest//fuzztest/internal:logging",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
+        "@com_google_fuzztest//fuzztest/internal:status",
+        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@flatbuffers//:runtime_cc",
+    ],
+)
+
+cc_library(
     name = "regexp_dfa",
     srcs = ["regexp_dfa.cc"],
     hdrs = ["regexp_dfa.h"],
