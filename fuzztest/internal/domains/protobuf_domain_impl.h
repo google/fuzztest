@@ -15,6 +15,7 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -237,8 +238,8 @@ class ProtoPolicy {
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
                              /*value=*/OptionalPolicy::kWithNull}}) {
-    static int64_t next_id = 0;
-    id_ = next_id++;
+    ABSL_CONST_INIT static std::atomic<int64_t> next_id{0};
+    id_ = next_id.fetch_add(1, std::memory_order_relaxed);
   }
 
   void SetOptionalPolicy(OptionalPolicy optional_policy) {
