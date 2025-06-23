@@ -34,7 +34,11 @@ class GoogleTestFixtureAdapter<
         std::is_base_of<FixtureWithExplicitSetUp, InstantiationType>>>>
     : public Fixture, public virtual InstantiationType {
  public:
-  void SetUp() override { Fixture::SetUp(); }
+  void SetUp() override {
+    std::cout << "==== >> GoogleTestFixtureAdapter::SetUp()" << std::endl;
+    std::cout << "==== >> Fixture" << Fixture::type_name() << std::endl;
+    Fixture::SetUp();
+  }
   void TearDown() override { Fixture::TearDown(); }
 
   static void SetUpTestSuite() { Fixture::SetUpTestSuite(); }
