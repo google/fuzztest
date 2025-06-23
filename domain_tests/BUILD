@@ -38,6 +38,23 @@ cc_test(
 )
 
 cc_test(
+    name = "arbitrary_domains_flatbuffers_test",
+    srcs = ["arbitrary_domains_flatbuffers_test.cc"],
+    deps = [
+        ":domain_testing",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/random",
+        "@com_google_fuzztest//fuzztest:domain",
+        "@com_google_fuzztest//fuzztest:flatbuffers",
+        "@com_google_fuzztest//fuzztest:fuzztest_macros",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:test_flatbuffers_cc_fbs",
+        "@flatbuffers//:runtime_cc",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "arbitrary_domains_protobuf_test",
     srcs = ["arbitrary_domains_protobuf_test.cc"],
     deps = [

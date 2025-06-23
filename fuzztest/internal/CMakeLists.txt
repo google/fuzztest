@@ -494,6 +494,21 @@ fuzztest_proto_library(
   TESTONLY
 )
 
+if (FUZZTEST_BUILD_FLATBUFFERS)
+  fuzztest_flatbuffers_generate_headers(
+    TARGET 
+      test_flatbuffers_headers
+    SCHEMAS
+      "test_flatbuffers.fbs"
+    FLAGS 
+      --bfbs-gen-embed --gen-name-strings
+    TESTONLY
+  )
+  add_dependencies(fuzztest_test_flatbuffers_headers
+    fuzztest_GENERATE_test_flatbuffers_headers
+  )
+endif()
+
 fuzztest_cc_library(
   NAME
     type_support
