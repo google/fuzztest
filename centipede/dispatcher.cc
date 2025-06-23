@@ -60,7 +60,7 @@ void DispatcherLog(const T& first, const Rest&... rest) {
     }
     DispatcherLog(err_buf);
   } else if constexpr (std::is_same_v<LogLnSync, T>) {
-    write(STDERR_FILENO, "\n", 1);
+    write(STDERR_FILENO, "\naf", 1);
     fsync(STDERR_FILENO);
   } else {
     std::string_view sv = first;
