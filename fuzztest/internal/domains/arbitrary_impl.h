@@ -458,7 +458,9 @@ class ArbitraryImpl<
                         // Monostates have their own domain.
                         !is_monostate_v<T> &&
                         // std::array uses the Tuple domain.
-                        !is_array_v<T>>>
+                        !is_array_v<T> &&
+                        // Flatbuffers tables have their own domain.
+                        !is_flatbuffers_table_v<T>>>
     : public decltype(DetectAggregateOfImpl<T>()) {};
 
 // Arbitrary for std::pair.

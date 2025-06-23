@@ -35,6 +35,10 @@ bazel_dep(
     name = "platforms",
     version = "0.0.10",
 )
+bazel_dep(
+    name = "flatbuffers",
+    version = "25.2.10"
+)
 # GoogleTest is not a dev dependency, because it's needed when FuzzTest is used
 # with GoogleTest integration (e.g., googletest_adaptor). Note that the FuzzTest
 # framework can be used without GoogleTest integration as well.
@@ -48,8 +52,6 @@ bazel_dep(
     name = "protobuf",
     version = "31.1",
 )
-# TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
-# required for testing.
 bazel_dep(
     name = "rules_proto",
     version = "7.1.0",

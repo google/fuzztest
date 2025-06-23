@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "./fuzztest/flatbuffers.h"  // IWYU pragma: keep
 #include "./fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
@@ -39,6 +40,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/test_flatbuffers_generated.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
@@ -56,6 +58,7 @@ using ::fuzztest::StringOf;
 using ::fuzztest::StructOf;
 using ::fuzztest::TupleOf;
 using ::fuzztest::VectorOf;
+using ::fuzztest::internal::DefaultTable;
 using ::fuzztest::internal::ProtoExtender;
 using ::fuzztest::internal::SingleInt32Field;
 using ::fuzztest::internal::TestProtobuf;
@@ -847,4 +850,68 @@ class FaultySetupTest {
 };
 FUZZ_TEST_F(FaultySetupTest, NoOp);
 
+void FlatbuffersFailsWhenFieldsAreNotDefault(const DefaultTable* table) {
+  // Abort if any of the fields are not set to their default values.
+  if (table->b() != false) {
+    std::abort();
+  }
+  if (table->i8() != 0) {
+    std::abort();
+  }
+  if (table->i16() != 0) {
+    std::abort();
+  }
+  if (table->i32() != 0) {
+    std::abort();
+  }
+  if (table->i64() != 0) {
+    std::abort();
+  }
+  if (table->u8() != 0) {
+    std::abort();
+  }
+  if (table->u16() != 0) {
+    std::abort();
+  }
+  if (table->u32() != 0) {
+    std::abort();
+  }
+  if (table->u64() != 0) {
+    std::abort();
+  }
+  if (table->f() != 0.0f) {
+    std::abort();
+  }
+  if (table->d() != 0.0) {
+    std::abort();
+  }
+  if (table->str() != nullptr) {
+    std::abort();
+  }
+  if (table->ei8() != fuzztest::internal::ByteEnum_First) {
+    std::abort();
+  }
+  if (table->ei16() != fuzztest::internal::ShortEnum_First) {
+    std::abort();
+  }
+  if (table->ei32() != fuzztest::internal::IntEnum_First) {
+    std::abort();
+  }
+  if (table->ei64() != fuzztest::internal::LongEnum_First) {
+    std::abort();
+  }
+  if (table->eu8() != fuzztest::internal::UByteEnum_First) {
+    std::abort();
+  }
+  if (table->eu16() != fuzztest::internal::UShortEnum_First) {
+    std::abort();
+  }
+  if (table->eu32() != fuzztest::internal::UIntEnum_First) {
+    std::abort();
+  }
+  if (table->eu64() != fuzztest::internal::ULongEnum_First) {
+    std::abort();
+  }
+}
+FUZZ_TEST(MySuite, FlatbuffersFailsWhenFieldsAreNotDefault);
 }  // namespace
