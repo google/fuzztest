@@ -185,7 +185,7 @@ static uint64_t TimeInUsec() {
 }
 
 static void CheckWatchdogLimits() {
-  const uint64_t curr_time = time(nullptr);
+  const uint64_t curr_time_us = TimeInUsec();
   struct Resource {
     const char *what;
     const char *units;
@@ -194,14 +194,14 @@ static void CheckWatchdogLimits() {
     bool ignore_report;
     const char *failure;
   };
-  const uint64_t input_start_time = state.input_start_time;
-  const uint64_t batch_start_time = state.batch_start_time;
-  if (input_start_time == 0 || batch_start_time == 0) return;
+  const uint64_t input_start_time_us = state.input_start_time_us;
+  const uint64_t batch_start_time_us = state.batch_start_time_us;
+  if (input_start_time_us == 0 || batch_start_time_us == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
           /*units=*/"sec",
-          /*value=*/curr_time - input_start_time,
+          /*value=*/(curr_time_us - input_start_time_us) / 1000000,
           /*limit=*/state.run_time_flags.timeout_per_input,
           /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
@@ -209,7 +209,7 @@ static void CheckWatchdogLimits() {
       {Resource{
           /*what=*/"Per-batch timeout",
           /*units=*/"sec",
-          /*value=*/curr_time - batch_start_time,
+          /*value=*/(curr_time_us - batch_start_time_us) / 1000000,
           /*limit=*/state.run_time_flags.timeout_per_batch,
           /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerBatchTimeout.data(),
@@ -270,7 +270,7 @@ static void CheckWatchdogLimits() {
     sleep(1);
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
-    if (state.input_start_time == 0) continue;
+    if (state.input_start_time_us == 0) continue;
 
     CheckWatchdogLimits();
   }
@@ -282,7 +282,7 @@ __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
   // Check for the stack limit only if sp is inside the stack region.
   if (stack_limit > 0 && tls.stack_region_low &&
       tls.top_frame_sp - sp > stack_limit) {
-    const bool test_not_running = state.input_start_time == 0;
+    const bool test_not_running = state.input_start_time_us == 0;
     if (test_not_running) return;
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
@@ -325,12 +325,12 @@ void GlobalRunnerState::StartWatchdogThread() {
 }
 
 void GlobalRunnerState::ResetTimers() {
-  const auto curr_time = time(nullptr);
-  input_start_time = curr_time;
+  const auto curr_time_us = TimeInUsec();
+  input_start_time_us = curr_time_us;
   // batch_start_time is set only once -- just before the first input of the
   // batch is about to start running.
-  if (batch_start_time == 0) {
-    batch_start_time = curr_time;
+  if (batch_start_time_us == 0) {
+    batch_start_time_us = curr_time_us;
   }
 }
 
@@ -627,7 +627,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state.input_start_time_us.exchange(0) != 0) {
     PostProcessCoverage(target_return_value);
   }
   state.stats.post_time_usec = UsecSinceLast();
@@ -1244,8 +1244,8 @@ extern "C" void CentipedeEndExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = false;
-  fuzztest::internal::state.input_start_time = 0;
-  fuzztest::internal::state.batch_start_time = 0;
+  fuzztest::internal::state.input_start_time_us = 0;
+  fuzztest::internal::state.batch_start_time_us = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {
@@ -1255,7 +1255,7 @@ extern "C" void CentipedePrepareProcessing() {
 
 extern "C" void CentipedeFinalizeProcessing() {
   fuzztest::internal::CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state.input_start_time_us.exchange(0) != 0) {
     fuzztest::internal::PostProcessCoverage(/*target_return_value=*/0);
   }
 }
