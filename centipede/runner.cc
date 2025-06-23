@@ -196,13 +196,15 @@ static void CheckWatchdogLimits() {
   };
   const uint64_t input_start_time = state.input_start_time;
   const uint64_t batch_start_time = state.batch_start_time;
-  if (input_start_time == 0 || batch_start_time == 0) return;
+  if (batch_start_time == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
           /*units=*/"sec",
           /*value=*/curr_time - input_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_input,
+          /*limit=*/input_start_time == 0
+              ? 0
+              : state.run_time_flags.timeout_per_input.load(),
           /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
@@ -218,7 +220,9 @@ static void CheckWatchdogLimits() {
           /*what=*/"RSS limit",
           /*units=*/"MB",
           /*value=*/GetPeakRSSMb(),
-          /*limit=*/state.run_time_flags.rss_limit_mb,
+          /*limit=*/input_start_time == 0
+              ? 0
+              : state.run_time_flags.rss_limit_mb.load(),
           /*ignore_report=*/false,
           /*failure=*/kExecutionFailureRssLimitExceeded.data(),
       }},
@@ -269,8 +273,8 @@ static void CheckWatchdogLimits() {
   while (true) {
     sleep(1);
 
-    // No calls to ResetInputTimer() yet: input execution hasn't started.
-    if (state.input_start_time == 0) continue;
+    // No calls to ResetInputTimer() yet: batch execution hasn't started.
+    if (state.batch_start_time == 0) continue;
 
     CheckWatchdogLimits();
   }
