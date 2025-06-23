@@ -38,6 +38,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
@@ -735,12 +736,11 @@ class AlternateSignalStackFixture {
     // where the callbacks from the signal handler happen in a separate stack.
     new_sigact.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
-    FUZZTEST_INTERNAL_CHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0,
-                            errno);
+    FUZZTEST_CHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0) << errno;
     stack_t test_stack = {};
     test_stack.ss_size = 1 << 20;
     test_stack.ss_sp = malloc(test_stack.ss_size);
-    FUZZTEST_INTERNAL_CHECK(sigaltstack(&test_stack, &old_stack) == 0, errno);
+    FUZZTEST_CHECK(sigaltstack(&test_stack, &old_stack) == 0) << errno;
   }
 
   void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
@@ -750,7 +750,7 @@ class AlternateSignalStackFixture {
     // "stack overflow" detection and we will continue here.
     raise(SIGUSR1);
     // Just make sure the signal handler ran.
-    FUZZTEST_INTERNAL_CHECK(dummy_to_trigger_cmp_in_handler != 0, "");
+    FUZZTEST_CHECK(dummy_to_trigger_cmp_in_handler != 0);
 
     if (i == 123456789) {
       std::abort();
@@ -760,7 +760,7 @@ class AlternateSignalStackFixture {
   ~AlternateSignalStackFixture() {
     stack_t test_stack = {};
     // Resume to the old signal stack.
-    FUZZTEST_INTERNAL_CHECK(sigaltstack(&old_stack, &test_stack) == 0, errno);
+    FUZZTEST_CHECK(sigaltstack(&old_stack, &test_stack) == 0) << errno;
     free(test_stack.ss_sp);
   }
 

@@ -22,7 +22,7 @@
 //
 // This library must not depend on anything other than libc so that fuzz targets
 // using it doesn't gain redundant coverage. For the same reason this library
-// uses raw __builtin_trap instead of CHECKs.
+// uses raw __builtin_trap instead of FUZZTEST_CHECKs.
 // We make an exception for <algorithm> for std::sort/std::unique,
 // since <algorithm> is very lightweight.
 // This library is also header-only, with all functions defined as inline.
@@ -69,7 +69,8 @@ class HashedRingBuffer {
   // Resets the current state, sets the ring buffer size to `size_` (<= kSize).
   void Reset(size_t size) {
     memset(this, 0, sizeof(*this));
-    if (size > kSize) __builtin_trap();  // can't use CHECK in the runner.
+    if (size > kSize)
+      __builtin_trap();  // can't use FUZZTEST_CHECK in the runner.
     size_ = size;
     hash_.Reset(size);
   }

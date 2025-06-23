@@ -20,11 +20,10 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/absl_check.h"
-#include "absl/log/absl_log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "./common/logging.h"
 #include "./fuzztest/fuzzing_bit_gen.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/printer.h"
@@ -52,7 +51,7 @@ class BitGenCorpusValue {
       : initializer_data_(o.initializer_data_), bitgen_(std::nullopt) {}
   BitGenCorpusValue& operator=(const BitGenCorpusValue& o) {
     // The internal URBG should be unused.
-    ABSL_CHECK(!bitgen_.has_value());
+    FUZZTEST_CHECK(!bitgen_.has_value());
     initializer_data_ = o.initializer_data_;
     return *this;
   }
@@ -61,8 +60,8 @@ class BitGenCorpusValue {
         bitgen_(std::nullopt) {}
   BitGenCorpusValue& operator=(BitGenCorpusValue&& o) {
     // The internal URBG should be unused.
-    ABSL_CHECK(!o.bitgen_.has_value());
-    ABSL_CHECK(!bitgen_.has_value());
+    FUZZTEST_CHECK(!o.bitgen_.has_value());
+    FUZZTEST_CHECK(!bitgen_.has_value());
     initializer_data_ = std::move(o.initializer_data_);
     return *this;
   }
@@ -137,7 +136,7 @@ class BitGenRefDomain
 
   value_type GetRandomValue(absl::BitGenRef prng) {
     // See b/404828355
-    ABSL_LOG(FATAL) << "The domain doesn't support GetRandomValue().";
+    FUZZTEST_LOG(FATAL) << "The domain doesn't support GetRandomValue().";
   }
 
   std::optional<corpus_type> FromValue(const value_type&) const {

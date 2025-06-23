@@ -23,7 +23,6 @@
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
-#include "absl/log/log.h"
 #include "absl/synchronization/barrier.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
@@ -208,9 +207,9 @@ TEST(RUsageTimingTest, Accuracy) {
     }
 
     if (absl::GetFlag(FLAGS_verbose)) {
-      LOG(INFO) << "before: " << before;
-      LOG(INFO) << "after:  " << after;
-      LOG(INFO) << "delta:  " << delta;
+      FUZZTEST_LOG(INFO) << "before: " << before;
+      FUZZTEST_LOG(INFO) << "after:  " << after;
+      FUZZTEST_LOG(INFO) << "delta:  " << delta;
     }
 
     EXPECT_EQ(delta.user_time, after.user_time - before.user_time);
@@ -220,10 +219,10 @@ TEST(RUsageTimingTest, Accuracy) {
 
   if (absl::GetFlag(FLAGS_enable_system_load_sensitive_tests)) {
     if (absl::GetFlag(FLAGS_verbose)) {
-      LOG(INFO) << "user_time_histo:\n" << user_time_histo;
-      LOG(INFO) << "cpu_util_histo:\n" << cpu_util_histo;
-      LOG(INFO) << "wall_time_histo:\n" << wall_time_histo;
-      LOG(INFO) << "cpu_cores_histo:\n" << cpu_cores_histo;
+      FUZZTEST_LOG(INFO) << "user_time_histo:\n" << user_time_histo;
+      FUZZTEST_LOG(INFO) << "cpu_util_histo:\n" << cpu_util_histo;
+      FUZZTEST_LOG(INFO) << "wall_time_histo:\n" << wall_time_histo;
+      FUZZTEST_LOG(INFO) << "cpu_cores_histo:\n" << cpu_cores_histo;
     }
 
     EXPECT_NEAR(  //
@@ -260,9 +259,9 @@ TEST(RUsageMemoryTest, Accuracy) {
     const auto delta = after - before;
 
     if (absl::GetFlag(FLAGS_verbose)) {
-      LOG(INFO) << "before: " << before;
-      LOG(INFO) << "after:  " << after;
-      LOG(INFO) << "delta:  " << delta;
+      FUZZTEST_LOG(INFO) << "before: " << before;
+      FUZZTEST_LOG(INFO) << "after:  " << after;
+      FUZZTEST_LOG(INFO) << "delta:  " << delta;
     }
 
 // NOTE: The sanitizers heavily instrument the code and skew any time
@@ -280,15 +279,16 @@ TEST(RUsageMemoryTest, Accuracy) {
     EXPECT_LE(before.mem_rss, before.mem_vsize);
     EXPECT_LE(after.mem_rss, after.mem_vsize);
 #else
-    LOG(WARNING) << "Validation of test results omitted under *SAN: see code";
+    FUZZTEST_LOG(WARNING)
+        << "Validation of test results omitted under *SAN: see code";
 #endif
     mem_rss_histo.Add(delta.mem_rss);
     mem_data_histo.Add(delta.mem_data);
   }
 
   if (absl::GetFlag(FLAGS_verbose)) {
-    LOG(INFO) << "mem_rss_histo:\n" << mem_rss_histo;
-    LOG(INFO) << "mem_data_histo:\n" << mem_data_histo;
+    FUZZTEST_LOG(INFO) << "mem_rss_histo:\n" << mem_rss_histo;
+    FUZZTEST_LOG(INFO) << "mem_data_histo:\n" << mem_data_histo;
   }
 
 // NOTE: The sanitizers heavily instrument the code and skew any time
@@ -302,22 +302,19 @@ TEST(RUsageMemoryTest, Accuracy) {
   EXPECT_NEAR(mem_data_histo.Average(), kBytes, kDataLeeway) << mem_data_histo;
 #endif
 #else
-  LOG(WARNING) << "Validation of test results omitted under *SAN: see code";
+  FUZZTEST_LOG(WARNING)
+      << "Validation of test results omitted under *SAN: see code";
 #endif
 }
 
 TEST(RUsageMemoryTest, BadScope) {
   constexpr pid_t kBadPid = 999999999;
   EXPECT_NO_FATAL_FAILURE(  //
-      const auto timing =
-          RUsageTiming::Snapshot(RUsageScope::Process(kBadPid));
-      VLOG(1) << "Timing: " << timing;
-  );
+      const auto timing = RUsageTiming::Snapshot(RUsageScope::Process(kBadPid));
+      FUZZTEST_VLOG(1) << "Timing: " << timing;);
   EXPECT_NO_FATAL_FAILURE(  //
-      const auto memory =
-          RUsageMemory::Snapshot(RUsageScope::Process(kBadPid));
-      VLOG(1) << "Memory: " << memory;
-  );
+      const auto memory = RUsageMemory::Snapshot(RUsageScope::Process(kBadPid));
+      FUZZTEST_VLOG(1) << "Memory: " << memory;);
 }
 
 TEST(RUsageTimingTest, ConstantsAndMath) {

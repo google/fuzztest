@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
@@ -31,8 +32,8 @@ namespace fuzztest::internal {
 inline absl::Duration MakeDuration(int64_t secs, uint32_t ticks) {
   // The granularity of a duration is as small as a quarter of a
   // nanosecond.
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(ticks >= 0u && ticks <= 3'999'999'999u,
-                                       "Ticks should be in range [0, 4B - 1]!");
+  FUZZTEST_PRECONDITION(ticks >= 0u && ticks <= 3'999'999'999u)
+      << "Ticks should be in range [0, 4B - 1]!";
   return absl::Seconds(secs) + (absl::Nanoseconds(1) / 4) * ticks;
 }
 
@@ -43,13 +44,13 @@ inline std::pair<int64_t, uint32_t> GetSecondsAndTicks(absl::Duration d) {
   int64_t ticks = (4 * rem) / absl::Nanoseconds(1);
   if (ticks < 0) {
     // It is impossible to have both a negative remainder and int64min seconds.
-    FUZZTEST_INTERNAL_CHECK(secs != std::numeric_limits<int64_t>::min(),
-                            "Seconds should not be int64 min!");
+    FUZZTEST_CHECK(secs != std::numeric_limits<int64_t>::min())
+        << "Seconds should not be int64 min!";
     secs -= 1;
     ticks += 4'000'000'000;
   }
-  FUZZTEST_INTERNAL_CHECK(0 <= ticks && ticks < 4'000'000'000,
-                          "Ticks should be in range [0, 4B - 1]!");
+  FUZZTEST_CHECK(0 <= ticks && ticks < 4'000'000'000)
+      << "Ticks should be in range [0, 4B - 1]!";
   return {secs, static_cast<uint32_t>(ticks)};
 }
 

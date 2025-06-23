@@ -19,14 +19,13 @@
 #include <thread>  // NOLINT: For thread IDs.
 #include <utility>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -44,7 +43,7 @@ ResourcePool<ResourceT>::LeaseToken::LeaseToken(  //
 
 template <typename ResourceT>
 ResourcePool<ResourceT>::LeaseToken::~LeaseToken() {
-  CHECK(status_checked_)  //
+  FUZZTEST_CHECK(status_checked_)  //
       << "status() was never consulted by caller: " << *this;
   if (status_.ok()) {
     leaser_.ReturnLease(*this);
@@ -88,18 +87,18 @@ absl::Duration ResourcePool<ResourceT>::LeaseToken::age() const {
 template <typename ResourceT>
 ResourcePool<ResourceT>::ResourcePool(const ResourceT& quota)
     : quota_{quota}, pool_{quota} {
-  LOG(INFO) << "Creating pool with quota=[" << quota.ShortStr() << "]";
+  FUZZTEST_LOG(INFO) << "Creating pool with quota=[" << quota.ShortStr() << "]";
 }
 
 template <typename ResourceT>
 typename ResourcePool<ResourceT>::LeaseToken
 ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
-  if (ABSL_VLOG_IS_ON(1)) {
+  if (FUZZTEST_VLOG_IS_ON(1)) {
     absl::ReaderMutexLock lock{&pool_mu_};
-    VLOG(1) << "Received lease request " << request.id           //
-            << "\nrequested: " << request.amount.FormattedStr()  //
-            << "\nquota:     " << quota_.FormattedStr()          //
-            << "\navailable: " << pool_.FormattedStr();
+    FUZZTEST_VLOG(1) << "Received lease request " << request.id           //
+                     << "\nrequested: " << request.amount.FormattedStr()  //
+                     << "\nquota:     " << quota_.FormattedStr()          //
+                     << "\navailable: " << pool_.FormattedStr();
   }
 
   if (request.amount == ResourceT::Zero()) {
@@ -123,7 +122,7 @@ ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
     pool_mu_.AssertReaderHeld();
     const bool got_pool = request.amount <= pool_;
     if (!got_pool) {
-      VLOG(10)                                                     //
+      FUZZTEST_VLOG(10)                                            //
           << "Pending lease '" << request.id << "':"               //
           << "\nreq age   : " << request.age()                     //
           << "\navailable : " << pool_.FormattedStr()              //
@@ -138,7 +137,7 @@ ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
   // the timeout is reached, proceed to the else-branch.
   if (pool_mu_.LockWhenWithTimeout(  //
           absl::Condition{&got_enough_free_pool}, request.timeout)) {
-    VLOG(1)                                                    //
+    FUZZTEST_VLOG(1)                                           //
         << "Granting lease " << request.id                     //
         << "\nreq age : " << request.age()                     //
         << "\nbefore  : " << pool_.FormattedStr()              //
@@ -161,7 +160,7 @@ ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
 template <typename ResourceT>
 void ResourcePool<ResourceT>::ReturnLease(const LeaseToken& lease) {
   absl::WriterMutexLock lock{&pool_mu_};
-  VLOG(1)                                                              //
+  FUZZTEST_VLOG(1)                                                     //
       << "Returning lease " << lease.request().id                      //
       << "\nreq age   : " << lease.request().age()                     //
       << "\nlease age : " << lease.age()                               //

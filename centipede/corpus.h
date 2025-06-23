@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
@@ -180,7 +179,7 @@ class CoverageFrontier {
 
   // Returns true iff `idx` belongs to the frontier.
   bool PcIndexIsFrontier(size_t idx) const {
-    CHECK_LT(idx, MaxPcIndex());
+    FUZZTEST_CHECK_LT(idx, MaxPcIndex());
     return frontier_[idx];
   }
 
@@ -189,7 +188,7 @@ class CoverageFrontier {
 
   // Returns the frontier weight of pc at `idx`, weight of a non-frontier is 0.
   uint64_t FrontierWeight(size_t idx) const {
-    CHECK_LT(idx, MaxPcIndex());
+    FUZZTEST_CHECK_LT(idx, MaxPcIndex());
     return frontier_weight_[idx];
   }
 

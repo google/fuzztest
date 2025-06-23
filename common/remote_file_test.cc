@@ -23,7 +23,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -40,9 +39,9 @@ using ::testing::UnorderedElementsAre;
 
 void CreateFileOrDie(std::string_view path, std::string_view contents = "") {
   std::ofstream f{std::string(path)};
-  CHECK(f.good()) << VV(path);
+  FUZZTEST_CHECK(f.good()) << VV(path);
   f << contents;
-  CHECK(f.good()) << VV(path);
+  FUZZTEST_CHECK(f.good()) << VV(path);
 }
 
 TEST(RemoteFile, GetSize) {
@@ -137,7 +136,7 @@ TEST(RemoteListFiles, ReturnsAnEmptyVectorWhenPathDoesNotExist) {
 TEST(RemotePathDelete, RecursivelyDeletesAllFilesAndSubdirectories) {
   const fs::path temp_dir = GetTestTempDir(test_info_->name());
   const fs::path a_b_c = temp_dir / "a" / "b" / "c";
-  CHECK(fs::create_directories(a_b_c)) << VV(a_b_c);
+  FUZZTEST_CHECK(fs::create_directories(a_b_c)) << VV(a_b_c);
   const std::string file_path = a_b_c / "file";
   CreateFileOrDie(file_path);
 

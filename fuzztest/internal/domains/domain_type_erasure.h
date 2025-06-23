@@ -33,6 +33,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
 #include "./fuzztest/internal/logging.h"
@@ -228,9 +229,8 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
       printer.PrintFormattedAggregateValue(val.GetAs<CorpusType>(), out, mode,
                                            prefix, suffix, element_formatter);
     } else {
-      FUZZTEST_INTERNAL_CHECK(false,
-                              "PrintFormattedAggregateValue() can only be "
-                              "called on AggregatePrinter!");
+      FUZZTEST_LOG(FATAL) << "PrintFormattedAggregateValue() can only be "
+                             "called on AggregatePrinter!";
     }
   }
 

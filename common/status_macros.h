@@ -21,7 +21,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/log/log.h"
+#include "./common/logging.h"
 
 // If `status_expr` (an expression of type `absl::Status`) is not OK then return
 // it from the current function. Otherwise, do nothing.
@@ -55,8 +55,9 @@ decltype(auto) ValueOrDie(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           std::uint_least32_t line = __builtin_LINE(),
                           const char* file_name = __builtin_FILE()) {
   if (ABSL_PREDICT_FALSE(!value.ok())) {
-    LOG(FATAL) << file_name << ":" << line
-               << ": ValueOrDie on non-OK status: " << value.status();
+    FUZZTEST_CHECK(false) << file_name << ":" << line
+                          << ": ValueOrDie on non-OK status: "
+                          << value.status();
   }
   return *std::forward<T>(value);
 }

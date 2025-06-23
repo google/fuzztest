@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/regexp_dfa.h"
 #include "./fuzztest/internal/logging.h"
@@ -44,8 +45,7 @@ RegexpDFA::Path InRegexpImpl::Init(absl::BitGenRef prng) {
   if (auto seed = MaybeGetRandomSeed(prng)) return *seed;
   absl::StatusOr<RegexpDFA::Path> path =
       dfa_.StringToPath(dfa_.GenerateString(prng));
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(path.ok(),
-                                       "Init should generate valid paths");
+  FUZZTEST_PRECONDITION(path.ok()) << "Init should generate valid paths";
   return *path;
 }
 
@@ -102,7 +102,7 @@ StringPrinter InRegexpImpl::GetPrinter() const { return StringPrinter{}; }
 
 InRegexpImpl::value_type InRegexpImpl::GetValue(const corpus_type& v) const {
   absl::StatusOr<std::string> val = dfa_.PathToString(v);
-  FUZZTEST_INTERNAL_CHECK(val.ok(), "Corpus is invalid!");
+  FUZZTEST_CHECK(val.ok()) << "Corpus is invalid!";
   return *val;
 }
 
@@ -150,9 +150,9 @@ absl::Status InRegexpImpl::ValidateCorpusValue(
 
 void InRegexpImpl::ValidatePathRoundtrip(const RegexpDFA::Path& path) const {
   absl::StatusOr<std::string> str = dfa_.PathToString(path);
-  FUZZTEST_INTERNAL_CHECK(str.ok(), "Invalid path in the DFA!");
+  FUZZTEST_CHECK(str.ok()) << "Invalid path in the DFA!";
   absl::StatusOr<RegexpDFA::Path> new_path = dfa_.StringToPath(*str);
-  FUZZTEST_INTERNAL_CHECK(new_path.ok(), "Invalid path in the DFA!");
+  FUZZTEST_CHECK(new_path.ok()) << "Invalid path in the DFA!";
 }
 
 bool InRegexpImpl::ShrinkByRemoveLoop(absl::BitGenRef prng,

@@ -18,9 +18,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -54,7 +54,7 @@ void CallGraph::InitializeCallGraph(const CFTable &cf_table,
       ++j;
     }
     ++j;  // Step over the delimeter.
-    CHECK_LE(j, cf_table.size());
+    FUZZTEST_CHECK_LE(j, cf_table.size());
 
     if (current_callees.empty()) continue;
     basic_block_callees_[current_pc] = current_callees;
@@ -64,7 +64,7 @@ void CallGraph::InitializeCallGraph(const CFTable &cf_table,
         current_callees.end());
   }
   // This should stay empty.
-  CHECK(empty_.empty());
+  FUZZTEST_CHECK(empty_.empty());
 }
 
 }  // namespace fuzztest::internal

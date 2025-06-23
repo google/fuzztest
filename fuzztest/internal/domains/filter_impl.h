@@ -22,6 +22,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
@@ -95,10 +96,10 @@ class FilterImpl
     bool res = predicate_(GetValue(v));
     if (!res) {
       ++num_skips_;
-      FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-          num_skips_ <= 100 || static_cast<double>(num_skips_) <=
-                                   .9 * static_cast<double>(num_values_),
-          absl::StrFormat(R"(
+      FUZZTEST_PRECONDITION(num_skips_ <= 100 ||
+                            static_cast<double>(num_skips_) <=
+                                .9 * static_cast<double>(num_values_))
+          << absl::StrFormat(R"(
 
 [!] Ineffective use of Filter() detected!
 
@@ -109,7 +110,7 @@ Please use Filter() only to skip unlikely values. To filter out a significant
 chunk of the input domain, consider defining a custom domain by construction.
 See more details in the User Guide.
 )",
-                          num_skips_, num_values_));
+                             num_skips_, num_values_);
     }
     return res;
   }

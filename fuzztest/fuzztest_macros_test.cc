@@ -8,9 +8,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "./common/logging.h"
 #include "./common/temp_dir.h"
 
 namespace fuzztest::internal {
@@ -24,7 +24,7 @@ using ::testing::UnorderedElementsAre;
 
 void WriteFile(const std::string& file_name, const std::string& contents) {
   std::ofstream f(file_name);
-  CHECK(f.is_open());
+  FUZZTEST_CHECK(f.is_open());
   f << contents;
   f.close();
 }
