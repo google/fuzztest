@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -38,6 +39,7 @@
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
@@ -143,6 +145,13 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
   return absl::StrJoin(flags, ":");
 }
 
+void CentipedeCallbacks::OpenBlobSequences() {
+  inputs_blobseq_ = std::make_unique<SharedMemoryBlobSequence>(
+      shmem_name1_.c_str(), env_.shmem_size_mb << 20, env_.use_posix_shmem);
+  outputs_blobseq_ = std::make_unique<SharedMemoryBlobSequence>(
+      shmem_name2_.c_str(), env_.shmem_size_mb << 20, env_.use_posix_shmem);
+}
+
 Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
     std::string_view binary) {
   for (auto &cmd : commands_) {
@@ -155,7 +164,7 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
 
   std::vector<std::string> env = {ConstructRunnerFlags(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
-                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
+                   inputs_blobseq_->path(), ":arg2=", outputs_blobseq_->path(),
                    ":failure_description_path=", failure_description_path_,
                    ":failure_signature_path=", failure_signature_path_, ":"),
       disable_coverage)};
@@ -191,8 +200,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   batch_result.ClearAndResize(inputs.size());
 
   // Reset the blobseqs.
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written = 0;
 
@@ -202,7 +211,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     num_inputs_written = 1;
   } else {
     // Feed the inputs to inputs_blobseq_.
-    num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
+    num_inputs_written = RequestExecution(inputs, *inputs_blobseq_);
   }
 
   if (num_inputs_written != inputs.size()) {
@@ -213,14 +222,18 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   // Run.
   Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  const auto exit_code = cmd.Execute();
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
 
   // Get results.
-  batch_result.exit_code() = retval;
-  const bool read_success = batch_result.Read(outputs_blobseq_);
+  if (exit_code.has_value()) {
+    batch_result.exit_code() = *exit_code;
+  } else {
+    batch_result.exit_code() = EXIT_FAILURE;
+  }
+  const bool read_success = batch_result.Read(*outputs_blobseq_);
   LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
   // * some inputs were not written (i.e. num_inputs_written < inputs.size).
@@ -229,7 +242,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   //   * Will be logged by the caller.
   // * some outputs were not written because the outputs_blobseq_ overflown.
   //   * Logged by the following code.
-  if (retval == 0 && read_success &&
+  if (batch_result.exit_code() == EXIT_SUCCESS && read_success &&
       batch_result.num_outputs_read() != num_inputs_written) {
     LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
               << num_inputs_written
@@ -239,7 +252,10 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   if (env_.print_runner_log) PrintExecutionLog();
 
-  if (retval != EXIT_SUCCESS) {
+  if (!exit_code.has_value()) {
+    batch_result.failure_description() = "IGNORED FAILURE: execution timed out";
+    OpenBlobSequences();
+  } else if (*exit_code != EXIT_SUCCESS) {
     ReadFromLocalFile(execute_log_path_, batch_result.log());
     ReadFromLocalFile(failure_description_path_,
                       batch_result.failure_description());
@@ -251,13 +267,13 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
       // be removed.
       batch_result.failure_signature() = batch_result.failure_description();
     }
-    // Remove the failure description and signature files here so that they do
-    // not stay until another failed execution.
-    std::filesystem::remove(failure_description_path_);
-    std::filesystem::remove(failure_signature_path_);
   }
+  // Remove the failure description and signature files here so that they do
+  // not stay until another failed execution.
+  std::filesystem::remove(failure_description_path_);
+  std::filesystem::remove(failure_signature_path_);
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
-  return retval;
+  return batch_result.exit_code();
 }
 
 // See also: `DumpSeedsToDir()`.
@@ -283,10 +299,15 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   cmd_options.stderr_file = execute_log_path_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
-  const int retval = cmd.Execute();
+  const auto exit_code = cmd.Execute();
 
   if (env_.print_runner_log) {
-    LOG(INFO) << "Getting seeds via external binary returns " << retval;
+    if (exit_code.has_value()) {
+      LOG(INFO)
+          << "Getting seeds via external binary failed without an exit code";
+    } else {
+      LOG(INFO) << "Getting seeds via external binary returns " << *exit_code;
+    }
     PrintExecutionLog();
   }
 
@@ -308,7 +329,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   seeds.resize(num_seeds_read);
   std::filesystem::remove_all(output_dir);
 
-  return retval == 0;
+  return exit_code.has_value() && *exit_code == EXIT_SUCCESS;
 }
 
 // See also: `DumpSerializedTargetConfigToFile()`.
@@ -357,30 +378,37 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << "Standalone binary does not support custom mutator";
 
   auto start_time = absl::Now();
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written =
-      RequestMutation(num_mutants, inputs, inputs_blobseq_);
+      RequestMutation(num_mutants, inputs, *inputs_blobseq_);
   LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
   Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  const auto exit_code = cmd.Execute();
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
 
-  if (retval != EXIT_SUCCESS) {
-    LOG(WARNING) << "Custom mutator failed with exit code: " << retval;
-  }
-  if (env_.print_runner_log || retval != EXIT_SUCCESS) {
+  if (!exit_code.has_value()) {
+    LOG(WARNING) << "Custom mutator failed without exit code.";
+    PrintExecutionLog();
+  } else if (*exit_code != EXIT_SUCCESS) {
+    LOG(WARNING) << "Custom mutator failed with exit code: " << *exit_code;
+    PrintExecutionLog();
+  } else if (env_.print_runner_log) {
     PrintExecutionLog();
   }
 
   MutationResult result;
-  result.exit_code() = retval;
-  result.Read(num_mutants, outputs_blobseq_);
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  result.exit_code() = exit_code.value_or(EXIT_FAILURE);
+  result.Read(num_mutants, *outputs_blobseq_);
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
+
+  if (!exit_code.has_value()) {
+    OpenBlobSequences();
+  }
 
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return result;

@@ -30,6 +30,8 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -122,6 +124,13 @@ struct Command::ForkServerProps {
   // recycled by the OS.
   std::string creation_stamp;
 
+  void CopyPaths(const ForkServerProps &other) {
+    for (int i = 0; i < 2; ++i) {
+      fifo_path_[i] = other.fifo_path_[i];
+    }
+    pid_file_path_ = other.pid_file_path_;
+  }
+
   ~ForkServerProps() {
     for (int i = 0; i < 2; ++i) {
       if (pipe_[i] >= 0 && close(pipe_[i]) != 0) {
@@ -208,9 +217,24 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
                                     .append(absl::StrCat(prefix, "_FIFO0"));
   fork_server_->fifo_path_[1] = std::filesystem::path(temp_dir_path)
                                     .append(absl::StrCat(prefix, "_FIFO1"));
-  const std::string pid_file_path =
+  fork_server_->pid_file_path_ =
       std::filesystem::path(temp_dir_path).append("pid");
+
   (void)std::filesystem::create_directory(temp_dir_path);  // it may not exist.
+
+  if (!StartForkServerInternally()) {
+    LOG(ERROR) << "Failed to start the fork server. Will proceed without it.";
+    fork_server_.reset();
+    return false;
+  }
+  return true;
+}
+
+bool Command::StartForkServerInternally() {
+  CHECK(fork_server_ != nullptr);
+  PCHECK(fork_server_->pid_ == -1)
+      << "Fork server is already started with PID " << fork_server_->pid_;
+
   for (int i = 0; i < 2; ++i) {
     PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
         << VV(i) << VV(fork_server_->fifo_path_[i]);
@@ -230,16 +254,14 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
 )sh";
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
-      fork_server_->fifo_path_[1], command_line_, pid_file_path);
+      fork_server_->fifo_path_[1], command_line_, fork_server_->pid_file_path_);
   VLOG(2) << "Fork server command:" << fork_server_command;
 
   const int exit_code = system(fork_server_command.c_str());
 
   // Check if `system()` was able to parse and run the command at all.
   if (exit_code != EXIT_SUCCESS) {
-    LogProblemInfo(
-        "Failed to parse or run command to launch fork server; will proceed "
-        "without it");
+    LogProblemInfo("Failed to parse or run command to launch fork server.");
     return false;
   }
 
@@ -259,14 +281,12 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
                                      O_RDWR | O_NONBLOCK)) < 0 ||
       (fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(),
                                      O_RDONLY | O_NONBLOCK)) < 0) {
-    LogProblemInfo(
-        "Failed to establish communication with fork server; will proceed "
-        "without it");
+    LogProblemInfo("Failed to establish communication with fork server.");
     return false;
   }
 
   std::string pid_str;
-  ReadFromLocalFile(pid_file_path, pid_str);
+  ReadFromLocalFile(fork_server_->pid_file_path_, pid_str);
   CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
   auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
   if (!creation_stamp.ok()) {
@@ -308,7 +328,7 @@ absl::Status Command::VerifyForkServerIsHealthy() {
   return absl::OkStatus();
 }
 
-int Command::Execute() {
+std::optional<int> Command::Execute() {
   VLOG(1) << "Executing command '" << command_line_ << "'...";
 
   int exit_code = EXIT_SUCCESS;
@@ -357,7 +377,19 @@ int Command::Execute() {
         LogProblemInfo(absl::StrCat(
             "Error while waiting for fork server: poll() returned ", poll_ret));
       }
-      return EXIT_FAILURE;
+
+      auto new_fork_server = std::make_unique<ForkServerProps>();
+      new_fork_server->CopyPaths(*fork_server_);
+      fork_server_ = std::move(new_fork_server);
+      if (!StartForkServerInternally()) {
+        LOG(ERROR) << "Failed to restart the fork server, will disable it for "
+                      "the next execution.";
+        fork_server_.reset();
+      } else {
+        LOG(INFO) << "Restarted fork server";
+      }
+
+      return std::nullopt;
     }
 
     // The fork server wrote the execution result to the pipe: read it.

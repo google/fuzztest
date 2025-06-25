@@ -64,9 +64,10 @@ void BinaryInfo::InitializeFromSanCovBinary(
       ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":")};
   cmd_options.stdout_file = std::string(log_path.path());
   Command cmd{binary_path_with_args, std::move(cmd_options)};
-  int exit_code = cmd.Execute();
-  if (exit_code != EXIT_SUCCESS) {
-    LOG(INFO) << __func__ << ": exit_code: " << exit_code;
+  const auto exit_code = cmd.Execute();
+  PCHECK(exit_code.has_value()) << "no exit_code returned!";
+  if (*exit_code != EXIT_SUCCESS) {
+    LOG(INFO) << __func__ << ": exit_code: " << *exit_code;
   }
 
   // Load PC Table.
