@@ -333,9 +333,10 @@ int Command::Execute() {
     struct pollfd poll_fd = {};
     int poll_ret = -1;
     auto poll_deadline = absl::Now() + options_.timeout;
-    // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
-    // case. We should tolerate that.
+    bool sigterm_sent = false;
+    bool try_again = false;
     do {
+      try_again = false;
       // NOTE: `poll_fd` has to be reset every time.
       poll_fd = {
           /*fd=*/fork_server_->pipe_[1],  // The file descriptor to wait for.
@@ -344,15 +345,36 @@ int Command::Execute() {
       const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
           std::max(poll_deadline - absl::Now(), absl::Milliseconds(1))));
       poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
-    } while (poll_ret < 0 && errno == EINTR);
+      // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
+      // case. We should tolerate that.
+      if (poll_ret < 0 && errno == EINTR) {
+        try_again = true;
+        continue;
+      }
+      if (poll_ret == 0 && !sigterm_sent) {
+        LogProblemInfo(
+            absl::StrCat("Timeout while waiting for fork server: timeout is ",
+                         absl::FormatDuration(options_.timeout)));
+        CHECK_NE(fork_server_->pid_, -1);
+        LOG(INFO) << "Sending SIGTERM to the fork server PID "
+                  << fork_server_->pid_ << " and waiting for 60s";
+        kill(fork_server_->pid_, SIGTERM);
+        sigterm_sent = true;
+        poll_deadline += absl::Seconds(60);
+        try_again = true;
+        continue;
+      }
+    } while (try_again);
 
     if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
       if (poll_ret == 0) {
+        CHECK(sigterm_sent);
         LogProblemInfo(
-            absl::StrCat("Timeout while waiting for fork server: timeout is ",
-                         absl::FormatDuration(options_.timeout)));
+            "Fork server did not respond within 60s after SIGTERM was sent");
+        // TODO: xinhaoyuan - the right thing to do is to either properly
+        // recover or request early exit.
       } else {
         LogProblemInfo(absl::StrCat(
             "Error while waiting for fork server: poll() returned ", poll_ret));

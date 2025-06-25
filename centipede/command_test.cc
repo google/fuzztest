@@ -190,7 +190,7 @@ TEST(CommandTest, ForkServer) {
     cmd_options.timeout = absl::Seconds(2);
     Command cmd{helper, std::move(cmd_options)};
     ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
-    EXPECT_EQ(cmd.Execute(), EXIT_FAILURE);
+    EXPECT_EQ(cmd.Execute(), SIGTERM);
     std::string log_contents;
     ReadFromLocalFile(log, log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
