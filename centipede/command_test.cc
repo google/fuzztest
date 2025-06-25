@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -80,7 +81,7 @@ TEST(CommandTest, ToString) {
 TEST(CommandTest, Execute) {
   // Check for default exit code.
   Command echo{"echo"};
-  EXPECT_EQ(echo.Execute(), 0);
+  EXPECT_EQ(echo.Execute(), std::optional<int>{0});
   EXPECT_FALSE(ShouldStop());
 
   // Check for exit code 7.
@@ -173,8 +174,9 @@ TEST(CommandTest, ForkServer) {
     Command cmd{helper, std::move(cmd_options)};
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     // WTERMSIG() needs an lvalue on some platforms.
-    const int ret = cmd.Execute();
-    EXPECT_EQ(WTERMSIG(ret), SIGABRT);
+    const auto ret = cmd.Execute();
+    ASSERT_TRUE(ret.has_value());
+    EXPECT_EQ(WTERMSIG(*ret), SIGABRT);
     std::string log_contents;
     ReadFromLocalFile(log, log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
@@ -184,13 +186,15 @@ TEST(CommandTest, ForkServer) {
     const std::string input = "hang";
     const std::string log = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
+    // Not using cmd_options.stdout_file: When the fork server times out,
+    // restarting the fork server would truncate the file, so it cannot be read
+    // back for testing.
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
     cmd_options.timeout = absl::Seconds(2);
-    Command cmd{helper, std::move(cmd_options)};
+    Command cmd{absl::Substitute("$0 >> $1", helper, log),
+                std::move(cmd_options)};
     ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
-    EXPECT_EQ(cmd.Execute(), EXIT_FAILURE);
+    EXPECT_EQ(cmd.Execute(), std::nullopt);
     std::string log_contents;
     ReadFromLocalFile(log, log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));

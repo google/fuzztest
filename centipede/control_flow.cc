@@ -64,8 +64,9 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
   cmd_options.stdout_file = std::string(tmp_path);
   cmd_options.stderr_file = stderr_path;
   Command cmd{objdump_path, std::move(cmd_options)};
-  int exit_code = cmd.Execute();
-  if (exit_code != EXIT_SUCCESS) {
+  const auto exit_code = cmd.Execute();
+  PCHECK(exit_code.has_value()) << "no exit_code returned!";
+  if (*exit_code != EXIT_SUCCESS) {
     std::string log_text;
     ReadFromLocalFile(stderr_path, log_text);
     LOG(ERROR) << "Failed to use objdump to get PC table; stderr is:";

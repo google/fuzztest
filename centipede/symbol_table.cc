@@ -125,10 +125,11 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   };
   cmd_options.stdout_file = std::string(symbols_file.path());
   Command cmd{symbolizer_path, std::move(cmd_options)};
-  int exit_code = cmd.Execute();
-  if (exit_code != EXIT_SUCCESS) {
+  const auto exit_code = cmd.Execute();
+  PCHECK(exit_code.has_value()) << "no exit_code returned!";
+  if (*exit_code != EXIT_SUCCESS) {
     LOG(ERROR) << "Symbolization failed, debug symbols will not be used: "
-               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code);
+               << VV(dso_path) << VV(cmd.ToString()) << VV(*exit_code);
     return;
   }
 
@@ -140,7 +141,7 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   size_t added_size = new_size - old_size;
   if (added_size != pc_infos.size()) {
     LOG(ERROR) << "Symbolization failed: debug symbols will not be used: "
-               << VV(dso_path) << VV(cmd.ToString()) << VV(exit_code)
+               << VV(dso_path) << VV(cmd.ToString()) << VV(*exit_code)
                << VV(pc_infos.size()) << VV(added_size);
   }
 }

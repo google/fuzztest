@@ -69,10 +69,15 @@ class Command final {
   // Returns a string representing the command, e.g. like this
   // "env -u ENV1 ENV2=VAL2 path arg1 arg2 > out 2>& err"
   std::string ToString() const;
-  // Executes the command, returns the exit status.
+  // Executes the command, returns the exit status. If it fails to get the exit
+  // status in time, returns std::nullopt, in which case the process might be
+  // still running, so external cleanup might be needed to avoid interference
+  // with further executions.
+  //
   // Can be called more than once.
+  //
   // If interrupted, may call `RequestEarlyStop()` (see stop.h).
-  int Execute();
+  std::optional<int> Execute();
 
   // Attempts to start a fork server, returns true on success.
   // Pipe files for the fork server are created in `temp_dir_path`
@@ -86,6 +91,9 @@ class Command final {
  private:
   struct ForkServerProps;
 
+  // Start the fork server internally according to `fork_server_`. Returns true
+  // on success.
+  bool StartForkServerInternally();
   // Returns the status of the fork server process. Expects that the server was
   // previously started using `StartForkServer()`.
   absl::Status VerifyForkServerIsHealthy();

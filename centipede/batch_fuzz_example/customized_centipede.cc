@@ -155,7 +155,7 @@ bool CustomizedCallbacks::Execute(std::string_view binary,
   cmd_options.stdout_file = tmp_log_filepath;
   cmd_options.stderr_file = tmp_log_filepath;
   Command cmd{env_.binary, std::move(cmd_options)};
-  const int retval = cmd.Execute();
+  const auto retval = cmd.Execute();
 
   std::string tmp_log;
   ReadFromLocalFile(tmp_log_filepath, tmp_log);

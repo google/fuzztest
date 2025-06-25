@@ -48,11 +48,8 @@ class CentipedeCallbacks {
   CentipedeCallbacks(const Environment &env)
       : env_(env),
         byte_array_mutator_(env.knobs, GetRandomSeed(env.seed)),
-        fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)),
-        inputs_blobseq_(shmem_name1_.c_str(), env.shmem_size_mb << 20,
-                        env.use_posix_shmem),
-        outputs_blobseq_(shmem_name2_.c_str(), env.shmem_size_mb << 20,
-                         env.use_posix_shmem) {
+        fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)) {
+    OpenBlobSequences();
     if (env.use_legacy_default_mutator)
       CHECK(byte_array_mutator_.set_max_len(env.max_len));
     else
@@ -158,6 +155,10 @@ class CentipedeCallbacks {
   FuzzTestMutator fuzztest_mutator_;
 
  private:
+  // (Re-)open inputs/outputs blob sequences. Note that this destroys previous
+  // blob sequence objects and thus resets the reference points on the file
+  // system level.
+  void OpenBlobSequences();
   // Returns a Command object with matching `binary` from commands_,
   // creates one if needed.
   Command &GetOrCreateCommandForBinary(std::string_view binary);
@@ -179,8 +180,8 @@ class CentipedeCallbacks {
   const std::string shmem_name1_ = ProcessAndThreadUniqueID("/ctpd-shm1-");
   const std::string shmem_name2_ = ProcessAndThreadUniqueID("/ctpd-shm2-");
 
-  SharedMemoryBlobSequence inputs_blobseq_;
-  SharedMemoryBlobSequence outputs_blobseq_;
+  std::unique_ptr<SharedMemoryBlobSequence> inputs_blobseq_;
+  std::unique_ptr<SharedMemoryBlobSequence> outputs_blobseq_;
 
   std::vector<Command> commands_;
 };
