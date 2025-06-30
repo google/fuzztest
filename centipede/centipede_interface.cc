@@ -52,6 +52,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/coverage.h"
+#include "./centipede/crash_summary.h"
 #include "./centipede/distill.h"
 #include "./centipede/environment.h"
 #include "./centipede/minimize_crash.h"
@@ -292,7 +293,7 @@ TestShard SetUpTestSharding() {
 // signatures of the remaining crashes.
 absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
     const std::filesystem::path &crashing_dir, const Environment &env,
-    CentipedeCallbacksFactory &callbacks_factory) {
+    CentipedeCallbacksFactory &callbacks_factory, CrashSummary &crash_summary) {
   const std::vector<std::string> crashing_input_files =
       // The corpus database layout assumes the crash input files are located
       // directly in the crashing subdirectory, so we don't list recursively.
@@ -313,6 +314,11 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
     if (!is_reproducible || batch_result.IsSetupFailure() || is_duplicate) {
       CHECK_OK(RemotePathDelete(crashing_input_file, /*recursively=*/false));
     } else {
+      crash_summary.AddCrash(
+          {std::filesystem::path(crashing_input_file).filename(),
+           /*category=*/batch_result.failure_description(),
+           batch_result.failure_signature(),
+           batch_result.failure_description()});
       CHECK_OK(RemotePathTouchExistingFile(crashing_input_file));
     }
   }
@@ -322,7 +328,8 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
 // TODO(b/405382531): Add unit tests once the function is unit-testable.
 void DeduplicateAndStoreNewCrashes(
     const std::filesystem::path &crashing_dir, const WorkDir &workdir,
-    size_t total_shards, absl::flat_hash_set<std::string> crash_signatures) {
+    size_t total_shards, absl::flat_hash_set<std::string> crash_signatures,
+    CrashSummary &crash_summary) {
   for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
     const std::vector<std::string> new_crashing_input_files =
         // The crash reproducer directory may contain subdirectories with
@@ -352,6 +359,24 @@ void DeduplicateAndStoreNewCrashes(
       const bool is_duplicate =
           !crash_signatures.insert(new_crash_signature).second;
       if (is_duplicate) continue;
+
+      const std::string crash_description_path =
+          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".desc");
+      std::string new_crash_description;
+      const absl::Status description_status =
+          RemoteFileGetContents(crash_description_path, new_crash_description);
+      if (!description_status.ok()) {
+        LOG(WARNING)
+            << "Failed to read crash description for "
+            << crashing_input_file_name
+            << ". Will use the crash signature as the description. Status: "
+            << description_status;
+        new_crash_description = new_crash_signature;
+      }
+      crash_summary.AddCrash({crashing_input_file_name,
+                              /*category=*/new_crash_description,
+                              std::move(new_crash_signature),
+                              new_crash_description});
       CHECK_OK(
           RemoteFileRename(crashing_input_file,
                            (crashing_dir / crashing_input_file_name).c_str()));
@@ -666,12 +691,15 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
 
     // Deduplicate and update the crashing inputs.
+    CrashSummary crash_summary{fuzztest_config.binary_identifier,
+                               fuzz_tests_to_run[i]};
     const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
     absl::flat_hash_set<std::string> crash_signatures =
-        PruneOldCrashesAndGetRemainingCrashSignatures(crashing_dir, env,
-                                                      callbacks_factory);
+        PruneOldCrashesAndGetRemainingCrashSignatures(
+            crashing_dir, env, callbacks_factory, crash_summary);
     DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
-                                  std::move(crash_signatures));
+                                  std::move(crash_signatures), crash_summary);
+    crash_summary.Report(&std::cerr);
   }
 
   return EXIT_SUCCESS;

@@ -195,6 +195,20 @@ TEST_P(UpdateCorpusDatabaseTest, DeduplicatesCrashes) {
       Contains(HasSubstr("FuzzTest.FailsInTwoWays/crashing/")).Times(2));
 }
 
+TEST_P(UpdateCorpusDatabaseTest, ReportsCrashSummary) {
+  EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
+              AllOf(ContainsRegex(
+                        R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsInTwoWays
+.*?Total crashes: 2
+.*?=== End of summary of detected crashes ===)re"),
+                    ContainsRegex(
+                        R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsWithStackOverflow
+.*?Total crashes: 1
+.*?=== End of summary of detected crashes ===)re")));
+}
+
 TEST_P(UpdateCorpusDatabaseTest, StartsNewFuzzTestRunsWithoutExecutionIds) {
   TempDir corpus_database;
 
