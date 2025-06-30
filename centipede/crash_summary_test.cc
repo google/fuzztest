@@ -19,14 +19,36 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 
 namespace fuzztest::internal {
 namespace {
 
 using ::testing::AllOf;
 using ::testing::HasSubstr;
+using ::testing::Pointee;
 
-TEST(CrashSummaryTest, ReportPrintsSummary) {
+class CrashSummaryTest : public testing::Test {
+ public:
+  ~CrashSummaryTest() {
+    if (dumped_summary_ != nullptr) {
+      delete dumped_summary_;
+      dumped_summary_ = nullptr;
+    }
+  }
+
+ protected:
+  static void DumpCrashSummary(const CrashSummary& summary) {
+    CHECK(dumped_summary_ == nullptr);
+    dumped_summary_ = new CrashSummary{summary};
+  };
+
+  static CrashSummary* dumped_summary_;
+};
+
+CrashSummary* CrashSummaryTest::dumped_summary_ = nullptr;
+
+TEST_F(CrashSummaryTest, ReportPrintsSummary) {
   CrashSummary summary("binary_id", "fuzz_test");
   summary.AddCrash({"id1", "category1", "signature1", "description1"});
   summary.AddCrash({"id2", "category2",
@@ -48,6 +70,17 @@ TEST(CrashSummaryTest, ReportPrintsSummary) {
             HasSubstr("Category   : category2"),
             HasSubstr("Signature  : Unprintable (\\xBE\\xEF) and very long s"),
             HasSubstr("Description: description2")));
+}
+
+TEST_F(CrashSummaryTest, ReportCallsExternalCrashReporter) {
+  CrashSummary summary("binary_id", "fuzz_test");
+  summary.AddCrash({"id1", "category1", "signature1", "description1"});
+  summary.AddCrash({"id2", "category2", "signature2", "description2"});
+  SetExternalCrashReporter(DumpCrashSummary);
+  std::string output;
+  summary.Report(&output);
+
+  EXPECT_THAT(dumped_summary_, Pointee(summary));
 }
 
 }  // namespace

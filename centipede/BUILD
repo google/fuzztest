@@ -847,7 +847,9 @@ cc_library(
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//fuzztest/internal:configuration",
-    ],
+    ] + select({
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -1858,6 +1860,7 @@ cc_test(
     srcs = ["crash_summary_test.cc"],
     deps = [
         ":crash_summary",
+        "@abseil-cpp//absl/log:check",
         "@googletest//:gtest_main",
     ],
 )

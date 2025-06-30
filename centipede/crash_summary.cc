@@ -21,12 +21,20 @@
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
+namespace {
+
+ExternalCrashReporter external_crash_reporter = nullptr;
+
+}  // namespace
 
 void CrashSummary::AddCrash(Crash crash) {
   crashes_.push_back(std::move(crash));
 }
 
 void CrashSummary::Report(absl::FormatRawSink sink) const {
+  if (external_crash_reporter != nullptr) {
+    external_crash_reporter(*this);
+  }
   absl::Format(sink, "=== Summary of detected crashes ===\n\n");
   absl::Format(sink, "Binary ID    : %s\n", binary_id());
   absl::Format(sink, "Fuzz test    : %s\n", fuzz_test());
@@ -41,6 +49,10 @@ void CrashSummary::Report(absl::FormatRawSink sink) const {
     absl::Format(sink, "  Description: %s\n\n", crash.description);
   }
   absl::Format(sink, "=== End of summary of detected crashes ===\n\n");
+}
+
+void SetExternalCrashReporter(ExternalCrashReporter reporter) {
+  external_crash_reporter = reporter;
 }
 
 }  // namespace fuzztest::internal

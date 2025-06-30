@@ -54,6 +54,8 @@ class CrashSummary {
   void AddCrash(Crash crash);
 
   // Reports a summary of the crashes to `sink`.
+  // If an external crash reporter has been set with `SetExternalCrashReporter`,
+  // calls it with the stored crashes.
   void Report(absl::FormatRawSink sink) const;
 
   std::string_view binary_id() const { return binary_id_; }
@@ -70,6 +72,12 @@ class CrashSummary {
   std::string fuzz_test_;
   std::vector<Crash> crashes_;
 };
+
+using ExternalCrashReporter = void (*)(const CrashSummary&);
+
+// Sets an external crash reporter that will be called when a `CrashSummary` is
+// reported.
+void SetExternalCrashReporter(ExternalCrashReporter reporter);
 
 }  // namespace fuzztest::internal
 
