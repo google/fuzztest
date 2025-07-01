@@ -18,6 +18,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <utility>
 #include <vector>
 
