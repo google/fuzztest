@@ -22,6 +22,7 @@
 // in order to avoid creating new coverage edges in the binary.
 #include "./centipede/runner.h"
 
+#include <fcntl.h>
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -1056,6 +1057,24 @@ GlobalRunnerState::GlobalRunnerState() {
   // Make sure fork server is started if needed.
   ForkServerCallMeVeryEarly();
 
+  // Open persistent mode pipes should be immediately after.
+  if (state.persistent_mode_pipe0_path != nullptr) {
+    state.persistent_mode_pipe0 =
+        open(state.persistent_mode_pipe0_path, O_RDONLY);
+    if (state.persistent_mode_pipe0 < 0) {
+      fprintf(stderr, "Failed to open persistent mode pipe %s\n",
+              state.persistent_mode_pipe0_path);
+    }
+  }
+  if (state.persistent_mode_pipe1_path != nullptr) {
+    state.persistent_mode_pipe1 =
+        open(state.persistent_mode_pipe1_path, O_WRONLY);
+    if (state.persistent_mode_pipe1 < 0) {
+      fprintf(stderr, "Failed to open persistent mode pipe %s\n",
+              state.persistent_mode_pipe1_path);
+    }
+  }
+
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
   tls.OnThreadStart();
@@ -1118,6 +1137,45 @@ GlobalRunnerState::~GlobalRunnerState() {
   CleanUpDetachedTls();
 }
 
+static int HandleSharedMemoryRequest(RunnerCallbacks &callbacks) {
+  SharedMemoryBlobSequence inputs_blobseq(state.arg1);
+  SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+  // Read the first blob. It indicates what further actions to take.
+  auto request_type_blob = inputs_blobseq.Read();
+  if (IsMutationRequest(request_type_blob)) {
+    // Since we are mutating, no need to spend time collecting the coverage.
+    // We still pay for executing the coverage callbacks, but those will
+    // return immediately.
+    // TODO(kcc): do this more consistently, for all coverage types.
+    const bool old_cmp_features = state.run_time_flags.use_cmp_features;
+    const bool old_pc_features = state.run_time_flags.use_pc_features;
+    const bool old_dataflow_features =
+        state.run_time_flags.use_dataflow_features;
+    const bool old_counter_features = state.run_time_flags.use_counter_features;
+    state.run_time_flags.use_cmp_features = false;
+    state.run_time_flags.use_pc_features = false;
+    state.run_time_flags.use_dataflow_features = false;
+    state.run_time_flags.use_counter_features = false;
+    // Mutation request.
+    inputs_blobseq.Reset();
+    static auto mutator = new ByteArrayMutator(state.knobs, GetRandomSeed());
+    state.byte_array_mutator = mutator;
+    const int result =
+        MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    state.run_time_flags.use_cmp_features = old_cmp_features;
+    state.run_time_flags.use_pc_features = old_pc_features;
+    state.run_time_flags.use_dataflow_features = old_dataflow_features;
+    state.run_time_flags.use_counter_features = old_counter_features;
+    return result;
+  }
+  if (IsExecutionRequest(request_type_blob)) {
+    // Execution request.
+    inputs_blobseq.Reset();
+    return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+  }
+  return EXIT_FAILURE;
+}
+
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
 //  of in/out shared memory locations.
 //  Read inputs and write outputs via shared memory.
@@ -1146,31 +1204,47 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
   // Inputs / outputs from shmem.
   if (state.HasFlag(":shmem:")) {
     if (!state.arg1 || !state.arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(state.arg1);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
-    // Read the first blob. It indicates what further actions to take.
-    auto request_type_blob = inputs_blobseq.Read();
-    if (IsMutationRequest(request_type_blob)) {
-      // Since we are mutating, no need to spend time collecting the coverage.
-      // We still pay for executing the coverage callbacks, but those will
-      // return immediately.
-      // TODO(kcc): do this more consistently, for all coverage types.
-      state.run_time_flags.use_cmp_features = false;
-      state.run_time_flags.use_pc_features = false;
-      state.run_time_flags.use_dataflow_features = false;
-      state.run_time_flags.use_counter_features = false;
-      // Mutation request.
-      inputs_blobseq.Reset();
-      state.byte_array_mutator =
-          new ByteArrayMutator(state.knobs, GetRandomSeed());
-      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    if ((state.persistent_mode_pipe0 > 0) !=
+        (state.persistent_mode_pipe1 > 0)) {
+      return EXIT_FAILURE;
     }
-    if (IsExecutionRequest(request_type_blob)) {
-      // Execution request.
-      inputs_blobseq.Reset();
-      return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    // Persistent mode loop.
+    if (state.persistent_mode_pipe0 > 0) {
+      bool first = true;
+      while (true) {
+        char req;
+        if (read(state.persistent_mode_pipe0, &req, 1) != 1) {
+          fprintf(stderr, "Failed to read to persistent mode pipe %s\n",
+                  state.persistent_mode_pipe0_path);
+          return EXIT_FAILURE;
+        }
+        if (first) {
+          first = false;
+        } else {
+          // Reset stdout/stderr.
+          for (int fd = 1; fd <= 2; fd++) {
+            lseek(fd, 0, SEEK_SET);
+            // NOTE: Allow ftruncate() to fail by ignoring its return; that okay
+            // to happen when the stdout/stderr are not redirected to a file.
+            (void)ftruncate(fd, 0);
+          }
+          fprintf(stderr,
+                  "Centipede fuzz target runner (%s); "
+                  "argv[0]: %s flags: %s\n",
+                  req == 0 ? "exiting" : "persistent iteration", argv[0],
+                  state.centipede_runner_flags);
+        }
+        if (req == 0) break;
+        const int result = HandleSharedMemoryRequest(callbacks);
+        if (write(state.persistent_mode_pipe1, &result, sizeof(result)) == -1) {
+          fprintf(stderr, "Failed to write to persistent mode pipe %s\n",
+                  state.persistent_mode_pipe1_path);
+          return EXIT_FAILURE;
+        }
+      }
+      return EXIT_SUCCESS;
     }
-    return EXIT_FAILURE;
+    return HandleSharedMemoryRequest(callbacks);
   }
 
   // By default, run every input file one-by-one.
