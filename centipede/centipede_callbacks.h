@@ -94,6 +94,9 @@ class CentipedeCallbacks {
   // Returns an empty string if the test target doesn't provide configuration.
   virtual absl::StatusOr<std::string> GetSerializedTargetConfig() { return ""; }
 
+  // Clean up any commands that are executing in persistent mode.
+  void CleanUpPersistentMode();
+
  protected:
   // Helpers that the user-defined class may use if needed.
 
@@ -158,9 +161,20 @@ class CentipedeCallbacks {
   FuzzTestMutator fuzztest_mutator_;
 
  private:
-  // Returns a Command object with matching `binary` from commands_,
+  struct PersistentModeProps;
+  struct ExtendedCommand {
+    Command cmd;
+    // Opaque resources for persistent mode. Nullptr if persistent mode is
+    // disabled.
+    std::unique_ptr<PersistentModeProps> persistent_mode;
+    ~ExtendedCommand();
+  };
+
+  // Returns a ExtendedCommand object with matching `binary` from commands_,
   // creates one if needed.
-  Command &GetOrCreateCommandForBinary(std::string_view binary);
+  ExtendedCommand &GetOrCreateExtendedCommandForBinary(std::string_view binary);
+  // Runs a batch on the command `binary`.
+  int RunBatchForBinary(std::string_view binary);
 
   // Prints the execution log from the last executed binary.
   void PrintExecutionLog() const;
@@ -182,7 +196,7 @@ class CentipedeCallbacks {
   SharedMemoryBlobSequence inputs_blobseq_;
   SharedMemoryBlobSequence outputs_blobseq_;
 
-  std::vector<Command> commands_;
+  std::vector<std::unique_ptr<ExtendedCommand>> extended_commands_;
 };
 
 // Abstract class for creating/destroying CentipedeCallbacks objects.

@@ -191,6 +191,32 @@ class MmapNoReserveArray {
   uint8_t *array_;
 };
 
+// Sentinel class as a member to detect whether the containing class instance is
+// moved to another instance or not, so that it can avoid operating on moved
+// external resources.
+//
+// For example, if an object uses an int field as file descriptor, the default
+// move-construction/assignment won't change the field when moving.
+// The destructor can check a sentinel member to tell if the object is moved
+// away, and skip closing the file descriptor if so.
+class MoveSentinel {
+ public:
+  MoveSentinel() = default;
+  MoveSentinel(MoveSentinel &&other) noexcept {
+    is_moved_ = other.is_moved_;
+    other.is_moved_ = true;
+  }
+  MoveSentinel &operator=(MoveSentinel &&other) noexcept {
+    is_moved_ = other.is_moved_;
+    other.is_moved_ = true;
+    return *this;
+  }
+  bool is_moved() const { return is_moved_; }
+
+ private:
+  bool is_moved_ = false;
+};
+
 }  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_UTIL_H_
