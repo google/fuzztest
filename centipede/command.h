@@ -16,12 +16,14 @@
 #define THIRD_PARTY_CENTIPEDE_COMMAND_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "./centipede/util.h"
 
 namespace fuzztest::internal {
 
@@ -43,8 +45,6 @@ class Command final {
     // Redirect stderr to this file. If empty, use parent's STDERR. If `out` ==
     // `err` and both are non-empty, stdout/stderr are combined.
     std::string stderr_file;
-    // Terminate a fork server execution attempt after this duration.
-    absl::Duration timeout = absl::InfiniteDuration();
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -69,10 +69,31 @@ class Command final {
   // Returns a string representing the command, e.g. like this
   // "env -u ENV1 ENV2=VAL2 path arg1 arg2 > out 2>& err"
   std::string ToString() const;
-  // Executes the command, returns the exit status.
-  // Can be called more than once.
-  // If interrupted, may call `RequestEarlyStop()` (see stop.h).
-  int Execute();
+
+  // Execute the command asynchronously. Returns true if it starts a new
+  // execution, false otherwise (e.g. when the execution fails to start or the
+  // command is already executing).
+  bool ExecuteAsync();
+
+  // Returns whether the command is currently executing.
+  bool is_executing() const { return is_executing_; }
+
+  // Waits for the command execution and returns the exit status if the
+  // execution finishes within `deadline`. Returns `std::nullopt` if there is no
+  // execution or the execution times out. If interrupted, may call
+  // `RequestEarlyStop()` (see stop.h).
+  std::optional<int> Wait(absl::Time deadline);
+
+  // Requests the command execution to stop, or it is noop if there is no
+  // execution. Note that after calling this, `Wait()` is still needed to
+  // complete the execution.
+  void RequestStop();
+
+  // Convenient method to execute synchronously.
+  int Execute() {
+    if (!ExecuteAsync()) return EXIT_FAILURE;
+    return Wait(absl::InfiniteFuture()).value_or(EXIT_FAILURE);
+  }
 
   // Attempts to start a fork server, returns true on success.
   // Pipe files for the fork server are created in `temp_dir_path`
@@ -85,6 +106,10 @@ class Command final {
 
  private:
   struct ForkServerProps;
+
+  MoveSentinel move_sentinel_;
+  int pid_ = -1;
+  bool is_executing_ = false;
 
   // Returns the status of the fork server process. Expects that the server was
   // previously started using `StartForkServer()`.
