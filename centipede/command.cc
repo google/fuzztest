@@ -16,9 +16,11 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <spawn.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <inttypes.h>
@@ -30,6 +32,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -54,6 +57,12 @@
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
+
+#if !defined(_MSC_VER)
+// Needed to pass the current environment to posix_spawn, which needs an
+// explicit envp without an option to inherit implicitly.
+extern char **environ;
+#endif
 
 namespace fuzztest::internal {
 namespace {
@@ -142,7 +151,12 @@ struct Command::ForkServerProps {
 // out-of-line here, now that ForkServerProps is complete (that's by-the-book
 // PIMPL).
 Command::Command(Command &&other) noexcept = default;
-Command::~Command() = default;
+Command::~Command() {
+  if (move_sentinel_.is_moved()) return;
+  if (is_executing()) {
+    RequestStop();
+  }
+}
 
 Command::Command(std::string_view path, Options options)
     : path_(path), options_(std::move(options)) {}
@@ -308,33 +322,50 @@ absl::Status Command::VerifyForkServerIsHealthy() {
   return absl::OkStatus();
 }
 
-int Command::Execute() {
+bool Command::ExecuteAsync() {
   VLOG(1) << "Executing command '" << command_line_ << "'...";
-
-  int exit_code = EXIT_SUCCESS;
+  if (is_executing_) return false;
 
   if (fork_server_ != nullptr) {
-    VLOG(1) << "Sending execution request to fork server: "
-            << VV(options_.timeout);
+    VLOG(1) << "Sending execution request to fork server";
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
       LogProblemInfo(absl::StrCat("Fork server should be running, but isn't: ",
                                   status.message()));
-      return EXIT_FAILURE;
+      return false;
     }
 
     // Wake up the fork server.
     char x = ' ';
     CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
+  } else {
+    CHECK_EQ(pid_, -1);
+    std::vector<std::string> argv_strs = {"/bin/sh", "-c", command_line_};
+    std::vector<char *> argv;
+    argv.reserve(argv_strs.size() + 1);
+    for (auto &argv_str : argv_strs) {
+      argv.push_back(argv_str.data());
+    }
+    argv.push_back(nullptr);
+    CHECK_EQ(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
+                         /*attrp=*/nullptr, argv.data(), environ),
+             0);
+  }
 
+  is_executing_ = true;
+  return true;
+}
+
+std::optional<int> Command::Wait(absl::Time deadline) {
+  int exit_code = EXIT_SUCCESS;
+  if (!is_executing_) return std::nullopt;
+
+  if (fork_server_ != nullptr) {
     // The fork server forks, the child is running. Block until some readable
     // data appears in the pipe (that is, after the fork server writes the
     // execution result to it).
     struct pollfd poll_fd = {};
     int poll_ret = -1;
-    auto poll_deadline = absl::Now() + options_.timeout;
-    // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
-    // case. We should tolerate that.
     do {
       // NOTE: `poll_fd` has to be reset every time.
       poll_fd = {
@@ -342,32 +373,50 @@ int Command::Execute() {
           /*events=*/POLLIN,              // Wait until `fd` gets readable data.
       };
       const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
-          std::max(poll_deadline - absl::Now(), absl::Milliseconds(1))));
+          std::max(deadline - absl::Now(), absl::Milliseconds(1))));
       poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
+      // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
+      // case. We should tolerate that.
     } while (poll_ret < 0 && errno == EINTR);
-
     if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
       if (poll_ret == 0) {
-        LogProblemInfo(
-            absl::StrCat("Timeout while waiting for fork server: timeout is ",
-                         absl::FormatDuration(options_.timeout)));
+        LogProblemInfo(absl::StrCat(
+            "Timeout while waiting for fork server: deadline is ", deadline));
       } else {
         LogProblemInfo(absl::StrCat(
             "Error while waiting for fork server: poll() returned ", poll_ret));
       }
-      return EXIT_FAILURE;
+      return std::nullopt;
     }
 
     // The fork server wrote the execution result to the pipe: read it.
     CHECK_EQ(sizeof(exit_code),
              read(fork_server_->pipe_[1], &exit_code, sizeof(exit_code)));
   } else {
-    VLOG(1) << "Fork server disabled - executing command directly";
-    // No fork server, use system().
-    exit_code = system(command_line_.c_str());
+    CHECK_NE(pid_, -1);
+    while (true) {
+      const pid_t r = waitpid(pid_, &exit_code, WNOHANG);
+      CHECK_NE(r, -1);
+      if (r == pid_ && (WIFEXITED(exit_code) || WIFSIGNALED(exit_code))) break;
+      CHECK_EQ(r, 0);
+      const auto timeout = deadline - absl::Now();
+      if (timeout > absl::ZeroDuration()) {
+        const auto duration = std::clamp<useconds_t>(
+            absl::ToInt64Microseconds(timeout), 0, 100000);
+        usleep(duration);  // NOLINT: early return on SIGCHLD is desired.
+        continue;
+      } else {
+        LogProblemInfo(absl::StrCat(
+            "Timeout while waiting for the command process: deadline is ",
+            deadline));
+        return std::nullopt;
+      }
+    }
+    pid_ = -1;
   }
+  is_executing_ = false;
 
   // When the command is actually a wrapper shell launching the binary(-es)
   // (e.g. a Docker container), the shell will preserve a normal exit code
@@ -420,6 +469,16 @@ int Command::Execute() {
   }
 
   return exit_code;
+}
+
+void Command::RequestStop() {
+  if (fork_server_) {
+    CHECK_NE(fork_server_->pid_, -1);
+    kill(fork_server_->pid_, SIGTERM);
+    return;
+  }
+  CHECK_NE(pid_, -1);
+  kill(pid_, SIGTERM);
 }
 
 std::string Command::ReadRedirectedStdout() const {
