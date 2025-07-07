@@ -14,10 +14,21 @@
 
 #include "./centipede/centipede_callbacks.h"
 
+#include <fcntl.h>
+#include <sys/poll.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/un.h>
+
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>  // NOLINT
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -26,6 +37,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -46,6 +58,76 @@
 #include "./common/logging.h"
 
 namespace fuzztest::internal {
+
+namespace {
+
+void SetCloseOnExec(int fd) {
+  int flags = fcntl(fd, F_GETFD);
+  PCHECK(flags != -1);
+  flags |= FD_CLOEXEC;
+  PCHECK(fcntl(fd, F_SETFD, flags) != -1);
+}
+
+void SetNonBlocking(int fd) {
+  int flags = fcntl(fd, F_GETFL);
+  PCHECK(flags != -1);
+  flags |= O_NONBLOCK;
+  PCHECK(fcntl(fd, F_SETFL, flags) != -1);
+}
+
+}  // namespace
+
+struct CentipedeCallbacks::PersistentModeProps {
+  std::string server_path;
+  int server_socket = -1;
+  int conn_socket = -1;
+
+  void Initialize() {
+    CHECK_EQ(server_socket, -1);
+    CHECK_EQ(conn_socket, -1);
+    CHECK(!server_path.empty());
+
+    server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    PCHECK(server_socket != -1);
+
+    SetCloseOnExec(server_socket);
+    SetNonBlocking(server_socket);
+
+    struct sockaddr_un server_addr{};
+    server_addr.sun_family = AF_UNIX;
+    strncpy(server_addr.sun_path, server_path.c_str(),
+            sizeof(server_addr.sun_path));
+
+    const int enable = 1;
+    PCHECK(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &enable,
+                      sizeof(enable)) != -1);
+    PCHECK(bind(server_socket, (struct sockaddr *)&server_addr,
+                sizeof(server_addr)) != -1);
+
+    PCHECK(listen(server_socket, 1) != -1);
+  }
+
+  void Uninitialize() {
+    if (server_socket != -1) {
+      PCHECK(close(server_socket) != -1);
+      server_socket = -1;
+    }
+
+    if (conn_socket != -1) {
+      PCHECK(close(conn_socket) != -1);
+      conn_socket = -1;
+    }
+
+    std::error_code ec;
+    if (!server_path.empty() && !std::filesystem::remove(server_path, ec)) {
+      LOG(ERROR) << "Failed to remove persistent mode server socket file "
+                 << server_path << ": " << ec;
+    }
+  }
+
+  ~PersistentModeProps() { Uninitialize(); }
+};
+
 namespace {
 
 // When running a test binary in a subprocess, we don't want these environment
@@ -143,21 +225,36 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
   return absl::StrJoin(flags, ":");
 }
 
-Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
+CentipedeCallbacks::ExtendedCommand &
+CentipedeCallbacks::GetOrCreateExtendedCommandForBinary(
     std::string_view binary) {
-  for (auto &cmd : commands_) {
-    if (cmd.path() == binary) return cmd;
+  for (auto &extended_command : extended_commands_) {
+    if (extended_command->cmd.path() == binary) return *extended_command;
   }
   // We don't want to collect coverage for extra binaries. It won't be used.
   bool disable_coverage =
       std::find(env_.extra_binaries.begin(), env_.extra_binaries.end(),
                 binary) != env_.extra_binaries.end();
 
+  std::unique_ptr<CentipedeCallbacks::PersistentModeProps> persistent_mode;
+  if (env_.persistent_mode && !env_.has_input_wildcards) {
+    persistent_mode =
+        std::make_unique<CentipedeCallbacks::PersistentModeProps>();
+    // Cannot be based on temp_dir_, because it can exceed the maximum length of
+    // unix socket bind path.
+    persistent_mode->server_path = ProcessAndThreadUniqueID(absl::StrCat(
+        "/tmp/centipede-persistent-mode-socket-", Hash(binary), "-"));
+  }
   std::vector<std::string> env = {ConstructRunnerFlags(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
                    inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
-                   ":failure_signature_path=", failure_signature_path_, ":"),
+                   ":failure_signature_path=", failure_signature_path_,
+                   persistent_mode == nullptr
+                       ? ""
+                       : absl::StrCat(":persistent_mode_socket=",
+                                      persistent_mode->server_path),
+                   ":"),
       disable_coverage)};
 
   if (env_.clang_coverage_binary == binary)
@@ -165,23 +262,147 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
         absl::StrCat("LLVM_PROFILE_FILE=",
                      WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
 
-  // Allow for the time it takes to fork a subprocess etc.
-  const auto amortized_timeout =
-      env_.timeout_per_batch == 0
-          ? absl::InfiniteDuration()
-          : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   Command::Options cmd_options;
   cmd_options.env_add = std::move(env);
   cmd_options.env_remove = EnvironmentVariablesToUnset();
   cmd_options.stdout_file = execute_log_path_;
   cmd_options.stderr_file = execute_log_path_;
-  cmd_options.timeout = amortized_timeout;
   cmd_options.temp_file_path = temp_input_file_path_;
-  Command &cmd =
-      commands_.emplace_back(Command{binary, std::move(cmd_options)});
-  if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));
 
-  return cmd;
+  ExtendedCommand &extended_command =
+      *extended_commands_.emplace_back(absl::WrapUnique(
+          new ExtendedCommand{Command{binary, std::move(cmd_options)},
+                              std::move(persistent_mode)}));
+  if (env_.fork_server)
+    extended_command.cmd.StartForkServer(temp_dir_, Hash(binary));
+
+  return extended_command;
+}
+
+void CentipedeCallbacks::CleanUpPersistentMode() {
+  extended_commands_.erase(
+      std::remove_if(
+          extended_commands_.begin(), extended_commands_.end(),
+          [&](auto &extended_command) {
+            if (extended_command->cmd.is_executing() &&
+                extended_command->persistent_mode != nullptr) {
+              LOG(INFO) << "Cleaning up persistent mode for "
+                        << extended_command->cmd.path();
+              char req = 0;
+              CHECK_EQ(1, write(extended_command->persistent_mode->conn_socket,
+                                &req, 1));
+              const auto ret =
+                  extended_command->cmd.Wait(absl::Now() + absl::Seconds(60));
+              if (env_.print_runner_log) {
+                PrintExecutionLog();
+              }
+              return !ret.has_value();
+            }
+            return false;
+          }),
+      extended_commands_.end());
+}
+
+int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
+  auto &extended_command = GetOrCreateExtendedCommandForBinary(binary);
+  auto &cmd = extended_command.cmd;
+  const absl::Duration amortized_timeout =
+      env_.timeout_per_batch == 0
+          ? absl::InfiniteDuration()
+          : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
+  const auto deadline = absl::Now() + amortized_timeout;
+  int exit_code = EXIT_SUCCESS;
+  const bool should_clean_up = [&] {
+    if (!cmd.is_executing()) {
+      if (extended_command.persistent_mode != nullptr) {
+        extended_command.persistent_mode->Initialize();
+      }
+      if (!cmd.ExecuteAsync()) return true;
+    }
+    if (extended_command.persistent_mode != nullptr) {
+      auto &persistent_mode = *extended_command.persistent_mode;
+      int poll_ret = -1;
+      struct pollfd poll_fd = {};
+      [&] {
+        // Establish the connection if it's missing.
+        if (persistent_mode.conn_socket == -1) {
+          do {
+            poll_fd = {
+                /*fd=*/persistent_mode.server_socket,
+                /*events=*/POLLIN,
+            };
+            const int poll_timeout_ms =
+                static_cast<int>(absl::ToInt64Milliseconds(
+                    std::max(deadline - absl::Now(), absl::Milliseconds(1))));
+            poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
+          } while (poll_ret < 0 && errno == EINTR);
+          if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) return;
+          persistent_mode.conn_socket =
+              accept(persistent_mode.server_socket, nullptr, 0);
+          PCHECK(persistent_mode.conn_socket != -1);
+
+          SetCloseOnExec(persistent_mode.conn_socket);
+          SetNonBlocking(persistent_mode.conn_socket);
+        }
+        // Kick-off the persistent mode.
+        char req = 1;
+        CHECK_EQ(1, write(persistent_mode.conn_socket, &req, 1));
+        // Wait for the persistent mode runner to respond.
+        do {
+          poll_fd = {
+              /*fd=*/persistent_mode.conn_socket,
+              /*events=*/POLLIN,
+          };
+          const int poll_timeout_ms =
+              static_cast<int>(absl::ToInt64Milliseconds(
+                  std::max(deadline - absl::Now(), absl::Milliseconds(1))));
+          poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
+        } while (poll_ret < 0 && errno == EINTR);
+      }();
+      if (poll_ret < 0) {
+        LOG(ERROR) << "batch run: poll() failed with errno " << errno;
+        return true;
+      }
+      if (poll_ret == 0) {
+        LOG(ERROR) << "batch run: poll() timed out";
+        return true;
+      }
+      if ((poll_fd.revents & (POLLIN | POLLHUP)) == POLLIN) {
+        const int r =
+            read(persistent_mode.conn_socket, &exit_code, sizeof(exit_code));
+        if (r == sizeof(exit_code)) return false;
+        LOG(ERROR) << "read() returns " << r
+                   << " unexpectedly with revent: " << poll_fd.revents
+                   << " errno: " << errno;
+      }
+      // At this point, poll()/read() failed possibly due to the termination of
+      // the command execution. Fall back to wait for the command result.
+    }
+    const std::optional<int> ret = cmd.Wait(deadline);
+    if (!ret.has_value()) return true;
+    exit_code = *ret;
+    if (extended_command.persistent_mode != nullptr) {
+      extended_command.persistent_mode->Uninitialize();
+    }
+    return false;
+  }();
+  if (should_clean_up) {
+    exit_code = [&] {
+      if (!cmd.is_executing()) return EXIT_FAILURE;
+      LOG(ERROR) << "Cleaning up the batch execution.";
+      cmd.RequestStop();
+      const auto ret = cmd.Wait(absl::Now() + absl::Seconds(60));
+      if (ret.has_value()) return *ret;
+      LOG(ERROR) << "Batch execution failed to end in 60s.";
+      return EXIT_FAILURE;
+    }();
+    extended_commands_.erase(
+        std::find_if(extended_commands_.begin(), extended_commands_.end(),
+                     [=](const auto &extended_command) {
+                       return extended_command->cmd.path() == binary;
+                     }));
+  }
+  return exit_code;
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
@@ -212,8 +433,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   // Run.
-  Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
+  const int retval = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   // Get results.
@@ -259,6 +479,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return retval;
 }
+
+CentipedeCallbacks::ExtendedCommand::~ExtendedCommand() = default;
 
 // See also: `DumpSeedsToDir()`.
 bool CentipedeCallbacks::GetSeedsViaExternalBinary(
@@ -366,8 +588,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
-  Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
+  const int retval = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (retval != EXIT_SUCCESS) {
