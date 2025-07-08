@@ -160,6 +160,9 @@ struct GlobalRunnerState {
   // The path to a file where the runner may write the description of failure.
   const char *failure_description_path =
       GetStringFlag(":failure_description_path=");
+  const char *persistent_mode_socket_path =
+      GetStringFlag(":persistent_mode_socket=");
+  int persistent_mode_socket = 0;
 
   // Flags.
   RunTimeFlags run_time_flags = {
