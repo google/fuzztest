@@ -15,7 +15,9 @@
 #include "./centipede/runner_utils.h"
 
 #include <pthread.h>
+#include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -56,6 +58,36 @@ uintptr_t GetCurrentThreadStackRegionLow() {
               "the current thread stack region starts from 0 - unexpected!");
   return stack_region_low;
 #endif  // __APPLE__
+}
+
+bool ReadAll(int fd, char* data, size_t size) {
+  while (size > 0) {
+    ssize_t r = read(fd, data, size);
+    if (r > 0) {
+      // read() guarantees r <= size
+      data += r;
+      size -= r;
+      continue;
+    }
+    if (r == -1 && errno == EINTR) continue;
+    return false;
+  }
+  return true;
+}
+
+bool WriteAll(int fd, const char* data, size_t size) {
+  while (size > 0) {
+    ssize_t r = write(fd, data, size);
+    if (r > 0) {
+      // write() guarantees r <= size
+      data += r;
+      size -= r;
+      continue;
+    }
+    if (r == -1 && errno == EINTR) continue;
+    return false;
+  }
+  return true;
 }
 
 }  // namespace fuzztest::internal
