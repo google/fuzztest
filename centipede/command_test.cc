@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +27,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
@@ -89,23 +91,16 @@ TEST(CommandTest, Execute) {
   EXPECT_FALSE(ShouldStop());
 }
 
-TEST(CommandDeathTest, Execute) {
-  GTEST_FLAG_SET(death_test_style, "threadsafe");
-  // Test for interrupt handling.
-  const auto self_sigint_lambda = []() {
-    Command self_sigint{"bash -c 'kill -SIGINT $$'"};
-    self_sigint.Execute();
-    if (ShouldStop()) {
-      LOG(INFO) << "Early stop requested";
-      exit(ExitCode());
-    }
-  };
-  EXPECT_DEATH(self_sigint_lambda(), "Early stop requested");
+TEST(CommandTest, HandlesInterruptedCommand) {
+  Command self_sigint{"bash -c 'kill -SIGINT $$'"};
+  self_sigint.ExecuteAsync();
+  self_sigint.Wait(absl::InfiniteFuture());
+  EXPECT_TRUE(ShouldStop());
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
 }
 
 TEST(CommandTest, InputFileWildCard) {
   Command::Options cmd_options;
-  cmd_options.timeout = absl::Seconds(2);
   cmd_options.temp_file_path = "TEMP_FILE";
   Command cmd{"foo bar @@ baz", std::move(cmd_options)};
   EXPECT_EQ(cmd.ToString(), "env \\\nfoo bar TEMP_FILE baz");
@@ -187,10 +182,10 @@ TEST(CommandTest, ForkServer) {
     cmd_options.args = {input};
     cmd_options.stdout_file = log;
     cmd_options.stderr_file = log;
-    cmd_options.timeout = absl::Seconds(2);
     Command cmd{helper, std::move(cmd_options)};
     ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
-    EXPECT_EQ(cmd.Execute(), SIGTERM);
+    ASSERT_TRUE(cmd.ExecuteAsync());
+    EXPECT_EQ(cmd.Wait(absl::Now() + absl::Seconds(2)), std::nullopt);
     std::string log_contents;
     ReadFromLocalFile(log, log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));

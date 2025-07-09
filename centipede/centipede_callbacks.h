@@ -161,6 +161,8 @@ class CentipedeCallbacks {
   // Returns a Command object with matching `binary` from commands_,
   // creates one if needed.
   Command &GetOrCreateCommandForBinary(std::string_view binary);
+  // Runs a batch with the command `binary` and returns the exit code.
+  int RunBatchForBinary(std::string_view binary);
 
   // Prints the execution log from the last executed binary.
   void PrintExecutionLog() const;
@@ -182,7 +184,8 @@ class CentipedeCallbacks {
   SharedMemoryBlobSequence inputs_blobseq_;
   SharedMemoryBlobSequence outputs_blobseq_;
 
-  std::vector<Command> commands_;
+  // Need unique_ptr indirection because Command is not movable/copyable.
+  std::vector<std::unique_ptr<Command>> commands_;
 };
 
 // Abstract class for creating/destroying CentipedeCallbacks objects.

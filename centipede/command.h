@@ -16,6 +16,7 @@
 #define THIRD_PARTY_CENTIPEDE_COMMAND_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -43,8 +44,6 @@ class Command final {
     // Redirect stderr to this file. If empty, use parent's STDERR. If `out` ==
     // `err` and both are non-empty, stdout/stderr are combined.
     std::string stderr_file;
-    // Terminate a fork server execution attempt after this duration.
-    absl::Duration timeout = absl::InfiniteDuration();
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -57,10 +56,10 @@ class Command final {
   // Constructs a command to run the binary at `path` with default options.
   explicit Command(std::string_view path);
 
-  // Move-constructible only.
+  // Not movable or copyable to simplify the resource management logic.
   Command(const Command& other) = delete;
   Command& operator=(const Command& other) = delete;
-  Command(Command&& other) noexcept;
+  Command(Command&& other) noexcept = delete;
   Command& operator=(Command&& other) noexcept = delete;
 
   // Cleans up the fork server, if that was created.
@@ -69,10 +68,31 @@ class Command final {
   // Returns a string representing the command, e.g. like this
   // "env -u ENV1 ENV2=VAL2 path arg1 arg2 > out 2>& err"
   std::string ToString() const;
-  // Executes the command, returns the exit status.
-  // Can be called more than once.
-  // If interrupted, may call `RequestEarlyStop()` (see stop.h).
-  int Execute();
+
+  // Execute the command asynchronously. Returns true if it starts a new
+  // execution, false otherwise. Must be called only when the command
+  // is not executing.
+  bool ExecuteAsync();
+
+  // Returns whether the command is currently executing.
+  bool is_executing() const { return is_executing_; }
+
+  // Waits for the command execution and returns the exit status if the
+  // execution finishes within `deadline`. Must be called only when the command
+  // is executing. execution or the execution times out. If interrupted, may
+  // call `RequestEarlyStop()` (see stop.h).
+  std::optional<int> Wait(absl::Time deadline);
+
+  // Requests the command execution to stop. Must be called only when the
+  // command is executing. Note that after calling this, `Wait()` is still
+  // needed to complete the execution.
+  void RequestStop();
+
+  // Convenient method to execute synchronously.
+  int Execute() {
+    if (!ExecuteAsync()) return EXIT_FAILURE;
+    return Wait(absl::InfiniteFuture()).value_or(EXIT_FAILURE);
+  }
 
   // Attempts to start a fork server, returns true on success.
   // Pipe files for the fork server are created in `temp_dir_path`
@@ -86,6 +106,9 @@ class Command final {
  private:
   struct ForkServerProps;
 
+  int pid_ = -1;
+  bool is_executing_ = false;
+
   // Returns the status of the fork server process. Expects that the server was
   // previously started using `StartForkServer()`.
   absl::Status VerifyForkServerIsHealthy();
@@ -98,7 +121,7 @@ class Command final {
   // placeholder text.
   std::string ReadRedirectedStderr() const;
   // Possibly logs information about a crash, starting with `message`, followed
-  // by the the command line, followed by the redirected stdout and stderr read
+  // by the command line, followed by the redirected stdout and stderr read
   // from `options_.out` and `options_.err` files, if any.
   void LogProblemInfo(std::string_view message) const;
   // Just as `LogCrashInfo()`, but logging occurs only when the VLOG level (set

@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -146,7 +148,7 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
 Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
     std::string_view binary) {
   for (auto &cmd : commands_) {
-    if (cmd.path() == binary) return cmd;
+    if (cmd->path() == binary) return *cmd;
   }
   // We don't want to collect coverage for extra binaries. It won't be used.
   bool disable_coverage =
@@ -165,23 +167,49 @@ Command &CentipedeCallbacks::GetOrCreateCommandForBinary(
         absl::StrCat("LLVM_PROFILE_FILE=",
                      WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
 
-  // Allow for the time it takes to fork a subprocess etc.
-  const auto amortized_timeout =
-      env_.timeout_per_batch == 0
-          ? absl::InfiniteDuration()
-          : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   Command::Options cmd_options;
   cmd_options.env_add = std::move(env);
   cmd_options.env_remove = EnvironmentVariablesToUnset();
   cmd_options.stdout_file = execute_log_path_;
   cmd_options.stderr_file = execute_log_path_;
-  cmd_options.timeout = amortized_timeout;
   cmd_options.temp_file_path = temp_input_file_path_;
-  Command &cmd =
-      commands_.emplace_back(Command{binary, std::move(cmd_options)});
+  Command &cmd = *commands_.emplace_back(
+      std::make_unique<Command>(binary, std::move(cmd_options)));
   if (env_.fork_server) cmd.StartForkServer(temp_dir_, Hash(binary));
 
   return cmd;
+}
+
+int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
+  auto &cmd = GetOrCreateCommandForBinary(binary);
+  const absl::Duration amortized_timeout =
+      env_.timeout_per_batch == 0
+          ? absl::InfiniteDuration()
+          : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
+  const auto deadline = absl::Now() + amortized_timeout;
+  int exit_code = EXIT_SUCCESS;
+  const bool should_clean_up = [&] {
+    if (!cmd.ExecuteAsync()) return true;
+    const std::optional<int> ret = cmd.Wait(deadline);
+    if (!ret.has_value()) return true;
+    exit_code = *ret;
+    return false;
+  }();
+  if (should_clean_up) {
+    exit_code = [&] {
+      if (!cmd.is_executing()) return EXIT_FAILURE;
+      LOG(ERROR) << "Cleaning up the batch execution.";
+      cmd.RequestStop();
+      const auto ret = cmd.Wait(absl::Now() + absl::Seconds(60));
+      if (ret.has_value()) return *ret;
+      LOG(ERROR) << "Batch execution cleanup failed to end in 60s.";
+      return EXIT_FAILURE;
+    }();
+    commands_.erase(
+        std::find_if(commands_.begin(), commands_.end(),
+                     [=](const auto &cmd) { return cmd->path() == binary; }));
+  }
+  return exit_code;
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
@@ -212,12 +240,11 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   // Run.
-  Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
+  const int exit_code = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   // Get results.
-  batch_result.exit_code() = retval;
+  batch_result.exit_code() = exit_code;
   const bool read_success = batch_result.Read(outputs_blobseq_);
   LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
@@ -229,7 +256,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   //   * Will be logged by the caller.
   // * some outputs were not written because the outputs_blobseq_ overflown.
   //   * Logged by the following code.
-  if (retval == 0 && read_success &&
+  if (exit_code == 0 && read_success &&
       batch_result.num_outputs_read() != num_inputs_written) {
     LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
               << num_inputs_written
@@ -239,7 +266,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   if (env_.print_runner_log) PrintExecutionLog();
 
-  if (retval != EXIT_SUCCESS) {
+  if (exit_code != EXIT_SUCCESS) {
     ReadFromLocalFile(execute_log_path_, batch_result.log());
     ReadFromLocalFile(failure_description_path_,
                       batch_result.failure_description());
@@ -257,7 +284,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::filesystem::remove(failure_signature_path_);
   }
   VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
-  return retval;
+  return exit_code;
 }
 
 // See also: `DumpSeedsToDir()`.
@@ -366,19 +393,18 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
-  Command &cmd = GetOrCreateCommandForBinary(binary);
-  int retval = cmd.Execute();
+  const int exit_code = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
-  if (retval != EXIT_SUCCESS) {
-    LOG(WARNING) << "Custom mutator failed with exit code: " << retval;
+  if (exit_code != EXIT_SUCCESS) {
+    LOG(WARNING) << "Custom mutator failed with exit code: " << exit_code;
   }
-  if (env_.print_runner_log || retval != EXIT_SUCCESS) {
+  if (env_.print_runner_log || exit_code != EXIT_SUCCESS) {
     PrintExecutionLog();
   }
 
   MutationResult result;
-  result.exit_code() = retval;
+  result.exit_code() = exit_code;
   result.Read(num_mutants, outputs_blobseq_);
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
