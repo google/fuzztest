@@ -45,9 +45,12 @@
 namespace fuzztest::internal {
 
 PCTable ReadPcTableFromFile(std::string_view file_path) {
+  LOG(INFO) << "ReadPcTableFromFile: " << file_path << "\n";
   ByteArray pc_infos_as_bytes;
   ReadFromLocalFile(file_path, pc_infos_as_bytes);
   CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
+  LOG(INFO) << "size of pc_infos_as_bytes: " << pc_infos_as_bytes.size()
+            << "\n";
   size_t pc_table_size = pc_infos_as_bytes.size() / sizeof(PCInfo);
   const auto *pc_infos = reinterpret_cast<PCInfo *>(pc_infos_as_bytes.data());
   PCTable pc_table{pc_infos, pc_infos + pc_table_size};

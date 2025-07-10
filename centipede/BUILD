@@ -116,6 +116,15 @@ cc_library(
 )
 
 cc_library(
+    name = "flag_util",
+    srcs = ["flag_util.cc"],
+    hdrs = ["flag_util.h"],
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+    ],
+)
+
+cc_library(
     name = "rolling_hash",
     hdrs = ["rolling_hash.h"],
 )
@@ -1024,6 +1033,8 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
+    "coverage_state.cc",
+    "coverage_state.h",
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
     "callstack.h",
@@ -1208,6 +1219,35 @@ cc_library(
     srcs = ["seed_corpus_maker_flags.cc"],
     hdrs = ["seed_corpus_maker_flags.h"],
     deps = ["@abseil-cpp//absl/flags:flag"],
+)
+
+cc_library(
+    name = "coverage_state",
+    srcs = [
+        "coverage_state.cc",
+        "runner_dl_info.cc",
+        "runner_dl_info.h",
+        "runner_interceptors.cc",
+        "runner_sancov.cc",
+        "runner_sancov_object.cc",
+        "runner_sancov_object.h",
+        "runner_utils.cc",
+        "runner_utils.h",
+    ],
+    hdrs = ["coverage_state.h"],
+    deps = [
+        ":callstack",
+        ":feature",
+        ":foreach_nonzero",
+        ":int_utils",
+        ":pc_info",
+        ":reverse_pc_table",
+        ":runner_cmp_trace",
+        ":runner_result",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/numeric:bits",
+    ],
 )
 
 ################################################################################
