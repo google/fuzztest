@@ -77,6 +77,7 @@ jobs:
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_BUILD_TESTING=on \
+            -D FUZZTEST_BUILD_FLATBUFFERS=on \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure
       - name: Run all tests in default mode with gcc
@@ -90,6 +91,7 @@ jobs:
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_BUILD_TESTING=on \
+            -D FUZZTEST_BUILD_FLATBUFFERS=on \
           && cmake --build build_gcc -j $(nproc) \
           && ctest --test-dir build_gcc -j $(nproc) --output-on-failure
       - name: Run end-to-end tests in fuzzing mode
@@ -104,6 +106,7 @@ jobs:
             -D CMAKE_BUILD_TYPE=RelWithDebug \
             -D FUZZTEST_FUZZING_MODE=on \
             -D FUZZTEST_BUILD_TESTING=on \
+            -D FUZZTEST_BUILD_FLATBUFFERS=on \
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main

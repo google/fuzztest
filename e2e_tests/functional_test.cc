@@ -1857,6 +1857,34 @@ TEST_P(FuzzingModeCrashFindingTest,
   ExpectTargetAbort(status, std_err);
 }
 
+TEST_P(FuzzingModeCrashFindingTest, FlatbuffersFailsWhenFieldsAreNotDefault) {
+  TempDir out_dir;
+  auto [status, std_out, std_err] =
+      Run("MySuite.FlatbuffersFailsWhenFieldsAreNotDefault");
+  EXPECT_THAT(std_err,
+              AllOf(HasSubstr("argument 0: {b: ("),  // b
+                    HasSubstr("i8: ("),              // i8
+                    HasSubstr("i16: ("),             // i16
+                    HasSubstr("i32: ("),             // i32
+                    HasSubstr("i64: ("),             // i64
+                    HasSubstr("u8: ("),              // u8
+                    HasSubstr("u16: ("),             // u16
+                    HasSubstr("u32: ("),             // u32
+                    HasSubstr("u64: ("),             // u64
+                    HasSubstr("f: ("),               // f
+                    HasSubstr("d: ("),               // d
+                    HasSubstr("str: "),              // str
+                    HasSubstr("ei8: ("),             // ei8
+                    HasSubstr("ei16: ("),            // ei16
+                    HasSubstr("ei32: ("),            // ei32
+                    HasSubstr("ei64: ("),            // ei64
+                    HasSubstr("eu8: ("),             // eu8
+                    HasSubstr("eu16: ("),            // eu16
+                    HasSubstr("eu32: ("),            // eu32
+                    HasSubstr("eu64: (")));          // eu64
+  ExpectTargetAbort(status, std_err);
+}
+
 INSTANTIATE_TEST_SUITE_P(FuzzingModeCrashFindingTestWithExecutionModel,
                          FuzzingModeCrashFindingTest,
                          testing::ValuesIn(GetAvailableExecutionModels()));

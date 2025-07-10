@@ -1,0 +1,138 @@
+namespace fuzztest.internal;
+
+enum ByteEnum: byte {
+  First,
+  Second
+}
+enum ShortEnum: short {
+  First,
+  Second
+}
+
+enum IntEnum: int {
+  First,
+  Second
+}
+
+enum LongEnum: long {
+  First,
+  Second
+}
+
+enum UByteEnum: ubyte {
+  First,
+  Second
+}
+
+enum UShortEnum: ushort {
+  First,
+  Second
+}
+enum UIntEnum: uint {
+  First,
+  Second
+}
+enum ULongEnum: ulong {
+  First,
+  Second
+}
+
+struct BoolStruct {
+  b: bool;
+  a_b: [bool:2];
+}
+
+table BoolTable {
+  b: bool;
+}
+
+table StringTable {
+  str: string;
+}
+
+union Union {
+  BoolTable,
+  StringTable,
+  BoolStruct,
+}
+
+table DefaultTable {
+  b: bool;
+  i8: byte;
+  i16: short;
+  i32: int;
+  i64: long;
+  u8: ubyte;
+  u16: ushort;
+  u32: uint;
+  u64: ulong;
+  f: float;
+  d: double;
+  str: string;
+  ei8: ByteEnum;
+  ei16: ShortEnum;
+  ei32: IntEnum;
+  ei64: LongEnum;
+  eu8: UByteEnum;
+  eu16: UShortEnum;
+  eu32: UIntEnum;
+  eu64: ULongEnum;
+}
+
+table OptionalTable {
+  b: bool = null;
+  i8: byte = null;
+  i16: short = null;
+  i32: int = null;
+  i64: long = null;
+  u8: ubyte = null;
+  u16: ushort = null;
+  u32: uint = null;
+  u64: ulong = null;
+  f: float = null;
+  d: double = null;
+  str: string; // always optional, no need to specify the default value.
+  ei8: ByteEnum = null;
+  ei16: ShortEnum = null;
+  ei32: IntEnum = null;
+  ei64: LongEnum = null;
+  eu8: UByteEnum = null;
+  eu16: UShortEnum = null;
+  eu32: UIntEnum = null;
+  eu64: ULongEnum = null;
+}
+
+table RequiredTable {
+  str: string (required);
+}
+
+table UnsupportedTypesTable {
+  t: BoolTable;
+  u: Union;
+  s: BoolStruct;
+  v_b: [bool];
+  v_i8: [byte];
+  v_i16: [short];
+  v_i32: [int];
+  v_i64: [long];
+  v_u8: [ubyte];
+  v_u16: [ushort];
+  v_u32: [uint];
+  v_u64: [ulong];
+  v_f: [float];
+  v_d: [double];
+  v_str: [string];
+  v_ei8: [ByteEnum];
+  v_ei16: [ShortEnum];
+  v_ei32: [IntEnum];
+  v_ei64: [LongEnum];
+  v_eu8: [UByteEnum];
+  v_eu16: [UShortEnum];
+  v_eu32: [UIntEnum];
+  v_eu64: [ULongEnum];
+  v_t: [BoolTable];
+  v_u: [Union];
+  v_s: [BoolStruct];
+}
+
+root_type DefaultTable;

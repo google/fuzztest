@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@flatbuffers//:build_defs.bzl", "flatbuffer_library_public")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
@@ -538,4 +539,36 @@ cc_test(
         "@googletest//:gtest_main",
         "@protobuf",
     ],
+)
+
+flatbuffer_library_public(
+    name = "test_flatbuffers_fbs",
+    srcs = ["test_flatbuffers.fbs"],
+    outs = [
+        "test_flatbuffers_bfbs_generated.h",
+        "test_flatbuffers_generated.h",
+    ],
+    flatc_args = [
+        "--no-union-value-namespacing",
+        "--gen-name-strings",
+        "--bfbs-gen-embed",
+    ],
+    language_flag = "-c",
+)
+
+cc_library(
+    name = "test_flatbuffers_cc_fbs",
+    srcs = [":test_flatbuffers_fbs"],
+    hdrs = [":test_flatbuffers_fbs"],
+    features = ["-parse_headers"],
+    deps = ["@flatbuffers//:runtime_cc"],
+)
+
+# Stops build_cleaner from generating flatbuffers_library for the test flatbuffers schema.
+filegroup(
+    name = "build_cleaner_ignore",
+    srcs = [
+        "test_flatbuffers_fbs",
+    ],
+    tags = ["ignore_srcs"],
 )
