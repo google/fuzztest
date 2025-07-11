@@ -14,6 +14,9 @@
 
 # The package contains libraries that are common to both FuzzTest and Centipede.
 
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
+
 VISIBILITY = ["//visibility:public"]
 
 EXTENDED_API_VISIBILITY = VISIBILITY

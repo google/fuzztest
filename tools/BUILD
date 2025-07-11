@@ -14,6 +14,8 @@
 
 # Tools.
 
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
+
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
