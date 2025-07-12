@@ -1,7 +1,5 @@
 load("@com_google_fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
 
-package(default_visibility = [":__subpackages__"])
-
 licenses(["notice"])
 
 ################################################################################
