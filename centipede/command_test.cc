@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
