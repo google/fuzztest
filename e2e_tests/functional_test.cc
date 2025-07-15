@@ -134,10 +134,12 @@ TEST_F(UnitTestModeTest, InvalidSeedsAreSkippedAndReported) {
   EXPECT_THAT(std_err,
               HasSubstr("Could not turn value into corpus type:\n{17}"));
   EXPECT_THAT(std_err, HasSubstr("The value 17 is not InRange(0, 10):\n{17}"));
+  EXPECT_THAT(std_err,
+              HasSubstr("The value 8 is not InRange(10, 20):\n{7, 8}"));
   // Valid seeds are not reported.
   EXPECT_THAT(std_err, Not(HasSubstr("{6}")));
   // Tests should still run.
-  EXPECT_THAT(std_out, HasSubstr("[  PASSED  ] 3 tests."));
+  EXPECT_THAT(std_out, HasSubstr("[  PASSED  ] 4 tests."));
   EXPECT_THAT(status, ExitCode(0));
 }
 

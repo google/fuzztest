@@ -25,12 +25,17 @@ FUZZ_TEST(MySuite, InvalidSeedDueToUserValueNotConvertibleToCorpusValue)
     // Map does not support seeds.
     .WithDomains(fuzztest::Map([](int) { return 0; },
                                fuzztest::Arbitrary<int>()))
-    .WithSeeds({{17}});
+    .WithSeeds({17});
 
 void InvalidSeedDueToCorpusValueOutOfDomain(int) {}
 FUZZ_TEST(MySuite, InvalidSeedDueToCorpusValueOutOfDomain)
     .WithDomains(fuzztest::InRange(0, 10))
-    .WithSeeds({{2}, {17}, {6}});
+    .WithSeeds({2, 17, 6});
+
+void InvalidMultiValueSeedDueToOneValueOutOfDomain(int, int) {}
+FUZZ_TEST(MySuite, InvalidMultiValueSeedDueToOneValueOutOfDomain)
+    .WithDomains(fuzztest::InRange(0, 10), fuzztest::InRange(10, 20))
+    .WithSeeds({{7, 8}});
 
 struct MyTest {
   void ShouldNotCrash(int) {}
