@@ -22,7 +22,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "./centipede/runner.h"
+#include "./centipede/shared_coverage_state.h"
 
 using fuzztest::internal::tls;
 
