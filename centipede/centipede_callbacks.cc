@@ -333,7 +333,9 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
         seeds[num_seeds_read]);
   }
   seeds.resize(num_seeds_read);
-  std::filesystem::remove_all(output_dir);
+  std::filesystem::remove_all(output_dir, error);
+  LOG_IF(ERROR, error) << "Failed to remove seed inputs directory: "
+                       << error.message();
 
   return retval == 0;
 }
