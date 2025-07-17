@@ -1332,3 +1332,18 @@ Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
 only for certain types (see [`ElementOf`](#element-of)). Complex domains
 constructed using combinators `ConstructorOf`, `Map`, and `FlatMap` don't
 support seeds.
+
+## Custom Printing
+
+When using domains, fuzztest will attempt to print failure reproduction code on
+a best effort basis. If one wants to directly provide a formatter for generating
+a c++ source code expression which recreates a given domain value one should
+implement the following function:
+
+```c++
+void FuzzTestPrintSourceCode(const DomainResultType& v, std::ostream* os) {
+  ...
+}
+```
+
+Note that no effort is made to check that the printed value is reasonable.
