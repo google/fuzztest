@@ -23,11 +23,12 @@
 
 #include "absl/base/nullability.h"
 #include "./centipede/feature.h"
+#include "./centipede/flag_utils.h"
 #include "./centipede/int_utils.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
-#include "./centipede/runner.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/shared_coverage_state.h"
 
 namespace fuzztest::internal {
 void RunnerSancov() {}  // to be referenced in runner.cc
@@ -35,7 +36,8 @@ void RunnerSancov() {}  // to be referenced in runner.cc
 
 using fuzztest::internal::PCGuard;
 using fuzztest::internal::PCInfo;
-using fuzztest::internal::state;
+using fuzztest::internal::run_time_flags;
+using fuzztest::internal::shared_coverage_state;
 using fuzztest::internal::tls;
 
 // Tracing data flow.
@@ -65,34 +67,38 @@ using fuzztest::internal::tls;
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceLoad(void *addr) {
-  if (!state.run_time_flags.use_dataflow_features) return;
+  if (!run_time_flags.use_dataflow_features) return;
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   auto load_addr = reinterpret_cast<uintptr_t>(addr);
-  auto pc_offset = caller_pc - state.main_object.start_address;
-  if (pc_offset >= state.main_object.size) return;  // PC outside main obj.
-  auto addr_offset = load_addr - state.main_object.start_address;
-  if (addr_offset >= state.main_object.size) return;  // Not a global address.
-  state.data_flow_feature_set.set(fuzztest::internal::ConvertPcPairToNumber(
-      pc_offset, addr_offset, state.main_object.size));
+  auto pc_offset = caller_pc - shared_coverage_state.main_object.start_address;
+  if (pc_offset >= shared_coverage_state.main_object.size)
+    return;  // PC outside main obj.
+  auto addr_offset =
+      load_addr - shared_coverage_state.main_object.start_address;
+  if (addr_offset >= shared_coverage_state.main_object.size)
+    return;  // Not a global address.
+  shared_coverage_state.data_flow_feature_set.set(
+      fuzztest::internal::ConvertPcPairToNumber(
+          pc_offset, addr_offset, shared_coverage_state.main_object.size));
 }
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceCmp(uint64_t Arg1, uint64_t Arg2) {
-  if (!state.run_time_flags.use_cmp_features) return;
+  if (!run_time_flags.use_cmp_features) return;
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-  auto pc_offset = caller_pc - state.main_object.start_address;
+  auto pc_offset = caller_pc - shared_coverage_state.main_object.start_address;
   uintptr_t hash =
       fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
   if (Arg1 == Arg2) {
-    state.cmp_eq_set.set(hash);
+    shared_coverage_state.cmp_eq_set.set(hash);
   } else {
     hash <<= 6;  // ABTo* generate 6-bit numbers.
-    state.cmp_moddiff_set.set(hash |
-                              fuzztest::internal::ABToCmpModDiff(Arg1, Arg2));
-    state.cmp_hamming_set.set(hash |
-                              fuzztest::internal::ABToCmpHamming(Arg1, Arg2));
-    state.cmp_difflog_set.set(hash |
-                              fuzztest::internal::ABToCmpDiffLog(Arg1, Arg2));
+    shared_coverage_state.cmp_moddiff_set.set(
+        hash | fuzztest::internal::ABToCmpModDiff(Arg1, Arg2));
+    shared_coverage_state.cmp_hamming_set.set(
+        hash | fuzztest::internal::ABToCmpHamming(Arg1, Arg2));
+    shared_coverage_state.cmp_difflog_set.set(
+        hash | fuzztest::internal::ABToCmpDiffLog(Arg1, Arg2));
   }
 }
 
@@ -114,19 +120,19 @@ void __sanitizer_cov_trace_const_cmp1(uint8_t Arg1, uint8_t Arg2) {
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp2(uint16_t Arg1, uint16_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp4(uint32_t Arg1, uint32_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
@@ -136,19 +142,19 @@ void __sanitizer_cov_trace_cmp1(uint8_t Arg1, uint8_t Arg2) {
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp2(uint16_t Arg1, uint16_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp4(uint32_t Arg1, uint32_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && state.run_time_flags.use_auto_dictionary)
+  if (Arg1 != Arg2 && run_time_flags.use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
 }
 // TODO(kcc): [impl] handle switch.
@@ -159,7 +165,7 @@ void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
 // -fsanitize-coverage=inline-8bit-counters is used.
 // See https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters
 void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
-  state.sancov_objects.Inline8BitCountersInit(beg, end);
+  shared_coverage_state.sancov_objects.Inline8BitCountersInit(beg, end);
 }
 
 // https://clang.llvm.org/docs/SanitizerCoverage.html#pc-table
@@ -169,13 +175,13 @@ void __sanitizer_cov_8bit_counters_init(uint8_t *beg, uint8_t *end) {
 // We currently do not support more than one sancov-instrumented DSO.
 void __sanitizer_cov_pcs_init(const PCInfo *absl_nonnull beg,
                               const PCInfo *end) {
-  state.sancov_objects.PCInfoInit(beg, end);
+  shared_coverage_state.sancov_objects.PCInfoInit(beg, end);
 }
 
 // https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow
 // This function is called at the DSO init time.
 void __sanitizer_cov_cfs_init(const uintptr_t *beg, const uintptr_t *end) {
-  state.sancov_objects.CFSInit(beg, end);
+  shared_coverage_state.sancov_objects.CFSInit(beg, end);
 }
 
 // Updates the state of the paths, `path_level > 0`.
@@ -183,7 +189,7 @@ void __sanitizer_cov_cfs_init(const uintptr_t *beg, const uintptr_t *end) {
 // of __sanitizer_cov_trace_pc_guard.
 __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
   uintptr_t hash = tls.path_ring_buffer.push(normalized_pc);
-  state.path_feature_set.set(hash);
+  shared_coverage_state.path_feature_set.set(hash);
 }
 
 // Handles one observed PC.
@@ -194,8 +200,8 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
 static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
-  if (!state.run_time_flags.use_pc_features) return;
-  state.pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
+  if (!run_time_flags.use_pc_features) return;
+  shared_coverage_state.pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
 
   if (pc_guard.is_function_entry) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
@@ -209,14 +215,14 @@ static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
       tls.lowest_sp = sp;
       fuzztest::internal::CheckStackLimit(sp);
     }
-    if (state.run_time_flags.callstack_level != 0) {
+    if (run_time_flags.callstack_level != 0) {
       tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
-      state.callstack_set.set(tls.call_stack.Hash());
+      shared_coverage_state.callstack_set.set(tls.call_stack.Hash());
     }
   }
 
   // path features.
-  if (state.run_time_flags.path_level != 0) HandlePath(pc_guard.pc_index);
+  if (run_time_flags.path_level != 0) HandlePath(pc_guard.pc_index);
 }
 
 // Caller PC is the PC of the call instruction.
@@ -235,9 +241,11 @@ static uintptr_t ReturnAddressToCallerPc(uintptr_t return_address) {
 
 // Sets `actual_pc_counter_set_size_aligned` to `size`, properly aligned up.
 static void UpdatePcCounterSetSizeAligned(size_t size) {
-  constexpr size_t kAlignment = state.pc_counter_set.kSizeMultiple;
+  constexpr size_t kAlignment =
+      shared_coverage_state.pc_counter_set.kSizeMultiple;
   constexpr size_t kMask = kAlignment - 1;
-  state.actual_pc_counter_set_size_aligned = (size + kMask) & ~kMask;
+  shared_coverage_state.actual_pc_counter_set_size_aligned =
+      (size + kMask) & ~kMask;
 }
 
 // MainObjectLazyInit() and helpers allow us to initialize state.main_object
@@ -260,11 +268,12 @@ static void UpdatePcCounterSetSizeAligned(size_t size) {
 // b) it will slowdown the hot function.
 static pthread_once_t main_object_lazy_init_once = PTHREAD_ONCE_INIT;
 static void MainObjectLazyInitOnceCallback() {
-  state.main_object =
-      fuzztest::internal::GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
+  shared_coverage_state.main_object = fuzztest::internal::GetDlInfo(
+      run_time_flags.GetStringFlag(":dl_path_suffix="));
   fprintf(stderr, "MainObjectLazyInitOnceCallback %zx\n",
-          state.main_object.start_address);
-  UpdatePcCounterSetSizeAligned(state.reverse_pc_table.NumPcs());
+          shared_coverage_state.main_object.start_address);
+  UpdatePcCounterSetSizeAligned(
+      shared_coverage_state.reverse_pc_table.NumPcs());
 }
 
 __attribute__((noinline)) static void MainObjectLazyInit() {
@@ -281,15 +290,15 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 // this variant.
 void __sanitizer_cov_trace_pc() {
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-  if (!state.main_object.start_address ||
-      !state.actual_pc_counter_set_size_aligned) {
+  if (!shared_coverage_state.main_object.start_address ||
+      !shared_coverage_state.actual_pc_counter_set_size_aligned) {
     // Don't track coverage at all before the PC table is initialized.
-    if (state.reverse_pc_table.NumPcs() == 0) return;
+    if (shared_coverage_state.reverse_pc_table.NumPcs() == 0) return;
     MainObjectLazyInit();
   }
-  pc -= state.main_object.start_address;
+  pc -= shared_coverage_state.main_object.start_address;
   pc = ReturnAddressToCallerPc(pc);
-  const auto pc_guard = state.reverse_pc_table.GetPCGuard(pc);
+  const auto pc_guard = shared_coverage_state.reverse_pc_table.GetPCGuard(pc);
   // TODO(kcc): compute is_function_entry for this case.
   if (pc_guard.IsValid()) HandleOnePc(pc_guard);
 }
@@ -297,8 +306,9 @@ void __sanitizer_cov_trace_pc() {
 // This function is called at the DSO init time.
 void __sanitizer_cov_trace_pc_guard_init(PCGuard *absl_nonnull start,
                                          PCGuard *stop) {
-  state.sancov_objects.PCGuardInit(start, stop);
-  UpdatePcCounterSetSizeAligned(state.sancov_objects.NumInstrumentedPCs());
+  shared_coverage_state.sancov_objects.PCGuardInit(start, stop);
+  UpdatePcCounterSetSizeAligned(
+      shared_coverage_state.sancov_objects.NumInstrumentedPCs());
 }
 
 // This function is called on every instrumented edge.
