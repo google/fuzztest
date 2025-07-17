@@ -178,6 +178,9 @@ CENTIPEDE_FLAG(
     "'%f' to disable the fork server. --fork_server applies to binaries "
     "passed via these flags: --binary, --extra_binaries, "
     "--input_filter.")
+CENTIPEDE_FLAG(bool, persistent_mode, true,
+               "If true (default), enables the persistent mode to run multiple "
+               "execute/mutate batches without exiting the process.")
 CENTIPEDE_FLAG(
     bool, full_sync, false,
     "Perform a full corpus sync on startup. If true, feature sets and "
