@@ -282,7 +282,7 @@ class DistillingInputFilter {
     // Filter out feature-equivalent inputs.
     seen_features_.PruneDiscardedDomains(elt.features);
     if (!seen_features_.HasUnseenFeatures(elt.features)) return std::nullopt;
-    seen_features_.IncrementFrequencies(elt.features);
+    seen_features_.MergeFeatures(elt.features);
     ++stats_.num_feature_unique_elts;
 
     return std::move(elt);

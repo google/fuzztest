@@ -44,7 +44,7 @@ TEST(Corpus, GetCmpData) {
   Corpus corpus;
   ByteArray cmp_data{2, 0, 1, 2, 3};
   FeatureVec features1 = {10, 20, 30};
-  fs.IncrementFrequencies(features1);
+  fs.MergeFeatures(features1);
   corpus.Add({1}, features1, /*metadata=*/{cmp_data}, fs, coverage_frontier);
   EXPECT_EQ(corpus.NumActive(), 1);
   EXPECT_EQ(corpus.GetMetadata(0).cmp_data, cmp_data);
@@ -60,9 +60,9 @@ TEST(Corpus, PrintStats) {
   Corpus corpus;
   FeatureVec features1 = {10, 20, 30};
   FeatureVec features2 = {20, 40};
-  fs.IncrementFrequencies(features1);
+  fs.MergeFeatures(features1);
   corpus.Add({1, 2, 3}, features1, {}, fs, coverage_frontier);
-  fs.IncrementFrequencies(features2);
+  fs.MergeFeatures(features2);
   corpus.Add({4, 5}, features2, {}, fs, coverage_frontier);
   const std::string stats_filepath = test_tmpdir / "corpus.txt";
   corpus.DumpStatsToFile(fs, stats_filepath, "Test corpus");
@@ -91,8 +91,8 @@ TEST(Corpus, Prune) {
   Rng rng(0);
   size_t max_corpus_size = 1000;
 
-  auto Add = [&](const CorpusRecord &record) {
-    fs.IncrementFrequencies(record.features);
+  auto Add = [&](const CorpusRecord& record) {
+    fs.MergeFeatures(record.features);
     corpus.Add(record.data, record.features, {}, fs, coverage_frontier);
   };
 
@@ -150,8 +150,8 @@ TEST(Corpus, PruneRegressionTest1) {
   Rng rng(0);
   size_t max_corpus_size = 1000;
 
-  auto Add = [&](const CorpusRecord &record) {
-    fs.IncrementFrequencies(record.features);
+  auto Add = [&](const CorpusRecord& record) {
+    fs.MergeFeatures(record.features);
     corpus.Add(record.data, record.features, {}, fs, coverage_frontier);
   };
 
@@ -324,7 +324,7 @@ TEST(CoverageFrontier, Compute) {
   Corpus corpus;
 
   auto Add = [&](feature_t feature) {
-    fs.IncrementFrequencies({feature});
+    fs.MergeFeatures({feature});
     corpus.Add({42}, {feature}, {}, fs, frontier);
   };
 
