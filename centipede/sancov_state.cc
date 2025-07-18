@@ -470,3 +470,18 @@ extern "C" __attribute__((weak)) const char *absl_nullable GetSancovFlags() {
     return strdup(sancov_flags_env);
   return nullptr;
 }
+
+extern "C" void PrepareCoverage(bool full_clear) {
+  fuzztest::internal::CleanUpSancovTls();
+
+  fuzztest::internal::PrepareSancov(full_clear);
+}
+
+extern "C" void PostProcessCoverage(bool reject_input) {
+  fuzztest::internal::PostProcessSancov(reject_input);
+}
+
+extern "C" RawFeatureParts GetSancovFeatures() {
+  return {fuzztest::internal::sancov_state.g_features.data(),
+          fuzztest::internal::sancov_state.g_features.size()};
+}
