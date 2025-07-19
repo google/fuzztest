@@ -128,6 +128,8 @@ fuzztest_cc_library(
   SRCS
     "fuzztest_gtest_main.cc"
   DEPS
+    absl::failure_signal_handler
+    absl::symbolize
     fuzztest::init_fuzztest
     GTest::gtest
 )
