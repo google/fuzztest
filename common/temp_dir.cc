@@ -5,6 +5,7 @@
 #include <system_error>  // NOLINT
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
@@ -34,8 +35,9 @@ TempDir::TempDir(absl::string_view custom_prefix) {
 TempDir::~TempDir() {
   std::error_code error;
   std::filesystem::remove_all(path_, error);
-  CHECK(!error) << "Unable to clean up temporary dir " << path_ << ": "
-                << error.message();
+  // TODO(b/432413085): Convert to CHECK once the bug is fixed.
+  LOG_IF(ERROR, error) << "Unable to clean up temporary dir " << path_ << ": "
+                       << error.message();
 }
 
 }  // namespace fuzztest::internal

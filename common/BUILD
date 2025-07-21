@@ -213,6 +213,7 @@ cc_library(
     srcs = ["temp_dir.cc"],
     hdrs = ["temp_dir.h"],
     deps = [
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
