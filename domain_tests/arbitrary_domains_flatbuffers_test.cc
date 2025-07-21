@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -24,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "flatbuffers/base.h"
 #include "flatbuffers/buffer.h"
 #include "flatbuffers/flatbuffer_builder.h"
@@ -168,6 +170,59 @@ std::vector<typename Domain::corpus_type> GenerateInitialCorpusValues(
     values.push_back(domain.Init(bitgen));
   }
   return values;
+}
+
+TEST(FlatbuffersEnumDomainImplTest, ExcludedValuesAreNotGenerated) {
+  const reflection::Schema* schema =
+      reflection::GetSchema(DefaultTable::BinarySchema::data());
+  const reflection::Enum* enum_def =
+      schema->enums()->LookupByKey("fuzztest.internal.ByteEnum");
+  auto domain =
+      internal::FlatbuffersEnumDomainImpl<uint8_t>(enum_def).WithExcludedValues(
+          {internal::ByteEnum_Second});
+  EXPECT_THAT(
+      GenerateInitialCorpusValues(
+          domain, IterationsToHitAll(
+                      internal::ByteEnum_MAX - internal::ByteEnum_MIN,
+                      1.0 / (internal::ByteEnum_MAX - internal::ByteEnum_MIN))),
+      Each(ResultOf(
+          [&domain](const auto& corpus) {
+            return domain.GetValue(corpus) != internal::ByteEnum_Second;
+          },
+          IsTrue())));
+}
+
+TEST(FlatbuffersEnumDomainImplTest, InvalidEnumValuesAreRejected) {
+  const reflection::Schema* schema =
+      reflection::GetSchema(DefaultTable::BinarySchema::data());
+  const reflection::Enum* enum_def =
+      schema->enums()->LookupByKey("fuzztest.internal.ByteEnum");
+  auto domain =
+      internal::FlatbuffersEnumDomainImpl<uint8_t>(enum_def).WithExcludedValues(
+          {internal::ByteEnum_First});
+  {
+    auto invalid_value =
+        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
+            internal::ByteEnum_MIN - 1);
+
+    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+  }
+  {
+    auto invalid_value =
+        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
+            internal::ByteEnum_MAX + 1);
+
+    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+  }
+  {
+    auto invalid_value =
+        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
+            internal::ByteEnum_First);
+    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
+                StatusIs(absl::StatusCode::kInvalidArgument));
+  }
 }
 
 TEST(FlatbuffersMetaTest, IsFlatbuffersTable) {
@@ -393,14 +448,14 @@ TEST(FlatbuffersTableDomainImplTest, Printer) {
                          HasSubstr("f: (9.f)"),                // f
                          HasSubstr("d: (10.)"),                // d
                          HasSubstr("str: (\"foo bar baz\")"),  // str
-                         HasSubstr("ei8: (1)"),                // ei8
-                         HasSubstr("ei16: (1)"),               // ei16
-                         HasSubstr("ei32: (1)"),               // ei32
-                         HasSubstr("ei64: (1)"),               // ei64
-                         HasSubstr("eu8: (1)"),                // eu8
-                         HasSubstr("eu16: (1)"),               // eu16
-                         HasSubstr("eu32: (1)"),               // eu32
-                         HasSubstr("eu64: (1)")                // eu64
+                         HasSubstr("ei8: (Second)"),           // ei8
+                         HasSubstr("ei16: (Second)"),          // ei16
+                         HasSubstr("ei32: (Second)"),          // ei32
+                         HasSubstr("ei64: (Second)"),          // ei64
+                         HasSubstr("eu8: (Second)"),           // eu8
+                         HasSubstr("eu16: (Second)"),          // eu16
+                         HasSubstr("eu32: (Second)"),          // eu32
+                         HasSubstr("eu64: (Second)")           // eu64
                          ));
 }
 
