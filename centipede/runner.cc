@@ -386,8 +386,7 @@ static void WriteFeaturesToFile(FILE *file, const feature_t *features,
 // If `full_clear==true` clear all coverage anyway - useful to remove the
 // coverage accumulated during startup.
 __attribute__((noinline))  // so that we see it in profile.
-static void
-PrepareCoverage(bool full_clear) {
+static void PrepareCoverage(bool full_clear) {
   state.CleanUpDetachedTls();
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](ThreadLocalRunnerState &tls) {
@@ -445,12 +444,14 @@ static void MaybeAddFeature(feature_t feature) {
 // Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
 // `idx` is a pc_index.
 // `counter_value` (non-zero) is a counter value associated with that PC.
-static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
+static void AddPcIndxedAndCounterToFeatures(
+    size_t idx, uint8_t counter_value,
+    const std::function<void(feature_t)> &feature_handler) {
   if (state.run_time_flags.use_pc_features) {
-    MaybeAddFeature(feature_domains::kPCs.ConvertToMe(idx));
+    feature_handler(feature_domains::kPCs.ConvertToMe(idx));
   }
   if (state.run_time_flags.use_counter_features) {
-    MaybeAddFeature(feature_domains::k8bitCounters.ConvertToMe(
+    feature_handler(feature_domains::k8bitCounters.ConvertToMe(
         Convert8bitCounterToNumber(idx, counter_value)));
   }
 }
@@ -463,66 +464,72 @@ static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
 // LibFuzzer supports this return value as of 2022-07:
 // https://llvm.org/docs/LibFuzzer.html#rejecting-unwanted-inputs
 __attribute__((noinline))  // so that we see it in profile.
-static void
-PostProcessCoverage(int target_return_value) {
+static void PostProcessCoverage(int target_return_value) {
   state.g_features.clear();
 
-  if (target_return_value == -1) return;
+  std::function<void(feature_t)> feature_handler = MaybeAddFeature;
+  if (target_return_value == -1) {
+    // When suppressing a test, still iterate through all of the features as a
+    // side effect of iteration is zeroing them out.  But don't write the
+    // features anywhere.
+    feature_handler = [](feature_t feature) {};
+  }
 
   // Convert counters to features.
   state.pc_counter_set.ForEachNonZeroByte(
-      [](size_t idx, uint8_t value) {
-        AddPcIndxedAndCounterToFeatures(idx, value);
+      [&feature_handler](size_t idx, uint8_t value) {
+        AddPcIndxedAndCounterToFeatures(idx, value, feature_handler);
       },
       0, state.actual_pc_counter_set_size_aligned);
 
   // Convert data flow bit set to features.
   if (state.run_time_flags.use_dataflow_features) {
-    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kDataFlow.ConvertToMe(idx));
-    });
+    state.data_flow_feature_set.ForEachNonZeroBit(
+        [&feature_handler](size_t idx) {
+          feature_handler(feature_domains::kDataFlow.ConvertToMe(idx));
+        });
   }
 
   // Convert cmp bit set to features.
   if (state.run_time_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
-    state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMP.ConvertToMe(idx));
+    state.cmp_feature_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCMP.ConvertToMe(idx));
     });
-    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPEq.ConvertToMe(idx));
+    state.cmp_eq_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCMPEq.ConvertToMe(idx));
     });
-    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPModDiff.ConvertToMe(idx));
+    state.cmp_moddiff_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCMPModDiff.ConvertToMe(idx));
     });
-    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPHamming.ConvertToMe(idx));
+    state.cmp_hamming_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCMPHamming.ConvertToMe(idx));
     });
-    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPDiffLog.ConvertToMe(idx));
+    state.cmp_difflog_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCMPDiffLog.ConvertToMe(idx));
     });
   }
 
   // Convert path bit set to features.
   if (state.run_time_flags.path_level != 0) {
-    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kBoundedPath.ConvertToMe(idx));
+    state.path_feature_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
 
   // Iterate all threads and get features from TLS data.
-  state.ForEachTls([](ThreadLocalRunnerState &tls) {
+  state.ForEachTls([&feature_handler](ThreadLocalRunnerState &tls) {
     if (state.run_time_flags.callstack_level != 0) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(sp_diff));
+      feature_handler(feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
   });
 
   if (state.run_time_flags.callstack_level != 0) {
-    state.callstack_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(idx));
+    state.callstack_set.ForEachNonZeroBit([&feature_handler](size_t idx) {
+      feature_handler(feature_domains::kCallStack.ConvertToMe(idx));
     });
   }
 
@@ -538,7 +545,7 @@ PostProcessCoverage(int target_return_value) {
       // available. If a user domain ID is out of range, alias it to an existing
       // domain. This is kinder than silently dropping the feature.
       user_domain_id %= std::size(feature_domains::kUserDomains);
-      MaybeAddFeature(feature_domains::kUserDomains[user_domain_id].ConvertToMe(
+      feature_handler(feature_domains::kUserDomains[user_domain_id].ConvertToMe(
           user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
@@ -549,8 +556,8 @@ PostProcessCoverage(int target_return_value) {
   if (state.run_time_flags.use_pc_features ||
       state.run_time_flags.use_counter_features) {
     state.sancov_objects.ForEachNonZeroInlineCounter(
-        [](size_t idx, uint8_t counter_value) {
-          AddPcIndxedAndCounterToFeatures(idx, counter_value);
+        [&feature_handler](size_t idx, uint8_t counter_value) {
+          AddPcIndxedAndCounterToFeatures(idx, counter_value, feature_handler);
         });
   }
 }
@@ -654,9 +661,8 @@ static std::vector<Type> ReadBytesFromFilePath(const char *input_path) {
 // Runs one input provided in file `input_path`.
 // Produces coverage data in file `input_path`-features.
 __attribute__((noinline))  // so that we see it in profile.
-static void
-ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
-                                     RunnerCallbacks &callbacks) {
+static void ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
+                                                 RunnerCallbacks &callbacks) {
   // Read the input.
   auto data = ReadBytesFromFilePath<uint8_t>(input_path);
 
