@@ -37,6 +37,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 #include <thread>  // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
@@ -46,6 +47,7 @@
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -177,7 +179,10 @@ static std::vector<std::string> *dirs_to_delete_at_exit
 static void RemoveDirsAtExit() {
   absl::MutexLock lock(&dirs_to_delete_at_exit_mutex);
   for (auto &dir : *dirs_to_delete_at_exit) {
-    std::filesystem::remove_all(dir);
+    std::error_code error;
+    std::filesystem::remove_all(dir, error);
+    LOG_IF(ERROR, error) << "Unable to clean up dir " << dir
+                         << " at exit: " << error.message();
   }
 }
 
@@ -185,7 +190,10 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
   // Safeguard against removing dirs not created by TemporaryLocalDirPath().
   CHECK_NE(path.find("/centipede-"), std::string::npos);
   // Create the dir.
-  std::filesystem::remove_all(path);
+  std::error_code error;
+  std::filesystem::remove_all(path, error);
+  LOG_IF(ERROR, error) << "Unable to clean up existing dir " << path << ": "
+                       << error.message();
   std::filesystem::create_directories(path);
   // Add to dirs_to_delete_at_exit.
   absl::MutexLock lock(&dirs_to_delete_at_exit_mutex);
@@ -199,7 +207,12 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
 ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
     : my_path_(std::filesystem::path(dir_path) / name) {}
 
-ScopedFile::~ScopedFile() { std::filesystem::remove_all(my_path_); }
+ScopedFile::~ScopedFile() {
+  std::error_code error;
+  std::filesystem::remove_all(my_path_, error);
+  LOG_IF(ERROR, error) << "Unable to clean scoped file " << my_path_ << ": "
+                       << error.message();
+}
 
 void AppendHashToArray(ByteArray &ba, std::string_view hash) {
   CHECK_EQ(hash.size(), kHashLen);
