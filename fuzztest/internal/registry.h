@@ -103,14 +103,14 @@ struct RegisterStub {
 
 #define INTERNAL_FUZZ_TEST(suite_name, func)                      \
   [[maybe_unused]] static ::fuzztest::internal::RegistrationToken \
-      fuzztest_reg_##suite_name##func =                           \
+      fuzztest_reg___##suite_name##___##func =                    \
           ::fuzztest::internal::RegistrationToken{} =             \
               ::fuzztest::GetRegistration<decltype(+func)>(       \
                   #suite_name, #func, __FILE__, __LINE__, +func)
 
 #define INTERNAL_FUZZ_TEST_F(suite_name, test_name, fixture, func) \
   [[maybe_unused]] static ::fuzztest::internal::RegistrationToken  \
-      fuzztest_reg_##suite_name##test_name =                       \
+      fuzztest_reg___##suite_name##___##test_name =                \
           ::fuzztest::internal::RegistrationToken{} =              \
               ::fuzztest::GetRegistrationWithFixture<              \
                   fixture, decltype(&fixture::func)>(              \
