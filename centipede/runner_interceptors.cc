@@ -22,7 +22,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "./centipede/runner.h"
+#include "./centipede/sancov_state.h"
 
 using fuzztest::internal::tls;
 
@@ -80,7 +80,7 @@ int NormalizeCmpResult(int result) {
 }  // namespace
 
 namespace fuzztest::internal {
-void RunnerInterceptor() {}  // to be referenced in runner.cc
+void RunnerInterceptor() {}  // to be referenced in sancov_state.cc
 }  // namespace fuzztest::internal
 
 // A sanitizer-compatible way to intercept functions that are potentially

@@ -48,7 +48,7 @@
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
-#include "./centipede/int_utils.h"
+#include "./centipede/flag_utils.h"
 #include "./centipede/mutation_input.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
@@ -56,6 +56,7 @@
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
+#include "./centipede/sancov_state.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -65,103 +66,8 @@ __attribute__((weak)) extern fuzztest::internal::feature_t
     __stop___centipede_extra_features;
 
 namespace fuzztest::internal {
-namespace {
-
-// Returns the length of the common prefix of `s1` and `s2`, but not more
-// than 63. I.e. the returned value is in [0, 64).
-size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
-  const auto *p1 = static_cast<const uint8_t *>(s1);
-  const auto *p2 = static_cast<const uint8_t *>(s2);
-  static constexpr size_t kMaxLen = 63;
-  if (n > kMaxLen) n = kMaxLen;
-  for (size_t i = 0; i < n; ++i) {
-    if (p1[i] != p2[i]) return i;
-  }
-  return n;
-}
-
-class ThreadTerminationDetector {
- public:
-  // A dummy method to trigger the construction and make sure that the
-  // destructor will be called on the thread termination.
-  __attribute__((optnone)) void EnsureAlive() {}
-
-  ~ThreadTerminationDetector() { tls.OnThreadStop(); }
-};
-
-thread_local ThreadTerminationDetector termination_detector;
-
-}  // namespace
 
 GlobalRunnerState state __attribute__((init_priority(200)));
-// We use __thread instead of thread_local so that the compiler warns if
-// the initializer for `tls` is not a constant expression.
-// `tls` thus must not have a CTOR.
-// This avoids calls to __tls_init() in hot functions that use `tls`.
-__thread ThreadLocalRunnerState tls;
-
-void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
-                                         const uint8_t *s2, size_t n,
-                                         bool is_equal) {
-  if (state.run_time_flags.use_cmp_features) {
-    const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
-    const uintptr_t hash =
-        fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
-    const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
-    // lcp is a 6-bit number.
-    state.cmp_feature_set.set((hash << 6) | lcp);
-  }
-  if (!is_equal && state.run_time_flags.use_auto_dictionary) {
-    cmp_traceN.Capture(n, s1, s2);
-  }
-}
-
-void ThreadLocalRunnerState::OnThreadStart() {
-  termination_detector.EnsureAlive();
-  tls.started = true;
-  tls.lowest_sp = tls.top_frame_sp =
-      reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-  tls.stack_region_low = GetCurrentThreadStackRegionLow();
-  if (tls.stack_region_low == 0) {
-    fprintf(stderr,
-            "Disabling stack limit check due to missing stack region info.\n");
-  }
-  tls.call_stack.Reset(state.run_time_flags.callstack_level);
-  tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
-  LockGuard lock(state.tls_list_mu);
-  // Add myself to state.tls_list.
-  auto *old_list = state.tls_list;
-  tls.next = old_list;
-  state.tls_list = &tls;
-  if (old_list != nullptr) old_list->prev = &tls;
-}
-
-void ThreadLocalRunnerState::OnThreadStop() {
-  LockGuard lock(state.tls_list_mu);
-  // Remove myself from state.tls_list. The list never
-  // becomes empty because the main thread does not call OnThreadStop().
-  if (&tls == state.tls_list) {
-    state.tls_list = tls.next;
-    tls.prev = nullptr;
-  } else {
-    auto *prev_tls = tls.prev;
-    auto *next_tls = tls.next;
-    prev_tls->next = next_tls;
-    if (next_tls != nullptr) next_tls->prev = prev_tls;
-  }
-  tls.next = tls.prev = nullptr;
-  if (tls.ignore) return;
-  // Create a detached copy on heap and add it to detached_tls_list to
-  // collect its coverage later.
-  //
-  // TODO(xinhaoyuan): Consider refactoring the list operations into class
-  // methods instead of duplicating them.
-  ThreadLocalRunnerState *detached_tls = new ThreadLocalRunnerState(tls);
-  auto *old_list = state.detached_tls_list;
-  detached_tls->next = old_list;
-  state.detached_tls_list = detached_tls;
-  if (old_list != nullptr) old_list->prev = detached_tls;
-}
 
 static size_t GetPeakRSSMb() {
   struct rusage usage = {};
@@ -203,7 +109,8 @@ static void CheckWatchdogLimits() {
           /*units=*/"sec",
           /*value=*/curr_time - input_start_time,
           /*limit=*/state.run_time_flags.timeout_per_input,
-          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*ignore_report=*/
+          state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
@@ -211,7 +118,8 @@ static void CheckWatchdogLimits() {
           /*units=*/"sec",
           /*value=*/curr_time - batch_start_time,
           /*limit=*/state.run_time_flags.timeout_per_batch,
-          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*ignore_report=*/
+          state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
       {Resource{
@@ -276,45 +184,14 @@ static void CheckWatchdogLimits() {
   }
 }
 
-__attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
-  static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
-  const size_t stack_limit = state.run_time_flags.stack_limit_kb.load() << 10;
-  // Check for the stack limit only if sp is inside the stack region.
-  if (stack_limit > 0 && tls.stack_region_low &&
-      tls.top_frame_sp - sp > stack_limit) {
-    const bool test_not_running = state.input_start_time == 0;
-    if (test_not_running) return;
-    if (stack_limit_exceeded.test_and_set()) return;
-    fprintf(stderr,
-            "========= Stack limit exceeded: %" PRIuPTR
-            " > %zu"
-            " (byte); aborting\n",
-            tls.top_frame_sp - sp, stack_limit);
-    CentipedeSetFailureDescription(
-        fuzztest::internal::kExecutionFailureStackLimitExceeded.data());
-    std::abort();
-  }
-}
-
-void GlobalRunnerState::CleanUpDetachedTls() {
-  LockGuard lock(tls_list_mu);
-  ThreadLocalRunnerState *it_next = nullptr;
-  for (auto *it = detached_tls_list; it; it = it_next) {
-    it_next = it->next;
-    delete it;
-  }
-  detached_tls_list = nullptr;
-}
-
 void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
           " MB; stack_limit_kb: %" PRIu64 " KB\n",
-          state.run_time_flags.timeout_per_input.load(),
-          state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.rss_limit_mb.load(),
-          state.run_time_flags.stack_limit_kb.load());
+          run_time_flags.timeout_per_input.load(),
+          run_time_flags.timeout_per_batch, run_time_flags.rss_limit_mb.load(),
+          sancov_state.flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
@@ -326,7 +203,7 @@ void GlobalRunnerState::StartWatchdogThread() {
 
 void GlobalRunnerState::ResetTimers() {
   const auto curr_time = time(nullptr);
-  input_start_time = curr_time;
+  state.input_start_time = curr_time;
   // batch_start_time is set only once -- just before the first input of the
   // batch is about to start running.
   if (batch_start_time == 0) {
@@ -388,14 +265,7 @@ static void WriteFeaturesToFile(FILE *file, const feature_t *features,
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
-  state.CleanUpDetachedTls();
-  if (state.run_time_flags.path_level != 0) {
-    state.ForEachTls([](ThreadLocalRunnerState &tls) {
-      tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
-      tls.call_stack.Reset(state.run_time_flags.callstack_level);
-      tls.lowest_sp = tls.top_frame_sp;
-    });
-  }
+  PrepareTls();
   {
     fuzztest::internal::LockGuard lock(state.execution_result_override_mu);
     if (state.execution_result_override != nullptr) {
@@ -403,55 +273,9 @@ PrepareCoverage(bool full_clear) {
     }
   }
   if (!full_clear) return;
-  state.ForEachTls([](ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.use_auto_dictionary) {
-      tls.cmp_trace2.Clear();
-      tls.cmp_trace4.Clear();
-      tls.cmp_trace8.Clear();
-      tls.cmp_traceN.Clear();
-    }
-  });
-  state.pc_counter_set.ForEachNonZeroByte(
-      [](size_t idx, uint8_t value) {}, 0,
-      state.actual_pc_counter_set_size_aligned);
-  if (state.run_time_flags.use_dataflow_features)
-    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.use_cmp_features) {
-    state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {});
-  }
-  if (state.run_time_flags.path_level != 0)
-    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.callstack_level != 0)
-    state.callstack_set.ForEachNonZeroBit([](size_t idx) {});
+  PrepareSancov();
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
     *p = 0;
-  }
-  state.sancov_objects.ClearInlineCounters();
-}
-
-static void MaybeAddFeature(feature_t feature) {
-  if (!state.run_time_flags.skip_seen_features) {
-    state.g_features.push_back(feature);
-  } else if (!state.seen_features.get(feature)) {
-    state.g_features.push_back(feature);
-    state.seen_features.set(feature);
-  }
-}
-
-// Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
-// `idx` is a pc_index.
-// `counter_value` (non-zero) is a counter value associated with that PC.
-static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
-  if (state.run_time_flags.use_pc_features) {
-    MaybeAddFeature(feature_domains::kPCs.ConvertToMe(idx));
-  }
-  if (state.run_time_flags.use_counter_features) {
-    MaybeAddFeature(feature_domains::k8bitCounters.ConvertToMe(
-        Convert8bitCounterToNumber(idx, counter_value)));
   }
 }
 
@@ -465,66 +289,7 @@ static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PostProcessCoverage(int target_return_value) {
-  state.g_features.clear();
-
-  if (target_return_value == -1) return;
-
-  // Convert counters to features.
-  state.pc_counter_set.ForEachNonZeroByte(
-      [](size_t idx, uint8_t value) {
-        AddPcIndxedAndCounterToFeatures(idx, value);
-      },
-      0, state.actual_pc_counter_set_size_aligned);
-
-  // Convert data flow bit set to features.
-  if (state.run_time_flags.use_dataflow_features) {
-    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kDataFlow.ConvertToMe(idx));
-    });
-  }
-
-  // Convert cmp bit set to features.
-  if (state.run_time_flags.use_cmp_features) {
-    // TODO(kcc): remove cmp_feature_set.
-    state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMP.ConvertToMe(idx));
-    });
-    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPEq.ConvertToMe(idx));
-    });
-    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPModDiff.ConvertToMe(idx));
-    });
-    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPHamming.ConvertToMe(idx));
-    });
-    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPDiffLog.ConvertToMe(idx));
-    });
-  }
-
-  // Convert path bit set to features.
-  if (state.run_time_flags.path_level != 0) {
-    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kBoundedPath.ConvertToMe(idx));
-    });
-  }
-
-  // Iterate all threads and get features from TLS data.
-  state.ForEachTls([](ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.callstack_level != 0) {
-      RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
-                  "bad values of tls.top_frame_sp and tls.lowest_sp");
-      size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
-      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(sp_diff));
-    }
-  });
-
-  if (state.run_time_flags.callstack_level != 0) {
-    state.callstack_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(idx));
-    });
-  }
+  PostProcessSancov(target_return_value);
 
   // Copy the features from __centipede_extra_features to g_features.
   // Zero features are ignored - we treat them as default (unset) values.
@@ -542,16 +307,6 @@ PostProcessCoverage(int target_return_value) {
           user_feature_id));
       *p = 0;  // cleanup for the next iteration.
     }
-  }
-
-  // Iterates all non-zero inline 8-bit counters, if they are present.
-  // Calls AddPcIndxedAndCounterToFeatures on non-zero counters and zeroes them.
-  if (state.run_time_flags.use_pc_features ||
-      state.run_time_flags.use_counter_features) {
-    state.sancov_objects.ForEachNonZeroInlineCounter(
-        [](size_t idx, uint8_t counter_value) {
-          AddPcIndxedAndCounterToFeatures(idx, counter_value);
-        });
   }
 }
 
@@ -624,9 +379,11 @@ static void RunOneInput(const uint8_t *data, size_t size,
   PrepareCoverage(/*full_clear=*/false);
   state.stats.prep_time_usec = UsecSinceLast();
   state.ResetTimers();
+  sancov_state.test_not_running = false;
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
+  sancov_state.test_not_running = true;
   if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
     PostProcessCoverage(target_return_value);
   }
@@ -668,8 +425,8 @@ ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
            input_path);
   FILE *features_file = fopen(features_file_path, "w");
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
-  WriteFeaturesToFile(features_file, state.g_features.data(),
-                      state.g_features.size());
+  WriteFeaturesToFile(features_file, sancov_state.g_features.data(),
+                      sancov_state.g_features.size());
   fclose(features_file);
 }
 
@@ -699,9 +456,9 @@ static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 // Returns the byte size of `g_features`.
 static size_t CopyFeatures(uint8_t *data, size_t capacity) {
   const size_t features_len_in_bytes =
-      state.g_features.size() * sizeof(feature_t);
+      sancov_state.g_features.size() * sizeof(feature_t);
   if (features_len_in_bytes > capacity) return 0;
-  memcpy(data, state.g_features.data(), features_len_in_bytes);
+  memcpy(data, sancov_state.g_features.data(), features_len_in_bytes);
   return features_len_in_bytes;
 }
 
@@ -729,21 +486,23 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   }
 
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(
-          state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
+  if (!BatchResult::WriteOneFeatureVec(sancov_state.g_features.data(),
+                                       sancov_state.g_features.size(),
+                                       outputs_blobseq)) {
     return false;
   }
 
   ExecutionMetadata metadata;
   // Copy the CMP traces to shared memory.
-  if (state.run_time_flags.use_auto_dictionary) {
+  if (sancov_state.flags.use_auto_dictionary) {
     bool append_failed = false;
-    state.ForEachTls([&metadata, &append_failed](ThreadLocalRunnerState &tls) {
-      if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
-      if (!AppendCmpEntries(tls.cmp_trace4, metadata)) append_failed = true;
-      if (!AppendCmpEntries(tls.cmp_trace8, metadata)) append_failed = true;
-      if (!AppendCmpEntries(tls.cmp_traceN, metadata)) append_failed = true;
-    });
+    sancov_state.ForEachTls(
+        [&metadata, &append_failed](ThreadLocalSancovState &tls) {
+          if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
+          if (!AppendCmpEntries(tls.cmp_trace4, metadata)) append_failed = true;
+          if (!AppendCmpEntries(tls.cmp_trace8, metadata)) append_failed = true;
+          if (!AppendCmpEntries(tls.cmp_traceN, metadata)) append_failed = true;
+        });
     if (append_failed) return false;
   }
   if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
@@ -794,10 +553,11 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 // Dumps the pc table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpPcTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
+  PrintErrorAndExitIf(!sancov_state.main_object.IsSet(),
+                      "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  std::vector<PCInfo> pcs = state.sancov_objects.CreatePCTable();
+  std::vector<PCInfo> pcs = sancov_state.sancov_objects.CreatePCTable();
   // Dump the pc table.
   const auto data_size_in_bytes = pcs.size() * sizeof(PCInfo);
   auto num_bytes_written =
@@ -810,10 +570,11 @@ static void DumpPcTable(const char *absl_nonnull output_path) {
 // Dumps the control-flow table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpCfTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
+  PrintErrorAndExitIf(!sancov_state.main_object.IsSet(),
+                      "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  std::vector<uintptr_t> data = state.sancov_objects.CreateCfTable();
+  std::vector<uintptr_t> data = sancov_state.sancov_objects.CreateCfTable();
   size_t data_size_in_bytes = data.size() * sizeof(data[0]);
   // Dump the table.
   auto num_bytes_written =
@@ -828,7 +589,7 @@ static void DumpCfTable(const char *absl_nonnull output_path) {
 static void DumpDsoTable(const char *absl_nonnull output_path) {
   FILE *output_file = fopen(output_path, "w");
   RunnerCheck(output_file != nullptr, "DumpDsoTable: can't open output file");
-  DsoTable dso_table = state.sancov_objects.CreateDsoTable();
+  DsoTable dso_table = sancov_state.sancov_objects.CreateDsoTable();
   for (const auto &entry : dso_table) {
     fprintf(output_file, "%s %zd\n", entry.path.c_str(),
             entry.num_instrumented_pcs);
@@ -1008,7 +769,7 @@ static void SetLimits() {
   // No-op under ASAN/TSAN/MSAN - those may still rely on rss_limit_mb.
   if (vm_size_in_bytes < one_tb) {
     size_t address_space_limit_mb =
-        state.HasIntFlag(":address_space_limit_mb=", 0);
+        flag_helper.HasIntFlag(":address_space_limit_mb=", 0);
     if (address_space_limit_mb > 0) {
       size_t limit_in_bytes = address_space_limit_mb << 20;
       struct rlimit rlimit_as = {limit_in_bytes, limit_in_bytes};
@@ -1023,10 +784,10 @@ static void SetLimits() {
 }
 
 static void MaybePopulateReversePcTable() {
-  const char *pcs_file_path = state.GetStringFlag(":pcs_file_path=");
+  const char *pcs_file_path = flag_helper.GetStringFlag(":pcs_file_path=");
   if (!pcs_file_path) return;
   const auto pc_table = ReadBytesFromFilePath<PCInfo>(pcs_file_path);
-  state.reverse_pc_table.SetFromPCs(pc_table);
+  sancov_state.reverse_pc_table.SetFromPCs(pc_table);
 }
 
 // Create a fake reference to ForkServerCallMeVeryEarly() here so that the
@@ -1041,16 +802,6 @@ static void MaybePopulateReversePcTable() {
 extern void ForkServerCallMeVeryEarly();
 [[maybe_unused]] auto fake_reference_for_fork_server =
     &ForkServerCallMeVeryEarly;
-// Same for runner_sancov.cc. Avoids the following situation:
-// * weak implementations of sancov callbacks are given in the command line
-//   before centipede.a.
-// * linker sees them and decides to drop runner_sancov.o.
-extern void RunnerSancov();
-[[maybe_unused]] auto fake_reference_for_runner_sancov = &RunnerSancov;
-// Same for runner_interceptor.cc.
-extern void RunnerInterceptor();
-[[maybe_unused]] auto fake_reference_for_runner_interceptor =
-    &RunnerInterceptor;
 
 GlobalRunnerState::GlobalRunnerState() {
   // Make sure fork server is started if needed.
@@ -1064,8 +815,9 @@ GlobalRunnerState::GlobalRunnerState() {
   SetLimits();
 
   // Compute main_object.
-  main_object = GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
-  if (!main_object.IsSet()) {
+  sancov_state.main_object =
+      GetDlInfo(flag_helper.GetStringFlag(":dl_path_suffix="));
+  if (!sancov_state.main_object.IsSet()) {
     fprintf(
         stderr,
         "Failed to compute main_object. This may happen"
@@ -1073,13 +825,14 @@ GlobalRunnerState::GlobalRunnerState() {
   }
 
   // Dump the binary info tables.
-  if (state.HasFlag(":dump_binary_info:")) {
-    RunnerCheck(state.arg1 && state.arg2 && state.arg3,
+  if (flag_helper.HasFlag(":dump_binary_info:")) {
+    RunnerCheck(flag_helper.arg1 && flag_helper.arg2 && flag_helper.arg3,
                 "dump_binary_info requires 3 arguments");
-    if (!state.arg1 || !state.arg2 || !state.arg3) _exit(EXIT_FAILURE);
-    DumpPcTable(state.arg1);
-    DumpCfTable(state.arg2);
-    DumpDsoTable(state.arg3);
+    if (!flag_helper.arg1 || !flag_helper.arg2 || !flag_helper.arg3)
+      _exit(EXIT_FAILURE);
+    DumpPcTable(flag_helper.arg1);
+    DumpCfTable(flag_helper.arg2);
+    DumpDsoTable(flag_helper.arg3);
     _exit(EXIT_SUCCESS);
   }
 
@@ -1096,14 +849,17 @@ GlobalRunnerState::GlobalRunnerState() {
   }
 }
 
+extern void RunnerSancov();
+[[maybe_unused]] auto fake_reference_for_runner = &RunnerSancov;
+
 GlobalRunnerState::~GlobalRunnerState() {
   // The process is winding down, but CentipedeRunnerMain did not run.
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
-  if (!state.centipede_runner_main_executed && state.HasFlag(":shmem:")) {
+  if (!state.centipede_runner_main_executed && flag_helper.HasFlag(":shmem:")) {
     int exit_status = EXIT_SUCCESS;  // TODO(kcc): do we know our exit status?
     PostProcessCoverage(exit_status);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+    SharedMemoryBlobSequence outputs_blobseq(flag_helper.arg2);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -1114,8 +870,6 @@ GlobalRunnerState::~GlobalRunnerState() {
       state.execution_result_override = nullptr;
     }
   }
-  // Always clean up detached TLSs to avoid leakage.
-  CleanUpDetachedTls();
 }
 
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
@@ -1129,25 +883,25 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
-          argv[0], state.centipede_runner_flags);
+          argv[0], flag_helper.centipede_runner_flags);
 
-  if (state.HasFlag(":dump_configuration:")) {
+  if (flag_helper.HasFlag(":dump_configuration:")) {
     DumpSerializedTargetConfigToFile(callbacks,
-                                     /*output_file_path=*/state.arg1);
+                                     /*output_file_path=*/flag_helper.arg1);
     return EXIT_SUCCESS;
   }
 
-  if (state.HasFlag(":dump_seed_inputs:")) {
+  if (flag_helper.HasFlag(":dump_seed_inputs:")) {
     // Seed request.
-    DumpSeedsToDir(callbacks, /*output_dir=*/state.arg1);
+    DumpSeedsToDir(callbacks, /*output_dir=*/flag_helper.arg1);
     return EXIT_SUCCESS;
   }
 
   // Inputs / outputs from shmem.
-  if (state.HasFlag(":shmem:")) {
-    if (!state.arg1 || !state.arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(state.arg1);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+  if (flag_helper.HasFlag(":shmem:")) {
+    if (!flag_helper.arg1 || !flag_helper.arg2) return EXIT_FAILURE;
+    SharedMemoryBlobSequence inputs_blobseq(flag_helper.arg1);
+    SharedMemoryBlobSequence outputs_blobseq(flag_helper.arg2);
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
     if (IsMutationRequest(request_type_blob)) {
@@ -1155,10 +909,10 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
       // We still pay for executing the coverage callbacks, but those will
       // return immediately.
       // TODO(kcc): do this more consistently, for all coverage types.
-      state.run_time_flags.use_cmp_features = false;
-      state.run_time_flags.use_pc_features = false;
-      state.run_time_flags.use_dataflow_features = false;
-      state.run_time_flags.use_counter_features = false;
+      sancov_state.flags.use_cmp_features = false;
+      sancov_state.flags.use_pc_features = false;
+      sancov_state.flags.use_dataflow_features = false;
+      sancov_state.flags.use_counter_features = false;
       // Mutation request.
       inputs_blobseq.Reset();
       state.byte_array_mutator =
@@ -1204,7 +958,7 @@ extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
 extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
           stack_limit_kb);
-  fuzztest::internal::state.run_time_flags.stack_limit_kb = stack_limit_kb;
+  fuzztest::internal::sancov_state.flags.stack_limit_kb = stack_limit_kb;
 }
 
 extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
@@ -1214,13 +968,6 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
           timeout_per_input);
   fuzztest::internal::state.run_time_flags.timeout_per_input =
       timeout_per_input;
-}
-
-extern "C" __attribute__((weak)) const char *absl_nullable
-CentipedeGetRunnerFlags() {
-  if (const char *runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
-    return strdup(runner_flags_env);
-  return nullptr;
 }
 
 static std::atomic<bool> in_execution_batch = false;
@@ -1288,26 +1035,4 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
       "Failed to set execution result from CentipedeSetExecutionResult");
 }
 
-extern "C" void CentipedeSetFailureDescription(const char *description) {
-  using fuzztest::internal::state;
-  if (state.failure_description_path == nullptr) return;
-  // Make sure that the write is atomic and only happens once.
-  [[maybe_unused]] static int write_once = [=] {
-    FILE *f = fopen(state.failure_description_path, "w");
-    if (f == nullptr) {
-      perror("FAILURE: fopen()");
-      return 0;
-    }
-    const auto len = strlen(description);
-    if (fwrite(description, 1, len, f) != len) {
-      perror("FAILURE: fwrite()");
-    }
-    if (fflush(f) != 0) {
-      perror("FAILURE: fflush()");
-    }
-    if (fclose(f) != 0) {
-      perror("FAILURE: fclose()");
-    }
-    return 0;
-  }();
-}
+void Initializer() {};

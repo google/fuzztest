@@ -1025,6 +1025,10 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
+    "flag_utils.cc",
+    "flag_utils.h",
+    "sancov_state.cc",
+    "sancov_state.h",
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
     "callstack.h",
@@ -1051,15 +1055,15 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner.h",
     "runner_dl_info.h",
     "runner_dl_info.cc",
-    "runner_sancov_object.h",
-    "runner_sancov_object.cc",
+    "sancov_object_array.h",
+    "sancov_object_array.cc",
     "runner_utils.h",
     "runner_utils.cc",
     "runner_cmp_trace.h",
     "runner_fork_server.cc",
     "runner_interceptors.cc",
     "runner_interface.h",
-    "runner_sancov.cc",
+    "sancov_callbacks.cc",
     "shared_memory_blob_sequence.cc",
     "shared_memory_blob_sequence.h",
     "@com_google_fuzztest//common:defs.h",
@@ -1200,6 +1204,44 @@ cc_library(
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
         "@protobuf",
+    ],
+)
+
+# CENTIPEDE_RUNNER_FLAGS should NOT be set when depending on this library.
+cc_library(
+    name = "sancov_processing",
+    srcs = [
+        "flag_utils.cc",
+        "flag_utils.h",
+        "runner_dl_info.cc",
+        "runner_dl_info.h",
+        "runner_interceptors.cc",
+        "runner_interface.h",
+        "runner_utils.cc",
+        "runner_utils.h",
+        "sancov_callbacks.cc",
+        "sancov_object_array.cc",
+        "sancov_object_array.h",
+        "sancov_state.cc",
+        "@com_google_fuzztest//common:defs.h",
+    ],
+    hdrs = [
+        "sancov_state.h",
+    ],
+    deps = [
+        ":callstack",
+        ":feature",
+        ":foreach_nonzero",
+        ":int_utils",
+        ":mutation_input",
+        ":pc_info",
+        ":reverse_pc_table",
+        ":runner_cmp_trace",
+        ":runner_result",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

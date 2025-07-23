@@ -22,7 +22,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -129,6 +128,10 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size);
 // Set the failure description for the runner to propagate further. Only the
 // description from the first call will be used.
 extern "C" void CentipedeSetFailureDescription(const char *description);
+
+// Only to make sure DSO initializes the global runner state, as the symbol
+// is never used in early sancov callbacks.
+void Initializer();
 
 namespace fuzztest::internal {
 
