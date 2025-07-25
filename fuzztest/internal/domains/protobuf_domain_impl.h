@@ -238,15 +238,14 @@ class ProtoPolicy {
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
                              /*value=*/OptionalPolicy::kWithNull}}) {
-    ABSL_CONST_INIT static std::atomic<int64_t> next_id{0};
-    id_ = next_id.fetch_add(1, std::memory_order_relaxed);
+    caches_ = std::make_shared<Caches>();
   }
 
-  void SetOptionalPolicy(OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(const OptionalPolicy& optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
   }
 
-  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(Filter filter, const OptionalPolicy& optional_policy) {
     if (optional_policy == OptionalPolicy::kAlwaysNull) {
       max_repeated_fields_sizes_.push_back(
           {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/0});
@@ -321,10 +320,41 @@ class ProtoPolicy {
     return max;
   }
 
-  int64_t id() const { return id_; }
+  std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+    return caches_->IsFieldFinitelyRecursive(field);
+  }
+
+  void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+    caches_->SetIsFieldFinitelyRecursive(field, value);
+  }
+
+  void ReuseCaches(const ProtoPolicy<Message>& policy) {
+    caches_ = policy.caches_;
+  }
 
  private:
-  int64_t id_;
+  class Caches {
+   public:
+    void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+      absl::MutexLock l(&mutex_);
+      is_field_finitely_recursive_.insert({field, value});
+    }
+
+    std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+      absl::MutexLock l(&mutex_);
+      if (auto it = is_field_finitely_recursive_.find(field);
+          it != is_field_finitely_recursive_.end())
+        return it->second;
+      return std::nullopt;
+    }
+
+   private:
+    absl::Mutex mutex_;
+    absl::flat_hash_map<const FieldDescriptor*, bool>
+        is_field_finitely_recursive_ ABSL_GUARDED_BY(mutex_);
+  };
+
+  std::shared_ptr<Caches> caches_ = nullptr;
 
   template <typename T>
   struct FilterToValue {
@@ -1369,14 +1399,21 @@ class ProtobufDomainUntypedImpl
   }
 
   static auto GetFieldCount(const Descriptor* descriptor) {
-    std::vector<const FieldDescriptor*> extensions;
-    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
-      descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
-    }
-    return descriptor->field_count() + extensions.size();
+    return GetProtobufFields(descriptor).size();
   }
 
-  static auto GetProtobufFields(const Descriptor* descriptor) {
+  static const std::vector<const FieldDescriptor*>& GetProtobufFields(
+      const Descriptor* descriptor) {
+    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
+    static absl::NoDestructor<
+        absl::flat_hash_map<const Descriptor*, std::vector<FieldDescriptor*>>>
+        cache ABSL_GUARDED_BY(mutex);
+    {
+      absl::MutexLock l(&mutex);
+      if (auto it = cache->find(descriptor); it != cache->end()) {
+        return it->second;
+      }
+    }
     std::vector<const FieldDescriptor*> fields;
     fields.reserve(descriptor->field_count());
     for (int i = 0; i < descriptor->field_count(); ++i) {
@@ -1385,7 +1422,9 @@ class ProtobufDomainUntypedImpl
     if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
     }
-    return fields;
+    absl::MutexLock l(&mutex);
+    auto [it, _] = cache->insert({descriptor, std::move(fields)});
+    return it->second;
   }
 
   static auto GetFieldName(const FieldDescriptor* field) {
@@ -1509,9 +1548,10 @@ class ProtobufDomainUntypedImpl
                        WithRepeatedFieldSizeVisitor{*this, min_size, max_size});
   }
 
-  void SetPolicy(ProtoPolicy<Message> policy) {
+  void SetPolicy(const ProtoPolicy<Message>& policy) {
     CheckIfPolicyCanBeUpdated();
     policy_ = policy;
+    policy_.ReuseCaches(policy);
   }
 
   ProtoPolicy<Message>& GetPolicy() {
@@ -1750,20 +1790,14 @@ class ProtobufDomainUntypedImpl
   bool IsFieldFinitelyRecursive(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
     if (!field->message_type()) return false;
-    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
-    static absl::NoDestructor<
-        absl::flat_hash_map<std::pair<int64_t, const FieldDescriptor*>, bool>>
-        cache ABSL_GUARDED_BY(mutex);
-    {
-      absl::MutexLock l(&mutex);
-      auto it = cache->find({policy_.id(), field});
-      if (it != cache->end()) return it->second;
+    if (auto cache = policy_.IsFieldFinitelyRecursive(field);
+        cache.has_value()) {
+      return *cache;
     }
     absl::flat_hash_set<const FieldDescriptor*> parents;
     bool result =
         IsProtoRecursive(field, parents, RecursionType::kFinitelyRecursive);
-    absl::MutexLock l(&mutex);
-    cache->insert({{policy_.id(), field}, result});
+    policy_.SetIsFieldFinitelyRecursive(field, result);
     return result;
   }
 
