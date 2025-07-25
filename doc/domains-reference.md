@@ -1332,3 +1332,59 @@ Note: Some domains don't support seeds. `ElementOf` and `Just` support seeds
 only for certain types (see [`ElementOf`](#element-of)). Complex domains
 constructed using combinators `ConstructorOf`, `Map`, and `FlatMap` don't
 support seeds.
+
+## Customizing Value Printers
+
+FuzzTest provides a mechanism to display the values that cause a test to fail.
+By default, it knows how to print standard C++ types, but you can extend this
+system to support your own custom types. This is especially useful for making
+test failure reports clear and actionable. There are two ways FuzzTest prints
+values, and you can customize the output for each:
+
+-   Human-readable mode: This mode is designed to be easily read and understood
+    by a developer. The goal is clarity, not necessarily compilable code.
+-   Source code mode: This mode generates a string that is a valid C++
+    expression. This is used in the auto-generated regression tests to recreate
+    the exact value that caused the failure. This mode is purely best-effort.
+
+### Customizing the human-readable printer:
+
+The simplest and most recommended way to implement custom printing for your
+types is to implement `AbslStringify`. This hooks into Abseil's string
+formatting library, which FuzzTest uses internally. For example:
+
+```c++
+struct MyObject {
+  int id;
+  std::string name;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const MyObject& obj) {
+    absl::Format(&sink, "MyObject[%d](name=\"%s\")", obj.id, obj.name);
+  }
+};
+```
+
+### Customizing the source code printer:
+
+To provide a custom source code printer, you can implement the
+`FuzzTestPrintSourceCode` function for your type:
+
+```c++
+void FuzzTestPrintSourceCode(const YourValueType& v, std::ostream* os) {
+  // Write a valid C++ expression that recreates `v` into the output stream.
+  *os << "my_namespace::CreateMyObject(" << v.GetId() << ").WithName(\"" << v.name << "\")";
+}
+```
+
+FuzzTest will call this function to generate the reproduction code for a test
+failure.
+
+NOTE: FuzzTest does not validate the output. You are responsible for ensuring
+the function prints a valid C++ expression that correctly recreates the original
+value.
+
+NOTE: FuzzTest uses C++ name resolution to find `FuzzTestPrintSourceCode` (and
+`AbslStringify` for that matter). This function should generally be declared
+either at the same place as the printed struct/class or in the same translation
+unit as the fuzz test.

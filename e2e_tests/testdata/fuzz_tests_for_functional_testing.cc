@@ -52,6 +52,7 @@ using ::fuzztest::Arbitrary;
 using ::fuzztest::FlatMap;
 using ::fuzztest::InRange;
 using ::fuzztest::Just;
+using ::fuzztest::Map;
 using ::fuzztest::OptionalOf;
 using ::fuzztest::PairOf;
 using ::fuzztest::StringOf;
@@ -691,6 +692,64 @@ FUZZ_TEST(MySuite, FlatMapCorrectlyPrintsValues)
                         StringOf(Just('B')).WithSize(size));
         },
         Just(3)));
+
+namespace {
+struct MyCustomPrintableTestType {
+ public:
+  static MyCustomPrintableTestType BuildWithValue(std::string inp) {
+    return MyCustomPrintableTestType(inp + "_foo", inp + "_bar");
+  }
+  absl::string_view foo() const { return foo_; }
+  absl::string_view bar() const { return bar_; }
+  bool correctly_built() const {
+    auto ends_with = [](absl::string_view s, absl::string_view suffix) {
+      return s.size() >= suffix.size() &&
+             s.substr(s.size() - suffix.size()) == suffix;
+    };
+    return ends_with(foo(), "_foo") && ends_with(bar(), "_bar") &&
+           foo().substr(0, foo().size() - 4) ==
+               bar().substr(0, bar().size() - 4);
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const MyCustomPrintableTestType& v) {
+    if (v.correctly_built()) {
+      absl::Format(&sink, "MyCustomPrintableTestType - input=%s",
+                   v.foo().substr(0, v.foo().size() - 4));
+      return;
+    }
+    absl::Format(&sink, "MyCustomPrintableTestType - foo=%s bar=%s", v.foo(),
+                 v.bar());
+  }
+
+ private:
+  MyCustomPrintableTestType(std::string foo, std::string bar)
+      : foo_(foo), bar_(bar) {}
+  std::string foo_;
+  std::string bar_;
+};
+void FuzzTestPrintSourceCode(const MyCustomPrintableTestType& v,  // NOLINT
+                             std::ostream* os) {
+  if (v.correctly_built()) {
+    *os << "MyCustomPrintableTestType::BuildWithValue(\""
+        << v.foo().substr(0, v.foo().size() - 4) << "\")";
+    return;
+  }
+  // NB Not actually valid constructor.
+  *os << "MyCustomPrintableTestType{.foo=\"" << v.foo() << "\", .bar=\""
+      << v.bar() << "\"}";
+}
+}  // namespace
+void CustomSourceCodePrinterCorrectlyPrintsValue(
+    const MyCustomPrintableTestType& v) {
+  std::abort();
+}
+FUZZ_TEST(MySuite, CustomSourceCodePrinterCorrectlyPrintsValue)
+    .WithDomains(Map(
+        [](const std::string& s) -> MyCustomPrintableTestType {
+          return MyCustomPrintableTestType::BuildWithValue(s);
+        },
+        Just(std::string("abcd"))));
 
 void UnpacksTupleOfOne(const std::string&) { std::abort(); }
 FUZZ_TEST(MySuite, UnpacksTupleOfOne)

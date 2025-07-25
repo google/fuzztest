@@ -20,10 +20,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/debugging/symbolize.h"
@@ -55,12 +58,13 @@ namespace fuzztest::internal {
 // value.
 // It implements a good printer for common known types and fallbacks to an
 // "unknown" printer to prevent compile time errors.
-template <typename T>
+template <typename T, bool kAllowCustomSourcePrinter = true>
 decltype(auto) AutodetectTypePrinter();
 
-// Returns true iff type `T` has a known printer that isn't UnknownPrinter.
+// Returns true iff type `T` has a known printer that isn't UnknownPrinter for
+// the given mode.
 template <typename T>
-constexpr bool HasKnownPrinter();
+constexpr bool HasKnownPrinter(domain_implementor::PrintMode mode);
 
 // If `prefix` is present in `name`, consume everything until the rightmost
 // occurrence of `prefix` and return true. Otherwise, return false.
@@ -435,7 +439,8 @@ struct MappedPrinter {
       }
       case domain_implementor::PrintMode::kSourceCode:
         if constexpr (!HasFunctionName<Mapper>() &&
-                      HasKnownPrinter<decltype(value)>()) {
+                      HasKnownPrinter<decltype(value)>(
+                          domain_implementor::PrintMode::kSourceCode)) {
           if (map_fn_name.empty()) {
             // Fall back on printing the user value if the mapping function is
             // unknown (e.g. a lambda) and the value has a useful printer.
@@ -587,9 +592,31 @@ struct UnknownPrinter {
   }
 };
 
+template <typename T, typename = void>
+struct HasCustomSourceCodePrinter : std::false_type {};
+
 template <typename T>
+struct HasCustomSourceCodePrinter<
+    T, std::enable_if_t<std::is_void<decltype(FuzzTestPrintSourceCode(
+           std::declval<const T&>(), std::declval<std::ostream*>()))>::value>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool has_custom_source_code_printer_v =
+    HasCustomSourceCodePrinter<T>::value;
+
+struct CustomPrinter {
+  template <typename T>
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode);
+};
+
+template <typename T, bool kAllowCustomSourcePrinter>
 decltype(auto) AutodetectTypePrinter() {
-  if constexpr (is_protocol_buffer_enum_v<T>) {
+  if constexpr (kAllowCustomSourcePrinter &&
+                has_custom_source_code_printer_v<T>) {
+    return CustomPrinter{};
+  } else if constexpr (is_protocol_buffer_enum_v<T>) {
     return ProtobufEnumPrinter<const google::protobuf::EnumDescriptor*>{
         google::protobuf::GetEnumDescriptor<T>()};
   } else if constexpr (std::numeric_limits<T>::is_integer ||
@@ -617,9 +644,31 @@ decltype(auto) AutodetectTypePrinter() {
 }
 
 template <typename T>
-constexpr bool HasKnownPrinter() {
-  return !std::is_convertible_v<decltype(AutodetectTypePrinter<T>()),
-                                UnknownPrinter>;
+void CustomPrinter::PrintUserValue(const T& v, domain_implementor::RawSink out,
+                                   domain_implementor::PrintMode mode) {
+  if (mode == domain_implementor::PrintMode::kSourceCode) {
+    std::ostringstream oss;
+    FuzzTestPrintSourceCode(v, &oss);
+    absl::Format(out, "%s", std::move(oss).str());
+  } else {
+    // Fallback for non-source-code.
+    auto printer =
+        AutodetectTypePrinter<T, /*kAllowCustomSourcePrinter=*/false>();
+    printer.PrintUserValue(v, out, mode);
+  }
+}
+
+template <typename T>
+constexpr bool HasKnownPrinter(domain_implementor::PrintMode mode) {
+  if (mode == domain_implementor::PrintMode::kSourceCode) {
+    return !std::is_convertible_v<
+        decltype(AutodetectTypePrinter<T,
+                                       /*kAllowCustomSourcePrinter=*/true>()),
+        UnknownPrinter>;
+  }
+  return !std::is_convertible_v<
+      decltype(AutodetectTypePrinter<T, /*kAllowCustomSourcePrinter=*/false>()),
+      UnknownPrinter>;
 }
 
 }  // namespace fuzztest::internal

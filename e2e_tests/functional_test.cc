@@ -417,6 +417,19 @@ TEST_F(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
   EXPECT_THAT(std_err, Not(HasSubstr("argument 0: 3")));
 }
 
+TEST_F(UnitTestModeTest, CustomSourceCodePrinterCorrectlyPrintsValue) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.CustomSourceCodePrinterCorrectlyPrintsValue");
+  ExpectTargetAbort(status, std_err);
+  // This is the argument to the output domain.
+  EXPECT_THAT(std_err,
+              HasSubstr("MyCustomPrintableTestType::BuildWithValue(\"abcd\")"));
+  // This is the argument to the input domain.
+  EXPECT_THAT(std_err, Not(HasSubstr("argument 0: \"abcd\"")));
+  EXPECT_THAT(std_err,
+              HasSubstr("argument 0: MyCustomPrintableTestType - input=abcd"));
+}
+
 TEST_F(UnitTestModeTest, PrintsVeryLongInputsTrimmed) {
   auto [status, std_out, std_err] = Run("MySuite.LongInput");
   ExpectTargetAbort(status, std_err);
@@ -1437,17 +1450,16 @@ class FuzzingModeCrashFindingTest
       run_options.timeout = timeout + absl::Seconds(10);
       return RunBinary(CentipedePath(), run_options);
     }
-      RunOptions run_options;
-      run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
-                                    {"fuzz_for", absl::StrCat(timeout)}};
-      run_options.env = std::move(env);
-      run_options.timeout = timeout + absl::Seconds(10);
-      if (GetParam() ==
-          ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
-        run_options.fuzztest_flags["internal_centipede_command"] =
-            ShellEscape(CentipedePath());
-      }
-      return RunBinary(BinaryPath(target_binary), run_options);
+    RunOptions run_options;
+    run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
+                                  {"fuzz_for", absl::StrCat(timeout)}};
+    run_options.env = std::move(env);
+    run_options.timeout = timeout + absl::Seconds(10);
+    if (GetParam() == ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
+      run_options.fuzztest_flags["internal_centipede_command"] =
+          ShellEscape(CentipedePath());
+    }
+    return RunBinary(BinaryPath(target_binary), run_options);
   }
 };
 
