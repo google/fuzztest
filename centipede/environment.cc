@@ -73,7 +73,7 @@ const Environment &Environment::Default() {
 
 bool Environment::DumpCorpusTelemetryInThisShard() const {
   // Corpus stats are global across all shards on all machines.
-  return my_shard_index == 0 && telemetry_frequency != 0;
+  return my_shard_index == 0;
 }
 
 bool Environment::DumpRUsageTelemetryInThisShard() const {
