@@ -42,6 +42,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/any.h"
@@ -1063,6 +1064,32 @@ inline auto Utf8String() {
       .WithSerializationDomain(0);
 }
 
+// UNSTABLE APIs.
+//
+// IMPORTANT: These functions are internal-facing utility functions and are NOT
+// part of the stable public API. They may be changed or removed in a future
+// release without notice.
+namespace unstable {
+
+// **UNSABLE API**: Parses raw reproducer data back into the original typed
+// input values.
+//
+// This function can be useful when you need to deserialize the raw byte
+// contents of a reproducer file to analyze a failing input with external tools.
+//
+// Note that the `domains` provided to this function must be identical to those
+// used in the `WithDomains(...)` clause of the original FUZZ_TEST. This
+// includes the type, order, and configuration of each domain. This function
+// cannot verify this condition; any mismatch will lead to garbage output.
+template <typename... DomainT,
+          typename ReturnT = std::tuple<typename DomainT::value_type...>>
+absl::StatusOr<ReturnT> ParseReproducerValue(std::string_view data,
+                                             DomainT... domains) {
+  return internal::ParseOneReproducerValue(
+      data, TupleOf(std::forward<DomainT>(domains)...));
+}
+
+}  // namespace unstable
 }  // namespace internal_no_adl
 
 // Inject the names from internal_no_adl into fuzztest, without allowing for

@@ -67,6 +67,7 @@ fuzztest_cc_library(
     absl::random_bit_gen_ref
     absl::random_distributions
     absl::status
+    absl::statusor
     absl::strings
     absl::str_format
     absl::time
