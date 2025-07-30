@@ -15,7 +15,6 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -238,15 +237,14 @@ class ProtoPolicy {
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
                              /*value=*/OptionalPolicy::kWithNull}}) {
-    ABSL_CONST_INIT static std::atomic<int64_t> next_id{0};
-    id_ = next_id.fetch_add(1, std::memory_order_relaxed);
+    caches_ = std::make_shared<Caches>();
   }
 
-  void SetOptionalPolicy(OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(const OptionalPolicy& optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
   }
 
-  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(Filter filter, const OptionalPolicy& optional_policy) {
     if (optional_policy == OptionalPolicy::kAlwaysNull) {
       max_repeated_fields_sizes_.push_back(
           {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/0});
@@ -321,10 +319,69 @@ class ProtoPolicy {
     return max;
   }
 
-  int64_t id() const { return id_; }
+  std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+    return caches_->IsFieldFinitelyRecursive(field);
+  }
+
+  void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+    caches_->SetIsFieldFinitelyRecursive(field, value);
+  }
+
+  std::optional<bool> IsFieldInfinitelyRecursive(const FieldDescriptor* field) {
+    return caches_->IsFieldInfinitelyRecursive(field);
+  }
+
+  void SetIsFieldInfinitelyRecursive(const FieldDescriptor* field, bool value) {
+    caches_->SetIsFieldInfinitelyRecursive(field, value);
+  }
+
+  void ReuseCaches(const ProtoPolicy<Message>& policy) {
+    caches_ = policy.caches_;
+  }
 
  private:
-  int64_t id_;
+  class Caches {
+   public:
+    void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+      absl::MutexLock l(&is_field_finitely_recursive_mutex_);
+      is_field_finitely_recursive_.insert({field, value});
+    }
+
+    std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+      absl::MutexLock l(&is_field_finitely_recursive_mutex_);
+      if (auto it = is_field_finitely_recursive_.find(field);
+          it != is_field_finitely_recursive_.end())
+        return it->second;
+      return std::nullopt;
+    }
+
+    void SetIsFieldInfinitelyRecursive(const FieldDescriptor* field,
+                                       bool value) {
+      absl::MutexLock l(&is_field_infinitely_recursive_mutex_);
+      is_field_infinitely_recursive_.insert({field, value});
+    }
+
+    std::optional<bool> IsFieldInfinitelyRecursive(
+        const FieldDescriptor* field) {
+      absl::MutexLock l(&is_field_infinitely_recursive_mutex_);
+      if (auto it = is_field_infinitely_recursive_.find(field);
+          it != is_field_infinitely_recursive_.end())
+        return it->second;
+      return std::nullopt;
+    }
+
+   private:
+    absl::Mutex is_field_finitely_recursive_mutex_;
+    absl::flat_hash_map<const FieldDescriptor*, bool>
+        is_field_finitely_recursive_
+            ABSL_GUARDED_BY(is_field_finitely_recursive_mutex_);
+    absl::Mutex is_field_infinitely_recursive_mutex_;
+    absl::flat_hash_map<const FieldDescriptor*, bool>
+        is_field_infinitely_recursive_
+            ABSL_GUARDED_BY(is_field_infinitely_recursive_mutex_);
+  };
+
+  std::shared_ptr<Caches> caches_ = nullptr;
 
   template <typename T>
   struct FilterToValue {
@@ -454,7 +511,8 @@ class ProtobufDomainUntypedImpl
         customized_fields_(),
         always_set_oneofs_(),
         uncustomizable_oneofs_(),
-        unset_oneof_fields_() {}
+        unset_oneof_fields_(),
+        fields_cache_(GetProtobufFields(prototype_.Get()->GetDescriptor())) {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
       : prototype_(other.prototype_),
@@ -466,6 +524,7 @@ class ProtobufDomainUntypedImpl
     always_set_oneofs_ = other.always_set_oneofs_;
     uncustomizable_oneofs_ = other.uncustomizable_oneofs_;
     unset_oneof_fields_ = other.unset_oneof_fields_;
+    fields_cache_ = other.fields_cache_;
   }
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -479,7 +538,7 @@ class ProtobufDomainUntypedImpl
     absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (auto* oneof = field->containing_oneof()) {
         if (!oneof_to_field.contains(oneof->index())) {
           oneof_to_field[oneof->index()] =
@@ -507,7 +566,7 @@ class ProtobufDomainUntypedImpl
   void Mutate(corpus_type& val, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
-    if (GetFieldCount(prototype_.Get()->GetDescriptor()) == 0) return;
+    if (GetFieldCount() == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
     uint64_t total_weight = CountNumberOfFields(val);
     uint64_t selected_weight = absl::Uniform(absl::IntervalClosedClosed, prng,
@@ -570,8 +629,7 @@ class ProtobufDomainUntypedImpl
       if (!inner_parsed) return std::nullopt;
       out[field->number()] = *std::move(inner_parsed);
     }
-    for (const FieldDescriptor* field :
-         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (present_fields.contains(field->number())) continue;
       std::optional<GenericDomainCorpusType> inner_parsed;
       IRObject unset_value;
@@ -606,13 +664,15 @@ class ProtobufDomainUntypedImpl
 
   uint64_t CountNumberOfFields(corpus_type& val) {
     if (auto it = val.find(kFieldCountIndex); it != val.end()) {
-      return it->second.template GetAs<uint64_t>();
+      if (auto count = it->second.template GetAs<uint64_t>();
+          count != kInvalidFieldCount) {
+        return count;
+      }
     }
     uint64_t total_weight = 0;
-    auto descriptor = prototype_.Get()->GetDescriptor();
-    if (GetFieldCount(descriptor) == 0) return total_weight;
+    if (GetFieldCount() == 0) return total_weight;
 
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -644,13 +704,13 @@ class ProtobufDomainUntypedImpl
       const domain_implementor::MutationMetadata& metadata, bool only_shrink,
       uint64_t selected_field_index) {
     uint64_t field_counter = 0;
-    auto descriptor = prototype_.Get()->GetDescriptor();
-    if (GetFieldCount(descriptor) == 0) return field_counter;
+    if (GetFieldCount() == 0) return field_counter;
     int64_t fields_count = CountNumberOfFields(val);
     if (fields_count < selected_field_index) return fields_count;
-    val.erase(kFieldCountIndex);  // Mutation invalidates the cache value.
+    val[kFieldCountIndex] = GenericDomainCorpusType(
+        std::in_place_type<uint64_t>, kInvalidFieldCount);
 
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -690,8 +750,7 @@ class ProtobufDomainUntypedImpl
       absl::Status status = ValidateOneof(corpus_value, oneof);
       if (!status.ok()) return status;
     }
-    for (const FieldDescriptor* field :
-         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof()) continue;
       auto field_number_value = corpus_value.find(field->number());
       const GenericDomainCorpusType* inner_corpus_value =
@@ -1368,15 +1427,24 @@ class ProtobufDomainUntypedImpl
     return descriptor->full_name() == "google.protobuf.bridge.MessageSet";
   }
 
-  static auto GetFieldCount(const Descriptor* descriptor) {
-    std::vector<const FieldDescriptor*> extensions;
-    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
-      descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
-    }
-    return descriptor->field_count() + extensions.size();
+  auto GetFieldCount() const { return fields_cache_.size(); }
+
+  const std::vector<const FieldDescriptor*>& GetProtobufFields() const {
+    return fields_cache_;
   }
 
-  static auto GetProtobufFields(const Descriptor* descriptor) {
+  static const std::vector<const FieldDescriptor*>& GetProtobufFields(
+      const Descriptor* descriptor) {
+    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
+    static absl::NoDestructor<absl::flat_hash_map<
+        const Descriptor*, std::vector<const FieldDescriptor*>>>
+        cache ABSL_GUARDED_BY(mutex);
+    {
+      absl::MutexLock l(&mutex);
+      if (auto it = cache->find(descriptor); it != cache->end()) {
+        return it->second;
+      }
+    }
     std::vector<const FieldDescriptor*> fields;
     fields.reserve(descriptor->field_count());
     for (int i = 0; i < descriptor->field_count(); ++i) {
@@ -1385,7 +1453,9 @@ class ProtobufDomainUntypedImpl
     if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
     }
-    return fields;
+    absl::MutexLock l(&mutex);
+    auto [it, _] = cache->insert({descriptor, std::move(fields)});
+    return it->second;
   }
 
   static auto GetFieldName(const FieldDescriptor* field) {
@@ -1509,9 +1579,10 @@ class ProtobufDomainUntypedImpl
                        WithRepeatedFieldSizeVisitor{*this, min_size, max_size});
   }
 
-  void SetPolicy(ProtoPolicy<Message> policy) {
+  void SetPolicy(const ProtoPolicy<Message>& policy) {
     CheckIfPolicyCanBeUpdated();
     policy_ = policy;
+    policy_.ReuseCaches(policy);
   }
 
   ProtoPolicy<Message>& GetPolicy() {
@@ -1729,7 +1800,7 @@ class ProtobufDomainUntypedImpl
 
   // Returns true if there are subprotos in the `descriptor` that form an
   // infinite recursion.
-  bool IsInfinitelyRecursive(const Descriptor* descriptor) const {
+  bool IsInfinitelyRecursive(const Descriptor* descriptor) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
     absl::flat_hash_set<const FieldDescriptor*> parents;
     return IsProtoRecursive(/*field=*/nullptr, parents,
@@ -1740,36 +1811,37 @@ class ProtobufDomainUntypedImpl
   // infinite recursion of the form: F0 -> F1 -> ... -> Fs -> ... -> Fn -> Fs,
   // because all Fi-s have to be set (e.g., Fi is a required field, or is
   // customized using `WithFieldsAlwaysSet`).
-  bool IsInfinitelyRecursive(const FieldDescriptor* field) const {
+  bool IsFieldInfinitelyRecursive(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
+    if (auto cache = policy_.IsFieldInfinitelyRecursive(field);
+        cache.has_value()) {
+      return *cache;
+    }
     absl::flat_hash_set<const FieldDescriptor*> parents;
-    return IsProtoRecursive(field, parents,
-                            RecursionType::kInfinitelyRecursive);
+    auto result =
+        IsProtoRecursive(field, parents, RecursionType::kInfinitelyRecursive);
+    policy_.SetIsFieldInfinitelyRecursive(field, result);
+    return result;
   }
 
   bool IsFieldFinitelyRecursive(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
     if (!field->message_type()) return false;
-    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
-    static absl::NoDestructor<
-        absl::flat_hash_map<std::pair<int64_t, const FieldDescriptor*>, bool>>
-        cache ABSL_GUARDED_BY(mutex);
-    {
-      absl::MutexLock l(&mutex);
-      auto it = cache->find({policy_.id(), field});
-      if (it != cache->end()) return it->second;
+    if (auto cache = policy_.IsFieldFinitelyRecursive(field);
+        cache.has_value()) {
+      return *cache;
     }
     absl::flat_hash_set<const FieldDescriptor*> parents;
     bool result =
         IsProtoRecursive(field, parents, RecursionType::kFinitelyRecursive);
-    absl::MutexLock l(&mutex);
-    cache->insert({{policy_.id(), field}, result});
+    policy_.SetIsFieldFinitelyRecursive(field, result);
     return result;
   }
 
   // corpus_type is a map from field number to values. number -1 is reserved for
   // storing the field count.
   static constexpr int64_t kFieldCountIndex = -1;
+  static constexpr uint64_t kInvalidFieldCount = -1;
 
   static bool IsMetadataEntry(int64_t index) {
     return index == kFieldCountIndex;
@@ -1777,7 +1849,7 @@ class ProtobufDomainUntypedImpl
 
   bool IsOneofRecursive(const OneofDescriptor* oneof,
                         absl::flat_hash_set<const FieldDescriptor*>& parents,
-                        RecursionType recursion_type) const {
+                        RecursionType recursion_type) {
     bool is_oneof_recursive = false;
     for (int i = 0; i < oneof->field_count(); ++i) {
       const auto* field = oneof->field(i);
@@ -1817,9 +1889,9 @@ class ProtobufDomainUntypedImpl
     return false;
   }
 
-  bool MustBeUnset(const FieldDescriptor* field) const {
+  bool MustBeUnset(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
-    if (field->message_type() && IsInfinitelyRecursive(field)) {
+    if (field->message_type() && IsFieldInfinitelyRecursive(field)) {
       absl::FPrintF(
           GetStderr(),
           "[!] Infinite recursion detected for %s and it remains unset.\n",
@@ -1845,7 +1917,7 @@ class ProtobufDomainUntypedImpl
   bool IsProtoRecursive(const FieldDescriptor* field,
                         absl::flat_hash_set<const FieldDescriptor*>& parents,
                         RecursionType recursion_type,
-                        const Descriptor* descriptor = nullptr) const {
+                        const Descriptor* descriptor = nullptr) {
     if (field != nullptr) {
       if (parents.contains(field)) return true;
       parents.insert(field);
@@ -1916,6 +1988,7 @@ class ProtobufDomainUntypedImpl
   absl::flat_hash_set<int> always_set_oneofs_;
   absl::flat_hash_set<int> uncustomizable_oneofs_;
   absl::flat_hash_set<int> unset_oneof_fields_;
+  std::vector<const FieldDescriptor*> fields_cache_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.
