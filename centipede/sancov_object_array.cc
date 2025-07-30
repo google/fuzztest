@@ -15,7 +15,7 @@
 // Instrumentation callbacks for SanitizerCoverage (sancov).
 // https://clang.llvm.org/docs/SanitizerCoverage.html
 
-#include "./centipede/runner_sancov_object.h"
+#include "./centipede/sancov_object_array.h"
 
 #include <algorithm>
 #include <cstddef>
