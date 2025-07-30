@@ -130,4 +130,22 @@ CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${stk2
 
 CENTIPEDE_RUNNER_FLAGS=":use_pc_features:stack_limit_kb=20:" "${target}" "${sigstk}"  # must pass
 
+echo "======== Check ignored tests don't count features"
+
+CENTIPEDE_TEST_SRCDIR="$(fuzztest::internal::get_centipede_test_srcdir)"
+fuzztest::internal::maybe_set_var_to_executable_path \
+  CENTIPEDE_BINARY "${CENTIPEDE_TEST_SRCDIR}/centipede"
+
+fuzztest::internal::maybe_set_var_to_executable_path \
+  REJECTING_BINARY "${CENTIPEDE_TEST_SRCDIR}/testing/random_rejecting_fuzz_target"
+
+WD="${TEST_TMPDIR}/WD"
+LOG="${TEST_TMPDIR}/log"
+
+"${CENTIPEDE_BINARY}" --binary="${REJECTING_BINARY}" --workdir="${WD}" \
+  --num_runs=10000  2>&1 |tee "${LOG}"
+
+fuzztest::internal::assert_regex_not_in_file "usr1: " "${LOG}"
+
+
 echo "PASS"
