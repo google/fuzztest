@@ -38,6 +38,7 @@ fuzztest_cc_library(
     absl::flat_hash_map
     absl::random_bit_gen_ref
     absl::status
+    absl::statusor
     absl::string_view
     absl::span
     fuzztest::any
