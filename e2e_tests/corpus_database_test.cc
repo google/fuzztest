@@ -209,6 +209,24 @@ TEST_P(UpdateCorpusDatabaseTest, ReportsCrashSummary) {
 .*?=== End of summary of detected crashes ===)re")));
 }
 
+TEST_P(UpdateCorpusDatabaseTest, RunsOnFilteredTests) {
+  TempDir corpus_database;
+
+  RunOptions run_options;
+  run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.path()},
+      {"fuzz_for", "10s"},
+  };
+  run_options.flags = {{GTEST_FLAG_PREFIX_ "filter", "*StackOverflow*"}};
+  auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+      GetCorpusDatabaseTestingBinaryPath(), run_options);
+
+  EXPECT_THAT(std_err,
+              HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow for 10s"));
+  EXPECT_THAT(std_err,
+              Not(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 10s")));
+}
+
 TEST_P(UpdateCorpusDatabaseTest, StartsNewFuzzTestRunsWithoutExecutionIds) {
   TempDir corpus_database;
 

@@ -487,13 +487,22 @@ int UpdateCorpusDatabaseForFuzzTests(
            "mode";
     fuzz_tests_to_run = fuzztest_config.fuzz_tests_in_current_shard;
   } else {
-    for (int i = 0; i < fuzztest_config.fuzz_tests.size(); ++i) {
+    // TODO: xinhaoyuan - remove this branch after merging the FuzzTest
+    // configuration into Centipede flags.
+    //
+    // We hide shard information when querying the available tests. So we use
+    // `fuzz_tests_in_current_shard` as the full list and shard it here. We
+    // cannot use `fuzz_tests` because it does not take test filter into
+    // account.
+    for (int i = 0; i < fuzztest_config.fuzz_tests_in_current_shard.size();
+         ++i) {
       if (i % total_test_shards == test_shard_index) {
-        fuzz_tests_to_run.push_back(fuzztest_config.fuzz_tests[i]);
+        fuzz_tests_to_run.push_back(
+            fuzztest_config.fuzz_tests_in_current_shard[i]);
       }
     }
   }
-  LOG(INFO) << "Fuzz tests to run:" << absl::StrJoin(fuzz_tests_to_run, ", ");
+  LOG(INFO) << "Fuzz tests to run: " << absl::StrJoin(fuzz_tests_to_run, ", ");
 
   const bool is_workdir_specified = !env.workdir.empty();
   CHECK(!is_workdir_specified || env.fuzztest_single_test_mode);
