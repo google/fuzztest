@@ -56,6 +56,7 @@
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
+#include "./centipede/shared_coverage_state.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -94,24 +95,20 @@ thread_local ThreadTerminationDetector termination_detector;
 }  // namespace
 
 GlobalRunnerState state __attribute__((init_priority(200)));
-// We use __thread instead of thread_local so that the compiler warns if
-// the initializer for `tls` is not a constant expression.
-// `tls` thus must not have a CTOR.
-// This avoids calls to __tls_init() in hot functions that use `tls`.
-__thread ThreadLocalRunnerState tls;
 
 void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
                                          const uint8_t *s2, size_t n,
                                          bool is_equal) {
-  if (state.run_time_flags.use_cmp_features) {
-    const uintptr_t pc_offset = caller_pc - state.main_object.start_address;
+  if (shared_coverage_state.run_time_flags.use_cmp_features) {
+    const uintptr_t pc_offset =
+        caller_pc - shared_coverage_state.main_object.start_address;
     const uintptr_t hash =
         fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
     const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
     // lcp is a 6-bit number.
     state.cmp_feature_set.set((hash << 6) | lcp);
   }
-  if (!is_equal && state.run_time_flags.use_auto_dictionary) {
+  if (!is_equal && shared_coverage_state.run_time_flags.use_auto_dictionary) {
     cmp_traceN.Capture(n, s1, s2);
   }
 }
@@ -126,8 +123,8 @@ void ThreadLocalRunnerState::OnThreadStart() {
     fprintf(stderr,
             "Disabling stack limit check due to missing stack region info.\n");
   }
-  tls.call_stack.Reset(state.run_time_flags.callstack_level);
-  tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
+  tls.call_stack.Reset(shared_coverage_state.run_time_flags.callstack_level);
+  tls.path_ring_buffer.Reset(shared_coverage_state.run_time_flags.path_level);
   LockGuard lock(state.tls_list_mu);
   // Add myself to state.tls_list.
   auto *old_list = state.tls_list;
@@ -194,7 +191,7 @@ static void CheckWatchdogLimits() {
     bool ignore_report;
     const char *failure;
   };
-  const uint64_t input_start_time = state.input_start_time;
+  const uint64_t input_start_time = shared_coverage_state.input_start_time;
   const uint64_t batch_start_time = state.batch_start_time;
   if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
@@ -202,23 +199,25 @@ static void CheckWatchdogLimits() {
           /*what=*/"Per-input timeout",
           /*units=*/"sec",
           /*value=*/curr_time - input_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_input,
-          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*limit=*/shared_coverage_state.run_time_flags.timeout_per_input,
+          /*ignore_report=*/
+          shared_coverage_state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
           /*what=*/"Per-batch timeout",
           /*units=*/"sec",
           /*value=*/curr_time - batch_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_batch,
-          /*ignore_report=*/state.run_time_flags.ignore_timeout_reports != 0,
+          /*limit=*/shared_coverage_state.run_time_flags.timeout_per_batch,
+          /*ignore_report=*/
+          shared_coverage_state.run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
       {Resource{
           /*what=*/"RSS limit",
           /*units=*/"MB",
           /*value=*/GetPeakRSSMb(),
-          /*limit=*/state.run_time_flags.rss_limit_mb,
+          /*limit=*/shared_coverage_state.run_time_flags.rss_limit_mb,
           /*ignore_report=*/false,
           /*failure=*/kExecutionFailureRssLimitExceeded.data(),
       }},
@@ -270,29 +269,9 @@ static void CheckWatchdogLimits() {
     sleep(1);
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
-    if (state.input_start_time == 0) continue;
+    if (shared_coverage_state.input_start_time == 0) continue;
 
     CheckWatchdogLimits();
-  }
-}
-
-__attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
-  static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
-  const size_t stack_limit = state.run_time_flags.stack_limit_kb.load() << 10;
-  // Check for the stack limit only if sp is inside the stack region.
-  if (stack_limit > 0 && tls.stack_region_low &&
-      tls.top_frame_sp - sp > stack_limit) {
-    const bool test_not_running = state.input_start_time == 0;
-    if (test_not_running) return;
-    if (stack_limit_exceeded.test_and_set()) return;
-    fprintf(stderr,
-            "========= Stack limit exceeded: %" PRIuPTR
-            " > %zu"
-            " (byte); aborting\n",
-            tls.top_frame_sp - sp, stack_limit);
-    CentipedeSetFailureDescription(
-        fuzztest::internal::kExecutionFailureStackLimitExceeded.data());
-    std::abort();
   }
 }
 
@@ -311,10 +290,10 @@ void GlobalRunnerState::StartWatchdogThread() {
           "Starting watchdog thread: timeout_per_input: %" PRIu64
           " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
           " MB; stack_limit_kb: %" PRIu64 " KB\n",
-          state.run_time_flags.timeout_per_input.load(),
-          state.run_time_flags.timeout_per_batch,
-          state.run_time_flags.rss_limit_mb.load(),
-          state.run_time_flags.stack_limit_kb.load());
+          shared_coverage_state.run_time_flags.timeout_per_input.load(),
+          shared_coverage_state.run_time_flags.timeout_per_batch,
+          shared_coverage_state.run_time_flags.rss_limit_mb.load(),
+          shared_coverage_state.run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
@@ -326,7 +305,7 @@ void GlobalRunnerState::StartWatchdogThread() {
 
 void GlobalRunnerState::ResetTimers() {
   const auto curr_time = time(nullptr);
-  input_start_time = curr_time;
+  shared_coverage_state.input_start_time = curr_time;
   // batch_start_time is set only once -- just before the first input of the
   // batch is about to start running.
   if (batch_start_time == 0) {
@@ -389,10 +368,12 @@ __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
   state.CleanUpDetachedTls();
-  if (state.run_time_flags.path_level != 0) {
+  if (shared_coverage_state.run_time_flags.path_level != 0) {
     state.ForEachTls([](ThreadLocalRunnerState &tls) {
-      tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
-      tls.call_stack.Reset(state.run_time_flags.callstack_level);
+      tls.path_ring_buffer.Reset(
+          shared_coverage_state.run_time_flags.path_level);
+      tls.call_stack.Reset(
+          shared_coverage_state.run_time_flags.callstack_level);
       tls.lowest_sp = tls.top_frame_sp;
     });
   }
@@ -403,53 +384,42 @@ PrepareCoverage(bool full_clear) {
     }
   }
   if (!full_clear) return;
+  PrepareSharedCoverage(full_clear);
   state.ForEachTls([](ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.use_auto_dictionary) {
+    if (shared_coverage_state.run_time_flags.use_auto_dictionary) {
       tls.cmp_trace2.Clear();
       tls.cmp_trace4.Clear();
       tls.cmp_trace8.Clear();
       tls.cmp_traceN.Clear();
     }
   });
-  state.pc_counter_set.ForEachNonZeroByte(
+  shared_coverage_state.pc_counter_set.ForEachNonZeroByte(
       [](size_t idx, uint8_t value) {}, 0,
-      state.actual_pc_counter_set_size_aligned);
-  if (state.run_time_flags.use_dataflow_features)
-    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.use_cmp_features) {
+      shared_coverage_state.actual_pc_counter_set_size_aligned);
+  if (shared_coverage_state.run_time_flags.use_dataflow_features)
+    shared_coverage_state.data_flow_feature_set.ForEachNonZeroBit(
+        [](size_t idx) {});
+  if (shared_coverage_state.run_time_flags.use_cmp_features) {
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {});
-    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {});
   }
-  if (state.run_time_flags.path_level != 0)
-    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {});
-  if (state.run_time_flags.callstack_level != 0)
-    state.callstack_set.ForEachNonZeroBit([](size_t idx) {});
+  if (shared_coverage_state.run_time_flags.path_level != 0)
+    shared_coverage_state.path_feature_set.ForEachNonZeroBit([](size_t idx) {});
+  if (shared_coverage_state.run_time_flags.callstack_level != 0)
+    shared_coverage_state.callstack_set.ForEachNonZeroBit([](size_t idx) {});
   for (auto *p = state.user_defined_begin; p != state.user_defined_end; ++p) {
     *p = 0;
   }
-  state.sancov_objects.ClearInlineCounters();
-}
-
-static void MaybeAddFeature(feature_t feature) {
-  if (!state.run_time_flags.skip_seen_features) {
-    state.g_features.push_back(feature);
-  } else if (!state.seen_features.get(feature)) {
-    state.g_features.push_back(feature);
-    state.seen_features.set(feature);
-  }
+  shared_coverage_state.sancov_objects.ClearInlineCounters();
 }
 
 // Adds a kPCs and/or k8bitCounters feature to `g_features` based on arguments.
 // `idx` is a pc_index.
 // `counter_value` (non-zero) is a counter value associated with that PC.
 static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
-  if (state.run_time_flags.use_pc_features) {
+  if (shared_coverage_state.run_time_flags.use_pc_features) {
     MaybeAddFeature(feature_domains::kPCs.ConvertToMe(idx));
   }
-  if (state.run_time_flags.use_counter_features) {
+  if (shared_coverage_state.run_time_flags.use_counter_features) {
     MaybeAddFeature(feature_domains::k8bitCounters.ConvertToMe(
         Convert8bitCounterToNumber(idx, counter_value)));
   }
@@ -465,54 +435,45 @@ static void AddPcIndxedAndCounterToFeatures(size_t idx, uint8_t counter_value) {
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PostProcessCoverage(int target_return_value) {
-  state.g_features.clear();
+  shared_coverage_state.g_features.clear();
 
   if (target_return_value == -1) return;
 
+  PostProcessSharedCoverage();
+
   // Convert counters to features.
-  state.pc_counter_set.ForEachNonZeroByte(
+  shared_coverage_state.pc_counter_set.ForEachNonZeroByte(
       [](size_t idx, uint8_t value) {
         AddPcIndxedAndCounterToFeatures(idx, value);
       },
-      0, state.actual_pc_counter_set_size_aligned);
+      0, shared_coverage_state.actual_pc_counter_set_size_aligned);
 
   // Convert data flow bit set to features.
-  if (state.run_time_flags.use_dataflow_features) {
-    state.data_flow_feature_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kDataFlow.ConvertToMe(idx));
-    });
+  if (shared_coverage_state.run_time_flags.use_dataflow_features) {
+    shared_coverage_state.data_flow_feature_set.ForEachNonZeroBit(
+        [](size_t idx) {
+          MaybeAddFeature(feature_domains::kDataFlow.ConvertToMe(idx));
+        });
   }
 
   // Convert cmp bit set to features.
-  if (state.run_time_flags.use_cmp_features) {
+  if (shared_coverage_state.run_time_flags.use_cmp_features) {
     // TODO(kcc): remove cmp_feature_set.
     state.cmp_feature_set.ForEachNonZeroBit([](size_t idx) {
       MaybeAddFeature(feature_domains::kCMP.ConvertToMe(idx));
     });
-    state.cmp_eq_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPEq.ConvertToMe(idx));
-    });
-    state.cmp_moddiff_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPModDiff.ConvertToMe(idx));
-    });
-    state.cmp_hamming_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPHamming.ConvertToMe(idx));
-    });
-    state.cmp_difflog_set.ForEachNonZeroBit([](size_t idx) {
-      MaybeAddFeature(feature_domains::kCMPDiffLog.ConvertToMe(idx));
-    });
   }
 
   // Convert path bit set to features.
-  if (state.run_time_flags.path_level != 0) {
-    state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
+  if (shared_coverage_state.run_time_flags.path_level != 0) {
+    shared_coverage_state.path_feature_set.ForEachNonZeroBit([](size_t idx) {
       MaybeAddFeature(feature_domains::kBoundedPath.ConvertToMe(idx));
     });
   }
 
   // Iterate all threads and get features from TLS data.
   state.ForEachTls([](ThreadLocalRunnerState &tls) {
-    if (state.run_time_flags.callstack_level != 0) {
+    if (shared_coverage_state.run_time_flags.callstack_level != 0) {
       RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
                   "bad values of tls.top_frame_sp and tls.lowest_sp");
       size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
@@ -520,8 +481,8 @@ PostProcessCoverage(int target_return_value) {
     }
   });
 
-  if (state.run_time_flags.callstack_level != 0) {
-    state.callstack_set.ForEachNonZeroBit([](size_t idx) {
+  if (shared_coverage_state.run_time_flags.callstack_level != 0) {
+    shared_coverage_state.callstack_set.ForEachNonZeroBit([](size_t idx) {
       MaybeAddFeature(feature_domains::kCallStack.ConvertToMe(idx));
     });
   }
@@ -546,9 +507,9 @@ PostProcessCoverage(int target_return_value) {
 
   // Iterates all non-zero inline 8-bit counters, if they are present.
   // Calls AddPcIndxedAndCounterToFeatures on non-zero counters and zeroes them.
-  if (state.run_time_flags.use_pc_features ||
-      state.run_time_flags.use_counter_features) {
-    state.sancov_objects.ForEachNonZeroInlineCounter(
+  if (shared_coverage_state.run_time_flags.use_pc_features ||
+      shared_coverage_state.run_time_flags.use_counter_features) {
+    shared_coverage_state.sancov_objects.ForEachNonZeroInlineCounter(
         [](size_t idx, uint8_t counter_value) {
           AddPcIndxedAndCounterToFeatures(idx, counter_value);
         });
@@ -627,7 +588,8 @@ static void RunOneInput(const uint8_t *data, size_t size,
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
   state.stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::shared_coverage_state.input_start_time.exchange(0) !=
+      0) {
     PostProcessCoverage(target_return_value);
   }
   state.stats.post_time_usec = UsecSinceLast();
@@ -668,8 +630,8 @@ ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
            input_path);
   FILE *features_file = fopen(features_file_path, "w");
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
-  WriteFeaturesToFile(features_file, state.g_features.data(),
-                      state.g_features.size());
+  WriteFeaturesToFile(features_file, shared_coverage_state.g_features.data(),
+                      shared_coverage_state.g_features.size());
   fclose(features_file);
 }
 
@@ -699,9 +661,9 @@ static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 // Returns the byte size of `g_features`.
 static size_t CopyFeatures(uint8_t *data, size_t capacity) {
   const size_t features_len_in_bytes =
-      state.g_features.size() * sizeof(feature_t);
+      shared_coverage_state.g_features.size() * sizeof(feature_t);
   if (features_len_in_bytes > capacity) return 0;
-  memcpy(data, state.g_features.data(), features_len_in_bytes);
+  memcpy(data, shared_coverage_state.g_features.data(), features_len_in_bytes);
   return features_len_in_bytes;
 }
 
@@ -729,14 +691,15 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   }
 
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(
-          state.g_features.data(), state.g_features.size(), outputs_blobseq)) {
+  if (!BatchResult::WriteOneFeatureVec(shared_coverage_state.g_features.data(),
+                                       shared_coverage_state.g_features.size(),
+                                       outputs_blobseq)) {
     return false;
   }
 
   ExecutionMetadata metadata;
   // Copy the CMP traces to shared memory.
-  if (state.run_time_flags.use_auto_dictionary) {
+  if (shared_coverage_state.run_time_flags.use_auto_dictionary) {
     bool append_failed = false;
     state.ForEachTls([&metadata, &append_failed](ThreadLocalRunnerState &tls) {
       if (!AppendCmpEntries(tls.cmp_trace2, metadata)) append_failed = true;
@@ -794,10 +757,12 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 // Dumps the pc table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpPcTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
+  PrintErrorAndExitIf(!shared_coverage_state.main_object.IsSet(),
+                      "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  std::vector<PCInfo> pcs = state.sancov_objects.CreatePCTable();
+  std::vector<PCInfo> pcs =
+      shared_coverage_state.sancov_objects.CreatePCTable();
   // Dump the pc table.
   const auto data_size_in_bytes = pcs.size() * sizeof(PCInfo);
   auto num_bytes_written =
@@ -810,10 +775,12 @@ static void DumpPcTable(const char *absl_nonnull output_path) {
 // Dumps the control-flow table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpCfTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!state.main_object.IsSet(), "main_object is not set");
+  PrintErrorAndExitIf(!shared_coverage_state.main_object.IsSet(),
+                      "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
   PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
-  std::vector<uintptr_t> data = state.sancov_objects.CreateCfTable();
+  std::vector<uintptr_t> data =
+      shared_coverage_state.sancov_objects.CreateCfTable();
   size_t data_size_in_bytes = data.size() * sizeof(data[0]);
   // Dump the table.
   auto num_bytes_written =
@@ -828,7 +795,7 @@ static void DumpCfTable(const char *absl_nonnull output_path) {
 static void DumpDsoTable(const char *absl_nonnull output_path) {
   FILE *output_file = fopen(output_path, "w");
   RunnerCheck(output_file != nullptr, "DumpDsoTable: can't open output file");
-  DsoTable dso_table = state.sancov_objects.CreateDsoTable();
+  DsoTable dso_table = shared_coverage_state.sancov_objects.CreateDsoTable();
   for (const auto &entry : dso_table) {
     fprintf(output_file, "%s %zd\n", entry.path.c_str(),
             entry.num_instrumented_pcs);
@@ -949,7 +916,7 @@ bool LegacyRunnerCallbacks::Mutate(
   if (custom_mutator_cb_ == nullptr) return false;
   unsigned int seed = GetRandomSeed();
   const size_t num_inputs = inputs.size();
-  const size_t max_mutant_size = state.run_time_flags.max_len;
+  const size_t max_mutant_size = shared_coverage_state.run_time_flags.max_len;
   constexpr size_t kAverageMutationAttempts = 2;
   ByteArray mutant(max_mutant_size);
   for (size_t attempt = 0, num_outputs = 0;
@@ -962,7 +929,8 @@ bool LegacyRunnerCallbacks::Mutate(
     std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb_ != nullptr) &&
-        rand_r(&seed) % 100 < state.run_time_flags.crossover_level) {
+        rand_r(&seed) % 100 <
+            shared_coverage_state.run_time_flags.crossover_level) {
       // Perform crossover `crossover_level`% of the time.
       const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
       new_size = custom_crossover_cb_(
@@ -1008,7 +976,7 @@ static void SetLimits() {
   // No-op under ASAN/TSAN/MSAN - those may still rely on rss_limit_mb.
   if (vm_size_in_bytes < one_tb) {
     size_t address_space_limit_mb =
-        state.HasIntFlag(":address_space_limit_mb=", 0);
+        shared_coverage_state.HasIntFlag(":address_space_limit_mb=", 0);
     if (address_space_limit_mb > 0) {
       size_t limit_in_bytes = address_space_limit_mb << 20;
       struct rlimit rlimit_as = {limit_in_bytes, limit_in_bytes};
@@ -1023,10 +991,11 @@ static void SetLimits() {
 }
 
 static void MaybePopulateReversePcTable() {
-  const char *pcs_file_path = state.GetStringFlag(":pcs_file_path=");
+  const char *pcs_file_path =
+      shared_coverage_state.GetStringFlag(":pcs_file_path=");
   if (!pcs_file_path) return;
   const auto pc_table = ReadBytesFromFilePath<PCInfo>(pcs_file_path);
-  state.reverse_pc_table.SetFromPCs(pc_table);
+  shared_coverage_state.reverse_pc_table.SetFromPCs(pc_table);
 }
 
 // Create a fake reference to ForkServerCallMeVeryEarly() here so that the
@@ -1064,8 +1033,9 @@ GlobalRunnerState::GlobalRunnerState() {
   SetLimits();
 
   // Compute main_object.
-  main_object = GetDlInfo(state.GetStringFlag(":dl_path_suffix="));
-  if (!main_object.IsSet()) {
+  shared_coverage_state.main_object =
+      GetDlInfo(shared_coverage_state.GetStringFlag(":dl_path_suffix="));
+  if (!shared_coverage_state.main_object.IsSet()) {
     fprintf(
         stderr,
         "Failed to compute main_object. This may happen"
@@ -1073,13 +1043,16 @@ GlobalRunnerState::GlobalRunnerState() {
   }
 
   // Dump the binary info tables.
-  if (state.HasFlag(":dump_binary_info:")) {
-    RunnerCheck(state.arg1 && state.arg2 && state.arg3,
+  if (shared_coverage_state.HasFlag(":dump_binary_info:")) {
+    RunnerCheck(shared_coverage_state.arg1 && shared_coverage_state.arg2 &&
+                    shared_coverage_state.arg3,
                 "dump_binary_info requires 3 arguments");
-    if (!state.arg1 || !state.arg2 || !state.arg3) _exit(EXIT_FAILURE);
-    DumpPcTable(state.arg1);
-    DumpCfTable(state.arg2);
-    DumpDsoTable(state.arg3);
+    if (!shared_coverage_state.arg1 || !shared_coverage_state.arg2 ||
+        !shared_coverage_state.arg3)
+      _exit(EXIT_FAILURE);
+    DumpPcTable(shared_coverage_state.arg1);
+    DumpCfTable(shared_coverage_state.arg2);
+    DumpDsoTable(shared_coverage_state.arg3);
     _exit(EXIT_SUCCESS);
   }
 
@@ -1100,10 +1073,11 @@ GlobalRunnerState::~GlobalRunnerState() {
   // The process is winding down, but CentipedeRunnerMain did not run.
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
-  if (!state.centipede_runner_main_executed && state.HasFlag(":shmem:")) {
+  if (!state.centipede_runner_main_executed &&
+      shared_coverage_state.HasFlag(":shmem:")) {
     int exit_status = EXIT_SUCCESS;  // TODO(kcc): do we know our exit status?
     PostProcessCoverage(exit_status);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+    SharedMemoryBlobSequence outputs_blobseq(shared_coverage_state.arg2);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -1129,25 +1103,27 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
   state.centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
-          argv[0], state.centipede_runner_flags);
+          argv[0], shared_coverage_state.centipede_runner_flags);
 
-  if (state.HasFlag(":dump_configuration:")) {
-    DumpSerializedTargetConfigToFile(callbacks,
-                                     /*output_file_path=*/state.arg1);
+  if (shared_coverage_state.HasFlag(":dump_configuration:")) {
+    DumpSerializedTargetConfigToFile(
+        callbacks,
+        /*output_file_path=*/shared_coverage_state.arg1);
     return EXIT_SUCCESS;
   }
 
-  if (state.HasFlag(":dump_seed_inputs:")) {
+  if (shared_coverage_state.HasFlag(":dump_seed_inputs:")) {
     // Seed request.
-    DumpSeedsToDir(callbacks, /*output_dir=*/state.arg1);
+    DumpSeedsToDir(callbacks, /*output_dir=*/shared_coverage_state.arg1);
     return EXIT_SUCCESS;
   }
 
   // Inputs / outputs from shmem.
-  if (state.HasFlag(":shmem:")) {
-    if (!state.arg1 || !state.arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(state.arg1);
-    SharedMemoryBlobSequence outputs_blobseq(state.arg2);
+  if (shared_coverage_state.HasFlag(":shmem:")) {
+    if (!shared_coverage_state.arg1 || !shared_coverage_state.arg2)
+      return EXIT_FAILURE;
+    SharedMemoryBlobSequence inputs_blobseq(shared_coverage_state.arg1);
+    SharedMemoryBlobSequence outputs_blobseq(shared_coverage_state.arg2);
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq.Read();
     if (IsMutationRequest(request_type_blob)) {
@@ -1155,10 +1131,10 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
       // We still pay for executing the coverage callbacks, but those will
       // return immediately.
       // TODO(kcc): do this more consistently, for all coverage types.
-      state.run_time_flags.use_cmp_features = false;
-      state.run_time_flags.use_pc_features = false;
-      state.run_time_flags.use_dataflow_features = false;
-      state.run_time_flags.use_counter_features = false;
+      shared_coverage_state.run_time_flags.use_cmp_features = false;
+      shared_coverage_state.run_time_flags.use_pc_features = false;
+      shared_coverage_state.run_time_flags.use_dataflow_features = false;
+      shared_coverage_state.run_time_flags.use_counter_features = false;
       // Mutation request.
       inputs_blobseq.Reset();
       state.byte_array_mutator =
@@ -1198,13 +1174,15 @@ extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
   fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu\n",
           rss_limit_mb);
-  fuzztest::internal::state.run_time_flags.rss_limit_mb = rss_limit_mb;
+  fuzztest::internal::shared_coverage_state.run_time_flags.rss_limit_mb =
+      rss_limit_mb;
 }
 
 extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
           stack_limit_kb);
-  fuzztest::internal::state.run_time_flags.stack_limit_kb = stack_limit_kb;
+  fuzztest::internal::shared_coverage_state.run_time_flags.stack_limit_kb =
+      stack_limit_kb;
 }
 
 extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
@@ -1212,15 +1190,8 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
           "CentipedeSetTimeoutPerInput: changing timeout_per_input to %" PRIu64
           "\n",
           timeout_per_input);
-  fuzztest::internal::state.run_time_flags.timeout_per_input =
+  fuzztest::internal::shared_coverage_state.run_time_flags.timeout_per_input =
       timeout_per_input;
-}
-
-extern "C" __attribute__((weak)) const char *absl_nullable
-CentipedeGetRunnerFlags() {
-  if (const char *runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
-    return strdup(runner_flags_env);
-  return nullptr;
 }
 
 static std::atomic<bool> in_execution_batch = false;
@@ -1244,7 +1215,7 @@ extern "C" void CentipedeEndExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = false;
-  fuzztest::internal::state.input_start_time = 0;
+  fuzztest::internal::shared_coverage_state.input_start_time = 0;
   fuzztest::internal::state.batch_start_time = 0;
 }
 
@@ -1255,7 +1226,8 @@ extern "C" void CentipedePrepareProcessing() {
 
 extern "C" void CentipedeFinalizeProcessing() {
   fuzztest::internal::CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::shared_coverage_state.input_start_time.exchange(0) !=
+      0) {
     fuzztest::internal::PostProcessCoverage(/*target_return_value=*/0);
   }
 }
@@ -1289,11 +1261,11 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
 }
 
 extern "C" void CentipedeSetFailureDescription(const char *description) {
-  using fuzztest::internal::state;
-  if (state.failure_description_path == nullptr) return;
+  using fuzztest::internal::shared_coverage_state;
+  if (shared_coverage_state.failure_description_path == nullptr) return;
   // Make sure that the write is atomic and only happens once.
   [[maybe_unused]] static int write_once = [=] {
-    FILE *f = fopen(state.failure_description_path, "w");
+    FILE *f = fopen(shared_coverage_state.failure_description_path, "w");
     if (f == nullptr) {
       perror("FAILURE: fopen()");
       return 0;
