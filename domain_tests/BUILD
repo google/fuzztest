@@ -58,13 +58,17 @@ cc_test(
 cc_test(
     name = "arbitrary_domains_protobuf_test",
     srcs = ["arbitrary_domains_protobuf_test.cc"],
+    tags = ["cpu:4"],
     deps = [
         ":domain_testing",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
         "@googletest//:gtest_main",
