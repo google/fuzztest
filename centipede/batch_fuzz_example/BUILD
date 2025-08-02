@@ -1,3 +1,6 @@
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_test.bzl", "cc_test")
 load("@com_google_fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
 
 licenses(["notice"])
