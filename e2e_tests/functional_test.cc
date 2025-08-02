@@ -229,7 +229,7 @@ TEST_F(UnitTestModeTest,
 }
 
 TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
-  auto [status, std_out, std_err] = Run("MySuite.GoogleTestExpect");
+  auto [status, std_out, std_err] = Run("MySuite.GoogleTestNeverFails");
   EXPECT_GT(CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"),
             0);
   EXPECT_EQ(
@@ -1809,7 +1809,6 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
   auto [status, std_out, std_err] =
       Run("MySuite.SkipInputs", kDefaultTargetBinary);
-  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }

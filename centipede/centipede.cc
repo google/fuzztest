@@ -859,6 +859,9 @@ void Centipede::FuzzingLoop() {
       corpus_size_at_last_prune = corpus_.NumActive();
     }
   }
+  if (env_.persistent_mode) {
+    user_callbacks_.CleanUpPersistentMode();
+  }
 
   // The tests rely on this stat being logged last.
   UpdateAndMaybeLogStats("end-fuzz", 0);
