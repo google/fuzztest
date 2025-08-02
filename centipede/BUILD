@@ -1025,6 +1025,8 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
+    "shared_coverage_state.cc",
+    "shared_coverage_state.h",
     "byte_array_mutator.cc",
     "byte_array_mutator.h",
     "callstack.h",
@@ -1200,6 +1202,40 @@ cc_library(
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
         "@protobuf",
+    ],
+)
+
+cc_library(
+    name = "shared_coverage",
+    srcs = [
+        "runner_dl_info.cc",
+        "runner_sancov.cc",
+        "runner_sancov_object.cc",
+        "runner_utils.cc",
+        "shared_coverage_state.cc",
+        "@com_google_fuzztest//common:defs.h",
+    ],
+    hdrs = [
+        "runner_dl_info.h",
+        "runner_interface.h",
+        "runner_sancov_object.h",
+        "runner_utils.h",
+        "shared_coverage_state.h",
+    ],
+    deps = [
+        ":callstack",
+        ":feature",
+        ":foreach_nonzero",
+        ":int_utils",
+        ":mutation_input",
+        ":pc_info",
+        ":reverse_pc_table",
+        ":runner_cmp_trace",
+        ":runner_result",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
