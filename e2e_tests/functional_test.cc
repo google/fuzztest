@@ -229,7 +229,7 @@ TEST_F(UnitTestModeTest,
 }
 
 TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
-  auto [status, std_out, std_err] = Run("MySuite.GoogleTestExpect");
+  auto [status, std_out, std_err] = Run("MySuite.GoogleTestNeverFails");
   EXPECT_GT(CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"),
             0);
   EXPECT_EQ(

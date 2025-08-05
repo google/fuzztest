@@ -419,14 +419,14 @@ std::vector<std::string> ListCrashIdsUsingCentipede(
   if (centipede_ret != EXIT_SUCCESS) {
     absl::FPrintF(GetStderr(),
                   "[!] Cannot list crash IDs using Centipede - returning "
-                  "empty results.");
+                  "empty results.\n");
     return {};
   }
   const auto contents = ReadFile(env.list_crash_ids_file);
   if (!contents.has_value()) {
     absl::FPrintF(GetStderr(),
                   "[!] Cannot read the result file from listing crash IDs "
-                  "with Centipede - returning empty results.");
+                  "with Centipede - returning empty results.\n");
     return {};
   }
   if (contents->empty()) {
@@ -466,6 +466,11 @@ class CentipedeAdaptorRunnerCallbacks
         fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
     if (parsed_input.ok()) {
       fuzzer_impl_.RunOneInput({*std::move(parsed_input)});
+      if (runtime_.external_failure_detected()) {
+        absl::FPrintF(GetStderr(),
+                      "[!] External failure detected - aborting.\n");
+        std::abort();
+      }
       return true;
     }
     return false;
@@ -705,7 +710,7 @@ bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
     absl::FPrintF(
         GetStderr(),
         "[!] Encountered error when using Centipede to export the crash "
-        "input.");
+        "input.\n");
     return false;
   }
   CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
