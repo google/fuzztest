@@ -103,6 +103,10 @@ centipede_fuzz_target(
     name = "test_fuzz_target",
 )
 
+centipede_fuzz_target(
+    name = "random_rejecting_fuzz_target",
+)
+
 # Dummy fuzz target that uses the C++ RunnerCallbacks API to return seed inputs.
 cc_binary(
     name = "_seeded_fuzz_target",
@@ -339,6 +343,7 @@ sh_test(
     data = [
         ":test_fuzz_target",
         ":test_fuzz_target_non_pie",
+        "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
 )
@@ -406,6 +411,16 @@ sh_test(
     srcs = ["minimize_crash_test.sh"],
     data = [
         ":minimize_me_fuzz_target",
+        "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
+    name = "runner_cleanup_test",
+    srcs = ["runner_cleanup_test.sh"],
+    data = [
+        ":random_rejecting_fuzz_target",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
