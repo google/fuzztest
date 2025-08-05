@@ -339,10 +339,10 @@ struct GlobalRunnerState {
 
   // Per-input timer. Initially, zero. ResetInputTimer() sets it to the current
   // time.
-  std::atomic<time_t> input_start_time;
+  std::atomic<uint64_t> input_start_time_us;
   // Per-batch timer. Initially, zero. ResetInputTimer() sets it to the current
   // time before the first input and never resets it.
-  std::atomic<time_t> batch_start_time;
+  std::atomic<uint64_t> batch_start_time_us;
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
