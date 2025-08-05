@@ -616,7 +616,8 @@ void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
     absl::FPrintF(GetStderr(),
                   "[.] Per-input time limit set to: %" PRId64 "s\n",
                   time_limit_seconds);
-    CentipedeSetTimeoutPerInput(time_limit_seconds);
+    CentipedeSetTimeoutPerInput(/*timeout_per_input_ms=*/time_limit_seconds *
+                                1000);
   }
 }
 

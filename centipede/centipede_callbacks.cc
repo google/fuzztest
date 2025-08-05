@@ -114,8 +114,8 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
     std::string_view extra_flags, bool disable_coverage) {
   std::vector<std::string> flags = {
       "CENTIPEDE_RUNNER_FLAGS=",
-      absl::StrCat("timeout_per_input=", env_.timeout_per_input),
-      absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
+      absl::StrCat("timeout_per_input_ms=", env_.timeout_per_input * 1000),
+      absl::StrCat("timeout_per_batch_ms=", env_.timeout_per_batch * 1000),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
