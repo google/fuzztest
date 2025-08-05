@@ -34,7 +34,7 @@ class CorpusDatabase {
   //
   // The parameter `use_crashing_inputs` controls whether the database gives
   // access to or ignores the crashing inputs.
-  explicit CorpusDatabase(absl::string_view database_path,
+  explicit CorpusDatabase( absl::string_view database_path,
                           absl::string_view binary_identifier,
                           bool use_crashing_inputs);
 
