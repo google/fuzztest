@@ -41,8 +41,10 @@
 namespace fuzztest {
 namespace {
 
+using ::fuzztest::internal::BoolTable;
 using ::fuzztest::internal::DefaultTable;
 using ::fuzztest::internal::OptionalTable;
+using ::fuzztest::internal::RecursiveTable;
 using ::fuzztest::internal::RequiredTable;
 using ::fuzztest::internal::UnsupportedTypesTable;
 using ::testing::_;
@@ -50,7 +52,9 @@ using ::testing::AllOf;
 using ::testing::Each;
 using ::testing::HasSubstr;
 using ::testing::IsFalse;
+using ::testing::IsNull;
 using ::testing::IsTrue;
+using ::testing::NotNull;
 using ::testing::Pair;
 using ::testing::ResultOf;
 
@@ -71,6 +75,11 @@ inline bool Eq<flatbuffers::String>(const flatbuffers::String& lhs,
                                     const flatbuffers::String& rhs) {
   if (lhs.size() != rhs.size()) return false;
   return memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+}
+
+template <>
+inline bool Eq<BoolTable>(const BoolTable& lhs, const BoolTable& rhs) {
+  return lhs.b() == rhs.b();
 }
 
 template <>
@@ -95,13 +104,15 @@ inline bool Eq<DefaultTable>(const DefaultTable& lhs, const DefaultTable& rhs) {
   const bool eq_eu16 = lhs.eu16() == rhs.eu16();
   const bool eq_eu32 = lhs.eu32() == rhs.eu32();
   const bool eq_eu64 = lhs.eu64() == rhs.eu64();
+  const bool eq_t = Eq(lhs.t(), rhs.t());
   return eq_b && eq_i8 && eq_i16 && eq_i32 && eq_i64 && eq_u8 && eq_u16 &&
          eq_u32 && eq_u64 && eq_f && eq_d && eq_str && eq_ei8 && eq_ei16 &&
-         eq_ei32 && eq_ei64 && eq_eu8 && eq_eu16 && eq_eu32 && eq_eu64;
+         eq_ei32 && eq_ei64 && eq_eu8 && eq_eu16 && eq_eu32 && eq_eu64 && eq_t;
 }
 
 const internal::DefaultTable* CreateDefaultTable(
     flatbuffers::FlatBufferBuilder& fbb) {
+  auto bool_table_offset = internal::CreateBoolTable(fbb, true);
   auto table_offset =
       internal::CreateDefaultTableDirect(fbb,
                                          /*b=*/true,
@@ -123,7 +134,8 @@ const internal::DefaultTable* CreateDefaultTable(
                                          /*eu8=*/internal::UByteEnum_Second,
                                          /*eu16=*/internal::UShortEnum_Second,
                                          /*eu32=*/internal::UIntEnum_Second,
-                                         /*eu64=*/internal::ULongEnum_Second);
+                                         /*eu64=*/internal::ULongEnum_Second,
+                                         /*t=*/bool_table_offset);
   fbb.Finish(table_offset);
   return flatbuffers::GetRoot<DefaultTable>(fbb.GetBufferPointer());
 }
@@ -267,6 +279,8 @@ TEST(FlatbuffersTableDomainImplTest, DefaultTableValueRoundTrip) {
   EXPECT_EQ(new_table->eu16(), internal::UShortEnum_Second);
   EXPECT_EQ(new_table->eu32(), internal::UIntEnum_Second);
   EXPECT_EQ(new_table->eu64(), internal::ULongEnum_Second);
+  ASSERT_THAT(new_table->t(), NotNull());
+  EXPECT_EQ(new_table->t()->b(), true);
 }
 
 TEST(FlatbuffersTableDomainImplTest, InitGeneratesSeeds) {
@@ -291,6 +305,7 @@ TEST(FlatbuffersTableDomainImplTest, CanMutateAnyTableField) {
       {"u64", false}, {"f", false},    {"d", false},    {"str", false},
       {"ei8", false}, {"ei16", false}, {"ei32", false}, {"ei64", false},
       {"eu8", false}, {"eu16", false}, {"eu32", false}, {"eu64", false},
+      {"t", false},
   };
 
   auto domain = Arbitrary<const DefaultTable*>();
@@ -325,6 +340,7 @@ TEST(FlatbuffersTableDomainImplTest, CanMutateAnyTableField) {
     mutated_fields["eu16"] |= mut->eu16() != init->eu16();
     mutated_fields["eu32"] |= mut->eu32() != init->eu32();
     mutated_fields["eu64"] |= mut->eu64() != init->eu64();
+    mutated_fields["t"] |= !Eq(mut->t(), init->t());
 
     if (std::all_of(mutated_fields.begin(), mutated_fields.end(),
                     [](const auto& p) { return p.second; })) {
@@ -337,6 +353,7 @@ TEST(FlatbuffersTableDomainImplTest, CanMutateAnyTableField) {
 
 TEST(FlatbuffersTableDomainImplTest, OptionalTableEventuallyBecomeEmpty) {
   flatbuffers::FlatBufferBuilder fbb;
+  auto bool_table_offset = internal::CreateBoolTable(fbb, true);
   auto table_offset =
       internal::CreateOptionalTableDirect(fbb,
                                           true,                         // b
@@ -358,7 +375,8 @@ TEST(FlatbuffersTableDomainImplTest, OptionalTableEventuallyBecomeEmpty) {
                                           internal::UByteEnum_Second,   // eu8
                                           internal::UShortEnum_Second,  // eu16
                                           internal::UIntEnum_Second,    // eu32
-                                          internal::ULongEnum_Second    // eu64
+                                          internal::ULongEnum_Second,   // eu64
+                                          bool_table_offset             // t
       );
   fbb.Finish(table_offset);
   auto table = flatbuffers::GetRoot<OptionalTable>(fbb.GetBufferPointer());
@@ -373,10 +391,14 @@ TEST(FlatbuffersTableDomainImplTest, OptionalTableEventuallyBecomeEmpty) {
       {"u64", false}, {"f", false},    {"d", false},    {"str", false},
       {"ei8", false}, {"ei16", false}, {"ei32", false}, {"ei64", false},
       {"eu8", false}, {"eu16", false}, {"eu32", false}, {"eu64", false},
+      {"t", false},
   };
 
-  for (size_t i = 0; i < 100'000; ++i) {
-    val.Mutate(domain, bitgen, {}, true);
+  // Optional fields are mutated to null with probability 1/100.
+  const int iterations =
+      IterationsToHitAll(null_fields.size(), .01 / null_fields.size());
+  for (size_t i = 0; i < iterations; ++i) {
+    val.Mutate(domain, bitgen, /*metadata=*/{}, /*only_shrink=*/true);
     const auto& v = val.user_value;
 
     null_fields["b"] |= !v->b().has_value();
@@ -399,6 +421,7 @@ TEST(FlatbuffersTableDomainImplTest, OptionalTableEventuallyBecomeEmpty) {
     null_fields["eu16"] |= !v->eu16().has_value();
     null_fields["eu32"] |= !v->eu32().has_value();
     null_fields["eu64"] |= !v->eu64().has_value();
+    null_fields["t"] |= v->t() == nullptr;
 
     if (std::all_of(null_fields.begin(), null_fields.end(),
                     [](const auto& p) { return p.second; })) {
@@ -419,7 +442,8 @@ TEST(FlatbuffersTableDomainImplTest, RequiredTableFieldsAlwaysSet) {
                   /*only_shrink=*/true),
               Each(ResultOf(
                   [&](const typename decltype(domain)::corpus_type& corpus) {
-                    return domain.GetValue(corpus)->str() == nullptr;
+                    auto value = domain.GetValue(corpus);
+                    return value->str() == nullptr && value->t() == nullptr;
                   },
                   IsFalse())));
 }
@@ -455,19 +479,20 @@ TEST(FlatbuffersTableDomainImplTest, Printer) {
                          HasSubstr("eu8: (Second)"),           // eu8
                          HasSubstr("eu16: (Second)"),          // eu16
                          HasSubstr("eu32: (Second)"),          // eu32
-                         HasSubstr("eu64: (Second)")           // eu64
+                         HasSubstr("eu64: (Second)"),          // eu64
+                         HasSubstr("t: ({b: (true)})")         // t
                          ));
 }
 
 TEST(FlatbuffersTableDomainImplTest, UnsupportedTypesRemainNull) {
   absl::flat_hash_map<std::string, bool> null_fields{
-      {"t", true},      {"u", true},      {"s", true},      {"v_b", true},
-      {"v_i8", true},   {"v_i16", true},  {"v_i32", true},  {"v_i64", true},
-      {"v_u8", true},   {"v_u16", true},  {"v_u32", true},  {"v_u64", true},
-      {"v_f", true},    {"v_d", true},    {"v_str", true},  {"v_ei8", true},
-      {"v_ei16", true}, {"v_ei32", true}, {"v_ei64", true}, {"v_eu8", true},
-      {"v_eu16", true}, {"v_eu32", true}, {"v_eu64", true}, {"v_t", true},
-      {"v_u", true},    {"v_s", true}};
+      {"u", true},      {"s", true},      {"v_b", true},   {"v_i8", true},
+      {"v_i16", true},  {"v_i32", true},  {"v_i64", true}, {"v_u8", true},
+      {"v_u16", true},  {"v_u32", true},  {"v_u64", true}, {"v_f", true},
+      {"v_d", true},    {"v_str", true},  {"v_ei8", true}, {"v_ei16", true},
+      {"v_ei32", true}, {"v_ei64", true}, {"v_eu8", true}, {"v_eu16", true},
+      {"v_eu32", true}, {"v_eu64", true}, {"v_t", true},   {"v_u", true},
+      {"v_s", true}};
 
   auto domain = Arbitrary<const UnsupportedTypesTable*>();
 
@@ -479,7 +504,6 @@ TEST(FlatbuffersTableDomainImplTest, UnsupportedTypesRemainNull) {
     val.Mutate(domain, bitgen, {}, false);
     const auto& mut = val.user_value;
 
-    null_fields["t"] &= mut->t() == nullptr;
     null_fields["u"] &= mut->u() == nullptr;
     null_fields["s"] &= mut->s() == nullptr;
     null_fields["v_b"] &= mut->v_b() == nullptr;
@@ -538,6 +562,43 @@ TEST(FlatbuffersTableDomainImplTest, UnsupportedFieldsCountIsZero) {
   auto domain = Arbitrary<const UnsupportedTypesTable*>();
   auto corpus = domain.Init(absl::BitGen());
   EXPECT_EQ(domain.CountNumberOfFields(corpus), 0);
+}
+
+TEST(FlatbuffersTableDomainImplTest, CountNumberOfFieldsWithNull) {
+  flatbuffers::FlatBufferBuilder fbb;
+  auto table_offset = internal::CreateOptionalTableDirect(fbb);
+  fbb.Finish(table_offset);
+  auto table = flatbuffers::GetRoot<OptionalTable>(fbb.GetBufferPointer());
+
+  auto domain = Arbitrary<const OptionalTable*>();
+  auto corpus = domain.FromValue(table);
+  ASSERT_TRUE(corpus.has_value());
+  EXPECT_EQ(domain.CountNumberOfFields(corpus.value()), 21);
+}
+
+TEST(FlatbuffersTableDomainImplTest, RecursiveTable) {
+  flatbuffers::FlatBufferBuilder fbb;
+  flatbuffers::Offset<RecursiveTable> root_offset;
+  const int kDepth = 10;
+  for (int i = 0; i < kDepth; ++i) {
+    auto nested_table_offset =
+        internal::CreateNestedRecursiveTable(fbb, root_offset);
+    root_offset = internal::CreateRecursiveTable(fbb, nested_table_offset);
+  }
+  fbb.Finish(root_offset);
+  auto table = flatbuffers::GetRoot<RecursiveTable>(fbb.GetBufferPointer());
+
+  auto domain = Arbitrary<const RecursiveTable*>();
+  auto corpus = domain.FromValue(table);
+  ASSERT_TRUE(corpus.has_value());
+  ASSERT_OK(domain.ValidateCorpusValue(corpus.value()));
+  auto new_table = domain.GetValue(corpus.value());
+  for (int i = 0; i < kDepth; ++i) {
+    auto nested_table = new_table->t();
+    ASSERT_THAT(nested_table, NotNull()) << "Depth: " << i;
+    new_table = nested_table->t();
+  }
+  ASSERT_THAT(new_table, IsNull());
 }
 
 }  // namespace
