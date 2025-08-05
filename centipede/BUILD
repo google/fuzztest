@@ -109,15 +109,22 @@ cc_proto_library(
 #                             C++ libraries
 ################################################################################
 
+# TODO: b/436366556 - Remove and replace once this is standardized.
+DISABLE_SANCOV_COPTS = [
+    "-fsanitize-coverage=0",
+]
+
 # This lib must have zero non-trivial dependencies (other than libc).
 cc_library(
     name = "int_utils",
     hdrs = ["int_utils.h"],
+    copts = DISABLE_SANCOV_COPTS,
 )
 
 cc_library(
     name = "rolling_hash",
     hdrs = ["rolling_hash.h"],
+    copts = DISABLE_SANCOV_COPTS,
 )
 
 cc_library(
@@ -143,6 +150,7 @@ cc_library(
 cc_library(
     name = "foreach_nonzero",
     hdrs = ["foreach_nonzero.h"],
+    copts = DISABLE_SANCOV_COPTS,
 )
 
 # This lib must have zero non-trivial dependencies (other than libc). See feature.h.
@@ -155,6 +163,7 @@ cc_library(
         "feature.h",
         "hashed_ring_buffer.h",  # TODO(kcc): consider moving to a separate cc_library.
     ],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":rolling_hash",
@@ -178,6 +187,7 @@ cc_library(
     name = "knobs",
     srcs = ["knobs.cc"],
     hdrs = ["knobs.h"],
+    copts = DISABLE_SANCOV_COPTS,
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         "@abseil-cpp//absl/types:span",
@@ -195,6 +205,7 @@ cc_library(
 cc_library(
     name = "callstack",
     hdrs = ["callstack.h"],
+    copts = DISABLE_SANCOV_COPTS,
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         ":rolling_hash",
@@ -423,6 +434,7 @@ cc_library(
     name = "shared_memory_blob_sequence",
     srcs = ["shared_memory_blob_sequence.cc"],
     hdrs = ["shared_memory_blob_sequence.h"],
+    copts = DISABLE_SANCOV_COPTS,
     linkopts = select({
         "@platforms//os:macos": [],
         "//conditions:default": [
@@ -438,6 +450,7 @@ cc_library(
     name = "execution_metadata",
     srcs = ["execution_metadata.cc"],
     hdrs = ["execution_metadata.h"],
+    copts = DISABLE_SANCOV_COPTS,
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -450,6 +463,7 @@ cc_library(
     name = "runner_result",
     srcs = ["runner_result.cc"],
     hdrs = ["runner_result.h"],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = PUBLIC_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
@@ -465,6 +479,7 @@ cc_library(
     name = "runner_request",
     srcs = ["runner_request.cc"],
     hdrs = ["runner_request.h"],
+    copts = DISABLE_SANCOV_COPTS,
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -478,6 +493,7 @@ cc_library(
 cc_library(
     name = "mutation_input",
     hdrs = ["mutation_input.h"],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = EXTENDED_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
@@ -491,6 +507,7 @@ cc_library(
     name = "byte_array_mutator",
     srcs = ["byte_array_mutator.cc"],
     hdrs = ["byte_array_mutator.h"],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = PUBLIC_API_VISIBILITY,
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
@@ -978,6 +995,7 @@ cc_library(
 cc_library(
     name = "runner_fork_server",
     srcs = ["runner_fork_server.cc"],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = PUBLIC_API_VISIBILITY,
     deps = ["@abseil-cpp//absl/base:nullability"],
     alwayslink = 1,  # Otherwise the linker drops the fork server.
@@ -986,6 +1004,7 @@ cc_library(
 cc_library(
     name = "runner_cmp_trace",
     hdrs = ["runner_cmp_trace.h"],
+    copts = DISABLE_SANCOV_COPTS,
 )
 
 # Library for manipulating centipede runner flags. This is not used by the
@@ -1025,43 +1044,21 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
-    "byte_array_mutator.cc",
-    "byte_array_mutator.h",
-    "callstack.h",
-    "concurrent_bitset.h",
-    "concurrent_byteset.h",
-    "execution_metadata.cc",
-    "execution_metadata.h",
-    "runner_request.cc",
-    "runner_request.h",
-    "runner_result.cc",
-    "runner_result.h",
-    "feature.cc",
-    "feature.h",
-    "foreach_nonzero.h",
-    "hashed_ring_buffer.h",
-    "int_utils.h",
-    "knobs.h",
-    "knobs.cc",
-    "mutation_input.h",
+    "sancov_state.cc",
+    "sancov_state.h",
     "pc_info.h",
     "reverse_pc_table.h",
-    "rolling_hash.h",
     "runner.cc",
     "runner.h",
     "runner_dl_info.h",
     "runner_dl_info.cc",
-    "runner_sancov_object.h",
-    "runner_sancov_object.cc",
+    "sancov_object_array.h",
+    "sancov_object_array.cc",
     "runner_utils.h",
     "runner_utils.cc",
-    "runner_cmp_trace.h",
-    "runner_fork_server.cc",
-    "runner_interceptors.cc",
+    "sancov_interceptors.cc",
     "runner_interface.h",
-    "runner_sancov.cc",
-    "shared_memory_blob_sequence.cc",
-    "shared_memory_blob_sequence.h",
+    "sancov_callbacks.cc",
     "@com_google_fuzztest//common:defs.h",
 ]
 
@@ -1090,12 +1087,28 @@ RUNNER_LINKOPTS = [
     ],
 })
 
+# TODO: b/436308818 - Let the runner depend on sancov_runtime as well.
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
-    "@abseil-cpp//absl/base:nullability",
-    "@abseil-cpp//absl/types:span",
+    ":byte_array_mutator",
+    ":callstack",
+    ":dispatcher_flag_helper",
+    ":execution_metadata",
+    ":feature",
+    ":foreach_nonzero",
+    ":int_utils",
+    ":knobs",
+    ":mutation_input",
+    ":rolling_hash",
+    ":runner_cmp_trace",
+    ":runner_fork_server",
+    ":runner_request",
+    ":runner_result",
+    ":shared_memory_blob_sequence",
     "@abseil-cpp//absl/base:core_headers",
+    "@abseil-cpp//absl/base:nullability",
     "@abseil-cpp//absl/numeric:bits",
+    "@abseil-cpp//absl/types:span",
 ]
 
 # A fuzz target needs to link with this library in order to run with Centipede.
@@ -1112,6 +1125,8 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
+    alwayslink = 1,  # Avoid runner from getting dropped by the linker due to no reference from the
+    # sancov runtime.
 )
 
 # Same as :centipede_runner_no_main, except it can be sanitized to avoid false
@@ -1200,6 +1215,50 @@ cc_library(
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
         "@protobuf",
+    ],
+)
+
+cc_library(
+    name = "dispatcher_flag_helper",
+    hdrs = ["dispatcher_flag_helper.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+    ],
+)
+
+cc_library(
+    name = "sancov_runtime",
+    srcs = [
+        "pc_info.h",
+        "reverse_pc_table.h",
+        "runner_dl_info.cc",
+        "runner_dl_info.h",
+        "runner_utils.cc",
+        "runner_utils.h",
+        "sancov_callbacks.cc",
+        "sancov_interceptors.cc",
+        "sancov_object_array.cc",
+        "sancov_object_array.h",
+        "sancov_state.cc",
+        "@com_google_fuzztest//common:defs.h",
+    ],
+    hdrs = [
+        "sancov_state.h",
+    ],
+    copts = DISABLE_SANCOV_COPTS,
+    deps = [
+        ":callstack",
+        ":dispatcher_flag_helper",
+        ":execution_metadata",
+        ":feature",
+        ":foreach_nonzero",
+        ":int_utils",
+        ":runner_cmp_trace",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

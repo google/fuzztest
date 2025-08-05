@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef THIRD_PARTY_CENTIPEDE_RUNNER_SANCOV_OBJECT_H_
-#define THIRD_PARTY_CENTIPEDE_RUNNER_SANCOV_OBJECT_H_
+#ifndef FUZZTEST_CENTIPEDE_SANCOV_OBJECT_ARRAY_H_
+#define FUZZTEST_CENTIPEDE_SANCOV_OBJECT_ARRAY_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -24,9 +24,9 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 
-// TODO(kcc): gradually replace the old code in runner_sancov.cc with this code.
-// The difference is that the old code allows only one sancov-instrumented DSO,
-// while this code allows multiple instrumented DSO.
+// TODO(kcc): gradually replace the old code in sancov_callbacks.cc with this
+// code. The difference is that the old code allows only one sancov-instrumented
+// DSO, while this code allows multiple instrumented DSO.
 // TODO(kcc): this code is not a full replacement for the old code yet.
 
 namespace fuzztest::internal {
@@ -112,4 +112,4 @@ class SanCovObjectArray {
 
 }  // namespace fuzztest::internal
 
-#endif  // THIRD_PARTY_CENTIPEDE_RUNNER_SANCOV_OBJECT_H_
+#endif  // FUZZTEST_CENTIPEDE_SANCOV_OBJECT_ARRAY_H_

@@ -22,7 +22,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "./centipede/runner.h"
+#include "./centipede/sancov_state.h"
 
 using fuzztest::internal::tls;
 
@@ -80,7 +80,7 @@ int NormalizeCmpResult(int result) {
 }  // namespace
 
 namespace fuzztest::internal {
-void RunnerInterceptor() {}  // to be referenced in runner.cc
+void SancovInterceptor() {}  // to be referenced in sancov_state.cc
 }  // namespace fuzztest::internal
 
 // A sanitizer-compatible way to intercept functions that are potentially
@@ -104,8 +104,8 @@ void RunnerInterceptor() {}  // to be referenced in runner.cc
 #define DECLARE_CENTIPEDE_ORIG_FUNC(ret_type, orig_func_name, args)         \
   extern "C" __attribute__((weak)) ret_type(                                \
       SANITIZER_INTERCEPTOR_NAME(orig_func_name)) args;                     \
-  static decltype(&SANITIZER_INTERCEPTOR_NAME(                              \
-      orig_func_name)) GetOrig_##orig_func_name() {                         \
+  static decltype(&SANITIZER_INTERCEPTOR_NAME(orig_func_name))              \
+  GetOrig_##orig_func_name() {                                              \
     if (auto p = &SANITIZER_INTERCEPTOR_NAME(orig_func_name)) return p;     \
     return FuncAddr<decltype(&SANITIZER_INTERCEPTOR_NAME(orig_func_name))>( \
         #orig_func_name);                                                   \
@@ -203,10 +203,11 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
 
 // pthread_create interceptor.
 // Calls real pthread_create, but wraps the start_routine() in MyThreadStart.
-extern "C" int pthread_create(pthread_t *absl_nonnull thread,
-                              const pthread_attr_t *absl_nullable attr,
-                              void *(*start_routine)(void *),
-                              void *absl_nullable arg) {
+extern "C" int pthread_create(
+    pthread_t *absl_nonnull thread,            // NOLINT
+    const pthread_attr_t *absl_nullable attr,  // NOLINT
+    void *(*start_routine)(void *),
+    void *absl_nullable arg) {  // NOLINT
   if (ABSL_PREDICT_FALSE(!tls.started)) {
     return REAL(pthread_create)(thread, attr, start_routine, arg);
   }
