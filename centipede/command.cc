@@ -385,11 +385,16 @@ std::optional<int> Command::Wait(absl::Time deadline) {
       // The fork server errored out or timed out, or some other error occurred,
       // e.g. the syscall was interrupted.
       if (poll_ret == 0) {
-        LogProblemInfo(absl::StrCat(
-            "Timeout while waiting for fork server: deadline is ", deadline));
+        VlogProblemInfo(
+            absl::StrCat("Timeout while waiting for fork server: deadline is ",
+                         deadline),
+            /*vlog_level=*/1);
       } else {
-        LogProblemInfo(absl::StrCat(
-            "Error while waiting for fork server: poll() returned ", poll_ret));
+        VlogProblemInfo(
+            absl::StrCat(
+                "Error while waiting for fork server: poll() returned ",
+                poll_ret),
+            /*vlog_level=*/1);
       }
       return std::nullopt;
     }
@@ -411,9 +416,11 @@ std::optional<int> Command::Wait(absl::Time deadline) {
         usleep(duration);  // NOLINT: early return on SIGCHLD is desired.
         continue;
       } else {
-        LogProblemInfo(absl::StrCat(
-            "Timeout while waiting for the command process: deadline is ",
-            deadline));
+        VlogProblemInfo(
+            absl::StrCat(
+                "Timeout while waiting for the command process: deadline is ",
+                deadline),
+            /*vlog_level=*/1);
         return std::nullopt;
       }
     }
