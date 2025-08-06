@@ -251,6 +251,10 @@ struct SancovState {
   static const size_t kMaxFeatures = 1 << 20;
   // FeatureArray used to accumulate features from all sources.
   FeatureArray<kMaxFeatures> g_features;
+  // Execution metadata gathered by `PostProcessSancov`.
+  //
+  // TODO: b/443264359 - export it in the runtime interface.
+  ExecutionMetadata metadata;
 
   // Features that were seen before.
   static constexpr size_t kSeenFeatureSetSize =
@@ -261,8 +265,6 @@ struct SancovState {
   feature_t *user_defined_begin;
   feature_t *user_defined_end;
 };
-
-bool CopyCmpTracesToMetadata(ExecutionMetadata *metadata);
 
 // Clears all the thread-local data updated during execution.
 __attribute__((noinline))  // so that we see it in profile.
@@ -290,6 +292,9 @@ void MaybeAddFeature(feature_t feature);
 
 // Returns a pointer to `g_features` and its length.
 SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures();
+
+// Gets the execution metadata gathered in `PostProcessSancov`.
+const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata();
 
 // Check for stack limit for the stack pointer `sp` in the current thread.
 __attribute__((weak)) void CheckStackLimit(uintptr_t sp);
