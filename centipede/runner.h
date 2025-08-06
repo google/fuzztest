@@ -76,7 +76,6 @@ struct GlobalRunnerState {
   // The path to a file where the runner may write the description of failure.
   const char *failure_description_path =
       flag_helper.GetStringFlag(":failure_description_path=");
-  ;
 
   pthread_mutex_t execution_result_override_mu = PTHREAD_MUTEX_INITIALIZER;
   // If not nullptr, it points to a batch result with either zero or one
