@@ -865,8 +865,8 @@ void LargeHeapAllocation(size_t allocation_size) {
 }
 FUZZ_TEST(MySuite, LargeHeapAllocation)
     .WithDomains(Just(
-        // 1 GiB
-        1ULL << 30));
+        // 2 GiB
+        1ULL << 31));
 
 // A fuzz test that is expected to accept and skip some inputs before hitting
 // the crash.

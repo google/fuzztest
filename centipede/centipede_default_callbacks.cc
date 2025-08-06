@@ -46,10 +46,11 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
 }
 
 bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
-                                        const std::vector<ByteArray> &inputs,
-                                        BatchResult &batch_result) {
-  return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result) ==
-         0;
+                                        const std::vector<ByteArray>& inputs,
+                                        BatchResult& batch_result,
+                                        absl::Time deadline) {
+  return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result,
+                                               deadline) == 0;
 }
 
 size_t CentipedeDefaultCallbacks::GetSeeds(size_t num_seeds,
