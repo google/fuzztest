@@ -65,8 +65,8 @@ class CentipedeCallbacks {
   // Post-condition:
   // `batch_result` has results for every `input`, even on failure.
   virtual bool Execute(std::string_view binary,
-                       const std::vector<ByteArray> &inputs,
-                       BatchResult &batch_result) = 0;
+                       const std::vector<ByteArray>& inputs,
+                       BatchResult& batch_result, absl::Time deadline) = 0;
 
   // Takes non-empty `inputs` and returns at most `num_mutants` mutated inputs.
   virtual std::vector<ByteArray> Mutate(
@@ -103,8 +103,8 @@ class CentipedeCallbacks {
   // Same as ExecuteCentipedeSancovBinary, but uses shared memory.
   // Much faster for fast targets since it uses fewer system calls.
   int ExecuteCentipedeSancovBinaryWithShmem(
-      std::string_view binary, const std::vector<ByteArray> &inputs,
-      BatchResult &batch_result);
+      std::string_view binary, const std::vector<ByteArray>& inputs,
+      BatchResult& batch_result, absl::Time deadline);
 
   // Constructs a string CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:...",
   // where the flags are determined by `env` and also include `extra_flags`.
@@ -173,7 +173,7 @@ class CentipedeCallbacks {
   // Returns a CommandContext with matching `binary`. Creates one if needed.
   CommandContext& GetOrCreateCommandContextForBinary(std::string_view binary);
   // Runs a batch with the command `binary` and returns the exit code.
-  int RunBatchForBinary(std::string_view binary);
+  int RunBatchForBinary(std::string_view binary, absl::Time deadline);
 
   // Prints the execution log from the last executed binary.
   void PrintExecutionLog() const;
