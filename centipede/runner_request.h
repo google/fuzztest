@@ -27,6 +27,12 @@
 
 namespace fuzztest::internal {
 
+// Request bytes for persistent mode sockets.
+enum class PersistentModeRequest : char {
+  kExit = 0,
+  kRunBatch = 1,
+};
+
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestExecution(const std::vector<ByteArray> &inputs,

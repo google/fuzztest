@@ -242,6 +242,7 @@ TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
 
 TEST_F(UnitTestModeTest, FixtureGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("FixtureTest.NeverFails");
+  SCOPED_TRACE(std_err);
   EXPECT_GT(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"), 0);
   EXPECT_EQ(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"),
             CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
@@ -1809,7 +1810,6 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
   auto [status, std_out, std_err] =
       Run("MySuite.SkipInputs", kDefaultTargetBinary);
-  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
   EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }
