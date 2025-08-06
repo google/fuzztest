@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/time/time.h"
 #include "./centipede/corpus.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
@@ -41,7 +42,8 @@ std::vector<CorpusRecord> RunInputsAndCollectCorpusRecords(
   }
   BatchResult batch_result;
   // Run.
-  CBs.Execute(env.binary, byte_array_inputs, batch_result);
+  CBs.Execute(env.binary, byte_array_inputs, batch_result,
+              /*deadline=*/absl::InfiniteFuture());
 
   // Repackage execution results into a vector of CorpusRecords.
   std::vector<CorpusRecord> corpus_records;

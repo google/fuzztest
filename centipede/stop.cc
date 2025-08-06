@@ -46,6 +46,8 @@ void RequestEarlyStop(int exit_code) {
   early_stop.store({exit_code, true}, std::memory_order_release);
 }
 
+absl::Time GetStopTime() { return stop_time; }
+
 bool ShouldStop() { return EarlyStopRequested() || stop_time < absl::Now(); }
 
 int ExitCode() { return early_stop.load(std::memory_order_acquire).exit_code; }

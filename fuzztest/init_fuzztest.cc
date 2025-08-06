@@ -170,6 +170,13 @@ FUZZTEST_DEFINE_FLAG(
     bool, print_subprocess_log, false,
     "If set, print the log of the subprocesses spawned by FuzzTest.");
 
+FUZZTEST_DEFINE_FLAG(bool, unguided, false,
+                     "If used together with --" FUZZTEST_FLAG_PREFIX
+                     "fuzz or --" FUZZTEST_FLAG_PREFIX
+                     "fuzz_for, carries out fuzzing without coverage guidance. "
+                     "When used with --" FUZZTEST_FLAG_PREFIX
+                     "fuzz_for, regular tests also run by default.");
+
 // Internal flags - not part of the user interface.
 //
 // These flags are meant to be set only by the parent controller process for its
@@ -442,10 +449,13 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
       GTEST_FLAG_SET(filter, filter);
     }
   }
-  const RunMode run_mode =
-      fuzzing_time_limit.has_value() ? RunMode::kFuzz : RunMode::kUnitTest;
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
-  runtime.SetRunMode(run_mode);
+  if (!absl::GetFlag(FUZZTEST_FLAG(unguided)) &&
+      fuzzing_time_limit.has_value()) {
+    runtime.SetRunMode(RunMode::kFuzz);
+  } else {
+    runtime.SetRunMode(RunMode::kUnitTest);
+  }
 }
 
 void ParseAbslFlags(int argc, char** argv) {

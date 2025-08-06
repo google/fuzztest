@@ -147,30 +147,6 @@ TEST(Environment,
   EXPECT_EQ(env.timeout_per_batch, 0);
 }
 
-TEST(Environment, UpdatesTimeoutPerBatchFromTargetConfigTimeLimit) {
-  Environment env;
-  fuzztest::internal::Configuration config;
-  config.time_limit = absl::Seconds(123);
-  config.time_budget_type = fuzztest::internal::TimeBudgetType::kPerTest;
-  FUZZTEST_CHECK(config.GetTimeLimitPerTest() == absl::Seconds(123));
-  env.UpdateWithTargetConfig(config);
-  EXPECT_EQ(env.timeout_per_batch, 123)
-      << "`timeout_per_batch` should be set to the test time limit when it was "
-         "previously unset";
-
-  env.timeout_per_batch = 456;
-  env.UpdateWithTargetConfig(config);
-  EXPECT_EQ(env.timeout_per_batch, 123)
-      << "`timeout_per_batch` should be set to test time limit when it is "
-         "shorter than the previous value";
-
-  env.timeout_per_batch = 56;
-  env.UpdateWithTargetConfig(config);
-  EXPECT_EQ(env.timeout_per_batch, 56)
-      << "`timeout_per_batch` should not be updated with the test time limit "
-         "when it is longer than the previous value";
-}
-
 TEST(Environment, UpdatesRssLimitMbFromTargetConfigRssLimit) {
   Environment env;
   env.rss_limit_mb = Environment::Default().rss_limit_mb;

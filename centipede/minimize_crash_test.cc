@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
+#include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
@@ -40,8 +41,8 @@ class MinimizerMock : public CentipedeCallbacks {
   MinimizerMock(const Environment &env) : CentipedeCallbacks(env) {}
 
   // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     batch_result.ClearAndResize(inputs.size());
     for (auto &input : inputs) {
       if (FuzzMe(input)) {
