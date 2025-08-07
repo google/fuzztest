@@ -278,10 +278,8 @@ void PrepareSancov(bool full_clear);
 // If `reject_input` is `true`, it simply sets `g_features` to empty.
 // This can be used to support features like:
 // https://llvm.org/docs/LibFuzzer.html#rejecting-unwanted-inputs
-void PostProcessSancov(bool reject_input = false);
-
 __attribute__((noinline))  // so that we see it in profile.
-void PostProcessSancov(int target_return_value);
+void PostProcessSancov(bool reject_input = false);
 
 void MaybeAddFeature(feature_t feature);
 
