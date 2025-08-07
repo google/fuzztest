@@ -182,7 +182,7 @@ class Registration : private Base {
 
     // We use a direct call to PrintUserValue because we don't have a
     // corpus_type object to pass to PrintValue.
-    auto print_one_arg = [seed, first = true](auto I) mutable {
+    auto print_one_arg = [&seed, first = true](auto I) mutable {
       if (!first) absl::FPrintF(stderr, ", ");
       first = false;
       using value_type = std::decay_t<std::tuple_element_t<I, SeedT>>;
