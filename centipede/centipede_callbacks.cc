@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/binary_info.h"
@@ -460,6 +461,7 @@ void CentipedeCallbacks::PrintExecutionLog() const {
   }
   std::string log_text;
   ReadFromLocalFile(execute_log_path_, log_text);
+  absl::MutexLock lock(&GetExecutionLoggingMutex());
   for (const auto &log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
     LOG(INFO).NoPrefix() << "LOG: " << log_line;

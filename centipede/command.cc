@@ -516,13 +516,7 @@ std::string Command::ReadRedirectedStderr() const {
 }
 
 void Command::LogProblemInfo(std::string_view message) const {
-  // Prevent confusing interlaced logs when multiple threads experience failures
-  // at the same time.
-  // TODO(ussuri): Non-failure related logs from other threads may still
-  //  interlace with these. Improve further, if possible. Note the printiing
-  //  line-by-line is unavoidable to overcome the single log line length limit.
-  static absl::Mutex mu{absl::kConstInit};
-  absl::MutexLock lock(&mu);
+  absl::MutexLock lock(&GetExecutionLoggingMutex());
 
   LOG(ERROR) << message;
   LOG(ERROR).NoPrefix() << "=== COMMAND ===";
@@ -539,6 +533,11 @@ void Command::LogProblemInfo(std::string_view message) const {
 
 void Command::VlogProblemInfo(std::string_view message, int vlog_level) const {
   if (ABSL_VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
+}
+
+absl::Mutex &GetExecutionLoggingMutex() {
+  static absl::Mutex mu{absl::kConstInit};
+  return mu;
 }
 
 }  // namespace fuzztest::internal

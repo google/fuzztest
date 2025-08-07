@@ -875,6 +875,7 @@ void Centipede::ReportCrash(std::string_view binary,
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
   auto log_execution_failure = [&](std::string_view log_prefix) {
+    absl::MutexLock lock(&GetExecutionLoggingMutex());
     LOG(INFO) << log_prefix << "Batch execution failed:"
               << "\nBinary               : " << binary
               << "\nExit code            : " << batch_result.exit_code()
