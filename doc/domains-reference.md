@@ -361,7 +361,9 @@ FUZZ_TEST(MySuite, DoingStuffDoesNotCrashWithEnumValue);
 By default, all fields will use `Arbitrary<U>()` for their values. The
 exceptions are:
 
-*   `string` fields which will guarantee UTF8 values.
+*   `string` fields for which
+    [`features.utf8_validation`](https://protobuf.dev/editions/features/#utf8_validation)
+    is enabled will guarantee UTF-8 values.
 *   `enum` fields will select only valid labels.
 
 Alternatively, you can use `ProtobufOf` to define a domain for
