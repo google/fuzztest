@@ -291,4 +291,25 @@ extern __thread ThreadLocalSancovState tls;
 
 }  // namespace fuzztest::internal
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct RawFeatureParts {
+  const uint64_t *ptr;
+  size_t size;
+};
+
+__attribute__((noinline))  // so that we see it in profile.
+void PrepareCoverage(bool full_clear);
+
+__attribute__((noinline))  // so that we see it in profile.
+void PostProcessCoverage(bool reject_input);
+
+RawFeatureParts GetSancovFeatures();
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
 #endif  // FUZZTEST_CENTIPEDE_SANCOV_STATE_H_

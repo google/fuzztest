@@ -105,6 +105,12 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size);
 // and `num_features > 0` must hold.
 void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,
                                                    size_t num_features);
+
+// Must be called from the `execute` callback. `features` must not be nullptr
+// and `num_features > 0` must hold.
+void FuzzTestDispatcherEmitFeedbackAsRawFeatures(const uint64_t* features,
+                                                 size_t num_features);
+
 // Emits metadata of the current input as raw bytes. Must be called from
 // the `execute` callback.
 void FuzzTestDispatcherEmitExecutionMetadata(const void* metadata, size_t size);
