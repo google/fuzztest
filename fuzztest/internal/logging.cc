@@ -22,7 +22,8 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
+#include <fcntl.h>
 #include <unistd.h>
 #endif
 
@@ -32,18 +33,70 @@
 
 namespace fuzztest::internal {
 
+#if defined(__linux__) || defined(__APPLE__)
+
 namespace {
+
+// Returns a duplicate of `fd` with the close-on-exec flag set, or returns -1
+// if duplication fails.
+//
+// This function is signal-safe.
+int DupLocally(int fd) {
+  int dup_fd = dup(fd);
+  // Error conditions below are extremely unlikely, so we don't spend too much
+  // effort in handling/logging them.
+  if (dup_fd == -1) {
+    constexpr char msg[] = "[!] dup() failed in DupLocally(), returning -1\n";
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    return -1;
+  }
+  int flags = fcntl(dup_fd, F_GETFD);
+  if (flags == -1) {
+    constexpr char msg[] =
+        "[!] fcntl(F_GETFD) failed in DupLocally(), ignoring the "
+        "error..\n";
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    return dup_fd;
+  }
+  flags |= FD_CLOEXEC;
+  if (fcntl(dup_fd, F_SETFD, flags) == -1) {
+    constexpr char msg[] =
+        "[!] fcntl(F_SETFD) failed in DupLocally(), ignoring the "
+        "error..\n";
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+  }
+  return dup_fd;
+}
 
 ABSL_CONST_INIT absl::Mutex stderr_file_guard_(absl::kConstInit);
 FILE* stderr_file_ ABSL_GUARDED_BY(stderr_file_guard_);  // Zero-initialized.
 
+FILE* stdout_file_ = stdout;  // Never accessed concurrently.
+
 }  // namespace
 
-#if defined(__linux__)
+int GetStderrFdDup() {
+  static int fd = DupLocally(STDERR_FILENO);
+  return fd;
+}
+
+FILE* GetStderr() {
+  absl::MutexLock lock(&stderr_file_guard_);
+  if (!stderr_file_) {
+    stderr_file_ = stderr;
+  }
+  return stderr_file_;
+}
 
 namespace {
 
-FILE* stdout_file_ = stdout;  // Never accessed concurrently.
+int GetStdoutFdDup() {
+  static int fd = DupLocally(STDOUT_FILENO);
+  return fd;
+}
+
+[[maybe_unused]] const auto force_get_stderr_fd_dup_early = GetStderrFdDup();
+[[maybe_unused]] const auto force_get_stdout_fd_dup_early = GetStdoutFdDup();
 
 void Silence(int fd) {
   FILE* tmp = fopen("/dev/null", "w");
@@ -61,20 +114,22 @@ void Silence(int fd) {
 void DupAndSilence(int fd) {
   FUZZTEST_INTERNAL_CHECK(fd == STDOUT_FILENO || fd == STDERR_FILENO,
                           "DupAndSilence only accepts stderr or stdout.");
-  int new_fd = dup(fd);
-  FUZZTEST_INTERNAL_CHECK(new_fd != -1, "dup() error:", strerror(errno));
-  FILE* new_output_file = fdopen(new_fd, "w");
-  FUZZTEST_INTERNAL_CHECK(new_output_file, "fdopen error:", strerror(errno));
-  if (new_output_file) {
-    if (fd == STDOUT_FILENO) {
-      stdout_file_ = new_output_file;
-    } else {
-      absl::MutexLock lock(&stderr_file_guard_);
-      stderr_file_ = new_output_file;
-    }
-    Silence(fd);
+  if (fd == STDOUT_FILENO) {
+    FUZZTEST_INTERNAL_CHECK(GetStdoutFdDup() != -1, "GetStdoutFdDup() fails.");
+    stdout_file_ = fdopen(GetStdoutFdDup(), "w");
+    FUZZTEST_INTERNAL_CHECK(stdout_file_,
+                            "fdopen(GetStdoutFdDup()) error:", strerror(errno));
+  } else {
+    FUZZTEST_INTERNAL_CHECK(GetStderrFdDup() != -1, "GetStderrFdDup() fails.");
+    auto file = fdopen(GetStderrFdDup(), "w");
+    FUZZTEST_INTERNAL_CHECK(file,
+                            "fdopen(GetStderrFdDup()) error:", strerror(errno));
+    absl::MutexLock lock(&stderr_file_guard_);
+    stderr_file_ = file;
   }
+  Silence(fd);
 }
+
 }  // namespace
 
 void SilenceTargetStdoutAndStderr() {
@@ -112,7 +167,11 @@ bool IsSilenceTargetEnabled() {
   return absl::NullSafeStringView(getenv("FUZZTEST_SILENCE_TARGET")) == "1";
 }
 
-#else
+#else  // defined(__linux) || defined(__APPLE__)
+
+int GetStderrFdDup() { return -1; }
+
+FILE* GetStderr() { return stderr; }
 
 void SilenceTargetStdoutAndStderr() { return; }
 
@@ -120,15 +179,7 @@ void RestoreTargetStdoutAndStderr() { return; }
 
 bool IsSilenceTargetEnabled() { return false; }
 
-#endif  // defined(__linux__)
-
-FILE* GetStderr() {
-  absl::MutexLock lock(&stderr_file_guard_);
-  if (!stderr_file_) {
-    stderr_file_ = stderr;
-  }
-  return stderr_file_;
-}
+#endif  // defined(__linux) || defined(__APPLE__)
 
 void Abort(const char* file, int line, const std::string& message) {
   fprintf(GetStderr(), "%s:%d: %s\n", file, line, message.c_str());
