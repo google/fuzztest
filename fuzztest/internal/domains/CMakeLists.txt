@@ -171,6 +171,7 @@ fuzztest_cc_library(
     "protobuf_domain_impl.h"
   DEPS
     fuzztest::core_domains_impl
+    absl::base
     absl::core_headers
     absl::no_destructor
     absl::flat_hash_map
