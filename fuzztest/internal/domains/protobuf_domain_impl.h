@@ -407,12 +407,10 @@ class ProtoPolicy {
   class RecursiveFieldsCaches {
    public:
     void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
-      absl::MutexLock l(&field_to_is_finitely_recursive_mutex_);
       field_to_is_finitely_recursive_.insert({field, value});
     }
 
     std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
-      absl::ReaderMutexLock l(&field_to_is_finitely_recursive_mutex_);
       auto it = field_to_is_finitely_recursive_.find(field);
       return it != field_to_is_finitely_recursive_.end()
                  ? std::optional(it->second)
@@ -421,13 +419,11 @@ class ProtoPolicy {
 
     void SetIsFieldInfinitelyRecursive(const FieldDescriptor* field,
                                        bool value) {
-      absl::MutexLock l(&field_to_is_infinitely_recursive_mutex_);
       field_to_is_infinitely_recursive_.insert({field, value});
     }
 
     std::optional<bool> IsFieldInfinitelyRecursive(
         const FieldDescriptor* field) {
-      absl::ReaderMutexLock l(&field_to_is_infinitely_recursive_mutex_);
       auto it = field_to_is_infinitely_recursive_.find(field);
       return it != field_to_is_infinitely_recursive_.end()
                  ? std::optional(it->second)
@@ -436,7 +432,6 @@ class ProtoPolicy {
 
     const std::vector<const FieldDescriptor*>* GetFields(
         const ProtoDescriptor* descriptor) {
-      absl::ReaderMutexLock l(&proto_to_fields_mutex_);
       auto it = proto_to_fields_.find(descriptor);
       return it != proto_to_fields_.end() ? &it->second : nullptr;
     }
@@ -444,24 +439,18 @@ class ProtoPolicy {
     const std::vector<const FieldDescriptor*>& SetFields(
         const ProtoDescriptor* descriptor,
         std::vector<const FieldDescriptor*> fields) {
-      absl::MutexLock l(&proto_to_fields_mutex_);
       auto [it, _] = proto_to_fields_.insert({descriptor, std::move(fields)});
       return it->second;
     }
 
    private:
-    absl::Mutex field_to_is_finitely_recursive_mutex_;
     absl::flat_hash_map<const FieldDescriptor*, bool>
-        field_to_is_finitely_recursive_
-            ABSL_GUARDED_BY(field_to_is_finitely_recursive_mutex_);
-    absl::Mutex field_to_is_infinitely_recursive_mutex_;
+        field_to_is_finitely_recursive_;
     absl::flat_hash_map<const FieldDescriptor*, bool>
-        field_to_is_infinitely_recursive_
-            ABSL_GUARDED_BY(field_to_is_infinitely_recursive_mutex_);
-    absl::Mutex proto_to_fields_mutex_;
+        field_to_is_infinitely_recursive_;
     absl::flat_hash_map<const ProtoDescriptor*,
                         std::vector<const FieldDescriptor*>>
-        proto_to_fields_ ABSL_GUARDED_BY(proto_to_fields_mutex_);
+        proto_to_fields_;
   };
 
   std::shared_ptr<RecursiveFieldsCaches> caches_ = nullptr;
@@ -600,7 +589,6 @@ class ProtobufDomainUntypedImpl
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
       : prototype_(other.prototype_),
         use_lazy_initialization_(other.use_lazy_initialization_) {
-    absl::MutexLock l(&other.mutex_);
     domains_ = other.domains_;
     policy_ = other.policy_;
     customized_fields_ = other.customized_fields_;
@@ -1432,7 +1420,6 @@ class ProtobufDomainUntypedImpl
               "` but the field needs a message of type `",
               field->message_type()->full_name(), "`.");
         }
-        absl::MutexLock l(&self.mutex_);
         auto res = self.domains_.try_emplace(field->number(),
                                              std::in_place_type<DomainT>,
                                              std::forward<Inner>(domain));
@@ -1494,7 +1481,6 @@ class ProtobufDomainUntypedImpl
 
   const std::vector<const FieldDescriptor*>& GetProtobufFields() const {
     if (fields_cache_.empty()) {
-      absl::MutexLock l(&mutex_);
       fields_cache_ = ProtoPolicy<Message>::GetProtobufFields(
           prototype_.Get()->GetDescriptor());
     }
@@ -1695,7 +1681,6 @@ class ProtobufDomainUntypedImpl
     using DomainT = decltype(GetDefaultDomainForField<T, is_repeated>(field));
     // Do the operation under a lock to prevent race conditions in `const`
     // methods.
-    absl::MutexLock l(&mutex_);
     auto it = domains_.find(field->number());
     if (it == domains_.end()) {
       it = domains_
@@ -2020,9 +2005,7 @@ class ProtobufDomainUntypedImpl
   PrototypePtr<Message> prototype_;
   bool use_lazy_initialization_;
 
-  mutable absl::Mutex mutex_;
-  mutable absl::flat_hash_map<int, CopyableAny> domains_
-      ABSL_GUARDED_BY(mutex_);
+  mutable absl::flat_hash_map<int, CopyableAny> domains_;
 
   ProtoPolicy<Message> policy_;
   absl::flat_hash_set<int> customized_fields_;
