@@ -15,7 +15,6 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_PROTOBUF_DOMAIN_IMPL_H_
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -231,6 +230,7 @@ std::function<Domain<T>(Domain<T>)> Identity() {
 
 template <typename Message>
 class ProtoPolicy {
+  using ProtoDescriptor = ProtobufDescriptor<Message>;
   using FieldDescriptor = ProtobufFieldDescriptor<Message>;
   using Filter = std::function<bool(const FieldDescriptor*)>;
 
@@ -336,7 +336,72 @@ class ProtoPolicy {
     caches_->SetIsFieldInfinitelyRecursive(field, value);
   }
 
+  const std::vector<const FieldDescriptor*>& GetFields(
+      const ProtoDescriptor* descriptor) {
+    if (auto fields = caches_->GetFields(descriptor); fields != nullptr) {
+      return *fields;
+    }
+    return caches_->SetFields(descriptor, GetProtobufFields(descriptor));
+  }
+
  private:
+  static bool IsMessageSetFuzzingEnabled() {
+    // TODO(b/413402115): Create protobuf domain API enabling MessageSet fuzzing
+#ifdef FUZZTEST_FUZZ_MESSAGE_SET
+    return true;
+#else
+    return false;
+#endif
+  }
+
+  static bool IsExtensionFuzzingEnabled() {
+#ifdef FUZZTEST_DONT_FUZZ_EXTENSIONS
+    return false;
+#else
+    return true;
+#endif
+  }
+
+  static bool IsMessageSet(const ProtoDescriptor* descriptor) {
+    // MessageSet needs a special handling because it's a centralized proto that
+    // is extended by many protos and can have a huge number of fields. Fuzzing
+    // such a message could be quite expensive and leads to inefficient fuzzing.
+    return descriptor->full_name() == "google.protobuf.bridge.MessageSet";
+  }
+
+  static bool ShouldEnumerateExtensions(const ProtoDescriptor* descriptor) {
+    if (!IsExtensionFuzzingEnabled()) return false;
+    if (IsMessageSetFuzzingEnabled()) return true;
+    // The default behavior: proto3 extensions are enumerated, while MessageSet
+    // (extensions for proto2) are ignored.
+    return !IsMessageSet(descriptor);
+  }
+
+  static const std::vector<const FieldDescriptor*>& GetProtobufFields(
+      const ProtoDescriptor* descriptor) {
+    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
+    static absl::NoDestructor<absl::flat_hash_map<
+        const ProtoDescriptor*, std::vector<const FieldDescriptor*>>>
+        descriptor_to_fields ABSL_GUARDED_BY(mutex);
+    {
+      absl::MutexLock l(&mutex);
+      auto it = descriptor_to_fields->find(descriptor);
+      if (it != descriptor_to_fields->end()) return it->second;
+    }
+    std::vector<const FieldDescriptor*> fields;
+    fields.reserve(descriptor->field_count());
+    for (int i = 0; i < descriptor->field_count(); ++i) {
+      fields.push_back(descriptor->field(i));
+    }
+    absl::MutexLock l(&mutex);
+    if (ShouldEnumerateExtensions(descriptor)) {
+      descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
+    }
+    auto [it, _] =
+        descriptor_to_fields->insert({descriptor, std::move(fields)});
+    return it->second;
+  }
+
   // All caches for the policy that contain cached information about subfields
   // and can be passed down to the subfield policies recursively.
   class RecursiveFieldsCaches {
@@ -369,6 +434,21 @@ class ProtoPolicy {
                  : std::nullopt;
     }
 
+    const std::vector<const FieldDescriptor*>* GetFields(
+        const ProtoDescriptor* descriptor) {
+      absl::ReaderMutexLock l(&proto_to_fields_mutex_);
+      auto it = proto_to_fields_.find(descriptor);
+      return it != proto_to_fields_.end() ? &it->second : nullptr;
+    }
+
+    const std::vector<const FieldDescriptor*>& SetFields(
+        const ProtoDescriptor* descriptor,
+        std::vector<const FieldDescriptor*> fields) {
+      absl::MutexLock l(&proto_to_fields_mutex_);
+      auto [it, _] = proto_to_fields_.insert({descriptor, std::move(fields)});
+      return it->second;
+    }
+
    private:
     absl::Mutex field_to_is_finitely_recursive_mutex_;
     absl::flat_hash_map<const FieldDescriptor*, bool>
@@ -378,6 +458,10 @@ class ProtoPolicy {
     absl::flat_hash_map<const FieldDescriptor*, bool>
         field_to_is_infinitely_recursive_
             ABSL_GUARDED_BY(field_to_is_infinitely_recursive_mutex_);
+    absl::Mutex proto_to_fields_mutex_;
+    absl::flat_hash_map<const ProtoDescriptor*,
+                        std::vector<const FieldDescriptor*>>
+        proto_to_fields_ ABSL_GUARDED_BY(proto_to_fields_mutex_);
   };
 
   std::shared_ptr<RecursiveFieldsCaches> caches_ = nullptr;
@@ -510,7 +594,8 @@ class ProtobufDomainUntypedImpl
         customized_fields_(),
         always_set_oneofs_(),
         uncustomizable_oneofs_(),
-        unset_oneof_fields_() {}
+        unset_oneof_fields_(),
+        fields_cache_(policy_.GetFields(prototype_.Get()->GetDescriptor())) {}
 
   ProtobufDomainUntypedImpl(const ProtobufDomainUntypedImpl& other)
       : prototype_(other.prototype_),
@@ -522,6 +607,7 @@ class ProtobufDomainUntypedImpl
     always_set_oneofs_ = other.always_set_oneofs_;
     uncustomizable_oneofs_ = other.uncustomizable_oneofs_;
     unset_oneof_fields_ = other.unset_oneof_fields_;
+    fields_cache_ = other.fields_cache_;
   }
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -535,7 +621,7 @@ class ProtobufDomainUntypedImpl
     absl::flat_hash_map<int, int> oneof_to_field;
 
     // TODO(b/241124202): Use a valid proto with minimum size.
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (auto* oneof = field->containing_oneof()) {
         if (!oneof_to_field.contains(oneof->index())) {
           oneof_to_field[oneof->index()] =
@@ -563,7 +649,7 @@ class ProtobufDomainUntypedImpl
   void Mutate(corpus_type& val, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
-    if (GetFieldCount(prototype_.Get()->GetDescriptor()) == 0) return;
+    if (GetFieldCount() == 0) return;
     // TODO(JunyangShao): Maybe make CountNumberOfFields static.
     uint64_t total_weight = CountNumberOfFields(val);
     uint64_t selected_weight = absl::Uniform(absl::IntervalClosedClosed, prng,
@@ -626,8 +712,7 @@ class ProtobufDomainUntypedImpl
       if (!inner_parsed) return std::nullopt;
       out[field->number()] = *std::move(inner_parsed);
     }
-    for (const FieldDescriptor* field :
-         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (present_fields.contains(field->number())) continue;
       std::optional<GenericDomainCorpusType> inner_parsed;
       IRObject unset_value;
@@ -665,10 +750,9 @@ class ProtobufDomainUntypedImpl
       return it->second.template GetAs<uint64_t>();
     }
     uint64_t total_weight = 0;
-    auto descriptor = prototype_.Get()->GetDescriptor();
-    if (GetFieldCount(descriptor) == 0) return total_weight;
+    if (GetFieldCount() == 0) return total_weight;
 
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -700,13 +784,12 @@ class ProtobufDomainUntypedImpl
       const domain_implementor::MutationMetadata& metadata, bool only_shrink,
       uint64_t selected_field_index) {
     uint64_t field_counter = 0;
-    auto descriptor = prototype_.Get()->GetDescriptor();
-    if (GetFieldCount(descriptor) == 0) return field_counter;
+    if (GetFieldCount() == 0) return field_counter;
     int64_t fields_count = CountNumberOfFields(val);
     if (fields_count < selected_field_index) return fields_count;
     val.erase(kFieldCountIndex);  // Mutation invalidates the cache value.
 
-    for (const FieldDescriptor* field : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof() &&
           GetOneofFieldPolicy(field) == OptionalPolicy::kAlwaysNull) {
         continue;
@@ -746,8 +829,7 @@ class ProtobufDomainUntypedImpl
       absl::Status status = ValidateOneof(corpus_value, oneof);
       if (!status.ok()) return status;
     }
-    for (const FieldDescriptor* field :
-         GetProtobufFields(prototype_.Get()->GetDescriptor())) {
+    for (const FieldDescriptor* field : GetProtobufFields()) {
       if (field->containing_oneof()) continue;
       auto field_number_value = corpus_value.find(field->number());
       const GenericDomainCorpusType* inner_corpus_value =
@@ -1408,40 +1490,10 @@ class ProtobufDomainUntypedImpl
     return field;
   }
 
-  static bool IsMessageSetFuzzingEnabled() {
-    // TODO(b/413402115): Create protobuf domain API enabling MessageSet fuzzing
-#ifdef FUZZTEST_FUZZ_MESSAGE_SET
-    return true;
-#else
-    return false;
-#endif
-  }
+  auto GetFieldCount() const { return fields_cache_.size(); }
 
-  static bool IsMessageSet(const Descriptor* descriptor) {
-    // MessageSet needs a special handling because it's a centralized proto that
-    // is extended by many protos and can have a huge number of fields. Fuzzing
-    // such a message could be quite expensive and leads to inefficient fuzzing.
-    return descriptor->full_name() == "google.protobuf.bridge.MessageSet";
-  }
-
-  static auto GetFieldCount(const Descriptor* descriptor) {
-    std::vector<const FieldDescriptor*> extensions;
-    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
-      descriptor->file()->pool()->FindAllExtensions(descriptor, &extensions);
-    }
-    return descriptor->field_count() + extensions.size();
-  }
-
-  static auto GetProtobufFields(const Descriptor* descriptor) {
-    std::vector<const FieldDescriptor*> fields;
-    fields.reserve(descriptor->field_count());
-    for (int i = 0; i < descriptor->field_count(); ++i) {
-      fields.push_back(descriptor->field(i));
-    }
-    if (IsMessageSetFuzzingEnabled() || !IsMessageSet(descriptor)) {
-      descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
-    }
-    return fields;
+  const std::vector<const FieldDescriptor*>& GetProtobufFields() const {
+    return fields_cache_;
   }
 
   static auto GetFieldName(const FieldDescriptor* field) {
@@ -1917,7 +1969,7 @@ class ProtobufDomainUntypedImpl
         return true;
       }
     }
-    for (const FieldDescriptor* subfield : GetProtobufFields(descriptor)) {
+    for (const FieldDescriptor* subfield : policy_.GetFields(descriptor)) {
       if (subfield->containing_oneof()) continue;
       if (!subfield->message_type()) continue;
       if (auto default_domain = policy_.GetDefaultDomainForProtobufs(subfield);
@@ -1972,6 +2024,7 @@ class ProtobufDomainUntypedImpl
   absl::flat_hash_set<int> always_set_oneofs_;
   absl::flat_hash_set<int> uncustomizable_oneofs_;
   absl::flat_hash_set<int> unset_oneof_fields_;
+  std::vector<const FieldDescriptor*> fields_cache_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.
