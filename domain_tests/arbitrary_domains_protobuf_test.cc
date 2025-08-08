@@ -14,9 +14,12 @@
 
 // Tests of Arbitrary<T> domains.
 
+#include <algorithm>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -28,6 +31,8 @@
 #include "absl/random/random.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "./fuzztest/domain.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -739,6 +744,37 @@ TEST(ProtocolBuffer, ProtobufOfIsCustomizable) {
             return true;
           },
           true)));
+}
+
+absl::Duration DoMutations() {
+  auto domain = Arbitrary<internal::TestProtobufWithRecursion>();
+  absl::BitGen bitgen;
+  auto corpus_value = domain.Init(bitgen);
+  absl::Time start = absl::Now();
+  for (int j = 0; j < 2000; ++j) {
+    domain.Mutate(corpus_value, bitgen, {}, false);
+  }
+  return absl::Now() - start;
+}
+
+TEST(ProtocolBuffer, MutationInParallelIsEfficient) {
+  const unsigned int num_threads =
+      std::max(1u, std::thread::hardware_concurrency() / 2);
+  std::cout << "num threads: " << num_threads << "\n";
+  const absl::Duration single_thread_time = DoMutations();
+  std::cout << "total time (single thread): " << single_thread_time << "\n";
+  std::vector<std::thread> workers;
+  std::vector<absl::Duration> durations(num_threads);
+  workers.reserve(num_threads);
+  for (int i = 0; i < num_threads; ++i) {
+    workers.emplace_back([&durations, i] { durations[i] = DoMutations(); });
+  }
+  for (auto& worker : workers) worker.join();
+  const absl::Duration multi_thread_time =
+      *std::max_element(durations.begin(), durations.end());
+  std::cout << "total time (" << num_threads
+            << " threads): " << multi_thread_time << "\n";
+  std::cout << "ratio: " << multi_thread_time / single_thread_time << "\n";
 }
 
 }  // namespace
