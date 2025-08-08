@@ -337,9 +337,23 @@ void InstallCentipedeTerminationHandler() {
     for (int signum : {SIGTERM, SIGHUP}) {
       struct sigaction new_sigact = {};
       sigemptyset(&new_sigact.sa_mask);
-      new_sigact.sa_handler = [](int unused_signum) {
+      new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
         RequestEarlyStop(EXIT_FAILURE);
+        const int fd =
+            GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
+        if (signum == SIGTERM) {
+          constexpr char msg[] = "\n[!] SIGTERM received - stopping fuzzing.\n";
+          write(fd, msg, sizeof(msg) - 1);
+          return;
+        } else if (signum == SIGHUP) {
+          constexpr char msg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
+          write(fd, msg, sizeof(msg) - 1);
+          return;
+        }
+        constexpr char msg[] = "\n[!] Unexpected signal received - aborting.\n";
+        write(fd, msg, sizeof(msg) - 1);
+        std::abort();
       };
 
       // We make use of the SA_ONSTACK flag so that signal handlers are
@@ -359,6 +373,9 @@ void InstallCentipedeTerminationHandler() {
 int RunCentipede(const Environment& env,
                  const std::optional<std::string>& centipede_command) {
   if (Runtime::instance().termination_requested()) {
+    absl::FPrintF(GetStderr(),
+                  "Not running Centipede due to termination requested - "
+                  "returning as a failure\n");
     return EXIT_FAILURE;
   }
   if (centipede_command.has_value()) {
@@ -996,6 +1013,12 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     }
     result = RunCentipede(env, configuration.centipede_command);
     if (!env.workdir.empty()) {
+      if (runtime_.termination_requested()) {
+        absl::FPrintF(
+            GetStderr(),
+            "[.] Not exporting reproducers due to termination requested.\n");
+        return;
+      }
       const auto status =
           ExportReproducersFromCentipede(env, test_, configuration);
       if (!status.ok()) {
