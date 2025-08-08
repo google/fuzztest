@@ -238,15 +238,14 @@ class ProtoPolicy {
   ProtoPolicy()
       : optional_policies_({{/*filter=*/IncludeAll<FieldDescriptor>(),
                              /*value=*/OptionalPolicy::kWithNull}}) {
-    ABSL_CONST_INIT static std::atomic<int64_t> next_id{0};
-    id_ = next_id.fetch_add(1, std::memory_order_relaxed);
+    caches_ = std::make_shared<RecursiveFieldsCaches>();
   }
 
-  void SetOptionalPolicy(OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(const OptionalPolicy& optional_policy) {
     SetOptionalPolicy(IncludeAll<FieldDescriptor>(), optional_policy);
   }
 
-  void SetOptionalPolicy(Filter filter, OptionalPolicy optional_policy) {
+  void SetOptionalPolicy(Filter filter, const OptionalPolicy& optional_policy) {
     if (optional_policy == OptionalPolicy::kAlwaysNull) {
       max_repeated_fields_sizes_.push_back(
           {/*filter=*/And(IsRepeated<FieldDescriptor>(), filter), /*value=*/0});
@@ -321,10 +320,67 @@ class ProtoPolicy {
     return max;
   }
 
-  int64_t id() const { return id_; }
+  std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+    return caches_->IsFieldFinitelyRecursive(field);
+  }
+
+  void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+    caches_->SetIsFieldFinitelyRecursive(field, value);
+  }
+
+  std::optional<bool> IsFieldInfinitelyRecursive(const FieldDescriptor* field) {
+    return caches_->IsFieldInfinitelyRecursive(field);
+  }
+
+  void SetIsFieldInfinitelyRecursive(const FieldDescriptor* field, bool value) {
+    caches_->SetIsFieldInfinitelyRecursive(field, value);
+  }
 
  private:
-  int64_t id_;
+  // All caches for the policy that contain cached information about subfields
+  // and can be passed down to the subfield policies recursively.
+  class RecursiveFieldsCaches {
+   public:
+    void SetIsFieldFinitelyRecursive(const FieldDescriptor* field, bool value) {
+      absl::MutexLock l(&field_to_is_finitely_recursive_mutex_);
+      field_to_is_finitely_recursive_.insert({field, value});
+    }
+
+    std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
+      absl::ReaderMutexLock l(&field_to_is_finitely_recursive_mutex_);
+      auto it = field_to_is_finitely_recursive_.find(field);
+      return it != field_to_is_finitely_recursive_.end()
+                 ? std::optional(it->second)
+                 : std::nullopt;
+    }
+
+    void SetIsFieldInfinitelyRecursive(const FieldDescriptor* field,
+                                       bool value) {
+      absl::MutexLock l(&field_to_is_infinitely_recursive_mutex_);
+      field_to_is_infinitely_recursive_.insert({field, value});
+    }
+
+    std::optional<bool> IsFieldInfinitelyRecursive(
+        const FieldDescriptor* field) {
+      absl::ReaderMutexLock l(&field_to_is_infinitely_recursive_mutex_);
+      auto it = field_to_is_infinitely_recursive_.find(field);
+      return it != field_to_is_infinitely_recursive_.end()
+                 ? std::optional(it->second)
+                 : std::nullopt;
+    }
+
+   private:
+    absl::Mutex field_to_is_finitely_recursive_mutex_;
+    absl::flat_hash_map<const FieldDescriptor*, bool>
+        field_to_is_finitely_recursive_
+            ABSL_GUARDED_BY(field_to_is_finitely_recursive_mutex_);
+    absl::Mutex field_to_is_infinitely_recursive_mutex_;
+    absl::flat_hash_map<const FieldDescriptor*, bool>
+        field_to_is_infinitely_recursive_
+            ABSL_GUARDED_BY(field_to_is_infinitely_recursive_mutex_);
+  };
+
+  std::shared_ptr<RecursiveFieldsCaches> caches_ = nullptr;
 
   template <typename T>
   struct FilterToValue {
@@ -1509,7 +1565,7 @@ class ProtobufDomainUntypedImpl
                        WithRepeatedFieldSizeVisitor{*this, min_size, max_size});
   }
 
-  void SetPolicy(ProtoPolicy<Message> policy) {
+  void SetPolicy(const ProtoPolicy<Message>& policy) {
     CheckIfPolicyCanBeUpdated();
     policy_ = policy;
   }
@@ -1729,7 +1785,7 @@ class ProtobufDomainUntypedImpl
 
   // Returns true if there are subprotos in the `descriptor` that form an
   // infinite recursion.
-  bool IsInfinitelyRecursive(const Descriptor* descriptor) const {
+  bool IsInfinitelyRecursive(const Descriptor* descriptor) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
     absl::flat_hash_set<const FieldDescriptor*> parents;
     return IsProtoRecursive(/*field=*/nullptr, parents,
@@ -1740,30 +1796,30 @@ class ProtobufDomainUntypedImpl
   // infinite recursion of the form: F0 -> F1 -> ... -> Fs -> ... -> Fn -> Fs,
   // because all Fi-s have to be set (e.g., Fi is a required field, or is
   // customized using `WithFieldsAlwaysSet`).
-  bool IsInfinitelyRecursive(const FieldDescriptor* field) const {
+  bool IsFieldInfinitelyRecursive(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
+    if (auto cache = policy_.IsFieldInfinitelyRecursive(field);
+        cache.has_value()) {
+      return *cache;
+    }
     absl::flat_hash_set<const FieldDescriptor*> parents;
-    return IsProtoRecursive(field, parents,
-                            RecursionType::kInfinitelyRecursive);
+    auto result =
+        IsProtoRecursive(field, parents, RecursionType::kInfinitelyRecursive);
+    policy_.SetIsFieldInfinitelyRecursive(field, result);
+    return result;
   }
 
   bool IsFieldFinitelyRecursive(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
     if (!field->message_type()) return false;
-    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
-    static absl::NoDestructor<
-        absl::flat_hash_map<std::pair<int64_t, const FieldDescriptor*>, bool>>
-        cache ABSL_GUARDED_BY(mutex);
-    {
-      absl::MutexLock l(&mutex);
-      auto it = cache->find({policy_.id(), field});
-      if (it != cache->end()) return it->second;
+    if (auto cache = policy_.IsFieldFinitelyRecursive(field);
+        cache.has_value()) {
+      return *cache;
     }
     absl::flat_hash_set<const FieldDescriptor*> parents;
     bool result =
         IsProtoRecursive(field, parents, RecursionType::kFinitelyRecursive);
-    absl::MutexLock l(&mutex);
-    cache->insert({{policy_.id(), field}, result});
+    policy_.SetIsFieldFinitelyRecursive(field, result);
     return result;
   }
 
@@ -1777,7 +1833,7 @@ class ProtobufDomainUntypedImpl
 
   bool IsOneofRecursive(const OneofDescriptor* oneof,
                         absl::flat_hash_set<const FieldDescriptor*>& parents,
-                        RecursionType recursion_type) const {
+                        RecursionType recursion_type) {
     bool is_oneof_recursive = false;
     for (int i = 0; i < oneof->field_count(); ++i) {
       const auto* field = oneof->field(i);
@@ -1817,9 +1873,9 @@ class ProtobufDomainUntypedImpl
     return false;
   }
 
-  bool MustBeUnset(const FieldDescriptor* field) const {
+  bool MustBeUnset(const FieldDescriptor* field) {
     FUZZTEST_INTERNAL_CHECK(IsCustomizedRecursivelyOnly(), "Internal error.");
-    if (field->message_type() && IsInfinitelyRecursive(field)) {
+    if (field->message_type() && IsFieldInfinitelyRecursive(field)) {
       absl::FPrintF(
           GetStderr(),
           "[!] Infinite recursion detected for %s and it remains unset.\n",
@@ -1845,7 +1901,7 @@ class ProtobufDomainUntypedImpl
   bool IsProtoRecursive(const FieldDescriptor* field,
                         absl::flat_hash_set<const FieldDescriptor*>& parents,
                         RecursionType recursion_type,
-                        const Descriptor* descriptor = nullptr) const {
+                        const Descriptor* descriptor = nullptr) {
     if (field != nullptr) {
       if (parents.contains(field)) return true;
       parents.insert(field);
