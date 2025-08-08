@@ -22,11 +22,18 @@
 
 namespace fuzztest::internal {
 
+// Returns a dup-ed file descriptor pointing to the original stderr if possible.
+// Otherwise returns -1 (in which case the original stderr may be used, while it
+// can be silenced - see below).
+//
+// This function is signal-safe.
+int GetStderrFdDup();
+
 // Returns the current FILE pointing to the original stderr.
 FILE* GetStderr();
 
 // Silences all output sent to stdout and stderr, except the fuzzer's own log.
-// Fuzzer should log to GetStderr().
+// Fuzzer should log to GetStderrFdDup()/GetStderr().
 void SilenceTargetStdoutAndStderr();
 
 // Revive the silenced stdout and stderr of target.
