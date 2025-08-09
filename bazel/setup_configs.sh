@@ -123,8 +123,6 @@ EOF
 
 EXTRA_CONFIGS="${EXTRA_CONFIGS:-none}"
 
-if [[ ${EXTRA_CONFIGS} == *"libfuzzer"* ]]; then
-
 # Find llvm-config.
 LLVM_CONFIG=$(command -v llvm-config    ||
               command -v llvm-config-15 ||
@@ -133,7 +131,7 @@ LLVM_CONFIG=$(command -v llvm-config    ||
               command -v llvm-config-12 ||
               echo "")
 
-if [[ -z "${LLVM_CONFIG}" ]]; then
+if [[ ${EXTRA_CONFIGS} != "none" && -z "${LLVM_CONFIG}" ]]; then
   echo "ERROR: Couldn't generate config, because cannot find llvm-config."
   echo ""
   echo "Please install clang and llvm, e.g.:"
@@ -141,6 +139,20 @@ if [[ -z "${LLVM_CONFIG}" ]]; then
   echo "  sudo apt install clang llvm"
   exit 1
 fi
+
+find_libclang_rt()
+{
+  libname=$1
+  libdir=$(${LLVM_CONFIG} --libdir)
+
+  # The path to a compiler runtime library for a particular clang version "N"
+  # may vary from between distros, including:
+  #   $libdir/lib/clang/<N>/lib/linux/libclang_rt.$libname-x86_64.a
+  #   $libdir/lib/clang/<N>/lib/x86_64-unknown-linux-gnu/libclang_rt.$libname.a
+  find $libdir -name "libclang_rt.${libname}*" | grep x86_64 | head -1
+}
+
+if [[ ${EXTRA_CONFIGS} == *"libfuzzer"* ]]; then
 
 cat <<EOF
 ### libFuzzer compatibility mode.
@@ -151,8 +163,7 @@ build:libfuzzer --config=asan
 build:libfuzzer --config=fuzztest-common
 build:libfuzzer --copt=-DFUZZTEST_COMPATIBILITY_MODE
 build:libfuzzer --copt=-fsanitize=fuzzer-no-link
-build:libfuzzer --linkopt=$(find $(${LLVM_CONFIG} --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)
-
+build:libfuzzer --linkopt=$(find_libclang_rt fuzzer_no_main)
 EOF
 
 fi # libFuzzer
@@ -207,10 +218,10 @@ for flag in $CXXFLAGS; do
 done
 
 if [ "$SANITIZER" = "undefined" ]; then
-  echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.ubsan_standalone_cxx-x86_64.a | head -1)"
+  echo "build:oss-fuzz --linkopt=$(find_libclang_rt ubsan_standalone_cxx)"
 fi
 if [ "$FUZZING_ENGINE" = "libfuzzer" ]; then
-  echo "build:oss-fuzz --linkopt=$(find $(llvm-config --libdir) -name libclang_rt.fuzzer_no_main-x86_64.a | head -1)"
+  echo "build:oss-fuzz --linkopt=$(find_libclang_rt fuzzer_no_main)"
 fi
 
 # AFL version in oss-fuzz does not support LLVMFuzzerRunDriver. It must be updated first.
