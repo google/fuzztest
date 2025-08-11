@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/call_once.h"
 #include "absl/base/const_init.h"
 #include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
@@ -607,7 +608,6 @@ class ProtobufDomainUntypedImpl
     always_set_oneofs_ = other.always_set_oneofs_;
     uncustomizable_oneofs_ = other.uncustomizable_oneofs_;
     unset_oneof_fields_ = other.unset_oneof_fields_;
-    fields_cache_ = other.fields_cache_;
   }
 
   corpus_type Init(absl::BitGenRef prng) {
@@ -1493,11 +1493,10 @@ class ProtobufDomainUntypedImpl
   auto GetFieldCount() const { return GetProtobufFields().size(); }
 
   const std::vector<const FieldDescriptor*>& GetProtobufFields() const {
-    if (fields_cache_.empty()) {
-      absl::MutexLock l(&mutex_);
+    absl::call_once(fields_cache_once_, [this] {
       fields_cache_ = ProtoPolicy<Message>::GetProtobufFields(
           prototype_.Get()->GetDescriptor());
-    }
+    });
     return fields_cache_;
   }
 
@@ -2029,7 +2028,10 @@ class ProtobufDomainUntypedImpl
   absl::flat_hash_set<int> always_set_oneofs_;
   absl::flat_hash_set<int> uncustomizable_oneofs_;
   absl::flat_hash_set<int> unset_oneof_fields_;
+
+  // Never access the field directly, always use `GetProtobufFields()`.
   mutable std::vector<const FieldDescriptor*> fields_cache_;
+  mutable absl::once_flag fields_cache_once_;
 };
 
 // Domain for `T` where `T` is a Protobuf message type.

@@ -167,6 +167,7 @@ cc_library(
     hdrs = ["protobuf_domain_impl.h"],
     deps = [
         ":core_domains_impl",
+        "@abseil-cpp//absl/base",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
