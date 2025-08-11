@@ -34,12 +34,6 @@ struct DispatcherFlagHelper {
 
   const char *absl_nullable flags;
 
-  // To default to true when `flags` is not set.
-  bool HasDefaultFlag(const char *absl_nonnull flag) const {
-    if (!flags) return true;
-    return strstr(flags, flag) != nullptr;
-  }
-
   // Returns true iff `flag` is present.
   // Typical usage: pass ":some_flag:", i.e. the flag name surrounded with ':'.
   // TODO(ussuri): Refactor `char *` into a `string_view`.

@@ -139,15 +139,15 @@ struct SancovState {
   SancovFlags flags = {
       /*path_level=*/std::min(ThreadLocalSancovState::kBoundedPathLength,
                               flag_helper.HasIntFlag(":path_level=", 0)),
-      /*use_pc_features=*/flag_helper.HasDefaultFlag(":use_pc_features:"),
+      /*use_pc_features=*/flag_helper.HasFlag(":use_pc_features:"),
       /*use_dataflow_features=*/
-      flag_helper.HasDefaultFlag(":use_dataflow_features:"),
-      /*use_cmp_features=*/flag_helper.HasDefaultFlag(":use_cmp_features:"),
+      flag_helper.HasFlag(":use_dataflow_features:"),
+      /*use_cmp_features=*/flag_helper.HasFlag(":use_cmp_features:"),
       /*callstack_level=*/flag_helper.HasIntFlag(":callstack_level=", 0),
       /*use_counter_features=*/
-      flag_helper.HasDefaultFlag(":use_counter_features:"),
+      flag_helper.HasFlag(":use_counter_features:"),
       /*use_auto_dictionary=*/
-      flag_helper.HasDefaultFlag(":use_auto_dictionary:"),
+      flag_helper.HasFlag(":use_auto_dictionary:"),
       /*skip_seen_features=*/flag_helper.HasFlag(":skip_seen_features:"),
   };
 
