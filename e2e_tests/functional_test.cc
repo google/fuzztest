@@ -44,6 +44,17 @@
 #include "./fuzztest/internal/type_support.h"
 #include "re2/re2.h"
 
+#define EXPECT_THAT_LOG(log, matcher)                                  \
+  EXPECT_TRUE(testing::Value(log, matcher))                            \
+      << "Matcher: " << testing::DescribeMatcher<std::string>(matcher) \
+      << "\nContents of " #log ":\n"                                   \
+      << log
+#define ASSERT_THAT_LOG(log, matcher)                                  \
+  ASSERT_TRUE(testing::Value(log, matcher))                            \
+      << "Matcher: " << testing::DescribeMatcher<std::string>(matcher) \
+      << "Contents of " #log ":\n"                                     \
+      << log
+
 namespace fuzztest::internal {
 namespace {
 
@@ -130,25 +141,26 @@ TEST_F(UnitTestModeTest, InvalidSeedsAreSkippedAndReported) {
   auto [status, std_out, std_err] =
       Run(/*test_filter=*/"*",
           /*target_binary=*/"testdata/fuzz_tests_with_invalid_seeds");
-  EXPECT_THAT(std_err, HasSubstr("[!] Skipping WithSeeds() value in"));
-  EXPECT_THAT(std_err,
-              HasSubstr("Could not turn value into corpus type:\n{17}"));
-  EXPECT_THAT(std_err, HasSubstr("The value 17 is not InRange(0, 10):\n{17}"));
-  EXPECT_THAT(std_err,
-              HasSubstr("The value 8 is not InRange(10, 20):\n{7, 8}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("[!] Skipping WithSeeds() value in"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Could not turn value into corpus type:\n{17}"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("The value 17 is not InRange(0, 10):\n{17}"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("The value 8 is not InRange(10, 20):\n{7, 8}"));
   // Valid seeds are not reported.
-  EXPECT_THAT(std_err, Not(HasSubstr("{6}")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("{6}")));
   // Tests should still run.
-  EXPECT_THAT(std_out, HasSubstr("[  PASSED  ] 4 tests."));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  PASSED  ] 4 tests."));
   EXPECT_THAT(status, ExitCode(0));
 }
 
 TEST_F(UnitTestModeTest, CorpusIsMutatedInUnitTestMode) {
   auto [status, std_out, std_err] = Run("MySuite.PassesString");
-  EXPECT_THAT(std_err, HasSubstr("==<<Saw size=0>>=="));
-  EXPECT_THAT(std_err, HasSubstr("==<<Saw size=1>>=="));
-  EXPECT_THAT(std_err, HasSubstr("==<<Saw size=2>>=="));
-  EXPECT_THAT(std_err, HasSubstr("==<<Saw size=3>>=="));
+  EXPECT_THAT_LOG(std_err, HasSubstr("==<<Saw size=0>>=="));
+  EXPECT_THAT_LOG(std_err, HasSubstr("==<<Saw size=1>>=="));
+  EXPECT_THAT_LOG(std_err, HasSubstr("==<<Saw size=2>>=="));
+  EXPECT_THAT_LOG(std_err, HasSubstr("==<<Saw size=3>>=="));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -156,8 +168,8 @@ TEST_F(UnitTestModeTest, UnitTestModeLimitsNumberOfIterationsByWallTime) {
   // We run this in unittest mode to check that we reduce the number of
   // iterations to accommodate for the longer run time.
   auto [status, std_out, std_err] = Run("MySuite.OneIterationTakesTooMuchTime");
-  EXPECT_THAT(std_out,
-              HasSubstr("[       OK ] MySuite.OneIterationTakesTooMuchTime"));
+  EXPECT_THAT_LOG(
+      std_out, HasSubstr("[       OK ] MySuite.OneIterationTakesTooMuchTime"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -198,22 +210,20 @@ MATCHER_P3(HasReproducerTest, suite_name, test_name, args, "") {
 void GoogleTestExpectationsDontAbortInUnitTestModeImpl(
     const RunResults& run_results) {
   const auto& [status, std_out, std_err] = run_results;
-  EXPECT_THAT(std_err, HasSubstr("argument 0: ")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   // We expect both to run without crashing.
-  EXPECT_THAT(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestExpect"))
-      << std_out;
-  EXPECT_THAT(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestAssert"))
-      << std_out;
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestExpect"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestAssert"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 
   // There is no repro example on stdout, and there is one on stderr.
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_out,
       AllOf(Not(HasReproducerTest("MySuite", "GoogleTestExpect", ".*")),
             Not(HasReproducerTest("MySuite", "GoogleTestAssert", ".*"))));
-  EXPECT_THAT(std_err,
-              AllOf(HasReproducerTest("MySuite", "GoogleTestExpect", ".*"),
-                    HasReproducerTest("MySuite", "GoogleTestAssert", ".*")));
+  EXPECT_THAT_LOG(
+      std_err, AllOf(HasReproducerTest("MySuite", "GoogleTestExpect", ".*"),
+                     HasReproducerTest("MySuite", "GoogleTestAssert", ".*")));
 }
 
 TEST_F(UnitTestModeTest, GoogleTestExpectationsDontAbortInUnitTestMode) {
@@ -275,7 +285,7 @@ TEST_F(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledInBalance) {
 TEST_F(UnitTestModeTest, GoogleTestWorksWithProtoExtensionsUsedInSeeds) {
   auto [status, std_out, std_err] = Run("MySuite.CheckProtoExtensions");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("Uses proto extensions"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Uses proto extensions"));
 }
 
 TEST_F(UnitTestModeTest, UnitTestAndFuzzTestCanShareSuiteName) {
@@ -336,7 +346,7 @@ TEST_F(UnitTestModeTest, RequiredProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsWhenRequiredEnumFieldHasNoValue");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("cannot have null values"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("cannot have null values"));
 }
 
 TEST_F(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
@@ -348,14 +358,14 @@ TEST_F(UnitTestModeTest, OptionalProtoFieldThatIsNotAlwaysSetCanHaveNoValue) {
 TEST_F(UnitTestModeTest, ProtobufOfMutatesTheProto) {
   auto [status, std_out, std_err] = Run("MySuite.FailsWhenI32IsSet");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("The field i32 is set!"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("The field i32 is set!"));
 }
 
 TEST_F(UnitTestModeTest, ProtobufEnumEqualsLabel4) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsIfProtobufEnumEqualsLabel4");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_err,
       HasSubstr("argument 0: fuzztest::internal::TestProtobuf::Label4"));
 }
@@ -364,57 +374,58 @@ TEST_F(UnitTestModeTest, WorksWithRecursiveStructs) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithRecursiveStructs");
   ExpectTargetAbort(status, std_err);
   // Nullptr has multiple possible human-readable representations.
-  EXPECT_THAT(std_err, AnyOf(HasSubstr("argument 0: LinkedList{0, 1}"),
-                             HasSubstr("argument 0: LinkedList{(nil), 1}")));
+  EXPECT_THAT_LOG(std_err,
+                  AnyOf(HasSubstr("argument 0: LinkedList{0, 1}"),
+                        HasSubstr("argument 0: LinkedList{(nil), 1}")));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithConstructors) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithConstructors");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0: HasConstructor{1, \"abc\"}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: HasConstructor{1, \"abc\"}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithEmptyTuples) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithEmptyTuples");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmptyTuple{}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: ContainsEmptyTuple{}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithEmptyStructs) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithEmptyStructs");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0: Empty{}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: Empty{}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithStructsWithEmptyFields) {
   auto [status, std_out, std_err] =
       Run("MySuite.WorksWithStructsWithEmptyFields");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0: ContainsEmpty{Empty{}}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: ContainsEmpty{Empty{}}"));
 }
 
 TEST_F(UnitTestModeTest, WorksWithEmptyInheritance) {
   auto [status, std_out, std_err] = Run("MySuite.WorksWithEmptyInheritance");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0: Child{0, \"abc\"}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: Child{0, \"abc\"}"));
 }
 
 TEST_F(UnitTestModeTest, ArbitraryWorksWithEmptyInheritance) {
   auto [status, std_out, std_err] =
       Run("MySuite.ArbitraryWorksWithEmptyInheritance");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("argument 0:"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0:"));
 }
 
 TEST_F(UnitTestModeTest, FlatMapCorrectlyPrintsValues) {
   auto [status, std_out, std_err] = Run("MySuite.FlatMapCorrectlyPrintsValues");
   ExpectTargetAbort(status, std_err);
   // This is the argument to the output domain.
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {\"AAA\", \"BBB\"}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {\"AAA\", \"BBB\"}"));
   // This is the argument to the input domain.
-  EXPECT_THAT(std_err, Not(HasSubstr("argument 0: 3")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0: 3")));
 }
 
 TEST_F(UnitTestModeTest, CustomSourceCodePrinterCorrectlyPrintsValue) {
@@ -422,19 +433,20 @@ TEST_F(UnitTestModeTest, CustomSourceCodePrinterCorrectlyPrintsValue) {
       Run("MySuite.CustomSourceCodePrinterCorrectlyPrintsValue");
   ExpectTargetAbort(status, std_err);
   // This is the argument to the output domain.
-  EXPECT_THAT(std_err,
-              HasSubstr("MyCustomPrintableTestType::BuildWithValue(\"abcd\")"));
+  EXPECT_THAT_LOG(
+      std_err,
+      HasSubstr("MyCustomPrintableTestType::BuildWithValue(\"abcd\")"));
   // This is the argument to the input domain.
-  EXPECT_THAT(std_err, Not(HasSubstr("argument 0: \"abcd\"")));
-  EXPECT_THAT(std_err,
-              HasSubstr("argument 0: MyCustomPrintableTestType - input=abcd"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0: \"abcd\"")));
+  EXPECT_THAT_LOG(
+      std_err, HasSubstr("argument 0: MyCustomPrintableTestType - input=abcd"));
 }
 
 TEST_F(UnitTestModeTest, PrintsVeryLongInputsTrimmed) {
   auto [status, std_out, std_err] = Run("MySuite.LongInput");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("65 ...<value too long>"));
-  EXPECT_THAT(std_err, HasSubstr("A ...<value too long>"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("65 ...<value too long>"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("A ...<value too long>"));
 }
 
 TEST_F(UnitTestModeTest, PropertyFunctionAcceptsTupleOfItsSingleParameter) {
@@ -496,7 +508,7 @@ TEST_F(
 TEST_F(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
   auto [status, std_out, std_err] = Run("MySuite.FailsIfCantInitializeProto");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("recursive fields"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("recursive fields"));
 }
 
 TEST_F(UnitTestModeTest, InitializesRequiredFieldsEvenIfTheyAreRecursive) {
@@ -531,7 +543,7 @@ TEST_F(UnitTestModeTest, FailsWhenRepeatedFieldsSizeRangeIsInvalid) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsToInitializeIfRepeatedFieldsSizeRangeIsInvalid");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("size range is not valid"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("size range is not valid"));
 }
 
 TEST_F(UnitTestModeTest, UsesPolicyProvidedDefaultDomainForProtos) {
@@ -544,7 +556,8 @@ TEST_F(UnitTestModeTest, ChecksTypeOfProvidedDefaultDomainForProtos) {
   auto [status, std_out, std_err] =
       Run("MySuite.FailsWhenWrongDefaultProtobufDomainIsProvided");
   ExpectTargetAbort(status, std_err);
-  EXPECT_THAT(std_err, HasSubstr("does not match the expected message type"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("does not match the expected message type"));
 }
 
 TEST_F(UnitTestModeTest, PoliciesApplyToFieldsInOrder) {
@@ -562,11 +575,12 @@ TEST_F(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
 void ExpectStackLimitExceededMessage(absl::string_view std_err,
                                      size_t limit_bytes) {
 #ifdef FUZZTEST_USE_CENTIPEDE
-  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat(
-                           "Stack limit exceeded: [0-9]+ > ", limit_bytes)));
+  EXPECT_THAT_LOG(std_err,
+                  ContainsRegex(absl::StrCat("Stack limit exceeded: [0-9]+ > ",
+                                             limit_bytes)));
 #else
-  EXPECT_THAT(std_err, HasSubstr(absl::StrCat("Configured limit is ",
-                                              limit_bytes, ".")));
+  EXPECT_THAT_LOG(std_err, HasSubstr(absl::StrCat("Configured limit is ",
+                                                  limit_bytes, ".")));
 #endif
 }
 
@@ -585,7 +599,7 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
   auto [status, std_out, std_err] =
       Run("MySuite.DataDependentStackOverflow", kDefaultTargetBinary,
           /*env=*/{}, /*fuzzer_flags=*/{{"stack_limit_kb", "1000"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectStackLimitExceededMessage(std_err, 1024000);
   ExpectTargetAbort(status, std_err);
 }
@@ -594,8 +608,8 @@ TEST_F(UnitTestModeTest, RssLimitFlagWorks) {
   auto [status, std_out, std_err] =
       Run("MySuite.LargeHeapAllocation", kDefaultTargetBinary,
           /*env=*/{}, /*fuzzer_flags=*/{{"rss_limit_mb", "1024"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -604,8 +618,8 @@ TEST_F(UnitTestModeTest, TimeLimitFlagWorks) {
       Run("MySuite.Sleep", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, ContainsRegex("Per-input timeout exceeded"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("Per-input timeout exceeded"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -614,9 +628,9 @@ TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerTest) {
       Run("SkippedTestFixturePerTest.SkippedTest", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
-  EXPECT_THAT(std_err,
-              HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
-  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest is executed")));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest is executed")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -625,7 +639,7 @@ TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerIteration) {
       Run("SkippedTestFixturePerIteration.SkippedTest", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
-  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest is executed")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest is executed")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -634,7 +648,7 @@ TEST_F(UnitTestModeTest, InputsAreSkippedWhenRequestedInTests) {
       Run("MySuite.SkipInputs", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
-  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Skipped input"));
 }
 
 // Tests for the FuzzTest command line interface.
@@ -659,10 +673,10 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
 
 TEST_F(GenericCommandLineInterfaceTest, FuzzTestsAreFoundInTheBinary) {
   auto [status, std_out, std_err] = RunWith({{"list_fuzz_tests", "true"}});
-  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.Coverage"));
-  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: MySuite.DivByZero"));
-  EXPECT_THAT(std_out,
-              HasSubstr("[*] Fuzz test: MySuite.PassesWithPositiveInput"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[*] Fuzz test: MySuite.Coverage"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[*] Fuzz test: MySuite.DivByZero"));
+  EXPECT_THAT_LOG(std_out,
+                  HasSubstr("[*] Fuzz test: MySuite.PassesWithPositiveInput"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -672,8 +686,10 @@ TEST_F(GenericCommandLineInterfaceTest,
       RunWith(/*flags=*/{{"list_fuzz_tests", "true"}}, /*env=*/{},
               /*timeout=*/absl::Minutes(1),
               /*binary=*/"testdata/dynamically_registered_fuzz_tests");
-  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: TestSuiteOne.DoesNothing/1"));
-  EXPECT_THAT(std_out, HasSubstr("[*] Fuzz test: TestSuiteTwo.DoesNothing/2"));
+  EXPECT_THAT_LOG(std_out,
+                  HasSubstr("[*] Fuzz test: TestSuiteOne.DoesNothing/1"));
+  EXPECT_THAT_LOG(std_out,
+                  HasSubstr("[*] Fuzz test: TestSuiteTwo.DoesNothing/2"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -701,14 +717,15 @@ class FuzzingModeCommandLineInterfaceTest
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, WrongFuzzTestNameTriggersError) {
   auto [status, std_out, std_err] = RunWith({{"fuzz", "WrongName"}});
-  EXPECT_THAT(std_err, HasSubstr("No FUZZ_TEST matches the name: WrongName"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("No FUZZ_TEST matches the name: WrongName"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        MatchingMultipleFuzzTestsTriggersError) {
   auto [status, std_out, std_err] = RunWith({{"fuzz", "Bad"}});
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_err,
       HasSubstr(
           "Multiple FUZZ_TESTs match the name: Bad\n\nPlease select one. "
@@ -718,14 +735,14 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, RunsAbortTestAndDetectsAbort) {
   auto [status, std_out, std_err] = RunWith({{"fuzz", "MySuite.Aborts"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        FuzzTestCanBeSelectedForFuzzingUsingSubstring) {
   auto [status, std_out, std_err] = RunWith({{"fuzz", "Abort"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -735,7 +752,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
               /*timeout=*/absl::Seconds(10));
-  EXPECT_THAT(std_err, HasSubstr("will not limit fuzzing runs")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("will not limit fuzzing runs"));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
@@ -743,19 +760,18 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "100"}});
 #ifdef FUZZTEST_USE_CENTIPEDE
-  EXPECT_THAT(std_err, HasSubstr("[S0.100] end-fuzz")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("[S0.100] end-fuzz"));
 #else
-  EXPECT_THAT(std_err,
-              // 100 fuzzing runs + 1 seed run.
-              HasSubstr("Total runs: 101"))
-      << std_err;
+  EXPECT_THAT_LOG(std_err,
+                  // 100 fuzzing runs + 1 seed run.
+                  HasSubstr("Total runs: 101"));
 #endif  // FUZZTEST_USE_CENTIPEDE
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "1s"}});
-  EXPECT_THAT(std_err, HasSubstr("Fuzzing timeout set to: 1s")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing timeout set to: 1s"));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
@@ -765,7 +781,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.StringFast"}},
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.path()}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
@@ -774,12 +790,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
-  EXPECT_THAT(std_err,
-              AllOf(HasSubstr("Reproducer file was dumped at:"),
-                    HasSubstr(replay_files[0].path),
-                    HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
-                                           replay_files[0].path))))
-      << std_err;
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(HasSubstr("Reproducer file was dumped at:"),
+                        HasSubstr(replay_files[0].path),
+                        HasSubstr(absl::StrCat("--test_env=FUZZTEST_REPLAY=",
+                                               replay_files[0].path))));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
@@ -789,7 +804,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.StringFast"}},
               {{"TEST_UNDECLARED_OUTPUTS_DIR", out_dir.path()}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
@@ -798,15 +813,15 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
-  EXPECT_THAT(std_err,
-              AllOf(HasSubstr("Reproducer file was dumped under "
-                              "TEST_UNDECLARED_OUTPUTS_DIR"
-                              ),
-                    HasSubstr(replay_files[0].path),
-                    HasSubstr(absl::StrCat(
-                        "--test_env=FUZZTEST_REPLAY=/tmp/fuzztest_repro/",
-                        Basename(replay_files[0].path)))))
-      << std_err;
+  EXPECT_THAT_LOG(
+      std_err,
+      AllOf(HasSubstr("Reproducer file was dumped under "
+                      "TEST_UNDECLARED_OUTPUTS_DIR"
+                      ),
+            HasSubstr(replay_files[0].path),
+            HasSubstr(
+                absl::StrCat("--test_env=FUZZTEST_REPLAY=/tmp/fuzztest_repro/",
+                             Basename(replay_files[0].path)))));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
@@ -986,7 +1001,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.String"}}, replay.GetReplayEnv());
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz with some tail.\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz with some tail.\""));
   EXPECT_THAT(status, Eq(Signal(SIGABRT)));
 }
 
@@ -1000,7 +1015,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.WithDomainClass"}},
               {{"FUZZTEST_REPRODUCERS_OUT_DIR", out_dir.path()}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 10"));
   EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
@@ -1025,8 +1040,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   ReplayFile replay(std::in_place, std::tuple<uint8_t, double>{10, 1979.125});
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.WithDomainClass"}}, replay.GetReplayEnv());
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 10")) << std_err;
-  EXPECT_THAT(std_err, HasSubstr("argument 1: 1979.125")) << std_err;
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 10"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 1979.125"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
@@ -1040,7 +1055,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
 
     auto [status, std_out, std_err] =
         RunWith({{"fuzz", "MySuite.Minimizer"}}, env);
-    ASSERT_THAT(std_err, HasSubstr("argument 0: \""));
+    ASSERT_THAT_LOG(std_err, HasSubstr("argument 0: \""));
     ASSERT_THAT(status, Eq(Signal(SIGABRT)));
 
     auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
@@ -1067,9 +1082,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
               /*env=*/{},
               /*timeout=*/absl::Seconds(10));
-  EXPECT_THAT(std_err, HasSubstr("Fuzzing was terminated"));
-  EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
-  EXPECT_THAT(std_err, HasSubstr("Total runs:"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing was terminated"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("=== Fuzzing stats"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Total runs:"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1077,9 +1092,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, SilenceTargetWorking) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.TargetPrintSomethingThenAbrt"}},
               /*env=*/{{"FUZZTEST_SILENCE_TARGET", "1"}});
-  EXPECT_THAT(std_out, Not(HasSubstr("Hello World from target stdout")));
-  EXPECT_THAT(std_err, HasSubstr("=== Fuzzing stats"));
-  EXPECT_THAT(std_err, Not(HasSubstr("Hello World from target stderr")));
+  EXPECT_THAT_LOG(std_out, Not(HasSubstr("Hello World from target stdout")));
+  EXPECT_THAT_LOG(std_err, HasSubstr("=== Fuzzing stats"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("Hello World from target stderr")));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1093,7 +1108,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, NonFatalFailureAllowsMinimization) {
       RunWith({{"fuzz", "MySuite.NonFatalFailureAllowsMinimization"}});
   // The final failure should be with the known minimal result, even though many
   // "larger" inputs also trigger the failure.
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"0123\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"0123\""));
 
   ExpectTargetAbort(status, std_err);
 }
@@ -1101,8 +1116,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, NonFatalFailureAllowsMinimization) {
 TEST_F(FuzzingModeCommandLineInterfaceTest, GoogleTestHasCurrentTestInfo) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.GoogleTestHasCurrentTestInfo"}, {"fuzz_for", "1s"}});
-  EXPECT_THAT(std_out,
-              HasSubstr("[       OK ] MySuite.GoogleTestHasCurrentTestInfo"));
+  EXPECT_THAT_LOG(
+      std_out, HasSubstr("[       OK ] MySuite.GoogleTestHasCurrentTestInfo"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1110,7 +1125,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.DataDependentStackOverflow"},
                {"stack_limit_kb", "1000"}});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectStackLimitExceededMessage(std_err, 1024000);
   ExpectTargetAbort(status, std_err);
 }
@@ -1121,8 +1136,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "10s"}},
       /*env=*/{},
       /*timeout=*/absl::Seconds(20));
-  EXPECT_THAT(std_err,
-              Not(HasSubstr("limit is specified but will be ignored")));
+  EXPECT_THAT_LOG(std_err,
+                  Not(HasSubstr("limit is specified but will be ignored")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1130,8 +1145,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagWorks) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.LargeHeapAllocation"}, {"rss_limit_mb", "1024"}},
       /*env=*/{}, /*timeout=*/absl::Seconds(10));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1139,8 +1154,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
   auto [status, std_out, std_err] =
       RunWith({{"fuzz", "MySuite.Sleep"}, {"time_limit_per_input", "1s"}},
               /*env=*/{});
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
-  EXPECT_THAT(std_err, ContainsRegex("Per-input timeout exceeded"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("Per-input timeout exceeded"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1151,10 +1166,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
       RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests");
 
-  EXPECT_THAT(std_out, Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
-  EXPECT_THAT(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
-  EXPECT_THAT(std_out, HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses"));
-  EXPECT_THAT(std_out, HasSubstr("2 tests from 1 test suite ran."));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("2 tests from 1 test suite ran."));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1166,11 +1182,12 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               {{GTEST_FLAG_PREFIX_ "filter",
                 "UnitTest.AlwaysPasses:FuzzTest.AlwaysPasses"}});
 
-  EXPECT_THAT(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
-  EXPECT_THAT(std_out,
-              Not(HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses")));
-  EXPECT_THAT(std_out, Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
-  EXPECT_THAT(std_out, HasSubstr("1 test from 1 test suite ran."));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses")));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+  EXPECT_THAT_LOG(std_out, HasSubstr("1 test from 1 test suite ran."));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1184,7 +1201,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
       RunWith({{"fuzz", "MySuite.SkipInputs"}, {"fuzz_for", "10s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
-  ASSERT_THAT(producer_std_err, HasSubstr("Skipped input"));
+  ASSERT_THAT_LOG(producer_std_err, HasSubstr("Skipped input"));
 
   auto [replayer_status, replayer_std_out, replayer_std_err] =
       RunWith({{"fuzz", "MySuite.SkipInputs"}},
@@ -1205,11 +1222,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
       },
       {{"FUZZTEST_CENTIPEDE_BINARY", CentipedePath()}},
       /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_err,
-      HasSubstr("Starting the update of the corpus database for fuzz tests"))
-      << std_err;
-  EXPECT_THAT(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
+      HasSubstr("Starting the update of the corpus database for fuzz tests"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1227,8 +1243,8 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
       },
       /*env=*/{},
       /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
-  EXPECT_THAT(std_err, HasSubstr("Running Centipede command")) << std_err;
-  EXPECT_THAT(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Running Centipede command"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1386,9 +1402,9 @@ TEST_P(FuzzingModeFixtureTest, GoogleTestStaticTestSuiteFunctionsCalledOnce) {
 TEST_P(FuzzingModeFixtureTest, TestIsSkippedWhenRequestedInFixturePerTest) {
   auto [status, std_out, std_err] =
       Run("SkippedTestFixturePerTest.SkippedTest", /*iterations=*/10);
-  EXPECT_THAT(std_err,
-              HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
-  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest should not be run")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1396,7 +1412,7 @@ TEST_P(FuzzingModeFixtureTest,
        TestIsSkippedWhenRequestedInFixturePerIteration) {
   auto [status, std_out, std_err] =
       Run("SkippedTestFixturePerIteration.SkippedTest", /*iterations=*/10);
-  EXPECT_THAT(std_err, Not(HasSubstr("SkippedTest should not be run")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest should not be run")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -1466,7 +1482,7 @@ class FuzzingModeCrashFindingTest
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithStringView");
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_err,
       AnyOf(HasSubstr("ERROR: AddressSanitizer: container-overflow"),
             HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow")));
@@ -1477,7 +1493,7 @@ TEST_P(FuzzingModeCrashFindingTest,
        DereferencingEmptyOptionalTriggersLibcppAssertionsWhenEnabled) {
 #if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_ASSERTIONS)
   auto [status, std_out, std_err] = Run("MySuite.DereferenceEmptyOptional");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: std::nullopt"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: std::nullopt"));
   ExpectTargetAbort(status, std_err);
 #endif
 }
@@ -1485,8 +1501,8 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithString");
-  EXPECT_THAT(std_err,
-              HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
@@ -1494,8 +1510,8 @@ TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndLvalueStringViewRef) {
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndLvalueStringViewRef");
-  EXPECT_THAT(std_err,
-              HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
@@ -1503,14 +1519,14 @@ TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndRvalueStringViewRef) {
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndRvalueStringViewRef");
-  EXPECT_THAT(std_err,
-              HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.DivByZero");
-  EXPECT_THAT(std_err, HasSubstr("argument 1: 0"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 0"));
 #ifdef ADDRESS_SANITIZER
   EXPECT_THAT(status, Ne(ExitCode(0)));
 #else
@@ -1521,135 +1537,138 @@ TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
 TEST_P(FuzzingModeCrashFindingTest, Int32ValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Int32ValueTest");
   // -559038737 is 0xdeadbeef in int32_t.
-  EXPECT_THAT(std_err, HasSubstr("argument 0: -559038737"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: -559038737"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Coverage");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 'F'"));
-  EXPECT_THAT(std_err, HasSubstr("argument 1: 'u'"));
-  EXPECT_THAT(std_err, HasSubstr("argument 2: 'z'"));
-  EXPECT_THAT(std_err, HasSubstr("argument 3: 'z'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 'F'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 'u'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 2: 'z'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 3: 'z'"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, StringTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.String");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
        StringAsciiOnlyTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringAsciiOnly");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, StringRegexpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringRegexp");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, StringViewTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringView");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, StrCmpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StrCmp");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"Hello!"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Hello!"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BitFlagsFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitFlags");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 21"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 21"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, EnumTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.EnumValue");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: Color{0}"));
-  EXPECT_THAT(std_err, HasSubstr("argument 1: Color{1}"));
-  EXPECT_THAT(std_err, HasSubstr("argument 2: Color{2}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: Color{0}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: Color{1}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 2: Color{2}"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, EnumClassTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.EnumClassValue");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: ColorClass{0}"));
-  EXPECT_THAT(std_err, HasSubstr("argument 1: ColorClass{1}"));
-  EXPECT_THAT(std_err, HasSubstr("argument 2: ColorClass{2}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: ColorClass{0}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: ColorClass{1}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 2: ColorClass{2}"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, ProtoTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.Proto");
-  EXPECT_THAT(std_err, ContainsRegex(R"(argument 0: \((.*\n.*)?b:\s+true)"));
+  EXPECT_THAT_LOG(std_err,
+                  ContainsRegex(R"(argument 0: \((.*\n.*)?b:\s+true)"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BitvectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitvectorValue");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {true"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {true"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.VectorValue");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {'F'"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BitGenRefTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitGenRef");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: absl::BitGenRef{}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: absl::BitGenRef{}"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
        FixedSizeVectorValueTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.FixedSizeVectorValue");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {'F'"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {'F'"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, GoogleTestExpectationsStopTheFuzzer) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestExpect");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 
 #ifndef FUZZTEST_USE_CENTIPEDE
 
   // There is the repro example only on stderr.
-  EXPECT_THAT(std_out,
-              Not(HasReproducerTest("MySuite", "GoogleTestExpect", ".*")));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasReproducerTest("MySuite", "GoogleTestExpect", ".*")));
 #endif
-  EXPECT_THAT(std_err, HasReproducerTest("MySuite", "GoogleTestExpect", ".*"));
+  EXPECT_THAT_LOG(std_err,
+                  HasReproducerTest("MySuite", "GoogleTestExpect", ".*"));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, GoogleTestAssertionsStopTheFuzzer) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestAssert");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 
 #ifndef FUZZTEST_USE_CENTIPEDE
 
   // There is the repro example only on stderr.
-  EXPECT_THAT(std_out,
-              Not(HasReproducerTest("MySuite", "GoogleTestAssert", ".*")));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasReproducerTest("MySuite", "GoogleTestAssert", ".*")));
 
 #endif
-  EXPECT_THAT(std_err, HasReproducerTest("MySuite", "GoogleTestAssert", ".*"));
+  EXPECT_THAT_LOG(std_err,
+                  HasReproducerTest("MySuite", "GoogleTestAssert", ".*"));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
   auto [status, std_out, std_err] = Run("MySuite.Mapping");
-  EXPECT_THAT(
+  EXPECT_THAT_LOG(
       std_err,
       AllOf(
           HasSubstr("argument 0: \"12 monkeys\""),
@@ -1663,9 +1682,9 @@ TEST_P(FuzzingModeCrashFindingTest, MappedDomainShowsMappedValue) {
 
 TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
   auto [status, std_out, std_err] = Run("MySuite.FlatMapping");
-  EXPECT_THAT(std_err, AllOf(HasSubstr("argument 0: {\"abc\", 2}"),
-                             HasReproducerTest("MySuite", "FlatMapping",
-                                               "{\"abc\", 2}")));
+  EXPECT_THAT_LOG(std_err, AllOf(HasSubstr("argument 0: {\"abc\", 2}"),
+                                 HasReproducerTest("MySuite", "FlatMapping",
+                                                   "{\"abc\", 2}")));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1678,58 +1697,58 @@ TEST_P(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
 
 TEST_P(FuzzingModeCrashFindingTest, FilterDomainShowsOnlyFilteredValues) {
   auto [status, std_out, std_err] = Run("MySuite.Filtering");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 8"));
-  EXPECT_THAT(std_err, HasSubstr("argument 1: 9"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 8"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 9"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BadFilterTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadFilter");
-  EXPECT_THAT(std_err, HasSubstr("Ineffective use of Filter()"));
-  EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Ineffective use of Filter()"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0:")));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, BadWithMinSizeTriggersAnAbort) {
   auto [status, std_out, std_err] = Run("MySuite.BadWithMinSize");
-  EXPECT_THAT(std_err, HasSubstr("Ineffective use of WithSize()"));
-  EXPECT_THAT(std_err, Not(HasSubstr("argument 0:")));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Ineffective use of WithSize()"));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0:")));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SmartPointer) {
   auto [status, std_out, std_err] = Run("MySuite.SmartPointer");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: (1"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: (1"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, UnprintableTypeRunsAndPrintsSomething) {
   auto [status, std_out, std_err] = Run("MySuite.UsesUnprintableType");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: <unprintable value>"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: <unprintable value>"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestArbitraryCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructArbitrary");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestWithDomainsCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructWithDomains");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, ConstructorPrintsSomething) {
   auto [status, std_out, std_err] = Run("MySuite.ConstructorWithDomains");
-  EXPECT_THAT(std_err, HasSubstr("\"ccc\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("\"ccc\""));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsed) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsed");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {9439518, 21, 49153}"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {9439518, 21, 49153}"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1737,39 +1756,39 @@ TEST_P(FuzzingModeCrashFindingTest,
        SeedInputIsUsedInProtobufsWithInternalMappings) {
   auto [status, std_out, std_err] =
       Run("MySuite.SeedInputIsUsedInProtobufsWithInternalMappings");
-  EXPECT_THAT(std_err, HasSubstr("subproto_i32: 9439518"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("subproto_i32: 9439518"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SeedInputIsUsedForMutation) {
   auto [status, std_out, std_err] = Run("MySuite.SeedInputIsUsedForMutation");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: {1979, 9791, 1234, 6789"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: {1979, 9791, 1234, 6789"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, UsesManualDictionary) {
   auto [status, std_out, std_err] = Run("MySuite.StringPermutationTest");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, UsesSeededDomain) {
   auto [status, std_out, std_err] = Run("MySuite.StringPermutationWithSeeds");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, UsesSeedFromSeedProvider) {
   auto [status, std_out, std_err] =
       Run("MySuite.StringPermutationWithSeedProvider");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, UsesSeedFromSeedProviderOnFixture) {
   auto [status, std_out, std_err] =
       Run("SeededFixture.StringPermutationWithSeedProvider");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"9876543210\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"9876543210\""));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1777,7 +1796,7 @@ TEST_P(FuzzingModeCrashFindingTest,
        FunctionPointerAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       Run("MySuite.FunctionPointerAliasesAreFuzzable");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1785,13 +1804,13 @@ TEST_P(FuzzingModeCrashFindingTest,
        FunctionReferenceAliasFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] =
       Run("MySuite.FunctionReferenceAliasesAreFuzzable");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, FuzzTestCanFindStackOverflows) {
   auto [status, std_out, std_err] = Run("MySuite.DataDependentStackOverflow");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: "));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   // 128 KiB is the default stack limit.
   ExpectStackLimitExceededMessage(std_err, 128 * 1024);
   ExpectTargetAbort(status, std_err);
@@ -1802,15 +1821,15 @@ TEST_P(FuzzingModeCrashFindingTest,
   auto [status, std_out, std_err] =
       Run("AlternateSignalStackFixture."
           "StackCalculationWorksWithAlternateStackForSignalHandlers");
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
   auto [status, std_out, std_err] =
       Run("MySuite.SkipInputs", kDefaultTargetBinary);
-  EXPECT_THAT(std_err, HasSubstr("Skipped input"));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: 123456789"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Skipped input"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1867,7 +1886,7 @@ TEST_P(FuzzingModeCrashFindingTest,
           {
           },
           /*timeout=*/absl::Seconds(30));
-  EXPECT_THAT(std_err, HasSubstr("argument 0: \"ahmfn\""));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"ahmfn\""));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1875,27 +1894,27 @@ TEST_P(FuzzingModeCrashFindingTest, FlatbuffersFailsWhenFieldsAreNotDefault) {
   TempDir out_dir;
   auto [status, std_out, std_err] =
       Run("MySuite.FlatbuffersFailsWhenFieldsAreNotDefault");
-  EXPECT_THAT(std_err,
-              AllOf(HasSubstr("argument 0: {b: ("),  // b
-                    HasSubstr("i8: ("),              // i8
-                    HasSubstr("i16: ("),             // i16
-                    HasSubstr("i32: ("),             // i32
-                    HasSubstr("i64: ("),             // i64
-                    HasSubstr("u8: ("),              // u8
-                    HasSubstr("u16: ("),             // u16
-                    HasSubstr("u32: ("),             // u32
-                    HasSubstr("u64: ("),             // u64
-                    HasSubstr("f: ("),               // f
-                    HasSubstr("d: ("),               // d
-                    HasSubstr("str: "),              // str
-                    HasSubstr("ei8: ("),             // ei8
-                    HasSubstr("ei16: ("),            // ei16
-                    HasSubstr("ei32: ("),            // ei32
-                    HasSubstr("ei64: ("),            // ei64
-                    HasSubstr("eu8: ("),             // eu8
-                    HasSubstr("eu16: ("),            // eu16
-                    HasSubstr("eu32: ("),            // eu32
-                    HasSubstr("eu64: (")));          // eu64
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(HasSubstr("argument 0: {b: ("),  // b
+                        HasSubstr("i8: ("),              // i8
+                        HasSubstr("i16: ("),             // i16
+                        HasSubstr("i32: ("),             // i32
+                        HasSubstr("i64: ("),             // i64
+                        HasSubstr("u8: ("),              // u8
+                        HasSubstr("u16: ("),             // u16
+                        HasSubstr("u32: ("),             // u32
+                        HasSubstr("u64: ("),             // u64
+                        HasSubstr("f: ("),               // f
+                        HasSubstr("d: ("),               // d
+                        HasSubstr("str: "),              // str
+                        HasSubstr("ei8: ("),             // ei8
+                        HasSubstr("ei16: ("),            // ei16
+                        HasSubstr("ei32: ("),            // ei32
+                        HasSubstr("ei64: ("),            // ei64
+                        HasSubstr("eu8: ("),             // eu8
+                        HasSubstr("eu16: ("),            // eu16
+                        HasSubstr("eu32: ("),            // eu32
+                        HasSubstr("eu64: (")));          // eu64
   ExpectTargetAbort(status, std_err);
 }
 
