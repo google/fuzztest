@@ -56,7 +56,7 @@ struct Environment {
   Knobs knobs;  // Read from a file by `ReadKnobsFileIfSpecified`, see knobs.h.
 
   // Defines internal logging level. Set to zero to reduce logging in tests.
-  // TODO(ussuri): Retire in favor of VLOGs?
+  // TODO(ussuri): Retire in favor of FUZZTEST_VLOGs?
   size_t log_level = 1;
 
   // Path to a file with PCs. This file is created and the field is set in
@@ -103,7 +103,7 @@ struct Environment {
   //   shard 5 will have {foo=2,bar=30},
   // and so on.
   //
-  // CHECK-fails if the `--experiment` flag is not well-formed,
+  // FUZZTEST_CHECK-fails if the `--experiment` flag is not well-formed,
   // or if num_threads is not a multiple of the number of flag combinations
   // (which is 6 in this example).
   //
@@ -113,7 +113,7 @@ struct Environment {
   // which means "value #0 is used for foo and value #1 is used for bar".
   void UpdateForExperiment();
 
-  // Sets flag 'name' to `value` for an experiment. CHECK-fails on
+  // Sets flag 'name' to `value` for an experiment. FUZZTEST_CHECK-fails on
   // invalid name/value combination. Used in `UpdateForExperiment()`.
   void SetFlagForExperiment(std::string_view name, std::string_view value);
 
@@ -121,9 +121,9 @@ struct Environment {
 
   // Reads `knobs` from `knobs_file`. Does nothing if the `knobs_file` is empty.
   void ReadKnobsFileIfSpecified();
-  // Updates `this` with `config` obtained from the target binary. CHECK-fails
-  // if the fields are non-default and inconsistent with the corresponding
-  // values in `config`.
+  // Updates `this` with `config` obtained from the target binary.
+  // FUZZTEST_CHECK-fails if the fields are non-default and inconsistent with
+  // the corresponding values in `config`.
   void UpdateWithTargetConfig(const fuzztest::internal::Configuration& config);
   // If `timeout_per_batch` is `val`, computes it as a function of
   // `timeout_per_input` and `batch_size` and updates it. Otherwise, leaves it

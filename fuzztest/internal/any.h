@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 
@@ -44,8 +45,8 @@ class AnyBase {
   }
 
   bool has_value() const {
-    FUZZTEST_INTERNAL_CHECK((vtable_ == nullptr) == (value_ == nullptr),
-                            "Inconsistent state between value and vtable.");
+    FUZZTEST_CHECK((vtable_ == nullptr) == (value_ == nullptr))
+        << "Inconsistent state between value and vtable.";
     return value_ != nullptr;
   }
 
@@ -56,29 +57,29 @@ class AnyBase {
 
   template <typename T>
   T& GetAs() & {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(has_value(), "Object is empty!");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(Has<T>(), "Wrong type!");
+    FUZZTEST_PRECONDITION(has_value()) << "Object is empty!";
+    FUZZTEST_PRECONDITION(Has<T>()) << "Wrong type!";
     return *static_cast<T*>(value_);
   }
 
   template <typename T>
   const T& GetAs() const& {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(has_value(), "Object is empty!");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(Has<T>(), "Wrong type!");
+    FUZZTEST_PRECONDITION(has_value()) << "Object is empty!";
+    FUZZTEST_PRECONDITION(Has<T>()) << "Wrong type!";
     return *static_cast<T*>(value_);
   }
 
   template <typename T>
   T&& GetAs() && {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(has_value(), "Object is empty!");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(Has<T>(), "Wrong type!");
+    FUZZTEST_PRECONDITION(has_value()) << "Object is empty!";
+    FUZZTEST_PRECONDITION(Has<T>()) << "Wrong type!";
     return std::move(*static_cast<T*>(value_));
   }
 
   template <typename T>
   const T&& GetAs() const&& {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(has_value(), "Object is empty!");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(Has<T>(), "Wrong type!");
+    FUZZTEST_PRECONDITION(has_value()) << "Object is empty!";
+    FUZZTEST_PRECONDITION(Has<T>()) << "Wrong type!";
     return std::move(*static_cast<const T*>(value_));
   }
 
@@ -104,7 +105,7 @@ class AnyBase {
   }
 
   void CopyFrom(const AnyBase& other) {
-    FUZZTEST_INTERNAL_CHECK(!has_value(), "CopyFrom called on a full object");
+    FUZZTEST_CHECK(!has_value()) << "CopyFrom called on a full object";
     if (other.has_value()) {
       vtable_ = other.vtable_;
       value_ = vtable_->copy(other.value_);

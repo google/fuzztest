@@ -18,12 +18,12 @@
 #include <cstdlib>
 #include <string>
 
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -40,7 +40,7 @@ absl::Duration GetBazelTestTimeout() {
     return absl::InfiniteDuration();
   }
   int timeout_s = 0;
-  CHECK(absl::SimpleAtoi(test_timeout_env, &timeout_s))
+  FUZZTEST_CHECK(absl::SimpleAtoi(test_timeout_env, &timeout_s))
       << "Failed to parse TEST_TIMEOUT: \"" << test_timeout_env << "\"";
   return absl::Seconds(timeout_s);
 }
@@ -52,18 +52,20 @@ TestShard GetBazelTestShard() {
     TestShard test_shard;
     if (const char *test_total_shards_env = std::getenv("TEST_TOTAL_SHARDS");
         test_total_shards_env != nullptr) {
-      CHECK(absl::SimpleAtoi(test_total_shards_env, &test_shard.total_shards))
+      FUZZTEST_CHECK(
+          absl::SimpleAtoi(test_total_shards_env, &test_shard.total_shards))
           << "Failed to parse TEST_TOTAL_SHARDS as an integer: \""
           << test_total_shards_env << "\"";
-      CHECK_GT(test_shard.total_shards, 0)
+      FUZZTEST_CHECK_GT(test_shard.total_shards, 0)
           << "TEST_TOTAL_SHARDS must be greater than 0.";
     }
     if (const char *test_shard_index_env = std::getenv("TEST_SHARD_INDEX");
         test_shard_index_env != nullptr) {
-      CHECK(absl::SimpleAtoi(test_shard_index_env, &test_shard.index))
+      FUZZTEST_CHECK(absl::SimpleAtoi(test_shard_index_env, &test_shard.index))
           << "Failed to parse TEST_SHARD_INDEX as an integer: \""
           << test_shard_index_env << "\"";
-      CHECK(0 <= test_shard.index && test_shard.index < test_shard.total_shards)
+      FUZZTEST_CHECK(0 <= test_shard.index &&
+                     test_shard.index < test_shard.total_shards)
           << "TEST_SHARD_INDEX must be in the range [0, "
           << test_shard.total_shards << ").";
     }
@@ -102,7 +104,7 @@ absl::Status VerifyBazelHasEnoughTimeToRunTest(absl::Time target_start_time,
       // timeout. This case can only happen if we would in fact need more than
       // `kMaxShardCount` shards, indicating that there are simply too many fuzz
       // tests in a binary.
-      CHECK_EQ(suggested_shard_count, kMaxShardCount);
+      FUZZTEST_CHECK_EQ(suggested_shard_count, kMaxShardCount);
       absl::StrAppend(&error,
                       "split the fuzz tests into several test binaries where "
                       "each binary has at most ",
@@ -112,7 +114,7 @@ absl::Status VerifyBazelHasEnoughTimeToRunTest(absl::Time target_start_time,
       // In this case, `suggested_shard_count` must be greater than
       // `shard_count`, otherwise we would have already executed all the tests
       // without a timeout.
-      CHECK_GT(suggested_shard_count, shard_count);
+      FUZZTEST_CHECK_GT(suggested_shard_count, shard_count);
       absl::StrAppend(&error, "increase the `shard_count` to ",
                       suggested_shard_count, ", ");
     }

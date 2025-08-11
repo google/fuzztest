@@ -22,8 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
@@ -80,7 +78,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
                      const CoverageFrontier &coverage_frontier,
                      size_t max_corpus_size, Rng &rng) {
   // TODO(kcc): use coverage_frontier.
-  CHECK(max_corpus_size);
+  FUZZTEST_CHECK(max_corpus_size);
   if (records_.size() < 2UL) return 0;
   // Recompute the weights.
   size_t num_zero_weights = 0;
@@ -103,7 +101,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
   RemoveSubset(subset_to_remove, records_);
 
   weighted_distribution_.RecomputeInternalState();
-  CHECK(!records_.empty());
+  FUZZTEST_CHECK(!records_.empty());
 
   // Features may have shrunk from CountUnseenAndPruneFrequentFeatures.
   // Call shrink_to_fit for the features that survived the pruning.
@@ -119,9 +117,9 @@ void Corpus::Add(const ByteArray &data, const FeatureVec &fv,
                  const ExecutionMetadata &metadata, const FeatureSet &fs,
                  const CoverageFrontier &coverage_frontier) {
   // TODO(kcc): use coverage_frontier.
-  CHECK(!data.empty())
+  FUZZTEST_CHECK(!data.empty())
       << "Got request to add empty element to corpus: ignoring";
-  CHECK_EQ(records_.size(), weighted_distribution_.size());
+  FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
   records_.push_back({data, fv, metadata});
   weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
 }
@@ -137,8 +135,8 @@ const CorpusRecord &Corpus::UniformRandom(size_t random) const {
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
                              std::string_view description) {
   auto *file = ValueOrDie(RemoteFileOpen(filepath, "w"));
-  CHECK(file != nullptr) << "Failed to open file: " << filepath;
-  CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
+  FUZZTEST_CHECK(file != nullptr) << "Failed to open file: " << filepath;
+  FUZZTEST_CHECK_OK(RemoteFileSetWriteBufferSize(file, 100UL * 1024 * 1024));
   static constexpr std::string_view kHeaderStub = R"(# $0
 {
   "num_inputs": $1,
@@ -151,7 +149,7 @@ void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
 )";
   const std::string header_str =
       absl::Substitute(kHeaderStub, description, records_.size());
-  CHECK_OK(RemoteFileAppend(file, header_str));
+  FUZZTEST_CHECK_OK(RemoteFileAppend(file, header_str));
   std::string before_record;
   for (const auto &record : records_) {
     std::vector<size_t> frequencies;
@@ -162,11 +160,11 @@ void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
     const std::string frequencies_str = absl::StrJoin(frequencies, ", ");
     const std::string record_str = absl::Substitute(
         kRecordStub, before_record, record.data.size(), frequencies_str);
-    CHECK_OK(RemoteFileAppend(file, record_str));
+    FUZZTEST_CHECK_OK(RemoteFileAppend(file, record_str));
     before_record = ",";
   }
-  CHECK_OK(RemoteFileAppend(file, std::string{kFooter}));
-  CHECK_OK(RemoteFileClose(file));
+  FUZZTEST_CHECK_OK(RemoteFileAppend(file, std::string{kFooter}));
+  FUZZTEST_CHECK_OK(RemoteFileClose(file));
 }
 
 std::string Corpus::MemoryUsageString() const {
@@ -184,7 +182,7 @@ std::string Corpus::MemoryUsageString() const {
 //------------------------------------------------------------------------------
 
 void WeightedDistribution::AddWeight(uint64_t weight) {
-  CHECK_EQ(weights_.size(), cumulative_weights_.size());
+  FUZZTEST_CHECK_EQ(weights_.size(), cumulative_weights_.size());
   weights_.push_back(weight);
   if (cumulative_weights_.empty()) {
     cumulative_weights_.push_back(weight);
@@ -194,7 +192,7 @@ void WeightedDistribution::AddWeight(uint64_t weight) {
 }
 
 void WeightedDistribution::ChangeWeight(size_t idx, uint64_t new_weight) {
-  CHECK_LT(idx, size());
+  FUZZTEST_CHECK_LT(idx, size());
   weights_[idx] = new_weight;
   cumulative_weights_valid_ = false;
 }
@@ -212,15 +210,15 @@ void WeightedDistribution::RecomputeInternalState() {
 __attribute__((noinline))  // to see it in profile.
 size_t
 WeightedDistribution::RandomIndex(size_t random) const {
-  CHECK(!weights_.empty());
-  CHECK(cumulative_weights_valid_);
+  FUZZTEST_CHECK(!weights_.empty());
+  FUZZTEST_CHECK(cumulative_weights_valid_);
   uint64_t sum_of_all_weights = cumulative_weights_.back();
   if (sum_of_all_weights == 0)
     return random % size();  // can't do much else here.
   random = random % sum_of_all_weights;
   auto it = std::upper_bound(cumulative_weights_.begin(),
                              cumulative_weights_.end(), random);
-  CHECK(it != cumulative_weights_.end());
+  FUZZTEST_CHECK(it != cumulative_weights_.end());
   return it - cumulative_weights_.begin();
 }
 

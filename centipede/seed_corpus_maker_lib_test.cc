@@ -25,7 +25,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "./centipede/feature.h"
 #include "./centipede/workdir.h"
@@ -207,7 +206,7 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/kNumShards,
     };
-    CHECK_OK(WriteSeedCorpusElementsToDestination(  //
+    FUZZTEST_CHECK_OK(WriteSeedCorpusElementsToDestination(  //
         kShardedInputs, kCovBin, kCovHash, destination));
     const std::string workdir = (test_dir / kRelDir).c_str();
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
@@ -218,7 +217,8 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
   for (int i = 0; i < kIndividualInputs.size(); ++i) {
     const auto path = std::filesystem::path(test_dir) / kRelDir /
                       absl::StrCat("individual_input_", i);
-    CHECK_OK(RemoteFileSetContents(path.string(), kIndividualInputs[i]));
+    FUZZTEST_CHECK_OK(
+        RemoteFileSetContents(path.string(), kIndividualInputs[i]));
   }
 
   // Test that sharded and individual inputs matches what we wrote.

@@ -33,6 +33,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/escaping.h"
@@ -1319,7 +1320,7 @@ class FuzzingModeFixtureTest
         return RunBinary(CentipedePath(), run_options);
       }
     }
-    FUZZTEST_INTERNAL_CHECK(false, "Unsupported execution model!\n");
+    FUZZTEST_CHECK(false) << "Unsupported execution model!\n";
   }
 };
 

@@ -27,8 +27,6 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/marshalling.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -46,7 +44,7 @@ namespace fuzztest::internal {
 namespace {
 
 size_t ComputeTimeoutPerBatch(size_t timeout_per_input, size_t batch_size) {
-  CHECK_GT(batch_size, 0);
+  FUZZTEST_CHECK_GT(batch_size, 0);
   // NOTE: If `timeout_per_input` == 0, leave `timeout_per_batch` at 0 too:
   // the implementation interprets both as "no limit".
   if (timeout_per_input == 0) return 0;
@@ -117,18 +115,19 @@ std::bitset<feature_domains::kNumDomains> Environment::MakeDomainDiscardMask()
 
 // Returns true if `value` is one of "1", "true".
 // Returns true if `value` is one of "0", "false".
-// CHECK-fails otherwise.
+// FUZZTEST_CHECK-fails otherwise.
 static bool GetBoolFlag(std::string_view value) {
   if (value == "0" || value == "false") return false;
-  CHECK(value == "1" || value == "true") << value;
+  FUZZTEST_CHECK(value == "1" || value == "true") << value;
   return true;
 }
 
-// Returns `value` as a size_t, CHECK-fails on parse error.
+// Returns `value` as a size_t, FUZZTEST_CHECK-fails on parse error.
 static size_t GetIntFlag(std::string_view value) {
   size_t result{};
-  CHECK(std::from_chars(value.data(), value.data() + value.size(), result).ec ==
-        std::errc())
+  FUZZTEST_CHECK(
+      std::from_chars(value.data(), value.data() + value.size(), result).ec ==
+      std::errc())
       << value;
   return result;
 }
@@ -169,7 +168,8 @@ void Environment::SetFlagForExperiment(std::string_view name,
     return;
   }
 
-  LOG(FATAL) << "Unknown flag for experiment: " << name << "=" << value;
+  FUZZTEST_LOG(FATAL) << "Unknown flag for experiment: " << name << "="
+                      << value;
 }
 
 void Environment::UpdateForExperiment() {
@@ -183,7 +183,7 @@ void Environment::UpdateForExperiment() {
   std::vector<Experiment> experiments;
   for (auto flag : absl::StrSplit(this->experiment, ':', absl::SkipEmpty())) {
     std::vector<std::string> flag_and_value = absl::StrSplit(flag, '=');
-    CHECK_EQ(flag_and_value.size(), 2) << flag;
+    FUZZTEST_CHECK_EQ(flag_and_value.size(), 2) << flag;
     experiments.emplace_back(
         Experiment{flag_and_value[0], absl::StrSplit(flag_and_value[1], ',')});
   }
@@ -191,15 +191,15 @@ void Environment::UpdateForExperiment() {
   // Count the number of flag combinations.
   size_t num_combinations = 1;
   for (const auto &exp : experiments) {
-    CHECK_NE(exp.flag_values.size(), 0) << exp.flag_name;
+    FUZZTEST_CHECK_NE(exp.flag_values.size(), 0) << exp.flag_name;
     num_combinations *= exp.flag_values.size();
   }
-  CHECK_GT(num_combinations, 0);
-  CHECK_EQ(num_threads % num_combinations, 0)
+  FUZZTEST_CHECK_GT(num_combinations, 0);
+  FUZZTEST_CHECK_EQ(num_threads % num_combinations, 0)
       << VV(num_threads) << VV(num_combinations);
 
   // Update the flags for the current shard and compute experiment_name.
-  CHECK_LT(my_shard_index, num_threads);
+  FUZZTEST_CHECK_LT(my_shard_index, num_threads);
   size_t my_combination_num = my_shard_index % num_combinations;
   experiment_name.clear();
   experiment_flags.clear();
@@ -228,14 +228,14 @@ void Environment::ReadKnobsFileIfSpecified() {
   if (knobs_file_path.empty()) return;
   ByteArray knob_bytes;
   auto *f = ValueOrDie(RemoteFileOpen(knobs_file, "r"));
-  CHECK(f) << "Failed to open remote file " << knobs_file;
-  CHECK_OK(RemoteFileRead(f, knob_bytes));
-  CHECK_OK(RemoteFileClose(f));
-  VLOG(1) << "Knobs: " << knob_bytes.size() << " knobs read from "
-          << knobs_file;
+  FUZZTEST_CHECK(f) << "Failed to open remote file " << knobs_file;
+  FUZZTEST_CHECK_OK(RemoteFileRead(f, knob_bytes));
+  FUZZTEST_CHECK_OK(RemoteFileClose(f));
+  FUZZTEST_VLOG(1) << "Knobs: " << knob_bytes.size() << " knobs read from "
+                   << knobs_file;
   knobs.Set(knob_bytes);
   knobs.ForEachKnob([](std::string_view name, Knobs::value_type value) {
-    VLOG(1) << "knob " << name << ": " << static_cast<uint32_t>(value);
+    FUZZTEST_VLOG(1) << "knob " << name << ": " << static_cast<uint32_t>(value);
   });
 }
 
@@ -248,11 +248,11 @@ void Environment::UpdateWithTargetConfig(
   // enough.
   if (max_num_crash_reports == Default().max_num_crash_reports) {
     max_num_crash_reports = 20;
-    LOG(INFO) << "Overriding the default max_num_crash_reports to "
-              << max_num_crash_reports << " for FuzzTest.";
+    FUZZTEST_LOG(INFO) << "Overriding the default max_num_crash_reports to "
+                       << max_num_crash_reports << " for FuzzTest.";
   }
   if (config.jobs != 0) {
-    CHECK(j == Default().j || j == config.jobs)
+    FUZZTEST_CHECK(j == Default().j || j == config.jobs)
         << "Value for --j is inconsistent with the value for jobs in the "
            "target binary:"
         << VV(j) << VV(config.jobs);
@@ -266,7 +266,7 @@ void Environment::UpdateWithTargetConfig(
       [&](absl::Duration duration, absl::string_view duration_name) -> size_t {
     if (duration == absl::InfiniteDuration()) return 0;
     // Centipede's time-related fields are in seconds, so we need at least 1s.
-    CHECK_GE(duration, absl::Seconds(1))
+    FUZZTEST_CHECK_GE(duration, absl::Seconds(1))
         << duration_name << " must not be less than one second";
     return static_cast<size_t>(absl::ToInt64Seconds(duration));
   };
@@ -274,9 +274,9 @@ void Environment::UpdateWithTargetConfig(
   // Update `timeout_per_input` and consequently `timeout_per_batch`.
   const size_t time_limit_per_input_sec =
       convert_to_seconds(config.time_limit_per_input, "Time limit per input");
-  CHECK(timeout_per_input == 0 ||
-        timeout_per_input == Default().timeout_per_input ||
-        timeout_per_input == time_limit_per_input_sec)
+  FUZZTEST_CHECK(timeout_per_input == 0 ||
+                 timeout_per_input == Default().timeout_per_input ||
+                 timeout_per_input == time_limit_per_input_sec)
       << "Value for --timeout_per_input is inconsistent with the value for "
          "time_limit_per_input in the target binary:"
       << VV(timeout_per_input) << VV(config.time_limit_per_input);
@@ -300,8 +300,8 @@ void Environment::UpdateWithTargetConfig(
   constexpr auto bytes_to_mb = [](size_t bytes) {
     return bytes == 0 ? 0 : (bytes - 1) / 1024 / 1024 + 1;
   };
-  CHECK(rss_limit_mb == Default().rss_limit_mb ||
-        rss_limit_mb == bytes_to_mb(config.rss_limit))
+  FUZZTEST_CHECK(rss_limit_mb == Default().rss_limit_mb ||
+                 rss_limit_mb == bytes_to_mb(config.rss_limit))
       << "Value for --rss_limit_mb is inconsistent with the value for "
          "rss_limit in the target binary:"
       << VV(rss_limit_mb) << VV(config.rss_limit);
@@ -311,8 +311,8 @@ void Environment::UpdateWithTargetConfig(
   constexpr auto bytes_to_kb = [](size_t bytes) {
     return bytes == 0 ? 0 : (bytes - 1) / 1024 + 1;
   };
-  CHECK(stack_limit_kb == Default().stack_limit_kb ||
-        stack_limit_kb == bytes_to_kb(config.stack_limit))
+  FUZZTEST_CHECK(stack_limit_kb == Default().stack_limit_kb ||
+                 stack_limit_kb == bytes_to_kb(config.stack_limit))
       << "Value for --stack_limit_kb is inconsistent with the value for "
          "stack_limit in the target binary:"
       << VV(stack_limit_kb) << VV(config.stack_limit);
@@ -327,8 +327,8 @@ void Environment::UpdateWithTargetConfig(
 void Environment::UpdateTimeoutPerBatchIfEqualTo(size_t val) {
   if (timeout_per_batch != val) return;
   timeout_per_batch = ComputeTimeoutPerBatch(timeout_per_input, batch_size);
-  VLOG(1) << "--timeout_per_batch auto-computed: " << timeout_per_batch
-          << " sec (see --help for details)";
+  FUZZTEST_VLOG(1) << "--timeout_per_batch auto-computed: " << timeout_per_batch
+                   << " sec (see --help for details)";
 }
 
 void Environment::UpdateBinaryHashIfEmpty() {

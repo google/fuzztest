@@ -42,8 +42,8 @@ class [[nodiscard]] RuntimeState {
 };
 
 // * Initializes the relevant runtime subsystems in the correct order.
-// * Directs all `LOG(INFO)`s to also to stderr (by default, only `LOG(ERROR)`s
-//   and higher go to stderr).
+// * Directs all `FUZZTEST_LOG(INFO)`s to also to stderr (by default, only
+//   `FUZZTEST_LOG(ERROR)`s and higher go to stderr).
 // * Tweaks --help behavior to print any flags defined by any Centipede source
 //   (by default, --help only prints flags defined in the source named
 //   <program>.cc or <program_main>.cc).

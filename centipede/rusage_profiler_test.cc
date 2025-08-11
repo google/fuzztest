@@ -23,10 +23,10 @@
 
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
-#include "absl/log/log.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
+#include "./common/logging.h"
 
 ABSL_FLAG(bool, verbose, false, "Print extra info for debugging");
 ABSL_FLAG(bool, enable_system_load_sensitive_tests, false,
@@ -99,7 +99,7 @@ TEST(RUsageProfilerTest, TimelapseSnapshots) {
   RPROF_START_TIMELAPSE(absl::Seconds(1), /*also_log=*/true, "Timelapse");
   WasteTimeAndGobbleBytes();
   RPROF_STOP_TIMELAPSE();
-  RPROF_DUMP_REPORT_TO_LOG("Report");
+  RPROF_DUMP_REPORT_TO_FUZZTEST_LOG("Report");
 }
 
 // NOTE: Exclude this test from MSAN: 1) MSAN messes with the system memory
@@ -144,16 +144,18 @@ TEST(RUsageProfilerTest, ValidateManualSnapshots) {
   const RUsageMemory delta_memory = after_memory - before_memory;
 
   if (absl::GetFlag(FLAGS_verbose)) {
-    LOG(INFO) << "before_snapshot:\n" << before_snapshot.FormattedMetricsStr();
-    LOG(INFO) << "after_snapshot:\n" << after_snapshot.FormattedMetricsStr();
-    LOG(INFO) << "";
-    LOG(INFO) << "before_timing: " << before_timing.FormattedStr();
-    LOG(INFO) << "after_timing:  " << after_timing.FormattedStr();
-    LOG(INFO) << "delta_timing:  " << delta_timing.FormattedStr();
-    LOG(INFO) << "";
-    LOG(INFO) << "before_memory: " << before_memory.FormattedStr();
-    LOG(INFO) << "after_memory:  " << after_memory.FormattedStr();
-    LOG(INFO) << "delta_memory:  " << delta_memory.FormattedStr();
+    FUZZTEST_LOG(INFO) << "before_snapshot:\n"
+                       << before_snapshot.FormattedMetricsStr();
+    FUZZTEST_LOG(INFO) << "after_snapshot:\n"
+                       << after_snapshot.FormattedMetricsStr();
+    FUZZTEST_LOG(INFO) << "";
+    FUZZTEST_LOG(INFO) << "before_timing: " << before_timing.FormattedStr();
+    FUZZTEST_LOG(INFO) << "after_timing:  " << after_timing.FormattedStr();
+    FUZZTEST_LOG(INFO) << "delta_timing:  " << delta_timing.FormattedStr();
+    FUZZTEST_LOG(INFO) << "";
+    FUZZTEST_LOG(INFO) << "before_memory: " << before_memory.FormattedStr();
+    FUZZTEST_LOG(INFO) << "after_memory:  " << after_memory.FormattedStr();
+    FUZZTEST_LOG(INFO) << "delta_memory:  " << delta_memory.FormattedStr();
   }
 
   EXPECT_EQ(after_snapshot.delta_timing,
@@ -172,7 +174,8 @@ TEST(RUsageProfilerTest, ValidateManualSnapshots) {
   EXPECT_SYS_TIMING_NEAR(after_snapshot.timing, after_timing);
   // EXPECT_SYS_TIMING_NEAR(after_snapshot.delta_timing, delta_timing);
 #else
-  LOG(WARNING) << "Validation of some test results omitted under *SANs";
+  FUZZTEST_LOG(WARNING)
+      << "Validation of some test results omitted under *SANs";
 #endif
 
   if (absl::GetFlag(FLAGS_enable_system_load_sensitive_tests)) {
@@ -207,7 +210,8 @@ TEST(RUsageProfilerTest, ValidateTimelapseSnapshots) {
     EXPECT_TIME_NEAR(snapshots[i].time - snapshots[i - 1].time, kInterval, .05);
   }
 #else
-  LOG(WARNING) << "Validation of some test results omitted under *SANs";
+  FUZZTEST_LOG(WARNING)
+      << "Validation of some test results omitted under *SANs";
 #endif
 }
 
@@ -232,7 +236,7 @@ TEST(RUsageProfilerTest, ValidateReport) {
    public:
     ~ReportCapture() override = default;
     ReportCapture& operator<<(std::string_view fragment) override {
-      LOG(INFO).NoPrefix() << fragment;
+      FUZZTEST_LOG(INFO).NoPrefix() << fragment;
       return *this;
     }
   };

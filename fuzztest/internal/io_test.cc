@@ -31,13 +31,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 #include "./common/temp_dir.h"
 #include "./fuzztest/fuzztest_core.h"
 
@@ -200,14 +200,14 @@ TEST(ForEachSerializedInputTest, ReadsInputsFromSerializedFilesAndBlobFiles) {
   TestWrite(serialized_file, "Input1");
   std::unique_ptr<fuzztest::internal::BlobFileWriter> writer =
       fuzztest::internal::DefaultBlobFileWriterFactory();
-  CHECK(writer->Open(blob_file, "w").ok());
-  CHECK(
+  FUZZTEST_CHECK(writer->Open(blob_file, "w").ok());
+  FUZZTEST_CHECK(
       writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Input2")))
           .ok());
-  CHECK(
+  FUZZTEST_CHECK(
       writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Input3")))
           .ok());
-  CHECK(writer->Close().ok());
+  FUZZTEST_CHECK(writer->Close().ok());
 
   using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;
   std::vector<InputInFile> inputs;
@@ -229,14 +229,14 @@ TEST(ForEachSerializedInputTest, IgnoresUnconsumedInputs) {
   const std::string file = tmp_dir.path() / "file";
   std::unique_ptr<fuzztest::internal::BlobFileWriter> writer =
       fuzztest::internal::DefaultBlobFileWriterFactory();
-  CHECK(writer->Open(file, "w").ok());
-  CHECK(
+  FUZZTEST_CHECK(writer->Open(file, "w").ok());
+  FUZZTEST_CHECK(
       writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Ignore")))
           .ok());
-  CHECK(
+  FUZZTEST_CHECK(
       writer->Write(fuzztest::internal::AsByteSpan(absl::string_view("Accept")))
           .ok());
-  CHECK(writer->Close().ok());
+  FUZZTEST_CHECK(writer->Close().ok());
 
   using InputInFile = std::tuple<std::string, std::optional<int>, std::string>;
   std::vector<InputInFile> inputs;
