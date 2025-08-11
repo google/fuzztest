@@ -937,6 +937,11 @@ CentipedeGetRunnerFlags() {
   return nullptr;
 }
 
+// TODO: xinhaoyuan - write test for this.
+extern "C" const char* absl_nullable GetSancovFlags() {
+  return CentipedeGetRunnerFlags();
+}
+
 static std::atomic<bool> in_execution_batch = false;
 
 extern "C" void CentipedeBeginExecutionBatch() {
