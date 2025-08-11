@@ -52,7 +52,9 @@ fuzztest_cc_test(
     absl::flat_hash_set
     absl::random_random
     absl::random_bit_gen_ref
+    absl::random_seed_sequences
     absl::strings
+    absl::time
     fuzztest::domain
     fuzztest::test_protobuf_cc_proto
     GTest::gmock_main

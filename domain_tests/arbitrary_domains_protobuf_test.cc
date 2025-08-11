@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/random/seed_sequences.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -746,9 +747,9 @@ TEST(ProtocolBuffer, ProtobufOfIsCustomizable) {
           true)));
 }
 
-absl::Duration DoMutations() {
+absl::Duration DoMutations(const absl::SeedSeq& seed_seq) {
   auto domain = Arbitrary<internal::TestProtobufWithRecursion>();
-  absl::BitGen bitgen;
+  absl::BitGen bitgen{seed_seq};
   auto corpus_value = domain.Init(bitgen);
   absl::Time start = absl::Now();
   for (int j = 0; j < 2000; ++j) {
@@ -761,13 +762,17 @@ TEST(ProtocolBuffer, MutationInParallelIsEfficient) {
   const unsigned int num_threads =
       std::max(1u, std::thread::hardware_concurrency() / 2);
   std::cout << "num threads: " << num_threads << "\n";
-  const absl::Duration single_thread_time = DoMutations();
+
+  // Make the mutation runs comparable by using the same seed sequence.
+  absl::SeedSeq seed_seq = absl::MakeSeedSeq();
+  const absl::Duration single_thread_time = DoMutations(seed_seq);
   std::cout << "total time (single thread): " << single_thread_time << "\n";
   std::vector<std::thread> workers;
   std::vector<absl::Duration> durations(num_threads);
   workers.reserve(num_threads);
   for (int i = 0; i < num_threads; ++i) {
-    workers.emplace_back([&durations, i] { durations[i] = DoMutations(); });
+    workers.emplace_back(
+        [&durations, &seed_seq, i] { durations[i] = DoMutations(seed_seq); });
   }
   for (auto& worker : workers) worker.join();
   const absl::Duration multi_thread_time =
