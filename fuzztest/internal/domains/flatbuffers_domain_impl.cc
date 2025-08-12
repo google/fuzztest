@@ -88,7 +88,7 @@ FlatbuffersTableUntypedDomainImpl::Init(absl::BitGenRef prng) {
   }
   corpus_type val;
   for (const auto* field : *table_object_->fields()) {
-    VisitFlatbufferField(field, InitializeVisitor{*this, prng, val});
+    VisitFlatbufferField(schema_, field, InitializeVisitor{*this, prng, val});
   }
   return val;
 }
@@ -99,8 +99,9 @@ void FlatbuffersTableUntypedDomainImpl::Mutate(
     const domain_implementor::MutationMetadata& metadata, bool only_shrink) {
   uint64_t field_count = 0;
   for (const auto* field : *table_object_->fields()) {
-    VisitFlatbufferField(field, CountNumberOfMutableFieldsVisitor{
-                                    *this, field_count, val, only_shrink});
+    VisitFlatbufferField(schema_, field,
+                         CountNumberOfMutableFieldsVisitor{*this, field_count,
+                                                           val, only_shrink});
   }
   auto selected_field_index = absl::Uniform(prng, 0ul, field_count);
 
@@ -112,7 +113,8 @@ uint64_t FlatbuffersTableUntypedDomainImpl::CountNumberOfFields(
   uint64_t field_count = 0;
   for (const auto* field : *table_object_->fields()) {
     VisitFlatbufferField(
-        field, CountNumberOfMutableFieldsVisitor{*this, field_count, val});
+        schema_, field,
+        CountNumberOfMutableFieldsVisitor{*this, field_count, val});
   }
   return field_count;
 }
@@ -129,14 +131,22 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
 
     if (field_counter == selected_field_index) {
       VisitFlatbufferField(
-          field, MutateVisitor{*this, prng, metadata, only_shrink, val});
+          schema_, field,
+          MutateVisitor{*this, prng, metadata, only_shrink, val});
       return field_counter;
     }
     field_counter++;
 
-    // TODO: Add support for tables.
-    // TODO: Add support for vectors.
-    // TODO: Add support for unions.
+    if (field->type()->base_type() == reflection::BaseType::Obj) {
+      auto sub_object = schema_->objects()->Get(field->type()->index());
+      if (!sub_object->is_struct()) {
+        field_counter +=
+            GetCachedDomain<FlatbuffersTableTag>(field).MutateSelectedField(
+                val[field->id()], prng, metadata, only_shrink,
+                selected_field_index - field_counter);
+      }
+      // TODO: Add support for structs.
+    }
 
     if (field_counter > selected_field_index) {
       return field_counter;
@@ -153,7 +163,9 @@ absl::Status FlatbuffersTableUntypedDomainImpl::ValidateCorpusValue(
     if (auto it = corpus_value.find(field->id()); it != corpus_value.end()) {
       field_corpus = it->second;
     }
-    VisitFlatbufferField(field, ValidateVisitor{*this, field_corpus, result});
+    if (!field_corpus.has_value()) continue;
+    VisitFlatbufferField(schema_, field,
+                         ValidateVisitor{*this, field_corpus, result});
     if (!result.ok()) return result;
   }
   return absl::OkStatus();
@@ -166,7 +178,7 @@ FlatbuffersTableUntypedDomainImpl::FromValue(const value_type& value) const {
   }
   corpus_type ret;
   for (const auto* field : *table_object_->fields()) {
-    VisitFlatbufferField(field, FromValueVisitor{*this, value, ret});
+    VisitFlatbufferField(schema_, field, FromValueVisitor{*this, value, ret});
   }
   return ret;
 }
@@ -205,7 +217,7 @@ FlatbuffersTableUntypedDomainImpl::ParseCorpus(const IRObject& obj) const {
 
     // Deserialize the field corpus value.
     std::optional<GenericDomainCorpusType> inner_parsed;
-    VisitFlatbufferField(field,
+    VisitFlatbufferField(schema_, field,
                          ParseVisitor{*this, (*pair_subs)[1], inner_parsed});
     if (!inner_parsed) {
       return std::nullopt;
@@ -238,7 +250,8 @@ IRObject FlatbuffersTableUntypedDomainImpl::SerializeCorpus(
 
     // Serialize the field corpus value.
     VisitFlatbufferField(
-        field, SerializeVisitor{*this, field_corpus, pair_subs.emplace_back()});
+        schema_, field,
+        SerializeVisitor{*this, field_corpus, pair_subs.emplace_back()});
   }
   return out;
 }
@@ -249,6 +262,10 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
   if (base_type == reflection::BaseType::UType) return false;
   if (flatbuffers::IsScalar(base_type)) return true;
   if (base_type == reflection::BaseType::String) return true;
+  if (base_type == reflection::BaseType::Obj) {
+    auto sub_object = schema_->objects()->Get(field->type()->index());
+    return !sub_object->is_struct();
+  };
   return false;
 }
 
@@ -273,7 +290,8 @@ uint32_t FlatbuffersTableUntypedDomainImpl::BuildTable(
     }
     // Take care of strings, and tables.
     VisitFlatbufferField(
-        field, TableFieldBuilderVisitor{*this, builder, offsets, field_corpus});
+        schema_, field,
+        TableFieldBuilderVisitor{*this, builder, offsets, field_corpus});
   }
 
   // Now it is time to build the final table.
@@ -289,7 +307,8 @@ uint32_t FlatbuffersTableUntypedDomainImpl::BuildTable(
     // Inline fields will be stored in the table itself, out of line fields
     // will be referenced by their offsets.
     VisitFlatbufferField(
-        field, TableBuilderVisitor{*this, builder, offsets, field_corpus});
+        schema_, field,
+        TableBuilderVisitor{*this, builder, offsets, field_corpus});
   }
   return builder.EndTable(table_start);
 }

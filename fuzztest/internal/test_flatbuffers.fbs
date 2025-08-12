@@ -77,6 +77,7 @@ table DefaultTable {
   eu16: UShortEnum;
   eu32: UIntEnum;
   eu64: ULongEnum;
+  t: BoolTable;
 }
 
 table OptionalTable {
@@ -100,14 +101,23 @@ table OptionalTable {
   eu16: UShortEnum = null;
   eu32: UIntEnum = null;
   eu64: ULongEnum = null;
+  t: BoolTable;
 }
 
 table RequiredTable {
   str: string (required);
+  t: BoolTable (required);
+}
+
+table RecursiveTable {
+  t: NestedRecursiveTable;
+}
+
+table NestedRecursiveTable {
+  t: RecursiveTable;
 }
 
 table UnsupportedTypesTable {
-  t: BoolTable;
   u: Union;
   s: BoolStruct;
   v_b: [bool];
