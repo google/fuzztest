@@ -56,6 +56,16 @@ std::vector<Type> ReadBytesFromFilePath(const char* input_path) {
   return data;
 }
 
+// Reads `size` bytes to `data` from `fd` with retires (assuming `fd` is
+// blocking so there is no busy-spinning). Returns true if all bytes are
+// written, false otherwise due to errors.
+bool ReadAll(int fd, char* data, size_t size);
+
+// Writes `size` bytes from `data` to `fd` with retires (assuming `fd` is
+// blocking so there is no busy-spinning). Returns true if all bytes are
+// written, false otherwise due to errors.
+bool WriteAll(int fd, const char* data, size_t size);
+
 }  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_RUNNER_UTILS_H_

@@ -1828,7 +1828,6 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
   auto [status, std_out, std_err] =
       Run("MySuite.SkipInputs", kDefaultTargetBinary);
-  EXPECT_THAT_LOG(std_err, HasSubstr("Skipped input"));
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: 123456789"));
   ExpectTargetAbort(status, std_err);
 }

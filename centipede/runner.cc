@@ -22,13 +22,17 @@
 // in order to avoid creating new coverage edges in the binary.
 #include "./centipede/runner.h"
 
+#include <fcntl.h>
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -675,9 +679,56 @@ extern void ForkServerCallMeVeryEarly();
 [[maybe_unused]] auto fake_reference_for_fork_server =
     &ForkServerCallMeVeryEarly;
 
+void MaybeConnectToPersistentMode() {
+  if (state.persistent_mode_socket_path == nullptr) {
+    return;
+  }
+  state.persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (state.persistent_mode_socket < 0) {
+    fprintf(stderr, "Failed to create persistent mode socket\n");
+  }
+
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  const size_t socket_path_len = strlen(state.persistent_mode_socket_path);
+  RunnerCheck(
+      socket_path_len < sizeof(addr.sun_path),
+      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
+  std::memcpy(addr.sun_path, state.persistent_mode_socket_path,
+              socket_path_len);
+
+  int connect_ret = 0;
+  do {
+    connect_ret = connect(state.persistent_mode_socket, (struct sockaddr*)&addr,
+                          sizeof(addr));
+  } while (connect_ret == -1 && errno == EINTR);
+  if (connect_ret == -1) {
+    fprintf(stderr, "Failed to connect the persistent mode socket to %s\n",
+            state.persistent_mode_socket_path);
+    (void)close(state.persistent_mode_socket);
+    state.persistent_mode_socket = -1;
+  }
+
+  int flags = fcntl(state.persistent_mode_socket, F_GETFD);
+  if (flags == -1) {
+    fprintf(stderr, "fcntl(F_GETFD) failed\n");
+    (void)close(state.persistent_mode_socket);
+    state.persistent_mode_socket = -1;
+  }
+  flags |= FD_CLOEXEC;
+  if (fcntl(state.persistent_mode_socket, F_SETFD, flags) == -1) {
+    fprintf(stderr, "fcntl(F_SETFD) failed\n");
+    (void)close(state.persistent_mode_socket);
+    state.persistent_mode_socket = -1;
+  }
+}
+
 GlobalRunnerState::GlobalRunnerState() {
   // Make sure fork server is started if needed.
   ForkServerCallMeVeryEarly();
+
+  // Connecting to the persistent mode socket should be immediately after.
+  MaybeConnectToPersistentMode();
 
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
@@ -704,6 +755,86 @@ GlobalRunnerState::~GlobalRunnerState() {
       state.execution_result_override = nullptr;
     }
   }
+}
+
+static int HandleSharedMemoryRequest(RunnerCallbacks& callbacks,
+                                     BlobSequence& inputs_blobseq,
+                                     BlobSequence& outputs_blobseq) {
+  // Read the first blob. It indicates what further actions to take.
+  auto request_type_blob = inputs_blobseq.Read();
+  if (IsMutationRequest(request_type_blob)) {
+    // Since we are mutating, no need to spend time collecting the coverage.
+    // We still pay for executing the coverage callbacks, but those will
+    // return immediately.
+    // TODO(kcc): do this more consistently, for all coverage types.
+    const bool old_cmp_features = sancov_state.flags.use_cmp_features;
+    const bool old_pc_features = sancov_state.flags.use_pc_features;
+    const bool old_dataflow_features = sancov_state.flags.use_dataflow_features;
+    const bool old_counter_features = sancov_state.flags.use_counter_features;
+    sancov_state.flags.use_cmp_features = false;
+    sancov_state.flags.use_pc_features = false;
+    sancov_state.flags.use_dataflow_features = false;
+    sancov_state.flags.use_counter_features = false;
+    // Mutation request.
+    inputs_blobseq.Reset();
+    static auto mutator = new ByteArrayMutator(state.knobs, GetRandomSeed());
+    state.byte_array_mutator = mutator;
+    const int result =
+        MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    sancov_state.flags.use_cmp_features = old_cmp_features;
+    sancov_state.flags.use_pc_features = old_pc_features;
+    sancov_state.flags.use_dataflow_features = old_dataflow_features;
+    sancov_state.flags.use_counter_features = old_counter_features;
+    return result;
+  }
+  if (IsExecutionRequest(request_type_blob)) {
+    // Execution request.
+    inputs_blobseq.Reset();
+    return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+  }
+  return EXIT_FAILURE;
+}
+
+static int HandlePersistentMode(RunnerCallbacks& callbacks,
+                                BlobSequence& inputs_blobseq,
+                                BlobSequence& outputs_blobseq) {
+  bool first = true;
+  while (true) {
+    PersistentModeRequest req;
+    if (!ReadAll(state.persistent_mode_socket, reinterpret_cast<char*>(&req),
+                 1)) {
+      perror("Failed to read request from persistent mode socket");
+      return EXIT_FAILURE;
+    }
+    if (first) {
+      first = false;
+    } else {
+      // Reset stdout/stderr.
+      for (int fd = 1; fd <= 2; fd++) {
+        lseek(fd, 0, SEEK_SET);
+        // NOTE: Allow ftruncate() to fail by ignoring its return; that's okay
+        // to happen when the stdout/stderr are not redirected to a file.
+        (void)ftruncate(fd, 0);
+      }
+      fprintf(stderr, "Centipede fuzz target runner (%s); flags: %s\n",
+              req == PersistentModeRequest::kExit ? "exiting persistent mode"
+                                                  : "persistent mode batch",
+              state.flag_helper.flags);
+    }
+    if (req == PersistentModeRequest::kExit) break;
+    RunnerCheck(req == PersistentModeRequest::kRunBatch,
+                "Unknown persistent mode request");
+    const int result =
+        HandleSharedMemoryRequest(callbacks, inputs_blobseq, outputs_blobseq);
+    inputs_blobseq.Reset();
+    outputs_blobseq.Reset();
+    if (!WriteAll(state.persistent_mode_socket,
+                  reinterpret_cast<const char*>(&result), sizeof(result))) {
+      perror("Failed to write response to the persistent mode socket");
+      return EXIT_FAILURE;
+    }
+  }
+  return EXIT_SUCCESS;
 }
 
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
@@ -736,29 +867,12 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     if (!sancov_state.arg1 || !sancov_state.arg2) return EXIT_FAILURE;
     SharedMemoryBlobSequence inputs_blobseq(sancov_state.arg1);
     SharedMemoryBlobSequence outputs_blobseq(sancov_state.arg2);
-    // Read the first blob. It indicates what further actions to take.
-    auto request_type_blob = inputs_blobseq.Read();
-    if (IsMutationRequest(request_type_blob)) {
-      // Since we are mutating, no need to spend time collecting the coverage.
-      // We still pay for executing the coverage callbacks, but those will
-      // return immediately.
-      // TODO(kcc): do this more consistently, for all coverage types.
-      sancov_state.flags.use_cmp_features = false;
-      sancov_state.flags.use_pc_features = false;
-      sancov_state.flags.use_dataflow_features = false;
-      sancov_state.flags.use_counter_features = false;
-      // Mutation request.
-      inputs_blobseq.Reset();
-      state.byte_array_mutator =
-          new ByteArrayMutator(state.knobs, GetRandomSeed());
-      return MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
+    // Persistent mode loop.
+    if (state.persistent_mode_socket > 0) {
+      return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);
     }
-    if (IsExecutionRequest(request_type_blob)) {
-      // Execution request.
-      inputs_blobseq.Reset();
-      return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
-    }
-    return EXIT_FAILURE;
+    return HandleSharedMemoryRequest(callbacks, inputs_blobseq,
+                                     outputs_blobseq);
   }
 
   // By default, run every input file one-by-one.

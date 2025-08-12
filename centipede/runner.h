@@ -77,6 +77,10 @@ struct GlobalRunnerState {
   const char *failure_description_path =
       flag_helper.GetStringFlag(":failure_description_path=");
 
+  const char* persistent_mode_socket_path =
+      flag_helper.GetStringFlag(":persistent_mode_socket=");
+  int persistent_mode_socket = 0;
+
   pthread_mutex_t execution_result_override_mu = PTHREAD_MUTEX_INITIALIZER;
   // If not nullptr, it points to a batch result with either zero or one
   // execution. When an execution result present, it will be passed as the
