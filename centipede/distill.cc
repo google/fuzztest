@@ -30,8 +30,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
@@ -136,9 +134,10 @@ class InputCorpusShardReader {
   CorpusEltVec ReadShard(size_t shard_idx) {
     const auto corpus_path = workdir_.CorpusFilePaths().Shard(shard_idx);
     const auto features_path = workdir_.FeaturesFilePaths().Shard(shard_idx);
-    VLOG(1) << log_prefix_ << "reading input shard " << shard_idx << ":\n"
-            << VV(corpus_path) << "\n"
-            << VV(features_path);
+    FUZZTEST_VLOG(1) << log_prefix_ << "reading input shard " << shard_idx
+                     << ":\n"
+                     << VV(corpus_path) << "\n"
+                     << VV(features_path);
     CorpusEltVec elts;
     // Read elements from the current shard.
     fuzztest::internal::ReadShard(  //
@@ -171,8 +170,9 @@ class CorpusShardWriter {
         features_path_{workdir_.DistilledFeaturesFilePaths().MyShard()},
         corpus_writer_{DefaultBlobFileWriterFactory()},
         feature_writer_{DefaultBlobFileWriterFactory()} {
-    CHECK_OK(corpus_writer_->Open(corpus_path_, append ? "a" : "w"));
-    CHECK_OK(feature_writer_->Open(features_path_, append ? "a" : "w"));
+    FUZZTEST_CHECK_OK(corpus_writer_->Open(corpus_path_, append ? "a" : "w"));
+    FUZZTEST_CHECK_OK(
+        feature_writer_->Open(features_path_, append ? "a" : "w"));
   }
 
   virtual ~CorpusShardWriter() = default;
@@ -184,10 +184,10 @@ class CorpusShardWriter {
 
   void WriteBatch(CorpusEltVec elts) {
     absl::MutexLock lock(&mu_);
-    VLOG(1) << log_prefix_ << "writing " << elts.size()
-            << " elements to output shard:\n"
-            << VV(corpus_path_) << "\n"
-            << VV(features_path_);
+    FUZZTEST_VLOG(1) << log_prefix_ << "writing " << elts.size()
+                     << " elements to output shard:\n"
+                     << VV(corpus_path_) << "\n"
+                     << VV(features_path_);
     for (auto &elt : elts) {
       WriteEltImpl(std::move(elt));
     }
@@ -214,8 +214,9 @@ class CorpusShardWriter {
     const auto preprocessed_elt = PreprocessElt(std::move(elt));
     if (preprocessed_elt.has_value()) {
       // Append to the distilled corpus and features files.
-      CHECK_OK(corpus_writer_->Write(preprocessed_elt->input));
-      CHECK_OK(feature_writer_->Write(preprocessed_elt->PackedFeatures()));
+      FUZZTEST_CHECK_OK(corpus_writer_->Write(preprocessed_elt->input));
+      FUZZTEST_CHECK_OK(
+          feature_writer_->Write(preprocessed_elt->PackedFeatures()));
       ++stats_.num_written_elts;
     }
   }
@@ -337,9 +338,9 @@ void DistillToOneOutputShard(                  //
     DistillingInputFilter &input_filter,       //
     ResourcePool<RUsageMemory> &ram_pool,      //
     int parallelism) {
-  LOG(INFO) << LogPrefix(env) << "Distilling to output shard "
-            << env.my_shard_index << "; input shard indices:\n"
-            << absl::StrJoin(shard_indices, ", ");
+  FUZZTEST_LOG(INFO) << LogPrefix(env) << "Distilling to output shard "
+                     << env.my_shard_index << "; input shard indices:\n"
+                     << absl::StrJoin(shard_indices, ", ");
 
   // Read and write the shards in parallel, but gate reading of each on the
   // availability of free RAM to keep the peak RAM usage under control.
@@ -360,7 +361,7 @@ void DistillToOneOutputShard(                  //
              /*mem_rss=*/reader.EstimateRamFootprint(shard_idx)},
             /*timeout=*/kRamLeaseTimeout,
         });
-        CHECK_OK(ram_lease.status());
+        FUZZTEST_CHECK_OK(ram_lease.status());
 
         CorpusEltVec shard_elts = reader.ReadShard(shard_idx);
         // Reverse the order of elements. The intuition is as follows:
@@ -371,23 +372,25 @@ void DistillToOneOutputShard(                  //
         std::reverse(shard_elts.begin(), shard_elts.end());
         writer.WriteBatch(std::move(shard_elts));
         const CorpusShardWriter::Stats shard_stats = writer.GetStats();
-        LOG(INFO) << LogPrefix(env)
-                  << "batches: " << shard_stats.num_written_batches << "/"
-                  << num_shards << " inputs: " << shard_stats.num_total_elts
-                  << " written: " << shard_stats.num_written_elts;
+        FUZZTEST_LOG(INFO) << LogPrefix(env)
+                           << "batches: " << shard_stats.num_written_batches
+                           << "/" << num_shards
+                           << " inputs: " << shard_stats.num_total_elts
+                           << " written: " << shard_stats.num_written_elts;
       });
     }
   }  // The threads join here.
 
-  LOG(INFO) << LogPrefix(env) << "Done distilling to output shard "
-            << env.my_shard_index;
+  FUZZTEST_LOG(INFO) << LogPrefix(env) << "Done distilling to output shard "
+                     << env.my_shard_index;
 }
 
 int Distill(const Environment &env, const DistillOptions &opts) {
-  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
-      /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
-      /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
-      /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                   //
+      /*enable=*/FUZZTEST_VLOG_IS_ON(1),                //
+                                                        /*timelapse_interval=*/
+      absl::Seconds(FUZZTEST_VLOG_IS_ON(2) ? 10 : 60),  //
+      /*also_log_timelapses=*/FUZZTEST_VLOG_IS_ON(10));
 
   // Prepare the per-thread envs.
   std::vector<Environment> envs_per_thread(env.num_threads, env);
@@ -423,16 +426,16 @@ int Distill(const Environment &env, const DistillOptions &opts) {
     PeriodicAction progress_logger{
         [&input_filter]() {
           const auto stats = input_filter.GetStats();
-          LOG(INFO) << LogPrefix() << stats.coverage_str
-                    << " inputs: " << stats.num_total_elts
-                    << " unique: " << stats.num_byte_unique_elts
-                    << " distilled: " << stats.num_feature_unique_elts;
+          FUZZTEST_LOG(INFO) << LogPrefix() << stats.coverage_str
+                             << " inputs: " << stats.num_total_elts
+                             << " unique: " << stats.num_byte_unique_elts
+                             << " distilled: " << stats.num_feature_unique_elts;
         },
         // Seeing 0's at the beginning is not interesting, unless debugging.
         // Likewise, increase the frequency --v >= 1 to aid debugging.
         PeriodicAction::ConstDelayConstInterval(
-            absl::Seconds(ABSL_VLOG_IS_ON(1) ? 0 : 60),
-            absl::Seconds(ABSL_VLOG_IS_ON(1) ? 10 : 60)),
+            absl::Seconds(FUZZTEST_VLOG_IS_ON(1) ? 0 : 60),
+            absl::Seconds(FUZZTEST_VLOG_IS_ON(1) ? 10 : 60)),
     };
     // The RAM pool shared between all the `DistillToOneOutputShard()` threads.
     ResourcePool ram_pool{kRamQuota};

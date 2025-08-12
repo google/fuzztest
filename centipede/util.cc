@@ -38,7 +38,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
-#include <thread>  // NOLINT: For thread::get_id() only.
+#include <thread>        // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
 
@@ -46,8 +46,6 @@
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -88,11 +86,11 @@ void ReadFromLocalFile(std::string_view file_path, Container &data) {
   f.seekg(0, std::ios_base::end);
   auto size = f.tellg();
   f.seekg(0, std::ios_base::beg);
-  CHECK_EQ(size % sizeof(data[0]), 0);
+  FUZZTEST_CHECK_EQ(size % sizeof(data[0]), 0);
   data.resize(size / sizeof(data[0]));
   f.read(reinterpret_cast<char *>(data.data()), size);
-  CHECK(f) << "Failed to read from local file: " << VV(file_path) << VV(f.eof())
-           << VV(f.bad()) << VV(f.fail()) << VV(size);
+  FUZZTEST_CHECK(f) << "Failed to read from local file: " << VV(file_path)
+                    << VV(f.eof()) << VV(f.bad()) << VV(f.fail()) << VV(size);
   f.close();
 }
 
@@ -112,15 +110,15 @@ void ReadFromLocalFile(std::string_view file_path,
 
 void ClearLocalFileContents(std::string_view file_path) {
   std::ofstream f(std::string{file_path}, std::ios::out | std::ios::trunc);
-  CHECK(f) << "Failed to clear the file: " << file_path;
+  FUZZTEST_CHECK(f) << "Failed to clear the file: " << file_path;
 }
 
 void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
   std::ofstream f(std::string{file_path});
-  CHECK(f) << "Failed to open local file: " << file_path;
+  FUZZTEST_CHECK(f) << "Failed to open local file: " << file_path;
   f.write(reinterpret_cast<const char *>(data.data()),
           static_cast<int64_t>(data.size()));
-  CHECK(f) << "Failed to write to local file: " << file_path;
+  FUZZTEST_CHECK(f) << "Failed to write to local file: " << file_path;
   f.close();
 }
 
@@ -142,14 +140,14 @@ void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
   std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
-  CHECK_OK(
+  FUZZTEST_CHECK_OK(
       RemoteFileSetContents(file_path, std::string(data.begin(), data.end())));
 }
 
 std::string HashOfFileContents(std::string_view file_path) {
   if (file_path.empty()) return "";
   std::string file_contents;
-  CHECK_OK(RemoteFileGetContents(file_path, file_contents));
+  FUZZTEST_CHECK_OK(RemoteFileGetContents(file_path, file_contents));
   return Hash(file_contents);
 }
 
@@ -181,19 +179,19 @@ static void RemoveDirsAtExit() {
   for (auto &dir : *dirs_to_delete_at_exit) {
     std::error_code error;
     std::filesystem::remove_all(dir, error);
-    LOG_IF(ERROR, error) << "Unable to clean up dir " << dir
-                         << " at exit: " << error.message();
+    FUZZTEST_LOG_IF(ERROR, error)
+        << "Unable to clean up dir " << dir << " at exit: " << error.message();
   }
 }
 
 void CreateLocalDirRemovedAtExit(std::string_view path) {
   // Safeguard against removing dirs not created by TemporaryLocalDirPath().
-  CHECK_NE(path.find("/centipede-"), std::string::npos);
+  FUZZTEST_CHECK_NE(path.find("/centipede-"), std::string::npos);
   // Create the dir.
   std::error_code error;
   std::filesystem::remove_all(path, error);
-  LOG_IF(ERROR, error) << "Unable to clean up existing dir " << path << ": "
-                       << error.message();
+  FUZZTEST_LOG_IF(ERROR, error)
+      << "Unable to clean up existing dir " << path << ": " << error.message();
   std::filesystem::create_directories(path);
   // Add to dirs_to_delete_at_exit.
   absl::MutexLock lock(&dirs_to_delete_at_exit_mutex);
@@ -210,17 +208,17 @@ ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
 ScopedFile::~ScopedFile() {
   std::error_code error;
   std::filesystem::remove_all(my_path_, error);
-  LOG_IF(ERROR, error) << "Unable to clean scoped file " << my_path_ << ": "
-                       << error.message();
+  FUZZTEST_LOG_IF(ERROR, error)
+      << "Unable to clean scoped file " << my_path_ << ": " << error.message();
 }
 
 void AppendHashToArray(ByteArray &ba, std::string_view hash) {
-  CHECK_EQ(hash.size(), kHashLen);
+  FUZZTEST_CHECK_EQ(hash.size(), kHashLen);
   ba.insert(ba.end(), hash.begin(), hash.end());
 }
 
 std::string ExtractHashFromArray(ByteArray &ba) {
-  CHECK_GE(ba.size(), kHashLen);
+  FUZZTEST_CHECK_GE(ba.size(), kHashLen);
   std::string res;
   res.insert(res.end(), ba.end() - kHashLen, ba.end());
   ba.resize(ba.size() - kHashLen);
@@ -236,7 +234,7 @@ ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
                                         ByteSpan features) {
   ByteArray feature_bytes_with_hash(features.size() + kHashLen);
   auto hash = Hash(data);
-  CHECK_EQ(hash.size(), kHashLen);
+  FUZZTEST_CHECK_EQ(hash.size(), kHashLen);
   memcpy(feature_bytes_with_hash.data(), features.data(), features.size());
   memcpy(feature_bytes_with_hash.data() + features.size(), hash.data(),
          kHashLen);
@@ -363,13 +361,13 @@ std::vector<size_t> RandomWeightedSubset(absl::Span<const uint64_t> set,
 uint8_t *MmapNoReserve(size_t size) {
   auto result = mmap(0, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
-  CHECK(result != MAP_FAILED);
+  FUZZTEST_CHECK(result != MAP_FAILED);
   return reinterpret_cast<uint8_t *>(result);
 }
 
 void Munmap(uint8_t *ptr, size_t size) {
   auto result = munmap(ptr, size);
-  CHECK_EQ(result, 0);
+  FUZZTEST_CHECK_EQ(result, 0);
 }
 
 }  // namespace fuzztest::internal

@@ -21,6 +21,7 @@
 #include "absl/base/const_init.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "./common/logging.h"
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <fcntl.h>
@@ -100,10 +101,10 @@ int GetStdoutFdDup() {
 
 void Silence(int fd) {
   FILE* tmp = fopen("/dev/null", "w");
-  FUZZTEST_INTERNAL_CHECK(tmp, "fopen() error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(dup2(fileno(tmp), fd) != -1,
-                          "dup2() error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(fclose(tmp) == 0, "fclose() error:", strerror(errno));
+  FUZZTEST_CHECK(tmp) << "fopen() error: " << strerror(errno);
+  FUZZTEST_CHECK(dup2(fileno(tmp), fd) != -1) << "dup2() error: ",
+      strerror(errno);
+  FUZZTEST_CHECK(fclose(tmp) == 0) << "fclose() error: " << strerror(errno);
 }
 
 // Only accepts 1 or 2 (stdout or stderr).
@@ -112,18 +113,18 @@ void Silence(int fd) {
 // If it's a stderr, silence it after duping it as the global stderr, which
 // will be used internally to log and be used when restoring the stderr.
 void DupAndSilence(int fd) {
-  FUZZTEST_INTERNAL_CHECK(fd == STDOUT_FILENO || fd == STDERR_FILENO,
-                          "DupAndSilence only accepts stderr or stdout.");
+  FUZZTEST_CHECK(fd == STDOUT_FILENO || fd == STDERR_FILENO)
+      << "DupAndSilence only accepts stderr or stdout.";
   if (fd == STDOUT_FILENO) {
-    FUZZTEST_INTERNAL_CHECK(GetStdoutFdDup() != -1, "GetStdoutFdDup() fails.");
+    FUZZTEST_CHECK(GetStdoutFdDup() != -1) << "GetStdoutFdDup() fails.";
     stdout_file_ = fdopen(GetStdoutFdDup(), "w");
-    FUZZTEST_INTERNAL_CHECK(stdout_file_,
-                            "fdopen(GetStdoutFdDup()) error:", strerror(errno));
+    FUZZTEST_CHECK(stdout_file_)
+        << "fdopen(GetStdoutFdDup()) error:" << strerror(errno);
   } else {
-    FUZZTEST_INTERNAL_CHECK(GetStderrFdDup() != -1, "GetStderrFdDup() fails.");
+    FUZZTEST_CHECK(GetStderrFdDup() != -1) << "GetStderrFdDup() fails.";
     auto file = fdopen(GetStderrFdDup(), "w");
-    FUZZTEST_INTERNAL_CHECK(file,
-                            "fdopen(GetStderrFdDup()) error:", strerror(errno));
+    FUZZTEST_CHECK(file) << "fdopen(GetStderrFdDup()) error:"
+                         << strerror(errno);
     absl::MutexLock lock(&stderr_file_guard_);
     stderr_file_ = file;
   }
@@ -145,21 +146,21 @@ void RestoreTargetStdoutAndStderr() {
   FILE* silenced_stderr = stderr_file_;
   stderr_file_ = stderr;
   stderr_file_guard_.Unlock();
-  FUZZTEST_INTERNAL_CHECK(silenced_stderr != stderr,
-                          "Error, calling RestoreStderr without calling"
-                          "DupandSilenceStderr first.");
-  FUZZTEST_INTERNAL_CHECK(dup2(fileno(silenced_stderr), STDERR_FILENO) != -1,
-                          "dup2 error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(fclose(silenced_stderr) == 0,
-                          "close() error:", strerror(errno));
+  FUZZTEST_CHECK(silenced_stderr != stderr)
+      << "Error, calling RestoreStderr without calling"
+         "DupandSilenceStderr first.";
+  FUZZTEST_CHECK(dup2(fileno(silenced_stderr), STDERR_FILENO) != -1)
+      << "dup2 error:" << strerror(errno);
+  FUZZTEST_CHECK(fclose(silenced_stderr) == 0)
+      << "close() error:" << strerror(errno);
 
-  FUZZTEST_INTERNAL_CHECK(stdout_file_ != stdout,
-                          "Error, calling RestoreStdout without calling"
-                          "DupandSilenceStdout first.");
-  FUZZTEST_INTERNAL_CHECK(dup2(fileno(stdout_file_), STDOUT_FILENO) != -1,
-                          "dup2() error:", strerror(errno));
-  FUZZTEST_INTERNAL_CHECK(fclose(stdout_file_) == 0,
-                          "close() error:", strerror(errno));
+  FUZZTEST_CHECK(stdout_file_ != stdout)
+      << "Error, calling RestoreStdout without calling"
+         "DupandSilenceStdout first.";
+  FUZZTEST_CHECK(dup2(fileno(stdout_file_), STDOUT_FILENO) != -1)
+      << "dup2() error:" << strerror(errno);
+  FUZZTEST_CHECK(fclose(stdout_file_) == 0)
+      << "close() error:" << strerror(errno);
   stdout_file_ = stdout;
 }
 

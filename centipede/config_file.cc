@@ -29,8 +29,6 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -116,7 +114,9 @@ AugmentedArgvWithCleanup::AugmentedArgvWithCleanup(
     const std::string& new_arg = argv_.emplace_back(
         absl::StrReplaceAll(flag_replaced_arg.value_or(old_arg), replacements));
     if (new_arg != old_arg) {
-      VLOG(1) << "Augmented argv arg:\n" << VV(old_arg) << "\n" << VV(new_arg);
+      FUZZTEST_VLOG(1) << "Augmented argv arg:\n"
+                       << VV(old_arg) << "\n"
+                       << VV(new_arg);
       was_augmented_ = true;
     }
   }
@@ -147,7 +147,7 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   const std::filesystem::path path = absl::GetFlag(FLAGS_config);
 
   if (!path.empty()) {
-    CHECK_NE(path, absl::GetFlag(FLAGS_save_config))
+    FUZZTEST_CHECK_NE(path, absl::GetFlag(FLAGS_save_config))
         << "To update config in place, use " << DASHED_FLAG_NAME(update_config);
   }
 
@@ -162,15 +162,16 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   if (!path.empty() && !std::filesystem::exists(path)) {  // assume remote
     // Read the remote file.
     std::string contents;
-    CHECK_OK(RemoteFileGetContents(path.c_str(), contents));
+    FUZZTEST_CHECK_OK(RemoteFileGetContents(path.c_str(), contents));
 
     // Save a temporary local copy.
     const std::filesystem::path tmp_dir = TemporaryLocalDirPath();
     const std::filesystem::path local_path = tmp_dir / path.filename();
-    LOG(INFO) << "Localizing remote config: " << VV(path) << VV(local_path);
+    FUZZTEST_LOG(INFO) << "Localizing remote config: " << VV(path)
+                       << VV(local_path);
     // NOTE: Ignore "Remote" in the API names here: the paths are always local.
-    CHECK_OK(RemoteMkdir(tmp_dir.c_str()));
-    CHECK_OK(RemoteFileSetContents(local_path.c_str(), contents));
+    FUZZTEST_CHECK_OK(RemoteMkdir(tmp_dir.c_str()));
+    FUZZTEST_CHECK_OK(RemoteFileSetContents(local_path.c_str(), contents));
 
     // Augment the argv to point at the local copy and ensure it is cleaned up.
     replacements.emplace_back(path.c_str(), local_path.c_str());
@@ -188,16 +189,16 @@ std::filesystem::path MaybeSaveConfigToFile(
   // Initialize `path` if --save_config or --update_config is passed.
   if (!absl::GetFlag(FLAGS_save_config).empty()) {
     path = absl::GetFlag(FLAGS_save_config);
-    CHECK_NE(path, absl::GetFlag(FLAGS_config))
+    FUZZTEST_CHECK_NE(path, absl::GetFlag(FLAGS_config))
         << "To update config in place, use " << DASHED_FLAG_NAME(update_config);
-    CHECK(!absl::GetFlag(FLAGS_update_config))
+    FUZZTEST_CHECK(!absl::GetFlag(FLAGS_update_config))
         << DASHED_FLAG_NAME(save_config) << " and "
         << DASHED_FLAG_NAME(update_config) << " are mutually exclusive";
   } else if (absl::GetFlag(FLAGS_update_config)) {
     path = absl::GetFlag(FLAGS_config);
-    CHECK(!path.empty()) << DASHED_FLAG_NAME(update_config)
-                         << " must be used in combination with "
-                         << DASHED_FLAG_NAME(config);
+    FUZZTEST_CHECK(!path.empty())
+        << DASHED_FLAG_NAME(update_config)
+        << " must be used in combination with " << DASHED_FLAG_NAME(config);
   }
 
   // Save or update the config file.
@@ -244,7 +245,7 @@ $2 "$${flags[@]}"
     } else {
       file_contents = flags_str;
     }
-    CHECK_OK(RemoteFileSetContents(path.c_str(), file_contents));
+    FUZZTEST_CHECK_OK(RemoteFileSetContents(path.c_str(), file_contents));
   }
 
   return path;
@@ -269,7 +270,7 @@ std::unique_ptr<RuntimeState> InitCentipede(  //
   const AugmentedArgvWithCleanup localized_argv =
       LocalizeConfigFilesInArgv(saved_argv);
   if (localized_argv.was_augmented()) {
-    LOG(INFO) << "Command line was augmented; reparsing";
+    FUZZTEST_LOG(INFO) << "Command line was augmented; reparsing";
     runtime_state->leftover_argv() = CastArgv(absl::ParseCommandLine(
         localized_argv.argc(), CastArgv(localized_argv.argv()).data()));
   }
@@ -279,15 +280,15 @@ std::unique_ptr<RuntimeState> InitCentipede(  //
     const FlagInfosPerSource flags = GetFlagsPerSource("centipede");
     const std::string flags_str = FormatFlagfileString(
         flags, DefaultedFlags::kCommentedOut, FlagComments::kNone);
-    LOG(INFO) << "Final resolved config:\n" << flags_str;
+    FUZZTEST_LOG(INFO) << "Final resolved config:\n" << flags_str;
   }
 
   // If --save_config was passed, save the final resolved flags to the requested
   // file and exit the program.
   const auto path = MaybeSaveConfigToFile(leftover_argv);
   if (!path.empty()) {
-    LOG(INFO) << "Config written to file: " << VV(path);
-    LOG(INFO) << "Nothing left to do; exiting";
+    FUZZTEST_LOG(INFO) << "Config written to file: " << VV(path);
+    FUZZTEST_LOG(INFO) << "Nothing left to do; exiting";
     exit(EXIT_SUCCESS);
   }
 

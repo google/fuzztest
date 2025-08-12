@@ -19,7 +19,6 @@
 #include <utility>
 #include <variant>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -48,16 +47,18 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
   }
 
   if (RemotePathExists(config_spec)) {
-    LOG(INFO) << "Config spec points at an existing file; trying to parse "
-                 "textproto config from it: "
-              << VV(config_spec);
+    FUZZTEST_LOG(INFO)
+        << "Config spec points at an existing file; trying to parse "
+           "textproto config from it: "
+        << VV(config_spec);
     RETURN_IF_NOT_OK(RemoteFileGetContents(config_spec, config_str));
-    LOG(INFO) << "Raw config read from file:\n" << config_str;
+    FUZZTEST_LOG(INFO) << "Raw config read from file:\n" << config_str;
     base_dir = std::filesystem::path{config_spec}.parent_path();
   } else {
-    LOG(INFO) << "Config spec is not a file, or file doesn't exist; trying to "
-                 "parse textproto config verbatim: "
-              << VV(config_spec);
+    FUZZTEST_LOG(INFO)
+        << "Config spec is not a file, or file doesn't exist; trying to "
+           "parse textproto config verbatim: "
+        << VV(config_spec);
     config_str = config_spec;
     base_dir = fs::current_path();
   }
@@ -73,7 +74,7 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
                      "destination, config_spec: ",
                      config_spec, ", config: ", config));
   }
-  LOG(INFO) << "Parsed config:\n" << config;
+  FUZZTEST_LOG(INFO) << "Parsed config:\n" << config;
 
   // Resolve relative `source.dir_glob`s in the config to absolute ones.
   for (auto& src : *config.mutable_sources()) {
@@ -99,7 +100,7 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
         WorkDir::kDigitsInShardIndex);
   }
 
-  LOG(INFO) << "Resolved config:\n" << config;
+  FUZZTEST_LOG(INFO) << "Resolved config:\n" << config;
 
   return config;
 }
@@ -164,7 +165,7 @@ absl::Status GenerateSeedCorpusFromConfigProto(  //
       const proto::SeedCorpusConfig config_proto,
       ResolveSeedCorpusConfigProto(config_spec, override_out_dir));
   if (config_proto.sources_size() == 0 || !config_proto.has_destination()) {
-    LOG(WARNING) << "Config is empty: skipping seed corpus generation";
+    FUZZTEST_LOG(WARNING) << "Config is empty: skipping seed corpus generation";
     return absl::OkStatus();
   }
   RETURN_IF_NOT_OK(DumpConfigProtoToDebugDir(config_proto, coverage_binary_name,

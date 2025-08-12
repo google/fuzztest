@@ -18,13 +18,13 @@
 #include <string>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "./centipede/corpus.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -46,7 +46,7 @@ std::vector<CorpusRecord> RunInputsAndCollectCorpusRecords(
   // Repackage execution results into a vector of CorpusRecords.
   std::vector<CorpusRecord> corpus_records;
   std::vector<ExecutionResult> &execution_results = batch_result.results();
-  CHECK_EQ(byte_array_inputs.size(), execution_results.size());
+  FUZZTEST_CHECK_EQ(byte_array_inputs.size(), execution_results.size());
 
   corpus_records.reserve(byte_array_inputs.size());
   for (int i = 0; i < byte_array_inputs.size(); ++i) {

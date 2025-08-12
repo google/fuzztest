@@ -100,6 +100,7 @@ cc_binary(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:flatbuffers",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",

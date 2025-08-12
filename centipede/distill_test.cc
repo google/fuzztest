@@ -25,7 +25,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/reflection.h"
-#include "absl/log/check.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
@@ -33,6 +32,7 @@
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 #include "./common/test_util.h"
 
 namespace fuzztest::internal {
@@ -70,10 +70,10 @@ void WriteToShard(const Environment &env, const TestCorpusRecord &record,
   const auto features_path = wd.FeaturesFilePaths().Shard(shard_index);
   const auto corpus_appender = DefaultBlobFileWriterFactory(env.riegeli);
   const auto features_appender = DefaultBlobFileWriterFactory(env.riegeli);
-  CHECK_OK(corpus_appender->Open(corpus_path, "a"));
-  CHECK_OK(features_appender->Open(features_path, "a"));
-  CHECK_OK(corpus_appender->Write(record.input));
-  CHECK_OK(features_appender->Write(
+  FUZZTEST_CHECK_OK(corpus_appender->Open(corpus_path, "a"));
+  FUZZTEST_CHECK_OK(features_appender->Open(features_path, "a"));
+  FUZZTEST_CHECK_OK(corpus_appender->Write(record.input));
+  FUZZTEST_CHECK_OK(features_appender->Write(
       PackFeaturesAndHash(record.input, record.feature_vec)));
 }
 

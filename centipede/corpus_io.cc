@@ -22,8 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -46,13 +44,13 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
       !features_path.empty() && RemotePathExists(features_path);
 
   if (!good_corpus_path) {
-    LOG(WARNING) << "Corpus file path empty or not found - returning: "
-                 << corpus_path;
+    FUZZTEST_LOG(WARNING) << "Corpus file path empty or not found - returning: "
+                          << corpus_path;
     return;
   }
 
   RPROF_THIS_FUNCTION_WITH_TIMELAPSE(            //
-      /*enable=*/ABSL_VLOG_IS_ON(10),            //
+      /*enable=*/FUZZTEST_VLOG_IS_ON(10),        //
       /*timelapse_interval=*/absl::Seconds(30),  //
       /*also_log_timelapses=*/false);
 
@@ -64,7 +62,7 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
   std::multimap<std::string /*hash*/, ByteArray /*input*/> hash_to_input;
   // Read inputs from the corpus file into `hash_to_input`.
   auto corpus_reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
+  FUZZTEST_CHECK_OK(corpus_reader->Open(corpus_path)) << VV(corpus_path);
   ByteSpan blob;
   while (corpus_reader->Read(blob).ok()) {
     std::string hash = Hash(blob);
@@ -82,15 +80,17 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
 
   // If the features file is not passed or doesn't exist, simply ignore it.
   if (!good_features_path) {
-    LOG(WARNING) << "Features file path empty or not found - ignoring: "
-                 << features_path;
+    FUZZTEST_LOG(WARNING)
+        << "Features file path empty or not found - ignoring: "
+        << features_path;
   } else {
     // Read features from the features file. For each feature, find a matching
     // input in `hash_to_input`, call `callback` for the pair, and remove the
     // entry from `hash_to_input`. In the end, `hash_to_input` will contain
     // only inputs without matching features.
     auto features_reader = DefaultBlobFileReaderFactory();
-    CHECK_OK(features_reader->Open(features_path)) << VV(features_path);
+    FUZZTEST_CHECK_OK(features_reader->Open(features_path))
+        << VV(features_path);
     ByteSpan hash_and_features;
     while (features_reader->Read(hash_and_features).ok()) {
       // Every valid feature record must contain the hash at the end.
@@ -127,7 +127,7 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
 
   RPROF_SNAPSHOT("Reported inputs with no matching features");
 
-  VLOG(1)  //
+  FUZZTEST_VLOG(1)  //
       << "Finished shard reading:\n"
       << "Corpus path                : " << corpus_path << "\n"
       << "Features path              : " << features_path << "\n"
@@ -140,17 +140,17 @@ void ReadShard(std::string_view corpus_path, std::string_view features_path,
 
 void ExportCorpus(absl::Span<const std::string> sharded_file_paths,
                   std::string_view out_dir) {
-  LOG(INFO) << "Exporting corpus to " << out_dir;
+  FUZZTEST_LOG(INFO) << "Exporting corpus to " << out_dir;
   for (const std::string &file : sharded_file_paths) {
     auto reader = DefaultBlobFileReaderFactory();
-    CHECK_OK(reader->Open(file)) << VV(file);
+    FUZZTEST_CHECK_OK(reader->Open(file)) << VV(file);
     ByteSpan blob;
     size_t num_read = 0;
     while (reader->Read(blob).ok()) {
       ++num_read;
       WriteToRemoteHashedFileInDir(out_dir, blob);
     }
-    LOG(INFO) << "Exported " << num_read << " inputs from " << file;
+    FUZZTEST_LOG(INFO) << "Exported " << num_read << " inputs from " << file;
   }
 }
 

@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "./centipede/feature.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -158,13 +158,13 @@ bool ParseAFLDictionary(std::string_view dictionary_text,
                         std::vector<ByteArray> &dictionary_entries);
 
 // Maps `size` bytes with `mmap(NO_RESERVE)` or equivalent, returns the result.
-// CHECK-fails on error.
+// FUZZTEST_CHECK-fails on error.
 // The resulting memory is unreserved, and will be zero-initialized on first
 // access.
 uint8_t *MmapNoReserve(size_t size);
 
 // Unmaps memory returned by `MmapNoReserve`().
-// CHECK-fails on error.
+// FUZZTEST_CHECK-fails on error.
 void Munmap(uint8_t *ptr, size_t size);
 
 // Fixed size array allocated/deallocated with MmapNoReserve/Munmap.
@@ -179,11 +179,11 @@ class MmapNoReserveArray {
   MmapNoReserveArray(MmapNoReserveArray &&) = delete;
   MmapNoReserveArray &operator=(MmapNoReserveArray &&) = delete;
   uint8_t operator[](size_t i) const {
-    CHECK_LT(i, kSize);
+    FUZZTEST_CHECK_LT(i, kSize);
     return array_[i];
   }
   uint8_t &operator[](size_t i) {
-    CHECK_LT(i, kSize);
+    FUZZTEST_CHECK_LT(i, kSize);
     return array_[i];
   }
 

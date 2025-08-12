@@ -147,6 +147,7 @@ cc_library(
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:meta",
         "@com_google_fuzztest//fuzztest/internal:serialization",

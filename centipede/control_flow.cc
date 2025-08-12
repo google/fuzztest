@@ -30,8 +30,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -47,11 +45,11 @@ namespace fuzztest::internal {
 PCTable ReadPcTableFromFile(std::string_view file_path) {
   ByteArray pc_infos_as_bytes;
   ReadFromLocalFile(file_path, pc_infos_as_bytes);
-  CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
+  FUZZTEST_CHECK_EQ(pc_infos_as_bytes.size() % sizeof(PCInfo), 0);
   size_t pc_table_size = pc_infos_as_bytes.size() / sizeof(PCInfo);
   const auto *pc_infos = reinterpret_cast<PCInfo *>(pc_infos_as_bytes.data());
   PCTable pc_table{pc_infos, pc_infos + pc_table_size};
-  CHECK_EQ(pc_table.size(), pc_table_size);
+  FUZZTEST_CHECK_EQ(pc_table.size(), pc_table_size);
   return pc_table;
 }
 
@@ -68,9 +66,9 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
   if (exit_code != EXIT_SUCCESS) {
     std::string log_text;
     ReadFromLocalFile(stderr_path, log_text);
-    LOG(ERROR) << "Failed to use objdump to get PC table; stderr is:";
+    FUZZTEST_LOG(ERROR) << "Failed to use objdump to get PC table; stderr is:";
     for (const auto &line : absl::StrSplit(log_text, '\n')) {
-      LOG(ERROR).NoPrefix() << line;
+      FUZZTEST_LOG(ERROR).NoPrefix() << line;
     }
     std::filesystem::remove(tmp_path);
     std::filesystem::remove(stderr_path);
@@ -79,7 +77,7 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
   std::filesystem::remove(stderr_path);
   PCTable pc_table;
   std::ifstream in(std::string{tmp_path});
-  CHECK(in.good()) << VV(tmp_path);
+  FUZZTEST_CHECK(in.good()) << VV(tmp_path);
   bool saw_new_function = false;
 
   // Read the objdump output, find lines that start a function
@@ -107,7 +105,7 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
 CFTable ReadCfTable(std::istream &in) {
   const std::string input_string(std::istreambuf_iterator<char>(in), {});
   const ByteArray cf_table_as_bytes(input_string.begin(), input_string.end());
-  CHECK_EQ(cf_table_as_bytes.size() % sizeof(CFTable::value_type), 0);
+  FUZZTEST_CHECK_EQ(cf_table_as_bytes.size() % sizeof(CFTable::value_type), 0);
   const size_t cf_table_size =
       cf_table_as_bytes.size() / sizeof(CFTable::value_type);
   const auto *cf_entries =
@@ -117,7 +115,7 @@ CFTable ReadCfTable(std::istream &in) {
 
 CFTable ReadCfTable(std::string_view file_path) {
   std::string cf_table_contents;
-  CHECK_OK(RemoteFileGetContents(file_path, cf_table_contents));
+  FUZZTEST_CHECK_OK(RemoteFileGetContents(file_path, cf_table_contents));
   std::istringstream cf_table_stream(cf_table_contents);
   return ReadCfTable(cf_table_stream);
 }
@@ -135,7 +133,7 @@ DsoTable ReadDsoTableFromFile(std::string_view file_path) {
     // Use std::string; there is no std::stoul for std::string_view.
     const std::vector<std::string> tokens =
         absl::StrSplit(line, ' ', absl::SkipEmpty());
-    CHECK_EQ(tokens.size(), 2) << VV(line);
+    FUZZTEST_CHECK_EQ(tokens.size(), 2) << VV(line);
     result.push_back(DsoInfo{tokens[0], std::stoul(tokens[1])});
   }
   return result;
@@ -143,7 +141,7 @@ DsoTable ReadDsoTableFromFile(std::string_view file_path) {
 
 void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
                                                   const PCTable &pc_table) {
-  CHECK(!cf_table.empty());
+  FUZZTEST_CHECK(!cf_table.empty());
   func_entries_.resize(pc_table.size());
   reachability_.resize(pc_table.size());
 
@@ -162,14 +160,14 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
     // Record the list of successors
     graph_[curr_pc] = std::move(successors);
     // TODO(ussuri): Remove after debugging.
-    VLOG(100) << "Added PC: " << curr_pc;
+    FUZZTEST_VLOG(100) << "Added PC: " << curr_pc;
 
     // Iterate over callees.
     while (cf_table[j]) {
       ++j;
     }
     ++j;  // Step over the delimiter.
-    CHECK_LE(j, cf_table.size());
+    FUZZTEST_CHECK_LE(j, cf_table.size());
   }
   // Calculate cyclomatic complexity for all functions.
   for (PCIndex i = 0; i < pc_table.size(); ++i) {
@@ -186,7 +184,7 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
 const std::vector<uintptr_t> &ControlFlowGraph::GetSuccessors(
     uintptr_t basic_block) const {
   auto it = graph_.find(basic_block);
-  CHECK(it != graph_.end()) << VV(basic_block);
+  FUZZTEST_CHECK(it != graph_.end()) << VV(basic_block);
   return it->second;
 }
 
