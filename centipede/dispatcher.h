@@ -95,6 +95,8 @@ void FuzzTestDispatcherEmitSeed(const void* data, size_t size);
 // nullptr and `size > 0` must hold.
 void FuzzTestDispatcherEmitMutant(const void* data, size_t size);
 
+// TODO: b/437901326 - Unify the feedback emission interfaces.
+
 // Emits coverage feedback for the current input as an array of 32-bit features.
 //
 // For each 32-bit feature, the bit [31] is ignored; the 4 bits [30-27]
@@ -105,6 +107,14 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size);
 // and `num_features > 0` must hold.
 void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,
                                                    size_t num_features);
+
+// Must only pass here the "raw" features exposed by the sancov runtime.
+//
+// Must be called from the `execute` callback. `features` must not be nullptr
+// and `num_features > 0` must hold.
+void FuzzTestDispatcherEmitFeedbackAsRawFeatures(const uint64_t* features,
+                                                 size_t num_features);
+
 // Emits metadata of the current input as raw bytes. Must be called from
 // the `execute` callback.
 void FuzzTestDispatcherEmitExecutionMetadata(const void* metadata, size_t size);
