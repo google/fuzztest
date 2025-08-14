@@ -94,6 +94,9 @@ void ThreadLocalSancovState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 void ThreadLocalSancovState::OnThreadStart() {
   termination_detector.EnsureAlive();
   tls.started = true;
+  // Always trace threads by default. Internal threads that do not want tracing
+  // will set this to false later.
+  tls.traced = true;
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.stack_region_low = GetCurrentThreadStackRegionLow();
@@ -112,12 +115,17 @@ void ThreadLocalSancovState::OnThreadStart() {
 }
 
 void ThreadLocalSancovState::OnThreadStop() {
+  tls.traced = false;
   LockGuard lock(sancov_state.tls_list_mu);
   // Remove myself from state.tls_list. The list never
   // becomes empty because the main thread does not call OnThreadStop().
   if (&tls == sancov_state.tls_list) {
     sancov_state.tls_list = tls.next;
     tls.prev = nullptr;
+  } else if (tls.prev == nullptr) {
+    // The current thread is not linked into the global list, probably due to
+    // OnThreadStart not called from untracked pthread_create.
+    return;
   } else {
     auto *prev_tls = tls.prev;
     auto *next_tls = tls.next;

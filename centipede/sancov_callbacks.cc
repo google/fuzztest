@@ -22,6 +22,7 @@
 #include <cstdio>
 
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/feature.h"
 #include "./centipede/int_utils.h"
@@ -66,7 +67,9 @@ using fuzztest::internal::tls;
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceLoad(void *addr) {
-  if (!sancov_state.flags.use_dataflow_features) return;
+  if (ABSL_PREDICT_FALSE(!tls.traced) ||
+      !sancov_state.flags.use_dataflow_features)
+    return;
   auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   auto load_addr = reinterpret_cast<uintptr_t>(addr);
   auto pc_offset = caller_pc - sancov_state.main_object.start_address;
@@ -113,44 +116,52 @@ NO_SANITIZE void __sanitizer_cov_load16(__uint128_t *addr) { TraceLoad(addr); }
 
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp1(uint8_t Arg1, uint8_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp2(uint16_t Arg1, uint16_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp4(uint32_t Arg1, uint32_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp8(uint64_t Arg1, uint64_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp1(uint8_t Arg1, uint8_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp2(uint16_t Arg1, uint16_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace2.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp4(uint32_t Arg1, uint32_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace4.Capture(Arg1, Arg2);
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2);
   if (Arg1 != Arg2 && sancov_state.flags.use_auto_dictionary)
     tls.cmp_trace8.Capture(Arg1, Arg2);
@@ -286,6 +297,7 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 // (e.g. trace-pc-guard) is available, but GCC as of 2022-04 only supports
 // this variant.
 void __sanitizer_cov_trace_pc() {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
   if (!sancov_state.main_object.start_address ||
       !sancov_state.actual_pc_counter_set_size_aligned) {
@@ -311,6 +323,7 @@ void __sanitizer_cov_trace_pc_guard_init(PCGuard *absl_nonnull start,
 // This function is called on every instrumented edge.
 NO_SANITIZE
 void __sanitizer_cov_trace_pc_guard(PCGuard *absl_nonnull guard) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   // This function may be called very early during the DSO initialization,
   // before the values of `*guard` are initialized to non-zero.
   // But it will immidiately return bacause state.run_time_flags.use_pc_features

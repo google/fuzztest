@@ -168,6 +168,9 @@ static void CheckWatchdogLimits() {
 // Watchdog thread. Periodically checks if it's time to abort due to a
 // timeout/OOM.
 [[noreturn]] static void *WatchdogThread(void *unused) {
+  // Since the watchdog is internal and does not execute user code, disable
+  // SanCov tracing and TLS traversal.
+  tls.traced = false;
   tls.ignore = true;
   state.watchdog_thread_started = true;
   while (true) {
@@ -763,28 +766,17 @@ static int HandleSharedMemoryRequest(RunnerCallbacks& callbacks,
   // Read the first blob. It indicates what further actions to take.
   auto request_type_blob = inputs_blobseq.Read();
   if (IsMutationRequest(request_type_blob)) {
-    // Since we are mutating, no need to spend time collecting the coverage.
-    // We still pay for executing the coverage callbacks, but those will
-    // return immediately.
-    // TODO(kcc): do this more consistently, for all coverage types.
-    const bool old_cmp_features = sancov_state.flags.use_cmp_features;
-    const bool old_pc_features = sancov_state.flags.use_pc_features;
-    const bool old_dataflow_features = sancov_state.flags.use_dataflow_features;
-    const bool old_counter_features = sancov_state.flags.use_counter_features;
-    sancov_state.flags.use_cmp_features = false;
-    sancov_state.flags.use_pc_features = false;
-    sancov_state.flags.use_dataflow_features = false;
-    sancov_state.flags.use_counter_features = false;
     // Mutation request.
     inputs_blobseq.Reset();
     static auto mutator = new ByteArrayMutator(state.knobs, GetRandomSeed());
     state.byte_array_mutator = mutator;
+    // Since we are mutating, no need to spend time collecting the coverage.
+    // We still pay for executing the coverage callbacks, but those will
+    // return immediately.
+    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
     const int result =
         MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
-    sancov_state.flags.use_cmp_features = old_cmp_features;
-    sancov_state.flags.use_pc_features = old_pc_features;
-    sancov_state.flags.use_dataflow_features = old_dataflow_features;
-    sancov_state.flags.use_counter_features = old_counter_features;
+    CentipedeSetCurrentThreadTraced(old_traced);
     return result;
   }
   if (IsExecutionRequest(request_type_blob)) {
@@ -960,6 +952,12 @@ extern "C" void CentipedeFinalizeProcessing() {
   if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
     fuzztest::internal::PostProcessSancov();
   }
+}
+
+extern "C" int CentipedeSetCurrentThreadTraced(int traced) {
+  const int old_traced = fuzztest::internal::tls.traced;
+  fuzztest::internal::tls.traced = traced;
+  return old_traced;
 }
 
 extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {

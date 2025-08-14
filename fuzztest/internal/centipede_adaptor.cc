@@ -47,6 +47,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/absl_log.h"
 #include "absl/memory/memory.h"
@@ -477,6 +478,12 @@ class CentipedeAdaptorRunnerCallbacks
       }
       return true;
     }();
+    // Disable tracing until running the property function in
+    // `CentipedeFxitureDriver::RunFuzzTestIteration()`
+    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+    absl::Cleanup tracing_restorer = [old_traced] {
+      CentipedeSetCurrentThreadTraced(old_traced);
+    };
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
     auto parsed_input =
@@ -658,6 +665,11 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
 
   void RunFuzzTestIteration(
       absl::AnyInvocable<void() &&> run_iteration_once) override {
+    // Enable tracing for the property function.
+    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
+    absl::Cleanup tracing_restorer = [old_traced] {
+      CentipedeSetCurrentThreadTraced(old_traced);
+    };
     orig_fixture_driver_->RunFuzzTestIteration([&, this] {
       if (!runner_mode) CentipedePrepareProcessing();
       std::move(run_iteration_once)();

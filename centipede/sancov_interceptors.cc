@@ -144,7 +144,7 @@ static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
 extern "C" NO_SANITIZE int memcmp(const void *s1, const void *s2, size_t n) {
   const int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
-  if (ABSL_PREDICT_FALSE(!tls.started)) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) {
     return result;
   }
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
@@ -168,7 +168,7 @@ extern "C" NO_SANITIZE int strcmp(const char *s1, const char *s2) {
       // Need to include one more byte than the shorter string length
       // when falling back to memcmp e.g. "foo" < "foobar".
       strcmp_orig ? strcmp_orig(s1, s2) : memcmp_fallback(s1, s2, len + 1);
-  if (ABSL_PREDICT_FALSE(!tls.started)) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) {
     return result;
   }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
@@ -191,7 +191,7 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
   if (n > len + 1) n = len + 1;
   const int result =
       strncmp_orig ? strncmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
-  if (ABSL_PREDICT_FALSE(!tls.started)) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) {
     return result;
   }
   // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
@@ -208,7 +208,7 @@ extern "C" int pthread_create(
     const pthread_attr_t *absl_nullable attr,  // NOLINT
     void *(*start_routine)(void *),
     void *absl_nullable arg) {  // NOLINT
-  if (ABSL_PREDICT_FALSE(!tls.started)) {
+  if (ABSL_PREDICT_TRUE(!tls.started)) {
     return REAL(pthread_create)(thread, attr, start_routine, arg);
   }
   // Wrap the arguments. Will be deleted in MyThreadStart.

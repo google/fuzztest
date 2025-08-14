@@ -56,6 +56,7 @@ cc_library(
         ":table_of_recent_compares",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:absl_log",
         "@abseil-cpp//absl/memory",
