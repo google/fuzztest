@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <new>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -65,6 +66,43 @@ bool ReadAll(int fd, char* data, size_t size);
 // blocking so there is no busy-spinning). Returns true if all bytes are
 // written, false otherwise due to errors.
 bool WriteAll(int fd, const char* data, size_t size);
+
+extern "C" void __lsan_register_root_region(const void* p, size_t size)
+    __attribute__((weak));
+
+// Wraps an object of `T` with manual construction (and no destruction since not
+// needed for now). Needed for runner/dispatcher related global states that need
+// extended lifetime.
+//
+// The implementation is modified/simplified from `absl::NoDestructor`.
+template <typename T>
+class ManualLifetimeWrapper {
+ public:
+  ManualLifetimeWrapper() = default;
+
+  // No copying.
+  ManualLifetimeWrapper(const ManualLifetimeWrapper&) = delete;
+  ManualLifetimeWrapper& operator=(const ManualLifetimeWrapper&) = delete;
+
+  T& operator*() { return *get(); }
+  T* absl_nonnull operator->() { return get(); }
+
+  // Constructs the actual object with forwarded `args`.
+  template <typename... Args>
+  void Construct(Args&&... args) {
+    new (&space_) T(std::forward<Args>(args)...);
+    // Needed otherwise lsan may lose track of the pointers inside the object as
+    // it is in-place constructed from the byte array.
+    if (__lsan_register_root_region) {
+      __lsan_register_root_region(&space_, sizeof(space_));
+    }
+  }
+
+  T* absl_nonnull get() { return std::launder(reinterpret_cast<T*>(&space_)); }
+
+ private:
+  alignas(T) unsigned char space_[sizeof(T)];
+};
 
 }  // namespace fuzztest::internal
 
