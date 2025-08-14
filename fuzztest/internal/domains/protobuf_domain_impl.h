@@ -349,12 +349,13 @@ class ProtoPolicy {
       const ProtoDescriptor* descriptor) {
     ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
     static absl::NoDestructor<absl::flat_hash_map<
-        const ProtoDescriptor*, std::vector<const FieldDescriptor*>>>
+        const ProtoDescriptor*,
+        std::unique_ptr<std::vector<const FieldDescriptor*>>>>
         descriptor_to_fields ABSL_GUARDED_BY(mutex);
     {
       absl::MutexLock l(&mutex);
       auto it = descriptor_to_fields->find(descriptor);
-      if (it != descriptor_to_fields->end()) return it->second;
+      if (it != descriptor_to_fields->end()) return *(it->second);
     }
     std::vector<const FieldDescriptor*> fields;
     fields.reserve(descriptor->field_count());
@@ -365,9 +366,10 @@ class ProtoPolicy {
     if (ShouldEnumerateExtensions(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
     }
-    auto [it, _] =
-        descriptor_to_fields->insert({descriptor, std::move(fields)});
-    return it->second;
+    auto [it, _] = descriptor_to_fields->insert(
+        {descriptor, std::make_unique<std::vector<const FieldDescriptor*>>(
+                         std::move(fields))});
+    return *(it->second);
   }
 
  private:
@@ -439,15 +441,17 @@ class ProtoPolicy {
         const ProtoDescriptor* descriptor) {
       absl::ReaderMutexLock l(&proto_to_fields_mutex_);
       auto it = proto_to_fields_.find(descriptor);
-      return it != proto_to_fields_.end() ? &it->second : nullptr;
+      return it != proto_to_fields_.end() ? it->second.get() : nullptr;
     }
 
     const std::vector<const FieldDescriptor*>& SetFields(
         const ProtoDescriptor* descriptor,
         std::vector<const FieldDescriptor*> fields) {
       absl::MutexLock l(&proto_to_fields_mutex_);
-      auto [it, _] = proto_to_fields_.insert({descriptor, std::move(fields)});
-      return it->second;
+      auto [it, _] = proto_to_fields_.insert(
+          {descriptor, std::make_unique<std::vector<const FieldDescriptor*>>(
+                           std::move(fields))});
+      return *it->second;
     }
 
    private:
@@ -461,7 +465,7 @@ class ProtoPolicy {
             ABSL_GUARDED_BY(field_to_is_infinitely_recursive_mutex_);
     absl::Mutex proto_to_fields_mutex_;
     absl::flat_hash_map<const ProtoDescriptor*,
-                        std::vector<const FieldDescriptor*>>
+                        std::unique_ptr<std::vector<const FieldDescriptor*>>>
         proto_to_fields_ ABSL_GUARDED_BY(proto_to_fields_mutex_);
   };
 
