@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "mustang/generic-servlet.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -780,6 +781,32 @@ TEST(ProtocolBuffer, MutationInParallelIsEfficient) {
   std::cout << "total time (" << num_threads
             << " threads): " << multi_thread_time << "\n";
   std::cout << "ratio: " << multi_thread_time / single_thread_time << "\n";
+}
+
+TEST(ProtocolBuffer, MutationInParallelIsSafeWithAGlobalDomain) {
+  const unsigned int num_threads =
+      std::max(1u, std::thread::hardware_concurrency() / 2);
+  auto domain = Arbitrary<GenericSearchRequest>();
+
+  // Make the mutation runs comparable by using the same seed sequence.
+  absl::SeedSeq seed_seq = absl::MakeSeedSeq();
+  auto thread_task = [&]() {
+    absl::BitGen bitgen{seed_seq};
+    // Init and Mutate on the SHARED domain instance
+    // These calls will concurrently access the same underlying
+    // ProtoPolicy::RecursiveFieldsCaches
+    auto corpus_value = domain.Init(bitgen);
+    for (int j = 0; j < 500; ++j) {
+      domain.Mutate(corpus_value, bitgen, {}, false);
+    }
+  };
+
+  std::vector<std::thread> workers;
+  workers.reserve(num_threads);
+  for (int i = 0; i < num_threads; ++i) {
+    workers.emplace_back(thread_task);
+  }
+  for (auto& worker : workers) worker.join();
 }
 
 }  // namespace

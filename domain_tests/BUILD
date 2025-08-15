@@ -61,6 +61,7 @@ cc_test(
     tags = ["cpu:4"],
     deps = [
         ":domain_testing",
+        "//mustang:generic_servlet_cc_proto",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
