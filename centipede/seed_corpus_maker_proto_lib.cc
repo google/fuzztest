@@ -112,6 +112,7 @@ SeedCorpusConfig CreateSeedCorpusConfigFromProto(
     source.dir_glob = source_proto.dir_glob();
     source.num_recent_dirs = source_proto.num_recent_dirs();
     source.shard_rel_glob = source_proto.shard_rel_glob();
+    source.features_start_point = source_proto.features_start_point();
     switch (source_proto.sample_size_case()) {
       case proto::SeedCorpusSource::kSampledFraction:
         source.sampled_fraction_or_count = source_proto.sampled_fraction();

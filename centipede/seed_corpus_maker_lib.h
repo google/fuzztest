@@ -44,6 +44,8 @@ struct SeedCorpusSource {
   // will be skipped.
   std::string individual_input_rel_glob;
   std::variant<float, uint32_t> sampled_fraction_or_count;
+
+  std::string features_start_point;
 };
 
 // Native struct used by the seed corpus library for seed corpus destination.

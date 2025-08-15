@@ -244,5 +244,77 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
   }
 }
 
+TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
+  const fs::path test_dir = GetTestTempDir(test_info_->name());
+  chdir(test_dir.c_str());
+
+  const InputAndFeaturesVec kElementsSrc1 = {
+      {{0}, {}},
+      {{1}, {feature_domains::kNoFeature}},
+      {{0, 1}, {0x11, 0x23}},
+      {{1, 2, 3}, {0x11, 0x23, 0xfe}},
+  };
+  const InputAndFeaturesVec kElementsSrc2 = {
+      {{3, 4, 5, 6}, {0x111, 0x234, 0x345, 0x56}},
+      {{5, 6, 7, 9}, {0x1111, 0x2345, 0x3456, 0x5678}},
+      {{7, 8, 9, 10, 111}, {0x11111, 0x23456, 0x34567, 0x56789, 0xffaf}},
+  };
+  constexpr std::string_view kCovBin = "bin";
+  constexpr std::string_view kCovHash = "hash";
+  constexpr std::string_view kSrcDir1 = "dir/src/bar";
+  constexpr std::string_view kSrcDir2 = "dir/src/foo";
+
+  // Create initial corpus from which to seed.
+  {
+    constexpr size_t kNumShards = 2;
+    const SeedCorpusDestination destination_src1 = {
+        /*dir_path=*/std::string(kSrcDir1),
+        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_index_digits=*/kIdxDigits,
+        /*num_shards=*/kNumShards,
+    };
+    ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
+        kElementsSrc1, kCovBin, kCovHash, destination_src1));
+
+    const SeedCorpusDestination destination_src2 = {
+        /*dir_path=*/std::string(kSrcDir2),
+        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_index_digits=*/kIdxDigits,
+        /*num_shards=*/kNumShards,
+    };
+    ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
+        kElementsSrc2, kCovBin, kCovHash, destination_src2));
+  }
+
+  SeedCorpusSource source;
+  source.dir_glob = std::string("dir/src/*");
+  source.num_recent_dirs = 2;
+  source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+  source.sampled_fraction_or_count = 1.0f;
+
+  InputAndFeaturesVec elements;
+  ASSERT_OK(
+      SampleSeedCorpusElementsFromSource(source, kCovBin, kCovHash, elements));
+
+  auto get_num_features = [](InputAndFeaturesVec i_and_f_vec) {
+    int num_features = 0;
+    for (auto [i, f] : i_and_f_vec) {
+      num_features += f.size();
+    }
+    return num_features;
+  };
+  // Verify that initially all features are kept
+  ASSERT_EQ(get_num_features(elements),
+            get_num_features(kElementsSrc1) + get_num_features(kElementsSrc2));
+
+  elements.clear();
+  source.features_start_point = kSrcDir2;
+  ASSERT_OK(
+      SampleSeedCorpusElementsFromSource(source, kCovBin, kCovHash, elements));
+
+  // Verify that only the features from Src2 are kept
+  ASSERT_EQ(get_num_features(elements), get_num_features(kElementsSrc2));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

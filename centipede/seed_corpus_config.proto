@@ -43,6 +43,17 @@ message SeedCorpusSource {
     // A fixed number of elements. If >= the number of elements, use all.
     uint32 sampled_count = 5;
   }
+
+  // A string value representing the point in the lexicographical order of paths
+  // in the directories matching `dir_glob` at which features will be copied
+  // along with their associated inputs when creating the seed corpus.  This is
+  // useful if the definition of user features has changed, but you cannot
+  // guarantee that the hash of the coverage_binary has changed.
+  //
+  // For example, with a dir glob of "dir*" and dirs named "dir1", "dir2",
+  // "dir3", if `features_start_point` is "dir2" then inputs copied from "dir1"
+  // will not have thir features copied, but inputs from "dir2" and "dir3" will.
+  string features_start_point = 6;
 }
 
 // Describes the seed corpus destination location and shard filename format.

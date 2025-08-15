@@ -191,20 +191,22 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
 
       const auto read_shard = [shard, corpus_fname, coverage_binary_name,
                                coverage_binary_hash, &shard_elts,
-                               &shard_elts_with_features]() {
+                               &shard_elts_with_features, &source]() {
         // NOTE: The deduced matching `features_fname` may not exist if the
         // source corpus was generated for a coverage binary that is different
         // from the one we need, but `ReadShard()` can tolerate that, passing
         // empty `FeatureVec`s to the callback if that's the case.
         const auto work_dir = WorkDir::FromCorpusShardPath(  //
             corpus_fname, coverage_binary_name, coverage_binary_hash);
-        const std::string features_fname =
+        std::string features_fname =
             work_dir.CorpusFilePaths().IsShard(corpus_fname)
                 ? work_dir.FeaturesFilePaths().MyShard()
             : work_dir.DistilledCorpusFilePaths().IsShard(corpus_fname)
                 ? work_dir.DistilledFeaturesFilePaths().MyShard()
                 : "";
-
+        if (features_fname < source.features_start_point) {
+          features_fname = "";
+        }
         VLOG(2) << "Reading elements from source shard " << shard
                 << ShardPathsForLogging(corpus_fname, features_fname);
 
