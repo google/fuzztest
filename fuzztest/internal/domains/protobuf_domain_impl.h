@@ -1137,16 +1137,15 @@ class ProtobufDomainUntypedImpl
       auto it = val.find(field->number());
       const bool is_present = it != val.end();
 
-      if (is_present) {
-        // Mutate the element
-        domain.Mutate(it->second, prng, metadata, only_shrink);
-        return;
-      }
-
-      // Add the element
-      if (!only_shrink) {
+      if (!is_present) {
+        if (only_shrink) return;
+        // Add the element
         InitializeFieldValue<T>(prng, self, field, val);
+        // Mutate the new element to generate non-nullopt values.
+        it = val.find(field->number());
       }
+      // Mutate the element
+      domain.Mutate(it->second, prng, metadata, only_shrink);
     }
 
     template <typename T>
@@ -1156,10 +1155,11 @@ class ProtobufDomainUntypedImpl
       const bool is_present = it != val.end();
 
       if (!is_present) {
-        if (!only_shrink) {
-          val[field->number()] = domain.Init(prng);
-        }
-      } else if (field->is_map()) {
+        if (only_shrink) return;
+        // Mutate the field after initialization to generate non-empty values.
+        it = val.insert({field->number(), domain.Init(prng)}).first;
+      }
+      if (field->is_map()) {
         // field of synthetic messages of the form:
         //
         // message {
