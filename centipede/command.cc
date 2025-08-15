@@ -350,9 +350,8 @@ bool Command::ExecuteAsync() {
       argv.push_back(argv_str.data());
     }
     argv.push_back(nullptr);
-    CHECK_EQ(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
-                         /*attrp=*/nullptr, argv.data(), environ),
-             0);
+    PCHECK(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
+                       /*attrp=*/nullptr, argv.data(), environ) == 0);
   }
 
   is_executing_ = true;

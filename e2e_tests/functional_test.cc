@@ -52,7 +52,7 @@
 #define ASSERT_THAT_LOG(log, matcher)                                  \
   ASSERT_TRUE(testing::Value(log, matcher))                            \
       << "Matcher: " << testing::DescribeMatcher<std::string>(matcher) \
-      << "Contents of " #log ":\n"                                     \
+      << "\nContents of " #log ":\n"                                   \
       << log
 
 namespace fuzztest::internal {
