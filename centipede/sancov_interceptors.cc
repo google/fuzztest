@@ -208,7 +208,7 @@ extern "C" int pthread_create(
     const pthread_attr_t *absl_nullable attr,  // NOLINT
     void *(*start_routine)(void *),
     void *absl_nullable arg) {  // NOLINT
-  if (ABSL_PREDICT_TRUE(!tls.started)) {
+  if (ABSL_PREDICT_FALSE(!tls.started)) {
     return REAL(pthread_create)(thread, attr, start_routine, arg);
   }
   // Wrap the arguments. Will be deleted in MyThreadStart.
