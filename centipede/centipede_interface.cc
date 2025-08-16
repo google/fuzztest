@@ -481,10 +481,12 @@ int UpdateCorpusDatabaseForFuzzTests(
     return stamp;
   }();
   std::vector<std::string> fuzz_tests_to_run;
-  if (env.fuzztest_single_test_mode) {
+  if (!env.fuzztest_multi_test_mode_soon_to_be_removed) {
     CHECK(fuzztest_config.fuzz_tests_in_current_shard.size() == 1)
-        << "Must select exactly one fuzz test when running in the single test "
-           "mode";
+        << "Centipede handles only one test when using FuzzTest. Use "
+           "`--fuzztest_multi_test_mode_soon_to_be_removed` if you need "
+           "Centipede to operate on multiple tests in one invocation - this "
+           "feature is going to be removed soon.";
     fuzz_tests_to_run = fuzztest_config.fuzz_tests_in_current_shard;
   } else {
     // TODO: xinhaoyuan - remove this branch after merging the FuzzTest
@@ -505,7 +507,8 @@ int UpdateCorpusDatabaseForFuzzTests(
   LOG(INFO) << "Fuzz tests to run: " << absl::StrJoin(fuzz_tests_to_run, ", ");
 
   const bool is_workdir_specified = !env.workdir.empty();
-  CHECK(!is_workdir_specified || env.fuzztest_single_test_mode);
+  CHECK(!is_workdir_specified ||
+        !env.fuzztest_multi_test_mode_soon_to_be_removed);
   // When env.workdir is empty, the full workdir paths will be formed by
   // appending the fuzz test names to the base workdir path. We use different
   // path when only replaying to avoid replaying an unfinished fuzzing sessions.
@@ -531,7 +534,7 @@ int UpdateCorpusDatabaseForFuzzTests(
   for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
     // Clean up previous stop requests. stop_time will be set later.
     ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
-    if (!env.fuzztest_single_test_mode &&
+    if (env.fuzztest_multi_test_mode_soon_to_be_removed &&
         fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
       const absl::Duration test_time_limit =
           fuzztest_config.GetTimeLimitPerTest();
@@ -623,7 +626,7 @@ int UpdateCorpusDatabaseForFuzzTests(
           << "while generating the seed corpus";
     }
 
-    if (!env.fuzztest_single_test_mode) {
+    if (env.fuzztest_multi_test_mode_soon_to_be_removed) {
       // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
       constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
       constexpr std::string_view kFuzzTestReplayCorpusFlag =
