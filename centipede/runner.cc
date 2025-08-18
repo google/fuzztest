@@ -63,7 +63,19 @@
 
 namespace fuzztest::internal {
 
-GlobalRunnerState state __attribute__((init_priority(200)));
+ExplicitLifetime<GlobalRunnerState> state;
+
+namespace {
+
+struct GlobalRunnerStateManager {
+  GlobalRunnerStateManager() { state.Construct(); }
+
+  ~GlobalRunnerStateManager() { state->OnTermination(); }
+};
+
+GlobalRunnerStateManager state_manager __attribute__((init_priority(200)));
+
+}  // namespace
 
 static size_t GetPeakRSSMb() {
   struct rusage usage = {};
@@ -96,33 +108,33 @@ static void CheckWatchdogLimits() {
     bool ignore_report;
     const char *failure;
   };
-  const uint64_t input_start_time = state.input_start_time;
-  const uint64_t batch_start_time = state.batch_start_time;
+  const uint64_t input_start_time = state->input_start_time;
+  const uint64_t batch_start_time = state->batch_start_time;
   if (input_start_time == 0 || batch_start_time == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
           /*units=*/"sec",
           /*value=*/curr_time - input_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_input,
+          /*limit=*/state->run_time_flags.timeout_per_input,
           /*ignore_report=*/
-          state.run_time_flags.ignore_timeout_reports != 0,
+          state->run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
           /*what=*/"Per-batch timeout",
           /*units=*/"sec",
           /*value=*/curr_time - batch_start_time,
-          /*limit=*/state.run_time_flags.timeout_per_batch,
+          /*limit=*/state->run_time_flags.timeout_per_batch,
           /*ignore_report=*/
-          state.run_time_flags.ignore_timeout_reports != 0,
+          state->run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
       {Resource{
           /*what=*/"RSS limit",
           /*units=*/"MB",
           /*value=*/GetPeakRSSMb(),
-          /*limit=*/state.run_time_flags.rss_limit_mb,
+          /*limit=*/state->run_time_flags.rss_limit_mb,
           /*ignore_report=*/false,
           /*failure=*/kExecutionFailureRssLimitExceeded.data(),
       }},
@@ -172,12 +184,12 @@ static void CheckWatchdogLimits() {
   // SanCov tracing and TLS traversal.
   tls.traced = false;
   tls.ignore = true;
-  state.watchdog_thread_started = true;
+  state->watchdog_thread_started = true;
   while (true) {
     sleep(1);
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
-    if (state.input_start_time == 0) continue;
+    if (state->input_start_time == 0) continue;
 
     CheckWatchdogLimits();
   }
@@ -185,11 +197,11 @@ static void CheckWatchdogLimits() {
 
 __attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
   static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
-  const size_t stack_limit = state.run_time_flags.stack_limit_kb.load() << 10;
+  const size_t stack_limit = state->run_time_flags.stack_limit_kb.load() << 10;
   // Check for the stack limit only if sp is inside the stack region.
   if (stack_limit > 0 && tls.stack_region_low &&
       tls.top_frame_sp - sp > stack_limit) {
-    const bool test_not_running = state.input_start_time == 0;
+    const bool test_not_running = state->input_start_time == 0;
     if (test_not_running) return;
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
@@ -210,19 +222,19 @@ void GlobalRunnerState::StartWatchdogThread() {
           " MB; stack_limit_kb: %" PRIu64 " KB\n",
           run_time_flags.timeout_per_input.load(),
           run_time_flags.timeout_per_batch, run_time_flags.rss_limit_mb.load(),
-          state.run_time_flags.stack_limit_kb.load());
+          state->run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
   // Wait until the watchdog actually starts and initializes itself.
-  while (!state.watchdog_thread_started) {
+  while (!state->watchdog_thread_started) {
     sleep(0);
   }
 }
 
 void GlobalRunnerState::ResetTimers() {
   const auto curr_time = time(nullptr);
-  state.input_start_time = curr_time;
+  state->input_start_time = curr_time;
   // batch_start_time is set only once -- just before the first input of the
   // batch is about to start running.
   if (batch_start_time == 0) {
@@ -247,8 +259,8 @@ CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size, size_t max_size) {
   }
 
   ByteArray array(data, data + size);
-  state.byte_array_mutator->set_max_len(max_size);
-  state.byte_array_mutator->Mutate(array);
+  state->byte_array_mutator->set_max_len(max_size);
+  state->byte_array_mutator->Mutate(array);
   if (array.size() > max_size) {
     array.resize(max_size);
   }
@@ -280,9 +292,9 @@ __attribute__((noinline))  // so that we see it in profile.
 static void PrepareCoverage(bool full_clear) {
   CleanUpSancovTls();
   {
-    fuzztest::internal::LockGuard lock(state.execution_result_override_mu);
-    if (state.execution_result_override != nullptr) {
-      state.execution_result_override->ClearAndResize(0);
+    fuzztest::internal::LockGuard lock(state->execution_result_override_mu);
+    if (state->execution_result_override != nullptr) {
+      state->execution_result_override->ClearAndResize(0);
     }
   }
   PrepareSancov(full_clear);
@@ -345,7 +357,7 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
 
 static void RunOneInput(const uint8_t *data, size_t size,
                         RunnerCallbacks &callbacks) {
-  state.stats = {};
+  state->stats = {};
   size_t last_time_usec = 0;
   auto UsecSinceLast = [&last_time_usec]() {
     uint64_t t = TimeInUsec();
@@ -355,16 +367,16 @@ static void RunOneInput(const uint8_t *data, size_t size,
   };
   UsecSinceLast();
   PrepareCoverage(/*full_clear=*/false);
-  state.stats.prep_time_usec = UsecSinceLast();
-  state.ResetTimers();
+  state->stats.prep_time_usec = UsecSinceLast();
+  state->ResetTimers();
   int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
-  state.stats.exec_time_usec = UsecSinceLast();
+  state->stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
     PostProcessSancov(target_return_value == -1);
   }
-  state.stats.post_time_usec = UsecSinceLast();
-  state.stats.peak_rss_mb = GetPeakRSSMb();
+  state->stats.post_time_usec = UsecSinceLast();
+  state->stats.peak_rss_mb = GetPeakRSSMb();
 }
 
 // Runs one input provided in file `input_path`.
@@ -385,8 +397,8 @@ static void ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
   // TODO(yamilmorales): Hide the raw sancov state objects and expose
   // interface functions instead.
-  WriteFeaturesToFile(features_file, sancov_state.g_features.data(),
-                      sancov_state.g_features.size());
+  WriteFeaturesToFile(features_file, sancov_state->g_features.data(),
+                      sancov_state->g_features.size());
   fclose(features_file);
 }
 
@@ -400,9 +412,9 @@ static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 // Returns the byte size of `g_features`.
 static size_t CopyFeatures(uint8_t *data, size_t capacity) {
   const size_t features_len_in_bytes =
-      sancov_state.g_features.size() * sizeof(feature_t);
+      sancov_state->g_features.size() * sizeof(feature_t);
   if (features_len_in_bytes > capacity) return 0;
-  memcpy(data, sancov_state.g_features.data(), features_len_in_bytes);
+  memcpy(data, sancov_state->g_features.data(), features_len_in_bytes);
   return features_len_in_bytes;
 }
 
@@ -410,16 +422,16 @@ static size_t CopyFeatures(uint8_t *data, size_t capacity) {
 // Returns true on success.
 static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   {
-    LockGuard lock(state.execution_result_override_mu);
+    LockGuard lock(state->execution_result_override_mu);
     bool has_overridden_execution_result = false;
-    if (state.execution_result_override != nullptr) {
-      RunnerCheck(state.execution_result_override->results().size() <= 1,
+    if (state->execution_result_override != nullptr) {
+      RunnerCheck(state->execution_result_override->results().size() <= 1,
                   "unexpected number of overridden execution results");
       has_overridden_execution_result =
-          state.execution_result_override->results().size() == 1;
+          state->execution_result_override->results().size() == 1;
     }
     if (has_overridden_execution_result) {
-      const auto &result = state.execution_result_override->results()[0];
+      const auto& result = state->execution_result_override->results()[0];
       return BatchResult::WriteOneFeatureVec(result.features().data(),
                                              result.features().size(),
                                              outputs_blobseq) &&
@@ -430,8 +442,8 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   }
 
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(sancov_state.g_features.data(),
-                                       sancov_state.g_features.size(),
+  if (!BatchResult::WriteOneFeatureVec(sancov_state->g_features.data(),
+                                       sancov_state->g_features.size(),
                                        outputs_blobseq)) {
     return false;
   }
@@ -441,7 +453,7 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
 
   // Write the stats.
-  if (!BatchResult::WriteStats(state.stats, outputs_blobseq)) return false;
+  if (!BatchResult::WriteStats(state->stats, outputs_blobseq)) return false;
   // We are done with this input.
   if (!BatchResult::WriteInputEnd(outputs_blobseq)) return false;
   return true;
@@ -573,7 +585,7 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
   }
 
   if (!inputs.empty()) {
-    state.byte_array_mutator->SetMetadata(inputs[0].metadata);
+    state->byte_array_mutator->SetMetadata(inputs[0].metadata);
   }
 
   if (!MutationResult::WriteHasCustomMutator(callbacks.HasCustomMutator(),
@@ -596,7 +608,7 @@ bool LegacyRunnerCallbacks::Mutate(
   if (custom_mutator_cb_ == nullptr) return false;
   unsigned int seed = GetRandomSeed();
   const size_t num_inputs = inputs.size();
-  const size_t max_mutant_size = state.run_time_flags.max_len;
+  const size_t max_mutant_size = state->run_time_flags.max_len;
   constexpr size_t kAverageMutationAttempts = 2;
   ByteArray mutant(max_mutant_size);
   for (size_t attempt = 0, num_outputs = 0;
@@ -609,7 +621,7 @@ bool LegacyRunnerCallbacks::Mutate(
     std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb_ != nullptr) &&
-        rand_r(&seed) % 100 < state.run_time_flags.crossover_level) {
+        rand_r(&seed) % 100 < state->run_time_flags.crossover_level) {
       // Perform crossover `crossover_level`% of the time.
       const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
       new_size = custom_crossover_cb_(
@@ -655,7 +667,7 @@ static void SetLimits() {
   // No-op under ASAN/TSAN/MSAN - those may still rely on rss_limit_mb.
   if (vm_size_in_bytes < one_tb) {
     size_t address_space_limit_mb =
-        state.flag_helper.HasIntFlag(":address_space_limit_mb=", 0);
+        state->flag_helper.HasIntFlag(":address_space_limit_mb=", 0);
     if (address_space_limit_mb > 0) {
       size_t limit_in_bytes = address_space_limit_mb << 20;
       struct rlimit rlimit_as = {limit_in_bytes, limit_in_bytes};
@@ -683,46 +695,46 @@ extern void ForkServerCallMeVeryEarly();
     &ForkServerCallMeVeryEarly;
 
 void MaybeConnectToPersistentMode() {
-  if (state.persistent_mode_socket_path == nullptr) {
+  if (state->persistent_mode_socket_path == nullptr) {
     return;
   }
-  state.persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (state.persistent_mode_socket < 0) {
+  state->persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (state->persistent_mode_socket < 0) {
     fprintf(stderr, "Failed to create persistent mode socket\n");
   }
 
   struct sockaddr_un addr{};
   addr.sun_family = AF_UNIX;
-  const size_t socket_path_len = strlen(state.persistent_mode_socket_path);
+  const size_t socket_path_len = strlen(state->persistent_mode_socket_path);
   RunnerCheck(
       socket_path_len < sizeof(addr.sun_path),
       "persistent mode socket path string must be fit in sockaddr_un.sun_path");
-  std::memcpy(addr.sun_path, state.persistent_mode_socket_path,
+  std::memcpy(addr.sun_path, state->persistent_mode_socket_path,
               socket_path_len);
 
   int connect_ret = 0;
   do {
-    connect_ret = connect(state.persistent_mode_socket, (struct sockaddr*)&addr,
-                          sizeof(addr));
+    connect_ret = connect(state->persistent_mode_socket,
+                          (struct sockaddr*)&addr, sizeof(addr));
   } while (connect_ret == -1 && errno == EINTR);
   if (connect_ret == -1) {
     fprintf(stderr, "Failed to connect the persistent mode socket to %s\n",
-            state.persistent_mode_socket_path);
-    (void)close(state.persistent_mode_socket);
-    state.persistent_mode_socket = -1;
+            state->persistent_mode_socket_path);
+    (void)close(state->persistent_mode_socket);
+    state->persistent_mode_socket = -1;
   }
 
-  int flags = fcntl(state.persistent_mode_socket, F_GETFD);
+  int flags = fcntl(state->persistent_mode_socket, F_GETFD);
   if (flags == -1) {
     fprintf(stderr, "fcntl(F_GETFD) failed\n");
-    (void)close(state.persistent_mode_socket);
-    state.persistent_mode_socket = -1;
+    (void)close(state->persistent_mode_socket);
+    state->persistent_mode_socket = -1;
   }
   flags |= FD_CLOEXEC;
-  if (fcntl(state.persistent_mode_socket, F_SETFD, flags) == -1) {
+  if (fcntl(state->persistent_mode_socket, F_SETFD, flags) == -1) {
     fprintf(stderr, "fcntl(F_SETFD) failed\n");
-    (void)close(state.persistent_mode_socket);
-    state.persistent_mode_socket = -1;
+    (void)close(state->persistent_mode_socket);
+    state->persistent_mode_socket = -1;
   }
 }
 
@@ -733,29 +745,32 @@ GlobalRunnerState::GlobalRunnerState() {
   // Connecting to the persistent mode socket should be immediately after.
   MaybeConnectToPersistentMode();
 
+  SancovRuntimeInitialize();
+
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
   tls.OnThreadStart();
-  state.StartWatchdogThread();
+  state->StartWatchdogThread();
 
   SetLimits();
 }
 
-GlobalRunnerState::~GlobalRunnerState() {
+void GlobalRunnerState::OnTermination() {
   // The process is winding down, but CentipedeRunnerMain did not run.
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
-  if (!state.centipede_runner_main_executed && flag_helper.HasFlag(":shmem:")) {
+  if (!state->centipede_runner_main_executed &&
+      flag_helper.HasFlag(":shmem:")) {
     PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state.arg2);
+    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
   {
-    LockGuard lock(state.execution_result_override_mu);
-    if (state.execution_result_override != nullptr) {
-      delete state.execution_result_override;
-      state.execution_result_override = nullptr;
+    LockGuard lock(state->execution_result_override_mu);
+    if (state->execution_result_override != nullptr) {
+      delete state->execution_result_override;
+      state->execution_result_override = nullptr;
     }
   }
 }
@@ -768,8 +783,8 @@ static int HandleSharedMemoryRequest(RunnerCallbacks& callbacks,
   if (IsMutationRequest(request_type_blob)) {
     // Mutation request.
     inputs_blobseq.Reset();
-    static auto mutator = new ByteArrayMutator(state.knobs, GetRandomSeed());
-    state.byte_array_mutator = mutator;
+    static auto mutator = new ByteArrayMutator(state->knobs, GetRandomSeed());
+    state->byte_array_mutator = mutator;
     // Since we are mutating, no need to spend time collecting the coverage.
     // We still pay for executing the coverage callbacks, but those will
     // return immediately.
@@ -793,7 +808,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
   bool first = true;
   while (true) {
     PersistentModeRequest req;
-    if (!ReadAll(state.persistent_mode_socket, reinterpret_cast<char*>(&req),
+    if (!ReadAll(state->persistent_mode_socket, reinterpret_cast<char*>(&req),
                  1)) {
       perror("Failed to read request from persistent mode socket");
       return EXIT_FAILURE;
@@ -811,7 +826,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
       fprintf(stderr, "Centipede fuzz target runner (%s); flags: %s\n",
               req == PersistentModeRequest::kExit ? "exiting persistent mode"
                                                   : "persistent mode batch",
-              state.flag_helper.flags);
+              state->flag_helper.flags);
     }
     if (req == PersistentModeRequest::kExit) break;
     RunnerCheck(req == PersistentModeRequest::kRunBatch,
@@ -820,7 +835,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
         HandleSharedMemoryRequest(callbacks, inputs_blobseq, outputs_blobseq);
     inputs_blobseq.Reset();
     outputs_blobseq.Reset();
-    if (!WriteAll(state.persistent_mode_socket,
+    if (!WriteAll(state->persistent_mode_socket,
                   reinterpret_cast<const char*>(&result), sizeof(result))) {
       perror("Failed to write response to the persistent mode socket");
       return EXIT_FAILURE;
@@ -829,7 +844,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
   return EXIT_SUCCESS;
 }
 
-// If HasFlag(:shmem:), state.arg1 and state.arg2 are the names
+// If HasFlag(:shmem:), state->arg1 and state->arg2 are the names
 //  of in/out shared memory locations.
 //  Read inputs and write outputs via shared memory.
 //
@@ -837,30 +852,30 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
 //
 //  Note: argc/argv are used for only ReadOneInputExecuteItAndDumpCoverage().
 int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
-  state.centipede_runner_main_executed = true;
+  state->centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
-          argv[0], state.flag_helper.flags);
+          argv[0], state->flag_helper.flags);
 
-  if (state.flag_helper.HasFlag(":dump_configuration:")) {
+  if (state->flag_helper.HasFlag(":dump_configuration:")) {
     DumpSerializedTargetConfigToFile(callbacks,
-                                     /*output_file_path=*/sancov_state.arg1);
+                                     /*output_file_path=*/sancov_state->arg1);
     return EXIT_SUCCESS;
   }
 
-  if (state.flag_helper.HasFlag(":dump_seed_inputs:")) {
+  if (state->flag_helper.HasFlag(":dump_seed_inputs:")) {
     // Seed request.
-    DumpSeedsToDir(callbacks, /*output_dir=*/sancov_state.arg1);
+    DumpSeedsToDir(callbacks, /*output_dir=*/sancov_state->arg1);
     return EXIT_SUCCESS;
   }
 
   // Inputs / outputs from shmem.
-  if (state.flag_helper.HasFlag(":shmem:")) {
-    if (!sancov_state.arg1 || !sancov_state.arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(sancov_state.arg1);
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state.arg2);
+  if (state->flag_helper.HasFlag(":shmem:")) {
+    if (!sancov_state->arg1 || !sancov_state->arg2) return EXIT_FAILURE;
+    SharedMemoryBlobSequence inputs_blobseq(sancov_state->arg1);
+    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
     // Persistent mode loop.
-    if (state.persistent_mode_socket > 0) {
+    if (state->persistent_mode_socket > 0) {
       return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);
     }
     return HandleSharedMemoryRequest(callbacks, inputs_blobseq,
@@ -892,13 +907,13 @@ extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
   fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu\n",
           rss_limit_mb);
-  fuzztest::internal::state.run_time_flags.rss_limit_mb = rss_limit_mb;
+  fuzztest::internal::state->run_time_flags.rss_limit_mb = rss_limit_mb;
 }
 
 extern "C" void CentipedeSetStackLimit(size_t stack_limit_kb) {
   fprintf(stderr, "CentipedeSetStackLimit: changing stack_limit_kb to %zu\n",
           stack_limit_kb);
-  fuzztest::internal::state.run_time_flags.stack_limit_kb = stack_limit_kb;
+  fuzztest::internal::state->run_time_flags.stack_limit_kb = stack_limit_kb;
 }
 
 extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
@@ -906,7 +921,7 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
           "CentipedeSetTimeoutPerInput: changing timeout_per_input to %" PRIu64
           "\n",
           timeout_per_input);
-  fuzztest::internal::state.run_time_flags.timeout_per_input =
+  fuzztest::internal::state->run_time_flags.timeout_per_input =
       timeout_per_input;
 }
 
@@ -938,18 +953,18 @@ extern "C" void CentipedeEndExecutionBatch() {
     _exit(EXIT_FAILURE);
   }
   in_execution_batch = false;
-  fuzztest::internal::state.input_start_time = 0;
-  fuzztest::internal::state.batch_start_time = 0;
+  fuzztest::internal::state->input_start_time = 0;
+  fuzztest::internal::state->batch_start_time = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {
   fuzztest::internal::PrepareCoverage(/*full_clear=*/!in_execution_batch);
-  fuzztest::internal::state.ResetTimers();
+  fuzztest::internal::state->ResetTimers();
 }
 
 extern "C" void CentipedeFinalizeProcessing() {
   fuzztest::internal::CheckWatchdogLimits();
-  if (fuzztest::internal::state.input_start_time.exchange(0) != 0) {
+  if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
     fuzztest::internal::PostProcessSancov();
   }
 }
@@ -975,25 +990,25 @@ extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity) {
 
 extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
   using fuzztest::internal::state;
-  fuzztest::internal::LockGuard lock(state.execution_result_override_mu);
-  if (!state.execution_result_override)
-    state.execution_result_override = new fuzztest::internal::BatchResult();
-  state.execution_result_override->ClearAndResize(1);
+  fuzztest::internal::LockGuard lock(state->execution_result_override_mu);
+  if (!state->execution_result_override)
+    state->execution_result_override = new fuzztest::internal::BatchResult();
+  state->execution_result_override->ClearAndResize(1);
   if (data == nullptr) return;
   // Removing const here should be fine as we don't write to `blobseq`.
   fuzztest::internal::BlobSequence blobseq(const_cast<uint8_t *>(data), size);
-  state.execution_result_override->Read(blobseq);
+  state->execution_result_override->Read(blobseq);
   fuzztest::internal::RunnerCheck(
-      state.execution_result_override->num_outputs_read() == 1,
+      state->execution_result_override->num_outputs_read() == 1,
       "Failed to set execution result from CentipedeSetExecutionResult");
 }
 
 extern "C" void CentipedeSetFailureDescription(const char *description) {
   using fuzztest::internal::state;
-  if (state.failure_description_path == nullptr) return;
+  if (state->failure_description_path == nullptr) return;
   // Make sure that the write is atomic and only happens once.
   [[maybe_unused]] static int write_once = [=] {
-    FILE *f = fopen(state.failure_description_path, "w");
+    FILE* f = fopen(state->failure_description_path, "w");
     if (f == nullptr) {
       perror("FAILURE: fopen()");
       return 0;

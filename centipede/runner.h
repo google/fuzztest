@@ -26,6 +26,7 @@
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/runner_utils.h"
 
 namespace fuzztest::internal {
 
@@ -55,7 +56,9 @@ struct GlobalRunnerState {
   Knobs knobs;
 
   GlobalRunnerState();
-  ~GlobalRunnerState();
+
+  // Performs necessary cleanup on process termination.
+  void OnTermination();
 
   DispatcherFlagHelper flag_helper =
       DispatcherFlagHelper(CentipedeGetRunnerFlags());
@@ -115,7 +118,7 @@ struct GlobalRunnerState {
   std::atomic<bool> watchdog_thread_started;
 };
 
-extern GlobalRunnerState state;
+extern ExplicitLifetime<GlobalRunnerState> state;
 
 }  // namespace fuzztest::internal
 

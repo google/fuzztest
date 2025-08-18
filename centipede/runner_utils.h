@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <new>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -65,6 +66,65 @@ bool ReadAll(int fd, char* data, size_t size);
 // blocking so there is no busy-spinning). Returns true if all bytes are
 // written, false otherwise due to errors.
 bool WriteAll(int fd, const char* data, size_t size);
+
+extern "C" void __lsan_register_root_region(const void* p, size_t size)
+    __attribute__((weak));
+extern "C" void __lsan_unregister_root_region(const void* p, size_t size)
+    __attribute__((weak));
+
+// Wraps an object of `T` stored as a plain byte array with explicit
+// construction/destruction. Needed for runner/dispatcher related global states
+// that need extended lifetime. (Alternatively we could using dynamic pointers
+// for them, but that would introduce extra pointer check/dereference on every
+// use.)
+//
+// The lifetime manager of the actual object should be cautious to follow the
+// calling requirements of the methods below.
+//
+// The implementation is modified/simplified from `absl::NoDestructor`.
+template <typename T>
+class ExplicitLifetime {
+ public:
+  ExplicitLifetime() = default;
+
+  // No copying.
+  ExplicitLifetime(const ExplicitLifetime&) = delete;
+  ExplicitLifetime& operator=(const ExplicitLifetime&) = delete;
+
+  T& operator*() { return *get(); }
+  T* absl_nonnull operator->() { return get(); }
+
+  // Constructs the actual object with forwarded `args`.
+  //
+  // Must be called exactly once after creation of this ExplicitLifetime<>
+  // instance or any recent `Destruct()` and before accessing the actual object.
+  template <typename... Args>
+  void Construct(Args&&... args) {
+    new (&space_) T(std::forward<Args>(args)...);
+    // Needed otherwise lsan may lose track of the pointers inside the object as
+    // it is in-place constructed from the byte array.
+    if (__lsan_register_root_region) {
+      __lsan_register_root_region(&space_, sizeof(space_));
+    }
+  }
+
+  // Destructs the actual object (without reclaiming the space). It can only be
+  // called at most once after recent `Construct()`.
+  void Destruct() {
+    get()->~T();
+    if (__lsan_unregister_root_region) {
+      __lsan_unregister_root_region(&space_, sizeof(space_));
+    }
+  }
+
+  // Gets the pointer to the actual object backed by a plain byte array. Using
+  // the pointer before `Construct()` or after `Destruct()` may result in
+  // accessing uninitialized data.
+  T* absl_nonnull get() { return std::launder(reinterpret_cast<T*>(&space_)); }
+
+ private:
+  alignas(T) unsigned char space_[sizeof(T)];
+};
 
 }  // namespace fuzztest::internal
 

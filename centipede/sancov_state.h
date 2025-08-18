@@ -38,6 +38,7 @@
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_utils.h"
 #include "./centipede/sancov_object_array.h"
 
 extern "C" const char *absl_nullable GetSancovFlags();
@@ -289,8 +290,12 @@ void MaybeAddFeature(feature_t feature);
 // Check for stack limit for the stack pointer `sp` in the current thread.
 __attribute__((weak)) void CheckStackLimit(uintptr_t sp);
 
-extern SancovState sancov_state;
+extern ExplicitLifetime<SancovState> sancov_state;
 extern __thread ThreadLocalSancovState tls;
+
+// Initializes the sancov runtime. Must be called before using it. It can be
+// called multiple times while only the first time is effective.
+void SancovRuntimeInitialize();
 
 }  // namespace fuzztest::internal
 
