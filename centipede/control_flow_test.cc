@@ -25,8 +25,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
@@ -87,17 +85,17 @@ TEST(CFTable, MakeCfgFromCfTable) {
     EXPECT_TRUE(cfg.GetSuccessors(4).empty());
   }
 
-  CHECK_EQ(cfg.GetPcIndex(1), 0);
-  CHECK_EQ(cfg.GetPcIndex(2), 1);
-  CHECK_EQ(cfg.GetPcIndex(3), 2);
-  CHECK_EQ(cfg.GetPcIndex(4), 3);
+  FUZZTEST_CHECK_EQ(cfg.GetPcIndex(1), 0);
+  FUZZTEST_CHECK_EQ(cfg.GetPcIndex(2), 1);
+  FUZZTEST_CHECK_EQ(cfg.GetPcIndex(3), 2);
+  FUZZTEST_CHECK_EQ(cfg.GetPcIndex(4), 3);
 
   EXPECT_TRUE(cfg.BlockIsFunctionEntry(0));
   EXPECT_FALSE(cfg.BlockIsFunctionEntry(1));
   EXPECT_FALSE(cfg.BlockIsFunctionEntry(2));
   EXPECT_FALSE(cfg.BlockIsFunctionEntry(3));
 
-  CHECK_EQ(cfg.GetCyclomaticComplexity(1), 2);
+  FUZZTEST_CHECK_EQ(cfg.GetCyclomaticComplexity(1), 2);
 }
 
 TEST(CFTable, SerializesAndDeserializesCfTable) {
@@ -205,9 +203,9 @@ TEST(CFTable, GetCfTable) {
       target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(),
       GetTestTempDir(test_info_->name()).string());
   const auto &cf_table = binary_info.cf_table;
-  LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
+  FUZZTEST_LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
   if (cf_table.empty()) {
-    LOG(INFO) << "__sancov_cfs is empty.";
+    FUZZTEST_LOG(INFO) << "__sancov_cfs is empty.";
     // TODO(ussuri): This should be removed once OSS clang supports
     //  control-flow.
     GTEST_SKIP();
@@ -215,7 +213,7 @@ TEST(CFTable, GetCfTable) {
 
   ASSERT_FALSE(
       std::filesystem::exists(tmp_path1.c_str()));  // tmp_path1 was deleted.
-  LOG(INFO) << VV(cf_table.size());
+  FUZZTEST_LOG(INFO) << VV(cf_table.size());
 
   const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);
@@ -304,7 +302,7 @@ static void SymbolizeBinary(std::string_view test_dir,
   for (size_t i = 0; i < symbols.size(); i++) {
     bool is_func_entry = pc_table[i].has_flag(PCInfo::kFuncEntry);
     if (is_func_entry) {
-      LOG(INFO) << symbols.full_description(i);
+      FUZZTEST_LOG(INFO) << symbols.full_description(i);
     }
     single_edge_func_num_edges += symbols.func(i) == "SingleEdgeFunc";
     multi_edge_func_num_edges += symbols.func(i) == "MultiEdgeFunc";

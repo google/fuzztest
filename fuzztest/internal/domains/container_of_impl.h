@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/logging.h"
@@ -113,9 +114,9 @@ class ContainerOfImplBase
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
-    FUZZTEST_INTERNAL_CHECK(
-        min_size() <= val.size() && val.size() <= max_size(), "Size ",
-        val.size(), " is not between ", min_size(), " and ", max_size());
+    FUZZTEST_CHECK(min_size() <= val.size() && val.size() <= max_size())
+        << "Size " << val.size() << " is not between " << min_size() << " and "
+        << max_size();
 
     const bool can_shrink = val.size() > min_size();
     const bool can_grow = !only_shrink && val.size() < max_size();
@@ -220,16 +221,16 @@ class ContainerOfImplBase
     return Self();
   }
   Derived& WithMinSize(size_t s) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !max_size_.has_value() || s <= *max_size_, "Minimal size ", s,
-        " cannot be larger than maximal size ", *max_size_);
+    FUZZTEST_PRECONDITION(!max_size_.has_value() || s <= *max_size_)
+        << "Minimal size " << s << " cannot be larger than maximal size "
+        << *max_size_;
     min_size_ = s;
     return Self();
   }
   Derived& WithMaxSize(size_t s) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        min_size_ <= s, "Maximal size ", s,
-        " cannot be smaller than minimal size ", min_size_);
+    FUZZTEST_PRECONDITION(min_size_ <= s)
+        << "Maximal size " << s << " cannot be smaller than minimal size "
+        << min_size_;
     max_size_ = s;
     return Self();
   }
@@ -238,9 +239,8 @@ class ContainerOfImplBase
                   "Manual Dictionary now only supports std::vector or "
                   "std::string or std::string_view.\n");
     for (const value_type& entry : manual_dict) {
-      FUZZTEST_INTERNAL_CHECK(
-          entry.size() <= max_size(),
-          "At least one dictionary entry is larger than max container size.");
+      FUZZTEST_CHECK(entry.size() <= max_size())
+          << "At least one dictionary entry is larger than max container size.";
       manual_dict_.AddEntry({std::nullopt, entry});
     }
     return Self();

@@ -124,7 +124,7 @@ fuzztest_cc_library(
     absl::status
     absl::strings
     fuzztest::domain_core
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
     fuzztest::serialization
     fuzztest::test_protobuf_cc_proto

@@ -22,18 +22,17 @@
 #include "gtest/gtest.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/subprocess.h"
 
 #define EXPECT_THAT_LOG(log, matcher)                                  \
@@ -81,11 +80,12 @@ class UpdateCorpusDatabaseTest
   static void SetUpTestSuite() {
 #if defined(__has_feature)
 #if !__has_feature(address_sanitizer)
-    CHECK(false) << "The test binary is not built with ASAN. Please run with "
-                    "--config=asan.";
+    FUZZTEST_CHECK(false)
+        << "The test binary is not built with ASAN. Please run with "
+           "--config=asan.";
 #elif !__has_feature(coverage_sanitizer) || !defined(FUZZTEST_USE_CENTIPEDE)
-    CHECK(false) << "The test binary is not built with coverage "
-                    "instrumentation for Centipede. "
+    FUZZTEST_CHECK(false) << "The test binary is not built with coverage "
+                             "instrumentation for Centipede. "
     "Please run with --config=fuzztest-experimental.";
 #endif
 #endif
@@ -152,7 +152,7 @@ class UpdateCorpusDatabaseTest
         return RunBinary(CentipedePath(), centipede_options);
       }
     }
-    FUZZTEST_INTERNAL_CHECK(false, "Unsupported execution model!\n");
+    FUZZTEST_LOG(FATAL) << "Unsupported execution model!";
   }
 
  private:

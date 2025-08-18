@@ -24,7 +24,7 @@ fuzztest_cc_library(
     "absl_helpers.h"
   DEPS
     absl::time
-    fuzztest::logging
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(
@@ -59,8 +59,6 @@ fuzztest_cc_library(
     fuzztest::absl_helpers
     absl::flat_hash_set
     absl::function_ref
-    absl::absl_check
-    absl::absl_log
     absl::bits
     absl::int128
     absl::random_random
@@ -72,6 +70,7 @@ fuzztest_cc_library(
     absl::str_format
     absl::time
     absl::span
+    fuzztest::common_logging
     fuzztest::fuzzing_bit_gen
     fuzztest::any
     fuzztest::logging
@@ -110,7 +109,7 @@ fuzztest_cc_library(
     absl::span
     fuzztest::domain_core
     fuzztest::any
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
     fuzztest::printer
     fuzztest::serialization
@@ -136,7 +135,7 @@ fuzztest_cc_library(
     absl::strings
     absl::string_view
     absl::span
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
     fuzztest::serialization
     fuzztest::type_support
@@ -158,6 +157,7 @@ fuzztest_cc_library(
     absl::statusor
     absl::strings
     absl::span
+    fuzztest::common_logging
     fuzztest::logging
     fuzztest::serialization
     fuzztest::status
@@ -183,9 +183,10 @@ fuzztest_cc_library(
     absl::string_view
     absl::synchronization
     absl::span
+    fuzztest::common_logging
     fuzztest::domain_core
     fuzztest::any
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
     fuzztest::serialization
     fuzztest::status
@@ -207,6 +208,7 @@ fuzztest_cc_library(
     absl::statusor
     absl::strings
     absl::string_view
+    fuzztest::common_logging
     fuzztest::logging
     re2::re2
 )

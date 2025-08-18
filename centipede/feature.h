@@ -22,7 +22,7 @@
 //
 // This library must not depend on anything other than libc so that fuzz targets
 // using it doesn't gain redundant coverage. For the same reason this library
-// uses raw __builtin_trap instead of CHECKs.
+// uses raw __builtin_trap instead of FUZZTEST_CHECKs.
 // We make an exception for <algorithm> for std::sort/std::unique,
 // since <algorithm> is very lightweight.
 // This library is also header-only, with all functions defined as inline.

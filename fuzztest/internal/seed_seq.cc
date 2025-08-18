@@ -29,6 +29,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
 
 namespace fuzztest::internal {
@@ -51,9 +52,9 @@ std::vector<uint32_t> GetFromEnvOrMakeSeedMaterial(absl::string_view env_var) {
   }
   std::optional<std::vector<uint32_t>> seed_material =
       DecodeSeedMaterial(encoded_seed_material);
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      seed_material.has_value(),
-      "Failed to decode seed material from the environment variable ", env_var);
+  FUZZTEST_PRECONDITION(seed_material.has_value())
+      << "Failed to decode seed material from the environment variable "
+      << env_var;
   return *std::move(seed_material);
 }
 

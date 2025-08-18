@@ -27,8 +27,6 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -71,7 +69,7 @@ class SimpleBlobFileReader : public BlobFileReader {
   ~SimpleBlobFileReader() override {
     if (file_ && !closed_) {
       // Virtual resolution is off in dtors, so use a specific Close().
-      CHECK_OK(SimpleBlobFileReader::Close());
+      FUZZTEST_CHECK_OK(SimpleBlobFileReader::Close());
     }
   }
 
@@ -125,12 +123,12 @@ class SimpleBlobFileWriter : public BlobFileWriter {
   ~SimpleBlobFileWriter() override {
     if (file_ && !closed_) {
       // Virtual resolution is off in dtors, so use a specific Close().
-      CHECK_OK(SimpleBlobFileWriter::Close());
+      FUZZTEST_CHECK_OK(SimpleBlobFileWriter::Close());
     }
   }
 
   absl::Status Open(std::string_view path, std::string_view mode) override {
-    CHECK(mode == "w" || mode == "a") << VV(mode);
+    FUZZTEST_CHECK(mode == "w" || mode == "a") << VV(mode);
     if (closed_) return absl::FailedPreconditionError("already closed");
     if (file_) return absl::FailedPreconditionError("already open");
     ASSIGN_OR_RETURN_IF_NOT_OK(file_, RemoteFileOpen(path, mode.data()));
@@ -170,7 +168,7 @@ class DefaultBlobFileReader : public BlobFileReader {
  public:
   ~DefaultBlobFileReader() override {
     // Virtual resolution is off in dtors, so use a specific Close().
-    CHECK_OK(DefaultBlobFileReader::Close());
+    FUZZTEST_CHECK_OK(DefaultBlobFileReader::Close());
   }
 
   absl::Status Open(std::string_view path) override {
@@ -247,8 +245,8 @@ class DefaultBlobFileReader : public BlobFileReader {
     // TODO(b/313706444): Reconsider error handling after experiments.
     // TODO(b/310701588): Try adding a test for this.
     if (riegeli_reader_.ok() && !riegeli_reader_.Close()) {
-      LOG(WARNING) << "Ignoring errors while closing Riegeli file: "
-                   << riegeli_reader_.status();
+      FUZZTEST_LOG(WARNING) << "Ignoring errors while closing Riegeli file: "
+                            << riegeli_reader_.status();
     }
     // Any non-ok status of `riegeli_reader_` persists for subsequent
     // operations; therefore, re-initialize it to a closed ok state.
@@ -272,11 +270,11 @@ class RiegeliWriter : public BlobFileWriter {
  public:
   ~RiegeliWriter() override {
     // Virtual resolution is off in dtors, so use a specific Close().
-    CHECK_OK(RiegeliWriter::Close());
+    FUZZTEST_CHECK_OK(RiegeliWriter::Close());
   }
 
   absl::Status Open(std::string_view path, std::string_view mode) override {
-    CHECK(mode == "w" || mode == "a") << VV(mode);
+    FUZZTEST_CHECK(mode == "w" || mode == "a") << VV(mode);
     if (absl::Status s = Close(); !s.ok()) return s;
     const auto kWriterOpts =
         riegeli::RecordWriterBase::Options{}.set_chunk_size(kMaxBufferedBytes);
@@ -305,7 +303,7 @@ class RiegeliWriter : public BlobFileWriter {
     if (!PostWriteFlush(blob.size())) return writer_.status();
     write_duration_ += absl::Now() - now;
     if (written_blobs_ + buffered_blobs_ % 10000 == 0)
-      VLOG(10) << "Current stats: " << StatsString();
+      FUZZTEST_VLOG(10) << "Current stats: " << StatsString();
     return absl::OkStatus();
   }
 
@@ -322,7 +320,7 @@ class RiegeliWriter : public BlobFileWriter {
     written_bytes_ += buffered_bytes_;
     buffered_blobs_ = 0;
     buffered_bytes_ = 0;
-    VLOG(1) << "Final stats: " << StatsString();
+    FUZZTEST_VLOG(1) << "Final stats: " << StatsString();
     return absl::OkStatus();
   }
 
@@ -358,7 +356,8 @@ class RiegeliWriter : public BlobFileWriter {
         : (absl::Now() - flushed_at_ > kMaxFlushInterval)     ? "time"
                                                               : "";
     if (!flush_reason.empty()) {
-      VLOG(20) << "Flushing b/c " << flush_reason << ": " << StatsString();
+      FUZZTEST_VLOG(20) << "Flushing b/c " << flush_reason << ": "
+                        << StatsString();
       if (!writer_.Flush(riegeli::FlushType::kFromMachine)) return false;
       flushed_at_ = absl::Now();
       written_blobs_ += buffered_blobs_;
@@ -376,7 +375,8 @@ class RiegeliWriter : public BlobFileWriter {
   bool PostWriteFlush(size_t blob_size) {
     const auto record_size = blob_size + kRiegeliPerRecordMetadataSize;
     if (record_size >= kMaxBufferedBytes) {
-      VLOG(20) << "Post-write flushing b/c blob size: " << StatsString();
+      FUZZTEST_VLOG(20) << "Post-write flushing b/c blob size: "
+                        << StatsString();
       if (!writer_.Flush(riegeli::FlushType::kFromMachine)) return false;
       flushed_at_ = absl::Now();
       written_blobs_ += 1;
@@ -446,7 +446,7 @@ class RiegeliWriter : public BlobFileWriter {
 ByteArray PackBytesForAppendFile(ByteSpan blob) {
   ByteArray res;
   auto hash = Hash(blob);
-  CHECK_EQ(hash.size(), kHashLen);
+  FUZZTEST_CHECK_EQ(hash.size(), kHashLen);
   size_t size = blob.size();
   uint8_t size_bytes[sizeof(size)];
   std::memcpy(size_bytes, &size, sizeof(size));
@@ -496,7 +496,8 @@ std::unique_ptr<BlobFileReader> DefaultBlobFileReaderFactory() {
 std::unique_ptr<BlobFileWriter> DefaultBlobFileWriterFactory(bool riegeli) {
   if (riegeli)
 #ifdef CENTIPEDE_DISABLE_RIEGELI
-    LOG(FATAL) << "Riegeli unavailable: built with --use_riegeli set to false.";
+    FUZZTEST_LOG(FATAL)
+        << "Riegeli unavailable: built with --use_riegeli set to false.";
 #else
     return std::make_unique<RiegeliWriter>();
 #endif  // CENTIPEDE_DISABLE_RIEGELI

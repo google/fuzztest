@@ -25,7 +25,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
@@ -847,7 +846,8 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
     ReadFromLocalFile(kExpectedCsvBak, contents_bak);
     const std::vector<std::string> lines_bak =
         absl::StrSplit(contents_bak, '\n');
-    CHECK_NE(lines.size(), kFakeOldCsvLines.size());  // Prevent false positives
+    FUZZTEST_CHECK_NE(lines.size(),
+                      kFakeOldCsvLines.size());  // Prevent false positives
     EXPECT_EQ(lines_bak.size(), kFakeOldCsvLines.size());
   }
 }

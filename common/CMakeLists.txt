@@ -27,9 +27,9 @@ fuzztest_cc_library(
   SRCS
     "bazel.cc"
   DEPS
-    absl::check
-    absl::strings
+    fuzztest::common_logging
     absl::status
+    absl::strings
     absl::time
 )
 
@@ -45,14 +45,12 @@ fuzztest_cc_library(
     # https://github.com/google/riegeli/issues/16
     CENTIPEDE_DISABLE_RIEGELI
   DEPS
-    fuzztest::common_logging
     fuzztest::defs
     fuzztest::hash
+    fuzztest::common_logging
     fuzztest::remote_file
     fuzztest::status_macros
-    absl::check
     absl::core_headers
-    absl::log
     absl::nullability
     absl::status
     absl::statusor
@@ -88,8 +86,8 @@ fuzztest_cc_library(
   HDRS
     "logging.h"
   DEPS
-    absl::check
-    absl::log
+    absl::absl_check
+    absl::absl_log
 )
 
 fuzztest_cc_library(
@@ -105,11 +103,9 @@ fuzztest_cc_library(
     # https://github.com/google/riegeli/issues/16
     CENTIPEDE_DISABLE_RIEGELI
   DEPS
-    fuzztest::common_logging
     fuzztest::defs
+    fuzztest::common_logging
     fuzztest::status_macros
-    absl::check
-    absl::log
     absl::nullability
     absl::status
     absl::statusor
@@ -133,8 +129,8 @@ fuzztest_cc_library(
   HDRS
     "status_macros.h"
   DEPS
+    fuzztest::common_logging
     absl::core_headers
-    absl::log
 )
 
 fuzztest_cc_library(
@@ -148,8 +144,6 @@ fuzztest_cc_library(
     fuzztest::common_logging
     fuzztest::blob_file
     fuzztest::defs
-    absl::check
-    absl::log
     absl::strings
     absl::str_format
     GTest::gtest
@@ -164,7 +158,7 @@ fuzztest_cc_library(
   SRCS
     "temp_dir.cc"
   DEPS
-    absl::check
+    fuzztest::common_logging
     absl::string_view
     absl::strings
 )

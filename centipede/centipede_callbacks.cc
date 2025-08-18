@@ -36,8 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -68,10 +66,10 @@ class CentipedeCallbacks::PersistentModeServer {
  public:
   explicit PersistentModeServer(std::string server_path)
       : server_path_(std::move(server_path)) {
-    CHECK(!server_path_.empty());
+    FUZZTEST_CHECK(!server_path_.empty());
 
     server_socket_ = socket(AF_UNIX, SOCK_STREAM, 0);
-    PCHECK(server_socket_ != -1);
+    FUZZTEST_PCHECK(server_socket_ != -1);
 
     SetCloseOnExec(server_socket_);
     SetNonBlocking(server_socket_);
@@ -81,21 +79,22 @@ class CentipedeCallbacks::PersistentModeServer {
     if (server_path_.size() > sizeof(server_addr.sun_path) - 1) {
       std::string new_server_path =
           server_path_.substr(0, sizeof(server_addr.sun_path) - 1);
-      LOG(WARNING) << "Persistent mode server socket path " << server_path_
-                   << " is too long. Truncating it to " << new_server_path;
+      FUZZTEST_LOG(WARNING)
+          << "Persistent mode server socket path " << server_path_
+          << " is too long. Truncating it to " << new_server_path;
       server_path_ = std::move(new_server_path);
     }
     server_path_.copy(server_addr.sun_path, sizeof(server_addr.sun_path));
 
     static constexpr int kEnable = 1;
-    PCHECK(setsockopt(server_socket_, SOL_SOCKET, SO_REUSEADDR, &kEnable,
-                      sizeof(kEnable)) != -1);
-    PCHECK(bind(server_socket_, (struct sockaddr*)&server_addr,
-                sizeof(server_addr)) != -1);
+    FUZZTEST_PCHECK(setsockopt(server_socket_, SOL_SOCKET, SO_REUSEADDR,
+                               &kEnable, sizeof(kEnable)) != -1);
+    FUZZTEST_PCHECK(bind(server_socket_, (struct sockaddr*)&server_addr,
+                         sizeof(server_addr)) != -1);
 
     // Expect one child process to connect to the server.
     static constexpr int kBacklog = 1;
-    PCHECK(listen(server_socket_, kBacklog) != -1);
+    FUZZTEST_PCHECK(listen(server_socket_, kBacklog) != -1);
   }
 
   const std::string& server_path() const { return server_path_; }
@@ -108,16 +107,18 @@ class CentipedeCallbacks::PersistentModeServer {
     if (!EnsureConnection(deadline)) {
       return false;
     }
-    CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK_NE(conn_socket_, -1);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kRunBatch)) {
-      LOG(ERROR) << "Failed to request the persistent mode client to run a "
-                    "batch - disconnecting.";
+      FUZZTEST_LOG(ERROR)
+          << "Failed to request the persistent mode client to run a "
+             "batch - disconnecting.";
       Disconnect();
       return false;
     }
     if (!ReadFd(conn_socket_, deadline, exit_code)) {
-      LOG(ERROR) << "Failed to receive the batch response from the persistent "
-                    "mode client - disconnecting.";
+      FUZZTEST_LOG(ERROR)
+          << "Failed to receive the batch response from the persistent "
+             "mode client - disconnecting.";
       Disconnect();
       return false;
     }
@@ -126,10 +127,11 @@ class CentipedeCallbacks::PersistentModeServer {
 
   void RequestExit(absl::Time deadline) {
     if (!EnsureConnection(deadline)) return;
-    CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK_NE(conn_socket_, -1);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kExit)) {
-      LOG(ERROR) << "Failed to request the persistent mode client to exit - "
-                    "disconnecting anyway.";
+      FUZZTEST_LOG(ERROR)
+          << "Failed to request the persistent mode client to exit - "
+             "disconnecting anyway.";
     }
     Disconnect();
   }
@@ -139,31 +141,32 @@ class CentipedeCallbacks::PersistentModeServer {
       Disconnect();
     }
 
-    CHECK_NE(server_socket_, -1);
-    PCHECK(close(server_socket_) != -1);
+    FUZZTEST_CHECK_NE(server_socket_, -1);
+    FUZZTEST_PCHECK(close(server_socket_) != -1);
     server_socket_ = -1;
 
     std::error_code ec;
-    CHECK(!server_path_.empty());
+    FUZZTEST_CHECK(!server_path_.empty());
     if (!std::filesystem::remove(server_path_, ec)) {
-      LOG(ERROR) << "Persistent mode: Failed to remove the server socket file "
-                 << server_path_ << ": " << ec.message();
+      FUZZTEST_LOG(ERROR)
+          << "Persistent mode: Failed to remove the server socket file "
+          << server_path_ << ": " << ec.message();
     }
   }
 
  private:
   static void SetCloseOnExec(int fd) {
     int flags = fcntl(fd, F_GETFD);
-    PCHECK(flags != -1);
+    FUZZTEST_PCHECK(flags != -1);
     flags |= FD_CLOEXEC;
-    PCHECK(fcntl(fd, F_SETFD, flags) != -1);
+    FUZZTEST_PCHECK(fcntl(fd, F_SETFD, flags) != -1);
   }
 
   static void SetNonBlocking(int fd) {
     int flags = fcntl(fd, F_GETFL);
-    PCHECK(flags != -1);
+    FUZZTEST_PCHECK(flags != -1);
     flags |= O_NONBLOCK;
-    PCHECK(fcntl(fd, F_SETFL, flags) != -1);
+    FUZZTEST_PCHECK(fcntl(fd, F_SETFL, flags) != -1);
   }
 
   std::string_view FdName(int fd) {
@@ -171,7 +174,7 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   bool PollFd(int fd, int event, absl::Time deadline) {
-    CHECK(event == POLLIN || event == POLLOUT)
+    FUZZTEST_CHECK(event == POLLIN || event == POLLOUT)
         << "`event` must be POLLIN or POLLOUT";
     struct pollfd poll_fd{};
     int poll_ret = -1;
@@ -184,9 +187,11 @@ class CentipedeCallbacks::PersistentModeServer {
     if (poll_ret == 1 && (poll_fd.revents & (event | POLLHUP)) == event) {
       return true;
     } else if (poll_ret < 0) {
-      PLOG(ERROR) << "Persistent mode: poll() failed on " << FdName(fd);
+      FUZZTEST_PLOG(ERROR) << "Persistent mode: poll() failed on "
+                           << FdName(fd);
     } else if (poll_ret == 0) {
-      LOG(ERROR) << "Persistent mode: poll() timed out on " << FdName(fd);
+      FUZZTEST_LOG(ERROR) << "Persistent mode: poll() timed out on "
+                          << FdName(fd);
     }
     return false;
   }
@@ -205,16 +210,16 @@ class CentipedeCallbacks::PersistentModeServer {
       ssize_t r = read(fd, cursor, end - cursor);
       if (r > 0) {
         cursor += r;
-        CHECK(cursor <= end)
+        FUZZTEST_CHECK(cursor <= end)
             << "read() returns more than needed on " << FdName(fd);
         continue;
       }
       if (r == 0) {
-        LOG(ERROR) << "read() returned 0 early on " << FdName(fd);
+        FUZZTEST_LOG(ERROR) << "read() returned 0 early on " << FdName(fd);
         return false;
       }
       if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
-      PLOG(ERROR) << "read() fails on " << FdName(fd);
+      FUZZTEST_PLOG(ERROR) << "read() fails on " << FdName(fd);
       return false;
     }
     return true;
@@ -234,16 +239,16 @@ class CentipedeCallbacks::PersistentModeServer {
       ssize_t r = write(fd, cursor, end - cursor);
       if (r > 0) {
         cursor += r;
-        CHECK(cursor <= end)
+        FUZZTEST_CHECK(cursor <= end)
             << "write() returns more than needed on " << FdName(fd);
         continue;
       }
       if (r == 0) {
-        LOG(ERROR) << "write() returned 0 early on " << FdName(fd);
+        FUZZTEST_LOG(ERROR) << "write() returned 0 early on " << FdName(fd);
         return false;
       }
       if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
-      PLOG(ERROR) << "write() fails on " << FdName(fd);
+      FUZZTEST_PLOG(ERROR) << "write() fails on " << FdName(fd);
       return false;
     }
     return true;
@@ -257,7 +262,7 @@ class CentipedeCallbacks::PersistentModeServer {
     // need to give enough time for the binary to load and reach the runner
     // logic (60s should be enough).
     deadline = std::min(deadline, absl::Now() + absl::Seconds(60));
-    CHECK_NE(server_socket_, -1);
+    FUZZTEST_CHECK_NE(server_socket_, -1);
     do {
       if (!PollFd(server_socket_, POLLIN, deadline)) {
         return false;
@@ -265,7 +270,7 @@ class CentipedeCallbacks::PersistentModeServer {
       conn_socket_ = accept(server_socket_, nullptr, 0);
     } while (conn_socket_ == -1 &&
              (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-    PCHECK(conn_socket_ != -1);
+    FUZZTEST_PCHECK(conn_socket_ != -1);
 
     SetCloseOnExec(conn_socket_);
     SetNonBlocking(conn_socket_);
@@ -273,8 +278,8 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   void Disconnect() {
-    CHECK_NE(conn_socket_, -1);
-    PCHECK(close(conn_socket_) != -1);
+    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_PCHECK(close(conn_socket_) != -1);
     conn_socket_ = -1;
   }
 
@@ -312,23 +317,24 @@ std::vector<std::string> EnvironmentVariablesToUnset() {
 
 }  // namespace
 
-void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo &binary_info) {
+void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
   binary_info.InitializeFromSanCovBinary(
       env_.coverage_binary, env_.objdump_path, env_.symbolizer_path, temp_dir_);
   // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
-      LOG(ERROR) << "Could not get PC table; exiting (override with "
-                    "--require_pc_table=false)";
+      FUZZTEST_LOG(ERROR) << "Could not get PC table; exiting (override with "
+                             "--require_pc_table=false)";
       exit(EXIT_FAILURE);
     }
-    LOG(WARNING) << "Could not get PC table; CF table and debug symbols will "
-                    "not be used";
+    FUZZTEST_LOG(WARNING)
+        << "Could not get PC table; CF table and debug symbols will "
+           "not be used";
     return;
   }
   // Check CF table.
   if (binary_info.cf_table.empty()) {
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "Could not get CF table; binary should be built with Clang 16 (or "
            "later) and with -fsanitize-coverage=control-flow flag";
   } else {
@@ -452,7 +458,7 @@ void CentipedeCallbacks::CleanUpPersistentMode() {
               const absl::Time deadline = absl::Now() + kCommandCleanupTimeout;
               command_context->persistent_mode_server->RequestExit(deadline);
               const auto ret = command_context->cmd.Wait(deadline);
-              LOG_IF(ERROR, !ret.has_value())
+              FUZZTEST_LOG_IF(ERROR, !ret.has_value())
                   << "Failed to wait for Command "
                   << command_context->cmd.path()
                   << " to end from persistent mode.";
@@ -491,12 +497,11 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
   if (should_clean_up) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
-      LOG(ERROR) << "Cleaning up the batch execution with timeout "
-                 << kCommandCleanupTimeout;
+      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution.";
       cmd.RequestStop();
       const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
       if (ret.has_value()) return *ret;
-      LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
+      FUZZTEST_LOG(ERROR) << "Batch execution cleanup failed to end in 60s.";
       return EXIT_FAILURE;
     }();
     command_contexts_.erase(
@@ -509,8 +514,8 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
-    std::string_view binary, const std::vector<ByteArray> &inputs,
-    BatchResult &batch_result) {
+    std::string_view binary, const std::vector<ByteArray>& inputs,
+    BatchResult& batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
 
@@ -521,7 +526,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   size_t num_inputs_written = 0;
 
   if (env_.has_input_wildcards) {
-    CHECK_EQ(inputs.size(), 1);
+    FUZZTEST_CHECK_EQ(inputs.size(), 1);
     WriteToLocalFile(temp_input_file_path_, inputs[0]);
     num_inputs_written = 1;
   } else {
@@ -530,9 +535,9 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   if (num_inputs_written != inputs.size()) {
-    LOG(INFO) << "Wrote " << num_inputs_written << "/" << inputs.size()
-              << " inputs; shmem_size_mb might be too small: "
-              << env_.shmem_size_mb;
+    FUZZTEST_LOG(INFO) << "Wrote " << num_inputs_written << "/" << inputs.size()
+                       << " inputs; shmem_size_mb might be too small: "
+                       << env_.shmem_size_mb;
   }
 
   // Run.
@@ -542,7 +547,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // Get results.
   batch_result.exit_code() = exit_code;
   const bool read_success = batch_result.Read(outputs_blobseq_);
-  LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
+  FUZZTEST_LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
@@ -554,10 +559,10 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   //   * Logged by the following code.
   if (exit_code == 0 && read_success &&
       batch_result.num_outputs_read() != num_inputs_written) {
-    LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
-              << num_inputs_written
-              << " outputs; shmem_size_mb might be too small: "
-              << env_.shmem_size_mb;
+    FUZZTEST_LOG(INFO) << "Read " << batch_result.num_outputs_read() << "/"
+                       << num_inputs_written
+                       << " outputs; shmem_size_mb might be too small: "
+                       << env_.shmem_size_mb;
   }
 
   if (env_.print_runner_log) PrintExecutionLog();
@@ -579,7 +584,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::filesystem::remove(failure_description_path_);
     std::filesystem::remove(failure_signature_path_);
   }
-  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+  FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return exit_code;
 }
 
@@ -587,12 +592,12 @@ CentipedeCallbacks::CommandContext::~CommandContext() = default;
 
 // See also: `DumpSeedsToDir()`.
 bool CentipedeCallbacks::GetSeedsViaExternalBinary(
-    std::string_view binary, size_t &num_avail_seeds,
-    std::vector<ByteArray> &seeds) {
+    std::string_view binary, size_t& num_avail_seeds,
+    std::vector<ByteArray>& seeds) {
   const auto output_dir = std::filesystem::path{temp_dir_} / "seed_inputs";
   std::error_code error;
-  CHECK(std::filesystem::create_directories(output_dir, error));
-  CHECK(!error);
+  FUZZTEST_CHECK(std::filesystem::create_directories(output_dir, error));
+  FUZZTEST_CHECK(!error);
 
   std::string centipede_runner_flags = absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
@@ -611,12 +616,13 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   const int retval = cmd.Execute();
 
   if (env_.print_runner_log) {
-    LOG(INFO) << "Getting seeds via external binary returns " << retval;
+    FUZZTEST_LOG(INFO) << "Getting seeds via external binary returns "
+                       << retval;
     PrintExecutionLog();
   }
 
   std::vector<std::string> seed_input_filenames;
-  for (const auto &dir_ent : std::filesystem::directory_iterator(output_dir)) {
+  for (const auto& dir_ent : std::filesystem::directory_iterator(output_dir)) {
     seed_input_filenames.push_back(dir_ent.path().filename());
   }
   std::sort(seed_input_filenames.begin(), seed_input_filenames.end());
@@ -632,15 +638,15 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   }
   seeds.resize(num_seeds_read);
   std::filesystem::remove_all(output_dir, error);
-  LOG_IF(ERROR, error) << "Failed to remove seed inputs directory: "
-                       << error.message();
+  FUZZTEST_LOG_IF(ERROR, error)
+      << "Failed to remove seed inputs directory: " << error.message();
 
   return retval == 0;
 }
 
 // See also: `DumpSerializedTargetConfigToFile()`.
 bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
-    std::string_view binary, std::string &serialized_config) {
+    std::string_view binary, std::string& serialized_config) {
   const auto config_file_path =
       std::filesystem::path{temp_dir_} / "configuration";
   std::string centipede_runner_flags =
@@ -671,16 +677,16 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   }
   std::error_code error;
   std::filesystem::remove(config_file_path, error);
-  CHECK(!error);
+  FUZZTEST_CHECK(!error);
 
   return is_success;
 }
 
 // See also: MutateInputsFromShmem().
 MutationResult CentipedeCallbacks::MutateViaExternalBinary(
-    std::string_view binary, const std::vector<MutationInputRef> &inputs,
+    std::string_view binary, const std::vector<MutationInputRef>& inputs,
     size_t num_mutants) {
-  CHECK(!env_.has_input_wildcards)
+  FUZZTEST_CHECK(!env_.has_input_wildcards)
       << "Standalone binary does not support custom mutator";
 
   auto start_time = absl::Now();
@@ -689,7 +695,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
 
   size_t num_inputs_written =
       RequestMutation(num_mutants, inputs, inputs_blobseq_);
-  LOG_IF(INFO, num_inputs_written != inputs.size())
+  FUZZTEST_LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
@@ -697,7 +703,8 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (exit_code != EXIT_SUCCESS) {
-    LOG(WARNING) << "Custom mutator failed with exit code: " << exit_code;
+    FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: "
+                          << exit_code;
   }
   if (env_.print_runner_log || exit_code != EXIT_SUCCESS) {
     PrintExecutionLog();
@@ -708,7 +715,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
   result.Read(num_mutants, outputs_blobseq_);
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
 
-  VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
+  FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return result;
 }
 
@@ -724,44 +731,45 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
     env_.use_legacy_default_mutator
         ? byte_array_mutator_.AddToDictionary(entries)
         : fuzztest_mutator_.AddToDictionary(entries);
-    LOG(INFO) << "Loaded " << entries.size()
-              << " dictionary entries from AFL/libFuzzer dictionary "
-              << dictionary_path;
+    FUZZTEST_LOG(INFO) << "Loaded " << entries.size()
+                       << " dictionary entries from AFL/libFuzzer dictionary "
+                       << dictionary_path;
     return entries.size();
   }
   // Didn't parse as plain text. Assume encoded corpus format.
   auto reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(reader->Open(dictionary_path))
+  FUZZTEST_CHECK_OK(reader->Open(dictionary_path))
       << "Error in opening dictionary file: " << dictionary_path;
   std::vector<ByteArray> unpacked_dictionary;
   ByteSpan blob;
   while (reader->Read(blob).ok()) {
     unpacked_dictionary.emplace_back(blob.begin(), blob.end());
   }
-  CHECK_OK(reader->Close())
+  FUZZTEST_CHECK_OK(reader->Close())
       << "Error in closing dictionary file: " << dictionary_path;
-  CHECK(!unpacked_dictionary.empty())
+  FUZZTEST_CHECK(!unpacked_dictionary.empty())
       << "Empty or corrupt dictionary file: " << dictionary_path;
   env_.use_legacy_default_mutator
       ? byte_array_mutator_.AddToDictionary(unpacked_dictionary)
       : fuzztest_mutator_.AddToDictionary(unpacked_dictionary);
-  LOG(INFO) << "Loaded " << unpacked_dictionary.size()
-            << " dictionary entries from " << dictionary_path;
+  FUZZTEST_LOG(INFO) << "Loaded " << unpacked_dictionary.size()
+                     << " dictionary entries from " << dictionary_path;
   return unpacked_dictionary.size();
 }
 
 void CentipedeCallbacks::PrintExecutionLog() const {
   if (!std::filesystem::exists(execute_log_path_)) {
-    LOG(WARNING) << "Log file for the last executed binary does not exist: "
-                 << execute_log_path_;
+    FUZZTEST_LOG(WARNING)
+        << "Log file for the last executed binary does not exist: "
+        << execute_log_path_;
     return;
   }
   std::string log_text;
   ReadFromLocalFile(execute_log_path_, log_text);
   absl::MutexLock lock(&GetExecutionLoggingMutex());
-  for (const auto &log_line :
+  for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
-    LOG(INFO).NoPrefix() << "LOG: " << log_line;
+    FUZZTEST_LOG(INFO).NoPrefix() << "LOG: " << log_line;
   }
 }
 

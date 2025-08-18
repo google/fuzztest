@@ -18,7 +18,7 @@ target_link_libraries(
   grammar_info
   absl::str_format
   absl::strings
-  fuzztest_logging
+  fuzztest_common_logging
   generated_antlr_parser
 )
 
@@ -37,6 +37,7 @@ target_link_libraries(
   absl::strings
   absl::str_format
   fuzztest_logging
+  fuzztest_common_logging
 )
 
 add_library(

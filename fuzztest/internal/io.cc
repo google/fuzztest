@@ -37,6 +37,7 @@
 #include "absl/types/span.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./fuzztest/internal/logging.h"
 
@@ -47,27 +48,27 @@ namespace fuzztest::internal {
 // TODO(lszekeres): Return absl::Status instead of bool for these.
 
 bool WriteFile(absl::string_view path, absl::string_view contents) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 std::optional<std::string> ReadFile(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 bool IsDirectory(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 bool CreateDirectory(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 std::vector<std::string> ListDirectory(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 std::vector<std::string> ListDirectoryRecursively(absl::string_view path) {
-  FUZZTEST_INTERNAL_CHECK(false, "Filesystem API not supported in iOS/MacOS");
+  FUZZTEST_LOG(FATAL) << "Filesystem API not supported in iOS/MacOS";
 }
 
 #else
@@ -214,12 +215,10 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
   int total_invalid_inputs = 0;
   const absl::Time start_time = absl::Now();
   for (const std::string& file_path : file_paths) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        fuzztest::internal::RemotePathExists(file_path), "File path ",
-        file_path, " does not exist.");
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        !fuzztest::internal::RemotePathIsDirectory(file_path), "File path ",
-        file_path, " is a directory.");
+    FUZZTEST_PRECONDITION(fuzztest::internal::RemotePathExists(file_path))
+        << "File path " << file_path << " does not exist.";
+    FUZZTEST_PRECONDITION(!fuzztest::internal::RemotePathIsDirectory(file_path))
+        << "File path " << file_path << " is a directory.";
     int loaded_inputs_from_file = 0;
     int invalid_inputs_from_file = 0;
     // The reader cannot be reused for multiple files because of the way it
@@ -273,9 +272,9 @@ void ForEachSerializedInput(absl::Span<const std::string> file_paths,
     std::string contents;
     const absl::Status get_contents_status =
         fuzztest::internal::RemoteFileGetContents(file_path, contents);
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        get_contents_status.ok(), "RemoteFileGetContents failed on ", file_path,
-        ", status: ", get_contents_status.message());
+    FUZZTEST_PRECONDITION(get_contents_status.ok())
+        << "RemoteFileGetContents failed on " << file_path
+        << ", status: " << get_contents_status.message();
     absl::Status result = consume(file_path, std::nullopt, std::move(contents));
     if (result.ok()) {
       ++total_loaded_inputs;

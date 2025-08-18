@@ -20,7 +20,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/pc_info.h"
 #include "./common/logging.h"
@@ -34,13 +33,15 @@ class CallGraph {
   void InitializeCallGraph(const CFTable& cf_table, const PCTable& pc_table);
 
   const std::vector<uintptr_t>& GetFunctionCallees(uintptr_t pc) const {
-    CHECK(IsFunctionEntry(pc)) << VV(pc) << " is not a function entry.";
+    FUZZTEST_CHECK(IsFunctionEntry(pc))
+        << VV(pc) << " is not a function entry.";
     const auto it = call_graph_.find(pc);
     if (it == call_graph_.cend()) return empty_;
     return it->second;
   }
   const std::vector<uintptr_t>& GetBasicBlockCallees(uintptr_t pc) const {
-    CHECK(basic_blocks_.contains(pc)) << VV(pc) << " is not a basic block.";
+    FUZZTEST_CHECK(basic_blocks_.contains(pc))
+        << VV(pc) << " is not a basic block.";
     const auto it = basic_block_callees_.find(pc);
     if (it == basic_block_callees_.cend()) return empty_;
     return it->second;

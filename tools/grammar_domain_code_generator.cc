@@ -27,8 +27,8 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "./common/logging.h"
 #include "./grammar_codegen/code_generation.h"
-#include "./fuzztest/internal/logging.h"
 
 ABSL_FLAG(std::string, output_header_file_path, "",
           "Required. The path of the generated grammar header file.");
@@ -62,19 +62,16 @@ int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
 
   std::string output_file_path = absl::GetFlag(FLAGS_output_header_file_path);
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      !output_file_path.empty(),
-      "You must specify output file with --output_header_file_path");
+  FUZZTEST_PRECONDITION(!output_file_path.empty())
+      << "You must specify output file with --output_header_file_path";
   std::ofstream output_file(output_file_path);
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(output_file.is_open(),
-                                       "Cannot open output file!");
+  FUZZTEST_PRECONDITION(output_file.is_open()) << "Cannot open output file!";
 
   std::vector<std::string> input_files =
       absl::GetFlag(FLAGS_input_grammar_files);
 
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-      !input_files.empty(),
-      "You must provide the list of input files, separated by ','");
+  FUZZTEST_PRECONDITION(!input_files.empty())
+      << "You must provide the list of input files, separated by ','";
 
   std::optional<std::string> grammar_name = std::nullopt;
   if (!absl::GetFlag(FLAGS_top_level_rule).empty()) {
@@ -83,8 +80,8 @@ int main(int argc, char** argv) {
 
   std::vector<std::string> input_grammar_specs;
   for (const std::string& input_file : input_files) {
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(std::filesystem::exists(input_file),
-                                         input_file.c_str(), " not exist!");
+    FUZZTEST_PRECONDITION(std::filesystem::exists(input_file))
+        << input_file.c_str() << " not exist!";
     input_grammar_specs.push_back(GetContents(input_file));
   }
   output_file << fuzztest::internal::grammar::GenerateGrammarHeader(

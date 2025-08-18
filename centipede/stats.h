@@ -514,8 +514,9 @@ class StatsReporter {
 inline StatsReporter::StatsReporter(StatsReporter &&) noexcept = default;
 
 // Takes a set of `Stats` objects and a corresponding set of `Environment`
-// objects and logs the current `Stats` values to LOG(INFO) on each invocation
-// of `ReportCurrStats()`. If the environments indicate the use of the
+// objects and logs the current `Stats` values to FUZZTEST_LOG(INFO) on each
+// invocation of `ReportCurrStats()`. If the environments indicate the use of
+// the
 // --experiment flag, the stats for each of the experiment are juxtaposed for
 // easy visual comparison.
 class StatsLogger : public StatsReporter {

@@ -19,8 +19,6 @@
 
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
@@ -59,11 +57,11 @@ class StatsLogger {
     const std::string stats = absl::StrFormat(
         "blobs: %9lld | blobs/s: %5.0f | bytes: %12lld | bytes/s: %8.0f",
         num_blobs_, num_blobs_ / secs, num_bytes_, num_bytes_ / secs);
-    if (ABSL_VLOG_IS_ON(3)) {
+    if (FUZZTEST_VLOG_IS_ON(3)) {
       const RUsageProfiler::Snapshot& snapshot = RPROF_SNAPSHOT(stats);
-      LOG(INFO) << stats << " | " << snapshot.memory.ShortStr();
+      FUZZTEST_LOG(INFO) << stats << " | " << snapshot.memory.ShortStr();
     } else {
-      LOG(INFO) << stats;
+      FUZZTEST_LOG(INFO) << stats;
     }
   }
 
@@ -90,27 +88,30 @@ class StatsLogger {
 void Convert(               //
     const std::string& in,  //
     const std::string& out, const std::string& out_format) {
-  RPROF_THIS_FUNCTION_WITH_REPORT(/*enable=*/ABSL_VLOG_IS_ON(1));
+  RPROF_THIS_FUNCTION_WITH_REPORT(/*enable=*/FUZZTEST_VLOG_IS_ON(1));
 
-  LOG(INFO) << "Converting:\n" << VV(in) << "\n" << VV(out) << VV(out_format);
+  FUZZTEST_LOG(INFO) << "Converting:\n"
+                     << VV(in) << "\n"
+                     << VV(out) << VV(out_format);
 
   const bool out_is_riegeli = out_format == "riegeli";
 
   // Verify and prepare source and destination.
 
-  CHECK(RemotePathExists(in)) << VV(in);
-  CHECK_OK(RemoteMkdir(std::filesystem::path{out}.parent_path().c_str()));
+  FUZZTEST_CHECK(RemotePathExists(in)) << VV(in);
+  FUZZTEST_CHECK_OK(
+      RemoteMkdir(std::filesystem::path{out}.parent_path().c_str()));
 
   // Open blob file reader and writer.
 
   RPROF_START_TIMELAPSE(  //
-      absl::Seconds(20), /*also_log=*/ABSL_VLOG_IS_ON(3), "Opening --in");
+      absl::Seconds(20), /*also_log=*/FUZZTEST_VLOG_IS_ON(3), "Opening --in");
   const auto in_reader = DefaultBlobFileReaderFactory();
-  CHECK_OK(in_reader->Open(in)) << VV(in);
+  FUZZTEST_CHECK_OK(in_reader->Open(in)) << VV(in);
   RPROF_STOP_TIMELAPSE();
   RPROF_SNAPSHOT_AND_LOG("Opened --in; opening --out");
   const auto out_writer = DefaultBlobFileWriterFactory(out_is_riegeli);
-  CHECK_OK(out_writer->Open(out, "w")) << VV(out);
+  FUZZTEST_CHECK_OK(out_writer->Open(out, "w")) << VV(out);
   RPROF_SNAPSHOT_AND_LOG("Opened --out");
 
   // Read and write blobs one-by-one.
@@ -118,17 +119,18 @@ void Convert(               //
   ByteSpan blob;
   absl::Status read_status = absl::OkStatus();
   StatsLogger stats_logger{
-      absl::Seconds(ABSL_VLOG_IS_ON(1) ? 20 : 60),
+      absl::Seconds(FUZZTEST_VLOG_IS_ON(1) ? 20 : 60),
       FUNCTION_LEVEL_RPROF_NAME,
   };
   while ((read_status = in_reader->Read(blob)).ok()) {
-    CHECK_OK(out_writer->Write(blob));
+    FUZZTEST_CHECK_OK(out_writer->Write(blob));
     stats_logger.UpdateStats(blob);
     stats_logger.MaybeLogIfTime();
   }
   stats_logger.Log();
-  CHECK(read_status.ok() || absl::IsOutOfRange(read_status)) << VV(read_status);
-  CHECK_OK(out_writer->Close()) << VV(out);
+  FUZZTEST_CHECK(read_status.ok() || absl::IsOutOfRange(read_status))
+      << VV(read_status);
+  FUZZTEST_CHECK_OK(out_writer->Close()) << VV(out);
 }
 
 }  // namespace
@@ -138,11 +140,12 @@ int main(int argc, char** absl_nonnull argv) {
   (void)fuzztest::internal::InitRuntime(argc, argv);
 
   const std::string in = absl::GetFlag(FLAGS_in);
-  QCHECK(!in.empty());
+  FUZZTEST_QCHECK(!in.empty());
   const std::string out = absl::GetFlag(FLAGS_out);
-  QCHECK(!out.empty());
+  FUZZTEST_QCHECK(!out.empty());
   const std::string out_format = absl::GetFlag(FLAGS_out_format);
-  QCHECK(out_format == "legacy" || out_format == "riegeli") << VV(out_format);
+  FUZZTEST_QCHECK(out_format == "legacy" || out_format == "riegeli")
+      << VV(out_format);
 
   fuzztest::internal::Convert(in, out, out_format);
 

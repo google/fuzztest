@@ -45,9 +45,8 @@ extern "C" size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size,
 size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
                                unsigned int seed) {
   ExternalEngineCallback* callback = GetExternalEngineCallback();
-  FUZZTEST_INTERNAL_CHECK(
-      callback,
-      "External engine callback is unset while running the FuzzTest mutator.");
+  FUZZTEST_CHECK(callback) << "External engine callback is unset while running "
+                              "the FuzzTest mutator.";
   const std::string mutated_data = callback->MutateData(
       absl::string_view(reinterpret_cast<const char*>(data), size), max_size,
       seed);
@@ -72,22 +71,19 @@ bool FuzzTestExternalEngineAdaptor::RunInUnitTestMode(
 
 bool FuzzTestExternalEngineAdaptor::RunInFuzzingMode(
     int* argc, char*** argv, const Configuration& configuration) {
-  FUZZTEST_INTERNAL_CHECK(&LLVMFuzzerRunDriver,
-                          "LibFuzzer Driver API not defined.");
-  FUZZTEST_INTERNAL_CHECK(
-      GetExternalEngineCallback() == nullptr,
-      "External engine callback is already set while running a fuzz test.");
+  FUZZTEST_CHECK(&LLVMFuzzerRunDriver) << "LibFuzzer Driver API not defined.";
+  FUZZTEST_CHECK(GetExternalEngineCallback() == nullptr)
+      << "External engine callback is already set while running a fuzz test.";
   SetExternalEngineCallback(this);
   runtime_.SetRunMode(RunMode::kFuzz);
   auto& impl = GetFuzzerImpl();
   runtime_.SetCurrentTest(&impl.test_, &configuration);
   runtime_.EnableReporter(&impl.stats_, [] { return absl::Now(); });
 
-  FUZZTEST_INTERNAL_CHECK(impl.fixture_driver_ != nullptr,
-                          "Invalid fixture driver!");
+  FUZZTEST_CHECK(impl.fixture_driver_ != nullptr) << "Invalid fixture driver!";
   impl.fixture_driver_->RunFuzzTest([&] {
     static bool driver_started = false;
-    FUZZTEST_INTERNAL_CHECK(!driver_started, "Driver started more than once!");
+    FUZZTEST_CHECK(!driver_started) << "Driver started more than once!";
     driver_started = true;
     LLVMFuzzerRunDriver(
         argc, argv, [](const uint8_t* data, size_t size) -> int {
@@ -134,9 +130,8 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
     if (parse_result.ok()) input = *std::move(parse_result);
   }
   if (!input) input = impl.params_domain_.Init(prng);
-  FUZZTEST_INTERNAL_CHECK(
-      input.has_value(),
-      "Both parsing and initiating the mutation input has failed.");
+  FUZZTEST_CHECK(input.has_value())
+      << "Both parsing and initiating the mutation input has failed.";
   constexpr int kNumAttempts = 10;
   std::string result;
   for (int i = 0; i < kNumAttempts; ++i) {

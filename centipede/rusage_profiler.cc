@@ -29,8 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
@@ -38,6 +36,7 @@
 #include "absl/time/time.h"
 #include "./centipede/periodic_action.h"
 #include "./centipede/rusage_stats.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -102,7 +101,7 @@ std::string RUsageProfiler::Snapshot::ShortMetricsStr() const {
 
 const RUsageProfiler::Snapshot& RUsageProfiler::Snapshot::Log() const {
   if (id >= 0) {
-    LOG(INFO).AtLocation(location.file, location.line)
+    FUZZTEST_LOG(INFO).AtLocation(location.file, location.line)
         << "PROFILER [P." << profiler_id << (profiler_desc.empty() ? "" : " ")
         << profiler_desc << "] SNAPSHOT [S." << id << (title.empty() ? "" : " ")
         << title << "]:\n"
@@ -214,7 +213,7 @@ class ProfileReportGenerator {
         low_water >= kZero ? 0 :
         std::floor(std::abs(low_water / notch_size));
     // clang-format on
-    CHECK_GE(kBarNotches, notch_zero);
+    FUZZTEST_CHECK_GE(kBarNotches, notch_zero);
     // Print a zero mark only if a delta metric goes negative.
     std::string zero_mark = low_water < kZero ? "|" : "";
 
@@ -231,7 +230,7 @@ class ProfileReportGenerator {
           notch_size == kZero
               ? kBarNotches : std::floor((current - low_water) / notch_size);
       // clang-format on
-      CHECK_GE(kBarNotches, notches);
+      FUZZTEST_CHECK_GE(kBarNotches, notches);
 
       if (!is_delta) {
         // Non-delta metrics can't go negative, so the bar always looks like
@@ -422,7 +421,7 @@ void RUsageProfiler::StartTimelapse(  //
     bool also_log,                    //
     std::string title) {
   absl::WriterMutexLock lock{&mutex_};
-  CHECK(!timelapse_recorder_) << "StopTimelapse() wasn't called";
+  FUZZTEST_CHECK(!timelapse_recorder_) << "StopTimelapse() wasn't called";
   timelapse_recorder_ = std::make_unique<PeriodicAction>(
       [this, loc = std::move(loc), title = std::move(title), also_log]() {
         const auto& s = TakeSnapshot(loc, title);
@@ -433,7 +432,7 @@ void RUsageProfiler::StartTimelapse(  //
 
 void RUsageProfiler::StopTimelapse() {
   absl::WriterMutexLock lock{&mutex_};
-  CHECK(timelapse_recorder_) << "StartTimelapse() wasn't called";
+  FUZZTEST_CHECK(timelapse_recorder_) << "StartTimelapse() wasn't called";
   timelapse_recorder_.reset();
 }
 
@@ -441,30 +440,31 @@ void RUsageProfiler::PrintReport(  //
     SourceLocation loc, const std::string& title) {
   if (metrics_ == kMetricsOff) return;
 
-  // Logs streamed-in text to LOG(INFO), while dropping the usual log prefix
-  // (date/time/thread/source). LOG()'s limit on the size of a single message
-  // applies to one streamed text fragment only (if needed, this can be reduced
-  // even further to a single line of text in a fragment): this is the main
-  // purpose of this class, as profiling reports can get very long. especially
-  // with automatic timelapse snapshotting.
+  // Logs streamed-in text to FUZZTEST_LOG(INFO), while dropping the usual log
+  // prefix (date/time/thread/source). FUZZTEST_LOG()'s limit on the size of a
+  // single message applies to one streamed text fragment only (if needed, this
+  // can be reduced even further to a single line of text in a fragment): this
+  // is the main purpose of this class, as profiling reports can get very long.
+  // especially with automatic timelapse snapshotting.
   class ReportLogger final : public ReportSink {
    public:
     ReportLogger(SourceLocation loc) : loc_{loc} {}
 
     ~ReportLogger() override {
       if (!buffer_.empty()) {
-        LOG(INFO).AtLocation(loc_.file, loc_.line).NoPrefix() << buffer_;
+        FUZZTEST_LOG(INFO).AtLocation(loc_.file, loc_.line).NoPrefix()
+            << buffer_;
       }
     }
 
     ReportLogger& operator<<(std::string_view fragment) override {
       const auto last_newline = fragment.rfind('\n');
       if (last_newline == std::string_view::npos) {
-        // Accumulate no-'\n' fragments: LOG() always wraps around.
+        // Accumulate no-'\n' fragments: FUZZTEST_LOG() always wraps around.
         buffer_ += fragment;
       } else {
         // Now we can log, but save the last bit of text
-        LOG(INFO).AtLocation(loc_.file, loc_.line).NoPrefix()
+        FUZZTEST_LOG(INFO).AtLocation(loc_.file, loc_.line).NoPrefix()
             << buffer_ << fragment.substr(0, last_newline);
         buffer_ = fragment.substr(last_newline + 1);
       }
@@ -476,7 +476,7 @@ void RUsageProfiler::PrintReport(  //
     std::string buffer_;
   };
 
-  LOG(INFO).AtLocation(loc.file, loc.line) << title << "\n";
+  FUZZTEST_LOG(INFO).AtLocation(loc.file, loc.line) << title << "\n";
   ReportLogger report_logger{loc};
   GenerateReport(&report_logger);
 }

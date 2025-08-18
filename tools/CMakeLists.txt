@@ -7,6 +7,6 @@ target_link_libraries(
   grammar_domain_code_generator
   absl::flags
   absl::flags_parse
-  fuzztest_logging
+  fuzztest_common_logging
   code_generation
 )

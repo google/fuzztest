@@ -41,6 +41,7 @@ fuzztest_cc_library(
     absl::statusor
     absl::string_view
     absl::span
+    fuzztest::common_logging
     fuzztest::any
     fuzztest::logging
     fuzztest::meta
@@ -146,6 +147,7 @@ fuzztest_cc_library(
     absl::strings
     absl::string_view
     fuzztest::logging
+    fuzztest::common_logging
     fuzztest::registration
     fuzztest::registry
     fuzztest::runtime
@@ -158,9 +160,9 @@ fuzztest_cc_test(
     "fuzztest_macros_test.cc"
   DEPS
     fuzztest::fuzztest_macros
-    absl::check
     absl::status
     absl::strings
+    fuzztest::common_logging
     fuzztest::temp_dir
     GTest::gmock_main
 )
@@ -192,6 +194,7 @@ fuzztest_cc_library(
     absl::strings
     absl::str_format
     absl::time
+    fuzztest::common_logging
     fuzztest::configuration
     fuzztest::flag_name
     fuzztest::googletest_adaptor
@@ -225,11 +228,10 @@ fuzztest_cc_library(
     absl::core_headers
     absl::no_destructor
     absl::flags
-    absl::absl_check
     absl::random_random
     absl::random_bit_gen_ref
     absl::synchronization
+    fuzztest::common_logging
     fuzztest::io
-    fuzztest::logging
     fuzztest::core_domains_impl
 )

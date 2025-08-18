@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -198,8 +199,8 @@ constexpr size_t kVectorSize = sizeof(Vector);
 FUZZTEST_INTERNAL_NOSANITIZE bool UpdateVectorized(
     const uint8_t *execution_data, uint8_t *corpus_data, size_t size,
     size_t offset_to_align) {
-  FUZZTEST_INTERNAL_CHECK(size >= kVectorSize,
-                          "size cannot be smaller than block size!");
+  FUZZTEST_CHECK(size >= kVectorSize)
+      << "size cannot be smaller than block size!";
 
   // Avoid collapsing the "greater than" vector until the end.
   Vector any_greater{};
@@ -290,8 +291,8 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
   absl::Span<uint8_t> execution_map = execution_coverage->GetCounterMap();
   // Note: corpus_map_size_ will be larger than execution_map.size().
   // See the constructor for more details.
-  FUZZTEST_INTERNAL_CHECK(execution_map.size() <= corpus_map_size_,
-                          "Map size mismatch.");
+  FUZZTEST_CHECK(execution_map.size() <= corpus_map_size_)
+      << "Map size mismatch.";
 
   // Calculate the offset required to align `p` to alignof(Vector).
   void* p = execution_map.data();
@@ -348,10 +349,8 @@ bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
 // where [start,end) is the array of 8-bit counters created for the current DSO.
 extern "C" void __sanitizer_cov_8bit_counters_init(uint8_t* start,
                                                    uint8_t* stop) {
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start != nullptr,
-                                       "Invalid counter map address.");
-  FUZZTEST_INTERNAL_CHECK_PRECONDITION(start < stop,
-                                       "Invalid counter map size.");
+  FUZZTEST_PRECONDITION(start != nullptr) << "Invalid counter map address.";
+  FUZZTEST_PRECONDITION(start < stop) << "Invalid counter map size.";
   size_t map_size = stop - start;
 
   // For now, we assume single DSO. This means that this call back should get

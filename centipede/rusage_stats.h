@@ -31,8 +31,8 @@
 #include <ostream>
 #include <string>
 
-#include "absl/log/check.h"
 #include "absl/time/time.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -78,7 +78,7 @@ class RUsageScope {
 
   const PlatformInfo& info() const {
     // This can fail only when called after the object is moved.
-    CHECK(info_ != nullptr);
+    FUZZTEST_CHECK(info_ != nullptr);
     return *info_;
   }
 

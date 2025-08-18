@@ -23,7 +23,7 @@ fuzztest_cc_library(
   HDRS
     "any.h"
   DEPS
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
 )
 
@@ -47,7 +47,7 @@ fuzztest_cc_library(
     "compatibility_mode.cc"
   DEPS
     fuzztest::fixture_driver
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::runtime
     absl::random_distributions
     absl::strings
@@ -66,12 +66,12 @@ fuzztest_cc_library(
   SRCS
     "configuration.cc"
   DEPS
-    absl::absl_check
     absl::status
     absl::statusor
     absl::strings
     absl::string_view
     absl::time
+    fuzztest::common_logging
 )
 
 fuzztest_cc_test(
@@ -110,7 +110,7 @@ fuzztest_cc_library(
     "coverage.cc"
   DEPS
     fuzztest::flag_name
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::table_of_recent_compares
     absl::core_headers
     absl::str_format
@@ -138,7 +138,7 @@ fuzztest_cc_library(
     "fixture_driver.cc"
   DEPS
     fuzztest::any
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::meta
     fuzztest::printer
     fuzztest::registration
@@ -158,10 +158,11 @@ fuzztest_cc_test(
   DEPS
     fuzztest::any
     fuzztest::fixture_driver
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::registration
     absl::any_invocable
     absl::span
+    fuzztest::logging
     fuzztest::domain_core
     GTest::gmock_main
 )
@@ -201,7 +202,7 @@ fuzztest_cc_library(
   SRCS
     "io.cc"
   DEPS
-    fuzztest::logging
+    fuzztest::common_logging
     absl::function_ref
     absl::hash
     absl::status
@@ -211,6 +212,7 @@ fuzztest_cc_library(
     absl::span
     fuzztest::blob_file
     fuzztest::defs
+    fuzztest::logging
     fuzztest::remote_file
 )
 
@@ -227,6 +229,7 @@ fuzztest_cc_test(
     absl::time
     fuzztest::blob_file
     fuzztest::defs
+    fuzztest::common_logging
     fuzztest::temp_dir
     fuzztest::fuzztest_core
     GTest::gmock_main
@@ -243,6 +246,7 @@ fuzztest_cc_library(
     absl::core_headers
     absl::strings
     absl::synchronization
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(
@@ -274,9 +278,9 @@ fuzztest_cc_library(
   DEPS
     absl::fast_type_id
     absl::function_ref
-    absl::absl_check
     absl::random_distributions
     absl::span
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(
@@ -327,7 +331,7 @@ fuzztest_cc_library(
     fuzztest::fixture_driver
     fuzztest::flag_name
     fuzztest::io
-    fuzztest::logging
+    fuzztest::common_logging
     fuzztest::printer
     fuzztest::registration
     fuzztest::seed_seq
@@ -337,7 +341,6 @@ fuzztest_cc_library(
     absl::any_invocable
     absl::bind_front
     absl::function_ref
-    absl::absl_check
     absl::random_random
     absl::random_bit_gen_ref
     absl::random_distributions
@@ -348,6 +351,7 @@ fuzztest_cc_library(
     absl::time
     absl::span
     fuzztest::bazel
+    fuzztest::logging
     fuzztest::core_domains_impl
 )
 
@@ -376,7 +380,7 @@ fuzztest_cc_library(
   SRCS
     "seed_seq.cc"
   DEPS
-    fuzztest::logging
+    fuzztest::common_logging
     absl::random_random
     absl::strings
     absl::span
@@ -442,7 +446,7 @@ fuzztest_cc_library(
   SRCS
     "subprocess.cc"
   DEPS
-    fuzztest::logging
+    fuzztest::common_logging
     absl::flat_hash_map
     absl::function_ref
     absl::span

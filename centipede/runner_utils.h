@@ -30,7 +30,7 @@ namespace fuzztest::internal {
 // as it is a more common pattern.
 void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error);
 
-// A rough equivalent of "CHECK(condition) << error;".
+// A rough equivalent of "FUZZTEST_CHECK(condition) << error;".
 inline void RunnerCheck(bool condition, const char* absl_nonnull error) {
   PrintErrorAndExitIf(!condition, error);
 }

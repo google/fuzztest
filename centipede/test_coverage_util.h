@@ -21,7 +21,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/log/check.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/corpus.h"
 #include "./centipede/environment.h"
@@ -48,7 +47,7 @@ class TestCallbacks : public CentipedeCallbacks {
                BatchResult &batch_result) override {
     int result =
         ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result);
-    CHECK_EQ(EXIT_SUCCESS, result);
+    FUZZTEST_CHECK_EQ(EXIT_SUCCESS, result);
     return true;
   }
   std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,

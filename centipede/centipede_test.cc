@@ -31,8 +31,6 @@
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
@@ -360,14 +358,14 @@ class MutateCallbacks : public CentipedeCallbacks {
   // Will not be called.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
                BatchResult &batch_result) override {
-    CHECK(false);
+    FUZZTEST_CHECK(false);
     return false;
   }
 
   // Will not be called.
   std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
                                 size_t num_mutants) override {
-    CHECK(false);
+    FUZZTEST_CHECK(false);
   }
 
   // Redeclare a protected member function as public so the tests can call it.
@@ -505,7 +503,7 @@ class MergeMock : public CentipedeCallbacks {
                BatchResult &batch_result) override {
     batch_result.results().resize(inputs.size());
     for (size_t i = 0, n = inputs.size(); i < n; ++i) {
-      CHECK_EQ(inputs[i].size(), 1);
+      FUZZTEST_CHECK_EQ(inputs[i].size(), 1);
       batch_result.results()[i].mutable_features() = {inputs[i][0]};
     }
     return true;
@@ -582,8 +580,10 @@ class FunctionFilterMock : public CentipedeCallbacks {
       : CentipedeCallbacks(env) {
     std::vector<ByteArray> seed_inputs;
     const size_t num_seeds_available = GetSeeds(/*num_seeds=*/1, seed_inputs);
-    CHECK_EQ(num_seeds_available, 1) << "Default seeds must have size one.";
-    CHECK_EQ(seed_inputs.size(), 1) << "Default seeds must have size one.";
+    FUZZTEST_CHECK_EQ(num_seeds_available, 1)
+        << "Default seeds must have size one.";
+    FUZZTEST_CHECK_EQ(seed_inputs.size(), 1)
+        << "Default seeds must have size one.";
     seed_inputs_.insert(seed_inputs.begin(), seed_inputs.end());
   }
 
@@ -646,7 +646,7 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   FunctionFilterMock mock(env);
   MockFactory factory(mock);
   CentipedeMain(env, factory);
-  LOG(INFO) << mock.observed_inputs_.size();
+  FUZZTEST_LOG(INFO) << mock.observed_inputs_.size();
   std::vector<ByteArray> res(mock.observed_inputs_.begin(),
                              mock.observed_inputs_.end());
   std::sort(res.begin(), res.end());
@@ -808,7 +808,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   explicit UndetectedCrashingInputMock(const Environment &env,
                                        size_t crashing_input_idx)
       : CentipedeCallbacks{env}, crashing_input_idx_{crashing_input_idx} {
-    CHECK_LE(crashing_input_idx_, std::numeric_limits<uint8_t>::max());
+    FUZZTEST_CHECK_LE(crashing_input_idx_, std::numeric_limits<uint8_t>::max());
   }
 
   // Doesn't execute anything.
@@ -822,7 +822,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
       num_inputs_triaged_ += inputs.size();
     }
     for (const auto &input : inputs) {
-      CHECK_EQ(input.size(), 1);  // By construction in `Mutate()`.
+      FUZZTEST_CHECK_EQ(input.size(), 1);  // By construction in `Mutate()`.
       // The contents of each mutant is its sequential number.
       if (input[0] == crashing_input_idx_) {
         if (first_pass_) {
@@ -881,8 +881,8 @@ TEST(Centipede, UndetectedCrashingInput) {
   constexpr size_t kCrashingInputIdx =
       (kNumBatches / 2) * kBatchSize + kCrashingInputIdxInBatch;
 
-  LOG(INFO) << VV(kNumBatches) << VV(kBatchSize)
-            << VV(kCrashingInputIdxInBatch) VV(kCrashingInputIdx);
+  FUZZTEST_LOG(INFO) << VV(kNumBatches) << VV(kBatchSize)
+                     << VV(kCrashingInputIdxInBatch) VV(kCrashingInputIdx);
 
   TempDir temp_dir{test_info_->name()};
   Environment env;

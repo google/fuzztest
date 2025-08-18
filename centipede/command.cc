@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
 #ifdef __APPLE__
 #include <inttypes.h>
 #include <libproc.h>
@@ -40,8 +41,6 @@
 #include <vector>
 
 #include "absl/base/const_init.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -61,7 +60,7 @@
 #if !defined(_MSC_VER)
 // Needed to pass the current environment to posix_spawn, which needs an
 // explicit envp without an option to inherit implicitly.
-extern char **environ;
+extern char** environ;
 #endif
 
 namespace fuzztest::internal {
@@ -134,13 +133,14 @@ struct Command::ForkServerProps {
   ~ForkServerProps() {
     for (int i = 0; i < 2; ++i) {
       if (pipe_[i] >= 0 && close(pipe_[i]) != 0) {
-        LOG(ERROR) << "Failed to close fork server pipe for " << fifo_path_[i];
+        FUZZTEST_LOG(ERROR)
+            << "Failed to close fork server pipe for " << fifo_path_[i];
       }
       std::error_code ec;
       if (!fifo_path_[i].empty() &&
           !std::filesystem::remove(fifo_path_[i], ec)) {
-        LOG(ERROR) << "Failed to remove fork server pipe file " << fifo_path_[i]
-                   << ": " << ec;
+        FUZZTEST_LOG(ERROR) << "Failed to remove fork server pipe file "
+                            << fifo_path_[i] << ": " << ec;
       }
     }
   }
@@ -152,7 +152,7 @@ struct Command::ForkServerProps {
 // PIMPL).
 Command::~Command() {
   if (is_executing()) {
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "Destructing Command object for " << path() << " with "
         << (fork_server_ ? absl::StrCat("fork server PID ", fork_server_->pid_)
                          : absl::StrCat("PID ", pid_))
@@ -173,10 +173,10 @@ std::string Command::ToString() const {
   // env.
   ss.push_back("env");
   // Arguments that unset environment variables must appear first.
-  for (const auto &var : options_.env_remove) {
+  for (const auto& var : options_.env_remove) {
     ss.push_back(absl::StrCat("-u ", var));
   }
-  for (const auto &var : options_.env_add) {
+  for (const auto& var : options_.env_add) {
     ss.push_back(var);
   }
   // path.
@@ -188,13 +188,13 @@ std::string Command::ToString() const {
   // Replace @@ with temp_file_path_.
   constexpr std::string_view kTempFileWildCard = "@@";
   if (absl::StrContains(path, kTempFileWildCard)) {
-    CHECK(!options_.temp_file_path.empty());
+    FUZZTEST_CHECK(!options_.temp_file_path.empty());
     path = absl::StrReplaceAll(path,
                                {{kTempFileWildCard, options_.temp_file_path}});
   }
   ss.push_back(std::move(path));
   // args.
-  for (const auto &arg : options_.args) {
+  for (const auto& arg : options_.args) {
     ss.push_back(arg);
   }
   // out/err.
@@ -215,10 +215,10 @@ std::string Command::ToString() const {
 bool Command::StartForkServer(std::string_view temp_dir_path,
                               std::string_view prefix) {
   if (absl::StartsWith(path_, kNoForkServerRequestPrefix)) {
-    VLOG(2) << "Fork server disabled for " << path();
+    FUZZTEST_VLOG(2) << "Fork server disabled for " << path();
     return false;
   }
-  VLOG(2) << "Starting fork server for " << path();
+  FUZZTEST_VLOG(2) << "Starting fork server for " << path();
 
   fork_server_.reset(new ForkServerProps);
   fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
@@ -229,7 +229,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
       std::filesystem::path(temp_dir_path).append("pid");
   (void)std::filesystem::create_directory(temp_dir_path);  // it may not exist.
   for (int i = 0; i < 2; ++i) {
-    PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
+    FUZZTEST_PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
         << VV(i) << VV(fork_server_->fifo_path_[i]);
   }
 
@@ -248,7 +248,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
       fork_server_->fifo_path_[1], command_line_, pid_file_path);
-  VLOG(2) << "Fork server command:" << fork_server_command;
+  FUZZTEST_VLOG(2) << "Fork server command:" << fork_server_command;
 
   const int exit_code = system(fork_server_command.c_str());
 
@@ -284,7 +284,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
 
   std::string pid_str;
   ReadFromLocalFile(pid_file_path, pid_str);
-  CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
+  FUZZTEST_CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
   auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
   if (!creation_stamp.ok()) {
     LogProblemInfo(
@@ -302,9 +302,10 @@ absl::Status Command::VerifyForkServerIsHealthy() {
   // Preconditions: the callers (`Execute()`) should call us only when the fork
   // server is presumed to be running (`fork_server_pid_` >= 0). If it is, the
   // comms pipes are guaranteed to be opened by `StartForkServer()`.
-  CHECK(fork_server_ != nullptr) << "Fork server wasn't started";
-  CHECK(fork_server_->pid_ >= 0) << "Fork server process failed to start";
-  CHECK(fork_server_->pipe_[0] >= 0 && fork_server_->pipe_[1] >= 0)
+  FUZZTEST_CHECK(fork_server_ != nullptr) << "Fork server wasn't started";
+  FUZZTEST_CHECK(fork_server_->pid_ >= 0)
+      << "Fork server process failed to start";
+  FUZZTEST_CHECK(fork_server_->pipe_[0] >= 0 && fork_server_->pipe_[1] >= 0)
       << "Failed to connect to fork server";
 
   // A process with the fork server PID exists (_some_ process, possibly with a
@@ -326,11 +327,11 @@ absl::Status Command::VerifyForkServerIsHealthy() {
 }
 
 bool Command::ExecuteAsync() {
-  CHECK(!is_executing());
-  VLOG(1) << "Executing command '" << command_line_ << "'...";
+  FUZZTEST_CHECK(!is_executing());
+  FUZZTEST_VLOG(1) << "Executing command '" << command_line_ << "'...";
 
   if (fork_server_ != nullptr) {
-    VLOG(1) << "Sending execution request to fork server";
+    FUZZTEST_VLOG(1) << "Sending execution request to fork server";
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
       LogProblemInfo(absl::StrCat("Fork server should be running, but isn't: ",
@@ -340,18 +341,18 @@ bool Command::ExecuteAsync() {
 
     // Wake up the fork server.
     char x = ' ';
-    CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
+    FUZZTEST_CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
   } else {
-    CHECK_EQ(pid_, -1);
+    FUZZTEST_CHECK_EQ(pid_, -1);
     std::vector<std::string> argv_strs = {"/bin/sh", "-c", command_line_};
-    std::vector<char *> argv;
+    std::vector<char*> argv;
     argv.reserve(argv_strs.size() + 1);
-    for (auto &argv_str : argv_strs) {
+    for (auto& argv_str : argv_strs) {
       argv.push_back(argv_str.data());
     }
     argv.push_back(nullptr);
-    PCHECK(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
-                       /*attrp=*/nullptr, argv.data(), environ) == 0);
+    FUZZTEST_PCHECK(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
+                                /*attrp=*/nullptr, argv.data(), environ) == 0);
   }
 
   is_executing_ = true;
@@ -359,7 +360,7 @@ bool Command::ExecuteAsync() {
 }
 
 std::optional<int> Command::Wait(absl::Time deadline) {
-  CHECK(is_executing());
+  FUZZTEST_CHECK(is_executing());
   int exit_code = EXIT_SUCCESS;
 
   if (fork_server_ != nullptr) {
@@ -399,15 +400,15 @@ std::optional<int> Command::Wait(absl::Time deadline) {
     }
 
     // The fork server wrote the execution result to the pipe: read it.
-    CHECK_EQ(sizeof(exit_code),
-             read(fork_server_->pipe_[1], &exit_code, sizeof(exit_code)));
+    FUZZTEST_CHECK_EQ(sizeof(exit_code), read(fork_server_->pipe_[1],
+                                              &exit_code, sizeof(exit_code)));
   } else {
-    CHECK_NE(pid_, -1);
+    FUZZTEST_CHECK_NE(pid_, -1);
     while (true) {
       const pid_t r = waitpid(pid_, &exit_code, WNOHANG);
-      CHECK_NE(r, -1);
+      FUZZTEST_CHECK_NE(r, -1);
       if (r == pid_ && (WIFEXITED(exit_code) || WIFSIGNALED(exit_code))) break;
-      CHECK_EQ(r, 0);
+      FUZZTEST_CHECK_EQ(r, 0);
       const auto timeout = deadline - absl::Now();
       if (timeout > absl::ZeroDuration()) {
         const auto duration = std::clamp<useconds_t>(
@@ -481,13 +482,13 @@ std::optional<int> Command::Wait(absl::Time deadline) {
 }
 
 void Command::RequestStop() {
-  CHECK(is_executing());
+  FUZZTEST_CHECK(is_executing());
   if (fork_server_) {
-    CHECK_NE(fork_server_->pid_, -1);
+    FUZZTEST_CHECK_NE(fork_server_->pid_, -1);
     kill(fork_server_->pid_, SIGTERM);
     return;
   }
-  CHECK_NE(pid_, -1);
+  FUZZTEST_CHECK_NE(pid_, -1);
   kill(pid_, SIGTERM);
 }
 
@@ -517,24 +518,24 @@ std::string Command::ReadRedirectedStderr() const {
 void Command::LogProblemInfo(std::string_view message) const {
   absl::MutexLock lock(&GetExecutionLoggingMutex());
 
-  LOG(ERROR) << message;
-  LOG(ERROR).NoPrefix() << "=== COMMAND ===";
-  LOG(ERROR).NoPrefix() << command_line_;
-  LOG(ERROR).NoPrefix() << "=== STDOUT ===";
-  for (const auto &line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
-    LOG(ERROR).NoPrefix() << line;
+  FUZZTEST_LOG(ERROR) << message;
+  FUZZTEST_LOG(ERROR).NoPrefix() << "=== COMMAND ===";
+  FUZZTEST_LOG(ERROR).NoPrefix() << command_line_;
+  FUZZTEST_LOG(ERROR).NoPrefix() << "=== STDOUT ===";
+  for (const auto& line : absl::StrSplit(ReadRedirectedStdout(), '\n')) {
+    FUZZTEST_LOG(ERROR).NoPrefix() << line;
   }
-  LOG(ERROR).NoPrefix() << "=== STDERR ===";
-  for (const auto &line : absl::StrSplit(ReadRedirectedStderr(), '\n')) {
-    LOG(ERROR).NoPrefix() << line;
+  FUZZTEST_LOG(ERROR).NoPrefix() << "=== STDERR ===";
+  for (const auto& line : absl::StrSplit(ReadRedirectedStderr(), '\n')) {
+    FUZZTEST_LOG(ERROR).NoPrefix() << line;
   }
 }
 
 void Command::VlogProblemInfo(std::string_view message, int vlog_level) const {
-  if (ABSL_VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
+  if (FUZZTEST_VLOG_IS_ON(vlog_level)) LogProblemInfo(message);
 }
 
-absl::Mutex &GetExecutionLoggingMutex() {
+absl::Mutex& GetExecutionLoggingMutex() {
   static absl::Mutex mu{absl::kConstInit};
   return mu;
 }

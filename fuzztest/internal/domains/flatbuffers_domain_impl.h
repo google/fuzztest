@@ -43,13 +43,13 @@
 #include "flatbuffers/string.h"
 #include "flatbuffers/table.h"
 #include "flatbuffers/verifier.h"
+#include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
 #include "./fuzztest/internal/domains/element_of_impl.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
@@ -181,8 +181,8 @@ auto VisitFlatbufferField(const reflection::Schema* absl_nonnull schema,
       // Noop
       break;
     default:
-      FUZZTEST_INTERNAL_CHECK(false, absl::StrCat("Unsupported base type: ",
-                                                  field->type()->base_type()));
+      FUZZTEST_LOG(FATAL) << "Unsupported base type: "
+                          << field->type()->base_type();
   }
 }
 
@@ -260,10 +260,9 @@ class FlatbuffersEnumDomainImpl
     std::vector<value_type> values;
     values.reserve(enum_def->values()->size());
     for (const auto* value : *enum_def->values()) {
-      FUZZTEST_INTERNAL_CHECK(
-          value->value() >= std::numeric_limits<value_type>::min() &&
-              value->value() <= std::numeric_limits<value_type>::max(),
-          "Enum value from reflection is out of range for the target type.");
+      FUZZTEST_CHECK(value->value() >= std::numeric_limits<value_type>::min() &&
+                     value->value() <= std::numeric_limits<value_type>::max())
+          << "Enum value from reflection is out of range for the target type.";
       if (std::find(excluded_values.begin(), excluded_values.end(),
                     value->value()) == excluded_values.end()) {
         values.push_back(static_cast<value_type>(value->value()));
@@ -349,8 +348,8 @@ class FlatbuffersTableUntypedDomainImpl
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const;
 
   value_type GetValue(const corpus_type& value) const {
-    FUZZTEST_INTERNAL_CHECK(
-        false, "GetValue is not supported for the untyped Flatbuffers domain.");
+    FUZZTEST_LOG(FATAL)
+        << "GetValue is not supported for the untyped Flatbuffers domain.";
     // Untyped domain does not support GetValue since if it is a nested table it
     // would need the top level table corpus value to be able to build it.
     return nullptr;
@@ -457,9 +456,9 @@ class FlatbuffersTableUntypedDomainImpl
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         auto sub_object = self.schema_->objects()->Get(field->type()->index());
-        FUZZTEST_INTERNAL_CHECK(
-            base_type == reflection::BaseType::Obj && !sub_object->is_struct(),
-            "Field must be a table type.");
+        FUZZTEST_CHECK(base_type == reflection::BaseType::Obj &&
+                       !sub_object->is_struct())
+            << "Field must be a table type.";
         inner_value =
             user_value->GetPointer<const flatbuffers::Table*>(field->offset());
       }
@@ -729,8 +728,8 @@ class FlatbuffersTableDomainImpl
   FlatbuffersTableDomainImpl() {
     flatbuffers::Verifier verifier(T::BinarySchema::data(),
                                    T::BinarySchema::size());
-    FUZZTEST_INTERNAL_CHECK(reflection::VerifySchemaBuffer(verifier),
-                            "Invalid schema for flatbuffers table.");
+    FUZZTEST_CHECK(reflection::VerifySchemaBuffer(verifier))
+        << "Invalid schema for flatbuffers table.";
     auto schema = reflection::GetSchema(T::BinarySchema::data());
     auto table_object =
         schema->objects()->LookupByKey(T::GetFullyQualifiedName());

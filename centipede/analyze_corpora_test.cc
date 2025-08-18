@@ -24,12 +24,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/environment.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
+#include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/test_util.h"
 
@@ -47,7 +46,7 @@ static std::string GetTargetPath() {
 }
 
 // TODO(ussuri): Implement.
-TEST(AnalyzeCorpora, AnalyzeCorpora) { LOG(INFO) << "Unimplemented"; }
+TEST(AnalyzeCorpora, AnalyzeCorpora) { FUZZTEST_LOG(INFO) << "Unimplemented"; }
 
 TEST(GetCoverage, SimpleCoverageResults) {
   Environment env;

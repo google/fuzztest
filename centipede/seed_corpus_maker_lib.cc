@@ -37,8 +37,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -71,7 +69,7 @@ namespace {
 
 std::string ShardPathsForLogging(  //
     const std::string& corpus_fname, const std::string& features_fname) {
-  if (ABSL_VLOG_IS_ON(3)) {
+  if (FUZZTEST_VLOG_IS_ON(3)) {
     return absl::StrCat(  //
         ":\nCorpus:  ", corpus_fname, "\nFeatures:", features_fname);
   }
@@ -93,13 +91,15 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
                      coverage_binary_name, ", and ", coverage_binary_hash));
   }
 
-  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
-      /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
-      /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
-      /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                   //
+      /*enable=*/FUZZTEST_VLOG_IS_ON(1),                //
+                                                        /*timelapse_interval=*/
+      absl::Seconds(FUZZTEST_VLOG_IS_ON(2) ? 10 : 60),  //
+      /*also_log_timelapses=*/FUZZTEST_VLOG_IS_ON(10));
 
-  LOG(INFO) << "Reading/sampling seed corpus elements from source glob: "
-            << source.dir_glob;
+  FUZZTEST_LOG(INFO)
+      << "Reading/sampling seed corpus elements from source glob: "
+      << source.dir_glob;
 
   // Find `source.dir_glob()`-matching dirs and pick at most
   // `source.num_recent_dirs()` most recent ones.
@@ -109,14 +109,14 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       !match_status.ok() && !absl::IsNotFound(match_status)) {
     return match_status;
   }
-  LOG(INFO) << "Found " << src_dirs.size() << " corpus dir(s) matching "
-            << source.dir_glob;
+  FUZZTEST_LOG(INFO) << "Found " << src_dirs.size()
+                     << " corpus dir(s) matching " << source.dir_glob;
   // Sort in the ascending lexicographical order. We expect that dir names
   // contain timestamps and therefore will be sorted from oldest to newest.
   std::sort(src_dirs.begin(), src_dirs.end(), std::less<std::string>());
   if (source.num_recent_dirs < src_dirs.size()) {
     src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs);
-    LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
+    FUZZTEST_LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
   }
 
   // Find all the corpus shard and individual input files in the found dirs.
@@ -130,16 +130,16 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       const std::string glob = fs::path{dir} / source.shard_rel_glob;
       const auto match_status = RemoteGlobMatch(glob, matched_fnames);
       if (!match_status.ok() && !absl::IsNotFound(match_status)) {
-        LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
-                   << match_status;
+        FUZZTEST_LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
+                            << match_status;
       } else {
         current_corpus_shard_fnames.insert(matched_fnames.begin(),
                                            matched_fnames.end());
         corpus_shard_fnames.insert(corpus_shard_fnames.end(),
                                    matched_fnames.begin(),
                                    matched_fnames.end());
-        LOG(INFO) << "Found " << matched_fnames.size() << " shard(s) matching "
-                  << glob;
+        FUZZTEST_LOG(INFO) << "Found " << matched_fnames.size()
+                           << " shard(s) matching " << glob;
       }
     }
     if (!source.individual_input_rel_glob.empty()) {
@@ -147,8 +147,8 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       const std::string glob = fs::path{dir} / source.individual_input_rel_glob;
       const auto match_status = RemoteGlobMatch(glob, matched_fnames);
       if (!match_status.ok() && !absl::IsNotFound(match_status)) {
-        LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
-                   << match_status;
+        FUZZTEST_LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
+                            << match_status;
       } else {
         size_t num_added_individual_inputs = 0;
         for (auto& fname : matched_fnames) {
@@ -157,17 +157,18 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
           ++num_added_individual_inputs;
           individual_input_fnames.push_back(std::move(fname));
         }
-        LOG(INFO) << "Found " << num_added_individual_inputs
-                  << " individual input(s) with glob " << glob;
+        FUZZTEST_LOG(INFO) << "Found " << num_added_individual_inputs
+                           << " individual input(s) with glob " << glob;
       }
     }
   }
-  LOG(INFO) << "Found " << corpus_shard_fnames.size() << " shard(s) and "
-            << individual_input_fnames.size()
-            << " individual input(s) total in source " << source.dir_glob;
+  FUZZTEST_LOG(INFO) << "Found " << corpus_shard_fnames.size()
+                     << " shard(s) and " << individual_input_fnames.size()
+                     << " individual input(s) total in source "
+                     << source.dir_glob;
 
   if (corpus_shard_fnames.empty() && individual_input_fnames.empty()) {
-    LOG(WARNING) << "Skipping empty source " << source.dir_glob;
+    FUZZTEST_LOG(WARNING) << "Skipping empty source " << source.dir_glob;
     return absl::OkStatus();
   }
 
@@ -189,48 +190,52 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       auto& shard_elts = src_elts_per_shard[shard];
       auto& shard_elts_with_features = src_elts_with_features_per_shard[shard];
 
-      const auto read_shard = [shard, corpus_fname, coverage_binary_name,
-                               coverage_binary_hash, &shard_elts,
-                               &shard_elts_with_features, &source]() {
-        // NOTE: The deduced matching `features_fname` may not exist if the
-        // source corpus was generated for a coverage binary that is different
-        // from the one we need, but `ReadShard()` can tolerate that, passing
-        // empty `FeatureVec`s to the callback if that's the case.
-        const auto work_dir = WorkDir::FromCorpusShardPath(  //
-            corpus_fname, coverage_binary_name, coverage_binary_hash);
-        std::string features_fname =
-            work_dir.CorpusFilePaths().IsShard(corpus_fname)
-                ? work_dir.FeaturesFilePaths().MyShard()
-            : work_dir.DistilledCorpusFilePaths().IsShard(corpus_fname)
-                ? work_dir.DistilledFeaturesFilePaths().MyShard()
-                : "";
-        if (features_fname < source.features_start_point) {
-          features_fname = "";
-        }
-        VLOG(2) << "Reading elements from source shard " << shard
+      const auto read_shard =
+          [shard, corpus_fname, coverage_binary_name, coverage_binary_hash,
+           &shard_elts, &shard_elts_with_features, &source]() {
+            // NOTE: The deduced matching `features_fname` may not exist if the
+            // source corpus was generated for a coverage binary that is
+            // different from the one we need, but `ReadShard()` can tolerate
+            // that, passing empty `FeatureVec`s to the callback if that's the
+            // case.
+            const auto work_dir = WorkDir::FromCorpusShardPath(  //
+                corpus_fname, coverage_binary_name, coverage_binary_hash);
+            std::string features_fname =
+                work_dir.CorpusFilePaths().IsShard(corpus_fname)
+                    ? work_dir.FeaturesFilePaths().MyShard()
+                : work_dir.DistilledCorpusFilePaths().IsShard(corpus_fname)
+                    ? work_dir.DistilledFeaturesFilePaths().MyShard()
+                    : "";
+            if (features_fname < source.features_start_point) {
+              features_fname = "";
+            }
+            FUZZTEST_VLOG(2)
+                << "Reading elements from source shard " << shard
                 << ShardPathsForLogging(corpus_fname, features_fname);
 
-        ReadShard(corpus_fname, features_fname,
-                  [shard, &shard_elts, &shard_elts_with_features](  //
-                      ByteArray input, FeatureVec features) {
-                    // `ReadShard()` indicates "features not computed/found" as
-                    // `{}` and "features computed/found, but empty" as
-                    // `{feature_domains::kNoFeature}`. We're interested in how
-                    // many precomputed features we find, even if empty.
-                    if (!features.empty()) {
-                      ++shard_elts_with_features;
-                    }
-                    shard_elts.emplace_back(input, std::move(features));
-                    VLOG_EVERY_N(10, 100000)
-                        << "Read " << shard_elts.size()
-                        << " elements from shard " << shard << " so far";
-                  });
+            ReadShard(corpus_fname, features_fname,
+                      [shard, &shard_elts, &shard_elts_with_features](  //
+                          ByteArray input, FeatureVec features) {
+                        // `ReadShard()` indicates "features not computed/found"
+                        // as
+                        // `{}` and "features computed/found, but empty" as
+                        // `{feature_domains::kNoFeature}`. We're interested in
+                        // how many precomputed features we find, even if empty.
+                        if (!features.empty()) {
+                          ++shard_elts_with_features;
+                        }
+                        shard_elts.emplace_back(input, std::move(features));
+                        FUZZTEST_VLOG_EVERY_N(10, 100000)
+                            << "Read " << shard_elts.size()
+                            << " elements from shard " << shard << " so far";
+                      });
 
-        LOG(INFO) << "Read " << shard_elts.size() << " elements ("
-                  << shard_elts_with_features
-                  << " with computed features) from source shard " << shard
-                  << ShardPathsForLogging(corpus_fname, features_fname);
-      };
+            FUZZTEST_LOG(INFO)
+                << "Read " << shard_elts.size() << " elements ("
+                << shard_elts_with_features
+                << " with computed features) from source shard " << shard
+                << ShardPathsForLogging(corpus_fname, features_fname);
+          };
 
       threads.Schedule(read_shard);
     }
@@ -244,8 +249,8 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
         const auto& path = individual_input_fnames[index];
         const auto read_status = RemoteFileGetContents(path, input);
         if (!read_status.ok()) {
-          LOG(WARNING) << "Skipping individual input path " << path
-                       << " due to read error: " << read_status;
+          FUZZTEST_LOG(WARNING) << "Skipping individual input path " << path
+                                << " due to read error: " << read_status;
           return;
         }
         src_elts[index] = {std::move(input), {}};
@@ -279,14 +284,15 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
       std::remove_if(src_elts.begin(), src_elts.end(),
                      [](const auto& elt) { return std::get<0>(elt).empty(); });
   if (remove_it != src_elts.end()) {
-    LOG(WARNING) << "Removed " << std::distance(remove_it, src_elts.end())
-                 << " empty inputs";
+    FUZZTEST_LOG(WARNING) << "Removed "
+                          << std::distance(remove_it, src_elts.end())
+                          << " empty inputs";
     src_elts.erase(remove_it, src_elts.end());
   }
 
-  LOG(INFO) << "Read total of " << src_elts.size() << " elements ("
-            << src_num_features << " with features) from source "
-            << source.dir_glob;
+  FUZZTEST_LOG(INFO) << "Read total of " << src_elts.size() << " elements ("
+                     << src_num_features << " with features) from source "
+                     << source.dir_glob;
 
   // Extract a sample of the elements of the size specified in
   // `source.sample_size`.
@@ -308,10 +314,10 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
   }
 
   if (sample_size < src_elts.size()) {
-    LOG(INFO) << "Sampling " << sample_size << " elements out of "
-              << src_elts.size();
+    FUZZTEST_LOG(INFO) << "Sampling " << sample_size << " elements out of "
+                       << src_elts.size();
   } else {
-    LOG(INFO) << "Using all " << src_elts.size() << " elements";
+    FUZZTEST_LOG(INFO) << "Using all " << src_elts.size() << " elements";
   }
 
   // Extract a sample by shuffling the elements' indices and resizing to the
@@ -358,13 +364,15 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         "Unable to write seed corpus to empty destination path");
   }
 
-  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                                      //
-      /*enable=*/ABSL_VLOG_IS_ON(1),                                       //
-      /*timelapse_interval=*/absl::Seconds(ABSL_VLOG_IS_ON(2) ? 10 : 60),  //
-      /*also_log_timelapses=*/ABSL_VLOG_IS_ON(10));
+  RPROF_THIS_FUNCTION_WITH_TIMELAPSE(                   //
+      /*enable=*/FUZZTEST_VLOG_IS_ON(1),                //
+                                                        /*timelapse_interval=*/
+      absl::Seconds(FUZZTEST_VLOG_IS_ON(2) ? 10 : 60),  //
+      /*also_log_timelapses=*/FUZZTEST_VLOG_IS_ON(10));
 
-  LOG(INFO) << "Writing " << elements.size()
-            << " seed corpus elements to destination: " << destination.dir_path;
+  FUZZTEST_LOG(INFO) << "Writing " << elements.size()
+                     << " seed corpus elements to destination: "
+                     << destination.dir_path;
 
   if (destination.num_shards <= 0) {
     return absl::InvalidArgumentError(
@@ -381,7 +389,7 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
   // first N shards.
   const size_t num_shards =
       std::min<size_t>(destination.num_shards, elements.size());
-  CHECK_GT(num_shards, 0);
+  FUZZTEST_CHECK_GT(num_shards, 0);
   const size_t shard_size = elements.size() / num_shards;
   std::vector<size_t> shard_sizes(num_shards, shard_size);
   const size_t excess_elts = elements.size() % num_shards;
@@ -404,7 +412,7 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
       const auto elt_range_begin = shard_elt_it;
       std::advance(shard_elt_it, shard_size);
       const auto elt_range_end = shard_elt_it;
-      CHECK(shard_elt_it <= elements.cend()) << VV(shard);
+      FUZZTEST_CHECK(shard_elt_it <= elements.cend()) << VV(shard);
 
       const auto write_shard = [shard, elt_range_begin, elt_range_end,
                                 coverage_binary_name, coverage_binary_hash,
@@ -438,11 +446,12 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
             work_dir.CorpusFilePaths().IsShard(corpus_fname)
                 ? work_dir.FeaturesFilePaths().MyShard()
                 : work_dir.DistilledFeaturesFilePaths().MyShard();
-        CHECK(!features_fname.empty());
+        FUZZTEST_CHECK(!features_fname.empty());
 
-        VLOG(2) << "Writing " << std::distance(elt_range_begin, elt_range_end)
-                << " elements to destination shard " << shard
-                << ShardPathsForLogging(corpus_fname, features_fname);
+        FUZZTEST_VLOG(2) << "Writing "
+                         << std::distance(elt_range_begin, elt_range_end)
+                         << " elements to destination shard " << shard
+                         << ShardPathsForLogging(corpus_fname, features_fname);
 
         // Features files are always saved in a subdir of the workdir
         // (== `destination.dir_path` here), which might not exist yet, so we
@@ -465,12 +474,12 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
 
         const std::unique_ptr<BlobFileWriter> corpus_writer =
             DefaultBlobFileWriterFactory();
-        CHECK(corpus_writer != nullptr);
+        FUZZTEST_CHECK(corpus_writer != nullptr);
         RETURN_IF_NOT_OK(corpus_writer->Open(corpus_fname, "w"));
 
         const std::unique_ptr<BlobFileWriter> features_writer =
             DefaultBlobFileWriterFactory();
-        CHECK(features_writer != nullptr);
+        FUZZTEST_CHECK(features_writer != nullptr);
         RETURN_IF_NOT_OK(features_writer->Open(features_fname, "w"));
 
         // Write the shard's elements to the corpus and features shard files.
@@ -488,10 +497,12 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
           }
         }
 
-        LOG(INFO) << "Wrote " << std::distance(elt_range_begin, elt_range_end)
-                  << " elements (" << shard_elts_with_features
-                  << " with features) to destination shard " << shard
-                  << ShardPathsForLogging(corpus_fname, features_fname);
+        FUZZTEST_LOG(INFO) << "Wrote "
+                           << std::distance(elt_range_begin, elt_range_end)
+                           << " elements (" << shard_elts_with_features
+                           << " with features) to destination shard " << shard
+                           << ShardPathsForLogging(corpus_fname,
+                                                   features_fname);
 
         dst_elts_with_features += shard_elts_with_features;
 
@@ -508,10 +519,10 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
     RETURN_IF_NOT_OK(write_status);
   }
 
-  LOG(INFO) << "Wrote total of " << elements.size() << " elements ("
-            << dst_elts_with_features
-            << " with precomputed features) to destination "
-            << destination.dir_path;
+  FUZZTEST_LOG(INFO) << "Wrote total of " << elements.size() << " elements ("
+                     << dst_elts_with_features
+                     << " with precomputed features) to destination "
+                     << destination.dir_path;
   return absl::OkStatus();
 }
 
@@ -526,19 +537,19 @@ absl::Status GenerateSeedCorpusFromConfig(  //
     RETURN_IF_NOT_OK(SampleSeedCorpusElementsFromSource(  //
         source, coverage_binary_name, coverage_binary_hash, elements));
   }
-  LOG(INFO) << "Sampled " << elements.size() << " elements from "
-            << config.sources.size() << " seed corpus source(s)";
+  FUZZTEST_LOG(INFO) << "Sampled " << elements.size() << " elements from "
+                     << config.sources.size() << " seed corpus source(s)";
 
   // Write the sampled elements to the destination.
   if (elements.empty()) {
-    LOG(WARNING)
+    FUZZTEST_LOG(WARNING)
         << "No elements to write to seed corpus destination - doing nothing";
   } else {
     RETURN_IF_NOT_OK(WriteSeedCorpusElementsToDestination(  //
         elements, coverage_binary_name, coverage_binary_hash,
         config.destination));
-    LOG(INFO) << "Wrote " << elements.size()
-              << " elements to seed corpus destination";
+    FUZZTEST_LOG(INFO) << "Wrote " << elements.size()
+                       << " elements to seed corpus destination";
   }
   return absl::OkStatus();
 }

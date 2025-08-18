@@ -12,6 +12,7 @@ fuzztest_cc_library(
     absl::strings
     absl::string_view
     absl::time
+    fuzztest::common_logging
     fuzztest_flag_name
     fuzztest_subprocess
   TESTONLY
@@ -26,7 +27,7 @@ target_link_libraries(
   PUBLIC
   fuzztest_escaping
   fuzztest_io
-  fuzztest_logging
+  fuzztest_common_logging
   fuzztest_printer
   fuzztest_serialization
   fuzztest_subprocess
@@ -60,7 +61,7 @@ add_executable(
 target_link_libraries(
   benchmark_test
   PUBLIC
-  fuzztest_logging
+  fuzztest_common_logging
   fuzztest_subprocess
   re2
   absl::flat_hash_map

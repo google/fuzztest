@@ -12,17 +12,16 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
-#include "absl/log/absl_check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
+#include "./common/logging.h"
 #include "./fuzztest/fuzztest.h"
 #include "./fuzztest/fuzztest_macros.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/io.h"
-#include "./fuzztest/internal/logging.h"
 
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
@@ -75,7 +74,7 @@ std::vector<std::vector<uint8_t>> ReadByteArrayDictionaryFromFile() {
   for (const fuzztest::internal::FilePathAndData& file : files) {
     absl::StatusOr<std::vector<std::string>> parsed_entries =
         fuzztest::ParseDictionary(file.data);
-    ABSL_CHECK(parsed_entries.status().ok())
+    FUZZTEST_CHECK(parsed_entries.status().ok())
         << "Could not parse dictionary file " << file.path << ": "
         << parsed_entries.status();
     for (const std::string& parsed_entry : *parsed_entries) {
@@ -104,45 +103,38 @@ class LLVMFuzzerMutateMetadataManager {
  public:
   void Activate(MutationMetadata mutation_metadata) {
     absl::MutexLock lock(&mu_);
-    FUZZTEST_INTERNAL_CHECK(
-        !mutation_metadata_.has_value(),
-        "MutationMetadata is already active before calling Activate()!");
-    FUZZTEST_INTERNAL_CHECK(
-        acquire_count_ == 0,
-        "MutationMetadata still has readers before being calling Activate()!");
+    FUZZTEST_CHECK(!mutation_metadata_.has_value())
+        << "MutationMetadata is already active before calling Activate()!";
+    FUZZTEST_CHECK(acquire_count_ == 0) << "MutationMetadata still has readers "
+                                           "before being calling Activate()!";
     mutation_metadata_ = std::move(mutation_metadata);
   }
 
   void Deactivate() {
     absl::MutexLock lock(&mu_);
-    FUZZTEST_INTERNAL_CHECK(
-        mutation_metadata_.has_value(),
-        "MutationMetadata is not active before calling Deactivate()!");
-    FUZZTEST_INTERNAL_CHECK(
-        acquire_count_ == 0,
-        "MutationMetadata still has readers before calling Deactivate()!");
+    FUZZTEST_CHECK(mutation_metadata_.has_value())
+        << "MutationMetadata is not active before calling Deactivate()!";
+    FUZZTEST_CHECK(acquire_count_ == 0)
+        << "MutationMetadata still has readers before calling Deactivate()!";
     mutation_metadata_ = std::nullopt;
   }
 
   const MutationMetadata& Acquire() {
     absl::MutexLock lock(&mu_);
-    FUZZTEST_INTERNAL_CHECK_PRECONDITION(
-        mutation_metadata_.has_value(),
-        "Cannot acquire unavailable mutation metadata, likely due to the "
-        "fuzzer calling LLVMFuzzerMutate() outside of "
-        "LLVMFuzzerCustomMutator() invocation, which is not allowed.");
+    FUZZTEST_PRECONDITION(mutation_metadata_.has_value())
+        << "Cannot acquire unavailable mutation metadata, likely due to the "
+           "fuzzer calling LLVMFuzzerMutate() outside of "
+           "LLVMFuzzerCustomMutator() invocation, which is not allowed.";
     ++acquire_count_;
     return *mutation_metadata_;
   }
 
   void Release() {
     absl::MutexLock lock(&mu_);
-    FUZZTEST_INTERNAL_CHECK(
-        mutation_metadata_.has_value(),
-        "MutationMetadata is not active before calling Release()!");
-    FUZZTEST_INTERNAL_CHECK(
-        acquire_count_ > 0,
-        "MutationMetadata has no readers before calling Release()!");
+    FUZZTEST_CHECK(mutation_metadata_.has_value())
+        << "MutationMetadata is not active before calling Release()!";
+    FUZZTEST_CHECK(acquire_count_ > 0)
+        << "MutationMetadata has no readers before calling Release()!";
     --acquire_count_;
   }
 
