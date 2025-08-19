@@ -554,6 +554,20 @@ void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,
                   "failed to write feedback");
 }
 
+void FuzzTestDispatcherEmitFeedbackAsRawFeatures(const uint64_t* features,
+                                                 size_t num_features) {
+  DispatcherCheck(GetDispatcherAction() == DispatcherAction::kTestExecute &&
+                      in_test_callback,
+                  "must be called inside test callback of executing");
+  DispatcherCheck(num_features > 0 && features != nullptr,
+                  "feature array must be non-empty with a valid pointer");
+  auto* output = GetOutputsBlobSequence();
+  DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
+  DispatcherCheck(
+      BatchResult::WriteOneFeatureVec(features, num_features, *output),
+      "failed to write feedback");
+}
+
 void FuzzTestDispatcherEmitExecutionMetadata(const void* metadata,
                                              size_t size) {
   DispatcherCheck(GetDispatcherAction() == DispatcherAction::kTestExecute &&

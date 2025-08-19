@@ -57,6 +57,7 @@
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
+#include "./centipede/sancov_runtime.h"
 #include "./centipede/sancov_state.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
@@ -395,10 +396,11 @@ static void ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
            input_path);
   FILE *features_file = fopen(features_file_path, "w");
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
-  // TODO(yamilmorales): Hide the raw sancov state objects and expose
-  // interface functions instead.
-  WriteFeaturesToFile(features_file, sancov_state->g_features.data(),
-                      sancov_state->g_features.size());
+
+  const SanCovRuntimeRawFeatureParts sancov_features =
+      SanCovRuntimeGetFeatures();
+  WriteFeaturesToFile(features_file, sancov_features.features,
+                      sancov_features.num_features);
   fclose(features_file);
 }
 
@@ -408,13 +410,15 @@ static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
-// Copy all the `g_features` to `data` with given `capacity` in bytes.
-// Returns the byte size of `g_features`.
+// Copy all the sancov features to `data` with given `capacity` in bytes.
+// Returns the byte size of sancov features.
 static size_t CopyFeatures(uint8_t *data, size_t capacity) {
+  const SanCovRuntimeRawFeatureParts sancov_features =
+      SanCovRuntimeGetFeatures();
   const size_t features_len_in_bytes =
-      sancov_state->g_features.size() * sizeof(feature_t);
+      sancov_features.num_features * sizeof(feature_t);
   if (features_len_in_bytes > capacity) return 0;
-  memcpy(data, sancov_state->g_features.data(), features_len_in_bytes);
+  memcpy(data, sancov_features.features, features_len_in_bytes);
   return features_len_in_bytes;
 }
 
@@ -441,9 +445,11 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
     }
   }
 
+  const SanCovRuntimeRawFeatureParts sancov_features =
+      SanCovRuntimeGetFeatures();
   // Copy features to shared memory.
-  if (!BatchResult::WriteOneFeatureVec(sancov_state->g_features.data(),
-                                       sancov_state->g_features.size(),
+  if (!BatchResult::WriteOneFeatureVec(sancov_features.features,
+                                       sancov_features.num_features,
                                        outputs_blobseq)) {
     return false;
   }
@@ -749,7 +755,6 @@ GlobalRunnerState::GlobalRunnerState() {
 
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
-  tls.OnThreadStart();
   state->StartWatchdogThread();
 
   SetLimits();

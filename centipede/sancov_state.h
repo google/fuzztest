@@ -40,6 +40,7 @@
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_utils.h"
 #include "./centipede/sancov_object_array.h"
+#include "./centipede/sancov_runtime.h"
 
 extern "C" const char *absl_nullable GetSancovFlags();
 
@@ -286,6 +287,9 @@ __attribute__((noinline))  // so that we see it in profile.
 void PostProcessSancov(bool reject_input = false);
 
 void MaybeAddFeature(feature_t feature);
+
+// Returns a pointer to `g_features` and its length.
+SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures();
 
 // Check for stack limit for the stack pointer `sp` in the current thread.
 __attribute__((weak)) void CheckStackLimit(uintptr_t sp);

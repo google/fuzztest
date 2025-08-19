@@ -1000,21 +1000,22 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
-    "sancov_state.cc",
-    "sancov_state.h",
     "pc_info.h",
     "reverse_pc_table.h",
     "runner.cc",
     "runner.h",
-    "runner_dl_info.h",
     "runner_dl_info.cc",
-    "sancov_object_array.h",
-    "sancov_object_array.cc",
-    "runner_utils.h",
-    "runner_utils.cc",
-    "sancov_interceptors.cc",
+    "runner_dl_info.h",
     "runner_interface.h",
+    "runner_utils.cc",
+    "runner_utils.h",
     "sancov_callbacks.cc",
+    "sancov_interceptors.cc",
+    "sancov_object_array.cc",
+    "sancov_object_array.h",
+    "sancov_runtime.h",
+    "sancov_state.cc",
+    "sancov_state.h",
     "@com_google_fuzztest//common:defs.h",
 ]
 
@@ -1194,10 +1195,11 @@ cc_library(
         "sancov_object_array.cc",
         "sancov_object_array.h",
         "sancov_state.cc",
+        "sancov_state.h",
         "@com_google_fuzztest//common:defs.h",
     ],
     hdrs = [
-        "sancov_state.h",
+        "sancov_runtime.h",
     ],
     copts = DISABLE_SANCOV_COPTS,
     deps = [

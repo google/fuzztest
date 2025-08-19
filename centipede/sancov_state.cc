@@ -31,6 +31,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/runner_dl_info.h"
 #include "./centipede/runner_utils.h"
+#include "./centipede/sancov_runtime.h"
 
 __attribute__((weak)) extern fuzztest::internal::feature_t
     __start___centipede_extra_features;
@@ -226,6 +227,7 @@ static void DumpDsoTable(const char *absl_nonnull output_path) {
 }
 
 SancovState::SancovState() {
+  tls.OnThreadStart();
   // Compute main_object.
   main_object = GetDlInfo(flag_helper.GetStringFlag(":dl_path_suffix="));
   if (!sancov_state->main_object.IsSet()) {
@@ -484,6 +486,11 @@ bool CopyCmpTracesToMetadata(ExecutionMetadata *metadata) {
   return true;
 }
 
+SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures() {
+  return {fuzztest::internal::sancov_state->g_features.data(),
+          fuzztest::internal::sancov_state->g_features.size()};
+}
+
 }  // namespace fuzztest::internal
 
 // Can be overridden to not depend explicitly on CENTIPEDE_RUNNER_FLAGS.
@@ -491,4 +498,16 @@ extern "C" __attribute__((weak)) const char *absl_nullable GetSancovFlags() {
   if (const char *sancov_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
     return strdup(sancov_flags_env);
   return nullptr;
+}
+
+void SanCovRuntimeClearCoverage(bool full_clear) {
+  fuzztest::internal::CleanUpSancovTls();
+  fuzztest::internal::PrepareSancov(full_clear);
+}
+
+struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(
+    bool reject_input) {
+  fuzztest::internal::PostProcessSancov(reject_input);
+
+  return fuzztest::internal::SanCovRuntimeGetFeatures();
 }
