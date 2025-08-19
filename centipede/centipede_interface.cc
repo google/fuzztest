@@ -913,9 +913,10 @@ int CentipedeMain(const Environment& env,
 
         const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
         FUZZTEST_CHECK(target_config->only_replay ||
-                       time_limit_per_test < absl::InfiniteDuration())
+                       time_limit_per_test < absl::InfiniteDuration() ||
+                       target_config->fuzz_tests_in_current_shard.size() == 1)
             << "Updating corpus database requires specifying time limit per "
-               "fuzz test.";
+               "fuzz test when there are more than one tests.";
         FUZZTEST_CHECK(time_limit_per_test >= absl::Seconds(1))
             << "Time limit per fuzz test must be at least 1 second.";
         return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
