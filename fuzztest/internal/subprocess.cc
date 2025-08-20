@@ -108,28 +108,25 @@ class SubProcess {
 void SubProcess::CreatePipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
     int pipe_fds[2];
-    FUZZTEST_CHECK(pipe(pipe_fds) == 0) << "Cannot create pipe: ",
-        strerror(errno);
+    FUZZTEST_PCHECK(pipe(pipe_fds) == 0) << "Cannot create pipe";
 
     parent_pipe_[channel] = pipe_fds[0];
     child_pipe_[channel] = pipe_fds[1];
 
-    FUZZTEST_CHECK(fcntl(parent_pipe_[channel], F_SETFL, O_NONBLOCK) != -1)
-        << "Cannot make pipe non-blocking: " << strerror(errno);
+    FUZZTEST_PCHECK(fcntl(parent_pipe_[channel], F_SETFL, O_NONBLOCK) != -1)
+        << "Cannot make pipe non-blocking";
   }
 }
 
 void SubProcess::CloseChildPipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
-    FUZZTEST_CHECK(close(child_pipe_[channel]) != -1)
-        << "Cannot close pipe: " << strerror(errno);
+    FUZZTEST_PCHECK(close(child_pipe_[channel]) != -1) << "Cannot close pipe";
   }
 }
 
 void SubProcess::CloseParentPipes() {
   for (int channel : {kStdOutIdx, kStdErrIdx}) {
-    FUZZTEST_CHECK(close(parent_pipe_[channel]) != -1)
-        << "Cannot close pipe: " << strerror(errno);
+    FUZZTEST_PCHECK(close(parent_pipe_[channel]) != -1) << "Cannot close pipe";
   }
 }
 
@@ -228,9 +225,9 @@ void SubProcess::ReadChildOutput(
   while (fd_remain > 0) {
     int ret = poll(pfd, fd_count, -1);
     if ((ret == -1) && !ShouldRetry(errno)) {
-      FUZZTEST_LOG(FATAL) << "Cannot poll(): " << strerror(errno);
+      FUZZTEST_PLOG(FATAL) << "Cannot poll()";
     } else if (ret == 0) {
-      FUZZTEST_LOG(FATAL) << "Impossible timeout: " << strerror(errno);
+      FUZZTEST_PLOG(FATAL) << "Impossible timeout";
     } else if (ret > 0) {
       for (int channel : {kStdOutIdx, kStdErrIdx}) {
         // According to the poll() spec, use -1 for ignored entries.
@@ -267,7 +264,7 @@ int Wait(pid_t pid) {
     } else if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
       return status;
     } else {
-      FUZZTEST_LOG(FATAL) << "wait() error: " << strerror(errno);
+      FUZZTEST_PLOG(FATAL) << "wait() error";
     }
   }
 }
@@ -284,8 +281,7 @@ int WaitWithStopChecker(pid_t pid, absl::FunctionRef<bool()> should_stop) {
       continue;
     } else if (ret == 0) {  // Still running.
       if (should_stop()) {
-        FUZZTEST_CHECK(kill(pid, SIGTERM) == 0)
-            << "Cannot kill(): " << strerror(errno);
+        FUZZTEST_PCHECK(kill(pid, SIGTERM) == 0) << "Cannot kill()";
         return Wait(pid);
       } else {
         absl::SleepFor(sleep_duration);

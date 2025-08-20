@@ -361,9 +361,8 @@ void InstallCentipedeTerminationHandler() {
       // needs to be properly handled.
       new_sigact.sa_flags = SA_ONSTACK;
 
-      FUZZTEST_CHECK(sigaction(signum, &new_sigact, nullptr) == 0)
-          << "Error installing signal handler: %s\n"
-          << strerror(errno);
+      FUZZTEST_PCHECK(sigaction(signum, &new_sigact, nullptr) == 0)
+          << "Error installing signal handler";
     }
     return true;
   }();
@@ -581,26 +580,25 @@ class CentipedeAdaptorRunnerCallbacks
       const fuzztest::internal::ExecutionMetadata* metadata,
       TablesOfRecentCompares& cmp_tables) {
     if (metadata == nullptr) return;
-    metadata->ForEachCmpEntry(
-        [&cmp_tables](fuzztest::internal::ByteSpan a,
-                      fuzztest::internal::ByteSpan b) {
-          FUZZTEST_CHECK(a.size() == b.size())
-              << "cmp operands must have the same size";
-          const size_t size = a.size();
-          if (size < kMinCmpEntrySize) return;
-          if (size > kMaxCmpEntrySize) return;
-          if (size == 2) {
-            InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
-                                                          cmp_tables);
-          } else if (size == 4) {
-            InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
-                                                          cmp_tables);
-          } else if (size == 8) {
-            InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
-                                                          cmp_tables);
-          }
-          cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
-        });
+    metadata->ForEachCmpEntry([&cmp_tables](fuzztest::internal::ByteSpan a,
+                                            fuzztest::internal::ByteSpan b) {
+      FUZZTEST_CHECK(a.size() == b.size())
+          << "cmp operands must have the same size";
+      const size_t size = a.size();
+      if (size < kMinCmpEntrySize) return;
+      if (size > kMaxCmpEntrySize) return;
+      if (size == 2) {
+        InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      } else if (size == 4) {
+        InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      } else if (size == 8) {
+        InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      }
+      cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    });
   }
 
   // Size limits on the cmp entries to be used in mutation.

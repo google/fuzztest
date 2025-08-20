@@ -98,8 +98,7 @@ std::vector<std::tuple<std::string>> ReadFilesFromDirectory(
 
     std::ifstream stream(entry.path());
     FUZZTEST_PRECONDITION(stream.good())
-        << "Cannot read input file: " << entry.path().string() << ": "
-        << strerror(errno);
+        << "Cannot read input file: " << entry.path().string();
 
     std::stringstream buffer;
     buffer << stream.rdbuf();
@@ -151,7 +150,7 @@ std::vector<std::string> ReadDictionaryFromFile(
   const std::filesystem::path fs_path(dictionary_file);
   std::ifstream stream(fs_path);
   FUZZTEST_PRECONDITION(stream.good())
-      << "Error reading " << fs_path.string() << ": " << strerror(errno);
+      << "Error reading dictionary file: " << fs_path.string();
   std::stringstream buffer;
   buffer << stream.rdbuf();
   absl::StatusOr<std::vector<std::string>> parsed_entries =

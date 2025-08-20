@@ -366,9 +366,9 @@ RUsageTiming RUsageTiming::Snapshot(  //
   int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, scope.info().pid()};
   struct kinfo_proc info = {};
   size_t size = sizeof(info);
-  FUZZTEST_CHECK(
+  FUZZTEST_PCHECK(
       sysctl(mib, sizeof(mib) / sizeof(mib[0]), &info, &size, NULL, 0) == 0)
-      << "Error getting process information: " << strerror(errno);
+      << "Error getting process information";
   cpu_utilization = info.kp_proc.p_pctcpu;
 #else   // __APPLE__
   // Get the CPU utilization in 1/1024th units of the maximum from
