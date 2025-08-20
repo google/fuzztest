@@ -80,12 +80,12 @@ class UpdateCorpusDatabaseTest
   static void SetUpTestSuite() {
 #if defined(__has_feature)
 #if !__has_feature(address_sanitizer)
-    FUZZTEST_CHECK(false)
+    FUZZTEST_LOG(FATAL)
         << "The test binary is not built with ASAN. Please run with "
            "--config=asan.";
 #elif !__has_feature(coverage_sanitizer) || !defined(FUZZTEST_USE_CENTIPEDE)
-    FUZZTEST_CHECK(false) << "The test binary is not built with coverage "
-                             "instrumentation for Centipede. "
+    FUZZTEST_LOG(FATAL) << "The test binary is not built with coverage "
+                           "instrumentation for Centipede. "
     "Please run with --config=fuzztest-experimental.";
 #endif
 #endif

@@ -1320,7 +1320,7 @@ class FuzzingModeFixtureTest
         return RunBinary(CentipedePath(), run_options);
       }
     }
-    FUZZTEST_CHECK(false) << "Unsupported execution model!\n";
+    FUZZTEST_LOG(FATAL) << "Unsupported execution model!\n";
   }
 };
 

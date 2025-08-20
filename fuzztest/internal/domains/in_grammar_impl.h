@@ -746,7 +746,7 @@ class InGrammarImpl
   }
 
   std::optional<corpus_type> FromValue(const value_type& /*v*/) const {
-    FUZZTEST_CHECK(false) << "Parsing is not implemented yet!";
+    FUZZTEST_LOG(FATAL) << "Parsing is not implemented yet!";
     return std::nullopt;
   }
 

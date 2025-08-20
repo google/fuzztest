@@ -228,7 +228,7 @@ void RunMicrobenchmarks(const bool list_tests, const std::string& filter) {
 int main(int argc, char** argv) {
 #if defined(__has_feature)
 #if !__has_feature(coverage_sanitizer)
-  FUZZTEST_CHECK(false) << "\n\nPlease compile with --config=fuzztest.\n";
+  FUZZTEST_LOG(FATAL) << "\n\nPlease compile with --config=fuzztest.\n";
 #endif
 #endif
   absl::ParseCommandLine(argc, argv);

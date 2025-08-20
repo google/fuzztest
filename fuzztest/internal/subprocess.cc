@@ -228,9 +228,9 @@ void SubProcess::ReadChildOutput(
   while (fd_remain > 0) {
     int ret = poll(pfd, fd_count, -1);
     if ((ret == -1) && !ShouldRetry(errno)) {
-      FUZZTEST_CHECK(false) << "Cannot poll(): " << strerror(errno);
+      FUZZTEST_LOG(FATAL) << "Cannot poll(): " << strerror(errno);
     } else if (ret == 0) {
-      FUZZTEST_CHECK(false) << "Impossible timeout: " << strerror(errno);
+      FUZZTEST_LOG(FATAL) << "Impossible timeout: " << strerror(errno);
     } else if (ret > 0) {
       for (int channel : {kStdOutIdx, kStdErrIdx}) {
         // According to the poll() spec, use -1 for ignored entries.
@@ -267,7 +267,7 @@ int Wait(pid_t pid) {
     } else if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
       return status;
     } else {
-      FUZZTEST_CHECK(false) << "wait() error: " << strerror(errno);
+      FUZZTEST_LOG(FATAL) << "wait() error: " << strerror(errno);
     }
   }
 }
@@ -329,9 +329,9 @@ TerminationStatus RunCommandWithCallbacks(
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
         environment) {
 #if defined(_MSC_VER)
-  FUZZTEST_CHECK(false) << "Subprocess library not implemented on Windows yet.";
+  FUZZTEST_LOG(FATAL) << "Subprocess library not implemented on Windows yet.";
 #elif defined(__ANDROID_MIN_SDK_VERSION__) && __ANDROID_MIN_SDK_VERSION__ < 28
-  FUZZTEST_CHECK(false)
+  FUZZTEST_LOG(FATAL)
       << "Subprocess library not implemented on older Android NDK versions yet";
 #elif defined(TARGET_OS_TV) && TARGET_OS_TV
   FUZZTEST_LOG(FATAL) << "Subprocess library not implemented on Apple tvOS yet";

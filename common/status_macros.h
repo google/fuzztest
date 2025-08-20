@@ -55,9 +55,8 @@ decltype(auto) ValueOrDie(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           std::uint_least32_t line = __builtin_LINE(),
                           const char* file_name = __builtin_FILE()) {
   if (ABSL_PREDICT_FALSE(!value.ok())) {
-    FUZZTEST_CHECK(false) << file_name << ":" << line
-                          << ": ValueOrDie on non-OK status: "
-                          << value.status();
+    FUZZTEST_LOG(FATAL) << file_name << ":" << line
+                        << ": ValueOrDie on non-OK status: " << value.status();
   }
   return *std::forward<T>(value);
 }

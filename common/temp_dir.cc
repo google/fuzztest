@@ -26,7 +26,7 @@ TempDir::TempDir(absl::string_view custom_prefix) {
 #if !defined(_MSC_VER)
   path_ = mkdtemp(path_template.string().data());
 #else
-  FUZZTEST_CHECK(false) << "Windows is not supported yet.";
+  FUZZTEST_LOG(FATAL) << "Windows is not supported yet.";
 #endif
   FUZZTEST_CHECK(std::filesystem::is_directory(path_));
 }

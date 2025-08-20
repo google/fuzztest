@@ -358,14 +358,14 @@ class MutateCallbacks : public CentipedeCallbacks {
   // Will not be called.
   bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
                BatchResult &batch_result) override {
-    FUZZTEST_CHECK(false);
+    FUZZTEST_LOG(FATAL);
     return false;
   }
 
   // Will not be called.
   std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
                                 size_t num_mutants) override {
-    FUZZTEST_CHECK(false);
+    FUZZTEST_LOG(FATAL);
   }
 
   // Redeclare a protected member function as public so the tests can call it.

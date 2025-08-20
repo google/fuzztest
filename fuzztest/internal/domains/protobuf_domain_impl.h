@@ -1919,7 +1919,7 @@ class ProtobufDomainUntypedImpl
       return policy_.GetMinRepeatedFieldSize(field).has_value() &&
              *policy_.GetMinRepeatedFieldSize(field) > 0;
     }
-    FUZZTEST_CHECK(false) << "Field is not optional, repeated, or required";
+    FUZZTEST_LOG(FATAL) << "Field is not optional, repeated, or required";
     return false;
   }
 
@@ -1942,7 +1942,7 @@ class ProtobufDomainUntypedImpl
       return policy_.GetMaxRepeatedFieldSize(field).has_value() &&
              *policy_.GetMaxRepeatedFieldSize(field) == 0;
     }
-    FUZZTEST_CHECK(false) << "Field is not optional, repeated, or required";
+    FUZZTEST_LOG(FATAL) << "Field is not optional, repeated, or required";
     return false;
   }
 

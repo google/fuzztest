@@ -800,8 +800,8 @@ absl::Status ExportReproducersFromCentipede(
                     output.dir_path);
       break;
     default:
-      FUZZTEST_CHECK(false) << "unsupported reproducer output location type "
-                               "to report reproducers from Centipede";
+      FUZZTEST_LOG(FATAL) << "unsupported reproducer output location type "
+                             "to report reproducers from Centipede";
   }
 
   // Will be set when there is only one reproducer - nullopt otherwise.

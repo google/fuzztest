@@ -218,8 +218,8 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
                                        Basename(reproducer_path));
         break;
       default:
-        FUZZTEST_CHECK(false) << "unsupported reproducer output location type "
-                                 "to print reproduction command for";
+        FUZZTEST_LOG(FATAL) << "unsupported reproducer output location type "
+                               "to print reproduction command for";
     }
   }
   absl::Format(
