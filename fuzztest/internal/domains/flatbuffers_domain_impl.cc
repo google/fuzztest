@@ -137,7 +137,9 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
     }
     field_counter++;
 
-    if (field->type()->base_type() == reflection::BaseType::Obj) {
+    auto base_type = field->type()->base_type();
+
+    if (base_type == reflection::BaseType::Obj) {
       auto sub_object = schema_->objects()->Get(field->type()->index());
       if (!sub_object->is_struct()) {
         field_counter +=
@@ -146,6 +148,21 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
                 selected_field_index - field_counter);
       }
       // TODO: Add support for structs.
+    }
+
+    if (base_type == reflection::BaseType::Vector ||
+        base_type == reflection::BaseType::Vector64) {
+      auto elem_type = field->type()->element();
+      if (elem_type == reflection::BaseType::Obj) {
+        auto sub_object = schema_->objects()->Get(field->type()->index());
+        if (!sub_object->is_struct()) {
+          field_counter +=
+              GetCachedDomain<FlatbuffersVectorTag<FlatbuffersTableTag>>(field)
+                  .MutateSelectedField(val[field->id()], prng, metadata,
+                                       only_shrink,
+                                       selected_field_index - field_counter);
+        }
+      }
     }
 
     if (field_counter > selected_field_index) {
@@ -266,6 +283,16 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
     auto sub_object = schema_->objects()->Get(field->type()->index());
     return !sub_object->is_struct();
   };
+  if (base_type == reflection::BaseType::Vector ||
+      base_type == reflection::BaseType::Vector64) {
+    auto elem_type = field->type()->element();
+    if (flatbuffers::IsScalar(elem_type)) return true;
+    if (elem_type == reflection::BaseType::String) return true;
+    if (elem_type == reflection::BaseType::Obj) {
+      auto sub_object = schema_->objects()->Get(field->type()->index());
+      return !sub_object->is_struct();
+    }
+  }
   return false;
 }
 
