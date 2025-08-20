@@ -14,13 +14,9 @@
 
 # The package contains libraries that are common to both FuzzTest and Centipede.
 
-VISIBILITY = ["//visibility:public"]
+DEFAULT_VISIBILITY = ["//visibility:public"]
 
-EXTENDED_API_VISIBILITY = VISIBILITY
-
-PUBLIC_API_VISIBILITY = VISIBILITY
-
-package(default_visibility = VISIBILITY)
+package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
@@ -55,7 +51,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":defs",
         ":hash",
@@ -85,7 +80,6 @@ cc_library(
 cc_library(
     name = "defs",
     hdrs = ["defs.h"],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = ["@abseil-cpp//absl/types:span"],
 )
 
@@ -93,7 +87,6 @@ cc_library(
     name = "hash",
     srcs = ["hash.cc"],
     hdrs = ["hash.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":defs",
         ":sha1",
