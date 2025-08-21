@@ -18,13 +18,9 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
-VISIBILITY = ["//visibility:public"]
+DEFAULT_VISIBILITY = ["//visibility:public"]
 
-EXTENDED_API_VISIBILITY = VISIBILITY
-
-PUBLIC_API_VISIBILITY = VISIBILITY
-
-package(default_visibility = VISIBILITY)
+package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
@@ -49,7 +45,6 @@ cc_binary(
 cc_uninstrumented_binary(
     name = "centipede_uninstrumented",
     binary = ":centipede",
-    visibility = PUBLIC_API_VISIBILITY,
 )
 
 # A standalone seed corpus generator.
@@ -98,7 +93,6 @@ proto_library(
 
 cc_proto_library(
     name = "seed_corpus_config_cc_proto",
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [":seed_corpus_config_proto"],
 )
 
@@ -128,7 +122,6 @@ cc_library(
     name = "symbol_table",
     srcs = ["symbol_table.cc"],
     hdrs = ["symbol_table.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":command",
         ":control_flow",
@@ -159,7 +152,6 @@ cc_library(
         "hashed_ring_buffer.h",  # TODO(kcc): consider moving to a separate cc_library.
     ],
     copts = DISABLE_SANCOV_COPTS,
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":rolling_hash",
         "@abseil-cpp//absl/base:core_headers",  # exception, ok to depend on here.
@@ -170,7 +162,6 @@ cc_library(
     name = "pc_info",
     srcs = ["pc_info.cc"],
     hdrs = ["pc_info.h"],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
@@ -212,7 +203,6 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":feature",
         "@abseil-cpp//absl/base:core_headers",
@@ -232,7 +222,6 @@ cc_library(
     name = "config_util",
     srcs = ["config_util.cc"],
     hdrs = ["config_util.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         "@abseil-cpp//absl/flags:reflection",
         "@abseil-cpp//absl/strings",
@@ -243,7 +232,6 @@ cc_library(
     name = "config_init",
     srcs = ["config_init.cc"],
     hdrs = ["config_init.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":config_util",
         "@abseil-cpp//absl/base:core_headers",
@@ -260,7 +248,6 @@ cc_library(
     name = "config_file",
     srcs = ["config_file.cc"],
     hdrs = ["config_file.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":config_init",
         ":config_util",
@@ -396,7 +383,6 @@ cc_library(
     name = "analyze_corpora",
     srcs = ["analyze_corpora.cc"],
     hdrs = ["analyze_corpora.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":binary_info",
         ":control_flow",
@@ -425,7 +411,6 @@ cc_library(
             "-lrt",  # for shm_open
         ],
     }),
-    visibility = PUBLIC_API_VISIBILITY,
     deps = ["@abseil-cpp//absl/base:nullability"],
     # don't add any dependencies.
 )
@@ -448,7 +433,6 @@ cc_library(
     srcs = ["runner_result.cc"],
     hdrs = ["runner_result.h"],
     copts = DISABLE_SANCOV_COPTS,
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -478,7 +462,6 @@ cc_library(
     name = "mutation_input",
     hdrs = ["mutation_input.h"],
     copts = DISABLE_SANCOV_COPTS,
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
@@ -492,7 +475,6 @@ cc_library(
     srcs = ["byte_array_mutator.cc"],
     hdrs = ["byte_array_mutator.h"],
     copts = DISABLE_SANCOV_COPTS,
-    visibility = PUBLIC_API_VISIBILITY,
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         ":execution_metadata",
@@ -513,7 +495,6 @@ cc_library(
     hdrs = [
         "coverage.h",
     ],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
         ":feature",
@@ -539,7 +520,6 @@ cc_library(
     hdrs = [
         "control_flow.h",
     ],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":command",
         ":pc_info",
@@ -563,7 +543,6 @@ cc_library(
     hdrs = [
         "call_graph.h",
     ],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":control_flow",
         ":pc_info",
@@ -611,7 +590,6 @@ cc_library(
     name = "command",
     srcs = ["command.cc"],
     hdrs = ["command.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":stop",
         ":util",
@@ -632,7 +610,6 @@ cc_library(
     hdrs = [
         "binary_info.h",
     ],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":call_graph",
         ":command",
@@ -654,7 +631,6 @@ cc_library(
     hdrs = [
         "centipede_callbacks.h",
     ],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":binary_info",
         ":byte_array_mutator",
@@ -710,7 +686,6 @@ cc_library(
             "-latomic",  # for std::atomic::load()/store().
         ],
     }),
-    visibility = PUBLIC_API_VISIBILITY,
     deps = ["@abseil-cpp//absl/time"],
 )
 
@@ -722,7 +697,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":centipede_flags",
         ":environment",
@@ -746,7 +720,6 @@ cc_library(
     hdrs = [
         "centipede.h",
     ],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":binary_info",
         ":centipede_callbacks",
@@ -789,7 +762,6 @@ cc_library(
     name = "centipede_interface",
     srcs = ["centipede_interface.cc"],
     hdrs = ["centipede_interface.h"],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":analyze_corpora",
         ":binary_info",
@@ -844,7 +816,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":centipede_flags",
         ":feature",
@@ -897,7 +868,6 @@ cc_library(
     name = "centipede_default_callbacks",
     srcs = ["centipede_default_callbacks.cc"],
     hdrs = ["centipede_default_callbacks.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":centipede_callbacks",
         ":environment",
@@ -952,7 +922,6 @@ cc_library(
     name = "runner_fork_server",
     srcs = ["runner_fork_server.cc"],
     copts = DISABLE_SANCOV_COPTS,
-    visibility = PUBLIC_API_VISIBILITY,
     deps = ["@abseil-cpp//absl/base:nullability"],
     alwayslink = 1,  # Otherwise the linker drops the fork server.
 )
@@ -969,7 +938,6 @@ cc_library(
     name = "runner_flags",
     srcs = ["runner_flags.cc"],
     hdrs = ["runner_flags.h"],
-    visibility = PUBLIC_API_VISIBILITY,
     # This has no dependency and only uses string, pair and vector.
 )
 
@@ -1130,7 +1098,6 @@ cc_library(
     name = "seed_corpus_maker_lib",
     srcs = ["seed_corpus_maker_lib.cc"],
     hdrs = ["seed_corpus_maker_lib.h"],
-    visibility = EXTENDED_API_VISIBILITY,
     deps = [
         ":corpus_io",
         ":feature",
@@ -1233,7 +1200,6 @@ cc_library(
     name = "workdir",
     srcs = ["workdir.cc"],
     hdrs = ["workdir.h"],
-    visibility = PUBLIC_API_VISIBILITY,
     deps = [
         ":environment",
         "@abseil-cpp//absl/strings",
