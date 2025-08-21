@@ -281,7 +281,6 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
         "@com_google_fuzztest//common:logging",
     ],
@@ -1865,7 +1864,7 @@ cc_test(
     srcs = ["crash_summary_test.cc"],
     deps = [
         ":crash_summary",
-        "@abseil-cpp//absl/log:check",
+        "@com_google_fuzztest//common:logging",
         "@googletest//:gtest_main",
     ],
 )

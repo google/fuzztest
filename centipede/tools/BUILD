@@ -24,13 +24,12 @@ cc_binary(
     deps = [
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@com_google_fuzztest//centipede:feature",
         "@com_google_fuzztest//centipede:util",
         "@com_google_fuzztest//common:blob_file",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:logging",
     ],
 )

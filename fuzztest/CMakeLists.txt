@@ -199,7 +199,6 @@ fuzztest_cc_library(
     fuzztest::flag_name
     fuzztest::googletest_adaptor
     fuzztest::io
-    fuzztest::logging
     fuzztest::registry
     fuzztest::runtime
     GTest::gtest

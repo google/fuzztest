@@ -16,7 +16,6 @@
 //
 // Specifically, used by `functional_test` only.
 
-#include <cerrno>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -40,7 +39,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./common/logging.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/test_flatbuffers_generated.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
@@ -798,11 +796,11 @@ class AlternateSignalStackFixture {
     // where the callbacks from the signal handler happen in a separate stack.
     new_sigact.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
-    FUZZTEST_CHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0) << errno;
+    FUZZTEST_PCHECK(sigaction(SIGUSR1, &new_sigact, nullptr) == 0);
     stack_t test_stack = {};
     test_stack.ss_size = 1 << 20;
     test_stack.ss_sp = malloc(test_stack.ss_size);
-    FUZZTEST_CHECK(sigaltstack(&test_stack, &old_stack) == 0) << errno;
+    FUZZTEST_PCHECK(sigaltstack(&test_stack, &old_stack) == 0);
   }
 
   void StackCalculationWorksWithAlternateStackForSignalHandlers(int i) {
@@ -822,7 +820,7 @@ class AlternateSignalStackFixture {
   ~AlternateSignalStackFixture() {
     stack_t test_stack = {};
     // Resume to the old signal stack.
-    FUZZTEST_CHECK(sigaltstack(&old_stack, &test_stack) == 0) << errno;
+    FUZZTEST_PCHECK(sigaltstack(&old_stack, &test_stack) == 0);
     free(test_stack.ss_sp);
   }
 

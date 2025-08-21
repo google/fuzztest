@@ -26,14 +26,13 @@
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "./centipede/feature.h"
 #include "./centipede/util.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 ABSL_FLAG(std::string, feature_file, "", "Path to the feature file to read");
 
@@ -63,7 +62,7 @@ absl::StatusOr<FeatureVec> ReadFeaturesFile(absl::string_view features_path) {
 
 absl::Status FeatureAnalyzerMain() {
   size_t user_domain = absl::GetFlag(FLAGS_user_domain);
-  CHECK_LT(user_domain, feature_domains::kUserDomains.size());
+  FUZZTEST_CHECK_LT(user_domain, feature_domains::kUserDomains.size());
   size_t goal_domain = feature_domains::kUserDomains[user_domain].domain_id();
 
   absl::StatusOr<FeatureVec> features_or =

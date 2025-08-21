@@ -130,7 +130,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:flag_name",
         "@com_google_fuzztest//fuzztest/internal:googletest_adaptor",
         "@com_google_fuzztest//fuzztest/internal:io",
-        "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:registry",
         "@com_google_fuzztest//fuzztest/internal:runtime",
         "@googletest//:gtest",

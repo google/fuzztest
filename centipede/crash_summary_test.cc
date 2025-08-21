@@ -19,7 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -39,7 +39,7 @@ class CrashSummaryTest : public testing::Test {
 
  protected:
   static void DumpCrashSummary(const CrashSummary& summary) {
-    CHECK(dumped_summary_ == nullptr);
+    FUZZTEST_CHECK(dumped_summary_ == nullptr);
     dumped_summary_ = new CrashSummary{summary};
   };
 
