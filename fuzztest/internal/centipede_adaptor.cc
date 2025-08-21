@@ -985,6 +985,7 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       // The first empty path means no output dir.
       replay_env.corpus_dir = {"", minimize_dir};
       replay_env.load_shards_only = true;
+      replay_env.report_crash_summary = false;
       FUZZTEST_CHECK(
           RunCentipede(replay_env, configuration.centipede_command) == 0)
           << "Failed to replaying the testsuite for minimization";
