@@ -46,7 +46,6 @@ namespace {
 
 using ::testing::Contains;
 using ::testing::ContainsRegex;
-using ::testing::Eq;
 using ::testing::HasSubstr;
 
 std::string GetCorpusDatabaseTestingBinaryPath() {
@@ -170,13 +169,14 @@ absl::NoDestructor<
     UpdateCorpusDatabaseTest::run_map_{};
 
 TEST_P(UpdateCorpusDatabaseTest, RunsFuzzTests) {
-  EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
-              AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
-                    HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
+  const auto std_err = GetUpdateCorpusDatabaseStdErr();
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
+                        HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
-  const auto &std_err = GetUpdateCorpusDatabaseStdErr();
+  const auto std_err = GetUpdateCorpusDatabaseStdErr();
   EXPECT_THAT_LOG(
       std_err,
       AllOf(HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz"),
@@ -185,7 +185,7 @@ TEST_P(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
 }
 
 TEST_P(UpdateCorpusDatabaseTest, FindsAllCrashes) {
-  const auto &std_err = GetUpdateCorpusDatabaseStdErr();
+  const auto std_err = GetUpdateCorpusDatabaseStdErr();
   EXPECT_THAT_LOG(
       std_err,
       AllOf(ContainsRegex(R"re(Failure\s*: GoogleTest assertion failure)re"),
@@ -200,14 +200,15 @@ TEST_P(UpdateCorpusDatabaseTest, DeduplicatesCrashes) {
 }
 
 TEST_P(UpdateCorpusDatabaseTest, ReportsCrashSummary) {
-  EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
-              AllOf(ContainsRegex(
-                        R"re((?s)=== Summary of detected crashes ===
+  const auto std_err = GetUpdateCorpusDatabaseStdErr();
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsInTwoWays
 .*?Total crashes: 2
 .*?=== End of summary of detected crashes ===)re"),
-                    ContainsRegex(
-                        R"re((?s)=== Summary of detected crashes ===
+                        ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsWithStackOverflow
 .*?Total crashes: 1
 .*?=== End of summary of detected crashes ===)re")));
@@ -374,7 +375,8 @@ TEST_P(UpdateCorpusDatabaseTest,
                         HasSubstr("Starting a new run of the fuzz test")));
 }
 
-TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
+TEST_P(UpdateCorpusDatabaseTest,
+       ReplaysFuzzTestsInParallelAndPrintsCrashSummary) {
   RunOptions run_options;
   run_options.fuzztest_flags = {
       {"corpus_database", UpdateCorpusDatabaseAndGetPath()},
@@ -389,6 +391,17 @@ TEST_P(UpdateCorpusDatabaseTest, ReplaysFuzzTestsInParallel) {
       AllOf(HasSubstr("Replaying FuzzTest.FailsInTwoWays"),
             HasSubstr("Replaying FuzzTest.FailsWithStackOverflow"),
             HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz")));
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsInTwoWays
+.*?Total crashes: 0
+.*?=== End of summary of detected crashes ===)re"),
+                        ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsWithStackOverflow
+.*?Total crashes: 0
+.*?=== End of summary of detected crashes ===)re")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
