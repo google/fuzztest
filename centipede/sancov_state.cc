@@ -56,7 +56,7 @@ namespace {
 size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
-  static constexpr size_t kMaxLen = 63;
+  static constexpr size_t kMaxLen = feature_domains::kCMPScoreBitmask;
   if (n > kMaxLen) n = kMaxLen;
   for (size_t i = 0; i < n; ++i) {
     if (p1[i] != p2[i]) return i;
@@ -98,8 +98,13 @@ void ThreadLocalSancovState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
     const uintptr_t hash =
         fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
     const size_t lcp = LengthOfCommonPrefix(s1, s2, n);
-    // lcp is a 6-bit number.
-    sancov_state->cmp_feature_set.set((hash << 6) | lcp);
+    if (is_equal) {
+      sancov_state->cmp_eq_set.set(hash);
+    } else {
+      // lcp is within feature_domains::kCMPScoreBits.
+      sancov_state->cmp_moddiff_set.set(
+          (hash << feature_domains::kCMPScoreBits) | lcp);
+    }
   }
   if (!is_equal && sancov_state->flags.use_auto_dictionary) {
     cmp_traceN.Capture(n, s1, s2);
