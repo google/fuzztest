@@ -43,10 +43,10 @@ std::vector<FeatureVec> RunInputsAndCollectCoverage(
 class TestCallbacks : public CentipedeCallbacks {
  public:
   explicit TestCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
-    int result =
-        ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result);
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
+    int result = ExecuteCentipedeSancovBinaryWithShmem(binary, inputs,
+                                                       batch_result, deadline);
     FUZZTEST_CHECK_EQ(EXIT_SUCCESS, result);
     return true;
   }
