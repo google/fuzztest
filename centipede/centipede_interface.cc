@@ -25,6 +25,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -326,9 +327,10 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
 }
 
 // TODO(b/405382531): Add unit tests once the function is unit-testable.
-void DeduplicateAndStoreNewCrashes(
-    const std::filesystem::path& crashing_dir, const WorkDir& workdir,
-    size_t total_shards, absl::flat_hash_set<std::string> crash_signatures,
+void DeduplicateAndOptionallyStoreNewCrashes(
+    const WorkDir& workdir, size_t total_shards,
+    absl::flat_hash_set<std::string> crash_signatures,
+    const std::optional<std::filesystem::path>& crashing_dir,
     CrashSummary& crash_summary) {
   for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
     const std::vector<std::string> new_crashing_input_files =
@@ -341,7 +343,9 @@ void DeduplicateAndStoreNewCrashes(
     const std::filesystem::path crash_metadata_dir =
         workdir.CrashMetadataDirPaths().Shard(shard_idx);
 
-    FUZZTEST_CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
+    if (crashing_dir.has_value()) {
+      FUZZTEST_CHECK_OK(RemoteMkdir(crashing_dir->c_str()));
+    }
     for (const std::string& crashing_input_file : new_crashing_input_files) {
       const std::string crashing_input_file_name =
           std::filesystem::path(crashing_input_file).filename();
@@ -377,9 +381,11 @@ void DeduplicateAndStoreNewCrashes(
                               /*category=*/new_crash_description,
                               std::move(new_crash_signature),
                               new_crash_description});
-      FUZZTEST_CHECK_OK(
-          RemoteFileRename(crashing_input_file,
-                           (crashing_dir / crashing_input_file_name).c_str()));
+      if (crashing_dir.has_value()) {
+        FUZZTEST_CHECK_OK(RemoteFileRename(
+            crashing_input_file,
+            (*crashing_dir / crashing_input_file_name).c_str()));
+      }
     }
   }
 }
@@ -689,7 +695,27 @@ int UpdateCorpusDatabaseForFuzzTests(
 
     // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
     // of checking whether workdir is specified or not.
-    if (fuzztest_config.only_replay || is_workdir_specified) continue;
+    const bool skip_corpus_db_update =
+        fuzztest_config.only_replay || is_workdir_specified;
+    if (skip_corpus_db_update && !env.report_crash_summary) continue;
+
+    // Deduplicate and optionally update the crashing inputs.
+    CrashSummary crash_summary{fuzztest_config.binary_identifier,
+                               fuzz_tests_to_run[i]};
+    const std::optional<std::filesystem::path> crashing_dir =
+        skip_corpus_db_update ? std::nullopt
+                              : std::make_optional<std::filesystem::path>(
+                                    fuzztest_db_path / "crashing");
+    absl::flat_hash_set<std::string> crash_signatures =
+        skip_corpus_db_update
+            ? absl::flat_hash_set<std::string>{}
+            : PruneOldCrashesAndGetRemainingCrashSignatures(
+                  *crashing_dir, env, callbacks_factory, crash_summary);
+    DeduplicateAndOptionallyStoreNewCrashes(workdir, env.total_shards,
+                                            std::move(crash_signatures),
+                                            crashing_dir, crash_summary);
+    if (env.report_crash_summary) crash_summary.Report(&std::cerr);
+    if (skip_corpus_db_update) continue;
 
     // Distill and store the coverage corpus.
     Distill(env);
@@ -710,17 +736,6 @@ int UpdateCorpusDatabaseForFuzzTests(
       FUZZTEST_CHECK_OK(
           RemoteFileRename(corpus_file, (coverage_dir / file_name).c_str()));
     }
-
-    // Deduplicate and update the crashing inputs.
-    CrashSummary crash_summary{fuzztest_config.binary_identifier,
-                               fuzz_tests_to_run[i]};
-    const std::filesystem::path crashing_dir = fuzztest_db_path / "crashing";
-    absl::flat_hash_set<std::string> crash_signatures =
-        PruneOldCrashesAndGetRemainingCrashSignatures(
-            crashing_dir, env, callbacks_factory, crash_summary);
-    DeduplicateAndStoreNewCrashes(crashing_dir, workdir, env.total_shards,
-                                  std::move(crash_signatures), crash_summary);
-    crash_summary.Report(&std::cerr);
   }
 
   return EXIT_SUCCESS;
@@ -786,7 +801,18 @@ int ReplayCrash(const Environment& env,
       crash_corpus_config, env.binary_name, env.binary_hash));
   Environment run_crash_env = env;
   run_crash_env.load_shards_only = true;
-  return Fuzz(run_crash_env, {}, "", callbacks_factory);
+  int fuzz_result = Fuzz(run_crash_env, {}, "", callbacks_factory);
+  if (env.report_crash_summary) {
+    CrashSummary crash_summary{target_config.binary_identifier,
+                               target_config.fuzz_tests_in_current_shard[0]};
+    // There should be at most one crash, so no deduplication actually happens.
+    DeduplicateAndOptionallyStoreNewCrashes(workdir, /*total_shards=*/1,
+                                            /*crash_signatures=*/{},
+                                            /*crashing_dir=*/std::nullopt,
+                                            crash_summary);
+    crash_summary.Report(&std::cerr);
+  }
+  return fuzz_result;
 }
 
 int ExportCrash(const Environment& env,
@@ -938,6 +964,8 @@ int CentipedeMain(const Environment& env,
   if (env.analyze) return Analyze(env);
 
   return Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+  // TODO: fniksic - Report the crash summary here if requested. What are the
+  // binary identifier and the fuzz test name here?
 }
 
 }  // namespace fuzztest::internal

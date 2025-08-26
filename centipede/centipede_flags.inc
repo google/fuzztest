@@ -469,3 +469,7 @@ CENTIPEDE_FLAG(
     std::string, export_crash_file, "",
     "The path to export the input contents of `crash_id` for `export_crash`. "
     "For FuzzTest framework only, do not use from end-users.")
+CENTIPEDE_FLAG(
+    bool, report_crash_summary, true,
+    "If set, reports a summary of crashes found during fuzzing or replay."
+)
