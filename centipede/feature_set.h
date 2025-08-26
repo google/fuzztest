@@ -29,7 +29,7 @@
 
 namespace fuzztest::internal {
 
-// Set of features with their frequencies.
+// Set of features with their frequencies and scores (for CMP score features).
 // Features that have a frequency >= frequency_threshold
 // are considered too frequent and thus less interesting for further fuzzing.
 // All features must be in [0, feature_domains::kLastDomain.begin()).
@@ -55,9 +55,8 @@ class FeatureSet {
   // Effectively a subset of PruneFeaturesAndCountUnseen.
   void PruneDiscardedDomains(FeatureVec &features) const;
 
-  // For every feature in `features` increment its frequency.
-  // If a feature wasn't seen before, it is added to `this`.
-  void IncrementFrequencies(const FeatureVec &features);
+  // Merge `features` into the set.
+  void MergeFeatures(const FeatureVec& features);
 
   // How many different features are in the set.
   size_t size() const { return num_features_; }
@@ -84,7 +83,16 @@ class FeatureSet {
   }
 
   // Returns the frequency associated with `feature`.
-  size_t Frequency(feature_t feature) const { return frequencies_[feature]; }
+  size_t Frequency(feature_t feature) const {
+    if (feature_domains::IsComparisonScoreFeature(feature)) {
+      if ((feature & feature_domains::kCMPScoreBitmask) !=
+          cmp_scores_[feature_domains::CMPScoreFeatureIndex(feature)]) {
+        return 0;
+      }
+      feature &= ~feature_domains::kCMPScoreBitmask;
+    }
+    return frequencies_[feature];
+  }
 
   // Computes combined weight of `features`.
   // The less frequent the feature is, the bigger its weight.
@@ -126,6 +134,14 @@ class FeatureSet {
   // some parts of it will never be written to or read from.
   // Unused parts of MmapNoReserveArray don't actually reserve memory.
   MmapNoReserveArray<kSize> frequencies_;
+
+  static constexpr size_t kScoresSize =
+      (feature_domains::kCMPScoreDomains.back().end() -
+       feature_domains::kCMPScoreDomains.front().begin()) >>
+      feature_domains::kCMPScoreBits;
+
+  // Map each CMP feature to the highest score seen.
+  MmapNoReserveArray<kScoresSize> cmp_scores_;
 
   // Counts all unique features added to this.
   size_t num_features_ = 0;

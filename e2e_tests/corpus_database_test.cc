@@ -38,7 +38,7 @@
 #define EXPECT_THAT_LOG(log, matcher)                                  \
   EXPECT_TRUE(testing::Value(log, matcher))                            \
       << "Matcher: " << testing::DescribeMatcher<std::string>(matcher) \
-      << "Contents of " #log ":\n"                                     \
+      << "\nContents of " #log ":\n"                                   \
       << log
 
 namespace fuzztest::internal {
@@ -170,9 +170,9 @@ absl::NoDestructor<
     UpdateCorpusDatabaseTest::run_map_{};
 
 TEST_P(UpdateCorpusDatabaseTest, RunsFuzzTests) {
-  EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
-              AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
-                    HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
+  EXPECT_THAT_LOG(GetUpdateCorpusDatabaseStdErr(),
+                  AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
+                        HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
@@ -200,14 +200,14 @@ TEST_P(UpdateCorpusDatabaseTest, DeduplicatesCrashes) {
 }
 
 TEST_P(UpdateCorpusDatabaseTest, ReportsCrashSummary) {
-  EXPECT_THAT(GetUpdateCorpusDatabaseStdErr(),
-              AllOf(ContainsRegex(
-                        R"re((?s)=== Summary of detected crashes ===
+  EXPECT_THAT_LOG(GetUpdateCorpusDatabaseStdErr(),
+                  AllOf(ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsInTwoWays
 .*?Total crashes: 2
 .*?=== End of summary of detected crashes ===)re"),
-                    ContainsRegex(
-                        R"re((?s)=== Summary of detected crashes ===
+                        ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsWithStackOverflow
 .*?Total crashes: 1
 .*?=== End of summary of detected crashes ===)re")));

@@ -447,7 +447,7 @@ bool Centipede::RunBatch(
     if (input_gained_new_coverage) {
       // TODO(kcc): [impl] add stats for filtered-out inputs.
       if (!InputPassesFilter(input_vec[i])) continue;
-      fs_.IncrementFrequencies(fv);
+      fs_.MergeFeatures(fv);
       LogFeaturesAsSymbols(fv);
       batch_gained_new_coverage = true;
       FUZZTEST_CHECK_GT(fv.size(), 0UL);
@@ -492,7 +492,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
       if (num_new_features != 0) {
         FUZZTEST_VLOG(10) << "Adding input " << Hash(input)
                           << "; new features: " << num_new_features;
-        fs_.IncrementFrequencies(input_features);
+        fs_.MergeFeatures(input_features);
         // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
         corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
         ++num_added_inputs;

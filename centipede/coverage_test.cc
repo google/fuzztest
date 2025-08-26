@@ -328,14 +328,14 @@ TEST(Coverage, CMPFeatures) {
 
   // Check moddiff.
   clear();
-  for (uintptr_t a = 0; a <= 64; ++a) {
-    uintptr_t b = 32;
+  for (uintptr_t a = 0; a <= 128; ++a) {
+    uintptr_t b = 64;
     if (a == b) continue;
     update(a, b);
   }
   EXPECT_EQ(moddiff.size(), 64);
-  EXPECT_EQ(hamming.size(), 6);
-  EXPECT_EQ(difflog.size(), 6);
+  EXPECT_EQ(hamming.size(), 7);
+  EXPECT_EQ(difflog.size(), 7);
 
   // Check hamming.
   clear();
@@ -344,7 +344,7 @@ TEST(Coverage, CMPFeatures) {
     uintptr_t a = minus_one << bits;
     update(a, 0);
   }
-  EXPECT_EQ(moddiff.size(), 6);
+  EXPECT_EQ(moddiff.size(), 1);
   EXPECT_EQ(hamming.size(), 64);
   EXPECT_EQ(difflog.size(), 1);
 
@@ -389,9 +389,14 @@ TEST(Coverage, CMPFeaturesFromMemcmp) {
   auto features =
       RunInputsAndCollectCoverage(env, {"mcmpAAAAAAAA", "mcmpAAAABBBB"});
   EXPECT_EQ(features.size(), 2);
-  // CMP features should be different.
-  EXPECT_NE(ExtractDomainFeatures(features[0], feature_domains::kCMP),
-            ExtractDomainFeatures(features[1], feature_domains::kCMP));
+  // CMP mod diff score features should be different.
+  EXPECT_NE(ExtractDomainFeatures(features[0], feature_domains::kCMPModDiff),
+            ExtractDomainFeatures(features[1], feature_domains::kCMPModDiff));
+  // But other CMP score features should be the same.
+  EXPECT_EQ(ExtractDomainFeatures(features[0], feature_domains::kCMPHamming),
+            ExtractDomainFeatures(features[1], feature_domains::kCMPHamming));
+  EXPECT_EQ(ExtractDomainFeatures(features[0], feature_domains::kCMPDiffLog),
+            ExtractDomainFeatures(features[1], feature_domains::kCMPDiffLog));
   // But control flow features should be the same.
   EXPECT_EQ(ExtractDomainFeatures(features[0], feature_domains::k8bitCounters),
             ExtractDomainFeatures(features[1], feature_domains::k8bitCounters));
