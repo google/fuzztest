@@ -65,6 +65,13 @@ inline bool RandomBool(absl::BitGenRef prng) {
 template <class T>
 class TableOfRecentCompares {
  public:
+  TableOfRecentCompares() {}
+
+  // Constructs an integer comparison table with the `compact` option: When it
+  // is true, `GetRandomOffset()`/`GetRandomEntry()` would sample from inserted
+  // offsets/entries, unless the table is empty.
+  explicit TableOfRecentCompares(bool compact) : compact_(compact) {}
+
   // One page size.
   static_assert(std::is_integral_v<T> && (sizeof(T) == 1 || sizeof(T) == 2 ||
                                           sizeof(T) == 4 || sizeof(T) == 8),
@@ -74,12 +81,17 @@ class TableOfRecentCompares {
   static constexpr size_t kTableSize = 4096U / sizeof(T);
   static constexpr T kValueMask = static_cast<T>(kTableSize - 1);
 
-  // Use LCG algorithm generated pesudo random index.
-  // https://en.wikipedia.org/wiki/Linear_congruential_generator
   void Insert(T lhs, T rhs) {
-    insert_index_ = (insert_index_ * 37 + 89) & kValueMask;
+    if (!compact_) {
+      // Use LCG algorithm generated pesudo random index.
+      // https://en.wikipedia.org/wiki/Linear_congruential_generator
+      insert_index_ = (insert_index_ * 37 + 89) & kValueMask;
+    }
     table_[insert_index_].lhs = lhs;
     table_[insert_index_].rhs = rhs;
+    if (compact_ && ++insert_index_ == kTableSize) {
+      compact_ = false;
+    }
   }
 
   // Returns values from the table that were compared to `val`.
@@ -92,14 +104,14 @@ class TableOfRecentCompares {
     // Some simple optimization.
     if (min == std::numeric_limits<ValueType>::min() &&
         max == std::numeric_limits<ValueType>::max()) {
-      for (size_t i = 0; i < kTableSize; ++i) {
+      for (size_t i = 0; i < GetSize(); ++i) {
         auto dict_entry = GetMatchingIntegerDictionaryEntry(val, i);
         if (dict_entry.has_value()) {
           dictionary_set.insert(std::move(*dict_entry));
         }
       }
     } else {
-      for (size_t i = 0; i < kTableSize; ++i) {
+      for (size_t i = 0; i < GetSize(); ++i) {
         auto dict_entry = GetMatchingIntegerDictionaryEntry(val, i, min, max);
         if (dict_entry.has_value()) {
           dictionary_set.insert(std::move(*dict_entry));
@@ -147,8 +159,15 @@ class TableOfRecentCompares {
     return table_;
   }
 
+  size_t GetSize() const { return compact_ ? insert_index_ : kTableSize; }
+
+  size_t GetRandomOffset(absl::BitGenRef prng) const {
+    const auto size = GetSize();
+    return size == 0 ? 0 : ChooseOffset(size, prng);
+  }
+
   CompareEntry GetRandomEntry(absl::BitGenRef prng) const {
-    return table_[ChooseOffset(kTableSize, prng)];
+    return table_[GetRandomOffset(prng)];
   }
 
   template <typename ValueType>
@@ -174,6 +193,7 @@ class TableOfRecentCompares {
   // We compute the next index based on the previous one, so
   // we need to store it here.
   size_t insert_index_ = 0;
+  bool compact_ = false;
   std::array<CompareEntry, kTableSize> table_ = {};
 };
 
@@ -191,15 +211,27 @@ class TableOfRecentlyComparedBuffers {
   static constexpr size_t kValueMask = 127;
   static constexpr size_t kEntrySize = 128;
 
-  // Use LCG algorithm generated pesudo random index.
+  TableOfRecentlyComparedBuffers() {}
+
+  // Constructs a buffer comparison table with the `compact` option: When it is
+  // true, `GetRandomOffset()`/`GetRandomEntry()` would sample from inserted
+  // offsets/entries, unless the table is empty.
+  explicit TableOfRecentlyComparedBuffers(bool compact) : compact_(compact) {};
+
   void Insert(const uint8_t* buf1, const uint8_t* buf2, size_t n) {
-    // LCG algorithm parameter: (37, 89).
-    insert_index_ = (insert_index_ * 37 + 89) & kValueMask;
+    if (!compact_) {
+      // Use LCG algorithm generated pesudo random index.
+      // LCG algorithm parameter: (37, 89).
+      insert_index_ = (insert_index_ * 37 + 89) & kValueMask;
+    }
     if (n >= kEntrySize) n = kEntrySize - 1;
     ComparedBufferEntry& entry = table_[insert_index_];
     entry.buf_size = n;
     std::copy(buf1, buf1 + n, entry.buf1.begin());
     std::copy(buf2, buf2 + n, entry.buf2.begin());
+    if (compact_ && ++insert_index_ == kTableSize) {
+      compact_ = false;
+    }
   }
 
   // Returns entries from the table that were compared to `val`.
@@ -212,7 +244,8 @@ class TableOfRecentlyComparedBuffers {
         "GetMatchingDictionaryEntries only accepts basic"
         " types with size = {1, 2, 4, 8}.");
     absl::flat_hash_set<DictionaryEntry<ContainerT>> dictionary = {};
-    for (const ComparedBufferEntry& table_entry : table_) {
+    for (size_t i = 0; i < GetSize(); ++i) {
+      const ComparedBufferEntry& table_entry = table_[i];
       const auto dict_entries = GetMatchingContainerDictionaryEntries(
           val, table_entry.buf1.data(), table_entry.buf2.data(),
           table_entry.buf_size);
@@ -266,8 +299,19 @@ class TableOfRecentlyComparedBuffers {
     return entries;
   }
 
+  const std::array<ComparedBufferEntry, kTableSize>& GetTable() const {
+    return table_;
+  }
+
+  size_t GetSize() const { return compact_ ? insert_index_ : kTableSize; }
+
+  size_t GetRandomOffset(absl::BitGenRef prng) const {
+    const auto size = GetSize();
+    return size == 0 ? 0 : ChooseOffset(size, prng);
+  }
+
   const ComparedBufferEntry& GetRandomEntry(absl::BitGenRef prng) const {
-    return table_[ChooseOffset(kTableSize, prng)];
+    return table_[GetRandomOffset(prng)];
   }
 
   template <typename ContainerT>
@@ -297,12 +341,25 @@ class TableOfRecentlyComparedBuffers {
               std::back_inserter(result));
     return result;
   }
+
   size_t insert_index_ = 0;
+  bool compact_ = false;
   std::array<ComparedBufferEntry, kTableSize> table_ = {};
 };
 
 class TablesOfRecentCompares {
  public:
+  TablesOfRecentCompares() {}
+
+  // Constructs comparison tables with the `compact` option propagated - see the
+  // corresponding class constructors.
+  explicit TablesOfRecentCompares(bool compact)
+      : i8_cmp_table(compact),
+        i16_cmp_table(compact),
+        i32_cmp_table(compact),
+        i64_cmp_table(compact),
+        mem_cmp_table(compact) {}
+
   template <int I>
   const auto& Get() const {
     static_assert(I == 0 || I == 1 || I == 2 || I == 4 || I == 8,
@@ -370,7 +427,7 @@ class IntegerDictionary {
                                              const TablesOfRecentCompares& torc,
                                              T min, T max) {
     auto& table = torc.Get<sizeof(T)>();
-    size_t random_offset = ChooseOffset(table.kTableSize, prng);
+    size_t random_offset = table.GetRandomOffset(prng);
     std::optional<T> result =
         table.GetMatchingIntegerDictionaryEntry(val, random_offset, min, max);
     if (!result.has_value()) {

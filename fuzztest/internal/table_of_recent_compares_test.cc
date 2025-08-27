@@ -1,7 +1,9 @@
 
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -11,6 +13,8 @@
 
 namespace fuzztest::internal {
 namespace {
+
+using testing::UnorderedElementsAre;
 
 // TODO(JunyangShao) : Make these functions neater (https://abseil.io/tips/122).
 TablesOfRecentCompares GetFilledIntegerTORC() {
@@ -160,6 +164,33 @@ TEST(TablesOfRecentComparesTest, ContainerDictionaryCorrect) {
     }
   }
   EXPECT_GT(try_count, 0);
+}
+
+TEST(TablesOfRecentComparesTest,
+     GetRandomOffsetIsWithinPopulatedFromNonEmptyCompactTables) {
+  TablesOfRecentCompares tables(/*compact=*/true);
+  absl::BitGen bitgen;
+
+  tables.GetMutable<4>().Insert(1234, 5678);
+  tables.GetMutable<4>().Insert(4321, 8765);
+  std::set<size_t> integer_table_offsets;
+  for (int i = 0; i < 100; ++i) {
+    integer_table_offsets.insert(
+        tables.GetMutable<4>().GetRandomOffset(bitgen));
+  }
+  EXPECT_THAT(integer_table_offsets, UnorderedElementsAre(0, 1));
+
+  const std::string a = "\x11\x11\x22\x22";
+  const std::string b = "\x33\x33\x44\x44";
+  tables.GetMutable<0>().Insert(reinterpret_cast<const uint8_t*>(a.data()),
+                                reinterpret_cast<const uint8_t*>(b.data()), 4);
+  tables.GetMutable<0>().Insert(reinterpret_cast<const uint8_t*>(b.data()),
+                                reinterpret_cast<const uint8_t*>(a.data()), 4);
+  std::set<size_t> buffer_table_offsets;
+  for (int i = 0; i < 100; ++i) {
+    buffer_table_offsets.insert(tables.GetMutable<0>().GetRandomOffset(bitgen));
+  }
+  EXPECT_THAT(buffer_table_offsets, UnorderedElementsAre(0, 1));
 }
 
 }  // namespace

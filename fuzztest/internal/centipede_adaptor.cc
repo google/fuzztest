@@ -548,7 +548,7 @@ class CentipedeAdaptorRunnerCallbacks
         if (runtime_.run_mode() == RunMode::kFuzz &&
             input_cmp_tables[origin_index] == nullptr) {
           input_cmp_tables[origin_index] =
-              std::make_unique<TablesOfRecentCompares>();
+              std::make_unique<TablesOfRecentCompares>(/*compact=*/true);
           PopulateMetadata(inputs[origin_index].metadata,
                            *input_cmp_tables[origin_index]);
         }
