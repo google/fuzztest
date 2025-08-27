@@ -1020,10 +1020,12 @@ RUNNER_SOURCES_NO_MAIN = [
 
 RUNNER_SOURCES_WITH_MAIN = RUNNER_SOURCES_NO_MAIN + ["runner_main.cc"]
 
-# Disable sancov and sanitizer instrumentation
+# Disable sancov and sanitizer instrumentation.
+#
+# Need to allow MSAN to avoid false positives when interacting with dependencies.
 RUNNER_COPTS = [
     "-fsanitize-coverage=0",
-    "-fno-sanitize=address,hwaddress,memory,thread,undefined",
+    "-fno-sanitize=address,hwaddress,thread,undefined",
 ]
 
 RUNNER_SANITIZED_COPTS = [

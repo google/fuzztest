@@ -27,6 +27,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -86,6 +87,15 @@ void DereferenceEmptyOptional(std::optional<int> i) {
   }
 }
 FUZZ_TEST(MySuite, DereferenceEmptyOptional);
+
+// We use this test to make sure we catch reading uninitialized memory.
+void UninitializedReadWithString(const std::string& s) {
+  if (s.empty()) return;
+  volatile uint8_t uninitialized_memory[1];
+  printf("Read byte %x\n", uninitialized_memory[0]);
+}
+FUZZ_TEST(MySuite, UninitializedReadWithString)
+    .WithDomains(fuzztest::Arbitrary<std::string>());
 
 // Always disable optimization for this example, otherwise (when optimization is
 // enabled) SanCov doesn't instrument all edges (and therefore no feedback).

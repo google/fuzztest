@@ -53,7 +53,12 @@ namespace {
 
 // Returns the length of the common prefix of `s1` and `s2`, but not more
 // than 63. I.e. the returned value is in [0, 64).
-size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
+//
+// Must not be sanitized because sanitizers may trigger this on unsanitized
+// data, causing false positives and nested failures.
+__attribute__((no_sanitize("all"))) size_t LengthOfCommonPrefix(const void* s1,
+                                                                const void* s2,
+                                                                size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
   static constexpr size_t kMaxLen = feature_domains::kCMPScoreBitmask;

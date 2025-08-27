@@ -1482,11 +1482,28 @@ class FuzzingModeCrashFindingTest
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
+#ifndef ADDRESS_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
+#endif
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithStringView");
   EXPECT_THAT_LOG(
       std_err,
       AnyOf(HasSubstr("ERROR: AddressSanitizer: container-overflow"),
             HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow")));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       UninitializedReadIsDetectedWithStringInFuzzingMode) {
+#ifndef MEMORY_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for MSAN errors without MSAN";
+#endif
+  auto [status, std_out, std_err] = Run("MySuite.UninitializedReadWithString");
+  EXPECT_THAT_LOG(
+      std_err,
+      AllOf(HasSubstr("MemorySanitizer: use-of-uninitialized-value"),
+            Not(HasSubstr(
+                "MemorySanitizer: nested bug in the same thread, aborting."))));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
@@ -1501,6 +1518,9 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringInFuzzingMode) {
+#ifndef ADDRESS_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
+#endif
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithString");
   EXPECT_THAT_LOG(std_err,
                   HasSubstr("ERROR: AddressSanitizer: heap-buffer-overflow"));
@@ -1509,6 +1529,9 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndLvalueStringViewRef) {
+#ifndef ADDRESS_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
+#endif
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndLvalueStringViewRef");
   EXPECT_THAT_LOG(std_err,
@@ -1518,6 +1541,9 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndRvalueStringViewRef) {
+#ifndef ADDRESS_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
+#endif
   auto [status, std_out, std_err] =
       Run("MySuite.BufferOverreadWithStringAndRvalueStringViewRef");
   EXPECT_THAT_LOG(std_err,
@@ -1528,10 +1554,10 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.DivByZero");
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 0"));
-#ifdef ADDRESS_SANITIZER
-  EXPECT_THAT(status, Ne(ExitCode(0)));
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+  EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
 #else
-  EXPECT_THAT(status, Eq(Signal(SIGFPE)));
+  EXPECT_THAT(status, Eq(Signal(SIGFPE))) << std_err;
 #endif
 }
 
@@ -1834,6 +1860,9 @@ TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
 }
 
 TEST_P(FuzzingModeCrashFindingTest, AsanCrashMetadataIsDumpedIfEnvVarIsSet) {
+#ifndef ADDRESS_SANITIZER
+  GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
+#endif
   TempDir out_dir;
   const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
   auto [status, std_out, std_err] =
