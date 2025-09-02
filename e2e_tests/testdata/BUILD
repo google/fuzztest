@@ -17,6 +17,10 @@
 # The binaries in this package contain a set of small fuzz tests that are used
 # by `functional_test` and `benchmark_test`.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
 package(default_visibility = ["//e2e_tests:__pkg__"])
 
 licenses(["notice"])

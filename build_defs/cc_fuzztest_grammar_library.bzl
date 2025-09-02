@@ -15,6 +15,8 @@
 """Build rules to create cc_library that implements the InGrammar domain for a
 given grammar from an ANTLRv4 grammar specification."""
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None, insert_whitespace = False):
     """Generates the C++ library corresponding to an antlr4 grammar specification.
 
@@ -52,8 +54,7 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None, insert_whites
         heuristic_label_expansion = False,
         tools = ["@com_google_fuzztest//tools:grammar_domain_code_generator"],
     )
-
-    native.cc_library(
+    cc_library(
         name = name,
         hdrs = [output_file_name],
         deps = ["@com_google_fuzztest//fuzztest/internal/domains:in_grammar_impl"],

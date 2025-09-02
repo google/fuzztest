@@ -14,6 +14,8 @@
 
 # Generated parser for antlr4 grammar.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 package(default_visibility = ["@com_google_fuzztest//grammar_codegen:__pkg__"])
 
 licenses(["notice"])

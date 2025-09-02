@@ -14,6 +14,9 @@
 
 # Code generation library for grammar support.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
 package(default_visibility = ["@com_google_fuzztest//tools:__pkg__"])
 
 licenses(["notice"])

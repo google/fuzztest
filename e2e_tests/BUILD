@@ -14,6 +14,10 @@
 
 # End-to-end tests with microbenchmarks.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
 package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])

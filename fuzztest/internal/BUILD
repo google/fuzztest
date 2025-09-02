@@ -13,6 +13,8 @@
 # limitations under the License.
 
 load("@flatbuffers//:build_defs.bzl", "flatbuffer_library_public")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
