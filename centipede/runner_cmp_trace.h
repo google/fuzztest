@@ -54,8 +54,9 @@ class CmpTrace {
     // This way after capturing many pairs we end up with up to `kNumItems`
     // pairs which are typically, but not always, the most recent.
     rand_seed_ = rand_seed_ * 1103515245 + 12345;
-    Item &item = items_[rand_seed_ % kNumItems];
-    item.size.set(size);
+    const size_t index = rand_seed_ % kNumItems;
+    Item& item = items_[index];
+    sizes_[index] = size;
     __builtin_memcpy(item.value0, value0, size);
     __builtin_memcpy(item.value1, value1, size);
   }
@@ -73,62 +74,28 @@ class CmpTrace {
   // Iterates non-zero CMP pairs.
   template <typename Callback>
   void ForEachNonZero(Callback callback) {
-    for (const auto &item : items_) {
-      if (IsZero(item.value0, item.size.get()) &&
-          IsZero(item.value1, item.size.get()))
-        continue;
-      callback(item.size.get(), item.value0, item.value1);
+    for (size_t i = 0; i < kNumItems; ++i) {
+      const auto size = sizes_[i];
+      if (size == 0 || size > kNumBytesPerValue) continue;
+      sizes_[i] = 0;
+      callback(size, items_[i].value0, items_[i].value1);
     }
   }
 
  private:
-  // SizeField<kFixedSize> returns kFixedSize as the size, for kFixedSize != 0.
-  template <uint8_t kSize>
-  class SizeField {
-   public:
-    void set(uint8_t size) {}
-    size_t get() const { return kSize; }
-  };
-
-  // SizeField<0> actually stores the size.
-  template <>
-  class SizeField<0> {
-   public:
-    void set(uint8_t size) { size_ = size; }
-    uint8_t get() const { return size_; }
-
-   private:
-    uint8_t size_;
-  };
-
-  template <typename T>
-  static bool IsZero(const uint8_t *value) {
-    T x = {};
-    __builtin_memcpy(&x, value, sizeof(T));
-    return x == T{};
-  }
-
-  // Returns true if all value[0:size] are zero.
-  static bool IsZero(const uint8_t *value, size_t size) {
-    if constexpr (kFixedSize == 8) return IsZero<uint64_t>(value);
-    if constexpr (kFixedSize == 4) return IsZero<uint32_t>(value);
-    if constexpr (kFixedSize == 2) return IsZero<uint16_t>(value);
-    // The code iterates over bytes, but we expect the compiler to optimize it.
-    uint64_t ored_bytes = 0;
-    for (size_t i = 0; i < size; ++i) {
-      ored_bytes |= value[i];
-    }
-    return ored_bytes == 0;
-  }
-
   // One CMP argument pair.
   struct Item {
-    SizeField<kFixedSize> size;
     uint8_t value0[kNumBytesPerValue];
     uint8_t value1[kNumBytesPerValue];
   };
 
-  // All argument pairs.
+  // Value sizes of argument pairs. zero-size indicates that the corresponding
+  // entry is empty.
+  //
+  // Marked volatile because of the potential racing between the owning thread
+  // and the main thread, which is tolerated gracefully.
+  volatile uint8_t sizes_[kNumItems];
+  // Values of argument pairs.
   Item items_[kNumItems];
 
   // Pseudo-random seed.
