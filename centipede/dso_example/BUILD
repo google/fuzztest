@@ -14,6 +14,8 @@
 
 # Build file for the dso_example
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 # Shared library that we want to fuzz, built with (some) coverage instrumentation.
 # It has unresolved instrumentation symbol(s) which will be resolved dynamically.
 cc_binary(
