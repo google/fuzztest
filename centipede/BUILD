@@ -18,6 +18,7 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
@@ -1018,10 +1019,7 @@ RUNNER_SOURCES_NO_MAIN = [
     "sancov_runtime.h",
     "sancov_state.cc",
     "sancov_state.h",
-    "@com_google_fuzztest//common:defs.h",
 ]
-
-RUNNER_SOURCES_WITH_MAIN = RUNNER_SOURCES_NO_MAIN + ["runner_main.cc"]
 
 # Disable sancov and sanitizer instrumentation.
 #
@@ -1066,6 +1064,7 @@ RUNNER_DEPS = [
     ":runner_request",
     ":runner_result",
     ":shared_memory_blob_sequence",
+    "@com_google_fuzztest//common:defs",
     "@abseil-cpp//absl/base:core_headers",
     "@abseil-cpp//absl/base:nullability",
     "@abseil-cpp//absl/numeric:bits",
@@ -1115,18 +1114,29 @@ cc_binary(
     deps = RUNNER_DEPS,
 )
 
-# A full self-contained library archive that external clients should link to
-# their fuzz targets to make them compatible with the Centipede fuzzing engine
-# (the `:centipede` target in this BUILD).
+# Centipede runner library with a main function for LLVM fuzzers.
 cc_library(
     name = "centipede_runner",
-    srcs = RUNNER_SOURCES_WITH_MAIN,
+    srcs = ["runner_main.cc"],
     hdrs = ["runner_interface.h"],
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     visibility = ["//visibility:public"],
-    deps = RUNNER_DEPS,
+    deps = [
+        ":centipede_runner_no_main",
+        ":mutation_input",
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+# A full self-contained library archive that external clients should link to
+# their fuzz targets to make them compatible with the Centipede fuzzing engine
+# (the `:centipede` target in this BUILD).
+cc_static_library(
+    name = "centipede_runner_static",
+    deps = [":centipede_runner"],
 )
 
 # Utilities for seed corpus generation.
