@@ -65,7 +65,8 @@ namespace fuzztest {
 //
 // Note: When specifying both the domains and seeds, the domain clause has to
 // be specified first.
-#define FUZZ_TEST(suite_name, func) INTERNAL_FUZZ_TEST(suite_name, func)
+#define FUZZ_TEST(suite_name, func) \
+  INTERNAL_FUZZ_TEST(suite_name, __LINE__, func)
 
 // The FUZZ_TEST_F macro registers a fuzz test that uses a test fixture.
 //

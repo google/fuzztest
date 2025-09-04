@@ -101,12 +101,16 @@ struct RegisterStub {
   }
 };
 
-#define INTERNAL_FUZZ_TEST(suite_name, func)                      \
+#define INTERNAL_FUZZ_TEST_IMPL(suite_name, test_name, func)      \
   [[maybe_unused]] static ::fuzztest::internal::RegistrationToken \
-      fuzztest_reg___##suite_name##___##func =                    \
+      fuzztest_reg___##suite_name##___##test_name =               \
           ::fuzztest::internal::RegistrationToken{} =             \
               ::fuzztest::GetRegistration<decltype(+func)>(       \
                   #suite_name, #func, __FILE__, __LINE__, +func)
+
+#define INTERNAL_FUZZ_TEST(suite_name, test_name, func) \
+  /* Expand any macros (like line numbers) */           \
+  INTERNAL_FUZZ_TEST_IMPL(suite_name, test_name, func)
 
 #define INTERNAL_FUZZ_TEST_F(suite_name, test_name, fixture, func) \
   [[maybe_unused]] static ::fuzztest::internal::RegistrationToken  \
