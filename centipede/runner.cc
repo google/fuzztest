@@ -454,9 +454,10 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
     return false;
   }
 
-  ExecutionMetadata metadata;
-  if (!CopyCmpTracesToMetadata(&metadata)) return false;
-  if (!BatchResult::WriteMetadata(metadata, outputs_blobseq)) return false;
+  if (!BatchResult::WriteMetadata(SanCovRuntimeGetExecutionMetadata(),
+                                  outputs_blobseq)) {
+    return false;
+  }
 
   // Write the stats.
   if (!BatchResult::WriteStats(state->stats, outputs_blobseq)) return false;

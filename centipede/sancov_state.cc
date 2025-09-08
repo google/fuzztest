@@ -356,8 +356,31 @@ static void AddPcIndxedAndCounterToFeatures(
   }
 }
 
+// Calls ExecutionMetadata::AppendCmpEntry for every CMP arg pair
+// found in `cmp_trace`.
+// Returns true if all appending succeeded.
+// "noinline" so that we see it in a profile, if it becomes hot.
+template <typename CmpTrace>
+__attribute__((noinline)) void AppendCmpEntries(CmpTrace& cmp_trace,
+                                                ExecutionMetadata& metadata) {
+  cmp_trace.ForEachNonZero(
+      [&](uint8_t size, const uint8_t* v0, const uint8_t* v1) {
+        (void)metadata.AppendCmpEntry({v0, size}, {v1, size});
+      });
+}
+
 void PostProcessSancov(bool reject_input) {
   sancov_state->g_features.clear();
+  sancov_state->metadata.cmp_data.clear();
+
+  if (sancov_state->flags.use_auto_dictionary && !reject_input) {
+    sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
+      AppendCmpEntries(tls.cmp_trace2, sancov_state->metadata);
+      AppendCmpEntries(tls.cmp_trace4, sancov_state->metadata);
+      AppendCmpEntries(tls.cmp_trace8, sancov_state->metadata);
+      AppendCmpEntries(tls.cmp_traceN, sancov_state->metadata);
+    });
+  }
 
   std::function<void(feature_t)> feature_handler = MaybeAddFeature;
   if (reject_input) {
@@ -461,44 +484,13 @@ void PostProcessSancov(bool reject_input) {
   }
 }
 
-// Calls ExecutionMetadata::AppendCmpEntry for every CMP arg pair
-// found in `cmp_trace`.
-// Returns true if all appending succeeded.
-// "noinline" so that we see it in a profile, if it becomes hot.
-template <typename CmpTrace>
-__attribute__((noinline)) bool AppendCmpEntries(CmpTrace &cmp_trace,
-                                                ExecutionMetadata &metadata) {
-  bool append_failed = false;
-  cmp_trace.ForEachNonZero(
-      [&](uint8_t size, const uint8_t *v0, const uint8_t *v1) {
-        if (!metadata.AppendCmpEntry({v0, size}, {v1, size}))
-          append_failed = true;
-      });
-  return !append_failed;
-}
-
-bool CopyCmpTracesToMetadata(ExecutionMetadata *metadata) {
-  if (sancov_state->flags.use_auto_dictionary) {
-    bool append_failed = false;
-    sancov_state->ForEachTls(
-        [&metadata, &append_failed](ThreadLocalSancovState& tls) {
-          if (!AppendCmpEntries(tls.cmp_trace2, *metadata))
-            append_failed = true;
-          if (!AppendCmpEntries(tls.cmp_trace4, *metadata))
-            append_failed = true;
-          if (!AppendCmpEntries(tls.cmp_trace8, *metadata))
-            append_failed = true;
-          if (!AppendCmpEntries(tls.cmp_traceN, *metadata))
-            append_failed = true;
-        });
-    if (append_failed) return false;
-  }
-  return true;
-}
-
 SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures() {
   return {fuzztest::internal::sancov_state->g_features.data(),
           fuzztest::internal::sancov_state->g_features.size()};
+}
+
+const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata() {
+  return fuzztest::internal::sancov_state->metadata;
 }
 
 }  // namespace fuzztest::internal
