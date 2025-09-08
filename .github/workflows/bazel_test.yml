@@ -25,16 +25,47 @@ on:
   workflow_dispatch:
 
 jobs:
-  run_tests:
-    name: Run tests
+  run_unit_tests:
+    name: Run unit tests
     # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
     # is fixed.
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       matrix:
-        config: ['default', 'fuzztest']
         compilation_mode: ['fastbuild', 'opt', 'dbg']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -yq \
+            clang
+      - name: Restore latest cache
+        uses: actions/cache/restore@v4
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-unit-${{ matrix.compilation_mode }}
+          restore-keys: bazel-cache-unit-${{ matrix.compilation_mode }}-
+      - name: Run all tests with default --config
+        run: |
+          bazel test --build_tests_only --test_output=errors \
+            -c ${{ matrix.compilation_mode }} -- //... -//e2e_tests/... -//centipede/...
+      - name: Save new cache based on main
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-unit-${{ matrix.compilation_mode }}-${{ github.run_id }}
+  run_e2e_tests:
+    name: Run e2e tests
+    # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
+    # is fixed.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        config: ['uninstrumented', 'fuzztest', 'fuzztest-experimental', 'libfuzzer']
     steps:
       - name: Disable core dumping and piping due to slowness
         run: |
@@ -45,38 +76,40 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
-      - name: Setup --config=fuzztest for Bazel
+      - name: Setup build configs for Bazel
         run: |
           EXTRA_CONFIGS=libfuzzer bazel run //bazel:setup_configs > fuzztest.bazelrc
       - name: Restore latest cache
         uses: actions/cache/restore@v4
         with:
           path: "~/.cache/bazel"
-          key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}
-          restore-keys: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-
-      - name: Run all tests with default --config
-        if: matrix.config == 'default'
+          key: bazel-cache-e2e-${{ matrix.config }}
+          restore-keys: bazel-cache-e2e-${{ matrix.config }}-
+      - name: Run end-to-end tests without instrumentation
+        if: matrix.config == 'uninstrumented'
+        # Exclude corpus_database_test because it needs instrumentation.
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} -- //... -//centipede/...
+            -c opt -- //e2e_tests:all -//e2e_tests:corpus_database_test
       - name: Run end-to-end tests with --config=fuzztest
         if: matrix.config == 'fuzztest'
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} --config=fuzztest //e2e_tests:all
+            -c opt --config=fuzztest //e2e_tests:all
       - name: Run end-to-end tests with --config=fuzztest-experimental
-        if: matrix.config == 'fuzztest'
+        if: matrix.config == 'fuzztest-experimental'
+        # TODO: Add other e2e tests and resolve any issues.
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} \
+            -c opt \
             --config=fuzztest-experimental --config=asan \
             --platform_suffix=fuzztest-experimental-asan \
             //e2e_tests:corpus_database_test
       - name: Run end-to-end tests with --config=libfuzzer
-        if: matrix.config == 'fuzztest'
+        if: matrix.config == 'libfuzzer'
         run: |
           bazel test --build_tests_only --test_output=errors \
-            -c ${{ matrix.compilation_mode }} --config=libfuzzer \
+            -c opt --config=libfuzzer \
             --platform_suffix=fuzztest-libfuzzer \
             //e2e_tests:compatibility_mode_test
       - name: Save new cache based on main
@@ -84,4 +117,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: "~/.cache/bazel"
-          key: bazel-cache-${{ matrix.config }}-${{ matrix.compilation_mode }}-${{ github.run_id }}
+          key: bazel-cache-e2e-${{ matrix.config }}-${{ github.run_id }}
