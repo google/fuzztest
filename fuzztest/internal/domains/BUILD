@@ -202,6 +202,7 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:meta",
         "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal:status",
+        "@com_google_fuzztest//fuzztest/internal:type_support",
         "@flatbuffers//:runtime_cc",
     ],
 )
