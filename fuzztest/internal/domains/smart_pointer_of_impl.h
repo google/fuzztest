@@ -16,6 +16,7 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_SMART_POINTER_OF_IMPL_H_
 
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -31,7 +32,6 @@
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
-#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 
@@ -47,7 +47,11 @@ class SmartPointerOfImpl
   using typename SmartPointerOfImpl::DomainBase::corpus_type;
   using typename SmartPointerOfImpl::DomainBase::value_type;
 
-  static_assert(is_smart_pointer_v<T>, "T must be a smart pointer type.");
+  static_assert(
+      Requires<T>(
+          [](auto x) -> std::enable_if_t<std::is_pointer_v<decltype(x.get())>,
+                                         decltype(!x, *x)> {}),
+      "T must be a smart pointer type.");
 
   // Since we allow for recursion in this domain, we want to delay the
   // construction of the inner domain. Otherwise we would have an infinite
@@ -120,7 +124,12 @@ class SmartPointerOfImpl
         return;
       }
       if (mode == domain_implementor::PrintMode::kSourceCode) {
-        absl::Format(out, "%s", GetSmartPtrMaker<T>());
+        absl::string_view maker =
+            is_unique_ptr_v<value_type>   ? "std::make_unique"
+            : is_shared_ptr_v<value_type> ? "std::make_shared"
+                                          : "<MAKE_SMART_POINTER>";
+        absl::Format(out, "%s<%s>", maker,
+                     GetTypeName<typename value_type::element_type>());
       }
       absl::Format(out, "(");
       PrintValue(inner, std::get<1>(v), out, mode);

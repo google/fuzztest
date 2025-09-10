@@ -127,14 +127,6 @@ absl::string_view GetTypeNameIfUserDefined() {
 }
 
 template <typename T>
-std::enable_if_t<is_smart_pointer_v<T>, std::string> GetSmartPtrMaker() {
-  absl::string_view maker = is_unique_ptr_v<T>   ? "std::make_unique"
-                            : is_shared_ptr_v<T> ? "std::make_shared"
-                                                 : "<MAKE_SMART_POINTER>";
-  return absl::StrCat(maker, "<", GetTypeName<typename T::element_type>(), ">");
-}
-
-template <typename T>
 inline constexpr bool has_absl_stringify_v = absl::HasAbslStringify<T>::value;
 
 struct IntegralPrinter {
@@ -579,25 +571,6 @@ struct TimePrinter {
   }
 };
 
-struct SmartPointerPrinter {
-  template <typename T>
-  void PrintUserValue(const T& v, domain_implementor::RawSink out,
-                      domain_implementor::PrintMode mode) {
-    static_assert(is_smart_pointer_v<T>, "T must be a smart pointer type.");
-    if (v == nullptr) {
-      absl::Format(out, "nullptr");
-      return;
-    }
-    if (mode == domain_implementor::PrintMode::kSourceCode) {
-      absl::Format(out, "%s", GetSmartPtrMaker<T>());
-    }
-    absl::Format(out, "(");
-    AutodetectTypePrinter<typename T::element_type>().PrintUserValue(*v, out,
-                                                                     mode);
-    absl::Format(out, ")");
-  }
-};
-
 struct UnknownPrinter {
   template <typename T>
   void PrintUserValue(const T& v, domain_implementor::RawSink out,
@@ -665,8 +638,6 @@ decltype(auto) AutodetectTypePrinter() {
     return DurationPrinter{};
   } else if constexpr (std::is_same_v<T, absl::Time>) {
     return TimePrinter{};
-  } else if constexpr (is_smart_pointer_v<T>) {
-    return SmartPointerPrinter{};
   } else {
     return UnknownPrinter{};
   }
