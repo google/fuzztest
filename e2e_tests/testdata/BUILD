@@ -18,7 +18,6 @@
 # by `functional_test` and `benchmark_test`.
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//e2e_tests:__pkg__"])
@@ -44,12 +43,11 @@ cc_binary(
     ],
 )
 
-# This library contains "puzzles" with proto inputs for benchmarking purposes.
-cc_library(
-    name = "fuzz_tests_with_proto_inputs_lib",
+# This binary contains "puzzles" with proto inputs for benchmarking purposes.
+cc_binary(
+    name = "fuzz_tests_with_proto_inputs",
     testonly = 1,
     srcs = ["fuzz_tests_with_proto_inputs.cc"],
-    local_defines = ["FUZZTEST_INTERNAL_DO_NOT_CRASH_ON_TARGET"],
     deps = [
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -59,20 +57,10 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
         "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
-        "@googletest//:gtest",
         "@protobuf",
         "@re2",
-    ],
-    alwayslink = 1,
-)
-
-cc_binary(
-    name = "fuzz_tests_with_proto_inputs",
-    testonly = 1,
-    deps = [
-        ":fuzz_tests_with_proto_inputs_lib",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
