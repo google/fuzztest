@@ -143,10 +143,21 @@ template <typename T>
 inline constexpr bool is_unique_ptr_v<std::unique_ptr<T>> = true;
 
 template <typename T>
+inline constexpr bool is_unique_ptr_v<const std::unique_ptr<T>> = true;
+
+template <typename T>
 inline constexpr bool is_shared_ptr_v = false;
 
 template <typename T>
 inline constexpr bool is_shared_ptr_v<std::shared_ptr<T>> = true;
+
+template <typename T>
+inline constexpr bool is_shared_ptr_v<const std::shared_ptr<T>> = true;
+
+template <typename T>
+inline constexpr bool is_smart_pointer_v = Requires<T>(
+    [](auto&& x) -> std::enable_if_t<std::is_pointer_v<decltype(x.get())>,
+                                     decltype(!x, *x)> {});
 
 template <typename T>
 inline constexpr bool is_std_complex_v = false;
