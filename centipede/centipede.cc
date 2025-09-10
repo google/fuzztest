@@ -452,8 +452,8 @@ bool Centipede::RunBatch(
       batch_gained_new_coverage = true;
       FUZZTEST_CHECK_GT(fv.size(), 0UL);
       if (function_filter_passed) {
-        corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(), fs_,
-                    coverage_frontier_);
+        corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(),
+                    batch_result.results()[i].stats(), fs_, coverage_frontier_);
       }
       if (corpus_file != nullptr) {
         FUZZTEST_CHECK_OK(corpus_file->Write(input_vec[i]));
@@ -493,8 +493,9 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
         FUZZTEST_VLOG(10) << "Adding input " << Hash(input)
                           << "; new features: " << num_new_features;
         fs_.MergeFeatures(input_features);
-        // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
-        corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
+        // TODO(xinhaoyuan): metadata and stats are currently not saved to disk
+        // and not reloaded.
+        corpus_.Add(input, input_features, {}, {}, fs_, coverage_frontier_);
         ++num_added_inputs;
       } else {
         FUZZTEST_VLOG(10) << "Skipping input: " << Hash(input);
@@ -759,7 +760,8 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
   // coverage and passed the filters.
   if (corpus_.NumTotal() == 0) {
     for (const auto &seed_input : seed_inputs)
-      corpus_.Add(seed_input, {}, {}, fs_, coverage_frontier_);
+      corpus_.Add(seed_input, /*feature_vec=*/{}, /*metadata=*/{}, /*stats=*/{},
+                  fs_, coverage_frontier_);
   }
 }
 
@@ -820,10 +822,53 @@ void Centipede::FuzzingLoop() {
     auto batch_size = std::min(env_.batch_size, remaining_runs);
     std::vector<MutationInputRef> mutation_inputs;
     mutation_inputs.reserve(env_.mutate_batch_size);
+    auto dist = corpus_.weighted_distribution();
+    double total_exec_time_usec = 0;
+    for (size_t i = 0; i < corpus_.Records().size(); ++i) {
+      total_exec_time_usec += corpus_.Records()[i].stats.exec_time_usec;
+    }
+    const double avg_exec_time_usec =
+        total_exec_time_usec / corpus_.Records().size();
+    size_t suppressed = 0;
+    size_t argumented = 0;
+    for (size_t i = 0; i < corpus_.Records().size(); ++i) {
+      const auto& record = corpus_.Records()[i];
+      if (record.stats == ExecutionResult::Stats{}) {
+        dist.weights()[i] *= 100;
+      } else if (record.stats.exec_time_usec > avg_exec_time_usec * 10) {
+        dist.weights()[i] *= 10;
+        ++suppressed;
+      } else if (record.stats.exec_time_usec > avg_exec_time_usec * 4) {
+        dist.weights()[i] *= 25;
+        ++suppressed;
+      } else if (record.stats.exec_time_usec > avg_exec_time_usec * 2) {
+        dist.weights()[i] *= 50;
+        ++suppressed;
+      } else if (record.stats.exec_time_usec * 3 > avg_exec_time_usec * 4) {
+        dist.weights()[i] *= 75;
+        ++suppressed;
+      } else if (record.stats.exec_time_usec * 4 < avg_exec_time_usec) {
+        dist.weights()[i] *= 300;
+        ++argumented;
+      } else if (record.stats.exec_time_usec * 3 < avg_exec_time_usec) {
+        dist.weights()[i] *= 200;
+        ++argumented;
+      } else if (record.stats.exec_time_usec * 2 < avg_exec_time_usec) {
+        dist.weights()[i] *= 150;
+        ++argumented;
+      } else {
+        dist.weights()[i] *= 100;
+      }
+    }
+    FUZZTEST_LOG(INFO) << "total: " << corpus_.Records().size()
+                       << ", avg time us: " << avg_exec_time_usec
+                       << ", suppressed: " << suppressed
+                       << ", argumented: " << argumented;
+    dist.RecomputeInternalState();
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
-      const auto &corpus_record = env_.use_corpus_weights
-                                      ? corpus_.WeightedRandom(rng_())
-                                      : corpus_.UniformRandom(rng_());
+      const auto& corpus_record =
+          env_.use_corpus_weights ? corpus_.Records()[dist.RandomIndex(rng_)]
+                                  : corpus_.UniformRandom(rng_);
       mutation_inputs.push_back(
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }

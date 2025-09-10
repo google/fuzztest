@@ -52,22 +52,19 @@ class FuzzTestMutator {
 
   // TODO(xinhaoyuan): Support set_alignment().
 
+  // Size limits on the cmp entries to be used in mutation.
+  static constexpr uint8_t kMaxCmpEntrySize = 15;
+  static constexpr uint8_t kMinCmpEntrySize = 2;
+
  private:
   struct MutationMetadata;
   class MutatorDomain;
-
-  // Propagates the execution `metadata` to the internal mutation dictionary.
-  void SetMetadata(const ExecutionMetadata& metadata);
 
   // The crossover algorithm based on the legacy ByteArrayMutator.
   // TODO(ussuri): Implement and use the domain level crossover.
   void CrossOverInsert(ByteArray &data, const ByteArray &other);
   void CrossOverOverwrite(ByteArray &data, const ByteArray &other);
   void CrossOver(ByteArray &data, const ByteArray &other);
-
-  // Size limits on the cmp entries to be used in mutation.
-  static constexpr uint8_t kMaxCmpEntrySize = 15;
-  static constexpr uint8_t kMinCmpEntrySize = 2;
 
   const Knobs &knobs_;
   Rng prng_;

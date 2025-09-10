@@ -116,17 +116,18 @@ std::vector<size_t> RandomWeightedSubset(absl::Span<const uint64_t> set,
                                          size_t target_size, Rng &rng);
 
 // Removes all elements from `set` whose indices are found in `subset_indices`.
-// `subset_indices` is a sorted vector.
+// `subset_indices` is a sorted vector. Runs in O(set.size()).
 template <typename T>
 void RemoveSubset(const std::vector<size_t> &subset_indices,
                   std::vector<T> &set) {
   size_t pos_to_write = 0;
-  for (size_t i = 0, n = set.size(); i < n; i++) {
-    // If subset_indices.size() is k, this loop's complexity is O(n*log(k)).
-    // We can do it in O(n+k) with a bit more code, but this loop is not
-    // expected to be hot. Besides, k would typically be small.
-    if (!std::binary_search(subset_indices.begin(), subset_indices.end(), i))
-      std::swap(set[pos_to_write++], set[i]);
+  for (size_t i = 0, n = set.size(), j = 0, m = subset_indices.size(); i < n;
+       i++) {
+    if (j < m && i == subset_indices[j]) {
+      ++j;
+      continue;
+    }
+    set[pos_to_write++] = set[i];
   }
   set.resize(pos_to_write);
 }
