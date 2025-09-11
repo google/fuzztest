@@ -263,6 +263,23 @@ TEST(Container, MemoryDictionaryMutationMutatesEveryPossibleMatch) {
                        }));
 }
 
+TEST(Container, MatchesDictionaryWithSwappedByteOrder) {
+  auto domain = Arbitrary<std::string>();
+  internal::TablesOfRecentCompares cmp_tables(/*compact=*/true);
+  cmp_tables.GetMutable<4>().Insert(uint32_t{0x12345678}, uint32_t{0x60708090});
+
+  absl::BitGen bitgen;
+  std::vector<std::string> mutants;
+  for (int i = 0; i < 1000; ++i) {
+    std::string mutant = "\x12\x34\x56\x78\x78\x56\x34\x12";
+    domain.Mutate(mutant, bitgen, {/*cmp_tables=*/&cmp_tables}, false);
+    mutants.push_back(std::move(mutant));
+  }
+
+  EXPECT_THAT(mutants, testing::Contains("\x12\x34\x56\x78\x90\x80\x70\x60"));
+  EXPECT_THAT(mutants, testing::Contains("\x60\x70\x80\x90\x78\x56\x34\x12"));
+}
+
 TEST(Container, ValidatesMemoryDictionaryMutationForInnerDomain) {
   auto domain = VectorOf(InRange<uint8_t>(10, 128));
   internal::TablesOfRecentCompares cmp_tables;
