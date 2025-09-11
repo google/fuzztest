@@ -216,7 +216,7 @@ class TableOfRecentlyComparedBuffers {
   // Constructs a buffer comparison table with the `compact` option: When it is
   // true, `GetRandomOffset()`/`GetRandomEntry()` would sample from inserted
   // offsets/entries, unless the table is empty.
-  explicit TableOfRecentlyComparedBuffers(bool compact) : compact_(compact) {};
+  explicit TableOfRecentlyComparedBuffers(bool compact) : compact_(compact) {}
 
   void Insert(const uint8_t* buf1, const uint8_t* buf2, size_t n) {
     if (!compact_) {
