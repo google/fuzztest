@@ -194,7 +194,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
     const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name, RunMode run_mode) {
   fuzztest::internal::Environment env = CreateDefaultCentipedeEnvironment();
-  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(3);
+  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(10);
   env.fuzztest_multi_test_mode_soon_to_be_removed = false;
   if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
     const int64_t time_limit_seconds =
@@ -462,25 +462,27 @@ class CentipedeAdaptorRunnerCallbacks
         prng_(GetRandomSeed()) {}
 
   bool Execute(fuzztest::internal::ByteSpan input) override {
-    [[maybe_unused]] static bool check_if_not_skipped_on_setup = [&] {
-      if (runtime_.skipping_requested()) {
-        absl::FPrintF(GetStderr(),
-                      "[.] Skipping %s per request from the test setup.\n",
-                      fuzzer_impl_.test_.full_name());
-        CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
-        // It has to use _Exit(1) to avoid trigger the reporting of regular
-        // setup failure while let Centipede be aware of this. Note that this
-        // skips the fixture teardown.
-        std::_Exit(1);
-      }
-      return true;
-    }();
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
     const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
     absl::Cleanup tracing_restorer = [old_traced] {
       CentipedeSetCurrentThreadTraced(old_traced);
     };
+    static const bool skipped_on_setup = runtime_.skipping_requested();
+    if (skipped_on_setup) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    fuzzer_impl_.test_.full_name());
+      CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
+      return true;
+    }
+    if (runtime_.termination_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Termination requested - exiting without executing "
+                    "further inputs.\n");
+      CentipedeSetFailureDescription("IGNORED FAILURE: Termination requested");
+      return false;
+    }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
     auto parsed_input =
@@ -566,6 +568,13 @@ class CentipedeAdaptorRunnerCallbacks
   ~CentipedeAdaptorRunnerCallbacks() override { runtime_.UnsetCurrentArgs(); }
 
  private:
+  void ExitWithFailureDescription(const char* description) {
+    // It has to use _Exit(1) to avoid trigger the reporting of regular
+    // setup failure while let Centipede be aware of this. Note that this
+    // skips the fixture teardown.
+    std::_Exit(1);
+  }
+
   template <typename T>
   static void InsertCmpEntryIntoIntegerDictionary(
       const uint8_t* a, const uint8_t* b, TablesOfRecentCompares& cmp_tables) {
@@ -1053,7 +1062,8 @@ class CentipedeCallbacksForRunnerFlagsExtraction
 
   bool Execute(std::string_view binary,
                const std::vector<fuzztest::internal::ByteArray>& inputs,
-               fuzztest::internal::BatchResult& batch_result) override {
+               fuzztest::internal::BatchResult& batch_result,
+               absl::Time deadline) override {
     return false;
   }
 

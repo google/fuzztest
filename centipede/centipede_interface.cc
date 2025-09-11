@@ -306,7 +306,7 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
     FUZZTEST_CHECK_OK(
         RemoteFileGetContents(crashing_input_file, crashing_input));
     const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
-        env.binary, {crashing_input}, batch_result);
+        env.binary, {crashing_input}, batch_result, absl::InfiniteFuture());
     const bool is_duplicate =
         is_reproducible && !batch_result.IsSetupFailure() &&
         !remaining_crash_signatures.insert(batch_result.failure_signature())
@@ -692,6 +692,8 @@ int UpdateCorpusDatabaseForFuzzTests(
           << "Skip updating corpus database due to early stop requested.";
       continue;
     }
+    // The test time limit does not apply for the rest of the steps.
+    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
 
     // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
     // of checking whether workdir is specified or not.
