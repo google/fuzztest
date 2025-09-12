@@ -122,6 +122,9 @@ DECLARE_CENTIPEDE_ORIG_FUNC(int, memcmp,
 DECLARE_CENTIPEDE_ORIG_FUNC(int, strcmp, (const char *s1, const char *s2));
 DECLARE_CENTIPEDE_ORIG_FUNC(int, strncmp,
                             (const char *s1, const char *s2, size_t n));
+DECLARE_CENTIPEDE_ORIG_FUNC(int, strcasecmp, (const char* s1, const char* s2));
+DECLARE_CENTIPEDE_ORIG_FUNC(int, strncasecmp,
+                            (const char* s1, const char* s2, size_t n));
 DECLARE_CENTIPEDE_ORIG_FUNC(int, pthread_create,
                             (pthread_t * thread, const pthread_attr_t *attr,
                              void *(*start_routine)(void *), void *arg));
@@ -134,6 +137,28 @@ static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
   const auto *p2 = static_cast<const uint8_t *>(s2);
   for (size_t i = 0; i < n; ++i) {
     int diff = p1[i] - p2[i];
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+// Fallback for case insensitive comparison.
+static NO_SANITIZE int memcasecmp_fallback(const void* s1, const void* s2,
+                                           size_t n) {
+  static char to_lower[256];
+  [[maybe_unused]] static bool initialize_to_lower = [&] {
+    for (size_t i = 0; i < sizeof(to_lower); ++i) {
+      to_lower[i] = i;
+      if ('A' <= to_lower[i] && to_lower[i] <= 'Z') {
+        to_lower[i] = to_lower[i] - 'A' + 'a';
+      }
+    }
+    return true;
+  }();
+  const auto* p1 = static_cast<const uint8_t*>(s1);
+  const auto* p2 = static_cast<const uint8_t*>(s2);
+  for (size_t i = 0; i < n; ++i) {
+    int diff = to_lower[p1[i]] - to_lower[p2[i]];
     if (diff) return diff;
   }
   return 0;
@@ -198,6 +223,53 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
   tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
                   reinterpret_cast<const uint8_t *>(s1),
                   reinterpret_cast<const uint8_t *>(s2), len, result == 0);
+  return NormalizeCmpResult(result);
+}
+
+// strcasecmp interceptor.
+// Calls the real strcasecmp() and possibly modifies state.cmp_feature_set.
+extern "C" NO_SANITIZE int strcasecmp(const char* s1, const char* s2) {
+  // Find the length of the shorter string, as this determines the actual number
+  // of bytes that are compared. Note that this is needed even if we call
+  // `strcasecmp_orig` because we're passing it to `TraceMemCmp()`.
+  size_t len = 0;
+  while (s1[len] && s2[len]) ++len;
+  const int result =
+      // Need to include one more byte than the shorter string length
+      // when falling back to memcmp e.g. "foo" < "foobar".
+      strcasecmp_orig ? strcasecmp_orig(s1, s2)
+                      : memcasecmp_fallback(s1, s2, len + 1);
+  if (ABSL_PREDICT_FALSE(!tls.traced)) {
+    return result;
+  }
+  // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
+  return NormalizeCmpResult(result);
+}
+
+// strncasecmp interceptor.
+// Calls the real strncasecmp() and possibly modifies state.cmp_feature_set.
+extern "C" NO_SANITIZE int strncasecmp(const char* s1, const char* s2,
+                                       size_t n) {
+  // Find the length of the shorter string, as this determines the actual number
+  // of bytes that are compared. Note that this is needed even if we call
+  // `strncasecmp_orig` because we're passing it to `TraceMemCmp()`.
+  size_t len = 0;
+  while (len < n && s1[len] && s2[len]) ++len;
+  // Need to include '\0' in the comparison if the shorter string is shorter
+  // than `n`, hence we add 1 to the length.
+  if (n > len + 1) n = len + 1;
+  const int result = strncasecmp_orig ? strncasecmp_orig(s1, s2, n)
+                                      : memcasecmp_fallback(s1, s2, n);
+  if (ABSL_PREDICT_FALSE(!tls.traced)) {
+    return result;
+  }
+  // Pass `len` here to avoid storing the trailing '\0' in the dictionary.
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
   return NormalizeCmpResult(result);
 }
 
