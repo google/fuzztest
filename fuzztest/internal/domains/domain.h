@@ -65,7 +65,9 @@ struct GenericPrinter {
 // `Domain<T>` is the type-erased domain interface.
 //
 // It can be constructed from any object derived from `DomainBase` that
-// implements the domain methods for the value type `T`.
+// implements the domain methods for the value type `T`. A Domain object is not
+// thread-safe. It's the domain object owner's responsibility to make sure the
+// domain object is not accessed concurrently by multiple threads.
 template <typename T>
 class Domain {
  public:
