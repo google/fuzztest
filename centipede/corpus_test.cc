@@ -45,7 +45,8 @@ TEST(Corpus, GetCmpData) {
   ByteArray cmp_data{2, 0, 1, 2, 3};
   FeatureVec features1 = {10, 20, 30};
   fs.MergeFeatures(features1);
-  corpus.Add({1}, features1, /*metadata=*/{cmp_data}, fs, coverage_frontier);
+  corpus.Add({1}, features1, /*metadata=*/{cmp_data}, /*stats=*/{}, fs,
+             coverage_frontier);
   EXPECT_EQ(corpus.NumActive(), 1);
   EXPECT_EQ(corpus.GetMetadata(0).cmp_data, cmp_data);
 }
@@ -61,9 +62,9 @@ TEST(Corpus, PrintStats) {
   FeatureVec features1 = {10, 20, 30};
   FeatureVec features2 = {20, 40};
   fs.MergeFeatures(features1);
-  corpus.Add({1, 2, 3}, features1, {}, fs, coverage_frontier);
+  corpus.Add({1, 2, 3}, features1, {}, /*stats=*/{}, fs, coverage_frontier);
   fs.MergeFeatures(features2);
-  corpus.Add({4, 5}, features2, {}, fs, coverage_frontier);
+  corpus.Add({4, 5}, features2, {}, /*stats=*/{}, fs, coverage_frontier);
   const std::string stats_filepath = test_tmpdir / "corpus.txt";
   corpus.DumpStatsToFile(fs, stats_filepath, "Test corpus");
   std::string stats_file_contents;
@@ -93,7 +94,8 @@ TEST(Corpus, Prune) {
 
   auto Add = [&](const CorpusRecord& record) {
     fs.MergeFeatures(record.features);
-    corpus.Add(record.data, record.features, {}, fs, coverage_frontier);
+    corpus.Add(record.data, record.features, {}, /*stats=*/{}, fs,
+               coverage_frontier);
   };
 
   auto VerifyActiveInputs = [&](std::vector<ByteArray> expected_inputs) {
@@ -152,7 +154,8 @@ TEST(Corpus, PruneRegressionTest1) {
 
   auto Add = [&](const CorpusRecord& record) {
     fs.MergeFeatures(record.features);
-    corpus.Add(record.data, record.features, {}, fs, coverage_frontier);
+    corpus.Add(record.data, record.features, {}, /*stats=*/{}, fs,
+               coverage_frontier);
   };
 
   Add({{1}, {10, 20}});
@@ -325,7 +328,7 @@ TEST(CoverageFrontier, Compute) {
 
   auto Add = [&](feature_t feature) {
     fs.MergeFeatures({feature});
-    corpus.Add({42}, {feature}, {}, fs, frontier);
+    corpus.Add({42}, {feature}, {}, /*stats=*/{}, fs, frontier);
   };
 
   // Add PC-based features.
