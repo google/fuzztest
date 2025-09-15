@@ -516,7 +516,7 @@ class TupleDomain {
     if (!CheckASTNodeTypeIdAndChildType<std::vector<ASTNode>>(astnode, id)) {
       return absl::InvalidArgumentError("Not a vector!");
     }
-    if (std::get<std::vector<ASTNode>>(astnode.children).size() ==
+    if (std::get<std::vector<ASTNode>>(astnode.children).size() !=
         sizeof...(ElementT)) {
       return absl::InvalidArgumentError("Tuple elements number doesn't match!");
     }
