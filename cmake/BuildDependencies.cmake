@@ -19,8 +19,17 @@ include(FetchContent)
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
 set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
 
-set(re2_URL https://github.com/google/re2.git)
-set(re2_TAG 2024-07-02)
+
+if(FUZZTEST_USE_SYSTEM_RE2)
+  find_package(re2 REQUIRED)
+  set(FUZZTEST_BUILD_REGEXP_DFA OFF CACHE BOOL
+          "Build regexp_dfa (needs private RE2 headers)" FORCE)
+  message(WARNING "System RE2 detected: regexp_dfa will NOT be built")
+else()
+  set(FUZZTEST_BUILD_REGEXP_DFA ON CACHE BOOL
+          "Build regexp_dfa (needs private RE2 headers)" FORCE)
+endif()
+
 
 set(gtest_URL https://github.com/google/googletest.git)
 set(gtest_TAG v1.16.0)
@@ -47,12 +56,6 @@ FetchContent_Declare(
   abseil-cpp
   GIT_REPOSITORY ${absl_URL}
   GIT_TAG        ${absl_TAG}
-)
-
-FetchContent_Declare(
-  re2
-  GIT_REPOSITORY ${re2_URL}
-  GIT_TAG        ${re2_TAG}
 )
 
 FetchContent_Declare(
@@ -94,9 +97,6 @@ endif ()
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(ABSL_ENABLE_INSTALL ON)
 FetchContent_MakeAvailable(abseil-cpp)
-
-set(RE2_BUILD_TESTING OFF)
-FetchContent_MakeAvailable(re2)
 
 set(GTEST_HAS_ABSL ON)
 FetchContent_MakeAvailable(googletest)
