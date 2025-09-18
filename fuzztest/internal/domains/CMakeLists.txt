@@ -127,6 +127,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::core_domains_impl
     fuzztest::in_regexp_impl
+    fuzztest::regexp_dfa
     absl::flat_hash_map
     absl::random_bit_gen_ref
     absl::random_distributions
@@ -149,6 +150,7 @@ fuzztest_cc_library(
     "in_regexp_impl.cc"
   DEPS
     fuzztest::core_domains_impl
+    fuzztest::regexp_dfa
     absl::random_bit_gen_ref
     absl::random_distributions
     absl::status
@@ -188,6 +190,26 @@ fuzztest_cc_library(
     fuzztest::serialization
     fuzztest::status
     fuzztest::type_support
+)
+
+fuzztest_cc_library(
+  NAME
+    regexp_dfa
+  HDRS
+    "regexp_dfa.h"
+  SRCS
+    "regexp_dfa.cc"
+  DEPS
+    absl::flat_hash_map
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    absl::status
+    absl::statusor
+    absl::strings
+    absl::string_view
+    fuzztest::common_logging
+    fuzztest::logging
+    re2::re2
 )
 
 fuzztest_cc_library(

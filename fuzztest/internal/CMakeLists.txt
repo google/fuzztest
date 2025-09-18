@@ -500,11 +500,11 @@ fuzztest_proto_library(
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   fuzztest_flatbuffers_generate_headers(
-    TARGET 
+    TARGET
       test_flatbuffers_headers
     SCHEMAS
       "test_flatbuffers.fbs"
-    FLAGS 
+    FLAGS
       --bfbs-gen-embed --gen-name-strings
     TESTONLY
   )
@@ -550,4 +550,3 @@ fuzztest_cc_test(
     GTest::gmock_main
     protobuf::libprotobuf
 )
-

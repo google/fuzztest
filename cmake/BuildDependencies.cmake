@@ -16,71 +16,88 @@ cmake_minimum_required(VERSION 3.19)
 
 include(FetchContent)
 
-if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
-  set(absl_URL https://github.com/abseil/abseil-cpp.git)
-  set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
+set(absl_URL https://github.com/abseil/abseil-cpp.git)
+set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
 
-  set(re2_URL https://github.com/google/re2.git)
-  set(re2_TAG 2024-07-02)
+set(re2_URL https://github.com/google/re2.git)
+set(re2_TAG 2024-07-02)
 
-  set(gtest_URL https://github.com/google/googletest.git)
-  set(gtest_TAG v1.16.0)
-
-  set(proto_URL https://github.com/protocolbuffers/protobuf.git)
-  set(proto_TAG v30.2)
-
-  set(nlohmann_json_URL https://github.com/nlohmann/json.git)
-  set(nlohmann_json_TAG v3.11.3)
-
-  set(flatbuffers_URL https://github.com/google/flatbuffers.git)
-  set(flatbuffers_TAG v25.2.10)
-endif()
+set(gtest_URL https://github.com/google/googletest.git)
+set(gtest_TAG v1.16.0)
 
 # From https://www.antlr.org/download.html
 set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip)
 set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
 
+set(proto_URL https://github.com/protocolbuffers/protobuf.git)
+set(proto_TAG v30.2)
+
+set(nlohmann_json_URL https://github.com/nlohmann/json.git)
+set(nlohmann_json_TAG v3.11.3)
+
+set(flatbuffers_URL https://github.com/google/flatbuffers.git)
+set(flatbuffers_TAG v25.2.10)
+
 if(POLICY CMP0135)
-  cmake_policy(SET CMP0135 NEW)
-  set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
+    cmake_policy(SET CMP0135 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-          abseil-cpp
-          GIT_REPOSITORY ${absl_URL}
-          GIT_TAG        ${absl_TAG}
-  )
-
-  FetchContent_Declare(
-          re2
-          GIT_REPOSITORY ${re2_URL}
-          GIT_TAG        ${re2_TAG}
-  )
-
-  FetchContent_Declare(
-          googletest
-          GIT_REPOSITORY ${gtest_URL}
-          GIT_TAG        ${gtest_TAG}
+    abseil-cpp
+    GIT_REPOSITORY ${absl_URL}
+    GIT_TAG        ${absl_TAG}
   )
 else()
-  find_package(absl REQUIRED)
-  find_package(re2 REQUIRED)
+  find_package(absl QUIET)
+  if(NOT absl_FOUND)
+    message(WARNING "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF and absl not found via find_package.\n")
+  endif()
+endif()
+
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+      re2
+      GIT_REPOSITORY ${re2_URL}
+      GIT_TAG        ${re2_TAG}
+  )
+else()
+  if(DEFINED RE2_SOURCE_DIR)
+    message(STATUS "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF: using local re2 source at ${RE2_SOURCE_DIR}")
+    FetchContent_Declare(
+      re2
+      SOURCE_DIR     ${RE2_SOURCE_DIR}
+      GIT_REPOSITORY ${re2_URL}
+      GIT_TAG        ${re2_TAG}
+    )
+  else()
+    message(FATAL_ERROR "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF but RE2_SOURCE_DIR is not set.\n")
+  endif()
+endif()
+
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY ${gtest_URL}
+      GIT_TAG        ${gtest_TAG}
+  )
+else()
   find_package(GTest REQUIRED)
 endif()
 
 FetchContent_Declare(
-        antlr_cpp
-        URL      ${antlr_cpp_URL}
-        URL_HASH MD5=${antlr_cpp_MD5}
+      antlr_cpp
+      URL      ${antlr_cpp_URL}
+      URL_HASH MD5=${antlr_cpp_MD5}
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            flatbuffers
-            GIT_REPOSITORY ${flatbuffers_URL}
-            GIT_TAG        ${flatbuffers_TAG}
+      flatbuffers
+      GIT_REPOSITORY ${flatbuffers_URL}
+      GIT_TAG        ${flatbuffers_TAG}
     )
   else()
     find_package(flatbuffers REQUIRED)
@@ -90,19 +107,21 @@ endif()
 if (FUZZTEST_BUILD_TESTING)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            protobuf
-            GIT_REPOSITORY ${proto_URL}
-            GIT_TAG        ${proto_TAG}
+      protobuf
+      GIT_REPOSITORY ${proto_URL}
+      GIT_TAG        ${proto_TAG}
     )
 
     FetchContent_Declare(
-            nlohmann_json
-            GIT_REPOSITORY ${nlohmann_json_URL}
-            GIT_TAG        ${nlohmann_json_TAG}
+      nlohmann_json
+      GIT_REPOSITORY ${nlohmann_json_URL}
+      GIT_TAG        ${nlohmann_json_TAG}
     )
   else()
     find_package(Protobuf REQUIRED)
-    add_library(protobuf::libprotobuf ALIAS Protobuf::protobuf)
+    if(TARGET Protobuf::protobuf AND NOT TARGET protobuf::libprotobuf)
+      add_library(protobuf::libprotobuf ALIAS Protobuf::protobuf)
+    endif()
     find_package(nlohmann_json REQUIRED)
   endif()
 endif ()
@@ -111,10 +130,16 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(ABSL_PROPAGATE_CXX_STD ON)
   set(ABSL_ENABLE_INSTALL ON)
   FetchContent_MakeAvailable(abseil-cpp)
+else()
+  if(TARGET absl::absl)
+    message(STATUS "Using system absl target absl::absl")
+  endif()
+endif()
 
-  set(RE2_BUILD_TESTING OFF)
-  FetchContent_MakeAvailable(re2)
+set(RE2_BUILD_TESTING OFF)
+FetchContent_MakeAvailable(re2)
 
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(GTEST_HAS_ABSL ON)
   FetchContent_MakeAvailable(googletest)
 endif()
