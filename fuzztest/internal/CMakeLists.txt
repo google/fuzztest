@@ -18,535 +18,535 @@ if (NOT COMPILER_GCC)
 endif()
 
 fuzztest_cc_library(
-        NAME
-        any
-        HDRS
-        "any.h"
-        DEPS
-        fuzztest::common_logging
-        fuzztest::meta
+  NAME
+    any
+  HDRS
+    "any.h"
+  DEPS
+    fuzztest::common_logging
+    fuzztest::meta
 )
 
 fuzztest_cc_test(
-        NAME
-        any_test
-        SRCS
-        "any_test.cc"
-        DEPS
-        fuzztest::any
-        absl::strings
-        GTest::gmock_main
+  NAME
+    any_test
+  SRCS
+    "any_test.cc"
+  DEPS
+    fuzztest::any
+    absl::strings
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        compatibility_mode
-        HDRS
-        "compatibility_mode.h"
-        SRCS
-        "compatibility_mode.cc"
-        DEPS
-        fuzztest::fixture_driver
-        fuzztest::common_logging
-        fuzztest::runtime
-        absl::random_distributions
-        absl::strings
-        absl::str_format
-        absl::time
-        fuzztest::core_domains_impl
+  NAME
+    compatibility_mode
+  HDRS
+    "compatibility_mode.h"
+  SRCS
+    "compatibility_mode.cc"
+  DEPS
+    fuzztest::fixture_driver
+    fuzztest::common_logging
+    fuzztest::runtime
+    absl::random_distributions
+    absl::strings
+    absl::str_format
+    absl::time
+    fuzztest::core_domains_impl
 )
 
 _link_libfuzzer_in_compatibility_mode(fuzztest_compatibility_mode)
 
 fuzztest_cc_library(
-        NAME
-        configuration
-        HDRS
-        "configuration.h"
-        SRCS
-        "configuration.cc"
-        DEPS
-        absl::status
-        absl::statusor
-        absl::strings
-        absl::string_view
-        absl::time
-        fuzztest::common_logging
+  NAME
+    configuration
+  HDRS
+    "configuration.h"
+  SRCS
+    "configuration.cc"
+  DEPS
+    absl::status
+    absl::statusor
+    absl::strings
+    absl::string_view
+    absl::time
+    fuzztest::common_logging
 )
 
 fuzztest_cc_test(
-        NAME
-        configuration_test
-        SRCS
-        "configuration_test.cc"
-        DEPS
-        fuzztest::configuration
-        absl::statusor
-        absl::time
-        GTest::gmock_main
+  NAME
+    configuration_test
+  SRCS
+    "configuration_test.cc"
+  DEPS
+    fuzztest::configuration
+    absl::statusor
+    absl::time
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        corpus_database
-        HDRS
-        "corpus_database.h"
-        SRCS
-        "corpus_database.cc"
-        DEPS
-        fuzztest::configuration
-        fuzztest::io
-        absl::strings
-        absl::string_view
-        absl::time
+  NAME
+    corpus_database
+  HDRS
+    "corpus_database.h"
+  SRCS
+    "corpus_database.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::io
+    absl::strings
+    absl::string_view
+    absl::time
 )
 
 fuzztest_cc_library(
-        NAME
-        coverage
-        HDRS
-        "coverage.h"
-        SRCS
-        "coverage.cc"
-        DEPS
-        fuzztest::flag_name
-        fuzztest::common_logging
-        fuzztest::table_of_recent_compares
-        absl::core_headers
-        absl::str_format
-        absl::span
-        fuzztest::core_domains_impl
+  NAME
+    coverage
+  HDRS
+    "coverage.h"
+  SRCS
+    "coverage.cc"
+  DEPS
+    fuzztest::flag_name
+    fuzztest::common_logging
+    fuzztest::table_of_recent_compares
+    absl::core_headers
+    absl::str_format
+    absl::span
+    fuzztest::core_domains_impl
 )
 
 fuzztest_cc_library(
-        NAME
-        escaping
-        HDRS
-        "escaping.h"
-        SRCS
-        "escaping.cc"
-        DEPS
-        absl::strings
+  NAME
+    escaping
+  HDRS
+    "escaping.h"
+  SRCS
+    "escaping.cc"
+  DEPS
+    absl::strings
 )
 
 fuzztest_cc_library(
-        NAME
-        fixture_driver
-        HDRS
-        "fixture_driver.h"
-        SRCS
-        "fixture_driver.cc"
-        DEPS
-        fuzztest::any
-        fuzztest::common_logging
-        fuzztest::meta
-        fuzztest::printer
-        fuzztest::registration
-        fuzztest::type_support
-        absl::any_invocable
-        absl::status
-        absl::str_format
-        absl::span
-        fuzztest::core_domains_impl
+  NAME
+    fixture_driver
+  HDRS
+    "fixture_driver.h"
+  SRCS
+    "fixture_driver.cc"
+  DEPS
+    fuzztest::any
+    fuzztest::common_logging
+    fuzztest::meta
+    fuzztest::printer
+    fuzztest::registration
+    fuzztest::type_support
+    absl::any_invocable
+    absl::status
+    absl::str_format
+    absl::span
+    fuzztest::core_domains_impl
 )
 
 fuzztest_cc_test(
-        NAME
-        fixture_driver_test
-        SRCS
-        "fixture_driver_test.cc"
-        DEPS
-        fuzztest::any
-        fuzztest::fixture_driver
-        fuzztest::common_logging
-        fuzztest::registration
-        absl::any_invocable
-        absl::span
-        fuzztest::logging
-        fuzztest::domain_core
-        GTest::gmock_main
+  NAME
+    fixture_driver_test
+  SRCS
+    "fixture_driver_test.cc"
+  DEPS
+    fuzztest::any
+    fuzztest::fixture_driver
+    fuzztest::common_logging
+    fuzztest::registration
+    absl::any_invocable
+    absl::span
+    fuzztest::logging
+    fuzztest::domain_core
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        flag_name
-        HDRS
-        "flag_name.h"
+  NAME
+    flag_name
+  HDRS
+    "flag_name.h"
 )
 
 fuzztest_cc_library(
-        NAME
-        googletest_adaptor
-        HDRS
-        "googletest_adaptor.h"
-        SRCS
-        "googletest_adaptor.cc"
-        DEPS
-        fuzztest::configuration
-        fuzztest::corpus_database
-        fuzztest::flag_name
-        fuzztest::io
-        fuzztest::registry
-        fuzztest::runtime
-        absl::strings
-        absl::str_format
-        absl::string_view
-        GTest::gtest
+  NAME
+    googletest_adaptor
+  HDRS
+    "googletest_adaptor.h"
+  SRCS
+    "googletest_adaptor.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::corpus_database
+    fuzztest::flag_name
+    fuzztest::io
+    fuzztest::registry
+    fuzztest::runtime
+    absl::strings
+    absl::str_format
+    absl::string_view
+    GTest::gtest
 )
 
 fuzztest_cc_library(
-        NAME
-        io
-        HDRS
-        "io.h"
-        SRCS
-        "io.cc"
-        DEPS
-        fuzztest::common_logging
-        absl::function_ref
-        absl::hash
-        absl::status
-        absl::str_format
-        absl::string_view
-        absl::time
-        absl::span
-        fuzztest::blob_file
-        fuzztest::defs
-        fuzztest::logging
-        fuzztest::remote_file
+  NAME
+    io
+  HDRS
+    "io.h"
+  SRCS
+    "io.cc"
+  DEPS
+    fuzztest::common_logging
+    absl::function_ref
+    absl::hash
+    absl::status
+    absl::str_format
+    absl::string_view
+    absl::time
+    absl::span
+    fuzztest::blob_file
+    fuzztest::defs
+    fuzztest::logging
+    fuzztest::remote_file
 )
 
 fuzztest_cc_test(
-        NAME
-        io_test
-        SRCS
-        "io_test.cc"
-        DEPS
-        fuzztest::io
-        absl::check
-        absl::status
-        absl::strings
-        absl::time
-        fuzztest::blob_file
-        fuzztest::defs
-        fuzztest::common_logging
-        fuzztest::temp_dir
-        fuzztest::fuzztest_core
-        GTest::gmock_main
+  NAME
+    io_test
+  SRCS
+    "io_test.cc"
+  DEPS
+    fuzztest::io
+    absl::check
+    absl::status
+    absl::strings
+    absl::time
+    fuzztest::blob_file
+    fuzztest::defs
+    fuzztest::common_logging
+    fuzztest::temp_dir
+    fuzztest::fuzztest_core
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        logging
-        HDRS
-        "logging.h"
-        SRCS
-        "logging.cc"
-        DEPS
-        absl::core_headers
-        absl::strings
-        absl::synchronization
-        fuzztest::common_logging
+  NAME
+    logging
+  HDRS
+    "logging.h"
+  SRCS
+    "logging.cc"
+  DEPS
+    absl::core_headers
+    absl::strings
+    absl::synchronization
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(
-        NAME
-        meta
-        HDRS
-        "meta.h"
-        DEPS
-        absl::int128
+  NAME
+    meta
+  HDRS
+    "meta.h"
+  DEPS
+    absl::int128
 )
 
 fuzztest_cc_library(
-        NAME
-        printer
-        HDRS
-        "printer.h"
-        DEPS
-        fuzztest::meta
-        absl::str_format
+  NAME
+    printer
+  HDRS
+    "printer.h"
+  DEPS
+    fuzztest::meta
+    absl::str_format
 )
 
 fuzztest_cc_library(
-        NAME
-        register_fuzzing_mocks
-        HDRS
-        "register_fuzzing_mocks.h"
-        SRCS
-        "register_fuzzing_mocks.cc"
-        DEPS
-        absl::fast_type_id
-        absl::function_ref
-        absl::random_distributions
-        absl::span
-        fuzztest::common_logging
+  NAME
+    register_fuzzing_mocks
+  HDRS
+    "register_fuzzing_mocks.h"
+  SRCS
+    "register_fuzzing_mocks.cc"
+  DEPS
+    absl::fast_type_id
+    absl::function_ref
+    absl::random_distributions
+    absl::span
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(
-        NAME
-        registration
-        HDRS
-        "registration.h"
-        DEPS
-        fuzztest::meta
-        fuzztest::printer
-        fuzztest::type_support
-        absl::any_invocable
-        absl::status
-        absl::str_format
-        absl::span
-        fuzztest::domain_core
-        fuzztest::core_domains_impl
+  NAME
+    registration
+  HDRS
+    "registration.h"
+  DEPS
+    fuzztest::meta
+    fuzztest::printer
+    fuzztest::type_support
+    absl::any_invocable
+    absl::status
+    absl::str_format
+    absl::span
+    fuzztest::domain_core
+    fuzztest::core_domains_impl
 )
 
 fuzztest_cc_library(
-        NAME
-        registry
-        HDRS
-        "registry.h"
-        SRCS
-        "registry.cc"
-        DEPS
-        fuzztest::compatibility_mode
-        fuzztest::fixture_driver
-        fuzztest::registration
-        fuzztest::runtime
-        absl::flat_hash_map
-        absl::function_ref
-        absl::string_view
+  NAME
+    registry
+  HDRS
+    "registry.h"
+  SRCS
+    "registry.cc"
+  DEPS
+    fuzztest::compatibility_mode
+    fuzztest::fixture_driver
+    fuzztest::registration
+    fuzztest::runtime
+    absl::flat_hash_map
+    absl::function_ref
+    absl::string_view
 )
 
 fuzztest_cc_library(
-        NAME
-        runtime
-        HDRS
-        "runtime.h"
-        SRCS
-        "runtime.cc"
-        DEPS
-        fuzztest::configuration
-        fuzztest::corpus_database
-        fuzztest::coverage
-        fuzztest::fixture_driver
-        fuzztest::flag_name
-        fuzztest::io
-        fuzztest::common_logging
-        fuzztest::printer
-        fuzztest::registration
-        fuzztest::seed_seq
-        fuzztest::serialization
-        fuzztest::status
-        absl::core_headers
-        absl::any_invocable
-        absl::bind_front
-        absl::function_ref
-        absl::random_random
-        absl::random_bit_gen_ref
-        absl::random_distributions
-        absl::status
-        absl::statusor
-        absl::strings
-        absl::str_format
-        absl::time
-        absl::span
-        fuzztest::bazel
-        fuzztest::logging
-        fuzztest::core_domains_impl
+  NAME
+    runtime
+  HDRS
+    "runtime.h"
+  SRCS
+    "runtime.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::corpus_database
+    fuzztest::coverage
+    fuzztest::fixture_driver
+    fuzztest::flag_name
+    fuzztest::io
+    fuzztest::common_logging
+    fuzztest::printer
+    fuzztest::registration
+    fuzztest::seed_seq
+    fuzztest::serialization
+    fuzztest::status
+    absl::core_headers
+    absl::any_invocable
+    absl::bind_front
+    absl::function_ref
+    absl::random_random
+    absl::random_bit_gen_ref
+    absl::random_distributions
+    absl::status
+    absl::statusor
+    absl::strings
+    absl::str_format
+    absl::time
+    absl::span
+    fuzztest::bazel
+    fuzztest::logging
+    fuzztest::core_domains_impl
 )
 
 fuzztest_cc_test(
-        NAME
-        runtime_test
-        SRCS
-        "runtime_test.cc"
-        DEPS
-        fuzztest::configuration
-        fuzztest::flag_name
-        fuzztest::runtime
-        fuzztest::test_protobuf_cc_proto
-        absl::flags
-        absl::strings
-        absl::time
-        fuzztest::domain_core
-        GTest::gmock_main
+  NAME
+    runtime_test
+  SRCS
+    "runtime_test.cc"
+  DEPS
+    fuzztest::configuration
+    fuzztest::flag_name
+    fuzztest::runtime
+    fuzztest::test_protobuf_cc_proto
+    absl::flags
+    absl::strings
+    absl::time
+    fuzztest::domain_core
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        seed_seq
-        HDRS
-        "seed_seq.h"
-        SRCS
-        "seed_seq.cc"
-        DEPS
-        fuzztest::common_logging
-        absl::random_random
-        absl::strings
-        absl::span
+  NAME
+    seed_seq
+  HDRS
+    "seed_seq.h"
+  SRCS
+    "seed_seq.cc"
+  DEPS
+    fuzztest::common_logging
+    absl::random_random
+    absl::strings
+    absl::span
 )
 
 fuzztest_cc_test(
-        NAME
-        seed_seq_test
-        SRCS
-        "seed_seq_test.cc"
-        DEPS
-        fuzztest::seed_seq
-        absl::strings
-        absl::span
-        GTest::gmock_main
+  NAME
+    seed_seq_test
+  SRCS
+    "seed_seq_test.cc"
+  DEPS
+    fuzztest::seed_seq
+    absl::strings
+    absl::span
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        serialization
-        HDRS
-        "serialization.h"
-        SRCS
-        "serialization.cc"
-        DEPS
-        fuzztest::meta
-        absl::int128
-        absl::strings
-        absl::str_format
-        absl::span
+  NAME
+    serialization
+  HDRS
+    "serialization.h"
+  SRCS
+    "serialization.cc"
+  DEPS
+    fuzztest::meta
+    absl::int128
+    absl::strings
+    absl::str_format
+    absl::span
 )
 
 fuzztest_cc_test(
-        NAME
-        serialization_test
-        SRCS
-        "serialization_test.cc"
-        DEPS
-        fuzztest::serialization
-        fuzztest::test_protobuf_cc_proto
-        GTest::gmock_main
-        protobuf::libprotobuf
+  NAME
+    serialization_test
+  SRCS
+    "serialization_test.cc"
+  DEPS
+    fuzztest::serialization
+    fuzztest::test_protobuf_cc_proto
+    GTest::gmock_main
+    protobuf::libprotobuf
 )
 
 fuzztest_cc_library(
-        NAME
-        status
-        HDRS
-        "status.h"
-        SRCS
-        "status.cc"
-        DEPS
-        absl::status
-        absl::strings
-        absl::cord
+  NAME
+    status
+  HDRS
+    "status.h"
+  SRCS
+    "status.cc"
+  DEPS
+    absl::status
+    absl::strings
+    absl::cord
 )
 
 fuzztest_cc_library(
-        NAME
-        subprocess
-        HDRS
-        "subprocess.h"
-        SRCS
-        "subprocess.cc"
-        DEPS
-        fuzztest::common_logging
-        absl::flat_hash_map
-        absl::function_ref
-        absl::span
-        absl::strings
-        absl::string_view
-        absl::time
+  NAME
+    subprocess
+  HDRS
+    "subprocess.h"
+  SRCS
+    "subprocess.cc"
+  DEPS
+    fuzztest::common_logging
+    absl::flat_hash_map
+    absl::function_ref
+    absl::span
+    absl::strings
+    absl::string_view
+    absl::time
 )
 
 fuzztest_cc_test(
-        NAME
-        subprocess_test
-        SRCS
-        "subprocess_test.cc"
-        DEPS
-        fuzztest::subprocess
-        absl::strings
-        absl::time
-        GTest::gmock_main
+  NAME
+    subprocess_test
+  SRCS
+    "subprocess_test.cc"
+  DEPS
+    fuzztest::subprocess
+    absl::strings
+    absl::time
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
-        NAME
-        table_of_recent_compares
-        HDRS
-        "table_of_recent_compares.h"
-        DEPS
-        fuzztest::type_support
-        absl::flat_hash_set
-        absl::random_bit_gen_ref
-        absl::random_distributions
+  NAME
+    table_of_recent_compares
+  HDRS
+    "table_of_recent_compares.h"
+  DEPS
+    fuzztest::type_support
+    absl::flat_hash_set
+    absl::random_bit_gen_ref
+    absl::random_distributions
 )
 
 fuzztest_cc_test(
-        NAME
-        table_of_recent_compares_test
-        SRCS
-        "table_of_recent_compares_test.cc"
-        DEPS
-        fuzztest::table_of_recent_compares
-        absl::random_random
-        GTest::gmock_main
+  NAME
+    table_of_recent_compares_test
+  SRCS
+    "table_of_recent_compares_test.cc"
+  DEPS
+    fuzztest::table_of_recent_compares
+    absl::random_random
+    GTest::gmock_main
 )
 
 fuzztest_proto_library(
-        NAME
-        test_protobuf_cc_proto
-        SRCS
-        test_protobuf.proto
-        TESTONLY
+  NAME
+    test_protobuf_cc_proto
+  SRCS
+    test_protobuf.proto
+  TESTONLY
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   fuzztest_flatbuffers_generate_headers(
-          TARGET
-          test_flatbuffers_headers
-          SCHEMAS
-          "test_flatbuffers.fbs"
-          FLAGS
-          --bfbs-gen-embed --gen-name-strings
-          TESTONLY
+    TARGET
+      test_flatbuffers_headers
+    SCHEMAS
+      "test_flatbuffers.fbs"
+    FLAGS
+      --bfbs-gen-embed --gen-name-strings
+    TESTONLY
   )
   add_dependencies(fuzztest_test_flatbuffers_headers
-          fuzztest_GENERATE_test_flatbuffers_headers
+    fuzztest_GENERATE_test_flatbuffers_headers
   )
 endif()
 
 fuzztest_cc_library(
-        NAME
-        type_support
-        HDRS
-        "type_support.h"
-        SRCS
-        "type_support.cc"
-        DEPS
-        fuzztest::meta
-        fuzztest::printer
-        absl::symbolize
-        absl::function_ref
-        absl::int128
-        absl::strings
-        absl::str_format
-        absl::time
-        fuzztest::absl_helpers
+  NAME
+    type_support
+  HDRS
+    "type_support.h"
+  SRCS
+    "type_support.cc"
+  DEPS
+    fuzztest::meta
+    fuzztest::printer
+    absl::symbolize
+    absl::function_ref
+    absl::int128
+    absl::strings
+    absl::str_format
+    absl::time
+    fuzztest::absl_helpers
 )
 
 fuzztest_cc_test(
-        NAME
-        type_support_test
-        SRCS
-        "type_support_test.cc"
-        DEPS
-        fuzztest::meta
-        fuzztest::printer
-        fuzztest::test_protobuf_cc_proto
-        fuzztest::type_support
-        absl::int128
-        absl::strings
-        absl::str_format
-        absl::time
-        fuzztest::domain
-        GTest::gmock_main
-        protobuf::libprotobuf
+  NAME
+    type_support_test
+  SRCS
+    "type_support_test.cc"
+  DEPS
+    fuzztest::meta
+    fuzztest::printer
+    fuzztest::test_protobuf_cc_proto
+    fuzztest::type_support
+    absl::int128
+    absl::strings
+    absl::str_format
+    absl::time
+    fuzztest::domain
+    GTest::gmock_main
+    protobuf::libprotobuf
 )
