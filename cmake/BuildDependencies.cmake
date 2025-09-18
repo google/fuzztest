@@ -43,23 +43,48 @@ if(POLICY CMP0135)
   set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
-FetchContent_Declare(
-        abseil-cpp
-        GIT_REPOSITORY ${absl_URL}
-        GIT_TAG        ${absl_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+          abseil-cpp
+          GIT_REPOSITORY ${absl_URL}
+          GIT_TAG        ${absl_TAG}
+  )
+else()
+  find_package(absl QUIET)
+  if(NOT absl_FOUND)
+    message(WARNING "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF and absl not found via find_package.\n")
+  endif()
+endif()
 
-FetchContent_Declare(
-        re2
-        GIT_REPOSITORY ${re2_URL}
-        GIT_TAG        ${re2_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+          re2
+          GIT_REPOSITORY ${re2_URL}
+          GIT_TAG        ${re2_TAG}
+  )
+else()
+  if(DEFINED RE2_SOURCE_DIR)
+    message(STATUS "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF: using local re2 source at ${RE2_SOURCE_DIR}")
+    FetchContent_Declare(
+            re2
+            SOURCE_DIR     ${RE2_SOURCE_DIR}
+            GIT_REPOSITORY ${re2_URL}
+            GIT_TAG        ${re2_TAG}
+    )
+  else()
+    message(FATAL_ERROR "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF but RE2_SOURCE_DIR is not set.\n")
+  endif()
+endif()
 
-FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY ${gtest_URL}
-        GIT_TAG        ${gtest_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+          googletest
+          GIT_REPOSITORY ${gtest_URL}
+          GIT_TAG        ${gtest_TAG}
+  )
+else()
+  find_package(GTest REQUIRED)
+endif()
 
 FetchContent_Declare(
         antlr_cpp
@@ -68,53 +93,73 @@ FetchContent_Declare(
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
-  FetchContent_Declare(
-          flatbuffers
-          GIT_REPOSITORY ${flatbuffers_URL}
-          GIT_TAG        ${flatbuffers_TAG}
-  )
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+    FetchContent_Declare(
+            flatbuffers
+            GIT_REPOSITORY ${flatbuffers_URL}
+            GIT_TAG        ${flatbuffers_TAG}
+    )
+  else()
+    find_package(flatbuffers REQUIRED)
+  endif()
 endif()
 
 if (FUZZTEST_BUILD_TESTING)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+    FetchContent_Declare(
+            protobuf
+            GIT_REPOSITORY ${proto_URL}
+            GIT_TAG        ${proto_TAG}
+    )
 
-  FetchContent_Declare(
-          protobuf
-          GIT_REPOSITORY ${proto_URL}
-          GIT_TAG        ${proto_TAG}
-  )
-
-  FetchContent_Declare(
-          nlohmann_json
-          GIT_REPOSITORY ${nlohmann_json_URL}
-          GIT_TAG        ${nlohmann_json_TAG}
-  )
-
+    FetchContent_Declare(
+            nlohmann_json
+            GIT_REPOSITORY ${nlohmann_json_URL}
+            GIT_TAG        ${nlohmann_json_TAG}
+    )
+  else()
+    find_package(Protobuf REQUIRED)
+    if(TARGET Protobuf::protobuf AND NOT TARGET protobuf::libprotobuf)
+      add_library(protobuf::libprotobuf ALIAS Protobuf::protobuf)
+    endif()
+    find_package(nlohmann_json REQUIRED)
+  endif()
 endif ()
 
-set(ABSL_PROPAGATE_CXX_STD ON)
-set(ABSL_ENABLE_INSTALL ON)
-FetchContent_MakeAvailable(abseil-cpp)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  set(ABSL_PROPAGATE_CXX_STD ON)
+  set(ABSL_ENABLE_INSTALL ON)
+  FetchContent_MakeAvailable(abseil-cpp)
+else()
+  if(TARGET absl::absl)
+    message(STATUS "Using system absl target absl::absl")
+  endif()
+endif()
 
 set(RE2_BUILD_TESTING OFF)
 FetchContent_MakeAvailable(re2)
 
-set(GTEST_HAS_ABSL ON)
-FetchContent_MakeAvailable(googletest)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  set(GTEST_HAS_ABSL ON)
+  FetchContent_MakeAvailable(googletest)
+endif()
 
 FetchContent_MakeAvailable(antlr_cpp)
 
 if (FUZZTEST_BUILD_TESTING)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+    set(protobuf_BUILD_TESTS OFF)
+    set(protobuf_INSTALL OFF)
+    FetchContent_MakeAvailable(protobuf)
 
-  set(protobuf_BUILD_TESTS OFF)
-  set(protobuf_INSTALL OFF)
-  FetchContent_MakeAvailable(protobuf)
-
-  FetchContent_MakeAvailable(nlohmann_json)
-
+    FetchContent_MakeAvailable(nlohmann_json)
+  endif()
 endif ()
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
-  set(FLATBUFFERS_BUILD_TESTS OFF)
-  set(FLATBUFFERS_BUILD_INSTALL OFF)
-  FetchContent_MakeAvailable(flatbuffers)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+    set(FLATBUFFERS_BUILD_TESTS OFF)
+    set(FLATBUFFERS_BUILD_INSTALL OFF)
+    FetchContent_MakeAvailable(flatbuffers)
+  endif()
 endif()
