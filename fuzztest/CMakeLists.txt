@@ -234,25 +234,3 @@ fuzztest_cc_library(
         fuzztest::io
         fuzztest::core_domains_impl
 )
-
-if (FUZZTEST_BUILD_REGEXP_DFA)
-    fuzztest_cc_library(
-            NAME
-            regexp_dfa
-            HDRS
-            "regexp_dfa.h"
-            SRCS
-            "regexp_dfa.cc"
-            DEPS
-            absl::flat_hash_map
-            absl::random_bit_gen_ref
-            absl::random_distributions
-            absl::status
-            absl::statusor
-            absl::strings
-            absl::string_view
-            fuzztest::common_logging
-            fuzztest::logging
-            re2::re2
-    )
-endif ()

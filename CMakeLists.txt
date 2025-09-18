@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(fuzztest)
 
+option(FUZZTEST_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent." ON)
 option(FUZZTEST_BUILD_TESTING "Building the tests." OFF)
 option(FUZZTEST_BUILD_FLATBUFFERS "Building the flatbuffers support." OFF)
 option(FUZZTEST_FUZZING_MODE "Building the fuzztest in fuzzing mode." OFF)
