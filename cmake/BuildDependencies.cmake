@@ -20,9 +20,6 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(absl_URL https://github.com/abseil/abseil-cpp.git)
   set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
 
-  set(re2_URL https://github.com/google/re2.git)
-  set(re2_TAG 2024-07-02)
-
   set(gtest_URL https://github.com/google/googletest.git)
   set(gtest_TAG v1.16.0)
 
@@ -36,6 +33,10 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(flatbuffers_TAG v25.2.10)
 endif()
 
+
+set(re2_URL https://github.com/google/re2.git)
+set(re2_TAG 2024-07-02)
+
 # From https://www.antlr.org/download.html
 set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip)
 set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
@@ -47,40 +48,39 @@ endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-          abseil-cpp
-          GIT_REPOSITORY ${absl_URL}
-          GIT_TAG        ${absl_TAG}
+    abseil-cpp
+    GIT_REPOSITORY ${absl_URL}
+    GIT_TAG        ${absl_TAG}
   )
 
   FetchContent_Declare(
-          re2
-          GIT_REPOSITORY ${re2_URL}
-          GIT_TAG        ${re2_TAG}
-  )
-
-  FetchContent_Declare(
-          googletest
-          GIT_REPOSITORY ${gtest_URL}
-          GIT_TAG        ${gtest_TAG}
+    googletest
+    GIT_REPOSITORY ${gtest_URL}
+    GIT_TAG        ${gtest_TAG}
   )
 else()
   find_package(absl REQUIRED)
-  find_package(re2 REQUIRED)
   find_package(GTest REQUIRED)
 endif()
 
 FetchContent_Declare(
-        antlr_cpp
-        URL      ${antlr_cpp_URL}
-        URL_HASH MD5=${antlr_cpp_MD5}
+  re2
+  GIT_REPOSITORY ${re2_URL}
+  GIT_TAG        ${re2_TAG}
+)
+
+FetchContent_Declare(
+  antlr_cpp
+  URL      ${antlr_cpp_URL}
+  URL_HASH MD5=${antlr_cpp_MD5}
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            flatbuffers
-            GIT_REPOSITORY ${flatbuffers_URL}
-            GIT_TAG        ${flatbuffers_TAG}
+      flatbuffers
+      GIT_REPOSITORY ${flatbuffers_URL}
+      GIT_TAG        ${flatbuffers_TAG}
     )
   else()
     find_package(flatbuffers REQUIRED)
@@ -90,15 +90,15 @@ endif()
 if (FUZZTEST_BUILD_TESTING)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            protobuf
-            GIT_REPOSITORY ${proto_URL}
-            GIT_TAG        ${proto_TAG}
+      protobuf
+      GIT_REPOSITORY ${proto_URL}
+      GIT_TAG        ${proto_TAG}
     )
 
     FetchContent_Declare(
-            nlohmann_json
-            GIT_REPOSITORY ${nlohmann_json_URL}
-            GIT_TAG        ${nlohmann_json_TAG}
+      nlohmann_json
+      GIT_REPOSITORY ${nlohmann_json_URL}
+      GIT_TAG        ${nlohmann_json_TAG}
     )
   else()
     find_package(Protobuf REQUIRED)
@@ -112,12 +112,12 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(ABSL_ENABLE_INSTALL ON)
   FetchContent_MakeAvailable(abseil-cpp)
 
-  set(RE2_BUILD_TESTING OFF)
-  FetchContent_MakeAvailable(re2)
-
   set(GTEST_HAS_ABSL ON)
   FetchContent_MakeAvailable(googletest)
 endif()
+
+set(RE2_BUILD_TESTING OFF)
+FetchContent_MakeAvailable(re2)
 
 FetchContent_MakeAvailable(antlr_cpp)
 
