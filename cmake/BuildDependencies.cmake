@@ -39,15 +39,15 @@ set(flatbuffers_URL https://github.com/google/flatbuffers.git)
 set(flatbuffers_TAG v25.2.10)
 
 if(POLICY CMP0135)
-  cmake_policy(SET CMP0135 NEW)
-  set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
+    cmake_policy(SET CMP0135 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-          abseil-cpp
-          GIT_REPOSITORY ${absl_URL}
-          GIT_TAG        ${absl_TAG}
+    abseil-cpp
+    GIT_REPOSITORY ${absl_URL}
+    GIT_TAG        ${absl_TAG}
   )
 else()
   find_package(absl QUIET)
@@ -58,18 +58,18 @@ endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-          re2
-          GIT_REPOSITORY ${re2_URL}
-          GIT_TAG        ${re2_TAG}
+      re2
+      GIT_REPOSITORY ${re2_URL}
+      GIT_TAG        ${re2_TAG}
   )
 else()
   if(DEFINED RE2_SOURCE_DIR)
     message(STATUS "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF: using local re2 source at ${RE2_SOURCE_DIR}")
     FetchContent_Declare(
-            re2
-            SOURCE_DIR     ${RE2_SOURCE_DIR}
-            GIT_REPOSITORY ${re2_URL}
-            GIT_TAG        ${re2_TAG}
+      re2
+      SOURCE_DIR     ${RE2_SOURCE_DIR}
+      GIT_REPOSITORY ${re2_URL}
+      GIT_TAG        ${re2_TAG}
     )
   else()
     message(FATAL_ERROR "FUZZTEST_DOWNLOAD_DEPENDENCIES=OFF but RE2_SOURCE_DIR is not set.\n")
@@ -78,26 +78,26 @@ endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-          googletest
-          GIT_REPOSITORY ${gtest_URL}
-          GIT_TAG        ${gtest_TAG}
+      googletest
+      GIT_REPOSITORY ${gtest_URL}
+      GIT_TAG        ${gtest_TAG}
   )
 else()
   find_package(GTest REQUIRED)
 endif()
 
 FetchContent_Declare(
-        antlr_cpp
-        URL      ${antlr_cpp_URL}
-        URL_HASH MD5=${antlr_cpp_MD5}
+      antlr_cpp
+      URL      ${antlr_cpp_URL}
+      URL_HASH MD5=${antlr_cpp_MD5}
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            flatbuffers
-            GIT_REPOSITORY ${flatbuffers_URL}
-            GIT_TAG        ${flatbuffers_TAG}
+      flatbuffers
+      GIT_REPOSITORY ${flatbuffers_URL}
+      GIT_TAG        ${flatbuffers_TAG}
     )
   else()
     find_package(flatbuffers REQUIRED)
@@ -107,15 +107,15 @@ endif()
 if (FUZZTEST_BUILD_TESTING)
   if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
     FetchContent_Declare(
-            protobuf
-            GIT_REPOSITORY ${proto_URL}
-            GIT_TAG        ${proto_TAG}
+      protobuf
+      GIT_REPOSITORY ${proto_URL}
+      GIT_TAG        ${proto_TAG}
     )
 
     FetchContent_Declare(
-            nlohmann_json
-            GIT_REPOSITORY ${nlohmann_json_URL}
-            GIT_TAG        ${nlohmann_json_TAG}
+      nlohmann_json
+      GIT_REPOSITORY ${nlohmann_json_URL}
+      GIT_TAG        ${nlohmann_json_TAG}
     )
   else()
     find_package(Protobuf REQUIRED)
