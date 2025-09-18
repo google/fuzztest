@@ -15,7 +15,7 @@
 if (NOT COMPILER_GCC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize-coverage=0")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize-coverage=0")
-endif ()
+endif()
 
 fuzztest_cc_library(
         NAME
@@ -122,7 +122,7 @@ if (FUZZTEST_BUILD_FLATBUFFERS)
             fuzztest::status
             fuzztest::type_support
     )
-endif ()
+endif()
 
 fuzztest_cc_library(
         NAME

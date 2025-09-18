@@ -15,7 +15,6 @@
 cmake_minimum_required(VERSION 3.19)
 project(fuzztest)
 
-option(FUZZTEST_DOWNLOAD_DEPENDENCIES "Download dependencies using FetchContent." ON)
 option(FUZZTEST_BUILD_TESTING "Building the tests." OFF)
 option(FUZZTEST_BUILD_FLATBUFFERS "Building the flatbuffers support." OFF)
 option(FUZZTEST_FUZZING_MODE "Building the fuzztest in fuzzing mode." OFF)
@@ -41,7 +40,7 @@ if (FUZZTEST_FUZZING_MODE AND NOT FUZZTEST_COMPATIBILITY_MODE STREQUAL "")
 endif ()
 
 if (NOT FUZZTEST_COMPATIBILITY_MODE STREQUAL "" AND
-    NOT FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer")
+        NOT FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer")
   message (FATAL_ERROR "Compatibility mode is only supported for libfuzzer")
 endif ()
 
