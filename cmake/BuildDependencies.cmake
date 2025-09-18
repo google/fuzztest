@@ -16,13 +16,15 @@ cmake_minimum_required(VERSION 3.19)
 
 include(FetchContent)
 
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  set(absl_URL https://github.com/abseil/abseil-cpp.git)
+  set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
+endif()
+
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2024-07-02)
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
-  set(absl_URL https://github.com/abseil/abseil-cpp.git)
-  set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
-
   set(gtest_URL https://github.com/google/googletest.git)
   set(gtest_TAG v1.16.0)
 
@@ -45,6 +47,16 @@ if(POLICY CMP0135)
   set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  FetchContent_Declare(
+    abseil-cpp
+    GIT_REPOSITORY ${absl_URL}
+    GIT_TAG        ${absl_TAG}
+  )
+else()
+  find_package(absl REQUIRED)
+endif()
+
 FetchContent_Declare(
   re2
   GIT_REPOSITORY ${re2_URL}
@@ -53,18 +65,11 @@ FetchContent_Declare(
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
-    abseil-cpp
-    GIT_REPOSITORY ${absl_URL}
-    GIT_TAG        ${absl_TAG}
-  )
-
-  FetchContent_Declare(
     googletest
     GIT_REPOSITORY ${gtest_URL}
     GIT_TAG        ${gtest_TAG}
   )
 else()
-  find_package(absl REQUIRED)
   find_package(GTest REQUIRED)
 endif()
 
@@ -106,14 +111,16 @@ if (FUZZTEST_BUILD_TESTING)
   endif()
 endif ()
 
-set(RE2_BUILD_TESTING OFF)
-FetchContent_MakeAvailable(re2)
-
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(ABSL_PROPAGATE_CXX_STD ON)
   set(ABSL_ENABLE_INSTALL ON)
   FetchContent_MakeAvailable(abseil-cpp)
+endif()
 
+set(RE2_BUILD_TESTING OFF)
+FetchContent_MakeAvailable(re2)
+
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(GTEST_HAS_ABSL ON)
   FetchContent_MakeAvailable(googletest)
 endif()
