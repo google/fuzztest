@@ -16,6 +16,9 @@ cmake_minimum_required(VERSION 3.19)
 
 include(FetchContent)
 
+set(re2_URL https://github.com/google/re2.git)
+set(re2_TAG 2024-07-02)
+
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(absl_URL https://github.com/abseil/abseil-cpp.git)
   set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
@@ -33,10 +36,6 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(flatbuffers_TAG v25.2.10)
 endif()
 
-
-set(re2_URL https://github.com/google/re2.git)
-set(re2_TAG 2024-07-02)
-
 # From https://www.antlr.org/download.html
 set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip)
 set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
@@ -45,6 +44,12 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
   set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
+
+FetchContent_Declare(
+  re2
+  GIT_REPOSITORY ${re2_URL}
+  GIT_TAG        ${re2_TAG}
+)
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   FetchContent_Declare(
@@ -62,12 +67,6 @@ else()
   find_package(absl REQUIRED)
   find_package(GTest REQUIRED)
 endif()
-
-FetchContent_Declare(
-  re2
-  GIT_REPOSITORY ${re2_URL}
-  GIT_TAG        ${re2_TAG}
-)
 
 FetchContent_Declare(
   antlr_cpp
@@ -107,6 +106,9 @@ if (FUZZTEST_BUILD_TESTING)
   endif()
 endif ()
 
+set(RE2_BUILD_TESTING OFF)
+FetchContent_MakeAvailable(re2)
+
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(ABSL_PROPAGATE_CXX_STD ON)
   set(ABSL_ENABLE_INSTALL ON)
@@ -115,9 +117,6 @@ if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(GTEST_HAS_ABSL ON)
   FetchContent_MakeAvailable(googletest)
 endif()
-
-set(RE2_BUILD_TESTING OFF)
-FetchContent_MakeAvailable(re2)
 
 FetchContent_MakeAvailable(antlr_cpp)
 
