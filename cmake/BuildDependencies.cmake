@@ -120,6 +120,12 @@ endif()
 set(RE2_BUILD_TESTING OFF)
 FetchContent_MakeAvailable(re2)
 
+if(TARGET re2 AND NOT TARGET re2::re2)
+  add_library(re2::re2 ALIAS re2)
+elseif(TARGET re2::re2 AND NOT TARGET re2)
+  add_library(re2 ALIAS re2::re2)
+endif()
+
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
   set(GTEST_HAS_ABSL ON)
   FetchContent_MakeAvailable(googletest)
