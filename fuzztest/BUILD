@@ -106,6 +106,8 @@ cc_library(
     testonly = 1,
     srcs = ["fuzztest_gtest_main.cc"],
     deps = [
+        "@abseil-cpp//absl/debugging:failure_signal_handler",
+        "@abseil-cpp//absl/debugging:symbolize",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@googletest//:gtest",
     ],

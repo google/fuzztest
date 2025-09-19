@@ -14,8 +14,14 @@
 
 #include "gtest/gtest.h"
 #include "./fuzztest/init_fuzztest.h"
+#include "absl/debugging/failure_signal_handler.h"
+#include "absl/debugging/symbolize.h"
 
 int main(int argc, char** argv) {
+  absl::InitializeSymbolizer(argv[0]);
+  absl::FailureSignalHandlerOptions options;
+  options.call_previous_handler = true;
+  absl::InstallFailureSignalHandler(options);
   testing::InitGoogleTest(&argc, argv);
   // We call fuzztest::ParseAbslFlags rather than absl::ParseCommandLine
   // since the latter would complain about any unknown flags that need

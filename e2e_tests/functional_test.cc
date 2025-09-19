@@ -217,6 +217,18 @@ void GoogleTestExpectationsDontAbortInUnitTestModeImpl(
   EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestAssert"));
   EXPECT_THAT(status, Ne(ExitCode(0)));
 
+#ifndef FUZZTEST_USE_CENTIPEDE
+  // There is the gtest stack on stdout, and no stack on stderr.
+  EXPECT_THAT_LOG(std_out, AllOf(HasSubstr("GoogleTestExpect("),
+                                 HasSubstr("GoogleTestAssert(")));
+  // We remove the reproducer first because it also contains the function name.
+  EXPECT_THAT(RemoveReproducer(RemoveReproducer(std_err, "MySuite",
+                                                "GoogleTestExpect", ".*"),
+                               "MySuite", "GoogleTestAssert", ".*"),
+              AllOf(Not(HasSubstr("GoogleTestExpect(")),
+                    Not(HasSubstr("GoogleTestAssert("))));
+#endif
+
   // There is no repro example on stdout, and there is one on stderr.
   EXPECT_THAT_LOG(
       std_out,
@@ -1668,6 +1680,9 @@ TEST_P(FuzzingModeCrashFindingTest, GoogleTestExpectationsStopTheFuzzer) {
   ExpectTargetAbort(status, std_err);
 
 #ifndef FUZZTEST_USE_CENTIPEDE
+  // There is a stack both on stdout and stderr.
+  EXPECT_THAT_LOG(std_out, HasSubstr("GoogleTestExpect("));
+  EXPECT_THAT_LOG(std_err, HasSubstr("GoogleTestExpect("));
 
   // There is the repro example only on stderr.
   EXPECT_THAT_LOG(std_out,
@@ -1683,6 +1698,9 @@ TEST_P(FuzzingModeCrashFindingTest, GoogleTestAssertionsStopTheFuzzer) {
   ExpectTargetAbort(status, std_err);
 
 #ifndef FUZZTEST_USE_CENTIPEDE
+  // There is a stack both on stdout and stderr.
+  EXPECT_THAT_LOG(std_out, HasSubstr("GoogleTestAssert("));
+  EXPECT_THAT_LOG(std_err, HasSubstr("GoogleTestAssert("));
 
   // There is the repro example only on stderr.
   EXPECT_THAT_LOG(std_out,
