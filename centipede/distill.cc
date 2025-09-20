@@ -178,12 +178,12 @@ class CorpusShardWriter {
   virtual ~CorpusShardWriter() = default;
 
   void WriteElt(CorpusElt elt) {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     WriteEltImpl(std::move(elt));
   }
 
   void WriteBatch(CorpusEltVec elts) {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     FUZZTEST_VLOG(1) << log_prefix_ << "writing " << elts.size()
                      << " elements to output shard:\n"
                      << VV(corpus_path_) << "\n"
@@ -195,7 +195,7 @@ class CorpusShardWriter {
   }
 
   Stats GetStats() const {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     return stats_;
   }
 
@@ -268,7 +268,7 @@ class DistillingInputFilter {
         } {}
 
   std::optional<CorpusElt> FilterElt(CorpusElt elt) {
-    absl::MutexLock lock{&mu_};
+    absl::MutexLock lock{mu_};
 
     ++stats_.num_total_elts;
 
@@ -289,7 +289,7 @@ class DistillingInputFilter {
   }
 
   Stats GetStats() {
-    absl::MutexLock lock{&mu_};
+    absl::MutexLock lock{mu_};
     std::stringstream ss;
     ss << seen_features_;
     stats_.coverage_str = std::move(ss).str();

@@ -45,12 +45,12 @@ class PeriodicAction::Impl {
   }
 
   void StopAsync() {
-    absl::MutexLock lock{&mu_};
+    absl::MutexLock lock{mu_};
     stop_ = true;
   }
 
   void Nudge() {
-    absl::MutexLock lock{&mu_};
+    absl::MutexLock lock{mu_};
     nudge_ = true;
   }
 
@@ -62,7 +62,7 @@ class PeriodicAction::Impl {
       const bool schedule = !nudge_ && !stop_;
       const bool nudge = nudge_;
       const bool stop = stop_;
-      mu_.Unlock();
+      mu_.unlock();
       // NOTE: The caller might call `Stop()` immediately after one final
       // `Nudge()`: in that case we still should run the action, and only then
       // terminate the loop. This is in contrast to waking after sleeping the
@@ -80,12 +80,12 @@ class PeriodicAction::Impl {
 
   void SleepOrWakeEarly(absl::Duration duration)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(mu_) {
-    mu_.Lock();
+    mu_.lock();
     // NOTE: Reset only `nudge_`, but not `stop_`: nudging is transient and
     // can be activated repeatedly, the latter is persistent and can be
     // activated only once (repeated calls to `Stop()` are no-ops).
     nudge_ = false;
-    mu_.Unlock();
+    mu_.unlock();
     const auto wake_early = [this]() {
       mu_.AssertReaderHeld();
       return nudge_ || stop_;

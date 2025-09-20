@@ -94,7 +94,7 @@ template <typename ResourceT>
 typename ResourcePool<ResourceT>::LeaseToken
 ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
   if (FUZZTEST_VLOG_IS_ON(1)) {
-    absl::ReaderMutexLock lock{&pool_mu_};
+    absl::ReaderMutexLock lock{pool_mu_};
     FUZZTEST_VLOG(1) << "Received lease request " << request.id           //
                      << "\nrequested: " << request.amount.FormattedStr()  //
                      << "\nquota:     " << quota_.FormattedStr()          //
@@ -144,7 +144,7 @@ ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
         << "\nleased  : " << (-request.amount).FormattedStr()  //
         << "\nafter   : " << (pool_ - request.amount).FormattedStr();
     pool_ = pool_ - request.amount;
-    pool_mu_.Unlock();
+    pool_mu_.unlock();
     return LeaseToken{*this, std::move(request)};
   } else {
     absl::Status error =                           //
@@ -152,14 +152,14 @@ ResourcePool<ResourceT>::AcquireLeaseBlocking(LeaseRequest&& request) {
             "Lease request ", request.id, " timed out; timeout: ",
             request.timeout, " requested: [", request.amount.ShortStr(),
             "] current pool: [", pool_.ShortStr(), "]"));
-    pool_mu_.Unlock();
+    pool_mu_.unlock();
     return LeaseToken{*this, std::move(request), std::move(error)};
   }
 }
 
 template <typename ResourceT>
 void ResourcePool<ResourceT>::ReturnLease(const LeaseToken& lease) {
-  absl::WriterMutexLock lock{&pool_mu_};
+  absl::WriterMutexLock lock{pool_mu_};
   FUZZTEST_VLOG(1)                                                     //
       << "Returning lease " << lease.request().id                      //
       << "\nreq age   : " << lease.request().age()                     //

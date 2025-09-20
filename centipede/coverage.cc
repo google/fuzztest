@@ -142,7 +142,7 @@ void Coverage::DumpReportToFile(const SymbolTable &symbols,
 
 std::string CoverageLogger::ObserveAndDescribeIfNew(PCIndex pc_index) {
   if (pc_table_.empty()) return "";  // Fast-path return (symbolization is off).
-  absl::MutexLock l(&mu_);
+  absl::MutexLock l(mu_);
   if (!observed_indices_.insert(pc_index).second) return "";
   std::ostringstream os;
   if (pc_index >= pc_table_.size()) {

@@ -91,7 +91,7 @@ class CpuHog {
       }
       // Let one of the hogs notify the caller that the hogging is over.
       {
-        absl::MutexLock lock{&mu_};
+        absl::MutexLock lock{mu_};
         if (!hogging_stopped->HasBeenNotified()) {
           hogging_stopped->Notify();
         }

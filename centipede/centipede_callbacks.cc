@@ -766,7 +766,7 @@ void CentipedeCallbacks::PrintExecutionLog() const {
   }
   std::string log_text;
   ReadFromLocalFile(execute_log_path_, log_text);
-  absl::MutexLock lock(&GetExecutionLoggingMutex());
+  absl::MutexLock lock(GetExecutionLoggingMutex());
   for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
     FUZZTEST_LOG(INFO).NoPrefix() << "LOG: " << log_line;
