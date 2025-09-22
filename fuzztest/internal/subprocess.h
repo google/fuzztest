@@ -109,7 +109,7 @@ TerminationStatus RunCommandWithCallbacks(
     absl::FunctionRef<void(absl::string_view)> on_stderr_output,
     absl::FunctionRef<bool()> should_stop = [] { return false; },
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
-        environment = {{}});
+        environment = absl::flat_hash_map<std::string, std::string>{});
 
 // Runs `command_line` in a subprocess and returns the run results that captures
 // the stdout/stderr as strings. Environment variables
@@ -120,7 +120,7 @@ TerminationStatus RunCommandWithCallbacks(
 RunResults RunCommand(
     absl::Span<const std::string> command_line,
     const std::optional<absl::flat_hash_map<std::string, std::string>>&
-        environment = {{}},
+        environment = absl::flat_hash_map<std::string, std::string>{},
     absl::Duration timeout = absl::InfiniteDuration());
 
 }  // namespace fuzztest::internal
