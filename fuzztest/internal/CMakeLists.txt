@@ -550,3 +550,4 @@ fuzztest_cc_test(
     GTest::gmock_main
     protobuf::libprotobuf
 )
+

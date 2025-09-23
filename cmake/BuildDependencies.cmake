@@ -55,9 +55,9 @@ endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_RE2)
   FetchContent_Declare(
-      re2
-      GIT_REPOSITORY ${re2_URL}
-      GIT_TAG        ${re2_TAG}
+    re2
+    GIT_REPOSITORY ${re2_URL}
+    GIT_TAG        ${re2_TAG}
   )
 else()
   find_package(re2 REQUIRED)
@@ -65,18 +65,18 @@ endif()
 
 if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_GTEST)
   FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY ${gtest_URL}
-      GIT_TAG        ${gtest_TAG}
+    googletest
+    GIT_REPOSITORY ${gtest_URL}
+    GIT_TAG        ${gtest_TAG}
   )
 else()
   find_package(GTest REQUIRED)
 endif()
 
 FetchContent_Declare(
-      antlr_cpp
-      URL      ${antlr_cpp_URL}
-      URL_HASH MD5=${antlr_cpp_MD5}
+  antlr_cpp
+  URL          ${antlr_cpp_URL}
+  URL_HASH MD5=${antlr_cpp_MD5}
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
