@@ -122,6 +122,7 @@ class UpdateCorpusDatabaseTest
     // Dumping stack trace in gtest would slow down the execution, causing
     // test flakiness.
     options.flags[GTEST_FLAG_PREFIX_ "stack_trace_depth"] = "0";
+    options.flags["symbolize_stacktrace"] = "0";
     switch (GetParam()) {
       case ExecutionModelParam::kTestBinary:
         return RunBinary(binary_path, options);
