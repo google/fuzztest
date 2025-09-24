@@ -40,6 +40,22 @@ struct DictionaryEntry {
   ContainerT value;
 };
 
+template <typename T>
+T SwapByteOrder(T x) {
+  static_assert(
+      sizeof(x) == 1 || sizeof(x) == 2 || sizeof(x) == 4 || sizeof(x) == 8,
+      "unhandled type for SwapByteOrder");
+  if constexpr (sizeof(x) == 1) {
+    return x;
+  } else if constexpr (sizeof(x) == 2) {
+    return __builtin_bswap16(x);
+  } else if constexpr (sizeof(x) == 4) {
+    return __builtin_bswap32(x);
+  } else if constexpr (sizeof(x) == 8) {
+    return __builtin_bswap64(x);
+  }
+}
+
 template <typename ContainerT>
 bool operator==(const DictionaryEntry<ContainerT>& lhs,
                 const DictionaryEntry<ContainerT>& rhs) {
@@ -490,13 +506,14 @@ class ContainerDictionary {
             memcmp_entry.buf_size);
       }
     } else {
+      const bool swap_byte_order = RandomBool(prng);
       if constexpr (sizeof(T) <= 4) {
         switch (absl::Uniform(prng, 0, 3)) {
           case 0: {
             auto i32_entry = torc.Get<4>().GetRandomEntry(prng);
             const auto matches =
                 GetMatchingContainerDictionaryEntriesFromInteger(
-                    val, i32_entry.lhs, i32_entry.rhs);
+                    val, i32_entry.lhs, i32_entry.rhs, swap_byte_order);
             if (!matches.empty()) {
               result = matches[ChooseOffset(matches.size(), prng)];
             }
@@ -509,7 +526,8 @@ class ContainerDictionary {
             auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
             const auto matches =
                 GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo<
-                    uint32_t>(val, i64_entry.lhs, i64_entry.rhs);
+                    uint32_t>(val, i64_entry.lhs, i64_entry.rhs,
+                              swap_byte_order);
             if (!matches.empty()) {
               result = matches[ChooseOffset(matches.size(), prng)];
             }
@@ -518,7 +536,7 @@ class ContainerDictionary {
             auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
             const auto matches =
                 GetMatchingContainerDictionaryEntriesFromInteger(
-                    val, i64_entry.lhs, i64_entry.rhs);
+                    val, i64_entry.lhs, i64_entry.rhs, swap_byte_order);
             if (!matches.empty()) {
               result = matches[ChooseOffset(matches.size(), prng)];
             }
@@ -529,7 +547,7 @@ class ContainerDictionary {
       } else if constexpr (sizeof(T) <= 8) {
         auto i64_entry = torc.Get<8>().GetRandomEntry(prng);
         const auto matches = GetMatchingContainerDictionaryEntriesFromInteger(
-            val, i64_entry.lhs, i64_entry.rhs);
+            val, i64_entry.lhs, i64_entry.rhs, swap_byte_order);
         if (!matches.empty()) {
           result = matches[ChooseOffset(matches.size(), prng)];
         }
@@ -545,7 +563,12 @@ class ContainerDictionary {
   template <typename T>
   static std::vector<DictionaryEntry<ContainerT>>
   GetMatchingContainerDictionaryEntriesFromInteger(const ContainerT& val, T lhs,
-                                                   T rhs) {
+                                                   T rhs,
+                                                   bool swap_byte_order) {
+    if (swap_byte_order) {
+      lhs = SwapByteOrder(lhs);
+      rhs = SwapByteOrder(rhs);
+    }
     return TableOfRecentlyComparedBuffers::
         GetMatchingContainerDictionaryEntries(
             val, reinterpret_cast<const uint8_t*>(&lhs),
@@ -555,10 +578,14 @@ class ContainerDictionary {
   template <typename TCastTo, typename T>
   static std::vector<DictionaryEntry<ContainerT>>
   GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo(
-      const ContainerT& val, T lhs, T rhs) {
+      const ContainerT& val, T lhs, T rhs, bool swap_byte_order) {
     // Ignore overflows.
     TCastTo lhs_cast_to = static_cast<TCastTo>(lhs);
     TCastTo rhs_cast_to = static_cast<TCastTo>(rhs);
+    if (swap_byte_order) {
+      lhs_cast_to = SwapByteOrder(lhs_cast_to);
+      rhs_cast_to = SwapByteOrder(rhs_cast_to);
+    }
     return TableOfRecentlyComparedBuffers::
         GetMatchingContainerDictionaryEntries(
             val, reinterpret_cast<const uint8_t*>(&lhs_cast_to),
@@ -570,32 +597,34 @@ class ContainerDictionary {
   void AddMatchingIntegerDictionaryEntriesFromTORC(
       const ContainerT& val, const TablesOfRecentCompares& torc) {
     using T = value_type_t<ContainerT>;
-    if constexpr (sizeof(T) <= 4) {
+    for (bool swap_byte_order : {false, true}) {
       if (val.size() >= 4) {
-        for (auto& i : torc.Get<4>().GetTable()) {
-          const auto dict_entries_32 =
-              GetMatchingContainerDictionaryEntriesFromInteger(val, i.lhs,
-                                                               i.rhs);
-          dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
-                             dict_entries_32.end());
-        }
-        for (auto& i : torc.Get<8>().GetTable()) {
-          const auto dict_entries_32 =
-              GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo<
-                  uint32_t>(val, i.lhs, i.rhs);
-          dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
-                             dict_entries_32.end());
+        if constexpr (sizeof(T) <= 4) {
+          for (auto& i : torc.Get<4>().GetTable()) {
+            const auto dict_entries_32 =
+                GetMatchingContainerDictionaryEntriesFromInteger(
+                    val, i.lhs, i.rhs, swap_byte_order);
+            dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
+                               dict_entries_32.end());
+          }
+          for (auto& i : torc.Get<8>().GetTable()) {
+            const auto dict_entries_32 =
+                GetMatchingContainerDictionaryEntriesFromIntegerWithCastTo<
+                    uint32_t>(val, i.lhs, i.rhs, swap_byte_order);
+            dictionary_.insert(dictionary_.end(), dict_entries_32.begin(),
+                               dict_entries_32.end());
+          }
         }
       }
-    }
-    if constexpr (sizeof(T) <= 8) {
-      if (val.size() >= 8) {
-        for (auto& i : torc.Get<8>().GetTable()) {
-          const auto dict_entries_64 =
-              GetMatchingContainerDictionaryEntriesFromInteger(val, i.lhs,
-                                                               i.rhs);
-          dictionary_.insert(dictionary_.end(), dict_entries_64.begin(),
-                             dict_entries_64.end());
+      if constexpr (sizeof(T) <= 8) {
+        if (val.size() >= 8) {
+          for (auto& i : torc.Get<8>().GetTable()) {
+            const auto dict_entries_64 =
+                GetMatchingContainerDictionaryEntriesFromInteger(
+                    val, i.lhs, i.rhs, swap_byte_order);
+            dictionary_.insert(dictionary_.end(), dict_entries_64.begin(),
+                               dict_entries_64.end());
+          }
         }
       }
     }
