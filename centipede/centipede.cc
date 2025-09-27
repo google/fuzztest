@@ -510,7 +510,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   const std::string features_path = wd.FeaturesFilePaths().Shard(shard_index);
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
-    absl::MutexLock lock(&load_shard_mu);
+    absl::MutexLock lock(load_shard_mu);
     ReadShard(corpus_path, features_path, input_features_callback);
   } else {
     ReadShard(corpus_path, features_path, input_features_callback);
@@ -884,7 +884,7 @@ void Centipede::ReportCrash(std::string_view binary,
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
   auto log_execution_failure = [&](std::string_view log_prefix) {
-    absl::MutexLock lock(&GetExecutionLoggingMutex());
+    absl::MutexLock lock(GetExecutionLoggingMutex());
     FUZZTEST_LOG(INFO)
         << log_prefix << "Batch execution failed:"
         << "\nBinary               : " << binary
