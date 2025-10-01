@@ -994,6 +994,22 @@ necessary in this case, as OneOf only takes domains as arguments.
 Note that the list of domains must be known at compile time; unlike `ElementOf`,
 you can't use a vector of domains.
 
+### OverlapOf
+
+With the `OverlapOf` combinator, we can use multiple domains to constrain a
+single type. The generated values satisfy all of the provided domains. For
+example:
+
+```c++
+auto ConstrainedNonZero() {
+  return OverlapOf(NonZero<int64_t>(), InRange<int64_t>(-355, 355));
+}
+```
+
+`ConstrainedNonZero()` produces integers between -355 and 355, but never 0.
+This may be useful in cases where 0 is silently interpreted as a sentinel value
+(e.g., "not set").
+
 ### Map
 
 Often the best way to define a domain is using a mapping function. The `Map()`

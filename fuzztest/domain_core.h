@@ -315,7 +315,13 @@ auto OneOf(Inner... domains) {
   return internal::OneOfImpl<Inner...>(std::move(domains)...);
 }
 
-// TODO(xinhaoyuan): Documentation.
+// OverlapOf(inner...) combinator creates a domain with elements that satisfy
+// the conditions of all `inner` domains.
+//
+// Example usage:
+//
+//   OverlapOf(InRange<int>(-10, 10), NonZero<int>())
+//
 template <int&... ExplicitArgumentBarrier, typename... Inner>
 auto OverlapOf(Inner... domains) {
   auto MaybeWrapDomain =
