@@ -53,7 +53,7 @@ struct MinimizerWorkQueue {
 
   // Returns up to `max_num_crashers` most recently added crashers.
   std::vector<ByteArray> GetRecentCrashers(size_t max_num_crashers) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     size_t num_crashers_to_return =
         std::min(crashers_.size(), max_num_crashers);
     return {crashers_.end() - num_crashers_to_return, crashers_.end()};
@@ -62,7 +62,7 @@ struct MinimizerWorkQueue {
   // Adds `crasher` to the queue, writes it to `crash_dir_path_/Hash(crasher)`.
   // The crasher must be smaller than the original one.
   void AddCrasher(ByteArray crasher) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     FUZZTEST_CHECK_LT(crasher.size(), crashers_.front().size());
     crashers_.emplace_back(crasher);
     // Write the crasher to disk.
@@ -74,7 +74,7 @@ struct MinimizerWorkQueue {
 
   // Returns true if new smaller crashes were found.
   bool SmallerCrashesFound() const {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return crashers_.size() > 1;
   }
 

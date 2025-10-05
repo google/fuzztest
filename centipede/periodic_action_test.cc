@@ -144,20 +144,20 @@ TEST(PeriodicActionTest, NudgeThenStopStillRunsAction) {
   absl::Mutex count_mu;
   PeriodicAction action{
       [&count, &count_mu]() {
-        absl::MutexLock lock{&count_mu};
+        absl::MutexLock lock{count_mu};
         ++count;
       },
       PeriodicAction::ZeroDelayConstInterval(absl::InfiniteDuration()),
   };
   absl::SleepFor(absl::Seconds(1));
   {
-    absl::MutexLock lock{&count_mu};
+    absl::MutexLock lock{count_mu};
     EXPECT_EQ(count, 1);
   }
   action.Nudge();
   action.Stop();
   {
-    absl::MutexLock lock{&count_mu};
+    absl::MutexLock lock{count_mu};
     EXPECT_EQ(count, 2);
   }
 }
@@ -170,21 +170,21 @@ TEST(PeriodicActionTest, NudgeThenDtorStillRunsAction) {
   {
     PeriodicAction action{
         [&count, &count_mu]() {
-          absl::MutexLock lock{&count_mu};
+          absl::MutexLock lock{count_mu};
           ++count;
         },
         PeriodicAction::ZeroDelayConstInterval(absl::InfiniteDuration()),
     };
     absl::SleepFor(absl::Seconds(1));
     {
-      absl::MutexLock lock{&count_mu};
+      absl::MutexLock lock{count_mu};
       EXPECT_EQ(count, 1);
     }
     EXPECT_EQ(count, 1);
     action.Nudge();
   }
   {
-    absl::MutexLock lock{&count_mu};
+    absl::MutexLock lock{count_mu};
     EXPECT_EQ(count, 2);
   }
 }
@@ -198,7 +198,7 @@ TEST(PeriodicActionTest, ActionIsMoveable) {
   {
     PeriodicAction moved_from{
         [&mu, &thread_ids]() {
-          absl::WriterMutexLock lock{&mu};
+          absl::WriterMutexLock lock{mu};
           thread_ids.push_back(std::this_thread::get_id());
         },
         PeriodicAction::ZeroDelayConstInterval(absl::Milliseconds(10)),

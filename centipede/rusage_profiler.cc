@@ -372,7 +372,7 @@ const RUsageProfiler::Snapshot& RUsageProfiler::TakeSnapshot(  //
     return kEmpty;
   }
 
-  absl::WriterMutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{mutex_};
 
   RUsageTiming snap_timing = RUsageTiming::Zero();
   RUsageTiming delta_timing = RUsageTiming::Zero();
@@ -420,7 +420,7 @@ void RUsageProfiler::StartTimelapse(  //
     absl::Duration interval,          //
     bool also_log,                    //
     std::string title) {
-  absl::WriterMutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{mutex_};
   FUZZTEST_CHECK(!timelapse_recorder_) << "StopTimelapse() wasn't called";
   timelapse_recorder_ = std::make_unique<PeriodicAction>(
       [this, loc = std::move(loc), title = std::move(title), also_log]() {
@@ -431,7 +431,7 @@ void RUsageProfiler::StartTimelapse(  //
 }
 
 void RUsageProfiler::StopTimelapse() {
-  absl::WriterMutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{mutex_};
   FUZZTEST_CHECK(timelapse_recorder_) << "StartTimelapse() wasn't called";
   timelapse_recorder_.reset();
 }
@@ -483,10 +483,10 @@ void RUsageProfiler::PrintReport(  //
 
 void RUsageProfiler::GenerateReport(
     ReportSink* absl_nonnull report_sink) const {
-  absl::ReaderMutexLock lock{&mutex_};
+  absl::ReaderMutexLock lock{mutex_};
   // Prevent interleaved reports from multiple concurrent RUsageProfilers.
   ABSL_CONST_INIT static absl::Mutex report_generation_mutex_{absl::kConstInit};
-  absl::WriterMutexLock logging_lock{&report_generation_mutex_};
+  absl::WriterMutexLock logging_lock{report_generation_mutex_};
 
   ProfileReportGenerator gen{snapshots_, report_sink};
 
