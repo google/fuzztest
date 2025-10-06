@@ -123,6 +123,7 @@ class UnitTestModeTest : public ::testing::Test {
       const absl::flat_hash_map<std::string, std::string>& env = {},
       absl::flat_hash_map<std::string, std::string> fuzzer_flags = {}) {
     fuzzer_flags["print_subprocess_log"] = "true";
+    fuzzer_flags["unguided"] = "true";
     RunOptions run_options;
     run_options.flags = {
         {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
