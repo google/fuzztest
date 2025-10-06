@@ -960,8 +960,10 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   [&] {
     runtime_.SetShouldTerminateOnNonFatalFailure(false);
     std::unique_ptr<TempDir> workdir;
-    if (configuration.corpus_database.empty() || mode == RunMode::kUnitTest)
+    if (configuration.corpus_database.empty() ||
+        (mode == RunMode::kUnitTest && configuration.workdir_root.empty())) {
       workdir = std::make_unique<TempDir>("fuzztest_workdir");
+    }
     const std::string workdir_path = workdir ? workdir->path() : "";
     const auto env = CreateCentipedeEnvironmentFromConfiguration(
         configuration, workdir_path, test_.full_name(), mode);
