@@ -1227,5 +1227,20 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result));
 }
 
+TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult result;
+  std::vector<ByteArray> inputs = {
+      {'c', 'u', 's', 't', 'o', 'm'},
+      {'c', 'u', 's', 't', 'o', 'm'},
+  };
+  EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom"));
+  EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 0"),
+                                  Not(HasSubstr("custom failure 1"))));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal
