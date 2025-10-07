@@ -382,11 +382,11 @@ TEST_P(UpdateCorpusDatabaseTest,
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
 
-  EXPECT_THAT_LOG(
-      std_err,
-      AllOf(HasSubstr("Replaying FuzzTest.FailsInTwoWays"),
-            HasSubstr("Replaying FuzzTest.FailsWithStackOverflow"),
-            HasSubstr("[S0.0] begin-fuzz"), HasSubstr("[S1.0] begin-fuzz")));
+  EXPECT_THAT_LOG(std_err,
+                  AllOf(HasSubstr("Replaying FuzzTest.FailsInTwoWays"),
+                        HasSubstr("Replaying FuzzTest.FailsWithStackOverflow"),
+                        HasSubstr("[S0.0] begin-load-shard"),
+                        HasSubstr("[S1.0] begin-load-shard")));
   EXPECT_THAT_LOG(std_err,
                   AllOf(ContainsRegex(
                             R"re((?s)=== Summary of detected crashes ===

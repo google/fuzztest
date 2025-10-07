@@ -769,7 +769,11 @@ void Centipede::FuzzingLoop() {
                      << " "
                      << "seed: " << env_.seed << "\n\n\n";
 
-  UpdateAndMaybeLogStats("begin-fuzz", 0);
+  if (env_.load_shards_only) {
+    UpdateAndMaybeLogStats("begin-load-shard", 0);
+  } else {
+    UpdateAndMaybeLogStats("begin-fuzz", 0);
+  }
 
   if (env_.full_sync) {
     LoadAllShardsInRandomOrder(env_, /*rerun_my_shard=*/true);
@@ -782,7 +786,13 @@ void Centipede::FuzzingLoop() {
     MergeFromOtherCorpus(env_.merge_from, env_.my_shard_index);
   }
 
-  if (env_.load_shards_only) return;
+  if (env_.load_shards_only) {
+    if (env_.persistent_mode) {
+      user_callbacks_.CleanUpPersistentMode();
+    }
+    UpdateAndMaybeLogStats("end-load-shard", 0);
+    return;
+  }
 
   auto corpus_path = wd_.CorpusFilePaths().Shard(env_.my_shard_index);
   auto corpus_file = DefaultBlobFileWriterFactory(env_.riegeli);
