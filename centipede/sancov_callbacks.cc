@@ -83,11 +83,10 @@ ENFORCE_INLINE static void TraceLoad(void *addr) {
           pc_offset, addr_offset, sancov_state->main_object.size));
 }
 
-// NOTE: Enforce inlining so that `__builtin_return_address` works.
-ENFORCE_INLINE static void TraceCmp(uint64_t Arg1, uint64_t Arg2) {
+ENFORCE_INLINE static void TraceCmpFeatures(uint64_t Arg1, uint64_t Arg2,
+                                            uintptr_t pc) {
   if (!sancov_state->flags.use_cmp_features) return;
-  auto caller_pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-  auto pc_offset = caller_pc - sancov_state->main_object.start_address;
+  auto pc_offset = pc - sancov_state->main_object.start_address;
   uintptr_t hash =
       fuzztest::internal::Hash64Bits(pc_offset) ^ tls.path_ring_buffer.hash();
   if (Arg1 == Arg2) {
@@ -100,6 +99,26 @@ ENFORCE_INLINE static void TraceCmp(uint64_t Arg1, uint64_t Arg2) {
         hash | fuzztest::internal::ABToCmpHamming(Arg1, Arg2));
     sancov_state->cmp_difflog_set.set(
         hash | fuzztest::internal::ABToCmpDiffLog(Arg1, Arg2));
+  }
+}
+
+// Traces the comparison of `a` and `b` of type `T` at `pc`. Sometimes `pc` is
+// generalized with artificial offsets to denote different events - see
+// `__sanitizer_cov_trace_switch`.
+template <typename T>
+ENFORCE_INLINE void TraceCmp(T a, T b, uintptr_t pc) {
+  static_assert(
+      sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+      "unsupported type size for TraceCmp");
+  TraceCmpFeatures(a, b, pc);
+  if constexpr (sizeof(T) == 1) return;
+  if (a == b || !sancov_state->flags.use_auto_dictionary) return;
+  if constexpr (sizeof(T) == 2) {
+    tls.cmp_trace2.Capture(a, b);
+  } else if constexpr (sizeof(T) == 4) {
+    tls.cmp_trace4.Capture(a, b);
+  } else if constexpr (sizeof(T) == 8) {
+    tls.cmp_trace8.Capture(a, b);
   }
 }
 
@@ -117,58 +136,100 @@ NO_SANITIZE void __sanitizer_cov_load16(__uint128_t *addr) { TraceLoad(addr); }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp1(uint8_t Arg1, uint8_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp2(uint16_t Arg1, uint16_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace2.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp4(uint32_t Arg1, uint32_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace4.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp8(uint64_t Arg1, uint64_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace8.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp1(uint8_t Arg1, uint8_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp2(uint16_t Arg1, uint16_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace2.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp4(uint32_t Arg1, uint32_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace4.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
 NO_SANITIZE
 void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
-  TraceCmp(Arg1, Arg2);
-  if (Arg1 != Arg2 && sancov_state->flags.use_auto_dictionary)
-    tls.cmp_trace8.Capture(Arg1, Arg2);
+  TraceCmp(Arg1, Arg2,
+           reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-// TODO(kcc): [impl] handle switch.
+// `val` is the switch operand.
+// `cases[0]` is the number of case constants.
+// `cases[1]` is the size of `val` in bits.
+// `cases[2:]` are the case constants (sorted increasingly according to
+// LLVM/libFuzzer implementation).
+//
+// Source: https://clang.llvm.org/docs/SanitizerCoverage.html
 NO_SANITIZE
-void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {}
+void __sanitizer_cov_trace_switch(uint64_t val, uint64_t* cases) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  const auto num_cases = cases[0];
+  const auto pc_base = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
+  uint64_t upper_bound = 0;  // Largest # such that `val` is greater or equal to
+                             // the first # case constants.
+  while (upper_bound < num_cases && val >= cases[2 + upper_bound]) {
+    ++upper_bound;
+  }
+  const bool matched = upper_bound > 0 && cases[1 + upper_bound] == val;
+  auto match_cases = [&](auto v) {
+    // Use PC + i to denote the i-th case comparison. Similar but not exactly
+    // the same with libFuzzer:
+    // https://github.com/llvm/llvm-project/blob/bf0a6ae09556c119b582b7cdb3e2dce354b37c17/compiler-rt/lib/fuzzer/FuzzerTracePC.cpp#L554
+    if (upper_bound < num_cases) {
+      TraceCmp<decltype(v)>(v, cases[2 + upper_bound], pc_base + upper_bound);
+    }
+    if (matched) {
+      if (upper_bound >= 2) {
+        TraceCmp<decltype(v)>(v, cases[upper_bound], pc_base + upper_bound - 2);
+      }
+    } else if (upper_bound >= 1) {
+      TraceCmp<decltype(v)>(v, cases[1 + upper_bound],
+                            pc_base + upper_bound - 1);
+    }
+  };
+  switch (cases[1]) {
+    case 8:
+      match_cases(static_cast<uint8_t>(val));
+      break;
+    case 16:
+      match_cases(static_cast<uint16_t>(val));
+      break;
+    case 32:
+      match_cases(static_cast<uint32_t>(val));
+      break;
+    case 64:
+      match_cases(static_cast<uint64_t>(val));
+      break;
+  }
+}
 
 // This function is called at startup when
 // -fsanitize-coverage=inline-8bit-counters is used.
