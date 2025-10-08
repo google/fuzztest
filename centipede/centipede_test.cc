@@ -68,8 +68,8 @@ class CentipedeMock : public CentipedeCallbacks {
   // Doesn't execute anything
   // Sets `batch_result.results()` based on the values of `inputs`:
   // Collects various stats about the inputs, to be checked in tests.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     batch_result.results().clear();
     // For every input, we create a 256-element array `counters`, where
     // i-th element is the number of bytes with the value 'i' in the input.
@@ -356,8 +356,8 @@ class MutateCallbacks : public CentipedeCallbacks {
  public:
   explicit MutateCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
   // Will not be called.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     FUZZTEST_LOG(FATAL);
     return false;
   }
@@ -499,8 +499,8 @@ class MergeMock : public CentipedeCallbacks {
   // Doesn't execute anything.
   // All inputs are 1-byte long.
   // For an input {X}, the feature output is {X}.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     batch_result.results().resize(inputs.size());
     for (size_t i = 0, n = inputs.size(); i < n; ++i) {
       FUZZTEST_CHECK_EQ(inputs[i].size(), 1);
@@ -588,10 +588,10 @@ class FunctionFilterMock : public CentipedeCallbacks {
   }
 
   // Executes the target in the normal way.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
-    return ExecuteCentipedeSancovBinaryWithShmem(env_.binary, inputs,
-                                                 batch_result) == EXIT_SUCCESS;
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
+    return ExecuteCentipedeSancovBinaryWithShmem(
+               env_.binary, inputs, batch_result, deadline) == EXIT_SUCCESS;
   }
 
   // Sets the inputs to one of 3 pre-defined values.
@@ -696,8 +696,8 @@ class ExtraBinariesMock : public CentipedeCallbacks {
 
   // Doesn't execute anything.
   // On certain combinations of {binary,input} returns false.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     bool res = true;
     for (const auto &input : inputs) {
       if (input.size() != 1) continue;
@@ -814,8 +814,8 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   // Doesn't execute anything.
   // Crash when 0th char of input to binary b1 equals `crashing_input_idx_`, but
   // only on 1st exec.
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     batch_result.ClearAndResize(inputs.size());
     bool res = true;
     if (!first_pass_) {
@@ -982,7 +982,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
 
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
-  ASSERT_TRUE(callbacks.Execute(env.binary, inputs, batch_result));
+  ASSERT_TRUE(callbacks.Execute(env.binary, inputs, batch_result,
+                                /*deadline=*/absl::InfiniteFuture()));
   ASSERT_EQ(batch_result.results().size(), 1);
   bool found_startup_cmp_entry = false;
   batch_result.results()[0].metadata().ForEachCmpEntry(
@@ -999,8 +1000,8 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
                                           std::thread::id execute_thread_id)
       : CentipedeCallbacks(env), execute_thread_id_(execute_thread_id) {}
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     batch_result.ClearAndResize(inputs.size());
     thread_check_passed_ = thread_check_passed_ &&
                            std::this_thread::get_id() == execute_thread_id_;
@@ -1044,7 +1045,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {ByteArray{'s', 't', 'k'}};
 
-  ASSERT_FALSE(callbacks.Execute(env.binary, inputs, batch_result));
+  ASSERT_FALSE(callbacks.Execute(env.binary, inputs, batch_result,
+                                 /*deadline=*/absl::InfiniteFuture()));
   EXPECT_THAT(batch_result.log(), HasSubstr("Stack limit exceeded"));
   EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
 }
@@ -1053,8 +1055,8 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
  public:
   using CentipedeCallbacks::CentipedeCallbacks;
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     ++execute_count_;
     batch_result.ClearAndResize(inputs.size());
     batch_result.exit_code() = EXIT_FAILURE;
@@ -1090,8 +1092,8 @@ class SkippedTestCallbacks : public CentipedeCallbacks {
  public:
   using CentipedeCallbacks::CentipedeCallbacks;
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time deadline) override {
     ++execute_count_;
     batch_result.ClearAndResize(inputs.size());
     batch_result.exit_code() = EXIT_FAILURE;
@@ -1128,8 +1130,8 @@ class IgnoredFailureCallbacks : public CentipedeCallbacks {
  public:
   using CentipedeCallbacks::CentipedeCallbacks;
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override {
+  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+               BatchResult& batch_result, absl::Time daedline) override {
     ++execute_count_;
     batch_result.ClearAndResize(inputs.size());
     batch_result.exit_code() = EXIT_FAILURE;
@@ -1224,7 +1226,24 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   env.fork_server = false;
 
   // Test that the process does not get stuck and exits promptly.
-  EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result));
+  EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result,
+                                 /*deadline=*/absl::InfiniteFuture()));
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
+  Environment env;
+  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult result;
+  std::vector<ByteArray> inputs = {
+      {'c', 'u', 's', 't', 'o', 'm'},
+      {'c', 'u', 's', 't', 'o', 'm'},
+  };
+  EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result,
+                                 /*deadline=*/absl::InfiniteFuture()));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom"));
+  EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 0"),
+                                  Not(HasSubstr("custom failure 1"))));
 }
 
 }  // namespace

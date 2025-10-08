@@ -472,14 +472,15 @@ void CentipedeCallbacks::CleanUpPersistentMode() {
       command_contexts_.end());
 }
 
-int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
+int CentipedeCallbacks::RunBatchForBinary(std::string_view binary,
+                                          absl::Time deadline) {
   auto& command_context = GetOrCreateCommandContextForBinary(binary);
   auto& cmd = command_context.cmd;
   const absl::Duration amortized_timeout =
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  const auto deadline = absl::Now() + amortized_timeout;
+  deadline = std::min(absl::Now() + amortized_timeout, deadline);
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing() && !cmd.ExecuteAsync()) {
@@ -497,11 +498,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
   if (should_clean_up) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
-      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution.";
+      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout "
+                          << kCommandCleanupTimeout;
       cmd.RequestStop();
       const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
       if (ret.has_value()) return *ret;
-      FUZZTEST_LOG(ERROR) << "Batch execution cleanup failed to end in 60s.";
+      FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;
     }();
     command_contexts_.erase(
@@ -515,7 +517,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     std::string_view binary, const std::vector<ByteArray>& inputs,
-    BatchResult& batch_result) {
+    BatchResult& batch_result, absl::Time deadline) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
 
@@ -541,7 +543,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   // Run.
-  const int exit_code = RunBatchForBinary(binary);
+  const int exit_code = RunBatchForBinary(binary, deadline);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   // Get results.
@@ -699,7 +701,8 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
-  const int exit_code = RunBatchForBinary(binary);
+  const int exit_code =
+      RunBatchForBinary(binary, /*deadline=*/absl::InfiniteFuture());
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (exit_code != EXIT_SUCCESS) {

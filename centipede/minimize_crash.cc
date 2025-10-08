@@ -24,6 +24,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/mutation_input.h"
@@ -122,7 +123,8 @@ static void MinimizeCrash(const Environment &env,
     }
 
     // Execute all mutants. If a new crasher is found, add it to `queue`.
-    if (!callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
+    if (!callbacks->Execute(env.binary, smaller_mutants, batch_result,
+                            absl::InfiniteFuture())) {
       size_t crash_inputs_idx = batch_result.num_outputs_read();
       FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
       const auto &new_crasher = smaller_mutants[crash_inputs_idx];
@@ -142,7 +144,8 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
 
   BatchResult batch_result;
   ByteArray original_crashy_input(crashy_input.begin(), crashy_input.end());
-  if (callbacks->Execute(env.binary, {original_crashy_input}, batch_result)) {
+  if (callbacks->Execute(env.binary, {original_crashy_input}, batch_result,
+                         absl::InfiniteFuture())) {
     FUZZTEST_LOG(INFO) << "The original crashy input did not crash; exiting";
     return EXIT_FAILURE;
   }

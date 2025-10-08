@@ -362,9 +362,17 @@ bool Centipede::InputPassesFilter(const ByteArray &input) {
 bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                                       const std::vector<ByteArray> &input_vec,
                                       BatchResult &batch_result) {
-  bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
-  if (!success) ReportCrash(binary, input_vec, batch_result);
-  return success || batch_result.IsIgnoredFailure();
+  bool success =
+      user_callbacks_.Execute(binary, input_vec, batch_result, GetStopTime());
+  if (success) return true;
+  if (ShouldStop()) {
+    FUZZTEST_LOG_FIRST_N(WARNING, 1)
+        << "Stop condition met - not reporting further crashes possibly "
+           "related to the stop condition.";
+    return true;
+  }
+  ReportCrash(binary, input_vec, batch_result);
+  return batch_result.IsIgnoredFailure();
 }
 
 // *** Highly experimental and risky. May not scale well for large targets. ***
@@ -986,7 +994,8 @@ void Centipede::ReportCrash(std::string_view binary,
     if (ShouldStop()) return;
     const auto &one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
-    if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
+    if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result,
+                                 absl::InfiniteFuture())) {
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
       FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));

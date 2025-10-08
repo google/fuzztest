@@ -123,6 +123,10 @@ class UnitTestModeTest : public ::testing::Test {
       const absl::flat_hash_map<std::string, std::string>& env = {},
       absl::flat_hash_map<std::string, std::string> fuzzer_flags = {}) {
     fuzzer_flags["print_subprocess_log"] = "true";
+    fuzzer_flags["unguided"] = "true";
+    if (!fuzzer_flags.contains("fuzz_for")) {
+      fuzzer_flags["fuzz_for"] = "10s";
+    }
     RunOptions run_options;
     run_options.flags = {
         {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
@@ -142,6 +146,7 @@ TEST_F(UnitTestModeTest, InvalidSeedsAreSkippedAndReported) {
   auto [status, std_out, std_err] =
       Run(/*test_filter=*/"*",
           /*target_binary=*/"testdata/fuzz_tests_with_invalid_seeds");
+  SCOPED_TRACE(std_err);
   EXPECT_THAT_LOG(std_err, HasSubstr("[!] Skipping WithSeeds() value in"));
   EXPECT_THAT_LOG(std_err,
                   HasSubstr("Could not turn value into corpus type:\n{17}"));
@@ -265,6 +270,7 @@ TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
 
 TEST_F(UnitTestModeTest, FixtureGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("FixtureTest.NeverFails");
+  SCOPED_TRACE(std_err);
   EXPECT_GT(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"), 0);
   EXPECT_EQ(CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"),
             CountSubstrs(std_err, "<<FixtureTest::~FixtureTest()>>"));
@@ -288,6 +294,7 @@ TEST_F(UnitTestModeTest, GoogleTestStaticTestSuiteFunctionsCalledInBalance) {
   auto [status, std_out, std_err] =
       Run("CallCountPerFuzzTest.CallCountPerFuzzTestEqualsToGlobalCount:"
           "CallCountPerFuzzTest.NeverFails");
+  SCOPED_TRACE(std_err);
   EXPECT_GT(CountSubstrs(std_err, "<<CallCountGoogleTest::SetUpTestSuite()>>"),
             0);
   EXPECT_EQ(
@@ -612,6 +619,7 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
   auto [status, std_out, std_err] =
       Run("MySuite.DataDependentStackOverflow", kDefaultTargetBinary,
           /*env=*/{}, /*fuzzer_flags=*/{{"stack_limit_kb", "1000"}});
+  SCOPED_TRACE(std_err);
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   ExpectStackLimitExceededMessage(std_err, 1024000);
   ExpectTargetAbort(status, std_err);
@@ -620,7 +628,7 @@ TEST_F(UnitTestModeTest, StackLimitWorks) {
 TEST_F(UnitTestModeTest, RssLimitFlagWorks) {
   auto [status, std_out, std_err] =
       Run("MySuite.LargeHeapAllocation", kDefaultTargetBinary,
-          /*env=*/{}, /*fuzzer_flags=*/{{"rss_limit_mb", "1024"}});
+          /*env=*/{}, /*fuzzer_flags=*/{{"rss_limit_mb", "2048"}});
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT_LOG(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
   ExpectTargetAbort(status, std_err);
@@ -631,6 +639,7 @@ TEST_F(UnitTestModeTest, TimeLimitFlagWorks) {
       Run("MySuite.Sleep", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  SCOPED_TRACE(std_err);
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT_LOG(std_err, ContainsRegex("Per-input timeout exceeded"));
   ExpectTargetAbort(status, std_err);
@@ -1176,9 +1185,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
 // to restrict the filter to only fuzz tests.
 TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests");
 
+  SCOPED_TRACE(std_err);
   EXPECT_THAT_LOG(std_out,
                   Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
   EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
@@ -1190,7 +1200,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        AllowsSpecifyingFilterWithFuzzForDuration) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests",
               {{GTEST_FLAG_PREFIX_ "filter",
                 "UnitTest.AlwaysPasses:FuzzTest.AlwaysPasses"}});
@@ -1239,6 +1249,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
       std_err,
       HasSubstr("Starting the update of the corpus database for fuzz tests"));
   EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
+  SCOPED_TRACE(std_err);
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 

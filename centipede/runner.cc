@@ -494,12 +494,14 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 
     RunOneInput(data.data(), data.size(), callbacks);
 
+    if (state->has_failure_description.load()) break;
+
     if (!FinishSendingOutputsToEngine(outputs_blobseq)) break;
   }
 
   CentipedeEndExecutionBatch();
 
-  return EXIT_SUCCESS;
+  return state->has_failure_description.load() ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 // Dumps seed inputs to `output_dir`. Also see `GetSeedsViaExternalBinary()`.
@@ -1017,23 +1019,20 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
 extern "C" void CentipedeSetFailureDescription(const char *description) {
   using fuzztest::internal::state;
   if (state->failure_description_path == nullptr) return;
-  // Make sure that the write is atomic and only happens once.
-  [[maybe_unused]] static int write_once = [=] {
-    FILE* f = fopen(state->failure_description_path, "w");
-    if (f == nullptr) {
-      perror("FAILURE: fopen()");
-      return 0;
-    }
-    const auto len = strlen(description);
-    if (fwrite(description, 1, len, f) != len) {
-      perror("FAILURE: fwrite()");
-    }
-    if (fflush(f) != 0) {
-      perror("FAILURE: fflush()");
-    }
-    if (fclose(f) != 0) {
-      perror("FAILURE: fclose()");
-    }
-    return 0;
-  }();
+  if (state->has_failure_description.exchange(true)) return;
+  FILE* f = fopen(state->failure_description_path, "w");
+  if (f == nullptr) {
+    perror("FAILURE: fopen()");
+    return;
+  }
+  const auto len = strlen(description);
+  if (fwrite(description, 1, len, f) != len) {
+    perror("FAILURE: fwrite()");
+  }
+  if (fflush(f) != 0) {
+    perror("FAILURE: fflush()");
+  }
+  if (fclose(f) != 0) {
+    perror("FAILURE: fclose()");
+  }
 }

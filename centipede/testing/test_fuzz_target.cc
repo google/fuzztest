@@ -24,6 +24,8 @@
 
 #include <utility>
 
+#include "./centipede/runner_interface.h"
+
 // Function with a single coverage edge. Used by coverage_test.cc.
 __attribute__((noinline)) extern "C" void SingleEdgeFunc() {
   [[maybe_unused]] static volatile int sink;
@@ -243,6 +245,17 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     funcs[idx1]();
     funcs[idx2]();
   }
+
+  // "custom" for failure with custom description
+  if (size == 6 && data[0] == 'c' && data[1] == 'u' && data[2] == 's' &&
+      data[3] == 't' && data[4] == 'o' && data[5] == 'm') {
+    CentipedeSetFailureDescription("INPUT FAILURE: custom");
+    static int count = 0;
+    printf("custom failure %d\n", count);
+    ++count;
+    fflush(stdout);
+  }
+
   IndirectCallFunc(data[0]);
   return 0;
 }
