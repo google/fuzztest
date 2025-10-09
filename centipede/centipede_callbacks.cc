@@ -50,6 +50,7 @@
 #include "./centipede/mutation_input.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
@@ -479,7 +480,8 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  const auto deadline = absl::Now() + amortized_timeout;
+  const auto deadline =
+      std::min(absl::Now() + amortized_timeout, GetStopTime());
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing() && !cmd.ExecuteAsync()) {
