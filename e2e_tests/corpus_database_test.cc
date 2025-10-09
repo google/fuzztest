@@ -280,11 +280,11 @@ TEST_P(UpdateCorpusDatabaseTest,
       RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
                                   fst_run_options);
 
-  // Adjust the fuzzing time so that only 1s remains.
+  // Adjust the fuzzing time so that only 10s remains.
   const absl::StatusOr<std::string> fuzzing_time_file =
       FindFile(corpus_database.path().c_str(), "fuzzing_time");
   ASSERT_TRUE(fuzzing_time_file.ok()) << fst_std_err;
-  ASSERT_TRUE(WriteFile(*fuzzing_time_file, "299s"));
+  ASSERT_TRUE(WriteFile(*fuzzing_time_file, "290s"));
 
   // 2nd run that should resume due to the same execution ID.
   RunOptions snd_run_options;
@@ -301,7 +301,7 @@ TEST_P(UpdateCorpusDatabaseTest,
       snd_std_err,
       // The resumed fuzz test is the first one defined in the binary.
       AllOf(HasSubstr("Resuming running the fuzz test FuzzTest.FailsInTwoWays"),
-            HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 1s"),
+            HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 10s"),
             // Make sure that FailsInTwoWays finished.
             HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
 

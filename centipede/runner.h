@@ -80,6 +80,8 @@ struct GlobalRunnerState {
   const char *failure_description_path =
       flag_helper.GetStringFlag(":failure_description_path=");
 
+  std::atomic<bool> has_failure_description;
+
   const char* persistent_mode_socket_path =
       flag_helper.GetStringFlag(":persistent_mode_socket=");
   int persistent_mode_socket = 0;

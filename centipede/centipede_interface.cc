@@ -692,6 +692,8 @@ int UpdateCorpusDatabaseForFuzzTests(
           << "Skip updating corpus database due to early stop requested.";
       continue;
     }
+    // The test time limit does not apply for the rest of the steps.
+    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
 
     // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
     // of checking whether workdir is specified or not.
