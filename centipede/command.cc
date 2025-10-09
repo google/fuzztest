@@ -111,6 +111,33 @@ absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
 #endif
 }
 
+template <typename T>
+bool ReadForkServerPipe(int fd, absl::Time deadline, T& out) {
+  struct pollfd poll_fd = {};
+  int poll_ret = -1;
+  do {
+    poll_fd = {
+        /*fd=*/fd,
+        /*events=*/POLLIN,
+    };
+    const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
+        std::max(deadline - absl::Now(), absl::Milliseconds(1))));
+    poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
+    // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
+    // case. We should tolerate that.
+  } while (poll_ret < 0 && errno == EINTR);
+  if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
+    if (poll_ret == 0) {
+      FUZZTEST_LOG(ERROR) << "poll timed out on fork server pipe";
+    } else {
+      FUZZTEST_PLOG(ERROR) << "poll on fork server pipe returned " << poll_ret;
+    }
+    return false;
+  }
+  FUZZTEST_CHECK_EQ(sizeof(T), read(fd, &out, sizeof(T)));
+  return true;
+}
+
 }  // namespace
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
@@ -342,6 +369,11 @@ bool Command::ExecuteAsync() {
     // Wake up the fork server.
     char x = ' ';
     FUZZTEST_CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
+    // Read the one-byte ack.
+    // Use 60s as an arbitrary duration to wait for the process to load and
+    // enter the fork server.
+    FUZZTEST_CHECK(ReadForkServerPipe(fork_server_->pipe_[1],
+                                      absl::Now() + absl::Seconds(60), x));
   } else {
     FUZZTEST_CHECK_EQ(pid_, -1);
     std::vector<std::string> argv_strs = {"/bin/sh", "-c", command_line_};
@@ -367,41 +399,13 @@ std::optional<int> Command::Wait(absl::Time deadline) {
     // The fork server forks, the child is running. Block until some readable
     // data appears in the pipe (that is, after the fork server writes the
     // execution result to it).
-    struct pollfd poll_fd = {};
-    int poll_ret = -1;
-    do {
-      // NOTE: `poll_fd` has to be reset every time.
-      poll_fd = {
-          /*fd=*/fork_server_->pipe_[1],  // The file descriptor to wait for.
-          /*events=*/POLLIN,              // Wait until `fd` gets readable data.
-      };
-      const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
-          std::max(deadline - absl::Now(), absl::Milliseconds(1))));
-      poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
-      // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
-      // case. We should tolerate that.
-    } while (poll_ret < 0 && errno == EINTR);
-    if (poll_ret != 1 || (poll_fd.revents & POLLIN) == 0) {
-      // The fork server errored out or timed out, or some other error occurred,
-      // e.g. the syscall was interrupted.
-      if (poll_ret == 0) {
-        VlogProblemInfo(
-            absl::StrCat("Timeout while waiting for fork server: deadline is ",
-                         deadline),
-            /*vlog_level=*/1);
-      } else {
-        VlogProblemInfo(
-            absl::StrCat(
-                "Error while waiting for fork server: poll() returned ",
-                poll_ret),
-            /*vlog_level=*/1);
-      }
+    if (!ReadForkServerPipe(fork_server_->pipe_[1], deadline, exit_code)) {
+      VlogProblemInfo(
+          absl::StrCat("Waiting for fork server failed, deadline is ",
+                       deadline),
+          /*vlog_level=*/1);
       return std::nullopt;
     }
-
-    // The fork server wrote the execution result to the pipe: read it.
-    FUZZTEST_CHECK_EQ(sizeof(exit_code), read(fork_server_->pipe_[1],
-                                              &exit_code, sizeof(exit_code)));
   } else {
     FUZZTEST_CHECK_NE(pid_, -1);
     while (true) {

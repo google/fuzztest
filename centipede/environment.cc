@@ -285,17 +285,6 @@ void Environment::UpdateWithTargetConfig(
   timeout_per_input = time_limit_per_input_sec;
   UpdateTimeoutPerBatchIfEqualTo(autocomputed_timeout_per_batch);
 
-  // Adjust `timeout_per_batch` to never exceed the test time limit.
-  if (const auto test_time_limit = config.GetTimeLimitPerTest();
-      test_time_limit < absl::InfiniteDuration()) {
-    const size_t test_time_limit_seconds =
-        convert_to_seconds(test_time_limit, "Test time limit");
-    timeout_per_batch =
-        timeout_per_batch == 0
-            ? test_time_limit_seconds
-            : std::min(timeout_per_batch, test_time_limit_seconds);
-  }
-
   // Convert bytes to MB by rounding up.
   constexpr auto bytes_to_mb = [](size_t bytes) {
     return bytes == 0 ? 0 : (bytes - 1) / 1024 / 1024 + 1;
