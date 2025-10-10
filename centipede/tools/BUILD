@@ -26,6 +26,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//centipede:feature",
         "@com_google_fuzztest//centipede:util",
         "@com_google_fuzztest//common:blob_file",
