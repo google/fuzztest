@@ -601,6 +601,7 @@ cc_library(
         ":execution_metadata",
         ":feature",
         ":feature_set",
+        ":runner_result",
         ":util",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:defs",
