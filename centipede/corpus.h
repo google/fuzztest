@@ -27,6 +27,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
 
@@ -87,6 +88,7 @@ struct CorpusRecord {
   ByteArray data;
   FeatureVec features;
   ExecutionMetadata metadata;
+  ExecutionResult::Stats stats;
 };
 
 // Maintains the corpus of inputs.
@@ -105,9 +107,10 @@ class Corpus {
   // Adds a corpus element, consisting of 'data' (the input bytes, non-empty),
   // 'fv' (the features associated with this input), and execution `metadata`.
   // `fs` is used to compute weights of `fv`.
-  void Add(const ByteArray &data, const FeatureVec &fv,
-           const ExecutionMetadata &metadata, const FeatureSet &fs,
-           const CoverageFrontier &coverage_frontier);
+  void Add(const ByteArray& data, const FeatureVec& fv,
+           const ExecutionMetadata& metadata,
+           const ExecutionResult::Stats& stats, const FeatureSet& fs,
+           const CoverageFrontier& coverage_frontier);
   // Removes elements that contain only frequent features, according to 'fs'.
   // Also, randomly removes elements to reduce the size to <= `max_corpus_size`.
   // `max_corpus_size` should be positive.
