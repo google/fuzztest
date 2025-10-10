@@ -27,6 +27,7 @@
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
 
@@ -48,7 +49,7 @@ class WeightedDistribution {
   // For proper randomness, `random` should come from a 64-bit RNG.
   // RandomIndex() must not be called after ChangeWeight() without first
   // calling RecomputeInternalState().
-  size_t RandomIndex(size_t random) const;
+  size_t RandomIndex(Rng& rng) const;
   // Returns the number of weights.
   size_t size() const { return weights_.size(); }
   // Removes all weights.
@@ -87,6 +88,7 @@ struct CorpusRecord {
   ByteArray data;
   FeatureVec features;
   ExecutionMetadata metadata;
+  ExecutionResult::Stats stats;
 };
 
 // Maintains the corpus of inputs.
@@ -105,9 +107,10 @@ class Corpus {
   // Adds a corpus element, consisting of 'data' (the input bytes, non-empty),
   // 'fv' (the features associated with this input), and execution `metadata`.
   // `fs` is used to compute weights of `fv`.
-  void Add(const ByteArray &data, const FeatureVec &fv,
-           const ExecutionMetadata &metadata, const FeatureSet &fs,
-           const CoverageFrontier &coverage_frontier);
+  void Add(const ByteArray& data, const FeatureVec& fv,
+           const ExecutionMetadata& metadata,
+           const ExecutionResult::Stats& stats, const FeatureSet& fs,
+           const CoverageFrontier& coverage_frontier);
   // Removes elements that contain only frequent features, according to 'fs'.
   // Also, randomly removes elements to reduce the size to <= `max_corpus_size`.
   // `max_corpus_size` should be positive.
@@ -128,9 +131,9 @@ class Corpus {
   std::pair<size_t, size_t> MaxAndAvgSize() const;
   // Returns a random active corpus record using weighted distribution.
   // See WeightedDistribution.
-  const CorpusRecord &WeightedRandom(size_t random) const;
+  const CorpusRecord& WeightedRandom(Rng& rng) const;
   // Returns a random active corpus record using uniform distribution.
-  const CorpusRecord &UniformRandom(size_t random) const;
+  const CorpusRecord& UniformRandom(Rng& rng) const;
   // Returns the element with index 'idx', where `idx` < NumActive().
   const ByteArray &Get(size_t idx) const { return records_[idx].data; }
   // Returns the execution metadata for the element `idx`, `idx` < NumActive().

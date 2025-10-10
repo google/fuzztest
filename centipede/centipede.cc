@@ -452,8 +452,8 @@ bool Centipede::RunBatch(
       batch_gained_new_coverage = true;
       FUZZTEST_CHECK_GT(fv.size(), 0UL);
       if (function_filter_passed) {
-        corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(), fs_,
-                    coverage_frontier_);
+        corpus_.Add(input_vec[i], fv, batch_result.results()[i].metadata(),
+                    batch_result.results()[i].stats(), fs_, coverage_frontier_);
       }
       if (corpus_file != nullptr) {
         FUZZTEST_CHECK_OK(corpus_file->Write(input_vec[i]));
@@ -493,8 +493,9 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
         FUZZTEST_VLOG(10) << "Adding input " << Hash(input)
                           << "; new features: " << num_new_features;
         fs_.MergeFeatures(input_features);
-        // TODO(kcc): cmp_args are currently not saved to disk and not reloaded.
-        corpus_.Add(input, input_features, {}, fs_, coverage_frontier_);
+        // TODO(xinhaoyuan): metadata and stats are currently not saved to disk
+        // and not reloaded.
+        corpus_.Add(input, input_features, {}, {}, fs_, coverage_frontier_);
         ++num_added_inputs;
       } else {
         FUZZTEST_VLOG(10) << "Skipping input: " << Hash(input);
@@ -759,7 +760,8 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
   // coverage and passed the filters.
   if (corpus_.NumTotal() == 0) {
     for (const auto &seed_input : seed_inputs)
-      corpus_.Add(seed_input, {}, {}, fs_, coverage_frontier_);
+      corpus_.Add(seed_input, /*fv=*/{}, /*metadata=*/{}, /*stats=*/{}, fs_,
+                  coverage_frontier_);
   }
 }
 
@@ -831,9 +833,9 @@ void Centipede::FuzzingLoop() {
     std::vector<MutationInputRef> mutation_inputs;
     mutation_inputs.reserve(env_.mutate_batch_size);
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
-      const auto &corpus_record = env_.use_corpus_weights
-                                      ? corpus_.WeightedRandom(rng_())
-                                      : corpus_.UniformRandom(rng_());
+      const auto& corpus_record = env_.use_corpus_weights
+                                      ? corpus_.WeightedRandom(rng_)
+                                      : corpus_.UniformRandom(rng_);
       mutation_inputs.push_back(
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }
