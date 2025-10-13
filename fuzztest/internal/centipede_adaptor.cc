@@ -463,25 +463,20 @@ class CentipedeAdaptorRunnerCallbacks
         prng_(GetRandomSeed()) {}
 
   bool Execute(fuzztest::internal::ByteSpan input) override {
-    [[maybe_unused]] static bool check_if_not_skipped_on_setup = [&] {
-      if (runtime_.skipping_requested()) {
-        absl::FPrintF(GetStderr(),
-                      "[.] Skipping %s per request from the test setup.\n",
-                      fuzzer_impl_.test_.full_name());
-        CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
-        // It has to use _Exit(1) to avoid trigger the reporting of regular
-        // setup failure while let Centipede be aware of this. Note that this
-        // skips the fixture teardown.
-        std::_Exit(1);
-      }
-      return true;
-    }();
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
     const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
     absl::Cleanup tracing_restorer = [old_traced] {
       CentipedeSetCurrentThreadTraced(old_traced);
     };
+    static const bool skipped_on_setup = runtime_.skipping_requested();
+    if (skipped_on_setup) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Skipping %s per request from the test setup.\n",
+                    fuzzer_impl_.test_.full_name());
+      CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
+      return true;
+    }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
     auto parsed_input =
