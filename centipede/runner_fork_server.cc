@@ -200,6 +200,9 @@ void ForkServerCallMeVeryEarly() {
   if (pipe1 < 0) Exit("###open pipe1 failed\n");
   Log("###Centipede fork server ready\n");
 
+  struct sigaction sigint_act{};
+  sigint_act.sa_handler = [](int) {};
+
   struct sigaction sigterm_act{};
   sigterm_act.sa_handler = [](int) {};
 
@@ -209,6 +212,9 @@ void ForkServerCallMeVeryEarly() {
   sigset_t server_sigset;
   if (sigprocmask(SIG_SETMASK, nullptr, &server_sigset) != 0) {
     Exit("###sigprocmask() failed to get the existing sigset\n");
+  }
+  if (sigaddset(&server_sigset, SIGINT) != 0) {
+    Exit("###sigaddset() failed to add SIGINT\n");
   }
   if (sigaddset(&server_sigset, SIGTERM) != 0) {
     Exit("###sigaddset() failed to add SIGTERM\n");
@@ -221,6 +227,9 @@ void ForkServerCallMeVeryEarly() {
   if (sigemptyset(&wait_sigset) != 0) {
     Exit("###sigemptyset() failed\n");
   }
+  if (sigaddset(&wait_sigset, SIGINT) != 0) {
+    Exit("###sigaddset() failed to add SIGINT to the wait sigset\n");
+  }
   if (sigaddset(&wait_sigset, SIGTERM) != 0) {
     Exit("###sigaddset() failed to add SIGTERM to the wait sigset\n");
   }
@@ -228,6 +237,7 @@ void ForkServerCallMeVeryEarly() {
     Exit("###sigaddset() failed to add SIGCHLD to the wait sigset\n");
   }
 
+  struct sigaction old_sigint_act{};
   struct sigaction old_sigterm_act{};
   struct sigaction old_sigchld_act{};
   sigset_t old_sigset;
@@ -247,7 +257,8 @@ void ForkServerCallMeVeryEarly() {
         if (sigpending(&pending) != 0) {
           Exit("###sigpending() failed\n");
         }
-        if (sigismember(&pending, SIGTERM) || sigismember(&pending, SIGCHLD)) {
+        if (sigismember(&pending, SIGINT) || sigismember(&pending, SIGTERM) ||
+            sigismember(&pending, SIGCHLD)) {
           int unused_sig;
           if (sigwait(&wait_sigset, &unused_sig) != 0) {
             Exit("###sigwait() failed\n");
@@ -255,6 +266,9 @@ void ForkServerCallMeVeryEarly() {
         } else {
           break;
         }
+      }
+      if (sigaction(SIGINT, &old_sigint_act, nullptr) != 0) {
+        Exit("###sigaction failed on SIGINT for the child");
       }
       if (sigaction(SIGTERM, &old_sigterm_act, nullptr) != 0) {
         Exit("###sigaction failed on SIGTERM for the child");
@@ -280,6 +294,9 @@ void ForkServerCallMeVeryEarly() {
       return;
     }
     // Parent process.
+    if (sigaction(SIGINT, &sigint_act, &old_sigint_act) != 0) {
+      Exit("###sigaction failed on SIGINT for the fork server");
+    }
     if (sigaction(SIGTERM, &sigterm_act, &old_sigterm_act) != 0) {
       Exit("###sigaction failed on SIGTERM for the fork server");
     }
@@ -296,11 +313,17 @@ void ForkServerCallMeVeryEarly() {
     int status = -1;
     while (true) {
       int sig = -1;
+      Log("###Waiting for a signal\n");
       if (sigwait(&wait_sigset, &sig) != 0) {
         Exit("###sigwait() failed\n");
       }
-      if (sig == SIGCHLD) {
-        Log("###Got SIGCHLD\n");
+      if (sig == SIGINT) {
+        Log("###Get SIGINT - ignoring\n");
+      } else if (sig == SIGTERM) {
+        Log("###Got SIGTERM - forwarding to the child\n");
+        kill(pid, SIGTERM);
+      } else if (sig == SIGCHLD) {
+        Log("###Got SIGCHLD - reaping the child\n");
         const pid_t ret = waitpid(pid, &status, WNOHANG);
         if (ret < 0) {
           Exit("###waitpid failed\n");
@@ -309,9 +332,6 @@ void ForkServerCallMeVeryEarly() {
           Log("###Got exit status\n");
           break;
         }
-      } else if (sig == SIGTERM) {
-        Log("###Got SIGTERM\n");
-        kill(pid, SIGTERM);
       } else {
         Exit("###Unknown signal from sigwait\n");
       }
