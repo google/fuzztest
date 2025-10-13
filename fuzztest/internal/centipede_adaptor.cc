@@ -636,7 +636,8 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
       if (!runner_mode) CentipedePrepareProcessing();
       std::move(run_iteration_once)();
     });
-    if (runtime_.skipping_requested()) {
+    if (runtime_.skipping_requested() ||
+        runtime_.run_mode() == RunMode::kUnitTest) {
       CentipedeSetExecutionResult(nullptr, 0);
     }
     CentipedeFinalizeProcessing();
