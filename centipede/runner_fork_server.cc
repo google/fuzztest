@@ -200,21 +200,12 @@ void ForkServerCallMeVeryEarly() {
   if (pipe1 < 0) Exit("###open pipe1 failed\n");
   Log("###Centipede fork server ready\n");
 
-  struct sigaction old_sigterm_act{};
   struct sigaction sigterm_act{};
   sigterm_act.sa_handler = [](int) {};
-  if (sigaction(SIGTERM, &sigterm_act, &old_sigterm_act) != 0) {
-    Exit("###sigaction failed on SIGTERM for the fork server");
-  }
 
-  struct sigaction old_sigchld_act{};
   struct sigaction sigchld_act{};
   sigchld_act.sa_handler = [](int) {};
-  if (sigaction(SIGCHLD, &sigchld_act, &old_sigchld_act) != 0) {
-    Exit("###sigaction failed on SIGCHLD for the fork server");
-  }
 
-  sigset_t old_sigset;
   sigset_t server_sigset;
   if (sigprocmask(SIG_SETMASK, nullptr, &server_sigset) != 0) {
     Exit("###sigprocmask() failed to get the existing sigset\n");
@@ -224,9 +215,6 @@ void ForkServerCallMeVeryEarly() {
   }
   if (sigaddset(&server_sigset, SIGCHLD) != 0) {
     Exit("###sigaddset() failed to add SIGCHLD\n");
-  }
-  if (sigprocmask(SIG_SETMASK, &server_sigset, &old_sigset) != 0) {
-    Exit("###sigprocmask() failed to set the fork server sigset\n");
   }
 
   sigset_t wait_sigset;
@@ -240,6 +228,10 @@ void ForkServerCallMeVeryEarly() {
     Exit("###sigaddset() failed to add SIGCHLD to the wait sigset\n");
   }
 
+  struct sigaction old_sigterm_act{};
+  struct sigaction old_sigchld_act{};
+  sigset_t old_sigset;
+  bool to_restore_signal_handling = false;
   // Loop.
   while (true) {
     Log("###Centipede fork server blocking on pipe0\n");
@@ -247,10 +239,23 @@ void ForkServerCallMeVeryEarly() {
     char ch = 0;
     if (read(pipe0, &ch, 1) != 1) Exit("###read from pipe0 failed\n");
     Log("###Centipede starting fork\n");
-    auto pid = fork();
-    if (pid < 0) {
-      Exit("###fork failed\n");
-    } else if (pid == 0) {
+    // Controller won't send more signals until the next ack write.
+    if (to_restore_signal_handling) {
+      // Deplete any remaining signals before the next execution.
+      sigset_t pending;
+      while (true) {
+        if (sigpending(&pending) != 0) {
+          Exit("###sigpending() failed\n");
+        }
+        if (sigismember(&pending, SIGTERM) || sigismember(&pending, SIGCHLD)) {
+          int unused_sig;
+          if (sigwait(&wait_sigset, &unused_sig) != 0) {
+            Exit("###sigwait() failed\n");
+          }
+        } else {
+          break;
+        }
+      }
       if (sigaction(SIGTERM, &old_sigterm_act, nullptr) != 0) {
         Exit("###sigaction failed on SIGTERM for the child");
       }
@@ -260,6 +265,11 @@ void ForkServerCallMeVeryEarly() {
       if (sigprocmask(SIG_SETMASK, &old_sigset, nullptr) != 0) {
         Exit("###sigprocmask() failed to restore the previous sigset\n");
       }
+    }
+    auto pid = fork();
+    if (pid < 0) {
+      Exit("###fork failed\n");
+    } else if (pid == 0) {
       // Child process. Reset stdout/stderr and let it run normally.
       for (int fd = 1; fd <= 2; fd++) {
         lseek(fd, 0, SEEK_SET);
@@ -268,64 +278,57 @@ void ForkServerCallMeVeryEarly() {
         (void)ftruncate(fd, 0);
       }
       return;
-    } else {
-      // Parent process.
-      int status = -1;
-      while (true) {
-        int sig = -1;
-        if (sigwait(&wait_sigset, &sig) != 0) {
-          Exit("###sigwait() failed\n");
-        }
-        if (sig == SIGCHLD) {
-          Log("###Got SIGCHLD\n");
-          const pid_t ret = waitpid(pid, &status, WNOHANG);
-          if (ret < 0) {
-            Exit("###waitpid failed\n");
-          }
-          if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
-            Log("###Got exit status\n");
-            break;
-          }
-        } else if (sig == SIGTERM) {
-          Log("###Got SIGTERM\n");
-          kill(pid, SIGTERM);
-        } else {
-          Exit("###Unknown signal from sigwait\n");
-        }
+    }
+    // Parent process.
+    if (sigaction(SIGTERM, &sigterm_act, &old_sigterm_act) != 0) {
+      Exit("###sigaction failed on SIGTERM for the fork server");
+    }
+    if (sigaction(SIGCHLD, &sigchld_act, &old_sigchld_act) != 0) {
+      Exit("###sigaction failed on SIGCHLD for the fork server");
+    }
+    if (sigprocmask(SIG_SETMASK, &server_sigset, &old_sigset) != 0) {
+      Exit("###sigprocmask() failed to set the fork server sigset\n");
+    }
+    to_restore_signal_handling = true;
+    if (write(pipe1, &ch, 1) == -1) {
+      Exit("###write ack to pipe1 failed\n");
+    }
+    int status = -1;
+    while (true) {
+      int sig = -1;
+      if (sigwait(&wait_sigset, &sig) != 0) {
+        Exit("###sigwait() failed\n");
       }
-      if (WIFEXITED(status)) {
-        if (WEXITSTATUS(status) == EXIT_SUCCESS)
-          Log("###Centipede fork returned EXIT_SUCCESS\n");
-        else if (WEXITSTATUS(status) == EXIT_FAILURE)
-          Log("###Centipede fork returned EXIT_FAILURE\n");
-        else
-          Log("###Centipede fork returned unknown failure status\n");
+      if (sig == SIGCHLD) {
+        Log("###Got SIGCHLD\n");
+        const pid_t ret = waitpid(pid, &status, WNOHANG);
+        if (ret < 0) {
+          Exit("###waitpid failed\n");
+        }
+        if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
+          Log("###Got exit status\n");
+          break;
+        }
+      } else if (sig == SIGTERM) {
+        Log("###Got SIGTERM\n");
+        kill(pid, SIGTERM);
       } else {
-        Log("###Centipede fork crashed\n");
+        Exit("###Unknown signal from sigwait\n");
       }
-      Log("###Centipede fork writing status to pipe1\n");
-      if (write(pipe1, &status, sizeof(status)) == -1) {
-        Exit("###write to pipe1 failed\n");
-      }
-      // Deplete any remaining signals before the next execution. Controller
-      // won't send more signals after write succeeded.
-      {
-        sigset_t pending;
-        while (true) {
-          if (sigpending(&pending) != 0) {
-            Exit("###sigpending() failed\n");
-          }
-          if (sigismember(&pending, SIGTERM) ||
-              sigismember(&pending, SIGCHLD)) {
-            int unused_sig;
-            if (sigwait(&wait_sigset, &unused_sig) != 0) {
-              Exit("###sigwait() failed\n");
-            }
-          } else {
-            break;
-          }
-        }
-      }
+    }
+    if (WIFEXITED(status)) {
+      if (WEXITSTATUS(status) == EXIT_SUCCESS)
+        Log("###Centipede fork returned EXIT_SUCCESS\n");
+      else if (WEXITSTATUS(status) == EXIT_FAILURE)
+        Log("###Centipede fork returned EXIT_FAILURE\n");
+      else
+        Log("###Centipede fork returned unknown failure status\n");
+    } else {
+      Log("###Centipede fork crashed\n");
+    }
+    Log("###Centipede fork writing status to pipe1\n");
+    if (write(pipe1, &status, sizeof(status)) == -1) {
+      Exit("###write status to pipe1 failed\n");
     }
   }
   // The only way out of the loop is via Exit() or return.
