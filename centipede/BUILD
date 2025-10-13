@@ -669,6 +669,7 @@ cc_library(
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
+        ":stop",
         ":util",
         ":workdir",
         "@abseil-cpp//absl/base:nullability",

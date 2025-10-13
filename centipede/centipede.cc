@@ -363,8 +363,15 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                                       const std::vector<ByteArray> &input_vec,
                                       BatchResult &batch_result) {
   bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
-  if (!success) ReportCrash(binary, input_vec, batch_result);
-  return success || batch_result.IsIgnoredFailure();
+  if (success) return true;
+  if (ShouldStop()) {
+    FUZZTEST_LOG_FIRST_N(WARNING, 1)
+        << "Crash found but the stop condition is met - not reporting further "
+           "possibly related crashes.";
+    return true;
+  }
+  ReportCrash(binary, input_vec, batch_result);
+  return batch_result.IsIgnoredFailure();
 }
 
 // *** Highly experimental and risky. May not scale well for large targets. ***

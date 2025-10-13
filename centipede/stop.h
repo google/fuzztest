@@ -46,6 +46,13 @@ bool EarlyStopRequested();
 // ENSURES: Thread-safe.
 bool ShouldStop();
 
+// Returns the stop time set from the recent
+// `ClearEarlyStopRequestAndSetStopTime()`, or `absl::InfiniteFuture()` it was
+// not set.
+//
+// ENSURES: Thread-safe.
+absl::Time GetStopTime();
+
 // Returns the value most recently passed to `RequestEarlyStop()` or 0 if
 // `RequestEarlyStop()` was not called since the most recent call to
 // `ClearEarlyStopRequestAndSetStopTime()` (if any).

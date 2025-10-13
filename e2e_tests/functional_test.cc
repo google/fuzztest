@@ -124,6 +124,9 @@ class UnitTestModeTest : public ::testing::Test {
       absl::flat_hash_map<std::string, std::string> fuzzer_flags = {}) {
     fuzzer_flags["print_subprocess_log"] = "true";
     fuzzer_flags["unguided"] = "true";
+    if (!fuzzer_flags.contains("fuzz_for")) {
+      fuzzer_flags["fuzz_for"] = "10s";
+    }
     RunOptions run_options;
     run_options.flags = {
         {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
@@ -1177,7 +1180,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
 // to restrict the filter to only fuzz tests.
 TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests");
 
   EXPECT_THAT_LOG(std_out,
@@ -1191,7 +1194,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        AllowsSpecifyingFilterWithFuzzForDuration) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1ns"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
               "testdata/unit_test_and_fuzz_tests",
               {{GTEST_FLAG_PREFIX_ "filter",
                 "UnitTest.AlwaysPasses:FuzzTest.AlwaysPasses"}});
