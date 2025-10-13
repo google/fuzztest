@@ -477,6 +477,13 @@ class CentipedeAdaptorRunnerCallbacks
       CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
       return true;
     }
+    if (runtime_.termination_requested()) {
+      absl::FPrintF(GetStderr(),
+                    "[.] Termination requested - exiting without executing "
+                    "further inputs.\n");
+      CentipedeSetFailureDescription("IGNORED FAILURE: Termination requested");
+      return false;
+    }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
     auto parsed_input =
