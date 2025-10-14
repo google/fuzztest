@@ -935,6 +935,30 @@ cc_library(
 )
 
 cc_library(
+    name = "crash_deduplication",
+    srcs = ["crash_deduplication.cc"],
+    hdrs = ["crash_deduplication.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":crash_summary",
+        ":environment",
+        ":runner_result",
+        ":workdir",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
+    ],
+)
+
+cc_library(
     name = "crash_summary",
     srcs = ["crash_summary.cc"],
     hdrs = ["crash_summary.h"],
@@ -1878,6 +1902,25 @@ cc_test(
 )
 
 cc_test(
+    name = "crash_deduplication_test",
+    srcs = ["crash_deduplication_test.cc"],
+    deps = [
+        ":centipede_callbacks",
+        ":crash_deduplication",
+        ":crash_summary",
+        ":environment",
+        ":runner_result",
+        ":util",
+        ":workdir",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:temp_dir",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "crash_summary_test",
     srcs = ["crash_summary_test.cc"],
     deps = [
@@ -1916,7 +1959,6 @@ cc_test(
         ":stop",
         ":util",
         ":workdir",
-        "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
