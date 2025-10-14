@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +34,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -220,6 +222,23 @@ class DefaultCallbacksFactory : public CentipedeCallbacksFactory {
     return new Type(env);
   }
   void destroy(CentipedeCallbacks *callbacks) override { delete callbacks; }
+};
+
+// An implementation of `CentipedeCallbacksFactory` that always returns the same
+// predefined `CentipedeCallbacks` object and never destroys it.
+class NonOwningCallbacksFactory : public CentipedeCallbacksFactory {
+ public:
+  explicit NonOwningCallbacksFactory(CentipedeCallbacks& callbacks)
+      : callbacks_(callbacks) {}
+  CentipedeCallbacks* absl_nonnull create(const Environment& env) override {
+    return &callbacks_;
+  }
+  void destroy(CentipedeCallbacks* callbacks) override {
+    FUZZTEST_CHECK_EQ(callbacks, &callbacks_);
+  }
+
+ private:
+  CentipedeCallbacks& callbacks_;
 };
 
 // Creates a CentipedeCallbacks object in CTOR and destroys it in DTOR.
