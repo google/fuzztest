@@ -19,13 +19,13 @@
 #include <limits>
 #include <optional>
 
-#include "./fuzztest/internal/domains/mutation_metadata.h"
-#include "./fuzztest/internal/meta.h"
-#include "./fuzztest/internal/table_of_recent_compares.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "./fuzztest/internal/domains/mutation_metadata.h"
+#include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest::internal {
 
@@ -65,15 +65,14 @@ void RunOne(absl::BitGenRef prng, F... f) {
 
 template <typename T, size_t N, typename F>
 T ChooseOneOr(const T (&values)[N], absl::BitGenRef prng, F f) {
-  const unsigned int i =
-      absl::Uniform<unsigned int>(absl::IntervalClosedClosed, prng, 0, N);
+  const auto i = absl::Uniform<size_t>(absl::IntervalClosedClosed, prng, 0, N);
   return i == N ? f() : values[i];
 }
 
 template <typename C, typename F>
 auto ChooseOneOr(const C& values, absl::BitGenRef prng, F f) {
-  const unsigned int i = absl::Uniform<unsigned int>(absl::IntervalClosedClosed,
-                                                     prng, 0, values.size());
+  const auto i =
+      absl::Uniform<size_t>(absl::IntervalClosedClosed, prng, 0, values.size());
   return i < values.size() ? values[i] : f();
 }
 
