@@ -29,7 +29,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
@@ -133,19 +132,6 @@ class CentipedeMock : public CentipedeCallbacks {
   size_t min_batch_size_ = -1;
 };
 
-// Returns the same CentipedeCallbacks object every time, never destroys it.
-class MockFactory : public CentipedeCallbacksFactory {
- public:
-  explicit MockFactory(CentipedeCallbacks &cb) : cb_(cb) {}
-  CentipedeCallbacks *absl_nonnull create(const Environment &env) override {
-    return &cb_;
-  }
-  void destroy(CentipedeCallbacks *cb) override { EXPECT_EQ(cb, &cb_); }
-
- private:
-  CentipedeCallbacks &cb_;
-};
-
 TEST(Centipede, MockTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
@@ -155,7 +141,7 @@ TEST(Centipede, MockTest) {
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   CentipedeMock mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing with num_runs inputs.
   EXPECT_EQ(mock.num_inputs_, env.num_runs + 1);  // num_runs and one dummy.
   EXPECT_EQ(mock.num_mutations_, env.num_runs);
@@ -189,7 +175,7 @@ TEST(Centipede, ReadFirstCorpusDir) {
   {
     // First, generate corpus files in corpus_dir.
     CentipedeMock mock_1(env);
-    MockFactory factory_1(mock_1);
+    NonOwningCallbacksFactory factory_1(mock_1);
     CentipedeMain(env, factory_1);
     ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
     ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
@@ -202,7 +188,7 @@ TEST(Centipede, ReadFirstCorpusDir) {
     env.workdir = workdir_2.path();
     env.num_runs = 0;
     CentipedeMock mock_2(env);
-    MockFactory factory_2(mock_2);
+    NonOwningCallbacksFactory factory_2(mock_2);
     CentipedeMain(env, factory_2);
     // Should observe all inputs in corpus_dir, plus the dummy seed input {0}.
     EXPECT_EQ(mock_2.num_inputs_, 513);
@@ -224,7 +210,7 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   {
     // First, generate corpus files in corpus_dir.
     CentipedeMock mock_1(env);
-    MockFactory factory_1(mock_1);
+    NonOwningCallbacksFactory factory_1(mock_1);
     CentipedeMain(env, factory_1);
     ASSERT_EQ(mock_1.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
     ASSERT_EQ(mock_1.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
@@ -239,7 +225,7 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
     env.num_runs = 0;
     env.first_corpus_dir_output_only = true;
     CentipedeMock mock_2(env);
-    MockFactory factory_2(mock_2);
+    NonOwningCallbacksFactory factory_2(mock_2);
     CentipedeMain(env, factory_2);
     // Should observe no inputs other than the seed input {0}.
     EXPECT_EQ(mock_2.num_inputs_, 1);
@@ -259,7 +245,7 @@ TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
   env.corpus_dir.push_back(tmp_dir.CreateSubdir("cd"));
 
   CentipedeMock mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing with num_runs inputs.
   EXPECT_EQ(mock.observed_1byte_inputs_.size(), 256);    // all 1-byte seqs.
   EXPECT_EQ(mock.observed_2byte_inputs_.size(), 65536);  // all 2-byte seqs.
@@ -287,7 +273,7 @@ TEST(Centipede, ShardsAndDistillTest) {
   size_t max_shard_size = 0;
   for (size_t shard_index = 0; shard_index < env.total_shards; shard_index++) {
     env.my_shard_index = shard_index;
-    MockFactory factory(mock);
+    NonOwningCallbacksFactory factory(mock);
     CentipedeMain(env, factory);  // Run fuzzing in shard `shard_index`.
     auto corpus_size = tmp_dir.CountElementsInCorpusFile(shard_index);
     // Every byte should be present at least once.
@@ -309,7 +295,7 @@ TEST(Centipede, ShardsAndDistillTest) {
   // Empty the corpus_dir[0]
   std::filesystem::remove_all(env.corpus_dir[0]);
   std::filesystem::create_directory(env.corpus_dir[0]);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);  // Run distilling in shard `shard_index`.
   EXPECT_EQ(CountFilesInDir(env.corpus_dir[0]), 0);
   size_t distilled_size = 0;
@@ -342,7 +328,7 @@ TEST(Centipede, InputFilter) {
   env.input_filter = "%f" + std::string{GetDataDependencyFilepath(
                                 "centipede/testing/test_input_filter")};
   CentipedeMock mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing.
   auto corpus = tmp_dir.GetCorpus(0);
   std::set<ByteArray> corpus_set(corpus.begin(), corpus.end());
@@ -537,7 +523,7 @@ TEST(Centipede, MergeFromOtherCorpus) {
   env.num_runs = 3;              // Just a few runs.
   env.require_pc_table = false;  // No PC table here.
   MergeMock mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   for (env.my_shard_index = 0; env.my_shard_index < 2; ++env.my_shard_index) {
     CentipedeMain(env, factory);
   }
@@ -644,7 +630,7 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   env.log_level = 0;
   env.function_filter = function_filter;
   FunctionFilterMock mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);
   FUZZTEST_LOG(INFO) << mock.observed_inputs_.size();
   std::vector<ByteArray> res(mock.observed_inputs_.begin(),
@@ -771,7 +757,7 @@ TEST(Centipede, ExtraBinaries) {
   ExtraBinariesMock mock(env, {Crash{"b1", 10, "b1-crash", "b1-sig"},
                                Crash{"b2", 30, "b2-crash", "b2-sig"},
                                Crash{"b3", 50, "b3-crash", "b3-sig"}});
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);
 
   // Verify that we see the expected crashes.
@@ -895,7 +881,7 @@ TEST(Centipede, UndetectedCrashingInput) {
 
   {
     UndetectedCrashingInputMock mock(env, kCrashingInputIdx);
-    MockFactory factory(mock);
+    NonOwningCallbacksFactory factory(mock);
     CentipedeMain(env, factory);
 
     // Verify that we see the expected inputs from the batch.
@@ -926,7 +912,7 @@ TEST(Centipede, UndetectedCrashingInput) {
   env.workdir = suspect_only_temp_dir.path();
   env.batch_triage_suspect_only = true;
   UndetectedCrashingInputMock suspect_only_mock(env, kCrashingInputIdx);
-  MockFactory suspect_only_factory(suspect_only_mock);
+  NonOwningCallbacksFactory suspect_only_factory(suspect_only_mock);
   CentipedeMain(env, suspect_only_factory);
 
   EXPECT_EQ(suspect_only_mock.num_inputs_triaged(), 1);
@@ -1030,7 +1016,7 @@ TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
   env.num_runs = 100;
-  MockFactory factory(callbacks);
+  NonOwningCallbacksFactory factory(callbacks);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_TRUE(callbacks.thread_check_passed());
 }
@@ -1081,7 +1067,7 @@ TEST(Centipede, ReturnsFailureOnSetupFailure) {
   env.batch_size = 7;            // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   SetupFailureCallbacks mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_FAILURE);
   EXPECT_EQ(mock.execute_count(), 1);
 }
@@ -1119,7 +1105,7 @@ TEST(Centipede, ReturnsSuccessOnSkippedTest) {
   env.batch_size = 7;            // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   SkippedTestCallbacks mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_EQ(mock.execute_count(), 1);
 }
@@ -1159,7 +1145,7 @@ TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
   env.require_pc_table = false;  // No PC table here.
   env.exit_on_crash = true;
   IgnoredFailureCallbacks mock(env);
-  MockFactory factory(mock);
+  NonOwningCallbacksFactory factory(mock);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_GE(mock.execute_count(), 2);
 }

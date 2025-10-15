@@ -1273,6 +1273,18 @@ cc_test(
 )
 
 cc_test(
+    name = "centipede_callbacks_test",
+    srcs = ["centipede_callbacks_test.cc"],
+    deps = [
+        ":centipede_callbacks",
+        ":environment",
+        ":runner_result",
+        "@com_google_fuzztest//common:defs",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "environment_test",
     srcs = ["environment_test.cc"],
     deps = [
@@ -1884,7 +1896,6 @@ cc_test(
         ":stop",
         ":util",
         ":workdir",
-        "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

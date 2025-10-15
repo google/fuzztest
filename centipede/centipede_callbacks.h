@@ -15,8 +15,10 @@
 #ifndef THIRD_PARTY_CENTIPEDE_CENTIPEDE_CALLBACKS_H_
 #define THIRD_PARTY_CENTIPEDE_CENTIPEDE_CALLBACKS_H_
 
+#include <atomic>
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +35,7 @@
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
 
@@ -220,6 +223,35 @@ class DefaultCallbacksFactory : public CentipedeCallbacksFactory {
     return new Type(env);
   }
   void destroy(CentipedeCallbacks *callbacks) override { delete callbacks; }
+};
+
+// An implementation of `CentipedeCallbacksFactory` that always returns the same
+// predefined `CentipedeCallbacks` object and never destroys it. The factory
+// ensures that each `create()` call must be followed by a `destroy()` call
+// before `create()` can be called again.
+class NonOwningCallbacksFactory : public CentipedeCallbacksFactory {
+ public:
+  explicit NonOwningCallbacksFactory(CentipedeCallbacks& callbacks)
+      : callbacks_(callbacks) {}
+  CentipedeCallbacks* absl_nonnull create(const Environment& env) override {
+    const bool was_already_created =
+        is_created_.exchange(true, std::memory_order_acq_rel);
+    FUZZTEST_CHECK(!was_already_created)
+        << "create() called before destroy() that matches the previous "
+           "create()";
+    return &callbacks_;
+  }
+  void destroy(CentipedeCallbacks* callbacks) override {
+    FUZZTEST_CHECK_EQ(callbacks, &callbacks_);
+    const bool was_created =
+        is_created_.exchange(false, std::memory_order_acq_rel);
+    FUZZTEST_CHECK(was_created)
+        << "destroy() called before the matching create()";
+  }
+
+ private:
+  std::atomic<bool> is_created_ = false;
+  CentipedeCallbacks& callbacks_;
 };
 
 // Creates a CentipedeCallbacks object in CTOR and destroys it in DTOR.
