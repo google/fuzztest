@@ -281,7 +281,6 @@ cc_library(
     name = "rusage_stats",
     srcs = ["rusage_stats.cc"],
     hdrs = ["rusage_stats.h"],
-    visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/strings",
@@ -295,7 +294,6 @@ cc_library(
     name = "rusage_profiler",
     srcs = ["rusage_profiler.cc"],
     hdrs = ["rusage_profiler.h"],
-    visibility = ["//visibility:public"],
     deps = [
         ":periodic_action",
         ":rusage_stats",
@@ -492,12 +490,8 @@ cc_library(
 # https://clang.llvm.org/docs/SanitizerCoverage.html.
 cc_library(
     name = "coverage",
-    srcs = [
-        "coverage.cc",
-    ],
-    hdrs = [
-        "coverage.h",
-    ],
+    srcs = ["coverage.cc"],
+    hdrs = ["coverage.h"],
     deps = [
         ":control_flow",
         ":feature",
@@ -517,12 +511,8 @@ cc_library(
 # https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow.
 cc_library(
     name = "control_flow",
-    srcs = [
-        "control_flow.cc",
-    ],
-    hdrs = [
-        "control_flow.h",
-    ],
+    srcs = ["control_flow.cc"],
+    hdrs = ["control_flow.h"],
     deps = [
         ":command",
         ":pc_info",
@@ -540,12 +530,8 @@ cc_library(
 # https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-control-flow.
 cc_library(
     name = "call_graph",
-    srcs = [
-        "call_graph.cc",
-    ],
-    hdrs = [
-        "call_graph.h",
-    ],
+    srcs = ["call_graph.cc"],
+    hdrs = ["call_graph.h"],
     deps = [
         ":control_flow",
         ":pc_info",
@@ -613,9 +599,7 @@ cc_library(
 cc_library(
     name = "binary_info",
     srcs = ["binary_info.cc"],
-    hdrs = [
-        "binary_info.h",
-    ],
+    hdrs = ["binary_info.h"],
     deps = [
         ":call_graph",
         ":command",
@@ -631,12 +615,8 @@ cc_library(
 
 cc_library(
     name = "centipede_callbacks",
-    srcs = [
-        "centipede_callbacks.cc",
-    ],
-    hdrs = [
-        "centipede_callbacks.h",
-    ],
+    srcs = ["centipede_callbacks.cc"],
+    hdrs = ["centipede_callbacks.h"],
     deps = [
         ":binary_info",
         ":byte_array_mutator",
@@ -719,14 +699,11 @@ cc_library(
     textual_hdrs = ["centipede_flags.inc"],
 )
 
+# TODO(lszekeres): Remove this target.
 cc_library(
     name = "centipede_lib",
-    srcs = [
-        "centipede.cc",
-    ],
-    hdrs = [
-        "centipede.h",
-    ],
+    srcs = ["centipede.cc"],
+    hdrs = ["centipede.h"],
     deps = [
         ":binary_info",
         ":centipede_callbacks",
@@ -813,12 +790,8 @@ cc_library(
 
 cc_library(
     name = "environment",
-    srcs = [
-        "environment.cc",
-    ],
-    hdrs = [
-        "environment.h",
-    ],
+    srcs = ["environment.cc"],
+    hdrs = ["environment.h"],
     defines = select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
@@ -1072,7 +1045,6 @@ cc_library(
     copts = RUNNER_SANITIZED_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
-    visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
 )
 
@@ -1083,7 +1055,6 @@ cc_binary(
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkshared = 1,
-    visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
 )
 
@@ -1095,7 +1066,6 @@ cc_library(
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
-    visibility = ["//visibility:public"],
     deps = [
         ":centipede_runner_no_main",
         ":mutation_input",
