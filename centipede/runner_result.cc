@@ -173,6 +173,11 @@ bool BatchResult::IsSkippedTest() const {
                  .substr(0, kSkippedTestPrefix.size()) == kSkippedTestPrefix;
 }
 
+bool BatchResult::IsInputFailure() const {
+  return exit_code_ != EXIT_SUCCESS && !IsIgnoredFailure() &&
+         !IsSetupFailure() && !IsSkippedTest();
+}
+
 bool MutationResult::WriteHasCustomMutator(bool has_custom_mutator,
                                            BlobSequence &blobseq) {
   return blobseq.Write(

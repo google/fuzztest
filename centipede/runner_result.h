@@ -164,6 +164,10 @@ class BatchResult {
   // run any inputs at all.
   bool IsSkippedTest() const;
 
+  // Returns true if the batch execution failed due to an input failure,
+  // which is neither an ignored failure, a setup failure, nor a skipped test.
+  bool IsInputFailure() const;
+
   // Accessors.
   std::vector<ExecutionResult>& results() { return results_; }
   const std::vector<ExecutionResult>& results() const { return results_; }

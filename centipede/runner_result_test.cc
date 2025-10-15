@@ -166,12 +166,45 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
                           ));
 }
 
+TEST(ExecutionResult, IdentifiesIgnoredFailure) {
+  BatchResult batch_result;
+  batch_result.exit_code() = EXIT_FAILURE;
+  batch_result.failure_description() = "IGNORED FAILURE: something went wrong";
+
+  EXPECT_TRUE(batch_result.IsIgnoredFailure());
+}
+
 TEST(ExecutionResult, IdentifiesSetupFailure) {
   BatchResult batch_result;
   batch_result.exit_code() = EXIT_FAILURE;
   batch_result.failure_description() = "SETUP FAILURE: something went wrong";
 
   EXPECT_TRUE(batch_result.IsSetupFailure());
+}
+
+TEST(ExecutionResult, IdentifiesSkippedTest) {
+  BatchResult batch_result;
+  batch_result.exit_code() = EXIT_FAILURE;
+  batch_result.failure_description() = "SKIPPED TEST: test is skipped";
+
+  EXPECT_TRUE(batch_result.IsSkippedTest());
+}
+
+TEST(ExecutionResult, IdentifiesInputFailure) {
+  BatchResult batch_result;
+  batch_result.exit_code() = EXIT_FAILURE;
+
+  batch_result.failure_description() = "IGNORED FAILURE: something went wrong";
+  EXPECT_FALSE(batch_result.IsInputFailure());
+
+  batch_result.failure_description() = "SETUP FAILURE: something went wrong";
+  EXPECT_FALSE(batch_result.IsInputFailure());
+
+  batch_result.failure_description() = "SKIPPED TEST: test is skipped";
+  EXPECT_FALSE(batch_result.IsInputFailure());
+
+  batch_result.failure_description() = "something went wrong";
+  EXPECT_TRUE(batch_result.IsInputFailure());
 }
 
 TEST(MutationResult, WriteThenRead) {
