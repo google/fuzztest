@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
+#include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
@@ -126,12 +128,12 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
   weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
 }
 
-const CorpusRecord &Corpus::WeightedRandom(size_t random) const {
-  return records_[weighted_distribution_.RandomIndex(random)];
+const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
+  return records_[weighted_distribution_.RandomIndex(rng)];
 }
 
-const CorpusRecord &Corpus::UniformRandom(size_t random) const {
-  return records_[random % records_.size()];
+const CorpusRecord& Corpus::UniformRandom(absl::BitGenRef rng) const {
+  return records_[absl::Uniform<size_t>(rng, 0, records_.size())];
 }
 
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,
@@ -210,18 +212,21 @@ void WeightedDistribution::RecomputeInternalState() {
 }
 
 __attribute__((noinline))  // to see it in profile.
-size_t
-WeightedDistribution::RandomIndex(size_t random) const {
+size_t WeightedDistribution::RandomIndex(absl::BitGenRef rng) const {
   FUZZTEST_CHECK(!weights_.empty());
   FUZZTEST_CHECK(cumulative_weights_valid_);
-  uint64_t sum_of_all_weights = cumulative_weights_.back();
-  if (sum_of_all_weights == 0)
-    return random % size();  // can't do much else here.
-  random = random % sum_of_all_weights;
-  auto it = std::upper_bound(cumulative_weights_.begin(),
-                             cumulative_weights_.end(), random);
+  const uint64_t sum_of_all_weights = cumulative_weights_.back();
+  if (sum_of_all_weights == 0) {
+    // Can't do much else here.
+    return absl::Uniform<size_t>(rng, 0, size());
+  }
+  auto it =
+      std::upper_bound(cumulative_weights_.begin(), cumulative_weights_.end(),
+                       absl::Uniform<uint64_t>(rng, 0, sum_of_all_weights));
   FUZZTEST_CHECK(it != cumulative_weights_.end());
-  return it - cumulative_weights_.begin();
+  const size_t index = it - cumulative_weights_.begin();
+  FUZZTEST_CHECK(weights_[index] != 0);
+  return index;
 }
 
 uint64_t WeightedDistribution::PopBack() {

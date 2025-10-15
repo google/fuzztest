@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
@@ -49,7 +50,7 @@ class WeightedDistribution {
   // For proper randomness, `random` should come from a 64-bit RNG.
   // RandomIndex() must not be called after ChangeWeight() without first
   // calling RecomputeInternalState().
-  size_t RandomIndex(size_t random) const;
+  size_t RandomIndex(absl::BitGenRef rng) const;
   // Returns the number of weights.
   size_t size() const { return weights_.size(); }
   // Removes all weights.
@@ -131,9 +132,9 @@ class Corpus {
   std::pair<size_t, size_t> MaxAndAvgSize() const;
   // Returns a random active corpus record using weighted distribution.
   // See WeightedDistribution.
-  const CorpusRecord &WeightedRandom(size_t random) const;
+  const CorpusRecord& WeightedRandom(absl::BitGenRef rng) const;
   // Returns a random active corpus record using uniform distribution.
-  const CorpusRecord &UniformRandom(size_t random) const;
+  const CorpusRecord& UniformRandom(absl::BitGenRef rng) const;
   // Returns the element with index 'idx', where `idx` < NumActive().
   const ByteArray &Get(size_t idx) const { return records_[idx].data; }
   // Returns the execution metadata for the element `idx`, `idx` < NumActive().

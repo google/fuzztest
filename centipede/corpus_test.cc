@@ -175,20 +175,19 @@ TEST(WeightedDistribution, WeightedDistribution) {
     }
   };
 
+  Rng rng(12345);
   auto compute_freq = [&]() {
     freq.clear();
     freq.resize(wd.size());
-    // We use numbers in [0, kNumIter) instead of random numbers
-    // for simplicity.
     for (int i = 0; i < kNumIter; i++) {
-      freq[wd.RandomIndex(i)]++;
+      freq[wd.RandomIndex(rng)]++;
     }
   };
 
   set_weights({1, 1});
   compute_freq();
-  EXPECT_EQ(freq[0], kNumIter / 2);
-  EXPECT_EQ(freq[1], kNumIter / 2);
+  EXPECT_NEAR(freq[0], kNumIter / 2, 100);
+  EXPECT_NEAR(freq[1], kNumIter / 2, 100);
 
   set_weights({1, 2});
   compute_freq();

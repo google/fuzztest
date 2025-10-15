@@ -840,9 +840,9 @@ void Centipede::FuzzingLoop() {
     std::vector<MutationInputRef> mutation_inputs;
     mutation_inputs.reserve(env_.mutate_batch_size);
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
-      const auto &corpus_record = env_.use_corpus_weights
-                                      ? corpus_.WeightedRandom(rng_())
-                                      : corpus_.UniformRandom(rng_());
+      const auto& corpus_record = env_.use_corpus_weights
+                                      ? corpus_.WeightedRandom(rng_)
+                                      : corpus_.UniformRandom(rng_);
       mutation_inputs.push_back(
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }

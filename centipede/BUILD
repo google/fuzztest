@@ -603,6 +603,8 @@ cc_library(
         ":feature_set",
         ":runner_result",
         ":util",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
