@@ -253,14 +253,25 @@ std::optional<int> RegexpDFA::NextState(
 std::unique_ptr<re2::Prog> RegexpDFA::CompileRegexp(absl::string_view regexp) {
   // Build the RegexpDFA for only full match.
   std::string full_text_regexp(regexp);
-  if (regexp.empty() || regexp[0] != '^')
+  
+  // Check if we need to add anchors
+  bool needs_start_anchor = regexp.empty() || regexp[0] != '^';
+  bool needs_end_anchor = regexp.empty() || regexp.back() != '$';
+  
+  if (needs_start_anchor || needs_end_anchor) {
+    full_text_regexp = "(?:" + full_text_regexp + ")";
+  }
+  
+  if (needs_start_anchor) {
     full_text_regexp = "^" + full_text_regexp;
-  if (full_text_regexp.back() != '$') full_text_regexp += "$";
+  }
+  if (needs_end_anchor) {
+    full_text_regexp += "$";
+  }
 
   re2::Regexp* re =
       re2::Regexp::Parse(full_text_regexp, re2::Regexp::LikePerl, nullptr);
 
-  // Is the regexp valid?
   FUZZTEST_PRECONDITION(re != nullptr) << "Invalid RE2 regular expression.";
   re2::Prog* prog = re->CompileToProg(0);
   FUZZTEST_CHECK(prog != nullptr) << "RE2 compilation failed!";
