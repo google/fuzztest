@@ -668,8 +668,7 @@ template <size_t I, typename F>
 constexpr std::optional<int> ApplyIndexFor(F f) {
   if constexpr (ApplyIndex<I>(f)) {
     return I;
-  }
-  if constexpr (I == 0) {
+  } else if constexpr (I == 0) {
     return std::nullopt;
   } else {
     return ApplyIndexFor<I - 1>(f);
