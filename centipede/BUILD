@@ -369,7 +369,7 @@ cc_library(
     deps = [
         ":centipede_callbacks",
         ":environment",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_result",
         ":stop",
         ":thread_pool",
@@ -442,6 +442,7 @@ cc_library(
         # used in centipede_runner.
         ":feature",
         ":execution_metadata",
+        ":mutation_data",
         ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
     ],
@@ -457,14 +458,14 @@ cc_library(
         # used in centipede_runner.
         ":shared_memory_blob_sequence",
         ":execution_metadata",
-        ":mutation_input",
+        ":mutation_data",
         "@com_google_fuzztest//common:defs",
     ],
 )
 
 cc_library(
-    name = "mutation_input",
-    hdrs = ["mutation_input.h"],
+    name = "mutation_data",
+    hdrs = ["mutation_data.h"],
     copts = DISABLE_SANCOV_COPTS,
     deps = [
         # This target must have a minimal set of dependencies since it is
@@ -483,7 +484,7 @@ cc_library(
     deps = [
         ":execution_metadata",
         ":knobs",
-        ":mutation_input",
+        ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
     ],
@@ -627,7 +628,7 @@ cc_library(
         ":control_flow",
         ":environment",
         ":fuzztest_mutator",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
@@ -719,7 +720,7 @@ cc_library(
         ":environment",
         ":feature",
         ":feature_set",
-        ":mutation_input",
+        ":mutation_data",
         ":pc_info",
         ":runner_result",
         ":rusage_profiler",
@@ -855,7 +856,7 @@ cc_library(
     deps = [
         ":centipede_callbacks",
         ":environment",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_result",
         ":stop",
         "@abseil-cpp//absl/status",
@@ -873,7 +874,7 @@ cc_library(
         ":byte_array_mutator",
         ":execution_metadata",
         ":knobs",
-        ":mutation_input",
+        ":mutation_data",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
@@ -941,6 +942,7 @@ cc_library(
     name = "runner_cmp_trace",
     hdrs = ["runner_cmp_trace.h"],
     copts = DISABLE_SANCOV_COPTS,
+    deps = ["@abseil-cpp//absl/base:core_headers"],
 )
 
 # Library for manipulating centipede runner flags. This is not used by the
@@ -958,6 +960,7 @@ cc_library(
     hdrs = ["dispatcher.h"],
     deps = [
         ":execution_metadata",
+        ":mutation_data",
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
@@ -1033,7 +1036,7 @@ RUNNER_DEPS = [
     ":foreach_nonzero",
     ":int_utils",
     ":knobs",
-    ":mutation_input",
+    ":mutation_data",
     ":rolling_hash",
     ":runner_cmp_trace",
     ":runner_fork_server",
@@ -1098,7 +1101,7 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     deps = [
         ":centipede_runner_no_main",
-        ":mutation_input",
+        ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
     ],
@@ -1237,7 +1240,7 @@ cc_library(
         ":corpus",
         ":environment",
         ":feature",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_result",
         ":util",
         "@com_google_fuzztest//common:defs",
@@ -1509,6 +1512,7 @@ cc_test(
     deps = [
         ":execution_metadata",
         ":feature",
+        ":mutation_data",
         ":runner_result",
         ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
@@ -1518,10 +1522,10 @@ cc_test(
 )
 
 cc_test(
-    name = "mutation_input_test",
-    srcs = ["mutation_input_test.cc"],
+    name = "mutation_data_test",
+    srcs = ["mutation_data_test.cc"],
     deps = [
-        ":mutation_input",
+        ":mutation_data",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
     ],
@@ -1534,7 +1538,7 @@ cc_test(
         ":byte_array_mutator",
         ":execution_metadata",
         ":knobs",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_cmp_trace",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@com_google_fuzztest//common:defs",
@@ -1567,7 +1571,7 @@ cc_test(
         ":execution_metadata",
         ":fuzztest_mutator",
         ":knobs",
-        ":mutation_input",
+        ":mutation_data",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:defs",
@@ -1914,7 +1918,7 @@ cc_test(
         ":centipede_interface",
         ":environment",
         ":feature",
-        ":mutation_input",
+        ":mutation_data",
         ":runner_result",
         ":stop",
         ":util",

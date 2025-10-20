@@ -75,7 +75,7 @@ class Centipede {
                                      std::string_view dir);
 
  private:
-  // Executes inputs from `input_vec`.
+  // Executes inputs from `mutants` and update the corpus.
   // For every input, its pruned features are written to
   // `unconditional_features_file`, (if that's non-null).
   // For every input that caused new features to be observed:
@@ -83,11 +83,11 @@ class Centipede {
   //   * the input is written to `corpus_file` (if that's non-null).
   //   * its features are written to `features_file` (if that's non-null).
   // Returns true if new features were observed.
-  // Post-condition: `batch_result.results.size()` == `input_vec.size()`.
-  bool RunBatch(const std::vector<ByteArray> &input_vec,
-                BlobFileWriter *absl_nullable corpus_file,
-                BlobFileWriter *absl_nullable features_file,
-                BlobFileWriter *absl_nullable unconditional_features_file);
+  // Post-condition: `batch_result.results.size()` == `mutants.size()`.
+  bool RunBatch(const std::vector<MutantRef>& mutants,
+                BlobFileWriter* absl_nullable corpus_file,
+                BlobFileWriter* absl_nullable features_file,
+                BlobFileWriter* absl_nullable unconditional_features_file);
   // Loads seed inputs from the user callbacks, execute them, and store them
   // with the corresponding features into `corpus_file` and `features_file`.
   void LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
@@ -140,13 +140,13 @@ class Centipede {
                                         size_t batch_index);
 
   // Returns true if `input` passes env_.input_filter.
-  bool InputPassesFilter(const ByteArray &input);
+  bool InputPassesFilter(ByteSpan input);
   // Executes `binary` with `input_vec` and `batch_result` as input/output.
   // If the binary crashes, calls ReportCrash().
   // Returns true iff there were no crashes.
   bool ExecuteAndReportCrash(std::string_view binary,
-                             const std::vector<ByteArray> &input_vec,
-                             BatchResult &batch_result);
+                             const std::vector<ByteSpan>& input_vec,
+                             BatchResult& batch_result);
   // Reports a crash and saves the reproducer to workdir/crashes, if possible.
   // `binary` is the binary causing the crash.
   // Prints the first `env_.max_num_crash_reports` logs.
@@ -156,8 +156,8 @@ class Centipede {
   // as a hint when choosing which input to try first.
   // Stops early if `EarlyExitRequested()`.
   void ReportCrash(std::string_view binary,
-                   const std::vector<ByteArray> &input_vec,
-                   const BatchResult &batch_result);
+                   const std::vector<ByteSpan>& input_vec,
+                   const BatchResult& batch_result);
   // Merges shard `shard_index_to_merge` of the corpus in `merge_from_dir`
   // into the current corpus.
   // Writes added inputs to the current shard.

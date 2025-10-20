@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Data types used for mutation inputs.
+// Data types used for mutation.
 //
 // This library is for both engine and runner.
 
-#ifndef THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
-#define THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
+#ifndef THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
+#define THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
 
+#include <cstddef>
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
@@ -48,6 +49,41 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
   return results;
 }
 
+// Represents a mutation result.
+struct Mutant {
+  // The mutant `data`.
+  ByteArray data;
+  // The index of the input used to mutate into `data`. The base array may be
+  // different depending on the context: As mutation output it refers to the
+  // mutation input batch; As execution input it refers to the in-memory corpus.
+  size_t origin = kOriginNone;
+  // A special `origin` value to indicate that the mutant has no origin.
+  static constexpr size_t kOriginNone = static_cast<size_t>(-1);
+
+  // For testing.
+  bool operator==(const Mutant& other) const {
+    return data == other.data && origin == other.origin;
+  }
+};
+
+// A reference counterpart of `Mutant`. Needed because it can be constructed
+// from std::string and/or by the C-only dispatcher without copying the
+// underlying data.
+struct MutantRef {
+  ByteSpan data;
+  size_t origin = Mutant::kOriginNone;
+};
+
+inline std::vector<ByteArray> GetDataFromMutants(
+    const std::vector<Mutant>& mutants) {
+  std::vector<ByteArray> results;
+  results.reserve(mutants.size());
+  for (const auto& mutant : mutants) {
+    results.push_back(mutant.data);
+  }
+  return results;
+}
+
 }  // namespace fuzztest::internal
 
-#endif  // THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
+#endif  // THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
