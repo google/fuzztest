@@ -26,7 +26,7 @@
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/thread_pool.h"
