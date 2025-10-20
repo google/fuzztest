@@ -524,13 +524,14 @@ class CentipedeAdaptorRunnerCallbacks
 
   bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
               size_t num_mutants,
-              std::function<void(fuzztest::internal::ByteSpan)>
+              std::function<void(fuzztest::internal::ByteSpan, size_t)>
                   new_mutant_callback) override {
     if (inputs.empty()) return false;
     cmp_tables.resize(inputs.size());
     absl::Cleanup cmp_tables_cleaner = [this]() { cmp_tables.clear(); };
     for (size_t i = 0; i < num_mutants; ++i) {
       const auto choice = absl::Uniform<double>(prng_, 0, 1);
+      size_t origin_index = Mutant::kOriginNone;
       std::string mutant_data;
       constexpr double kDomainInitRatio = 0.0001;
       if (choice < kDomainInitRatio) {
@@ -539,8 +540,7 @@ class CentipedeAdaptorRunnerCallbacks
                 .SerializeCorpus(fuzzer_impl_.params_domain_.Init(prng_))
                 .ToString();
       } else {
-        const auto origin_index =
-            absl::Uniform<size_t>(prng_, 0, inputs.size());
+        origin_index = absl::Uniform<size_t>(prng_, 0, inputs.size());
         const auto& origin = inputs[origin_index].data;
         auto parsed_origin =
             fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
@@ -563,7 +563,8 @@ class CentipedeAdaptorRunnerCallbacks
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
       }
       new_mutant_callback(
-          {(unsigned char*)mutant_data.data(), mutant_data.size()});
+          {(unsigned char*)mutant_data.data(), mutant_data.size()},
+          origin_index);
     }
     return true;
   }

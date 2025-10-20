@@ -50,8 +50,8 @@ class TestCallbacks : public CentipedeCallbacks {
     FUZZTEST_CHECK_EQ(EXIT_SUCCESS, result);
     return true;
   }
-  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
-                                size_t num_mutants) override {
+  std::vector<Mutant> Mutate(const std::vector<MutationInputRef>& inputs,
+                             size_t num_mutants) override {
     return {};
   }
 };

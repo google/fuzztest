@@ -161,9 +161,9 @@ class RunnerCallbacks {
   //
   // TODO(xinhaoyuan): Consider supporting only_shrink to speed up
   // input shrinking.
-  virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
-                      size_t num_mutants,
-                      std::function<void(ByteSpan)> new_mutant_callback);
+  virtual bool Mutate(
+      const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+      std::function<void(ByteSpan, size_t)> new_mutant_callback);
   virtual ~RunnerCallbacks() = default;
 };
 

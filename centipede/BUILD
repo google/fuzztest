@@ -439,6 +439,7 @@ cc_library(
         # used in centipede_runner.
         ":feature",
         ":execution_metadata",
+        ":mutation_input",
         ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
     ],
@@ -944,6 +945,7 @@ cc_library(
     hdrs = ["dispatcher.h"],
     deps = [
         ":execution_metadata",
+        ":mutation_input",
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
@@ -1495,6 +1497,7 @@ cc_test(
     deps = [
         ":execution_metadata",
         ":feature",
+        ":mutation_input",
         ":runner_result",
         ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
@@ -1634,6 +1637,7 @@ cc_test(
         ":feature",
         ":feature_set",
         ":pc_info",
+        ":runner_result",
         ":util",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",
