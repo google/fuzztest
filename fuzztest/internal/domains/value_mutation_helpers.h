@@ -65,14 +65,14 @@ void RunOne(absl::BitGenRef prng, F... f) {
 
 template <typename T, size_t N, typename F>
 T ChooseOneOr(const T (&values)[N], absl::BitGenRef prng, F f) {
-  const int i = absl::Uniform<int>(absl::IntervalClosedClosed, prng, 0, N);
+  const auto i = absl::Uniform<size_t>(absl::IntervalClosedClosed, prng, 0, N);
   return i == N ? f() : values[i];
 }
 
 template <typename C, typename F>
 auto ChooseOneOr(const C& values, absl::BitGenRef prng, F f) {
-  const int i =
-      absl::Uniform<int>(absl::IntervalClosedClosed, prng, 0, values.size());
+  const auto i =
+      absl::Uniform<size_t>(absl::IntervalClosedClosed, prng, 0, values.size());
   return i < values.size() ? values[i] : f();
 }
 

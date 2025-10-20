@@ -156,7 +156,7 @@ class ReversibleMapImpl
   }
 
   auto GetPrinter() const {
-    return MappedPrinter<Mapper, Inner...>{mapper_, inner_};
+    return MappedPrinter<Mapper, Inner...>{mapper_, inner_, {}};
   }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
