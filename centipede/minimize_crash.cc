@@ -26,7 +26,7 @@
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/thread_pool.h"
@@ -114,11 +114,11 @@ static void MinimizeCrash(const Environment &env,
     // discarding all inputs that are too large.
     // TODO(kcc): modify the Mutate() interface such that max_len can be passed.
     //
-    const std::vector<ByteArray> mutants = callbacks->Mutate(
+    const std::vector<Mutant> mutants = callbacks->Mutate(
         GetMutationInputRefsFromDataInputs(recent_crashers), env.batch_size);
     std::vector<ByteArray> smaller_mutants;
     for (const auto &m : mutants) {
-      if (m.size() < min_known_size) smaller_mutants.push_back(m);
+      if (m.data.size() < min_known_size) smaller_mutants.push_back(m.data);
     }
 
     // Execute all mutants. If a new crasher is found, add it to `queue`.
