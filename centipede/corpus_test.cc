@@ -28,6 +28,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/pc_info.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
 #include "./common/test_util.h"
@@ -113,6 +114,7 @@ TEST(Corpus, Prune) {
   Add({{2}, {30, 40}});
   Add({{3}, {40, 50}});
   Add({{4}, {10, 20}});
+  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
 
   // Prune. Features 20 and 40 are frequent => input {0} will be removed.
   EXPECT_EQ(corpus.NumActive(), 5);
@@ -122,6 +124,8 @@ TEST(Corpus, Prune) {
   VerifyActiveInputs({{1}, {2}, {3}, {4}});
 
   Add({{5}, {30, 60}});
+  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
+
   EXPECT_EQ(corpus.NumTotal(), 6);
   // Prune. Feature 30 is now frequent => inputs {1} and {2} will be removed.
   EXPECT_EQ(corpus.NumActive(), 5);
@@ -139,6 +143,53 @@ TEST(Corpus, Prune) {
   EXPECT_DEATH(corpus.Prune(fs, coverage_frontier, 0, rng),
                "max_corpus_size");  // FUZZTEST_CHECK-fail.
   EXPECT_EQ(corpus.NumTotal(), 6);
+}
+
+TEST(Corpus, ScalesWeightsWithExecTime) {
+  PCTable pc_table(100);
+  CFTable cf_table(100);
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
+  CoverageFrontier coverage_frontier(bin_info);
+  FeatureSet fs(2, {});
+  Corpus corpus;
+
+  auto Add = [&](const CorpusRecord& record, uint64_t exec_time_usec) {
+    fs.MergeFeatures(record.features);
+    ExecutionResult::Stats stats = {};
+    stats.exec_time_usec = exec_time_usec;
+    corpus.Add(record.data, record.features, /*metadata=*/{}, stats, fs,
+               coverage_frontier);
+  };
+
+  Add({{0}, {10}}, 1);
+  Add({{1}, {20}}, 5);
+  Add({{2}, {30}}, 9);
+
+  constexpr int kNumIter = 10000;
+  std::vector<uint64_t> freq;
+
+  Rng rng(12345);
+  auto ComputeFreq = [&]() {
+    freq.clear();
+    freq.resize(corpus.NumActive());
+    for (int i = 0; i < kNumIter; i++) {
+      const size_t idx = corpus.WeightedRandom(rng);
+      freq[idx]++;
+    }
+  };
+
+  // The weights should be equal without exec time scaling.
+  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
+  ComputeFreq();
+  EXPECT_NEAR(freq[0], kNumIter / 3, 100);
+  EXPECT_NEAR(freq[1], kNumIter / 3, 100);
+  EXPECT_NEAR(freq[2], kNumIter / 3, 100);
+
+  // The weights should favor {0} over {1} over {2} with exec time scaling.
+  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/true);
+  ComputeFreq();
+  EXPECT_GT(freq[0], freq[1] + 100);
+  EXPECT_GT(freq[1], freq[2] + 100);
 }
 
 // Regression test for a crash in Corpus::Prune().

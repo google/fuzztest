@@ -36,14 +36,13 @@ class CustomMutatorRunnerCallbacks
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
-              size_t num_mutants,
-              std::function<void(ByteSpan)> new_mutant_callback) override {
-    size_t i = 0;
-    for (fuzztest::internal::MutationInputRef input : inputs) {
-      if (i++ >= num_mutants) break;
+  bool Mutate(
+      const std::vector<fuzztest::internal::MutationInputRef>& inputs,
+      size_t num_mutants,
+      std::function<void(ByteSpan, size_t)> new_mutant_callback) override {
+    for (size_t i = 0; i < inputs.size() && i < num_mutants; ++i) {
       // Just return the original input as a mutant.
-      new_mutant_callback(input.data);
+      new_mutant_callback(inputs[i].data, i);
     }
     return true;
   }

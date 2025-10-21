@@ -108,8 +108,8 @@ class ByteArrayMutator {
   }
 
   // Takes non-empty `inputs` and produces `num_mutants` mutants.
-  std::vector<ByteArray> MutateMany(const std::vector<MutationInputRef> &inputs,
-                                    size_t num_mutants);
+  std::vector<Mutant> MutateMany(const std::vector<MutationInputRef>& inputs,
+                                 size_t num_mutants);
 
   using CrossOverFn = void (ByteArrayMutator::*)(ByteArray &,
                                                  const ByteArray &);

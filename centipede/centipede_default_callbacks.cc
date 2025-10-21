@@ -72,8 +72,8 @@ CentipedeDefaultCallbacks::GetSerializedTargetConfig() {
       "Failed to get serialized configuration from the target binary.");
 }
 
-std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
-    const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
+    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
   if (num_mutants == 0) return {};
   // Try to use the custom mutator if it hasn't been disabled.
   if (custom_mutator_is_usable_.value_or(true)) {

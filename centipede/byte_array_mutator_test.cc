@@ -928,12 +928,12 @@ TEST(ByteArrayMutator, MutateManyWithAlignedInputs) {
       {0, 1, 2, 3, 4, 5, 6, 7},
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
   };
-  const std::vector<ByteArray> mutants =
+  const std::vector<Mutant> mutants =
       mutator.MutateMany(GetMutationInputRefsFromDataInputs(aligned_inputs),
                          kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
-  for (const ByteArray &mutant : mutants) {
-    EXPECT_EQ(mutant.size() % kSizeAlignment, 0);
+  for (const Mutant& mutant : mutants) {
+    EXPECT_EQ(mutant.data.size() % kSizeAlignment, 0);
   }
 }
 
@@ -958,13 +958,13 @@ TEST(ByteArrayMutator, MutateManyWithUnalignedInputs) {
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
   };
-  const std::vector<ByteArray> mutants =
+  const std::vector<Mutant> mutants =
       mutator.MutateMany(GetMutationInputRefsFromDataInputs(unaligned_inputs),
                          kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
-  for (const ByteArray &mutant : mutants) {
-    if (mutant.size() % kSizeAlignment != 0) {
-      EXPECT_LE(mutant.size(), 11);
+  for (const Mutant& mutant : mutants) {
+    if (mutant.data.size() % kSizeAlignment != 0) {
+      EXPECT_LE(mutant.data.size(), 11);
     }
   }
 }
@@ -982,12 +982,12 @@ TEST(ByteArrayMutator, MutateManyWithMaxLen) {
       {0, 1, 2},
       {0, 1, 2, 3},
   };
-  const std::vector<ByteArray> mutants = mutator.MutateMany(
+  const std::vector<Mutant> mutants = mutator.MutateMany(
       GetMutationInputRefsFromDataInputs(inputs), kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
 
-  for (const ByteArray &mutant : mutants) {
-    EXPECT_LE(mutant.size(), kMaxLen);
+  for (const Mutant& mutant : mutants) {
+    EXPECT_LE(mutant.data.size(), kMaxLen);
   }
 }
 
@@ -1001,16 +1001,16 @@ TEST(ByteArrayMutator, MutateManyWithMaxLenWithStartingLargeInput) {
   const std::vector<ByteArray> large_input = {
       {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {0, 1}, {0, 1, 2}, {0, 1, 2, 3},
   };
-  const std::vector<ByteArray> mutants = mutator.MutateMany(
+  const std::vector<Mutant> mutants = mutator.MutateMany(
       GetMutationInputRefsFromDataInputs(large_input), kNumMutantsToGenerate);
   EXPECT_EQ(mutants.size(), kNumMutantsToGenerate);
 
-  for (const ByteArray &mutant : mutants) {
-    if (mutant.size() > kMaxLen) {
+  for (const Mutant& mutant : mutants) {
+    if (mutant.data.size() > kMaxLen) {
       // The only mutant larger than max length should be the same large input
       // that mutation originally started with. All other mutants should be
       // within the maximum length specified.
-      EXPECT_EQ(mutant, large_input[0]);
+      EXPECT_EQ(mutant.data, large_input[0]);
     }
   }
 }

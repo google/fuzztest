@@ -193,6 +193,9 @@ CENTIPEDE_FLAG(
     "If true, use weighted distribution when choosing the corpus element "
     "to mutate. This flag is mostly for Centipede developers.")
 CENTIPEDE_FLAG(
+    bool, exec_time_weight_scaling, true,
+    "If true, scale the corpus weight by the execution time of each input.")
+CENTIPEDE_FLAG(
     bool, use_coverage_frontier, false,
     "If true, use coverage frontier when choosing the corpus element to "
     "mutate. This flag is mostly for Centipede developers.")

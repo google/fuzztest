@@ -416,13 +416,18 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 }
 
 bool Centipede::RunBatch(
-    const std::vector<ByteArray> &input_vec,
-    BlobFileWriter *absl_nullable corpus_file,
-    BlobFileWriter *absl_nullable features_file,
-    BlobFileWriter *absl_nullable unconditional_features_file) {
+    const std::vector<ByteArray>& input_vec,
+    const std::vector<size_t>& mutant_origins,
+    BlobFileWriter* absl_nullable corpus_file,
+    BlobFileWriter* absl_nullable features_file,
+    BlobFileWriter* absl_nullable unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
+  FUZZTEST_CHECK(mutant_origins.empty() ||
+                 mutant_origins.size() >= input_vec.size())
+      << "Got " << mutant_origins.size() << " with " << input_vec.size()
+      << " input";
 
   for (const auto &extra_binary : env_.extra_binaries) {
     if (ShouldStop()) break;
@@ -474,6 +479,7 @@ bool Centipede::RunBatch(
       }
     }
   }
+  corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }
 
@@ -563,7 +569,7 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
     size_t batch_size = std::min(to_rerun.size(), env_.batch_size);
     std::vector<ByteArray> batch(to_rerun.end() - batch_size, to_rerun.end());
     to_rerun.resize(to_rerun.size() - batch_size);
-    if (RunBatch(batch, nullptr, nullptr, features_file.get())) {
+    if (RunBatch(batch, {}, nullptr, nullptr, features_file.get())) {
       UpdateAndMaybeLogStats("rerun-old", 1);
     }
   }
@@ -757,7 +763,7 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
     seed_inputs.push_back({0});
   }
 
-  RunBatch(seed_inputs, corpus_file, features_file,
+  RunBatch(seed_inputs, {}, corpus_file, features_file,
            /*unconditional_features_file=*/nullptr);
   FUZZTEST_LOG(INFO) << "Number of input seeds available: "
                      << num_seeds_available
@@ -838,21 +844,39 @@ void Centipede::FuzzingLoop() {
     auto remaining_runs = env_.num_runs - new_runs;
     auto batch_size = std::min(env_.batch_size, remaining_runs);
     std::vector<MutationInputRef> mutation_inputs;
+    std::vector<size_t> mutate_batch_origins;
     mutation_inputs.reserve(env_.mutate_batch_size);
+    mutate_batch_origins.reserve(env_.mutate_batch_size);
     for (size_t i = 0; i < env_.mutate_batch_size; i++) {
-      const auto& corpus_record = env_.use_corpus_weights
-                                      ? corpus_.WeightedRandom(rng_)
-                                      : corpus_.UniformRandom(rng_);
+      const size_t origin = env_.use_corpus_weights
+                                ? corpus_.WeightedRandom(rng_)
+                                : corpus_.UniformRandom(rng_);
+      mutate_batch_origins.push_back(origin);
+      const auto& corpus_record = corpus_.Records()[origin];
       mutation_inputs.push_back(
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }
 
-    const std::vector<ByteArray> mutants =
+    const std::vector<Mutant> mutants =
         user_callbacks_.Mutate(mutation_inputs, batch_size);
     if (ShouldStop()) break;
 
+    std::vector<ByteArray> next_batch;
+    next_batch.reserve(mutants.size());
+    std::vector<size_t> mutant_origins;
+    mutant_origins.reserve(mutants.size());
+    for (auto& mutant : mutants) {
+      next_batch.push_back(std::move(mutant.data));
+      if (mutant.origin == Mutant::kOriginNone) {
+        mutant_origins.push_back(Mutant::kOriginNone);
+      } else {
+        mutant_origins.push_back(mutate_batch_origins[mutant.origin]);
+      }
+    }
+
     bool gained_new_coverage =
-        RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
+        RunBatch(next_batch, mutant_origins, corpus_file.get(),
+                 features_file.get(), nullptr);
     new_runs += mutants.size();
 
     if (gained_new_coverage) {

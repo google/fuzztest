@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Data types used for mutation inputs.
+// Data types used for mutation.
 //
 // This library is for both engine and runner.
 
 #ifndef THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
 #define THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
 
+#include <cstddef>
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
@@ -47,6 +48,23 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
   for (const auto &input : inputs) results.push_back({/*data=*/input});
   return results;
 }
+
+// Represents a mutation result.
+struct Mutant {
+  // The mutant `data`.
+  ByteArray data;
+  // The index of the input used to mutate into `data`. The index can be
+  // interpreted in different ways depending on the context: In mutation batch
+  // results, it means the index in the batch input. Once processed by the
+  // engine it means the index of the in-memory corpus.
+  size_t origin = kOriginNone;
+  // A special `origin` value to indicate that the mutant has no origin.
+  static constexpr size_t kOriginNone = static_cast<size_t>(-1);
+
+  bool operator==(const Mutant& other) const {
+    return data == other.data && origin == other.origin;
+  }
+};
 
 }  // namespace fuzztest::internal
 
