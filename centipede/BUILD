@@ -880,6 +880,22 @@ cc_library(
 )
 
 cc_library(
+    name = "crash_deduplication",
+    srcs = ["crash_deduplication.cc"],
+    hdrs = ["crash_deduplication.h"],
+    deps = [
+        ":workdir",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:status_macros",
+    ],
+)
+
+cc_library(
     name = "crash_summary",
     srcs = ["crash_summary.cc"],
     hdrs = ["crash_summary.h"],
@@ -1823,6 +1839,18 @@ cc_test(
     deps = [
         ":int_utils",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "crash_deduplication_test",
+    srcs = ["crash_deduplication_test.cc"],
+    deps = [
+        ":crash_deduplication",
+        ":util",
+        ":workdir",
+        "@com_google_fuzztest//common:temp_dir",
         "@googletest//:gtest_main",
     ],
 )
