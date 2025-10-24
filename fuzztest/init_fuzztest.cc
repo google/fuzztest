@@ -337,8 +337,14 @@ internal::Configuration CreateConfigurationsFromFlags(
   FUZZTEST_CHECK(!jobs.has_value() || *jobs > 0)
       << "If specified, --" << FUZZTEST_FLAG(jobs).Name()
       << " must be positive.";
+  std::string corpus_database = absl::GetFlag(FUZZTEST_FLAG(corpus_database));
+  if (!corpus_database.empty() && corpus_database[0] != '/' &&
+      std::getenv("TEST_SRCDIR")) {
+    corpus_database =
+        absl::StrCat(std::getenv("TEST_SRCDIR"), "/", corpus_database);
+  }
   return internal::Configuration{
-      absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
+      corpus_database,
       /*stats_root=*/"",
       /*workdir_root=*/"",
       std::string(binary_identifier),
