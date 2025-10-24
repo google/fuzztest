@@ -162,9 +162,14 @@ FUZZTEST_DEFINE_FLAG(
     "for an input if the execution of the property-function with the input "
     "takes longer than this time limit.");
 
-FUZZTEST_DEFINE_FLAG(std::optional<size_t>, jobs, std::nullopt,
-                     "The number of fuzzing jobs to run in parallel. If "
-                     "unspecified, the number of jobs is 1.");
+FUZZTEST_DEFINE_FLAG(
+    std::optional<size_t>, jobs, std::nullopt,
+    "The number of fuzzing jobs to run in parallel. If "
+    "unspecified, the number of jobs is 1. "
+    // TODO: b/385113025 - Simplify this once the configurations are unified.
+    "Temporarily, it is effective only when FuzzTest/Centipede configuration ("
+    "--config=fuzztest-experimental"
+    ") is used and --" FUZZTEST_FLAG_PREFIX "corpus_database is non-empty.");
 
 FUZZTEST_DEFINE_FLAG(
     bool, print_subprocess_log, false,
