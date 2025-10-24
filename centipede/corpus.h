@@ -44,6 +44,8 @@ class WeightedDistribution {
   // Removes the last weight and returns it.
   // Precondition: size() > 0.
   uint64_t PopBack();
+  // Read-only weight accessor.
+  const std::vector<uint64_t>& weights() const { return weights_; }
   // Changes the existing idx-th weight to new_weight.
   void ChangeWeight(size_t idx, uint64_t new_weight);
   // Returns a random number in [0,size()), using a random number `random`.
@@ -118,6 +120,12 @@ class Corpus {
   // Returns the number of removed elements.
   size_t Prune(const FeatureSet &fs, const CoverageFrontier &coverage_frontier,
                size_t max_corpus_size, Rng &rng);
+  // Updates the corpus weights according to `fs` and `coverage_frontier`. If
+  // `scale_by_exec_time` is set, scales the weights by the corpus execution
+  // time relative to the average.
+  void UpdateWeights(const FeatureSet& fs,
+                     const CoverageFrontier& coverage_frontier,
+                     bool scale_by_exec_time);
 
   // Accessors.
 

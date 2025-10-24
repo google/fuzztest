@@ -1634,6 +1634,7 @@ cc_test(
         ":feature",
         ":feature_set",
         ":pc_info",
+        ":runner_result",
         ":util",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",

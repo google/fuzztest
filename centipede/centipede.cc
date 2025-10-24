@@ -474,6 +474,7 @@ bool Centipede::RunBatch(
       }
     }
   }
+  corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }
 

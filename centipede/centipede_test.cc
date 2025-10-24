@@ -620,6 +620,7 @@ static std::vector<ByteArray> RunWithFunctionFilter(
   Environment env;
   env.workdir = tmp_dir.path();
   env.seed = 1;  // make the runs predictable.
+  env.exec_time_weight_scaling = false;
   env.num_runs = 100;
   env.batch_size = 10;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
