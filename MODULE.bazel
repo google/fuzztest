@@ -25,7 +25,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "abseil-cpp",
-    version = "20250512.0",
+    version = "20250814.1",
 )
 bazel_dep(
     name = "re2",

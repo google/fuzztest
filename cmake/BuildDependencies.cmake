@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_TAG d04b964d82ed5146f7e5e34701a5ba69f9514c9a)
+set(absl_TAG 20250814.1)
 
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2024-07-02)
