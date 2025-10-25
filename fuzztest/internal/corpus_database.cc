@@ -43,14 +43,7 @@ CorpusDatabase::CorpusDatabase(absl::string_view database_path,
                                bool use_crashing_inputs)
     : corpus_path_for_test_binary_([=] () -> std::string {
         if (database_path.empty()) return "";
-        std::string corpus_path_for_test_binary =
-            absl::StrCat(database_path, "/", binary_identifier);
-        if (!absl::StartsWith(corpus_path_for_test_binary, "/") &&
-            std::getenv("TEST_SRCDIR")) {
-          corpus_path_for_test_binary = absl::StrCat(
-              std::getenv("TEST_SRCDIR"), "/", corpus_path_for_test_binary);
-        }
-        return corpus_path_for_test_binary;
+        return absl::StrCat(database_path, "/", binary_identifier);
       }()),
       use_crashing_inputs_(use_crashing_inputs) {}
 

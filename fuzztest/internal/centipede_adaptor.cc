@@ -491,9 +491,9 @@ class CentipedeAdaptorRunnerCallbacks
     if (parsed_input.ok()) {
       fuzzer_impl_.RunOneInput({*std::move(parsed_input)});
       if (runtime_.external_failure_detected()) {
-        absl::FPrintF(GetStderr(),
-                      "[!] External failure detected - aborting.\n");
-        std::abort();
+        // This would take effect only if no previous description is set.
+        CentipedeSetFailureDescription(
+            "INPUT FAILURE: external failure detected.");
       }
       return true;
     }
@@ -691,6 +691,8 @@ bool CentipedeFuzzerAdaptor::RunInFuzzingMode(
 
 bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
     const Configuration& configuration) {
+  // Follow the legacy engine behavior to force fuzzing mode.
+  runtime_.SetRunMode(RunMode::kFuzz);
   TempDir crash_export_dir("fuzztest_crash");
   auto export_crash_env = CreateCentipedeEnvironmentFromConfiguration(
       configuration, /*workdir=*/"", test_.full_name(), runtime_.run_mode());
