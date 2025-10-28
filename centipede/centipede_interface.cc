@@ -873,7 +873,17 @@ int CentipedeMain(const Environment& env,
   if (!env.minimize_crash_file_path.empty()) {
     ByteArray crashy_input;
     ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    return MinimizeCrash(crashy_input, env, callbacks_factory);
+    const auto status =
+        MinimizeCrash(
+            crashy_input, env, callbacks_factory,
+            /*crash_signature=*/nullptr,
+            /*output_dir=*/WorkDir{env}.CrashReproducerDirPaths().MyShard())
+            .status();
+    if (!status.ok()) {
+      FUZZTEST_LOG(ERROR) << "Failed to minimize crash file: " << status;
+      return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
   }
 
   // Just export the corpus from a local dir and exit.

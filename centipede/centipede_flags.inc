@@ -387,6 +387,14 @@ CENTIPEDE_FLAG(
     "--first_shard_index padded on the left with zeros. "
     " --num_runs and --num_threads apply. "
     " Assumes local workdir.")
+CENTIPEDE_FLAG(bool, minimize_crash_with_signature, false,
+               "If set, minimizes crash that produce the same failure "
+               "signautre as the original input.")
+CENTIPEDE_FLAG(
+    size_t, minimize_crash_max_failing_attempts,
+    std::numeric_limits<size_t>::max(),
+    "If set, each crash minimization thread will exit early if the "
+    "number of consecutive attempts exceeds it without making progress.")
 CENTIPEDE_FLAG(
     bool, batch_triage_suspect_only, false,
     "If set, triage the crash on only the suspected input in a crashing "

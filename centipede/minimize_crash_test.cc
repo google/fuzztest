@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
+#include "absl/random/random.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
@@ -33,6 +34,11 @@
 
 namespace fuzztest::internal {
 namespace {
+
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::HasSubstr;
+using ::testing::Not;
 
 // A mock for CentipedeCallbacks.
 class MinimizerMock : public CentipedeCallbacks {
@@ -46,6 +52,9 @@ class MinimizerMock : public CentipedeCallbacks {
     for (auto &input : inputs) {
       if (FuzzMe(input)) {
         batch_result.exit_code() = EXIT_FAILURE;
+        // Set signature differently to test signature matching behavior.
+        batch_result.failure_signature() =
+            input[0] == 'f' ? "first type" : "second type";
         return false;
       }
       ++batch_result.num_outputs_read();
@@ -54,15 +63,15 @@ class MinimizerMock : public CentipedeCallbacks {
   }
 
  private:
-  // Returns true on inputs that look like 'f???u???z', false otherwise.
-  // The minimal input on which this function returns true is 'fuz'.
+  // Returns true on inputs that look like '[fz]+', false otherwise.
+  // The minimal input on which this function returns true is 'f' or 'z', with
+  // different crash signatures.
   bool FuzzMe(ByteSpan data) {
     if (data.empty()) return false;
-    if (data.front() == 'f' && data[data.size() / 2] == 'u' &&
-        data.back() == 'z') {
-      return true;
+    for (const auto c : data) {
+      if (c != 'f' && c != 'z') return false;
     }
-    return false;
+    return true;
   }
 };
 
@@ -81,32 +90,87 @@ TEST(MinimizeTest, MinimizeTest) {
   env.workdir = tmp_dir.path();
   env.num_runs = 100000;
   const WorkDir wd{env};
+  const auto output_dir = wd.CrashReproducerDirPaths().MyShard();
   MinimizerMockFactory factory;
 
   // Test with a non-crashy input.
-  EXPECT_EQ(MinimizeCrash({1, 2, 3}, env, factory), EXIT_FAILURE);
+  const auto non_crashy_minimize_result = MinimizeCrash(
+      {1, 2, 3}, env, factory, /*crash_signature=*/nullptr, output_dir);
+  EXPECT_FALSE(non_crashy_minimize_result.ok());
+  EXPECT_THAT(non_crashy_minimize_result.status().message(),
+              HasSubstr("did not crash"));
 
-  ByteArray expected_minimized = {'f', 'u', 'z'};
+  const ByteArray expected_minimized = {'f'};
+  const ByteArray expected_minimized_alt = {'z'};
 
   // Test with a crashy input that can't be minimized further.
-  EXPECT_EQ(MinimizeCrash(expected_minimized, env, factory), EXIT_FAILURE);
+  const auto already_minimum_minimize_result =
+      MinimizeCrash(expected_minimized, env, factory,
+                    /*crash_signature=*/nullptr, output_dir);
+  EXPECT_FALSE(already_minimum_minimize_result.ok());
+  EXPECT_THAT(already_minimum_minimize_result.status().message(),
+              HasSubstr("no minimized crash found"));
 
   // Test the actual minimization.
-  ByteArray original_crasher = {'f', '.', '.', '.', '.', '.', '.', '.',
-                                '.', '.', '.', 'u', '.', '.', '.', '.',
-                                '.', '.', '.', '.', '.', '.', 'z'};
-  EXPECT_EQ(MinimizeCrash(original_crasher, env, factory), EXIT_SUCCESS);
-  // Collect the new crashers from the crasher dir.
-  std::vector<ByteArray> crashers;
-  for (auto const &dir_entry : std::filesystem::directory_iterator{
-           wd.CrashReproducerDirPaths().MyShard()}) {
-    ByteArray crasher;
-    const std::string &path = dir_entry.path();
-    ReadFromLocalFile(path, crasher);
-    EXPECT_LT(crasher.size(), original_crasher.size());
-    crashers.push_back(crasher);
+  ByteArray original_crasher = {'f', 'f', 'f', 'f', 'f', 'f',
+                                'z', 'z', 'z', 'z', 'z', 'z'};
+
+  // This is inheritly flaky but with 100 trials the failure rate should be
+  // small enough (1/2^100).
+  constexpr size_t kNumTrials = 100;
+  absl::BitGen rng;
+  std::vector<ByteArray> minimized_crashers;
+  for (size_t i = 0; i < kNumTrials; ++i) {
+    env.seed = rng();
+    EXPECT_OK(MinimizeCrash(original_crasher, env, factory,
+                            /*crash_signature=*/nullptr, output_dir)
+                  .status());
+    // Collect the new crashers from the crasher dir.
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{output_dir}) {
+      ByteArray crasher;
+      const std::string& path = dir_entry.path();
+      ReadFromLocalFile(path, crasher);
+      EXPECT_LT(crasher.size(), original_crasher.size());
+      minimized_crashers.push_back(crasher);
+    }
   }
-  EXPECT_THAT(crashers, testing::Contains(expected_minimized));
+  EXPECT_THAT(minimized_crashers, AllOf(Contains(expected_minimized),
+                                        Contains(expected_minimized_alt)));
+}
+
+TEST(MinimizeTest, MinimizesTestWithSignature) {
+  TempDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path();
+  env.num_runs = 100000;
+  env.minimize_crash_with_signature = true;
+  const WorkDir wd{env};
+  const auto output_dir = wd.CrashReproducerDirPaths().MyShard();
+  MinimizerMockFactory factory;
+
+  ByteArray original_crasher = {'f', 'f', 'f', 'f', 'f', 'f',
+                                'z', 'z', 'z', 'z', 'z', 'z'};
+  constexpr size_t kNumTrials = 100;
+  absl::BitGen rng;
+  std::vector<ByteArray> minimized_crashers;
+  for (size_t i = 0; i < kNumTrials; ++i) {
+    env.seed = rng();
+    EXPECT_OK(MinimizeCrash(original_crasher, env, factory,
+                            /*crash_signature=*/nullptr, output_dir)
+                  .status());
+    // Collect the new crashers from the crasher dir.
+    for (auto const& dir_entry :
+         std::filesystem::directory_iterator{output_dir}) {
+      ByteArray crasher;
+      const std::string& path = dir_entry.path();
+      ReadFromLocalFile(path, crasher);
+      EXPECT_LT(crasher.size(), original_crasher.size());
+      minimized_crashers.push_back(crasher);
+    }
+  }
+  EXPECT_THAT(minimized_crashers,
+              AllOf(Contains(ByteArray{'f'}), Not(Contains(ByteArray{'z'}))));
 }
 
 }  // namespace
