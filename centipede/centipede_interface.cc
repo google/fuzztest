@@ -328,11 +328,12 @@ absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
 
 // TODO(b/405382531): Add unit tests once the function is unit-testable.
 void DeduplicateAndOptionallyStoreNewCrashes(
-    const WorkDir& workdir, size_t total_shards,
+    const Environment& env, CentipedeCallbacksFactory& callbacks_factory,
     absl::flat_hash_set<std::string> crash_signatures,
     const std::optional<std::filesystem::path>& crashing_dir,
     CrashSummary& crash_summary) {
-  for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
+  const WorkDir workdir{env};
+  for (size_t shard_idx = 0; shard_idx < env.total_shards; ++shard_idx) {
     const std::vector<std::string> new_crashing_input_files =
         // The crash reproducer directory may contain subdirectories with
         // input files that don't individually cause a crash. We ignore those
@@ -377,14 +378,50 @@ void DeduplicateAndOptionallyStoreNewCrashes(
             << description_status;
         new_crash_description = new_crash_signature;
       }
-      crash_summary.AddCrash({crashing_input_file_name,
-                              /*category=*/new_crash_description,
-                              std::move(new_crash_signature),
-                              new_crash_description});
+
+      std::optional<CrashDetails> minimized_crash_details;
       if (crashing_dir.has_value()) {
-        FUZZTEST_CHECK_OK(RemoteFileRename(
-            crashing_input_file,
-            (*crashing_dir / crashing_input_file_name).c_str()));
+        ByteArray crashing_input_contents;
+        const auto status =
+            RemoteFileGetContents(crashing_input_file, crashing_input_contents);
+        if (!status.ok()) {
+          FUZZTEST_LOG(WARNING)
+              << "Failed to read crashing input contents from "
+              << crashing_input_file;
+          continue;
+        }
+
+        const absl::Duration kMinimizeDuration = absl::Minutes(5);
+        FUZZTEST_LOG(INFO) << "Minimizing the new crash for "
+                           << kMinimizeDuration;
+        ClearEarlyStopRequestAndSetStopTime(absl::Now() + kMinimizeDuration);
+        auto minimize_env = env;
+        minimize_env.minimize_crash_with_signature = true;
+        auto minimize_result = MinimizeCrash(
+            crashing_input_contents, minimize_env, callbacks_factory,
+            &new_crash_signature, crashing_dir->string());
+        ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+        if (minimize_result.ok()) {
+          minimized_crash_details = *std::move(minimize_result);
+        }
+      }
+
+      if (minimized_crash_details.has_value()) {
+        crash_summary.AddCrash(
+            {crashing_input_file_name,
+             /*category=*/minimized_crash_details->description,
+             std::move(new_crash_signature),
+             minimized_crash_details->description});
+      } else {
+        crash_summary.AddCrash({crashing_input_file_name,
+                                /*category=*/new_crash_description,
+                                std::move(new_crash_signature),
+                                new_crash_description});
+        if (crashing_dir.has_value()) {
+          FUZZTEST_CHECK_OK(RemoteFileRename(
+              crashing_input_file,
+              (*crashing_dir / crashing_input_file_name).c_str()));
+        }
       }
     }
   }
@@ -713,7 +750,7 @@ int UpdateCorpusDatabaseForFuzzTests(
             ? absl::flat_hash_set<std::string>{}
             : PruneOldCrashesAndGetRemainingCrashSignatures(
                   *crashing_dir, env, callbacks_factory, crash_summary);
-    DeduplicateAndOptionallyStoreNewCrashes(workdir, env.total_shards,
+    DeduplicateAndOptionallyStoreNewCrashes(env, callbacks_factory,
                                             std::move(crash_signatures),
                                             crashing_dir, crash_summary);
     if (env.report_crash_summary) crash_summary.Report(&std::cerr);
@@ -808,7 +845,7 @@ int ReplayCrash(const Environment& env,
     CrashSummary crash_summary{target_config.binary_identifier,
                                target_config.fuzz_tests_in_current_shard[0]};
     // There should be at most one crash, so no deduplication actually happens.
-    DeduplicateAndOptionallyStoreNewCrashes(workdir, /*total_shards=*/1,
+    DeduplicateAndOptionallyStoreNewCrashes(env, callbacks_factory,
                                             /*crash_signatures=*/{},
                                             /*crashing_dir=*/std::nullopt,
                                             crash_summary);
@@ -873,7 +910,17 @@ int CentipedeMain(const Environment& env,
   if (!env.minimize_crash_file_path.empty()) {
     ByteArray crashy_input;
     ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    return MinimizeCrash(crashy_input, env, callbacks_factory);
+    const auto status =
+        MinimizeCrash(
+            crashy_input, env, callbacks_factory,
+            /*crash_signature=*/nullptr,
+            /*output_dir=*/WorkDir{env}.CrashReproducerDirPaths().MyShard())
+            .status();
+    if (!status.ok()) {
+      FUZZTEST_LOG(ERROR) << "Failed to minimize crash file: " << status;
+      return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
   }
 
   // Just export the corpus from a local dir and exit.

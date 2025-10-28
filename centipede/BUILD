@@ -365,6 +365,7 @@ cc_library(
     hdrs = ["minimize_crash.h"],
     deps = [
         ":centipede_callbacks",
+        ":crash_deduplication",
         ":environment",
         ":mutation_input",
         ":runner_result",
@@ -373,10 +374,13 @@ cc_library(
         ":util",
         ":workdir",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 

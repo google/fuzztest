@@ -34,6 +34,8 @@
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::HasSubstr;
+
 // A mock for CentipedeCallbacks.
 class MinimizerMock : public CentipedeCallbacks {
  public:
@@ -81,25 +83,37 @@ TEST(MinimizeTest, MinimizeTest) {
   env.workdir = tmp_dir.path();
   env.num_runs = 100000;
   const WorkDir wd{env};
+  const auto output_dir = wd.CrashReproducerDirPaths().MyShard();
   MinimizerMockFactory factory;
 
   // Test with a non-crashy input.
-  EXPECT_EQ(MinimizeCrash({1, 2, 3}, env, factory), EXIT_FAILURE);
+  const auto non_crashy_minimize_result = MinimizeCrash(
+      {1, 2, 3}, env, factory, /*crash_signature=*/nullptr, output_dir);
+  EXPECT_FALSE(non_crashy_minimize_result.ok());
+  EXPECT_THAT(non_crashy_minimize_result.status().message(),
+              HasSubstr("did not crash"));
 
   ByteArray expected_minimized = {'f', 'u', 'z'};
 
   // Test with a crashy input that can't be minimized further.
-  EXPECT_EQ(MinimizeCrash(expected_minimized, env, factory), EXIT_FAILURE);
+  const auto already_minimum_minimize_result =
+      MinimizeCrash(expected_minimized, env, factory,
+                    /*crash_signature=*/nullptr, output_dir);
+  EXPECT_FALSE(already_minimum_minimize_result.ok());
+  EXPECT_THAT(already_minimum_minimize_result.status().message(),
+              HasSubstr("no minimized crash found"));
 
   // Test the actual minimization.
   ByteArray original_crasher = {'f', '.', '.', '.', '.', '.', '.', '.',
                                 '.', '.', '.', 'u', '.', '.', '.', '.',
                                 '.', '.', '.', '.', '.', '.', 'z'};
-  EXPECT_EQ(MinimizeCrash(original_crasher, env, factory), EXIT_SUCCESS);
+  EXPECT_OK(MinimizeCrash(original_crasher, env, factory,
+                          /*crash_signature=*/nullptr, output_dir)
+                .status());
   // Collect the new crashers from the crasher dir.
   std::vector<ByteArray> crashers;
-  for (auto const &dir_entry : std::filesystem::directory_iterator{
-           wd.CrashReproducerDirPaths().MyShard()}) {
+  for (auto const& dir_entry :
+       std::filesystem::directory_iterator{output_dir}) {
     ByteArray crasher;
     const std::string &path = dir_entry.path();
     ReadFromLocalFile(path, crasher);

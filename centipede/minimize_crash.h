@@ -15,7 +15,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_MINIMIZE_CRASH_H_
 #define THIRD_PARTY_CENTIPEDE_MINIMIZE_CRASH_H_
 
+#include "absl/status/statusor.h"
 #include "./centipede/centipede_callbacks.h"
+#include "./centipede/crash_deduplication.h"
 #include "./centipede/environment.h"
 #include "./common/defs.h"
 
@@ -23,13 +25,13 @@ namespace fuzztest::internal {
 
 // Tries to minimize `crashy_input`.
 // Uses `callbacks_factory` to create `env.num_threads` workers.
-// Returns EXIT_SUCCESS if at least one smaller crasher was found,
-// EXIT_FAILURE otherwise.
-// Also returns EXIT_FAILURE if the original input didn't crash.
-// Stores the newly found crashy inputs in
-// `WorkDir{env}.CrashReproducerDirPath()`.
-int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory);
+// Returns the details of a minimized crash if a smaller crash is found.
+// Otherwise an error status is returned. Any smaller crash inputs found in the
+// process will be stored in the crash reproducer directory of this shard.
+absl::StatusOr<CrashDetails> MinimizeCrash(
+    ByteSpan crashy_input, const Environment& env,
+    CentipedeCallbacksFactory& callbacks_factory,
+    const std::string* crash_signature, std::string_view output_dir);
 
 }  // namespace fuzztest::internal
 
