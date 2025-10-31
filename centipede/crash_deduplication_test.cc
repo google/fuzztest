@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/temp_dir.h"
@@ -27,8 +28,11 @@
 namespace fuzztest::internal {
 namespace {
 
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::AnyOf;
 using ::testing::FieldsAre;
+using ::testing::Not;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
@@ -76,6 +80,25 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
                    FieldsAre("isig3", "desc1", (crashes1 / "isig3").string()))),
           Pair("csig2",
                FieldsAre("isig2", "desc2", (crashes1 / "isig2").string()))));
+}
+
+TEST(GetInputFileComponentsTest, ParsesFileNameWithOnlyInputSignature) {
+  EXPECT_THAT(GetInputFileComponents("input_signature"),
+              IsOkAndHolds(FieldsAre(/*bug_id=*/"input_signature",
+                                     /*crash_signature=*/"",
+                                     /*input_signature=*/"input_signature")));
+}
+
+TEST(GetInputFileComponentsTest, FailsOnInvalidFileName) {
+  EXPECT_THAT(GetInputFileComponents("single-dash"), Not(IsOk()));
+}
+
+TEST(GetInputFileComponentsTest, ParsesFileNameWithAllComponents) {
+  EXPECT_THAT(
+      GetInputFileComponents("id-with-dash-crash_signature-input_signature"),
+      IsOkAndHolds(FieldsAre(/*bug_id=*/"id-with-dash",
+                             /*crash_signature=*/"crash_signature",
+                             /*input_signature=*/"input_signature")));
 }
 
 }  // namespace

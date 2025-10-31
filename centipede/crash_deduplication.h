@@ -17,8 +17,10 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "./centipede/workdir.h"
 
 namespace fuzztest::internal {
@@ -33,6 +35,24 @@ struct CrashDetails {
 // workdir. Only one crash per signature is returned, selected arbitrarily.
 absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
     const WorkDir& workdir, size_t total_shards);
+
+struct InputFileComponents {
+  // The identifier that is used to keep track of the crash over time even if
+  // the crash signature or the crashing input changes.
+  std::string bug_id;
+  // The hash of the crash metadata used to deduplicate crashes.
+  std::string crash_signature;
+  // The hash of the input.
+  std::string input_signature;
+};
+
+// Returns the components of an input file extracted from the file name.
+// The file name is expected to be in the format
+// `<bug_id>-<crash_signature>-<input_signature>` or `<input_signature>` for
+// backwards compatibility, where `<crash_signature>` and `<input_signature>`
+// don't contain dashes.
+absl::StatusOr<InputFileComponents> GetInputFileComponents(
+    std::string_view input_file_path);
 
 }  // namespace fuzztest::internal
 
