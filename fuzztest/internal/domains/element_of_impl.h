@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
@@ -42,8 +43,8 @@ class ElementOfImpl
   using typename ElementOfImpl::DomainBase::corpus_type;
   using typename ElementOfImpl::DomainBase::value_type;
 
-  explicit ElementOfImpl(std::vector<T> values) : values_(values) {
-    FUZZTEST_PRECONDITION(!values.empty())
+  explicit ElementOfImpl(std::vector<T> values) : values_(std::move(values)) {
+    FUZZTEST_PRECONDITION(!values_.empty())
         << "ElementOf requires a non empty list.";
   }
 
