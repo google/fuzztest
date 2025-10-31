@@ -25,7 +25,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_cmp_trace.h"
 #include "./common/defs.h"
 

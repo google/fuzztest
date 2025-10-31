@@ -78,7 +78,7 @@ cc_library(
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:execution_metadata",
         "@com_google_fuzztest//centipede:fuzztest_mutator",
-        "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//centipede:mutation_data",
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:stop",
         "@com_google_fuzztest//centipede:workdir",
