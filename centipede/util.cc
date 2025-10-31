@@ -86,6 +86,7 @@ void ReadFromLocalFile(std::string_view file_path, Container &data) {
   f.seekg(0, std::ios_base::end);
   auto size = f.tellg();
   f.seekg(0, std::ios_base::beg);
+  FUZZTEST_CHECK_GE(size, 0);
   FUZZTEST_CHECK_EQ(size % sizeof(data[0]), 0);
   data.resize(size / sizeof(data[0]));
   f.read(reinterpret_cast<char *>(data.data()), size);

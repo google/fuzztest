@@ -993,10 +993,14 @@ void Centipede::ReportCrash(std::string_view binary,
       << log_prefix
       << "Executing inputs one-by-one, trying to find the reproducer";
   for (auto input_idx : input_idxs_to_try) {
-    if (ShouldStop()) return;
+    if (ShouldStop()) break;
     const auto &one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
-    if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result)) {
+    if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result) &&
+        one_input_batch_result.IsInputFailure() &&
+        one_input_batch_result.failure_signature() ==
+            batch_result.failure_signature() &&
+        !ShouldStop()) {
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
       FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
@@ -1027,6 +1031,13 @@ void Centipede::ReportCrash(std::string_view binary,
           one_input_batch_result.failure_signature()));
       return;
     }
+  }
+
+  if (ShouldStop()) {
+    FUZZTEST_LOG(INFO)
+        << log_prefix
+        << "Stop condition is on - skipping triaging the reproducer";
+    return;
   }
 
   FUZZTEST_LOG(INFO) << log_prefix

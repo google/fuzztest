@@ -690,6 +690,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
       if (input.size() != 1) continue;
       for (const Crash &crash : crashes_) {
         if (binary == crash.binary && input[0] == crash.input) {
+          batch_result.exit_code() = EXIT_FAILURE;
           batch_result.failure_description() = crash.description;
           batch_result.failure_signature() = crash.signature;
           res = false;
