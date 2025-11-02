@@ -88,8 +88,8 @@ FuzzTest CMake already handles its dependencies on its own:
 With the CMake workspace set up, you can start using FuzzTest. Let's create a
 trivial example to make sure everything runs correctly.
 
-Create a file named `first_fuzz_test.cc` in the directory `first_fuzz` with the
-following contents:
+Create a file named `first_fuzz_test.cc` in the directory `first_fuzz_project` 
+with the following contents:
 
 ```c++
 #include "fuzztest/fuzztest.h"
