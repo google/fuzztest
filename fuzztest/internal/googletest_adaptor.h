@@ -40,20 +40,26 @@ class GTest_TestAdaptor : public ::testing::Test {
   void TestBody() override {
     auto test = test_.make();
     configuration_.fuzz_tests_in_current_shard = GetFuzzTestsInCurrentShard();
+    // We replay a reproducer in the same process to help debugging when
+    // (1) we're replaying a single reproducer and (2) we're running locally.
+    const bool running_locally =
+        !std::getenv("FUZZTEST_RUNNING_UNDER_CI");
     configuration_.replay_in_single_process =
         configuration_.crashing_input_to_reproduce.has_value() &&
-        testing::UnitTest::GetInstance()->test_to_run_count() == 1;
+        testing::UnitTest::GetInstance()->test_to_run_count() == 1 &&
+        running_locally;
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       // In "bug reproduction" mode, sometimes we need to reproduce multiple
       // bugs, i.e., run multiple tests that lead to a crash.
-      bool needs_subprocess = false;
 #if defined(GTEST_HAS_DEATH_TEST) && !defined(FUZZTEST_USE_CENTIPEDE)
-      needs_subprocess =
+      const bool needs_subprocess =
           configuration_.crashing_input_to_reproduce.has_value() &&
           (!configuration_.replay_in_single_process ||
            // EXPECT_EXIT is required in the death-test subprocess, but in
            // the subprocess there's only one test to run.
            testing::internal::InDeathTestChild());
+#else
+      const bool needs_subprocess = false;
 #endif
       if (needs_subprocess) {
         configuration_.preprocess_crash_reproducing = [] {
