@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstddef>
+#include <cstdlib>
 
 #include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
@@ -55,5 +56,15 @@ constexpr int kDepthToReachStackOverflow =
 void FailsWithStackOverflow(int n) { ReachStackOverflow(n); }
 FUZZ_TEST(FuzzTest, FailsWithStackOverflow)
     .WithDomains(fuzztest::Just(kDepthToReachStackOverflow));
+
+// The failing seed can be minimized to "fuz".
+void FailsWithMinimizableCrashingSeed(const std::string& s) {
+  if (!s.empty() && s[0] == 'f' && s[s.size() >> 1] == 'u' &&
+      s[s.size() - 1] == 'z') {
+    std::abort();
+  }
+}
+FUZZ_TEST(FuzzTest, FailsWithMinimizableCrashingSeed)
+    .WithSeeds({"f.....u.....z"});
 
 }  // namespace

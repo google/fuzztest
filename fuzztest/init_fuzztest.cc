@@ -135,6 +135,12 @@ FUZZTEST_DEFINE_FLAG(
     "value of --" FUZZTEST_FLAG_PREFIX "time_budget_type.");
 
 FUZZTEST_DEFINE_FLAG(
+    absl::Duration, minimize_corpus_database_new_crashes_duration,
+    absl::ZeroDuration(),
+    "When set to non-zero duration, specifies the duration to minimize newly "
+    "found crashes when updating the corpus database.");
+
+FUZZTEST_DEFINE_FLAG(
     fuzztest::internal::TimeBudgetType, time_budget_type,
     fuzztest::internal::TimeBudgetType::kPerTest,
     "Determines whether the time budget specified by --" FUZZTEST_FLAG_PREFIX
@@ -424,6 +430,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
       time_limit,
       time_budget_type,
+      absl::GetFlag(
+          FUZZTEST_FLAG(minimize_corpus_database_new_crashes_duration)),
       num_jobs,
       absl::GetFlag(FUZZTEST_FLAG(internal_centipede_command)),
       absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce)),

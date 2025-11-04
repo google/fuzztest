@@ -253,6 +253,8 @@ void Environment::UpdateWithTargetConfig(
   if (replay_crash_attempts == Default().replay_crash_attempts) {
     replay_crash_attempts = config.replay_crash_attempts;
   }
+  fuzztest_minimize_new_crashes_duration =
+      config.minimize_corpus_database_new_crashes_duration;
 
   // Allow more crashes to be reported when running with FuzzTest. This allows
   // more unique crashes to collected after deduplication. But we don't want to
