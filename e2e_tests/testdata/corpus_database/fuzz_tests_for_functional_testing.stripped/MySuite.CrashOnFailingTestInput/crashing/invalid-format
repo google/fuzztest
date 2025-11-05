@@ -1,0 +1,4 @@
+FUZZTESTv1
+sub {
+  s: "crashing input, but file name has invalid format"
+}

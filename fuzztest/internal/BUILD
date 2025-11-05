@@ -225,9 +225,12 @@ cc_library(
         ":io",
         ":registry",
         ":runtime",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
+        "@com_google_fuzztest//common:crashing_input_filename",
+        "@com_google_fuzztest//common:logging",
         "@googletest//:gtest",
     ] + select({
         "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],

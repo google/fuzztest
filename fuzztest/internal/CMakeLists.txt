@@ -188,10 +188,13 @@ fuzztest_cc_library(
     fuzztest::io
     fuzztest::registry
     fuzztest::runtime
+    GTest::gtest
+    absl::statusor
     absl::strings
     absl::str_format
     absl::string_view
-    GTest::gtest
+    fuzztest::crashing_input_filename
+    fuzztest::common_logging
 )
 
 fuzztest_cc_library(

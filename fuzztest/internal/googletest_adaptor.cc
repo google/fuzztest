@@ -3,14 +3,18 @@
 
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "./common/crashing_input_filename.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/flag_name.h"
@@ -63,18 +67,28 @@ void RegisterSeparateRegressionTestForEachCrashingInput(
     const Configuration& configuration) {
   if (!configuration.reproduce_findings_as_separate_tests) return;
 #ifdef FUZZTEST_USE_CENTIPEDE
-  const auto crash_inputs =
+  const std::vector<std::string> crash_inputs =
       ListCrashIdsUsingCentipede(configuration, test.full_name());
 #else
   CorpusDatabase corpus_database(configuration);
-  const auto crash_inputs =
+  const std::vector<std::string> crash_inputs =
       corpus_database.GetCrashingInputsIfAny(test.full_name());
 #endif
   for (const std::string& input : crash_inputs) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
-    const std::string suffix =
-        absl::StrCat("/Regression/", std::string(Basename(input)));
+    absl::string_view file_name = Basename(input);
+    const absl::StatusOr<InputFileComponents> components =
+        ParseCrashingInputFilename(
+            std::string_view{file_name.data(), file_name.size()});
+    if (!components.ok()) {
+      FUZZTEST_LOG(WARNING)
+          << "Failed to parse crashing input filename " << file_name
+          << ". Not registering a regression test for it. Status: "
+          << components.status();
+      continue;
+    }
+    const std::string suffix = absl::StrCat("/Regression/", components->bug_id);
     RegisterFuzzTestAsGTest<T>(argc, argv, test, updated_configuration, suffix);
   }
 }
