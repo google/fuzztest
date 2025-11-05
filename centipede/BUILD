@@ -365,6 +365,7 @@ cc_library(
     hdrs = ["minimize_crash.h"],
     deps = [
         ":centipede_callbacks",
+        ":crash_deduplication",
         ":environment",
         ":mutation_input",
         ":runner_result",
@@ -373,10 +374,15 @@ cc_library(
         ":util",
         ":workdir",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -1452,6 +1458,8 @@ cc_test(
         ":util",
         ":workdir",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/random",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",
         "@googletest//:gtest_main",
