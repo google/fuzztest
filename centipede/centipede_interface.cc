@@ -51,6 +51,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/coverage.h"
+#include "./centipede/crash_deduplication.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/distill.h"
 #include "./centipede/environment.h"
@@ -807,11 +808,12 @@ int ReplayCrash(const Environment& env,
   if (env.report_crash_summary) {
     CrashSummary crash_summary{target_config.binary_identifier,
                                target_config.fuzz_tests_in_current_shard[0]};
-    // There should be at most one crash, so no deduplication actually happens.
-    DeduplicateAndOptionallyStoreNewCrashes(workdir, /*total_shards=*/1,
-                                            /*crash_signatures=*/{},
-                                            /*crashing_dir=*/std::nullopt,
-                                            crash_summary);
+    for (const auto& [signature, crash_details] :
+         GetCrashesFromWorkdir(workdir, /*total_shards=*/1)) {
+      crash_summary.AddCrash({env.crash_id,
+                              /*category=*/crash_details.description, signature,
+                              crash_details.description});
+    }
     crash_summary.Report(&std::cerr);
   }
   return fuzz_result;

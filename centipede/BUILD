@@ -753,6 +753,7 @@ cc_library(
         ":centipede_lib",
         ":command",
         ":coverage",
+        ":crash_deduplication",
         ":crash_summary",
         ":distill",
         ":environment",
