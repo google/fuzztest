@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -45,13 +46,13 @@ namespace fuzztest::internal {
 //                                  Corpus
 //------------------------------------------------------------------------------
 
-// Returns the weight of `fv` computed using `fs` and `coverage_frontier`.
-static size_t ComputeWeight(const FeatureVec &fv, const FeatureSet &fs,
-                            const CoverageFrontier &coverage_frontier) {
-  size_t weight = fs.ComputeWeight(fv);
+// Computes the weight component of input using its features `fv` and
+// the overall `coverage_frontier`.
+static size_t ComputeFrontierWeight(const FeatureVec& fv,
+                                    const CoverageFrontier& coverage_frontier) {
   // The following is checking for the cases where PCTable is not present. In
   // such cases, we cannot use any ControlFlow related features.
-  if (coverage_frontier.MaxPcIndex() == 0) return weight;
+  if (coverage_frontier.MaxPcIndex() == 0) return 1;
   size_t frontier_weights_sum = 0;
   for (const auto feature : fv) {
     if (!feature_domains::kPCs.Contains(feature)) continue;
@@ -63,7 +64,19 @@ static size_t ComputeWeight(const FeatureVec &fv, const FeatureSet &fs,
       frontier_weights_sum += coverage_frontier.FrontierWeight(pc_index);
     }
   }
-  return weight * (frontier_weights_sum + 1);  // Multiply by at least 1.
+  return frontier_weights_sum + 1;  // Multiply by at least 1.
+}
+
+std::optional<Corpus::WeightMethod> Corpus::ParseWeightMethod(
+    std::string_view method_string) {
+  if (method_string == "uniform") {
+    return WeightMethod::Uniform;
+  } else if (method_string == "recency") {
+    return WeightMethod::Recency;
+  } else if (method_string == "feature_rarity") {
+    return WeightMethod::FeatureRarity;
+  }
+  return std::nullopt;
 }
 
 std::pair<size_t, size_t> Corpus::MaxAndAvgSize() const {
@@ -86,7 +99,26 @@ void Corpus::UpdateWeights(const FeatureSet& fs,
     auto& record = records_[i];
     const size_t unseen = fs.PruneFeaturesAndCountUnseen(record.features);
     FUZZTEST_CHECK_EQ(unseen, 0);
-    weights[i] = fs.ComputeWeight(record.features);
+    if (record.features.empty()) {
+      weights[i] = 0;
+      continue;
+    }
+    double base_weight = 0;
+    switch (method_) {
+      case WeightMethod::Uniform:
+        base_weight = 1;
+        break;
+      case WeightMethod::Recency:
+        base_weight = i + 1;
+        break;
+      case WeightMethod::FeatureRarity:
+        base_weight = fs.ComputeRarityWeight(record.features);
+        break;
+      default:
+        FUZZTEST_LOG(FATAL) << "Unknown corpus weight method";
+    }
+    weights[i] =
+        base_weight * ComputeFrontierWeight(record.features, coverage_frontier);
   }
   if (scale_by_exec_time) {
     double total_exec_time_usec = 0;
@@ -206,7 +238,8 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
       << "Got request to add empty element to corpus: ignoring";
   FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
   records_.push_back({data, fv, metadata, stats});
-  weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
+  // Will be updated by `UpdateWeights`.
+  weighted_distribution_.AddWeight(0);
 }
 
 const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
