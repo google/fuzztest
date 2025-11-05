@@ -579,7 +579,14 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     } else {
       // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch can
       // be removed.
+#ifdef FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
+      // Crash deduplication assumes that the failure signature contains no
+      // dashes and that it can be used as a file name.
+      batch_result.failure_signature() =
+          Hash(batch_result.failure_description());
+#else
       batch_result.failure_signature() = batch_result.failure_description();
+#endif  // FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
     }
     // Remove the failure description and signature files here so that they do
     // not stay until another failed execution.
