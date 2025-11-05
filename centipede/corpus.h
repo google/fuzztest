@@ -98,6 +98,16 @@ struct CorpusRecord {
 // Allows to prune (forget) inputs that become uninteresting.
 class Corpus {
  public:
+  enum class WeightMethod {
+    Uniform,
+    Recency,
+    Rarity,
+  };
+
+  static constexpr std::string_view kWeightMethodNameForUniform = "uniform";
+  static constexpr std::string_view kWeightMethodNameForRecency = "recency";
+  static constexpr std::string_view kWeightMethodNameForRarity = "rarity";
+
   Corpus() = default;
 
   Corpus(const Corpus &) = default;
@@ -120,12 +130,12 @@ class Corpus {
   // Returns the number of removed elements.
   size_t Prune(const FeatureSet &fs, const CoverageFrontier &coverage_frontier,
                size_t max_corpus_size, Rng &rng);
-  // Updates the corpus weights according to `fs` and `coverage_frontier`. If
-  // `scale_by_exec_time` is set, scales the weights by the corpus execution
-  // time relative to the average.
+  // Updates the corpus weights according to `fs` and `coverage_frontier` using
+  // the weight `method`. If `scale_by_exec_time` is set, scales the weights by
+  // the corpus execution time relative to the average.
   void UpdateWeights(const FeatureSet& fs,
                      const CoverageFrontier& coverage_frontier,
-                     bool scale_by_exec_time);
+                     WeightMethod method, bool scale_by_exec_time);
 
   // Accessors.
 

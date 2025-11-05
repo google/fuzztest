@@ -45,13 +45,12 @@ namespace fuzztest::internal {
 //                                  Corpus
 //------------------------------------------------------------------------------
 
-// Returns the weight of `fv` computed using `fs` and `coverage_frontier`.
-static size_t ComputeWeight(const FeatureVec &fv, const FeatureSet &fs,
-                            const CoverageFrontier &coverage_frontier) {
-  size_t weight = fs.ComputeWeight(fv);
+// Returns the weight of `fv` computed using `coverage_frontier`.
+static size_t ComputeFrontierWeight(const FeatureVec& fv,
+                                    const CoverageFrontier& coverage_frontier) {
   // The following is checking for the cases where PCTable is not present. In
   // such cases, we cannot use any ControlFlow related features.
-  if (coverage_frontier.MaxPcIndex() == 0) return weight;
+  if (coverage_frontier.MaxPcIndex() == 0) return 1;
   size_t frontier_weights_sum = 0;
   for (const auto feature : fv) {
     if (!feature_domains::kPCs.Contains(feature)) continue;
@@ -63,7 +62,7 @@ static size_t ComputeWeight(const FeatureVec &fv, const FeatureSet &fs,
       frontier_weights_sum += coverage_frontier.FrontierWeight(pc_index);
     }
   }
-  return weight * (frontier_weights_sum + 1);  // Multiply by at least 1.
+  return frontier_weights_sum + 1;  // Multiply by at least 1.
 }
 
 std::pair<size_t, size_t> Corpus::MaxAndAvgSize() const {
@@ -79,14 +78,27 @@ std::pair<size_t, size_t> Corpus::MaxAndAvgSize() const {
 
 void Corpus::UpdateWeights(const FeatureSet& fs,
                            const CoverageFrontier& coverage_frontier,
-                           bool scale_by_exec_time) {
+                           WeightMethod method, bool scale_by_exec_time) {
   std::vector<double> weights;
   weights.resize(records_.size());
   for (size_t i = 0, n = records_.size(); i < n; ++i) {
     auto& record = records_[i];
     const size_t unseen = fs.PruneFeaturesAndCountUnseen(record.features);
     FUZZTEST_CHECK_EQ(unseen, 0);
-    weights[i] = fs.ComputeWeight(record.features);
+    switch (method) {
+      case WeightMethod::Uniform:
+        weights[i] = 1;
+        break;
+      case WeightMethod::Recency:
+        weights[i] = i + 1;
+        break;
+      case WeightMethod::Rarity:
+        weights[i] = fs.ComputeRarityWeight(record.features);
+        break;
+      default:
+        FUZZTEST_LOG(FATAL) << "Unknown corpus weight method";
+    }
+    weights[i] *= ComputeFrontierWeight(record.features, coverage_frontier);
   }
   if (scale_by_exec_time) {
     double total_exec_time_usec = 0;
@@ -199,7 +211,8 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
       << "Got request to add empty element to corpus: ignoring";
   FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
   records_.push_back({data, fv, metadata, stats});
-  weighted_distribution_.AddWeight(ComputeWeight(fv, fs, coverage_frontier));
+  // Will be updated by `UpdateWeights`.
+  weighted_distribution_.AddWeight(0);
 }
 
 const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
