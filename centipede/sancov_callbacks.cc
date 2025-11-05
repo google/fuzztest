@@ -270,7 +270,10 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
 // With __sanitizer_cov_trace_pc this is PC itself, normalized by subtracting
 // the DSO's dynamic start address.
 static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
-  if (!sancov_state->flags.use_pc_features) return;
+  if (!sancov_state->flags.use_pc_features &&
+      !sancov_state->flags.use_counter_features) {
+    return;
+  }
   sancov_state->pc_counter_set.SaturatedIncrement(pc_guard.pc_index);
 
   if (pc_guard.is_function_entry) {
