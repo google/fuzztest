@@ -61,6 +61,20 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    crashing_input_filename
+  HDRS
+    "crashing_input_filename.h"
+  SRCS
+    "crashing_input_filename.cc"
+  DEPS
+    absl::status
+    absl::statusor
+    absl::strings
+    fuzztest::io
+)
+
+fuzztest_cc_library(
+  NAME
     defs
   HDRS
     "defs.h"
@@ -175,6 +189,16 @@ fuzztest_cc_test(
     fuzztest::defs
     fuzztest::test_util
     absl::status
+    GTest::gmock_main
+)
+
+fuzztest_cc_test(
+  NAME
+    crashing_input_filename_test
+  SRCS
+    "crashing_input_filename_test.cc"
+  DEPS
+    fuzztest::crashing_input_filename
     GTest::gmock_main
 )
 

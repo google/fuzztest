@@ -26,8 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
@@ -35,6 +33,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/workdir.h"
+#include "./common/crashing_input_filename.h"
 #include "./common/defs.h"
 #include "./common/hash.h"
 #include "./common/logging.h"
@@ -102,33 +101,6 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
   return crashes;
 }
 
-absl::StatusOr<InputFileComponents> GetInputFileComponents(
-    std::string_view input_file_path) {
-  const std::string file_name =
-      std::filesystem::path(std::string(input_file_path)).filename();
-  std::vector<std::string> parts = absl::StrSplit(file_name, '-');
-  if (parts.size() == 1) {
-    // Old format where the input file name is both the bug ID and the input
-    // signature.
-    return InputFileComponents{
-        /*bug_id=*/parts[0],
-        /*crash_signature=*/"",
-        /*input_signature=*/parts[0],
-    };
-  }
-  if (parts.size() < 3) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Input file name not in the format of "
-                     "<bug_id>-<crash_signature>-<input_signature>: ",
-                     file_name));
-  }
-  return InputFileComponents{
-      /*bug_id=*/absl::StrJoin(parts.begin(), parts.end() - 2, "-"),
-      /*crash_signature=*/std::move(parts[parts.size() - 2]),
-      /*input_signature=*/std::move(parts[parts.size() - 1]),
-  };
-}
-
 void OrganizeCrashingInputs(
     const std::filesystem::path& regression_dir,
     const std::filesystem::path& crashing_dir, const Environment& env,
@@ -154,7 +126,7 @@ void OrganizeCrashingInputs(
     const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
                                      env.binary, {old_input}, batch_result) &&
                                  batch_result.IsInputFailure();
-    auto input_file_components = GetInputFileComponents(old_input_file);
+    auto input_file_components = ParseCrashingInputFilename(old_input_file);
     FUZZTEST_LOG_IF(WARNING, !input_file_components.ok())
         << "Failed to get input file components for " << old_input_file
         << ". Status: " << input_file_components.status();

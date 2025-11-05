@@ -24,7 +24,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -41,15 +40,12 @@
 namespace fuzztest::internal {
 namespace {
 
-using ::absl_testing::IsOk;
-using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::EndsWith;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
-using ::testing::Not;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
@@ -102,25 +98,6 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
           Pair("csig1", AnyOf(FieldsAre("isig1", "desc1", input1_path),
                               FieldsAre("isig3", "desc1", input3_path))),
           Pair("csig2", FieldsAre("isig2", "desc2", input2_path))));
-}
-
-TEST(GetInputFileComponentsTest, ParsesFileNameWithOnlyInputSignature) {
-  EXPECT_THAT(GetInputFileComponents("input_signature"),
-              IsOkAndHolds(FieldsAre(/*bug_id=*/"input_signature",
-                                     /*crash_signature=*/"",
-                                     /*input_signature=*/"input_signature")));
-}
-
-TEST(GetInputFileComponentsTest, FailsOnInvalidFileName) {
-  EXPECT_THAT(GetInputFileComponents("single-dash"), Not(IsOk()));
-}
-
-TEST(GetInputFileComponentsTest, ParsesFileNameWithAllComponents) {
-  EXPECT_THAT(
-      GetInputFileComponents("id-with-dash-crash_signature-input_signature"),
-      IsOkAndHolds(FieldsAre(/*bug_id=*/"id-with-dash",
-                             /*crash_signature=*/"crash_signature",
-                             /*input_signature=*/"input_signature")));
 }
 
 class FakeCentipedeCallbacks : public CentipedeCallbacks {

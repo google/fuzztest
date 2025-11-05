@@ -81,6 +81,18 @@ cc_library(
 )
 
 cc_library(
+    name = "crashing_input_filename",
+    srcs = ["crashing_input_filename.cc"],
+    hdrs = ["crashing_input_filename.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@com_google_fuzztest//fuzztest/internal:io",
+    ],
+)
+
+cc_library(
     name = "defs",
     hdrs = ["defs.h"],
     deps = ["@abseil-cpp//absl/types:span"],
@@ -218,6 +230,15 @@ cc_test(
         ":defs",
         ":test_util",
         "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "crashing_input_filename_test",
+    srcs = ["crashing_input_filename_test.cc"],
+    deps = [
+        ":crashing_input_filename",
         "@googletest//:gtest_main",
     ],
 )
