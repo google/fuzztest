@@ -33,6 +33,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -705,6 +706,26 @@ int UpdateCorpusDatabaseForFuzzTests(
     // Deduplicate and optionally update the crashing inputs.
     CrashSummary crash_summary{fuzztest_config.binary_identifier,
                                fuzz_tests_to_run[i]};
+#ifdef FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
+    const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
+        GetCrashesFromWorkdir(workdir, env.total_shards);
+    if (skip_corpus_db_update) {
+      // Just report the crashes.
+      FUZZTEST_CHECK(env.report_crash_summary);
+      for (const auto& [crash_signature, crash_details] :
+           crashes_by_signature) {
+        crash_summary.AddCrash({/*id=*/crash_details.input_signature,
+                                /*category=*/crash_details.description,
+                                crash_signature, crash_details.description});
+      }
+      crash_summary.Report(&std::cerr);
+      continue;
+    }
+    OrganizeCrashingInputs(regression_dir, fuzztest_db_path / "crashing", env,
+                           callbacks_factory, crashes_by_signature,
+                           crash_summary);
+    if (env.report_crash_summary) crash_summary.Report(&std::cerr);
+#else
     const std::optional<std::filesystem::path> crashing_dir =
         skip_corpus_db_update ? std::nullopt
                               : std::make_optional<std::filesystem::path>(
@@ -719,6 +740,7 @@ int UpdateCorpusDatabaseForFuzzTests(
                                             crashing_dir, crash_summary);
     if (env.report_crash_summary) crash_summary.Report(&std::cerr);
     if (skip_corpus_db_update) continue;
+#endif  // FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
 
     // Distill and store the coverage corpus.
     Distill(env);
@@ -808,8 +830,10 @@ int ReplayCrash(const Environment& env,
   if (env.report_crash_summary) {
     CrashSummary crash_summary{target_config.binary_identifier,
                                target_config.fuzz_tests_in_current_shard[0]};
-    for (const auto& [signature, crash_details] :
-         GetCrashesFromWorkdir(workdir, /*total_shards=*/1)) {
+    const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
+        GetCrashesFromWorkdir(workdir, /*total_shards=*/1);
+    FUZZTEST_CHECK_LE(crashes_by_signature.size(), 1);
+    for (const auto& [signature, crash_details] : crashes_by_signature) {
       crash_summary.AddCrash({env.crash_id,
                               /*category=*/crash_details.description, signature,
                               crash_details.description});

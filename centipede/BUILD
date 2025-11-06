@@ -769,6 +769,7 @@ cc_library(
         ":workdir",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
