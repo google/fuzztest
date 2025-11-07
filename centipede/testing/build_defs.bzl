@@ -134,7 +134,8 @@ def centipede_fuzz_target(
         sancov = "trace-pc-guard,pc-table,trace-loads,trace-cmp",
         copts = [],
         linkopts = [],
-        deps = []):
+        deps = [],
+        features = []):
     """Generates a fuzz target target instrumented with sancov.
 
     Args:
@@ -186,4 +187,5 @@ def centipede_fuzz_target(
         fuzz_target = fuzz_target,
         sancov = sancov,
         testonly = True,
+        features = features,
     )
