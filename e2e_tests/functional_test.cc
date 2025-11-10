@@ -1265,6 +1265,41 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FailsTestForSetupFailureWithoutCorpusDatabase) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  const auto [status_unused, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "10s"},
+          {"fuzz", "FaultySetupTest.NoOp"},
+      },
+      {}, absl::Seconds(10), kDefaultTargetBinary);
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
+      << "\nstd_err:\n"
+      << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FailsTestForSetupFailureWithCorpusDatabase) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir corpus_database;
+  const auto [status_unused, std_out, std_err] = RunWith(
+      {
+          {"corpus_database", corpus_database.path()},
+          {"fuzz_for", "10s"},
+          {"fuzz", "FaultySetupTest.NoOp"},
+          {"execution_id", "some_execution_id"},
+      },
+      {}, absl::Seconds(10), kDefaultTargetBinary);
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
+      << "\nstd_err:\n"
+      << std_err;
+}
+
 enum class ExecutionModelParam {
   kTestBinary,
   kTestBinaryInvokingCentipedeBinary,

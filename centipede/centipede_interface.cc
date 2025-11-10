@@ -540,6 +540,8 @@ int UpdateCorpusDatabaseForFuzzTests(
   FUZZTEST_LOG(INFO) << "Test shard index: " << test_shard_index
                      << " Total test shards: " << total_test_shards;
 
+  int exit_code = EXIT_SUCCESS;
+
   // Step 2: Iterate over the fuzz tests and run them.
   const std::string binary = env.binary;
   for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
@@ -662,8 +664,14 @@ int UpdateCorpusDatabaseForFuzzTests(
     is_resuming = false;
 
     if (EarlyStopRequested()) {
+      if (ExitCode() != EXIT_SUCCESS) {
+        exit_code = ExitCode();
+        FUZZTEST_LOG(ERROR)
+            << "Early stop requested for test " << fuzz_tests_to_run[i]
+            << " with failure exit code " << exit_code;
+      }
       FUZZTEST_LOG(INFO) << "Skipping test " << fuzz_tests_to_run[i]
-                         << " because early stop requested.";
+                         << " due to early stop requested without failure.";
       continue;
     }
 
@@ -690,8 +698,14 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
 
     if (EarlyStopRequested()) {
-      FUZZTEST_LOG(INFO)
-          << "Skip updating corpus database due to early stop requested.";
+      if (ExitCode() != EXIT_SUCCESS) {
+        exit_code = ExitCode();
+        FUZZTEST_LOG(ERROR)
+            << "Early stop requested for test " << fuzz_tests_to_run[i]
+            << " with failure exit code " << exit_code;
+      }
+      FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
+                            "requested without failure.";
       continue;
     }
     // The test time limit does not apply for the rest of the steps.
@@ -763,7 +777,7 @@ int UpdateCorpusDatabaseForFuzzTests(
     }
   }
 
-  return EXIT_SUCCESS;
+  return exit_code;
 }
 
 int ListCrashIds(const Environment& env,
