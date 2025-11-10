@@ -57,14 +57,6 @@ extern "C" int LLVMFuzzerRunDriver(
     int *absl_nonnull argc, char ***absl_nonnull argv,
     FuzzerTestOneInputCallback test_one_input_cb);
 
-// This interface can be used to detect presence of Centipede in the binary.
-// Also pretend we are LibFuzzer for compatibility.
-// This API can be used by other pieces of fuzzing infrastructure,
-// but should not be used by end-users of fuzz targets
-// (consider using FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION macro).
-extern "C" __attribute__((weak)) void CentipedeIsPresent();
-extern "C" __attribute__((weak)) void __libfuzzer_is_present();
-
 // Reconfigures the RSS limit to `rss_limit_mb` - 0 indicates no limit.
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb);
 

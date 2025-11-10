@@ -909,9 +909,6 @@ extern "C" int LLVMFuzzerRunDriver(
                         LLVMFuzzerCustomCrossOver));
 }
 
-extern "C" __attribute__((used)) void CentipedeIsPresent() {}
-extern "C" __attribute__((used)) void __libfuzzer_is_present() {}
-
 extern "C" void CentipedeSetRssLimit(size_t rss_limit_mb) {
   fprintf(stderr, "CentipedeSetRssLimit: changing rss_limit_mb to %zu\n",
           rss_limit_mb);
