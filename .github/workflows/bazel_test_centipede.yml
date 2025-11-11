@@ -90,17 +90,17 @@ jobs:
           key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
   run_tests_mac:
     name: Run Centipede tests (MacOS)
-    runs-on: macos-13
+    runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Restore latest cache
-        uses: actions/cache/restore@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-centipede-cache-mac
-          restore-keys: bazel-centipede-cache-mac-
+      # - name: Restore latest cache
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     path: "~/.cache/bazel"
+      #     key: bazel-centipede-cache-mac
+      #     restore-keys: bazel-centipede-cache-mac-
       - name: Add LLVM symbolizer to path
         run: |
           ln -s $(brew --prefix llvm@15)/bin/llvm-symbolizer /usr/local/bin
