@@ -34,7 +34,6 @@
 #include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -59,7 +58,6 @@
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/periodic_action.h"
-#include "./centipede/runner_result.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
 #include "./centipede/stop.h"
@@ -290,108 +288,6 @@ TestShard SetUpTestSharding() {
   return test_shard;
 }
 
-// Prunes non-reproducible and duplicate crashes and returns the crash
-// signatures of the remaining crashes.
-absl::flat_hash_set<std::string> PruneOldCrashesAndGetRemainingCrashSignatures(
-    const std::filesystem::path& crashing_dir, const Environment& env,
-    CentipedeCallbacksFactory& callbacks_factory, CrashSummary& crash_summary) {
-  const std::vector<std::string> crashing_input_files =
-      // The corpus database layout assumes the crash input files are located
-      // directly in the crashing subdirectory, so we don't list recursively.
-      ValueOrDie(RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
-  ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
-  BatchResult batch_result;
-  absl::flat_hash_set<std::string> remaining_crash_signatures;
-
-  for (const std::string& crashing_input_file : crashing_input_files) {
-    ByteArray crashing_input;
-    FUZZTEST_CHECK_OK(
-        RemoteFileGetContents(crashing_input_file, crashing_input));
-    const bool is_reproducible = !scoped_callbacks.callbacks()->Execute(
-        env.binary, {crashing_input}, batch_result);
-    const bool is_duplicate =
-        is_reproducible && !batch_result.IsSetupFailure() &&
-        !remaining_crash_signatures.insert(batch_result.failure_signature())
-             .second;
-    if (!is_reproducible || batch_result.IsSetupFailure() || is_duplicate) {
-      FUZZTEST_CHECK_OK(
-          RemotePathDelete(crashing_input_file, /*recursively=*/false));
-    } else {
-      crash_summary.AddCrash(
-          {std::filesystem::path(crashing_input_file).filename(),
-           /*category=*/batch_result.failure_description(),
-           batch_result.failure_signature(),
-           batch_result.failure_description()});
-      FUZZTEST_CHECK_OK(RemotePathTouchExistingFile(crashing_input_file));
-    }
-  }
-  return remaining_crash_signatures;
-}
-
-// TODO(b/405382531): Add unit tests once the function is unit-testable.
-void DeduplicateAndOptionallyStoreNewCrashes(
-    const WorkDir& workdir, size_t total_shards,
-    absl::flat_hash_set<std::string> crash_signatures,
-    const std::optional<std::filesystem::path>& crashing_dir,
-    CrashSummary& crash_summary) {
-  for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
-    const std::vector<std::string> new_crashing_input_files =
-        // The crash reproducer directory may contain subdirectories with
-        // input files that don't individually cause a crash. We ignore those
-        // for now and don't list the files recursively.
-        ValueOrDie(
-            RemoteListFiles(workdir.CrashReproducerDirPaths().Shard(shard_idx),
-                            /*recursively=*/false));
-    const std::filesystem::path crash_metadata_dir =
-        workdir.CrashMetadataDirPaths().Shard(shard_idx);
-
-    if (crashing_dir.has_value()) {
-      FUZZTEST_CHECK_OK(RemoteMkdir(crashing_dir->c_str()));
-    }
-    for (const std::string& crashing_input_file : new_crashing_input_files) {
-      const std::string crashing_input_file_name =
-          std::filesystem::path(crashing_input_file).filename();
-      const std::string crash_signature_path =
-          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".sig");
-      std::string new_crash_signature;
-      const absl::Status status =
-          RemoteFileGetContents(crash_signature_path, new_crash_signature);
-      if (!status.ok()) {
-        FUZZTEST_LOG(WARNING)
-            << "Ignoring crashing input " << crashing_input_file_name
-            << " due to failure to read the crash signature: " << status;
-        continue;
-      }
-      const bool is_duplicate =
-          !crash_signatures.insert(new_crash_signature).second;
-      if (is_duplicate) continue;
-
-      const std::string crash_description_path =
-          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".desc");
-      std::string new_crash_description;
-      const absl::Status description_status =
-          RemoteFileGetContents(crash_description_path, new_crash_description);
-      if (!description_status.ok()) {
-        FUZZTEST_LOG(WARNING)
-            << "Failed to read crash description for "
-            << crashing_input_file_name
-            << ". Will use the crash signature as the description. Status: "
-            << description_status;
-        new_crash_description = new_crash_signature;
-      }
-      crash_summary.AddCrash({crashing_input_file_name,
-                              /*category=*/new_crash_description,
-                              std::move(new_crash_signature),
-                              new_crash_description});
-      if (crashing_dir.has_value()) {
-        FUZZTEST_CHECK_OK(RemoteFileRename(
-            crashing_input_file,
-            (*crashing_dir / crashing_input_file_name).c_str()));
-      }
-    }
-  }
-}
-
 // Seeds the corpus files in `env.workdir` with the inputs in `regression_dir`
 // (always used) and the previously distilled corpus files from `coverage_dir`
 // (used if non-empty).
@@ -458,7 +354,6 @@ PeriodicAction RecordFuzzingTime(std::string_view fuzzing_time_file,
           PeriodicAction::ZeroDelayConstInterval(absl::Seconds(15))};
 }
 
-// TODO(b/368325638): Add tests for this.
 int UpdateCorpusDatabaseForFuzzTests(
     Environment env, const fuzztest::internal::Configuration& fuzztest_config,
     CentipedeCallbacksFactory& callbacks_factory) {
@@ -720,7 +615,6 @@ int UpdateCorpusDatabaseForFuzzTests(
     // Deduplicate and optionally update the crashing inputs.
     CrashSummary crash_summary{fuzztest_config.binary_identifier,
                                fuzz_tests_to_run[i]};
-#ifdef FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
     const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
         GetCrashesFromWorkdir(workdir, env.total_shards);
     if (skip_corpus_db_update) {
@@ -739,22 +633,6 @@ int UpdateCorpusDatabaseForFuzzTests(
                            callbacks_factory, crashes_by_signature,
                            crash_summary);
     if (env.report_crash_summary) crash_summary.Report(&std::cerr);
-#else
-    const std::optional<std::filesystem::path> crashing_dir =
-        skip_corpus_db_update ? std::nullopt
-                              : std::make_optional<std::filesystem::path>(
-                                    fuzztest_db_path / "crashing");
-    absl::flat_hash_set<std::string> crash_signatures =
-        skip_corpus_db_update
-            ? absl::flat_hash_set<std::string>{}
-            : PruneOldCrashesAndGetRemainingCrashSignatures(
-                  *crashing_dir, env, callbacks_factory, crash_summary);
-    DeduplicateAndOptionallyStoreNewCrashes(workdir, env.total_shards,
-                                            std::move(crash_signatures),
-                                            crashing_dir, crash_summary);
-    if (env.report_crash_summary) crash_summary.Report(&std::cerr);
-    if (skip_corpus_db_update) continue;
-#endif  // FUZZTEST_INTERNAL_BETTER_CRASH_DEDUPLICATION
 
     // Distill and store the coverage corpus.
     Distill(env);
