@@ -99,9 +99,12 @@ if [[ "${OSTYPE}" != 'darwin'* ]]; then
   CENTIPEDE_RUNNER_FLAGS=":address_space_limit_mb=8192:" $target "${oom}"
 fi
 
-echo ======== Check OOM behaviour with rss_limit_mb
-CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=4096:" $target "${oom}" \
-  && die "failed to die on 4G OOM (rss_limit_mb)"
+# rusage has been inaccurate in MacOS.
+if [[ "${OSTYPE}" != 'darwin'* ]]; then
+    echo ======== Check OOM behaviour with rss_limit_mb
+    CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=4096:" $target "${oom}" \
+        && die "failed to die on 4G OOM (rss_limit_mb)"
+fi
 
 CENTIPEDE_RUNNER_FLAGS=":rss_limit_mb=8192:" $target "${oom}"  # must pass
 

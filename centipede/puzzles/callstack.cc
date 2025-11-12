@@ -24,6 +24,7 @@
 // clang-format on
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
 namespace {
 
@@ -106,11 +107,11 @@ F table[256] = {
 
 }  // namespace
 
-// Causes div-by-zero if the input is exactly 'ABCDE'.
+// Aborts if the input is exactly 'ABCDE'.
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   g_result = 0;
   if (size != kMaxDepth) return 0;
   table[data[0]](data, 0);
-  g_result = 1000 / (0xEEDDCCBBAA - g_result);
+  if (0xEEDDCCBBAA - g_result == 0) std::abort();
   return 0;
 }

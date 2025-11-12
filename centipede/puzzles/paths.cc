@@ -16,7 +16,7 @@
 // We disable use_dataflow_features because on this puzzle
 // it is also effective.
 
-// RUN: Run --use_dataflow_features=0 --path_level=10
+// RUN: Run --use_dataflow_features=0 --use_cmp_features=0 --path_level=10
 // RUN: ExpectInLog "Input bytes.*: .x1.x2.x3"
 
 // This puzzle aborts on input "\x1\x2\x3"
@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
 static volatile uint64_t sink;
 
@@ -61,6 +62,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   table[data[0]]();
   table[data[1]]();
   table[data[2]]();
-  sink /= 0x123 - sink;  // Generates a crash (div by zero) w/o a control flow.
+  if (0x123 - sink == 0) std::abort();
   return 0;
 }

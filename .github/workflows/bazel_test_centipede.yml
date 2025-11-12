@@ -104,28 +104,30 @@ jobs:
       - name: Add LLVM symbolizer to path
         run: |
           ln -s $(brew --prefix llvm@18)/bin/llvm-symbolizer /usr/local/bin
-      # - name: Run unit tests
-      #   if: ${{ !cancelled() }}
-      #   run: |
-      #     # Timed wait is delayed for unknown reasons in MacOS for a few testing
-      #     # environments, thus disabling a few related non-critical tests.
-      #     bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all -centipede:periodic_action_test -centipede:rusage_profiler_test && \
-      #     bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test
-      # - name: Run e2e tests without Riegeli
-      #   if: ${{ !cancelled() }}
-      #   run: |
-      #     bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
-      # - name: Run puzzles without Riegeli
-      #   if: ${{ !cancelled() }}
-      #   run: |
-      #     bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
-      # - name: Run puzzles without Riegeli with ASAN
-      #   if: ${{ !cancelled() }}
-      #   run: |
-      #     bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
-      # - name: Save new cache based on main
-      #   if: github.ref == 'refs/heads/main'
-      #   uses: actions/cache/save@v4
-      #   with:
-      #     path: "~/.cache/bazel"
-      #     key: bazel-centipede-cache-mac-${{ github.run_id }}
+      - name: Run unit tests
+        if: ${{ !cancelled() }}
+        run: |
+          # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
+          # environments, thus disabling a few related non-critical tests.
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
+                -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
+      - name: Run e2e tests without Riegeli
+        if: ${{ !cancelled() }}
+        run: |
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
+      - name: Run puzzles without Riegeli
+        if: ${{ !cancelled() }}
+        run: |
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
+      - name: Run puzzles without Riegeli with ASAN
+        if: ${{ !cancelled() }}
+        run: |
+          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
+      - name: Save new cache based on main
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-centipede-cache-mac-${{ github.run_id }}
