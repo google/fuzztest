@@ -249,8 +249,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   // "custom" for failure with custom description
   if (size == 6 && data[0] == 'c' && data[1] == 'u' && data[2] == 's' &&
       data[3] == 't' && data[4] == 'o' && data[5] == 'm') {
-    CentipedeSetFailureDescription("INPUT FAILURE: custom");
     static int count = 0;
+    char failure_descrption[] = "INPUT FAILURE: custom 0";
+    failure_descrption[sizeof(failure_descrption) - 2] += count;
+    CentipedeSetFailureDescription(failure_descrption);
     printf("custom failure %d\n", count);
     ++count;
     fflush(stdout);

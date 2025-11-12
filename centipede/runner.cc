@@ -786,6 +786,7 @@ void GlobalRunnerState::OnTermination() {
 static int HandleSharedMemoryRequest(RunnerCallbacks& callbacks,
                                      BlobSequence& inputs_blobseq,
                                      BlobSequence& outputs_blobseq) {
+  state->has_failure_description = false;
   // Read the first blob. It indicates what further actions to take.
   auto request_type_blob = inputs_blobseq.Read();
   if (IsMutationRequest(request_type_blob)) {

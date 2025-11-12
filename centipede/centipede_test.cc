@@ -1215,7 +1215,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result));
 }
 
-TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
+TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
@@ -1225,9 +1225,13 @@ TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
       {'c', 'u', 's', 't', 'o', 'm'},
   };
   EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result));
-  EXPECT_THAT(result.failure_description(), HasSubstr("custom"));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom 0"));
   EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 0"),
                                   Not(HasSubstr("custom failure 1"))));
+  EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom 1"));
+  EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 1"),
+                                  Not(HasSubstr("custom failure 2"))));
 }
 
 }  // namespace
