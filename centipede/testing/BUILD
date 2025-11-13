@@ -262,6 +262,8 @@ cc_binary(
     ],
     deps = [
         ":multi_dso_target_lib",
+        # TODO(b/459576700): Remove this dependency once experiment is over.
+        "//testing/sanitizer_common/prod_hooks:maybe_array_bounds_npx_for_manual_link",
         "@com_google_fuzztest//centipede:centipede_runner",
     ],
 )
