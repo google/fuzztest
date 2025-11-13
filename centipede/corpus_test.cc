@@ -114,7 +114,8 @@ TEST(Corpus, Prune) {
   Add({{2}, {30, 40}});
   Add({{3}, {40, 50}});
   Add({{4}, {10, 20}});
-  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
+  corpus.UpdateWeights(fs, coverage_frontier, Corpus::WeightMethod::Rarity,
+                       /*scale_by_exec_time=*/false);
 
   // Prune. Features 20 and 40 are frequent => input {0} will be removed.
   EXPECT_EQ(corpus.NumActive(), 5);
@@ -124,7 +125,8 @@ TEST(Corpus, Prune) {
   VerifyActiveInputs({{1}, {2}, {3}, {4}});
 
   Add({{5}, {30, 60}});
-  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
+  corpus.UpdateWeights(fs, coverage_frontier, Corpus::WeightMethod::Rarity,
+                       /*scale_by_exec_time=*/false);
 
   EXPECT_EQ(corpus.NumTotal(), 6);
   // Prune. Feature 30 is now frequent => inputs {1} and {2} will be removed.
@@ -181,14 +183,16 @@ TEST(Corpus, ScalesWeightsWithExecTime) {
   };
 
   // The weights should be equal without exec time scaling.
-  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/false);
+  corpus.UpdateWeights(fs, coverage_frontier, Corpus::WeightMethod::Rarity,
+                       /*scale_by_exec_time=*/false);
   ComputeFreq();
   EXPECT_NEAR(freq[0], kNumIter / 3, 100);
   EXPECT_NEAR(freq[1], kNumIter / 3, 100);
   EXPECT_NEAR(freq[2], kNumIter / 3, 100);
 
   // The weights should favor {0} over {1} over {2} with exec time scaling.
-  corpus.UpdateWeights(fs, coverage_frontier, /*scale_by_exec_time=*/true);
+  corpus.UpdateWeights(fs, coverage_frontier, Corpus::WeightMethod::Rarity,
+                       /*scale_by_exec_time=*/true);
   ComputeFreq();
   EXPECT_GT(freq[0], freq[1] + 100);
   EXPECT_GT(freq[1], freq[2] + 100);

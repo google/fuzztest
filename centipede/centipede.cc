@@ -133,6 +133,18 @@ Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
   FUZZTEST_CHECK(env_.seed) << "env_.seed must not be zero";
   if (!env_.input_filter.empty() && env_.fork_server)
     input_filter_cmd_.StartForkServer(TemporaryLocalDirPath(), "input_filter");
+  if (env_.corpus_weight_method == Corpus::kWeightMethodNameForUniform) {
+    corpus_weight_method_ = Corpus::WeightMethod::Uniform;
+  } else if (env_.corpus_weight_method == Corpus::kWeightMethodNameForRecency) {
+    corpus_weight_method_ = Corpus::WeightMethod::Recency;
+  } else if (env_.corpus_weight_method == Corpus::kWeightMethodNameForRarity) {
+    corpus_weight_method_ = Corpus::WeightMethod::Rarity;
+  } else {
+    FUZZTEST_LOG(WARNING) << "Unknown corpus weight method "
+                          << env_.corpus_weight_method << " - fall back to "
+                          << Corpus::kWeightMethodNameForRarity;
+    corpus_weight_method_ = Corpus::WeightMethod::Rarity;
+  }
 }
 
 void Centipede::CorpusToFiles(const Environment &env, std::string_view dir) {
@@ -474,7 +486,8 @@ bool Centipede::RunBatch(
       }
     }
   }
-  corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
+  corpus_.UpdateWeights(fs_, coverage_frontier_, corpus_weight_method_,
+                        env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }
 

@@ -139,8 +139,9 @@ void FeatureSet::MergeFeatures(const FeatureVec& features) {
 }
 
 __attribute__((noinline))  // to see it in profile.
-uint64_t
-FeatureSet::ComputeWeight(const FeatureVec &features) const {
+double FeatureSet::ComputeRarityWeight(const FeatureVec& features) const {
+  // Use uint64_t to keep the previous behavior. Maybe we want to switch it to
+  // double later.
   uint64_t weight = 0;
   for (auto feature : features) {
     // The less frequent is the feature, the more valuable it is.
