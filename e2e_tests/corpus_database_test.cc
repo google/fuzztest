@@ -47,6 +47,8 @@ namespace {
 using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Not;
 
 std::string GetCorpusDatabaseTestingBinaryPath() {
   return BinaryPath((std::filesystem::path("testdata") /
