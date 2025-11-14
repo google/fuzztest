@@ -264,16 +264,9 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   env.coverage_binary = (*args)[0];
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
   env.binary_hash = "DUMMY_HASH";
-  env.exit_on_crash =
-      // Do shallow testing when running in unit-test mode unless we are replay
-      // coverage inputs.
-      (run_mode == RunMode::kUnitTest &&
-       !configuration.replay_coverage_inputs) ||
-      // When not using a corpus database, keep the same behavior as the legacy
-      // single-process mode.
-      configuration.corpus_database.empty() ||
-      // No need to keep running when replaying crashing input.
-      configuration.crashing_input_to_reproduce.has_value();
+  env.exit_on_crash = !configuration.continue_after_crash ||
+                      // Always fail on crash for reproducer tests.
+                      configuration.crashing_input_to_reproduce.has_value();
   env.print_runner_log = configuration.print_subprocess_log;
   env.workdir = workdir;
   if (configuration.corpus_database.empty()) {

@@ -20,6 +20,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.fuzz_tests == other->fuzz_tests &&
          config.fuzz_tests_in_current_shard ==
              other->fuzz_tests_in_current_shard &&
+         config.continue_after_crash == other->continue_after_crash &&
          config.reproduce_findings_as_separate_tests ==
              other->reproduce_findings_as_separate_tests &&
          config.replay_coverage_inputs == other->replay_coverage_inputs &&
@@ -48,6 +49,7 @@ TEST(ConfigurationTest,
                               "binary_identifier",
                               /*fuzz_tests=*/{},
                               /*fuzz_tests_in_current_shard=*/{},
+                              /*continue_after_crash=*/true,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
@@ -76,6 +78,7 @@ TEST(ConfigurationTest,
                               "binary_identifier",
                               {"FuzzTest1", "FuzzTest2"},
                               {"FuzzTest1"},
+                              /*continue_after_crash=*/true,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
