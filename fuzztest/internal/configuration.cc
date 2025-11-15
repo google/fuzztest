@@ -205,6 +205,7 @@ std::string Configuration::Serialize() const {
   out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
              SpaceFor(workdir_root) + SpaceFor(binary_identifier) +
              SpaceFor(fuzz_tests) + SpaceFor(fuzz_tests_in_current_shard) +
+             SpaceFor(continue_after_crash) +
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
              SpaceFor(replay_in_single_process) + SpaceFor(execution_id) +
@@ -221,6 +222,7 @@ std::string Configuration::Serialize() const {
   offset = WriteString(out, offset, binary_identifier);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
+  offset = WriteIntegral(out, offset, continue_after_crash);
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
   offset = WriteIntegral(out, offset, replay_coverage_inputs);
   offset = WriteIntegral(out, offset, only_replay);
@@ -250,6 +252,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(fuzz_tests, ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(fuzz_tests_in_current_shard,
                      ConsumeVectorOfStrings(serialized));
+    ASSIGN_OR_RETURN(continue_after_crash, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(reproduce_findings_as_separate_tests,
                      Consume<bool>(serialized));
     ASSIGN_OR_RETURN(replay_coverage_inputs, Consume<bool>(serialized));
@@ -283,6 +286,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
                          *std::move(fuzz_tests_in_current_shard),
+                         *continue_after_crash,
                          *reproduce_findings_as_separate_tests,
                          *replay_coverage_inputs,
                          *only_replay,

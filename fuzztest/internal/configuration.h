@@ -59,6 +59,8 @@ struct Configuration {
   std::vector<std::string> fuzz_tests;
   // The fuzz tests in the current shard.
   std::vector<std::string> fuzz_tests_in_current_shard;
+  // If set, continue after a crashing input is found.
+  bool continue_after_crash = false;
   // Generate separate TESTs that replay crashing inputs for the selected fuzz
   // tests.
   bool reproduce_findings_as_separate_tests = false;
