@@ -56,6 +56,7 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::EndsWith;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Le;
 using ::testing::MatchesRegex;
@@ -190,19 +191,16 @@ TYPED_TEST(FloatingTest, Printer) {
 
 TEST(StringTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::string("ABC")), Each("\"ABC\""));
-  EXPECT_THAT(
-      TestPrintValue(std::string{'\0', 'a', '\223', 'b'}),
-      ElementsAre(R"("\000a\223b")", R"(std::string("\000a\223b", 4))"));
+  EXPECT_THAT(TestPrintValue(std::string{'\0', 'a', '\223', 'b'}),
+              Each(Eq(R"(std::string("\000a\223b", 4))")));
   EXPECT_THAT(TestPrintValue(std::string("printf(\"Hello, world!\");")),
-              ElementsAre(R"("printf("Hello, world!");")",
-                          R"("printf(\"Hello, world!\");")"));
+              Each(Eq(R"("printf(\"Hello, world!\");")")));
 }
 
 TEST(ByteArrayTest, Printer) {
   EXPECT_THAT(
       TestPrintValue(std::vector<uint8_t>{'\0', 'a', 0223, 'b', '\"'}),
-      ElementsAre(R"("\000a\223b"")",
-                  R"(fuzztest::ToByteArray(std::string("\000a\223b\"", 5)))"));
+      Each(Eq(R"(fuzztest::ToByteArray(std::string("\000a\223b\"", 5)))")));
   EXPECT_EQ(std::string("\000a\223b\"", 5).size(), 5);
 }
 

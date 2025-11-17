@@ -1072,7 +1072,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
 
     auto [status, std_out, std_err] =
         RunWith({{"fuzz", "MySuite.Minimizer"}}, env);
-    ASSERT_THAT_LOG(std_err, HasSubstr("argument 0: \""));
+    ASSERT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\""));
     ASSERT_THAT(status, Eq(Signal(SIGABRT)));
 
     auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
@@ -1630,14 +1630,14 @@ TEST_P(FuzzingModeCrashFindingTest, CoverageTestFindsAbortInFuzzingMode) {
 
 TEST_P(FuzzingModeCrashFindingTest, StringTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.String");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
        StringAsciiOnlyTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringAsciiOnly");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1649,13 +1649,13 @@ TEST_P(FuzzingModeCrashFindingTest, StringRegexpTestFindsAbortInFuzzingMode) {
 
 TEST_P(FuzzingModeCrashFindingTest, StringViewTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StringView");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Fuzz"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\"Fuzz"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, StrCmpTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.StrCmp");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"Hello!"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\"Hello!"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1814,13 +1814,13 @@ TEST_P(FuzzingModeCrashFindingTest, UnprintableTypeRunsAndPrintsSomething) {
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestArbitraryCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructArbitrary");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: MyStruct{0, .*\"X"));
   ExpectTargetAbort(status, std_err);
 }
 
 TEST_P(FuzzingModeCrashFindingTest, MyStructTestWithDomainsCanPrint) {
   auto [status, std_out, std_err] = Run("MySuite.MyStructWithDomains");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: MyStruct{0, \"X"));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: MyStruct{0, .*\"X"));
   ExpectTargetAbort(status, std_err);
 }
 
@@ -1972,7 +1972,7 @@ TEST_P(FuzzingModeCrashFindingTest,
           {
           },
           /*timeout=*/absl::Seconds(30));
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"ahmfn\""));
+  EXPECT_THAT_LOG(std_err, ContainsRegex("argument 0: .*\"ahmfn\""));
   ExpectTargetAbort(status, std_err);
 }
 
