@@ -175,6 +175,16 @@ FUZZTEST_DEFINE_FLAG(
     bool, print_subprocess_log, false,
     "If set, print the log of the subprocesses spawned by FuzzTest.");
 
+FUZZTEST_DEFINE_FLAG(
+    bool, continue_after_crash, false,
+    "Controls the fuzzing and corpus replaying behavior when a crashing input "
+    "is found. If set to false (default), the test execution will stop upon "
+    "finding the first crashing input, and the test fails. If set to true, "
+    "the execution will log any crash inputs found and continue until reaching "
+    "the time limit or manually stopped. The fuzz test will pass at the end, "
+    "regardless of the crashing inputs found, unless there is a setup failure. "
+    "Note that reproducer tests are not affected - they always fail on crash.");
+
 FUZZTEST_DEFINE_FLAG(bool, unguided, false,
                      "If used together with --" FUZZTEST_FLAG_PREFIX
                      "fuzz or --" FUZZTEST_FLAG_PREFIX
@@ -350,6 +360,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),
+      /*continue_after_crash=*/
+      absl::GetFlag(FUZZTEST_FLAG(continue_after_crash)),
       reproduce_findings_as_separate_tests,
       replay_coverage_inputs,
       /*only_replay=*/

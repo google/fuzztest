@@ -119,6 +119,7 @@ class UpdateCorpusDatabaseTest
 
   static RunResults RunBinaryMaybeWithCentipede(absl::string_view binary_path,
                                                 RunOptions options) {
+    options.fuzztest_flags["continue_after_crash"] = "true";
     // Dumping stack trace in gtest would slow down the execution, causing
     // test flakiness.
     options.flags[GTEST_FLAG_PREFIX_ "stack_trace_depth"] = "0";
