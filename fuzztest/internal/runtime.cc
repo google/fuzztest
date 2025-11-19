@@ -122,7 +122,12 @@ std::string GetReproductionCommand(const Configuration* configuration,
   FUZZTEST_CHECK(absl::StrContains(command_template, kTestFilterPlaceholder));
   FUZZTEST_CHECK(absl::StrContains(command_template, kExtraArgsPlaceholder));
   if (is_reproducer_in_corpus_db) {
-    const std::string corpus_db = configuration->corpus_database;
+    absl::string_view corpus_db = configuration->corpus_database;
+    auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
+    if (!test_srcdir.empty()) {
+      const std::string prefix = absl::StrCat(test_srcdir, "/");
+      absl::ConsumePrefix(&corpus_db, prefix);
+    }
     std::vector<std::string> extra_args = {absl::StrCat(
         "--test_arg=--", FUZZTEST_FLAG_PREFIX, "corpus_database=", corpus_db)};
     return absl::StrReplaceAll(
