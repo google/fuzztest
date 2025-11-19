@@ -338,6 +338,7 @@ fuzztest_cc_library(
     fuzztest::printer
     fuzztest::registration
     fuzztest::seed_seq
+    fuzztest::sanitizer_interface
     fuzztest::serialization
     fuzztest::status
     absl::core_headers
@@ -365,13 +366,36 @@ fuzztest_cc_test(
     "runtime_test.cc"
   DEPS
     fuzztest::configuration
-    fuzztest::flag_name
     fuzztest::runtime
     fuzztest::test_protobuf_cc_proto
-    absl::flags
     absl::strings
     absl::time
     fuzztest::domain_core
+    GTest::gmock_main
+)
+
+fuzztest_cc_library(
+  NAME
+    sanitizer_interface
+  HDRS
+    "sanitizer_interface.h"
+  SRCS
+    "sanitizer_interface.cc"
+  DEPS
+    absl::status
+    absl::statusor
+    absl::strings
+)
+
+fuzztest_cc_test(
+  NAME
+    sanitizer_interface_test
+  SRCS
+    "sanitizer_interface_test.cc"
+  DEPS
+    fuzztest::sanitizer_interface
+    absl::status
+    absl::statusor
     GTest::gmock_main
 )
 

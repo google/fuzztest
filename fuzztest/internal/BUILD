@@ -365,6 +365,7 @@ cc_library(
         ":logging",
         ":printer",
         ":registration",
+        ":sanitizer_interface",
         ":seed_seq",
         ":serialization",
         ":status",
@@ -392,13 +393,33 @@ cc_test(
     srcs = ["runtime_test.cc"],
     deps = [
         ":configuration",
-        ":flag_name",
         ":runtime",
         ":test_protobuf_cc_proto",
-        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "sanitizer_interface",
+    srcs = ["sanitizer_interface.cc"],
+    hdrs = ["sanitizer_interface.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "sanitizer_interface_test",
+    srcs = ["sanitizer_interface_test.cc"],
+    deps = [
+        ":sanitizer_interface",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],
 )

@@ -44,13 +44,13 @@
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
@@ -73,10 +73,8 @@
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
 #define FUZZTEST_HAS_SANITIZER
 #include <sanitizer/common_interface_defs.h>
-#endif
 
-#if defined(ADDRESS_SANITIZER)
-#include <sanitizer/asan_interface.h>
+#include "./fuzztest/internal/sanitizer_interface.h"
 #endif
 
 #ifndef TRAP_PERF
@@ -161,6 +159,19 @@ absl::string_view GetSeparator() {
   return "\n================================================================="
          "\n";
 }
+
+#if defined(FUZZTEST_HAS_SANITIZER)
+// clang-format off
+extern "C" void __sanitizer_report_error_summary(const char* error_summary) {
+  // clang-format on
+  absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(error_summary);
+  FUZZTEST_LOG_IF(ERROR, !crash_type.ok())
+      << "Failed to extract sanitizer crash type: " << crash_type.status();
+  Runtime::instance().SetCrashTypeIfUnset(
+      std::move(crash_type).value_or("Sanitizer crash"));
+}
+#endif
 
 }  // namespace
 
@@ -627,15 +638,8 @@ void InstallSignalHandlers(FILE* out) {
   // Eg a divide by zero is intercepted by ASan and it terminates the process
   // after printing its output. This handler helps us print our output
   // afterwards.
-  __sanitizer_set_death_callback([](auto...) {
-    Runtime& runtime = Runtime::instance();
-#if defined(ADDRESS_SANITIZER)
-    runtime.SetCrashTypeIfUnset(__asan_get_report_description());
-#else
-    runtime.SetCrashTypeIfUnset("Sanitizer crash");
-#endif
-    runtime.PrintReport(&signal_out_sink);
-  });
+  __sanitizer_set_death_callback(
+      [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
 #endif
 
   for (OldSignalHandler& h : crash_handlers) {
