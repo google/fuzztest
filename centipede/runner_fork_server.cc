@@ -310,8 +310,21 @@ void ForkServerCallMeVeryEarly() {
     if (write(pipe1, &ch, 1) == -1) {
       Exit("###write ack to pipe1 failed\n");
     }
+    // The child might be already terminated before we call sigprocmask(), so
+    // check it before waiting for signals.
+    bool child_terminated = false;
     int status = -1;
-    while (true) {
+    {
+      const pid_t ret = waitpid(pid, &status, WNOHANG);
+      if (ret < 0) {
+        Exit("###initial waitpid failed\n");
+      }
+      if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
+        Log("###Got exit status\n");
+        child_terminated = true;
+      }
+    }
+    while (!child_terminated) {
       int sig = -1;
       Log("###Waiting for a signal\n");
       if (sigwait(&wait_sigset, &sig) != 0) {
@@ -330,7 +343,7 @@ void ForkServerCallMeVeryEarly() {
         }
         if (ret == pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
           Log("###Got exit status\n");
-          break;
+          child_terminated = true;
         }
       } else {
         Exit("###Unknown signal from sigwait\n");
