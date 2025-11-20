@@ -175,6 +175,13 @@ size_t Corpus::Prune(const FeatureSet &fs,
       max_corpus_size, std::max(1UL, records_.size() - num_zero_weights));
   auto subset_to_remove =
       weighted_distribution_.RemoveRandomWeightedSubset(target_size, rng);
+  if (subset_to_remove.size() == records_.size()) {
+    // This can happen only when all inputs have zero weights - keep random one.
+    FUZZTEST_CHECK(num_zero_weights == records_.size());
+    subset_to_remove.erase(
+        subset_to_remove.begin() +
+        absl::Uniform<size_t>(rng, 0, subset_to_remove.size()));
+  }
   RemoveSubset(subset_to_remove, records_);
 
   weighted_distribution_.RecomputeInternalState();

@@ -194,6 +194,24 @@ TEST(Corpus, ScalesWeightsWithExecTime) {
   EXPECT_GT(freq[1], freq[2] + 100);
 }
 
+TEST(Corpus, PruneCorpusWithAllEmptyFeatureInputs) {
+  PCTable pc_table(100);
+  CFTable cf_table(100);
+  BinaryInfo bin_info{pc_table, {}, cf_table, {}, {}, {}};
+  CoverageFrontier coverage_frontier(bin_info);
+  FeatureSet fs(1, {});
+  Corpus corpus;
+  Rng rng;
+  size_t max_corpus_size = 1000;
+
+  corpus.Add(/*data=*/{1}, /*fv=*/{}, /*metadata=*/{}, /*stats=*/{}, fs,
+             coverage_frontier);
+  corpus.Add(/*data=*/{2}, /*fv=*/{}, /*metadata=*/{}, /*stats=*/{}, fs,
+             coverage_frontier);
+  // Should not crash.
+  corpus.Prune(fs, coverage_frontier, max_corpus_size, rng);
+}
+
 // Regression test for a crash in Corpus::Prune().
 TEST(Corpus, PruneRegressionTest1) {
   PCTable pc_table(100);
