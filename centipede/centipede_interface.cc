@@ -564,9 +564,10 @@ int UpdateCorpusDatabaseForFuzzTests(
         FUZZTEST_LOG(ERROR)
             << "Early stop requested for test " << fuzz_tests_to_run[i]
             << " with failure exit code " << exit_code;
+      } else {
+        FUZZTEST_LOG(INFO) << "Skipping test " << fuzz_tests_to_run[i]
+                           << " due to early stop requested without failure.";
       }
-      FUZZTEST_LOG(INFO) << "Skipping test " << fuzz_tests_to_run[i]
-                         << " due to early stop requested without failure.";
       continue;
     }
 
@@ -598,9 +599,10 @@ int UpdateCorpusDatabaseForFuzzTests(
         FUZZTEST_LOG(ERROR)
             << "Early stop requested for test " << fuzz_tests_to_run[i]
             << " with failure exit code " << exit_code;
+      } else {
+        FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
+                              "requested without failure.";
       }
-      FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
-                            "requested without failure.";
       continue;
     }
     // The test time limit does not apply for the rest of the steps.
