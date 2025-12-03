@@ -59,8 +59,7 @@ cc_test(
     }),
     shard_count = 50,
     tags = [
-        # Don't cache the results.
-        "external",
+        "external",  # Don't cache the results.
     ],
     deps = [
         ":test_binary_util",
