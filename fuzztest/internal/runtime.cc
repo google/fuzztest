@@ -167,7 +167,8 @@ absl::string_view GetSeparator() {
 
 #if defined(FUZZTEST_HAS_SANITIZER)
 // clang-format off
-extern "C" void __sanitizer_report_error_summary(const char* error_summary) {
+extern "C" void __attribute__((visibility("default")))
+__sanitizer_report_error_summary(const char* error_summary) {
   // clang-format on
   absl::StatusOr<std::string> crash_type =
       ParseCrashTypeFromSanitizerSummary(error_summary);
