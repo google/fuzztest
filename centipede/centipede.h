@@ -185,6 +185,7 @@ class Centipede {
 
   FeatureSet fs_;
   Corpus corpus_;
+  Corpus::WeightMethod corpus_weight_method_;
   CoverageFrontier coverage_frontier_;
   size_t num_runs_ = 0;  // counts executed inputs
 
