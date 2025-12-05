@@ -19,6 +19,7 @@
 #include "absl/strings/str_format.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./common/hash.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -44,8 +45,9 @@ void CrashSummary::Report(absl::FormatRawSink sink) const {
     absl::Format(sink, "Crash #%d:\n", ++i);
     absl::Format(sink, "  Crash ID   : %s\n", crash.id);
     absl::Format(sink, "  Category   : %s\n", crash.category);
-    absl::Format(sink, "  Signature  : %s\n",
-                 AsPrintableString(AsByteSpan(crash.signature), 32));
+    absl::Format(
+        sink, "  Signature  : %s\n",
+        AsPrintableString(AsByteSpan(crash.signature), /*max_len=*/kHashLen));
     absl::Format(sink, "  Description: %s\n\n", crash.description);
   }
   absl::Format(sink, "=== End of summary of detected crashes ===\n\n");

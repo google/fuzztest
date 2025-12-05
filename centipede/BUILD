@@ -913,6 +913,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
     ],
 )
 

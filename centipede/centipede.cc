@@ -912,7 +912,7 @@ void Centipede::ReportCrash(std::string_view binary,
         << "\nFailure              : " << batch_result.failure_description()
         << "\nSignature            : "
         << AsPrintableString(AsByteSpan(batch_result.failure_signature()),
-                             /*max_len=*/32)
+                             /*max_len=*/kHashLen)
         << "\nNumber of inputs     : " << input_vec.size()
         << "\nNumber of inputs read: " << batch_result.num_outputs_read()
         << (batch_result.IsSetupFailure()
