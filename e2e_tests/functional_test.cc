@@ -1963,6 +1963,17 @@ TEST_P(FuzzingModeCrashFindingTest,
               Optional(Eq("SETUP FAILURE: SIGABRT")));
 }
 
+TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.UnexpectedlyExits", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path), Optional(Eq("unexpected-exit")));
+  ExpectTargetAbort(status, std_err);
+}
+
 TEST_P(FuzzingModeCrashFindingTest,
        CustomMutatorAndMutateCalllbackWorksForLLVMFuzzer) {
   TempDir out_dir;

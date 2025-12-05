@@ -674,6 +674,19 @@ void Runtime::PrintFinalStatsOnDefaultSink() const {}
 void Runtime::PrintReportOnDefaultSink() const {}
 #endif  // __linux__ || __APPLE__
 
+void InstallUnexpectedExitHandler() {
+  [[maybe_unused]] const bool installed = [] {
+    std::atexit([] { Runtime::instance().HandleUnexpectedExit(); });
+    return true;
+  }();
+}
+
+void Runtime::HandleUnexpectedExit() {
+  if (!reporter_enabled_) return;
+  SetCrashTypeIfUnset("unexpected-exit");
+  std::abort();
+}
+
 using corpus_type = GenericDomainCorpusType;
 
 FuzzTestFuzzerImpl::FuzzTestFuzzerImpl(

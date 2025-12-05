@@ -971,4 +971,8 @@ void FlatbuffersFailsWhenFieldsAreNotDefault(const DefaultTable* table) {
   }
 }
 FUZZ_TEST(MySuite, FlatbuffersFailsWhenFieldsAreNotDefault);
+
+void UnexpectedlyExits(int) { std::exit(0); }
+FUZZ_TEST(MySuite, UnexpectedlyExits);
+
 }  // namespace

@@ -109,6 +109,8 @@ struct RuntimeStats {
 
 void InstallSignalHandlers(FILE* report_out);
 
+void InstallUnexpectedExitHandler();
+
 // A function that is called when crash metadata is available.
 using CrashMetadataListener =
     absl::AnyInvocable<void(absl::string_view crash_type,
@@ -169,6 +171,7 @@ class Runtime {
     clock_fn_ = clock_fn;
     // In case we have not installed them yet, do so now.
     InstallSignalHandlers(GetStderr());
+    InstallUnexpectedExitHandler();
     ResetCrashType();
   }
   void DisableReporter() { reporter_enabled_ = false; }
@@ -205,6 +208,10 @@ class Runtime {
     }
   }
   void ResetCrashType() { crash_type_ = std::nullopt; }
+
+  // If the crash reporter is enabled, sets the crash type to unexpected-exit
+  // and aborts the process. Otherwise, does nothing.
+  void HandleUnexpectedExit();
 
   class Watchdog;
   // Returns a watchdog that periodically checks the time and memory limits in a
