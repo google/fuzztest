@@ -631,6 +631,7 @@ cc_library(
         ":stop",
         ":util",
         ":workdir",
+        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status:statusor",
