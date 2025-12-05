@@ -24,7 +24,7 @@
 #include "absl/strings/str_join.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {

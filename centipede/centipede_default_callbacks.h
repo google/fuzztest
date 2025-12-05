@@ -28,7 +28,7 @@
 #include "absl/status/statusor.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
 
