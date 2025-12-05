@@ -1,3 +1,17 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 namespace fuzztest.internal;
 
 enum ByteEnum: byte {
@@ -78,6 +92,27 @@ table DefaultTable {
   eu32: UIntEnum;
   eu64: ULongEnum;
   t: BoolTable;
+  v_b: [bool];
+  v_i8: [byte];
+  v_i16: [short];
+  v_i32: [int];
+  v_i64: [long];
+  v_u8: [ubyte];
+  v_u16: [ushort];
+  v_u32: [uint];
+  v_u64: [ulong];
+  v_f: [float];
+  v_d: [double];
+  v_str: [string];
+  v_ei8: [ByteEnum];
+  v_ei16: [ShortEnum];
+  v_ei32: [IntEnum];
+  v_ei64: [LongEnum];
+  v_eu8: [UByteEnum];
+  v_eu16: [UShortEnum];
+  v_eu32: [UIntEnum];
+  v_eu64: [ULongEnum];
+  v_t: [BoolTable];
 }
 
 table OptionalTable {
@@ -102,24 +137,6 @@ table OptionalTable {
   eu32: UIntEnum = null;
   eu64: ULongEnum = null;
   t: BoolTable;
-}
-
-table RequiredTable {
-  str: string (required);
-  t: BoolTable (required);
-}
-
-table RecursiveTable {
-  t: NestedRecursiveTable;
-}
-
-table NestedRecursiveTable {
-  t: RecursiveTable;
-}
-
-table UnsupportedTypesTable {
-  u: Union;
-  s: BoolStruct;
   v_b: [bool];
   v_i8: [byte];
   v_i16: [short];
@@ -141,6 +158,45 @@ table UnsupportedTypesTable {
   v_eu32: [UIntEnum];
   v_eu64: [ULongEnum];
   v_t: [BoolTable];
+}
+
+table RequiredTable {
+  str: string (required);
+  t: BoolTable (required);
+  v_b: [bool] (required);
+  v_i8: [byte] (required);
+  v_i16: [short] (required);
+  v_i32: [int] (required);
+  v_i64: [long] (required);
+  v_u8: [ubyte] (required);
+  v_u16: [ushort] (required);
+  v_u32: [uint] (required);
+  v_u64: [ulong] (required);
+  v_f: [float] (required);
+  v_d: [double] (required);
+  v_str: [string] (required);
+  v_ei8: [ByteEnum] (required);
+  v_ei16: [ShortEnum] (required);
+  v_ei32: [IntEnum] (required);
+  v_ei64: [LongEnum] (required);
+  v_eu8: [UByteEnum] (required);
+  v_eu16: [UShortEnum] (required);
+  v_eu32: [UIntEnum] (required);
+  v_eu64: [ULongEnum] (required);
+  v_t: [BoolTable] (required);
+}
+
+table RecursiveTable {
+  t: NestedRecursiveTable;
+}
+
+table NestedRecursiveTable {
+  t: RecursiveTable;
+}
+
+table UnsupportedTypesTable {
+  u: Union;
+  s: BoolStruct;
   v_u: [Union];
   v_s: [BoolStruct];
 }
