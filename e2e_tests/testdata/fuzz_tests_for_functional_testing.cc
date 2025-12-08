@@ -975,4 +975,11 @@ FUZZ_TEST(MySuite, FlatbuffersFailsWhenFieldsAreNotDefault);
 void UnexpectedlyExits(int) { std::exit(0); }
 FUZZ_TEST(MySuite, UnexpectedlyExits);
 
+void UnexpectedlyImmediatelyExitsWithoutCleanup(int) {
+  // `std::_Exit(0)` is a corner case that we can't distinguish from a
+  // successful exit.
+  std::_Exit(1);
+}
+FUZZ_TEST(MySuite, UnexpectedlyImmediatelyExitsWithoutCleanup);
+
 }  // namespace

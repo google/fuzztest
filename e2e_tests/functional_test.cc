@@ -1975,6 +1975,20 @@ TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
+       HandlesUnexpectedImmediateExitWithoutCleanup) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  // We can't intercept `std::_Exit()` from within a process. We can only do it
+  // with Centipede as an external controller.
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  auto [status, std_out, std_err] =
+      Run("MySuite.UnexpectedlyImmediatelyExitsWithoutCleanup");
+  EXPECT_THAT_LOG(std_err,
+                  ContainsRegex(R"re(Failure\s*:\s+unexpected-termination)re"));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
        CustomMutatorAndMutateCalllbackWorksForLLVMFuzzer) {
   TempDir out_dir;
   auto [status, std_out, std_err] =

@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -569,20 +570,31 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   if (env_.print_runner_log) PrintExecutionLog();
 
+  // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
+  // the target exits via `std::_Exit(0)`.
   if (exit_code != EXIT_SUCCESS) {
     ReadFromLocalFile(execute_log_path_, batch_result.log());
-    ReadFromLocalFile(failure_description_path_,
-                      batch_result.failure_description());
-    if (std::filesystem::exists(failure_signature_path_)) {
-      ReadFromLocalFile(failure_signature_path_,
-                        batch_result.failure_signature());
+
+    if (std::filesystem::exists(failure_description_path_)) {
+      ReadFromLocalFile(failure_description_path_,
+                        batch_result.failure_description());
+      if (std::filesystem::exists(failure_signature_path_)) {
+        ReadFromLocalFile(failure_signature_path_,
+                          batch_result.failure_signature());
+      } else {
+        // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch
+        // can be removed. Crash deduplication assumes that the failure
+        // signature contains no dashes and that it can be used as a file name.
+        batch_result.failure_signature() =
+            Hash(batch_result.failure_description());
+      }
     } else {
-      // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch can
-      // be removed.
-      // Crash deduplication assumes that the failure signature contains no
-      // dashes and that it can be used as a file name.
-      batch_result.failure_signature() =
-          Hash(batch_result.failure_description());
+      static constexpr std::string_view kFallbackFailureDescription =
+          "unexpected-termination";
+      static const absl::NoDestructor<std::string> fallback_failure_signature{
+          Hash(kFallbackFailureDescription)};
+      batch_result.failure_description() = kFallbackFailureDescription;
+      batch_result.failure_signature() = *fallback_failure_signature;
     }
     // Remove the failure description and signature files here so that they do
     // not stay until another failed execution.
