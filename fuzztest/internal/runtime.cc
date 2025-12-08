@@ -675,10 +675,16 @@ void Runtime::PrintReportOnDefaultSink() const {}
 #endif  // __linux__ || __APPLE__
 
 void InstallUnexpectedExitHandler() {
+#ifndef FUZZTEST_COMPATIBILITY_MODE
+  // In compatibility mode we don't install the handler because libFuzzer
+  // always explicitly exits, so every run would finish with an unexpected
+  // exit.
+  // https://github.com/llvm/llvm-project/blob/fa511cde48ea218dadfa8b35658ac06368f34607/compiler-rt/lib/fuzzer/FuzzerDriver.cpp#L930
   [[maybe_unused]] const bool installed = [] {
     std::atexit([] { Runtime::instance().HandleUnexpectedExit(); });
     return true;
   }();
+#endif
 }
 
 void Runtime::HandleUnexpectedExit() {
