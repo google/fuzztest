@@ -438,7 +438,6 @@ bool Centipede::RunBatch(
     return false;
   }
   FUZZTEST_CHECK_EQ(batch_result.results().size(), input_vec.size());
-  num_runs_ += input_vec.size();
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < input_vec.size(); i++) {
     if (ShouldStop()) break;
@@ -474,6 +473,7 @@ bool Centipede::RunBatch(
       }
     }
   }
+  num_runs_ += batch_result.num_outputs_read();
   corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }
