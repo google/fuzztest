@@ -68,7 +68,7 @@
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"  // IWYU pragma: export
-#include "./fuzztest/internal/serialization.h"
+#include "./fuzztest/internal/serialization.h"  // IWYU pragma: export
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
