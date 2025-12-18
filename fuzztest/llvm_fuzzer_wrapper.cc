@@ -102,7 +102,7 @@ using ::fuzztest::domain_implementor::MutationMetadata;
 class LLVMFuzzerMutateMetadataManager {
  public:
   void Activate(MutationMetadata mutation_metadata) {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     FUZZTEST_CHECK(!mutation_metadata_.has_value())
         << "MutationMetadata is already active before calling Activate()!";
     FUZZTEST_CHECK(acquire_count_ == 0) << "MutationMetadata still has readers "
@@ -111,7 +111,7 @@ class LLVMFuzzerMutateMetadataManager {
   }
 
   void Deactivate() {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     FUZZTEST_CHECK(mutation_metadata_.has_value())
         << "MutationMetadata is not active before calling Deactivate()!";
     FUZZTEST_CHECK(acquire_count_ == 0)
@@ -120,7 +120,7 @@ class LLVMFuzzerMutateMetadataManager {
   }
 
   const MutationMetadata& Acquire() {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     FUZZTEST_PRECONDITION(mutation_metadata_.has_value())
         << "Cannot acquire unavailable mutation metadata, likely due to the "
            "fuzzer calling LLVMFuzzerMutate() outside of "
@@ -130,7 +130,7 @@ class LLVMFuzzerMutateMetadataManager {
   }
 
   void Release() {
-    absl::MutexLock lock(&mu_);
+    absl::MutexLock lock(mu_);
     FUZZTEST_CHECK(mutation_metadata_.has_value())
         << "MutationMetadata is not active before calling Release()!";
     FUZZTEST_CHECK(acquire_count_ > 0)
