@@ -23,6 +23,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/meta.h"
@@ -85,7 +86,7 @@ class OneOfImpl
 
   value_type GetValue(const corpus_type& v) const {
     return Switch<kNumDomains>(v.index(), [&](auto I) -> value_type {
-      auto domain = std::get<I>(domains_);
+      const auto& domain = std::get<I>(domains_);
       return domain.GetValue(std::get<I>(v));
     });
   }
