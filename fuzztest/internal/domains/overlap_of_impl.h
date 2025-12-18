@@ -118,7 +118,7 @@ class OverlapOfImpl
 
   value_type GetValue(const corpus_type& v) const {
     return Switch<kNumDomains>(v.index(), [&](auto I) -> value_type {
-      auto domain = std::get<I>(domains_);
+      const auto& domain = std::get<I>(domains_);
       return domain.GetValue(std::get<I>(v));
     });
   }
