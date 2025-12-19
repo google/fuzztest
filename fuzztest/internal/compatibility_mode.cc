@@ -141,7 +141,7 @@ std::string FuzzTestExternalEngineAdaptor::MutateData(absl::string_view data,
       impl.params_domain_.Mutate(copy, prng,
                                  /*only_shrink=*/max_size < data.size());
     }
-    result = impl.params_domain_.SerializeCorpus(copy).ToString();
+    result = SerializeIRObject(impl.params_domain_.SerializeCorpus(copy));
     if (result.size() <= max_size) break;
   }
   return result;

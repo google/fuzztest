@@ -277,9 +277,8 @@ std::string Runtime::DumpReproducer() const {
   FUZZTEST_CHECK(!out_location.dir_path.empty())
       << "Reproducer output directory must not be empty if "
          "not reporting to controller.";
-  const std::string content =
-      current_args_->domain.SerializeCorpus(current_args_->corpus_value)
-          .ToString();
+  const std::string content = SerializeIRObject(
+      current_args_->domain.SerializeCorpus(current_args_->corpus_value));
   std::string path = WriteDataToDir(content, out_location.dir_path);
   if (path.empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
@@ -721,7 +720,7 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
 
 absl::StatusOr<corpus_type> FuzzTestFuzzerImpl::TryParse(
     absl::string_view data) {
-  auto ir_value = IRObject::FromString(data);
+  auto ir_value = ParseIRObject(data);
   if (!ir_value) {
     return absl::InvalidArgumentError("Unexpected file format");
   }
@@ -773,7 +772,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
-        params_domain_.SerializeCorpus(*to_minimize).ToString();
+        SerializeIRObject(params_domain_.SerializeCorpus(*to_minimize));
 
     // In minimize mode we keep mutating the given reproducer value with
     // `only_shrink=true` until we crash. We drop mutations that don't
@@ -792,7 +791,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
       // now.
-      if (params_domain_.SerializeCorpus(copy).ToString() ==
+      if (SerializeIRObject(params_domain_.SerializeCorpus(copy)) ==
           original_serialized) {
         continue;
       }
@@ -987,8 +986,9 @@ FuzzTestFuzzerImpl::TryReadCorpusFromFiles() {
 
 void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   if (corpus_out_dir_.empty()) return;
-  if (WriteDataToDir(params_domain_.SerializeCorpus(input.args).ToString(),
-                     corpus_out_dir_)
+  if (WriteDataToDir(
+          SerializeIRObject(params_domain_.SerializeCorpus(input.args)),
+          corpus_out_dir_)
           .empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write corpus file.\n");
   }
@@ -1194,9 +1194,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // Only run it if it actually is different. Random mutations might
     // not actually change the value, or we have reached a minimum that can't be
     // minimized anymore.
-    if (params_domain_.SerializeCorpus(minimal_non_fatal_counterexample_->args)
-            .ToString() !=
-        params_domain_.SerializeCorpus(copy.args).ToString()) {
+    if (SerializeIRObject(params_domain_.SerializeCorpus(
+            minimal_non_fatal_counterexample_->args)) !=
+        SerializeIRObject(params_domain_.SerializeCorpus(copy.args))) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {

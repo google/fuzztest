@@ -213,6 +213,7 @@ cc_test(
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal:type_support",
         "@googletest//:gtest_main",
     ],

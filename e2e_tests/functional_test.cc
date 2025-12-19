@@ -803,7 +803,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -826,7 +826,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -984,7 +984,8 @@ class ReplayFile {
   template <typename T>
   ReplayFile(std::in_place_t, const T& corpus) {
     filename_ = dir_.path() / "replay_file";
-    WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString());
+    WriteFile(filename_,
+              SerializeIRObject(internal::IRObject::FromCorpus(corpus)));
   }
 
   auto GetReplayEnv() const {
@@ -1037,7 +1038,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<uint8_t, double>>();
   EXPECT_THAT(args, Optional(FieldsAre(10, _))) << std_err;
@@ -1077,7 +1078,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
 
     auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
-    auto parsed = IRObject::FromString(replay_files[0].data);
+    auto parsed = ParseIRObject(replay_files[0].data);
     ASSERT_TRUE(parsed) << std_err;
     auto args = parsed->ToCorpus<std::tuple<std::string>>();
     ASSERT_THAT(args, Optional(FieldsAre(HasSubstr("X"))));

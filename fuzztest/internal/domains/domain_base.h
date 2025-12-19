@@ -39,6 +39,8 @@
 
 namespace fuzztest::domain_implementor {
 
+using IRObject = ::fuzztest::internal::IRObject;
+
 // `DomainBase` is the base class for all domain implementations.
 //
 // The type parameters are as follows:
@@ -143,14 +145,14 @@ class DomainBase {
     return v;
   }
 
-  std::optional<CorpusType> ParseCorpus(const internal::IRObject& obj) const {
+  std::optional<CorpusType> ParseCorpus(const IRObject& obj) const {
     static_assert(!has_custom_corpus_type);
     return obj.ToCorpus<CorpusType>();
   }
 
-  internal::IRObject SerializeCorpus(const CorpusType& v) const {
+  IRObject SerializeCorpus(const CorpusType& v) const {
     static_assert(!has_custom_corpus_type);
-    return internal::IRObject::FromCorpus(v);
+    return IRObject::FromCorpus(v);
   }
 
   void UpdateMemoryDictionary(const CorpusType& val, ConstCmpTablesPtr) {}

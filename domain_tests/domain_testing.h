@@ -239,8 +239,9 @@ void VerifyRoundTripThroughConversion(const Value<Domain>& v,
         << "v=" << v << " new_v=" << testing::PrintToString(new_v);
   }
   {
-    auto serialized = domain.SerializeCorpus(v.corpus_value).ToString();
-    auto parsed = internal::IRObject::FromString(serialized);
+    auto serialized =
+        internal::SerializeIRObject(domain.SerializeCorpus(v.corpus_value));
+    auto parsed = internal::ParseIRObject(serialized);
     ASSERT_TRUE(parsed);
     auto parsed_corpus = domain.ParseCorpus(*parsed);
     ASSERT_TRUE(parsed_corpus)

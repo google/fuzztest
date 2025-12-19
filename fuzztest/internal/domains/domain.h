@@ -378,7 +378,7 @@ namespace internal {
 template <typename DomainT>
 absl::StatusOr<typename DomainT::value_type> ParseOneReproducerValue(
     absl::string_view data, DomainT domain) {
-  const auto ir_object = IRObject::FromString(data);
+  const auto ir_object = ParseIRObject(data);
   if (!ir_object) {
     return absl::InvalidArgumentError("Unexpected reproducer format");
   }

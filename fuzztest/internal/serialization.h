@@ -47,7 +47,7 @@ inline constexpr bool is_bytevector_v<std::vector<uint8_t>> = true;
 template <>
 inline constexpr bool is_bytevector_v<std::vector<std::byte>> = true;
 
-struct IRObject;
+namespace no_adl {
 
 // Simple intermediate representation object and ParseInput/SerializeInput
 // functions for it.
@@ -68,19 +68,28 @@ struct IRObject;
 // is repeated, but the C++ type enforces the invariant that only one field is
 // set.
 
-struct IRObject {
+class IRObject {
+ public:
   using Value = std::variant<std::monostate, uint64_t, double, std::string,
                              std::vector<IRObject>>;
-  Value value;
-
   IRObject() = default;
   template <
       typename T,
       std::enable_if_t<std::is_enum_v<T> || std::is_integral_v<T>, int> = 0>
-  explicit IRObject(T v) : value(static_cast<uint64_t>(v)) {}
+  explicit IRObject(T v) : value_(static_cast<uint64_t>(v)) {}
   template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
-  explicit IRObject(T v) : value(static_cast<double>(v)) {}
-  explicit IRObject(Value v) : value(std::move(v)) {}
+  explicit IRObject(T v) : value_(static_cast<double>(v)) {}
+  explicit IRObject(Value v) : value_(std::move(v)) {}
+
+  // Returns true if any value (scalar or subs) has been set, false otherwise.
+  bool HasValue() const {
+    return !std::holds_alternative<std::monostate>(value_);
+  }
+
+  // Returns true if it has subs, false otherwise.
+  bool HasSubs() const {
+    return std::holds_alternative<std::vector<IRObject>>(value_);
+  }
 
   // Accessors for scalars to simplify their use, and hide conversions when
   // needed.
@@ -92,15 +101,15 @@ struct IRObject {
       auto inner = GetScalar<std::underlying_type_t<T>>();
       return inner ? std::optional(static_cast<T>(*inner)) : std::nullopt;
     } else if constexpr (std::is_integral_v<T>) {
-      const uint64_t* i = std::get_if<uint64_t>(&value);
+      const uint64_t* i = std::get_if<uint64_t>(&value_);
       return i != nullptr ? std::optional(static_cast<T>(*i)) : std::nullopt;
     } else if constexpr (std::is_same_v<float, T> ||
                          std::is_same_v<double, T>) {
-      const double* i = std::get_if<double>(&value);
+      const double* i = std::get_if<double>(&value_);
       return i != nullptr ? std::optional(static_cast<T>(*i)) : std::nullopt;
     } else if constexpr (std::is_same_v<std::string, T>) {
       std::optional<absl::string_view> out;
-      if (const auto* s = std::get_if<std::string>(&value)) {
+      if (const auto* s = std::get_if<std::string>(&value_)) {
         out = *s;
       }
       return out;
@@ -115,25 +124,38 @@ struct IRObject {
     if constexpr (std::is_enum_v<T>) {
       SetScalar(static_cast<std::underlying_type_t<T>>(v));
     } else if constexpr (std::is_integral_v<T>) {
-      value = static_cast<uint64_t>(v);
+      value_ = static_cast<uint64_t>(v);
     } else if constexpr (std::is_same_v<float, T> ||
                          std::is_same_v<double, T>) {
-      value = static_cast<double>(v);
+      value_ = static_cast<double>(v);
     } else if constexpr (std::is_same_v<std::string, T>) {
-      value = std::move(v);
+      value_ = std::move(v);
     } else {
       static_assert(always_false<T>, "Invalid type");
     }
   }
 
+  // Sets this node have the Scalar type T, and returns a mutable reference to
+  // the value.
+  template <typename T>
+  auto& MutableScalar() {
+    if constexpr (is_monostate_v<T>) {
+      static_assert(always_false<T>, "Invalid type");
+    }
+    if (!std::holds_alternative<T>(value_)) {
+      value_.emplace<T>();
+    }
+    return std::get<T>(value_);
+  }
+
   // If this node contains subs, return it as a Span. Otherwise, nullopt.
   std::optional<absl::Span<const IRObject>> Subs() const {
-    if (const auto* i = std::get_if<std::vector<IRObject>>(&value)) {
+    if (const auto* i = std::get_if<std::vector<IRObject>>(&value_)) {
       return *i;
     }
     // The empty vector is serialized the same way as the monostate: nothing.
     // Handle that case too.
-    if (std::holds_alternative<std::monostate>(value)) {
+    if (std::holds_alternative<std::monostate>(value_)) {
       return absl::Span<const IRObject>{};
     }
     return std::nullopt;
@@ -143,10 +165,10 @@ struct IRObject {
   // them.
   // Overwrites any existing data.
   std::vector<IRObject>& MutableSubs() {
-    if (!std::holds_alternative<std::vector<IRObject>>(value)) {
-      value.emplace<std::vector<IRObject>>();
+    if (!std::holds_alternative<std::vector<IRObject>>(value_)) {
+      value_.emplace<std::vector<IRObject>>();
     }
-    return std::get<std::vector<IRObject>>(value);
+    return std::get<std::vector<IRObject>>(value_);
   }
 
   // Conversion functions to map IRObject to/from corpus values.
@@ -224,7 +246,7 @@ struct IRObject {
     if constexpr (std::is_const_v<T>) {
       return ToCorpus<std::remove_const_t<T>>();
     } else if constexpr (is_monostate_v<T>) {
-      if (std::holds_alternative<std::monostate>(value)) return T{};
+      if (std::holds_alternative<std::monostate>(value_)) return T{};
       return std::nullopt;
     } else if constexpr (std::is_same_v<T, IRObject>) {
       return *this;
@@ -252,13 +274,13 @@ struct IRObject {
       }
       return std::nullopt;
     } else if constexpr (is_protocol_buffer_v<T>) {
-      const std::string* v = std::get_if<std::string>(&value);
+      const std::string* v = std::get_if<std::string>(&value_);
       T out;
       if (v && out.ParseFromString(*v)) return out;
       return std::nullopt;
     } else if constexpr (is_dynamic_container_v<T>) {
       if constexpr (is_bytevector_v<T>) {
-        const std::string* v = std::get_if<std::string>(&value);
+        const std::string* v = std::get_if<std::string>(&value_);
         if (v) {
           T out;
           out.resize(v->size());
@@ -296,10 +318,15 @@ struct IRObject {
     }
   }
 
-  // Serialize the object as a string. This is used to persist the object on
-  // files for reproducing bugs later.
-  std::string ToString(bool binary_format = true) const;
-  static std::optional<IRObject> FromString(absl::string_view str);
+  template <typename F>
+  void visit(F&& visitor) const {
+    std::visit(std::forward<F>(visitor), value_);
+  }
+
+  template <typename F>
+  void visit(F&& visitor) {
+    std::visit(std::forward<F>(visitor), value_);
+  }
 
  private:
   template <typename T>
@@ -308,7 +335,19 @@ struct IRObject {
   template <typename K, typename V>
   static std::pair<std::remove_const_t<K>, std::remove_const_t<V>>
       RemoveConstFromPair(std::pair<K, V>);
+
+  Value value_;
 };
+
+}  // namespace no_adl
+
+using no_adl::IRObject;
+
+// Serializes `obj` as a string. This is used to persist the object on
+// files for reproducing bugs later.
+std::string SerializeIRObject(const IRObject& obj, bool binary_format = true);
+// Parses `str` and returns an IRObject, or std::nullopt if the parsing failed.
+std::optional<IRObject> ParseIRObject(absl::string_view str);
 
 }  // namespace fuzztest::internal
 

@@ -246,13 +246,13 @@ TYPED_TEST(NumericTest, InRangeValueIsParsedCorrectly) {
       : is_at_most_64_bit_integer      ? "i: $0"
                                        : R"(sub { i: 0 } sub { i: $0 })";
 
-  auto corpus_value = domain.ParseCorpus(*IRObject::FromString(absl::StrCat(
+  auto corpus_value = domain.ParseCorpus(*internal::ParseIRObject(absl::StrCat(
       "FUZZTESTv1 ",
       absl::Substitute(serialized_format, static_cast<int32_t>(max)))));
   ASSERT_TRUE(corpus_value.has_value());
   EXPECT_OK(domain.ValidateCorpusValue(*corpus_value));
 
-  corpus_value = domain.ParseCorpus(*IRObject::FromString(absl::StrCat(
+  corpus_value = domain.ParseCorpus(*internal::ParseIRObject(absl::StrCat(
       "FUZZTESTv1 ",
       absl::Substitute(serialized_format, static_cast<int32_t>(max) + 1))));
   // Greater than max should be parsed, but rejected by validation.

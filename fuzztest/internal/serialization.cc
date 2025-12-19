@@ -34,7 +34,6 @@ namespace fuzztest::internal {
 namespace {
 
 struct OutputVisitor {
-  size_t index;
   int indent;
   std::string& out;
 
@@ -62,13 +61,12 @@ struct OutputVisitor {
 
   void operator()(const std::vector<IRObject>& value) const {
     for (const auto& sub : value) {
-      const bool sub_is_scalar =
-          !std::holds_alternative<std::vector<IRObject>>(sub.value);
+      const bool has_subs = sub.HasSubs();
       absl::StrAppendFormat(&out, "%*ssub {%s", indent, "",
-                            sub_is_scalar ? " " : "\n");
-      std::visit(OutputVisitor{sub.value.index(), indent + 2, out}, sub.value);
-      absl::StrAppendFormat(&out, "%*s}\n", sub_is_scalar ? 0 : indent,
-                            sub_is_scalar ? " " : "");
+                            has_subs ? "\n" : " ");
+      sub.visit(OutputVisitor{indent + 2, out});
+      absl::StrAppendFormat(&out, "%*s}\n", has_subs ? indent : 0,
+                            has_subs ? "" : " ");
     }
   }
 };
@@ -143,7 +141,7 @@ bool ParseImpl(IRObject& obj, absl::string_view& str, int recursion_depth) {
   }
 
   if (key == "sub") {
-    auto& v = obj.value.emplace<std::vector<IRObject>>();
+    auto& v = obj.MutableSubs();
     do {
       if (ReadToken(str) != "{") return false;
       if (!ParseImpl(v.emplace_back(), str, recursion_depth + 1)) return false;
@@ -157,13 +155,12 @@ bool ParseImpl(IRObject& obj, absl::string_view& str, int recursion_depth) {
   } else {
     if (ReadToken(str) != ":") return false;
     auto value = ReadToken(str);
-    auto& v = obj.value;
     if (key == "i") {
-      return ReadScalar(v.emplace<uint64_t>(), value);
+      return ReadScalar(obj.MutableScalar<uint64_t>(), value);
     } else if (key == "d") {
-      return ReadScalar(v.emplace<double>(), value);
+      return ReadScalar(obj.MutableScalar<double>(), value);
     } else if (key == "s") {
-      return ReadScalar(v.emplace<std::string>(), value);
+      return ReadScalar(obj.MutableScalar<std::string>(), value);
     } else {
       // Unrecognized key
       return false;
@@ -227,7 +224,7 @@ struct BinaryOutputVisitor {
     }
     offset += 1 + sizeof(size);
     for (const auto& sub : value) {
-      std::visit(BinaryOutputVisitor{buf, offset}, sub.value);
+      sub.visit(BinaryOutputVisitor{buf, offset});
     }
   }
 };
@@ -257,14 +254,14 @@ bool BinaryParse(IRObject& obj, BinaryParseBuf& buf, int recursion_depth) {
     }
     case BinaryFormatHeader::kUInt64: {
       if (buf.size < sizeof(uint64_t)) return false;
-      auto& t = obj.value.emplace<uint64_t>();
+      auto& t = obj.MutableScalar<uint64_t>();
       std::memcpy(&t, buf.str, sizeof(uint64_t));
       buf.Advance(sizeof(uint64_t));
       return true;
     }
     case BinaryFormatHeader::kDouble: {
       if (buf.size < sizeof(double)) return false;
-      auto& t = obj.value.emplace<double>();
+      auto& t = obj.MutableScalar<double>();
       std::memcpy(&t, buf.str, sizeof(t));
       buf.Advance(sizeof(double));
       return true;
@@ -275,7 +272,7 @@ bool BinaryParse(IRObject& obj, BinaryParseBuf& buf, int recursion_depth) {
       std::memcpy(&str_size, buf.str, sizeof(str_size));
       buf.Advance(sizeof(uint64_t));
       if (buf.size < str_size) return false;
-      obj.value.emplace<std::string>() = {buf.str,
+      obj.MutableScalar<std::string>() = {buf.str,
                                           static_cast<size_t>(str_size)};
       buf.Advance(str_size);
       return true;
@@ -287,7 +284,7 @@ bool BinaryParse(IRObject& obj, BinaryParseBuf& buf, int recursion_depth) {
       buf.Advance(sizeof(vec_size));
       // This could happen for malformed inputs.
       if (vec_size > buf.size) return false;
-      auto& v = obj.value.emplace<std::vector<IRObject>>();
+      auto& v = obj.MutableSubs();
       v.reserve(vec_size);
       for (uint64_t i = 0; i < vec_size; ++i) {
         if (!BinaryParse(v.emplace_back(), buf, recursion_depth + 1))
@@ -309,26 +306,26 @@ bool IsInBinaryFormat(absl::string_view str) {
 
 }  // namespace
 
-std::string IRObject::ToString(bool binary_format) const {
+std::string SerializeIRObject(const IRObject& obj, bool binary_format) {
   if (binary_format) {
     size_t offset = kBinaryHeader.size();
     // Determine the output size before writing to the output to avoid
     // reallocation.
-    std::visit(BinaryOutputVisitor{/*buf=*/nullptr, offset}, value);
+    obj.visit(BinaryOutputVisitor{/*buf=*/nullptr, offset});
     std::string out;
     out.resize(offset);
     std::memcpy(out.data(), kBinaryHeader.data(), kBinaryHeader.size());
     offset = kBinaryHeader.size();
-    std::visit(BinaryOutputVisitor{out.data(), offset}, value);
+    obj.visit(BinaryOutputVisitor{out.data(), offset});
     return out;
   }
   std::string out = absl::StrCat(kHeader, "\n");
-  std::visit(OutputVisitor{value.index(), 0, out}, value);
+  obj.visit(OutputVisitor{0, out});
   return out;
 }
 
 // TODO(lszekeres): Return StatusOr<IRObject>.
-std::optional<IRObject> IRObject::FromString(absl::string_view str) {
+std::optional<IRObject> ParseIRObject(absl::string_view str) {
   IRObject object;
   if (IsInBinaryFormat(str)) {
     BinaryParseBuf buf = {str.data(), str.size()};

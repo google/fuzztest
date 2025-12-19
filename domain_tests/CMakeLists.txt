@@ -189,6 +189,7 @@ fuzztest_cc_test(
     absl::span
     fuzztest::domain_core
     fuzztest::meta
+    fuzztest::serialization
     fuzztest::type_support
     GTest::gmock_main
 )

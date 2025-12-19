@@ -40,26 +40,31 @@ namespace {
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::FieldsAre;
+using ::testing::IsFalse;
 using ::testing::NanSensitiveDoubleEq;
 using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
+using ::testing::Property;
 using ::testing::StartsWith;
 using ::testing::VariantWith;
+
+auto HasNoValue() { return Property(&IRObject::HasValue, IsFalse()); }
 
 template <typename T>
 auto ValueIs(const T& v) {
   if constexpr (std::is_same_v<T, double>) {
-    return FieldsAre(VariantWith<double>(NanSensitiveDoubleEq(v)));
+    return Property(&IRObject::GetScalar<T>, Optional(NanSensitiveDoubleEq(v)));
   } else {
-    return FieldsAre(VariantWith<T>(v));
+    return Property(&IRObject::GetScalar<T>, Optional(Eq(v)));
   }
 }
 
 template <typename... T>
 auto SubsAre(const T&... v) {
-  return FieldsAre(VariantWith<std::vector<IRObject>>(ElementsAre(v...)));
+  return Property(&IRObject::Subs, Optional(ElementsAre(v...)));
 }
 
 struct VerifyVisitor {
@@ -81,7 +86,7 @@ struct VerifyVisitor {
     EXPECT_EQ(0, proto.value_case());
     ASSERT_EQ(subs.size(), proto.sub_size());
     for (int i = 0; i < subs.size(); ++i) {
-      std::visit(VerifyVisitor{proto.sub(i)}, subs[i].value);
+      subs[i].visit(VerifyVisitor{proto.sub(i)});
     }
   }
 
@@ -92,18 +97,18 @@ struct VerifyVisitor {
 };
 
 TEST(SerializerTest, HeaderIsCorrect) {
-  EXPECT_THAT(IRObject(0).ToString(/*binary_format=*/false),
+  EXPECT_THAT(SerializeIRObject(IRObject{0}, /*binary_format=*/false),
               AllOf(StartsWith("FUZZTESTv1"), Not(StartsWith("FUZZTESTv1b"))));
-  EXPECT_THAT(IRObject(0).ToString(/*binary_format=*/true),
+  EXPECT_THAT(SerializeIRObject(IRObject{0}, /*binary_format=*/true),
               StartsWith("FUZZTESTv1b"));
 }
 
 // We manually write the serialized form to test the error handling of the
 // parser. The serializer would not generate these, so we can't use it.
 TEST(SerializerTest, WrongHeaderWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv2"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZtESTv1"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("-FUZZTESTv1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv2"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZtESTv1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("-FUZZTESTv1"), Not(Optional(_)));
 }
 
 TEST(SerializerTest, SubsAccesors) {
@@ -134,22 +139,24 @@ IRObject CreateRecursiveObject(int depth) {
 }
 
 TEST(SerializerTest, RecursiveStructureBelowDepthLimitGetsParsed) {
-  EXPECT_TRUE(IRObject::FromString(CreateRecursiveObject(/*depth=*/100)
-                                       .ToString(/*binary_format=*/false))
-                  .has_value());
   EXPECT_TRUE(
-      IRObject::FromString(
-          CreateRecursiveObject(/*depth=*/100).ToString(/*binary_format=*/true))
+      ParseIRObject(SerializeIRObject(CreateRecursiveObject(/*depth=*/100),
+                                      /*binary_format=*/false))
+          .has_value());
+  EXPECT_TRUE(
+      ParseIRObject(SerializeIRObject(CreateRecursiveObject(/*depth=*/100),
+                                      /*binary_format=*/true))
           .has_value());
 }
 
 TEST(SerializerTest, RecursiveStructureAboveDepthLimitDoesNotGetParsed) {
-  EXPECT_FALSE(IRObject::FromString(CreateRecursiveObject(/*depth=*/150)
-                                        .ToString(/*binary_format=*/false))
-                   .has_value());
   EXPECT_FALSE(
-      IRObject::FromString(
-          CreateRecursiveObject(/*depth=*/150).ToString(/*binary_format=*/true))
+      ParseIRObject(SerializeIRObject(CreateRecursiveObject(/*depth=*/150),
+                                      /*binary_format=*/false))
+          .has_value());
+  EXPECT_FALSE(
+      ParseIRObject(SerializeIRObject(CreateRecursiveObject(/*depth=*/150),
+                                      /*binary_format=*/true))
           .has_value());
 }
 
@@ -162,26 +169,25 @@ class SerializerRoundTripTest
 
 void VerifyProtobufFormat(const IRObject& object) {
   IRObjectTestProto proto;
-  std::string s = object.ToString(/*binary_format=*/false);
+  std::string s = SerializeIRObject(object, /*binary_format=*/false);
   // Chop the header.
   s.erase(0, strlen("FUZZTESTv1\n"));
 
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(s, &proto));
-  std::visit(VerifyVisitor{proto}, object.value);
+  object.visit(VerifyVisitor{proto});
 }
 
 template <typename... T>
 void RoundTripVerify(bool binary_format, const T&... values) {
   IRObject object;
-  object.value = std::vector{IRObject{values}...};
-  std::string s = object.ToString(binary_format);
+  object.MutableSubs() = std::vector{IRObject{values}...};
+  std::string s = SerializeIRObject(object, binary_format);
 
   SCOPED_TRACE(s);
 
   if (!binary_format) VerifyProtobufFormat(object);
 
-  EXPECT_THAT(IRObject::FromString(s),
-              Optional(SubsAre(ValueIs<T>(values)...)));
+  EXPECT_THAT(ParseIRObject(s), Optional(SubsAre(ValueIs<T>(values)...)));
 }
 
 template <typename T>
@@ -205,13 +211,13 @@ TEST_P(SerializerRoundTripTest, SubobjectsRoundTrip) {
                                                      IRObject{"child3.2.2"}}}}},
       IRObject{"child4"}}};
 
-  std::string s = root.ToString(GetParam().binary_format);
+  std::string s = SerializeIRObject(root, GetParam().binary_format);
 
   SCOPED_TRACE(s);
 
   if (!GetParam().binary_format) VerifyProtobufFormat(root);
 
-  std::optional<IRObject> obj = IRObject::FromString(s);
+  std::optional<IRObject> obj = ParseIRObject(s);
   EXPECT_THAT(
       obj, Optional(SubsAre(
                ValueIs<std::string>("child1"), ValueIs<std::string>("child2"),
@@ -222,9 +228,9 @@ TEST_P(SerializerRoundTripTest, SubobjectsRoundTrip) {
 }
 
 TEST_P(SerializerRoundTripTest, EmptyObjectRoundTrips) {
-  std::string s = IRObject{}.ToString(GetParam().binary_format);
+  std::string s = SerializeIRObject(IRObject{}, GetParam().binary_format);
   SCOPED_TRACE(s);
-  EXPECT_THAT(IRObject::FromString(s), Optional(ValueIs<std::monostate>({})));
+  EXPECT_THAT(ParseIRObject(s), Optional(HasNoValue()));
 }
 
 template <typename T>
@@ -235,7 +241,7 @@ void TestScalarRoundTrips(bool binary_format, T value) {
   obj.SetScalar(value);
   EXPECT_THAT(obj.GetScalar<T>(), Optional(value));
 
-  auto roundtrip = IRObject::FromString(obj.ToString(binary_format));
+  auto roundtrip = ParseIRObject(SerializeIRObject(obj, binary_format));
   EXPECT_THAT(obj.GetScalar<T>(), Optional(value));
 }
 
@@ -272,7 +278,7 @@ TEST(TextFormatSerializerTest, IndentationIsCorrect) {
                                            IRObject{uint64_t{322}}}}}},
                   IRObject{uint64_t{4}}}};
 
-  std::string s = root.ToString(/*binary_format=*/false);
+  std::string s = SerializeIRObject(root, /*binary_format=*/false);
 
   EXPECT_EQ(s, R"(FUZZTESTv1
 sub { i: 1 }
@@ -285,43 +291,42 @@ sub {
   }
 }
 sub { i: 4 }
-)");
+)") << s;
 }
 
 TEST(TextFormatSerializerTest, HandlesUnterminatedString) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1\""), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1\""), Not(Optional(_)));
 }
 
 TEST(TextFormatSerializerTest, BadScalarWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 1"),
-              Optional(ValueIs<uint64_t>(1)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i: 1"), Optional(ValueIs<uint64_t>(1)));
   // Out of bounds values
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 123456789012345678901"),
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i: 123456789012345678901"),
               Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: -1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i: -1"), Not(Optional(_)));
   // Missing :
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i 1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i 1"), Not(Optional(_)));
   // Bad tag
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 x: 1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 x: 1"), Not(Optional(_)));
   // Wrong separator
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i; 1"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i; 1"), Not(Optional(_)));
   // Extra close
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 1}"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i: 1}"), Not(Optional(_)));
 }
 
 TEST(TextFormatSerializerTest, BadSubWontParse) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { i: 0 }"),
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub { i: 0 }"),
               Optional(SubsAre(ValueIs<uint64_t>(0))));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub: { }"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub  }"), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { "), Not(Optional(_)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub { } }"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub: { }"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub  }"), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub { "), Not(Optional(_)));
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub { } }"), Not(Optional(_)));
 }
 
 TEST(TextFormatSerializerTest, ExtraWhitespaceIsFine) {
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 i: 0 \n "),
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 i: 0 \n "),
               Optional(ValueIs<uint64_t>(0)));
-  EXPECT_THAT(IRObject::FromString("FUZZTESTv1 sub {   \n i:   0 \n}  \n "),
+  EXPECT_THAT(ParseIRObject("FUZZTESTv1 sub {   \n i:   0 \n}  \n "),
               Optional(SubsAre(ValueIs<uint64_t>(0))));
 }
 
@@ -330,11 +335,10 @@ TEST(BinaryFormatSerializerTest, MalformedObjectSizeIsRejectedWithoutOOM) {
       "FUZZTESTv1b\x04\x01\x00\x00\x00\x00\x00\x00\x00\x00";
   static constexpr char kBadInput[] =
       "FUZZTESTv1b\x04\xff\xff\xff\xff\xff\xff\xff\xff\x00";
-  EXPECT_THAT(IRObject::FromString({kGoodInput, sizeof(kGoodInput) - 1}),
-              Optional(SubsAre(ValueIs<std::monostate>({}))));
+  EXPECT_THAT(ParseIRObject({kGoodInput, sizeof(kGoodInput) - 1}),
+              Optional(SubsAre(HasNoValue())));
   // Expect grace failure instead of OOM error.
-  EXPECT_EQ(IRObject::FromString({kBadInput, sizeof(kBadInput) - 1}),
-            std::nullopt);
+  EXPECT_EQ(ParseIRObject({kBadInput, sizeof(kBadInput) - 1}), std::nullopt);
 }
 
 TEST(IRToCorpus, SpecializationIsBackwardCompatible) {
@@ -423,9 +427,7 @@ TEST(CorpusToIR, ValidRoundTrips) {
   EXPECT_THAT(obj.GetScalar<int>(), Optional(1979));
   obj.MutableSubs().emplace_back("ABC");
   obj = round_trip(obj).value();
-  EXPECT_THAT(
-      obj.Subs(),
-      Optional(ElementsAre(FieldsAre(VariantWith<std::string>("ABC")))));
+  EXPECT_THAT(obj.Subs(), Optional(ElementsAre(ValueIs<std::string>("ABC"))));
 }
 
 TEST(CorpusToIR, FailureConditions) {
@@ -438,7 +440,7 @@ TEST(CorpusToIR, FailureConditions) {
     using V = std::variant<int, std::string>;
     // Valid index, but bad value.
     IRObject var = IRObject::FromCorpus(V(2));
-    auto& v = std::get<std::vector<IRObject>>(var.value);
+    auto& v = var.MutableSubs();
     EXPECT_THAT(v[0].GetScalar<int>(), Optional(0));
     v[0] = IRObject(1);
     EXPECT_FALSE(var.ToCorpus<V>());

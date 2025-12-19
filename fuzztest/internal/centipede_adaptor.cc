@@ -88,6 +88,7 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
@@ -504,7 +505,7 @@ class CentipedeAdaptorRunnerCallbacks
     absl::c_shuffle(seeds, prng_);
     for (const auto& seed : seeds) {
       const auto seed_serialized =
-          fuzzer_impl_.params_domain_.SerializeCorpus(seed).ToString();
+          SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(seed));
       seed_callback(fuzztest::internal::AsByteSpan(seed_serialized));
     }
   }
@@ -528,9 +529,8 @@ class CentipedeAdaptorRunnerCallbacks
       constexpr double kDomainInitRatio = 0.0001;
       if (choice < kDomainInitRatio) {
         mutant_data =
-            fuzzer_impl_.params_domain_
-                .SerializeCorpus(fuzzer_impl_.params_domain_.Init(prng_))
-                .ToString();
+            SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(
+                fuzzer_impl_.params_domain_.Init(prng_)));
       } else {
         const auto origin_index =
             absl::Uniform<size_t>(prng_, 0, inputs.size());
@@ -552,8 +552,8 @@ class CentipedeAdaptorRunnerCallbacks
             mutant, prng_,
             {cmp_tables[origin_index].has_value() ? &*cmp_tables[origin_index]
                                                   : nullptr});
-        mutant_data =
-            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
+        mutant_data = SerializeIRObject(
+            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args));
       }
       new_mutant_callback(
           {(unsigned char*)mutant_data.data(), mutant_data.size()});

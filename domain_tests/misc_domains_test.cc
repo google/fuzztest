@@ -34,6 +34,7 @@
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest {
@@ -264,12 +265,16 @@ TEST(OverlapOf, UsesSerializationDomain) {
     ASSERT_TRUE(domain_0_corpus.has_value());
     auto domain_1_corpus = domain_1.FromValue(v.user_value);
     ASSERT_TRUE(domain_1_corpus.has_value());
-    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+    EXPECT_NE(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_0.SerializeCorpus(*domain_0_corpus)))
         << "Expect different serialized corpora before "
            "`WithSerializationDomain(...)`";
-    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+    EXPECT_NE(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_1.SerializeCorpus(*domain_1_corpus)))
         << "Expect different serialized corpora before "
            "`WithSerializationDomain(...)`";
   }
@@ -280,12 +285,16 @@ TEST(OverlapOf, UsesSerializationDomain) {
     ASSERT_TRUE(domain_0_corpus.has_value());
     auto domain_1_corpus = domain_1.FromValue(v.user_value);
     ASSERT_TRUE(domain_1_corpus.has_value());
-    EXPECT_EQ(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+    EXPECT_EQ(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_0.SerializeCorpus(*domain_0_corpus)))
         << "Expect the same serialized corpora after "
            "`WithSerializationDomain(0)`";
-    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+    EXPECT_NE(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_1.SerializeCorpus(*domain_1_corpus)))
         << "Expect different serialized corpora after "
            "`WithSerializationDomain(0)`";
   }
@@ -296,12 +305,16 @@ TEST(OverlapOf, UsesSerializationDomain) {
     ASSERT_TRUE(domain_0_corpus.has_value());
     auto domain_1_corpus = domain_1.FromValue(v.user_value);
     ASSERT_TRUE(domain_1_corpus.has_value());
-    EXPECT_NE(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_0.SerializeCorpus(*domain_0_corpus).ToString())
+    EXPECT_NE(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_0.SerializeCorpus(*domain_0_corpus)))
         << "Expect different serialized corpora after "
            "`WithSerializationDomain(1)`";
-    EXPECT_EQ(overlapped_domain.SerializeCorpus(v.corpus_value).ToString(),
-              domain_1.SerializeCorpus(*domain_1_corpus).ToString())
+    EXPECT_EQ(
+        internal::SerializeIRObject(
+            overlapped_domain.SerializeCorpus(v.corpus_value)),
+        internal::SerializeIRObject(domain_1.SerializeCorpus(*domain_1_corpus)))
         << "Expect the same serialized corpora after "
            "`WithSerializationDomain(1)`";
   }
