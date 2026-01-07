@@ -500,11 +500,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
   if (should_clean_up) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
-      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution.";
+      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
+                          << kCommandCleanupTimeout;
       cmd.RequestStop();
       const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
       if (ret.has_value()) return *ret;
-      FUZZTEST_LOG(ERROR) << "Batch execution cleanup failed to end in 60s.";
+      FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;
     }();
     command_contexts_.erase(
