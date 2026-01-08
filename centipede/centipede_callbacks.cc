@@ -724,7 +724,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
     FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: "
                           << exit_code;
   }
-  if (env_.print_runner_log || exit_code != EXIT_SUCCESS) {
+  if (env_.print_runner_log) {
     PrintExecutionLog();
   }
 

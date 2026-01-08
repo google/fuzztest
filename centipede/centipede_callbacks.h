@@ -159,6 +159,9 @@ class CentipedeCallbacks {
   size_t LoadDictionary(std::string_view dictionary_path);
 
  protected:
+  // Prints the execution log from the last executed binary.
+  void PrintExecutionLog() const;
+
   const Environment &env_;
   ByteArrayMutator byte_array_mutator_;
   FuzzTestMutator fuzztest_mutator_;
@@ -177,9 +180,6 @@ class CentipedeCallbacks {
   CommandContext& GetOrCreateCommandContextForBinary(std::string_view binary);
   // Runs a batch with the command `binary` and returns the exit code.
   int RunBatchForBinary(std::string_view binary);
-
-  // Prints the execution log from the last executed binary.
-  void PrintExecutionLog() const;
 
   // Variables required for ExecuteCentipedeSancovBinaryWithShmem.
   // They are computed in CTOR, to avoid extra computation in the hot loop.
