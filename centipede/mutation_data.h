@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Data types used for mutation inputs.
+// Data types used for mutation.
 //
 // This library is for both engine and runner.
 
-#ifndef THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
-#define THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
+#ifndef THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
+#define THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
 
 #include <vector>
 
@@ -50,4 +50,4 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
 
 }  // namespace fuzztest::internal
 
-#endif  // THIRD_PARTY_CENTIPEDE_MUTATION_INPUT_H_
+#endif  // THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_

@@ -81,7 +81,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"

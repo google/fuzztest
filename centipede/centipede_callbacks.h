@@ -30,7 +30,7 @@
 #include "./centipede/command.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
