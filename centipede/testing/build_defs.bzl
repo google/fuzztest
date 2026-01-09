@@ -29,6 +29,10 @@ def _sancov_transition_impl(settings, attr):
         for x in settings["//command_line_option:features"]
         if x not in features_to_strip
     ]
+    compiler = settings["//command_line_option:compiler"]
+    compilers_to_disable = ["tsan", "msan"]
+    if compiler in compilers_to_disable:
+        compiler = None
 
     # some of the valid sancov flag combinations:
     # trace-pc-guard,pc-table
@@ -51,7 +55,7 @@ def _sancov_transition_impl(settings, attr):
         "//command_line_option:compilation_mode": "opt",
         "//command_line_option:strip": "never",  # preserve debug info.
         "//command_line_option:features": filtered_features,
-        "//command_line_option:compiler": None,
+        "//command_line_option:compiler": compiler,
         "//command_line_option:dynamic_mode": "off",
     }
 
@@ -60,6 +64,7 @@ sancov_transition = transition(
     inputs = [
         "//command_line_option:copt",
         "//command_line_option:features",
+        "//command_line_option:compiler",
     ],
     outputs = [
         "//command_line_option:collect_code_coverage",
