@@ -186,7 +186,10 @@ class Centipede {
   FeatureSet fs_;
   Corpus corpus_;
   CoverageFrontier coverage_frontier_;
-  size_t num_runs_ = 0;  // counts executed inputs
+  // counts executed inputs.
+  size_t num_runs_ = 0;
+  // Peak RSS usage for input execution.
+  uint64_t execution_peak_rss_mb_ = 0;
 
   // Binary-related data, initialized at startup, once per process,
   // by calling the PopulateBinaryInfo callback.

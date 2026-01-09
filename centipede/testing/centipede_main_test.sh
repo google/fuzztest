@@ -201,6 +201,31 @@ test_timeouts() {
   fuzztest::internal::assert_regex_not_in_file "end-fuzz:.*crash: 1" "${LOG}"
 }
 
+test_oom() {
+  FUNC="${FUNCNAME[0]}"
+  WD="${TEST_TMPDIR}/${FUNC}/WD"
+  CORPUS="${TEST_TMPDIR}/${FUNC}/corpus"
+  LOG="${TEST_TMPDIR}/${FUNC}/log"
+
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${CORPUS}"
+  echo -n "oom" >"${CORPUS}"/input
+
+  echo "============ ${FUNC}: fuzz with --rss_limit_mb=4096"
+  test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --rss_limit_mb=4096 --address_space_limit_mb=0 | tee "${LOG}"
+  fuzztest::internal::assert_regex_in_file "Failure.*: rss-limit-exceeded" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "end-fuzz:.*crash: 1" "${LOG}"
+
+  fuzztest::internal::ensure_empty_dir "${WD}"
+  fuzztest::internal::ensure_empty_dir "${CORPUS}"
+  echo -n "oom" >"${CORPUS}"/input
+
+  echo "============ ${FUNC}: fuzz with --rss_limit_mb=0 and check logging"
+  test_fuzz --workdir="${WD}" --corpus_dir="${CORPUS}" --num_runs=0 --rss_limit_mb=0 --address_space_limit_mb=0 | tee "${LOG}"
+  fuzztest::internal::assert_regex_not_in_file "Failure.*: rss-limit-exceeded" "${LOG}"
+  fuzztest::internal::assert_regex_in_file "exec-mb: 4[0-9][0-9][0-9]" "${LOG}"
+}
+
 
 fuzztest::internal::test_crashing_target abort_test_fuzz "foo" "AbOrT" "I AM ABOUT TO ABORT"
 test_debug_symbols
@@ -208,5 +233,6 @@ test_dictionary
 test_for_each_blob
 test_pcpair_features
 test_timeouts
+test_oom
 
 echo "PASS"

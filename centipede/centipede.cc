@@ -336,7 +336,8 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
      << corpus_.MemoryUsageString();
   os << " exec/s: "
      << (execs_per_sec < 1.0 ? execs_per_sec : std::round(execs_per_sec));
-  os << " mb: " << (rusage_memory.mem_rss >> 20);
+  os << " ctrl-mb: " << (rusage_memory.mem_rss >> 20);
+  os << " exec-mb: " << execution_peak_rss_mb_;
   FUZZTEST_LOG(INFO) << os.str();
 }
 
@@ -474,6 +475,15 @@ bool Centipede::RunBatch(
     }
   }
   num_runs_ += batch_result.num_outputs_read();
+  if (batch_result.num_outputs_read() > 0) {
+    // The reported values increase monotonically within a batch. So it suffices
+    // to look at the last value.
+    execution_peak_rss_mb_ =
+        std::max(execution_peak_rss_mb_,
+                 batch_result.results()[batch_result.num_outputs_read() - 1]
+                     .stats()
+                     .peak_rss_mb);
+  }
   corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }
