@@ -48,6 +48,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
@@ -99,6 +100,26 @@ static uint64_t TimeInUsec() {
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
 }
 
+// Atomic flags to make sure that (a) watchdog failure is reported only for
+// the current input, and (b) only one thread is handling watchdog failures.
+
+// True if the watchdog thread is detecting failures, false otherwise.
+static std::atomic<bool> watchdog_thread_busy = false;
+// True if a watchdog failure is found, false otherwise.
+static std::atomic<bool> watchdog_failure_found = false;
+
+static void WaitWatchdogThreadIdle() {
+  while (ABSL_PREDICT_FALSE(watchdog_thread_busy.load())) {
+    if (ABSL_PREDICT_FALSE(watchdog_failure_found.load())) {
+      // A failure is found - wait for the process to terminate.
+      sleep(1);  // NOLINT
+    } else {
+      // Busy-wait for the detection.
+      sleep(0);  // NOLINT
+    }
+  }
+}
+
 static void CheckWatchdogLimits() {
   const uint64_t curr_time = time(nullptr);
   struct Resource {
@@ -142,11 +163,7 @@ static void CheckWatchdogLimits() {
   };
   for (const auto &resource : resources) {
     if (resource.limit != 0 && resource.value > resource.limit) {
-      // Allow only one invocation to handle a failure: needed because we call
-      // this function periodically in `WatchdogThread()`, but also call it in
-      // `RunOneInput()` after all the work is done.
-      static std::atomic<bool> already_handling_failure = false;
-      if (!already_handling_failure.exchange(true)) {
+      if (!watchdog_failure_found.exchange(true)) {
         if (resource.ignore_report) {
           fprintf(stderr,
                   "========= %s exceeded: %" PRIu64 " > %" PRIu64
@@ -192,7 +209,9 @@ static void CheckWatchdogLimits() {
     // No calls to ResetInputTimer() yet: input execution hasn't started.
     if (state->input_start_time == 0) continue;
 
+    watchdog_thread_busy = true;
     CheckWatchdogLimits();
+    watchdog_thread_busy = false;
   }
 }
 
@@ -376,6 +395,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
     PostProcessSancov(target_return_value == -1);
   }
+  WaitWatchdogThreadIdle();
   state->stats.post_time_usec = UsecSinceLast();
   state->stats.peak_rss_mb = GetPeakRSSMb();
 }
