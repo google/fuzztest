@@ -96,7 +96,6 @@ void SanCovObjectArray::PCInfoInit(const PCInfo *absl_nullable pcs_beg,
   sancov_object.pcs_beg = pcs_beg;
   sancov_object.pcs_end = pcs_end;
   sancov_object.dl_info = GetDlInfo(pcs_beg->pc);
-  RunnerCheck(sancov_object.dl_info.IsSet(), "failed to compute dl_info");
   if (sancov_object.pc_guard_start != nullptr) {
     // Set is_function_entry for all the guards.
     for (size_t i = 0, n = pcs_end - pcs_beg; i < n; ++i) {
@@ -132,8 +131,10 @@ std::vector<PCInfo> SanCovObjectArray::CreatePCTable() const {
     const auto &object = objects_[i];
     for (const auto *ptr = object.pcs_beg; ptr != object.pcs_end; ++ptr) {
       auto pc_info = *ptr;
-      // Convert into the link-time address
-      pc_info.pc -= object.dl_info.link_offset;
+      if (object.dl_info.IsSet()) {
+        // Convert into the link-time address
+        pc_info.pc -= object.dl_info.link_offset;
+      }
       result.push_back(pc_info);
     }
   }
@@ -162,7 +163,8 @@ DsoTable SanCovObjectArray::CreateDsoTable() const {
   for (size_t i = 0; i < size(); ++i) {
     const auto &object = objects_[i];
     size_t num_instrumented_pcs = object.pcs_end - object.pcs_beg;
-    result.push_back({object.dl_info.path, num_instrumented_pcs});
+    result.push_back({object.dl_info.IsSet() ? object.dl_info.path : "UNKNOWN",
+                      num_instrumented_pcs});
   }
   return result;
 }
