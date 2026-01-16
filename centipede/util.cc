@@ -176,7 +176,7 @@ static std::vector<std::string> *dirs_to_delete_at_exit
 // Atexit handler added by CreateLocalDirRemovedAtExit().
 // Deletes all dirs in dirs_to_delete_at_exit.
 static void RemoveDirsAtExit() {
-  absl::MutexLock lock(&dirs_to_delete_at_exit_mutex);
+  absl::MutexLock lock(dirs_to_delete_at_exit_mutex);
   for (auto &dir : *dirs_to_delete_at_exit) {
     std::error_code error;
     std::filesystem::remove_all(dir, error);
@@ -195,7 +195,7 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
       << "Unable to clean up existing dir " << path << ": " << error.message();
   std::filesystem::create_directories(path);
   // Add to dirs_to_delete_at_exit.
-  absl::MutexLock lock(&dirs_to_delete_at_exit_mutex);
+  absl::MutexLock lock(dirs_to_delete_at_exit_mutex);
   if (!dirs_to_delete_at_exit) {
     dirs_to_delete_at_exit = new std::vector<std::string>();
     atexit(&RemoveDirsAtExit);

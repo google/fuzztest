@@ -518,7 +518,7 @@ std::string Command::ReadRedirectedStderr() const {
 }
 
 void Command::LogProblemInfo(std::string_view message) const {
-  absl::MutexLock lock(&GetExecutionLoggingMutex());
+  absl::MutexLock lock(GetExecutionLoggingMutex());
 
   FUZZTEST_LOG(ERROR) << message;
   FUZZTEST_LOG(ERROR).NoPrefix() << "=== COMMAND ===";
