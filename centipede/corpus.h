@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -98,7 +99,17 @@ struct CorpusRecord {
 // Allows to prune (forget) inputs that become uninteresting.
 class Corpus {
  public:
-  Corpus() = default;
+  enum class WeightMethod {
+    Uniform,
+    Recency,
+    FeatureRarity,
+  };
+
+  static std::optional<WeightMethod> ParseWeightMethod(
+      std::string_view method_string);
+
+  Corpus() : Corpus(WeightMethod::FeatureRarity) {}
+  explicit Corpus(WeightMethod method) : method_(method) {}
 
   Corpus(const Corpus &) = default;
   Corpus(Corpus &&) noexcept = default;
@@ -120,9 +131,9 @@ class Corpus {
   // Returns the number of removed elements.
   size_t Prune(const FeatureSet &fs, const CoverageFrontier &coverage_frontier,
                size_t max_corpus_size, Rng &rng);
-  // Updates the corpus weights according to `fs` and `coverage_frontier`. If
-  // `scale_by_exec_time` is set, scales the weights by the corpus execution
-  // time relative to the average.
+  // Updates the corpus weights according to `fs` and `coverage_frontier` using
+  // the weight `method`. If `scale_by_exec_time` is set, scales the weights by
+  // the corpus execution time relative to the average.
   void UpdateWeights(const FeatureSet& fs,
                      const CoverageFrontier& coverage_frontier,
                      bool scale_by_exec_time);
@@ -164,6 +175,8 @@ class Corpus {
   // Maintains weights for elements of records_.
   WeightedDistribution weighted_distribution_;
   size_t num_pruned_ = 0;
+  // Method for weighting the corpus elements.
+  WeightMethod method_;
 };
 
 // Coverage frontier is a set of PCs that are themselves covered, but some of
