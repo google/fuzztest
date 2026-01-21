@@ -97,7 +97,7 @@ class FeatureSet {
   // Computes combined weight of `features`.
   // The less frequent the feature is, the bigger its weight.
   // The weight of a FeatureVec is a sum of individual feature weights.
-  uint64_t ComputeWeight(const FeatureVec &features) const;
+  double ComputeRarityWeight(const FeatureVec& features) const;
 
   // Returns a debug string representing the state of *this.
   std::string DebugString() const;

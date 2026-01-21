@@ -192,6 +192,9 @@ CENTIPEDE_FLAG(
     bool, use_corpus_weights, true,
     "If true, use weighted distribution when choosing the corpus element "
     "to mutate. This flag is mostly for Centipede developers.")
+CENTIPEDE_FLAG(std::string, corpus_weight_method, "feature_rarity",
+               "The weight method to use on corpus. Available options are "
+               "`uniform`, `recency`, and `feature_rarity` (default).")
 CENTIPEDE_FLAG(
     bool, exec_time_weight_scaling, true,
     "If true, scale the corpus weight by the execution time of each input.")

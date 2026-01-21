@@ -76,6 +76,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/corpus.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
 #include "./centipede/environment.h"
@@ -98,14 +99,21 @@
 
 namespace fuzztest::internal {
 
-Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
-                     const BinaryInfo &binary_info,
-                     CoverageLogger &coverage_logger, std::atomic<Stats> &stats)
+Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
+                     const BinaryInfo& binary_info,
+                     CoverageLogger& coverage_logger, std::atomic<Stats>& stats)
     : env_(env),
       user_callbacks_(user_callbacks),
       rng_(env_.seed),
       // TODO(kcc): [impl] find a better way to compute frequency_threshold.
       fs_(env_.feature_frequency_threshold, env_.MakeDomainDiscardMask()),
+      corpus_([this] {
+        const auto parsed_weight_method =
+            Corpus::ParseWeightMethod(env_.corpus_weight_method);
+        FUZZTEST_CHECK(parsed_weight_method.has_value())
+            << "Unknown corpus weight method " << env_.corpus_weight_method;
+        return *parsed_weight_method;
+      }()),
       coverage_frontier_(binary_info),
       binary_info_(binary_info),
       pc_table_(binary_info_.pc_table),

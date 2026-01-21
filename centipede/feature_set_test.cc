@@ -27,8 +27,8 @@ namespace {
 TEST(FeatureSet, ComputeWeight) {
   FeatureSet feature_set(10, {});
 
-  auto W = [&](const FeatureVec &features) -> uint64_t {
-    return feature_set.ComputeWeight(features);
+  auto W = [&](const FeatureVec& features) {
+    return feature_set.ComputeRarityWeight(features);
   };
 
   feature_set.MergeFeatures({1, 2, 3});
@@ -60,8 +60,8 @@ TEST(FeatureSet, ComputeWeightWithDifferentDomains) {
                              /* three features from domain #3 */ f3, f3 + 1,
                              f3 + 2});
 
-  auto weight = [&](const FeatureVec &features) -> uint64_t {
-    return feature_set.ComputeWeight(features);
+  auto weight = [&](const FeatureVec& features) {
+    return feature_set.ComputeRarityWeight(features);
   };
 
   // Test that features from a less frequent domain have more weight.
