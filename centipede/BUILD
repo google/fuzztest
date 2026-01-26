@@ -1896,6 +1896,7 @@ cc_test(
     srcs = ["centipede_test.cc"],
     data = [
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:async_failing_target",
         "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",
         "@com_google_fuzztest//centipede/testing:fuzz_target_with_config",
         "@com_google_fuzztest//centipede/testing:fuzz_target_with_custom_mutator",

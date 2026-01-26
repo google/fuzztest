@@ -154,6 +154,27 @@ centipede_fuzz_target(
     fuzz_target = "_external_target_server",
 )
 
+# Binary for :async_failing_target.
+cc_binary(
+    name = "_async_failing_target",
+    srcs = ["async_failing_target.cc"],
+    # Cannot be built directly - build :async_failing_target instead.
+    tags = [
+        "local",
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "@com_google_fuzztest//centipede:centipede_runner_no_main",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+centipede_fuzz_target(
+    name = "async_failing_target",
+    fuzz_target = "_async_failing_target",
+)
+
 cc_binary(
     name = "_external_target",
     srcs = ["external_target.cc"],

@@ -1249,5 +1249,29 @@ TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
                                   Not(HasSubstr("custom failure 2"))));
 }
 
+TEST_F(CentipedeWithTemporaryLocalDir, ToleratesAsyncFailureInMutation) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/async_failing_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult result;
+  std::vector<ByteArray> inputs = {
+      {'s', 'o', 'm', 'e'},
+  };
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+  EXPECT_TRUE(callbacks.Execute(env.binary, inputs, result));
+  // Match the error log to check for retrying mutation.
+  EXPECT_DEATH(
+      [&] {
+        callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
+                         inputs.size());
+        FUZZTEST_LOG(INFO) << "Mutate() succeeded";
+        std::_Exit(EXIT_FAILURE);
+      }(),
+      AllOf(HasSubstr("Test binary failed to mutate inputs - cleaning up and "
+                      "trying again."),
+            HasSubstr("Mutate() succeeded")));
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

@@ -75,8 +75,12 @@ CentipedeDefaultCallbacks::GetSerializedTargetConfig() {
 std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
     const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
   if (num_mutants == 0) return {};
-  // Try to use the custom mutator if it hasn't been disabled.
-  if (custom_mutator_is_usable_.value_or(true)) {
+  // In persistent mode, mutation could fail due to previous asynchronous
+  // failure, thus give it one more chance to mutate in a clean state.
+  for (int num_attempts = env_.persistent_mode ? 2 : 1; num_attempts > 0;
+       --num_attempts) {
+    // Do not use the custom mutator if it has been disabled.
+    if (!custom_mutator_is_usable_.value_or(true)) break;
     MutationResult result =
         MutateViaExternalBinary(env_.binary, inputs, num_mutants);
     if (result.exit_code() == EXIT_SUCCESS) {
@@ -100,6 +104,7 @@ std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
             << "Custom mutator returned no mutants; will "
                "generate some using the built-in mutator.";
       }
+      break;
     } else if (ShouldStop()) {
       FUZZTEST_LOG(WARNING)
           << "Custom mutator failed, but ignored since the stop "
@@ -107,10 +112,16 @@ std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
              "condition also interrupted the mutator.";
       // Returning whatever mutants we got before the failure.
       return std::move(result).mutants();
+    } else if (num_attempts > 1) {
+      // Failed to mutate but still has more attempts
+      CleanUpPersistentMode();
+      FUZZTEST_LOG(ERROR) << "Test binary failed to mutate inputs - cleaning "
+                             "up and trying again.";
     } else {
+      // Still failing at the final attempt.
       PrintExecutionLog();
-      FUZZTEST_LOG(ERROR)
-          << "Test binary failed when asked to mutate inputs - exiting.";
+      FUZZTEST_LOG(ERROR) << "Test binary failed to mutate inputs at the final "
+                             "attempt - exiting.";
       RequestEarlyStop(EXIT_FAILURE);
       return {};
     }
