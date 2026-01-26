@@ -631,9 +631,22 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   cmd_options.stderr_file = execute_log_path_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
-  const int retval = cmd.Execute();
+  const int retval = [&] {
+    if (!cmd.ExecuteAsync()) {
+      FUZZTEST_LOG(ERROR) << "Failed to execute seeding command "
+                          << cmd.ToString();
+      return EXIT_FAILURE;
+    }
+    const auto wait_result = cmd.Wait(GetStopTime());
+    if (!wait_result.has_value()) {
+      FUZZTEST_LOG(ERROR) << "Failed to wait for the seeding command "
+                          << cmd.ToString();
+      return EXIT_FAILURE;
+    }
+    return *wait_result;
+  }();
 
-  if (env_.print_runner_log) {
+  if (env_.print_runner_log || retval != EXIT_SUCCESS) {
     FUZZTEST_LOG(INFO) << "Getting seeds via external binary returns "
                        << retval;
     PrintExecutionLog();
@@ -659,7 +672,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   FUZZTEST_LOG_IF(ERROR, error)
       << "Failed to remove seed inputs directory: " << error.message();
 
-  return retval == 0;
+  return retval == EXIT_SUCCESS;
 }
 
 // See also: `DumpSerializedTargetConfigToFile()`.

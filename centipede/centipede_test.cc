@@ -31,6 +31,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
@@ -1198,6 +1199,20 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   // The built-in mutator performs non-trivial mutations.
   EXPECT_EQ(inputs.size(), mutants.size());
   EXPECT_NE(inputs, mutants);
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir,
+       GetsSeedViaExternalBinaryStopsAfterStopTime) {
+  Environment env;
+  env.binary = "sleep 100";
+  CentipedeDefaultCallbacks callbacks(env);
+  const auto start = absl::Now();
+  ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
+  std::vector<ByteArray> seeds;
+  callbacks.GetSeeds(/*num_seeds=*/1, seeds);
+  // Give it some slack to stop in 5s.
+  EXPECT_LE(absl::Now() - start, absl::Seconds(5));
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
