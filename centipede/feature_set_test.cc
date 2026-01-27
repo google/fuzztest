@@ -16,7 +16,6 @@
 
 #include <bitset>
 #include <cstddef>
-#include <cstdint>
 
 #include "gtest/gtest.h"
 #include "./centipede/feature.h"
