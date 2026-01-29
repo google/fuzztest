@@ -22,7 +22,7 @@
 
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 

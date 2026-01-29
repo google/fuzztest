@@ -53,7 +53,7 @@
 #include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"

@@ -25,7 +25,7 @@
 #include "./centipede/corpus.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
 namespace fuzztest::internal {

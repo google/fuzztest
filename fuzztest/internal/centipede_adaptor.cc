@@ -70,7 +70,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
