@@ -1,5 +1,8 @@
 #include "./fuzztest/init_fuzztest.h"
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/strings/str_replace.h"
+
 #if defined(__linux__)
 #include <unistd.h>
 #endif
@@ -322,6 +325,23 @@ std::optional<absl::Duration> GetReplayCorpusTime() {
   return replay_corpus_time_limit;
 }
 
+std::string ReplaceEnvVars(absl::string_view flag) {
+  absl::flat_hash_map<std::string, std::string> envs;
+  for (auto it_begin = flag.find('{'); it_begin != std::string::npos;
+       ++it_begin) {
+    auto it_end = flag.find('}', it_begin + 1);
+    if (it_end == std::string::npos) break;
+    absl::string_view env_name =
+        flag.substr(it_begin + 1, it_end - it_begin - 1);
+    // Nested environment variables are not supported.
+    if (absl::StrContains(env_name, '{')) continue;
+    auto env_value = absl::NullSafeStringView(getenv(env_name.data()));
+    if (env_value.empty()) continue;
+    envs.insert({std::string(env_name), std::string(env_value)});
+  }
+  return absl::StrReplaceAll(flag, envs);
+}
+
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
   const bool reproduce_findings_as_separate_tests =
@@ -347,11 +367,15 @@ internal::Configuration CreateConfigurationsFromFlags(
   FUZZTEST_CHECK(!jobs.has_value() || *jobs > 0)
       << "If specified, --" << FUZZTEST_FLAG(jobs).Name()
       << " must be positive.";
-  std::string corpus_database = absl::GetFlag(FUZZTEST_FLAG(corpus_database));
-  if (!corpus_database.empty() && corpus_database[0] != '/' &&
-      std::getenv("TEST_SRCDIR")) {
-    corpus_database =
-        absl::StrCat(std::getenv("TEST_SRCDIR"), "/", corpus_database);
+  std::string corpus_database =
+      ReplaceEnvVars(absl::GetFlag(FUZZTEST_FLAG(corpus_database)));
+  if (!corpus_database.empty() && corpus_database[0] != '/') {
+    // TODO(hadi88): Use the undeclared outputs directory instead of
+    // TEST_SRCDIR once Chlor uses the env_var for corpus_database.
+    if (std::getenv("TEST_SRCDIR")) {
+      corpus_database =
+          absl::StrCat(std::getenv("TEST_SRCDIR"), "/", corpus_database);
+    }
   }
   return internal::Configuration{
       corpus_database,
