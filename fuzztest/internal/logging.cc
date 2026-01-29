@@ -82,7 +82,7 @@ int GetStderrFdDup() {
 }
 
 FILE* GetStderr() {
-  absl::MutexLock lock(&stderr_file_guard_);
+  absl::MutexLock lock(stderr_file_guard_);
   if (!stderr_file_) {
     stderr_file_ = stderr;
   }
@@ -122,7 +122,7 @@ void DupAndSilence(int fd) {
     FUZZTEST_CHECK(GetStderrFdDup() != -1) << "GetStderrFdDup() fails.";
     auto file = fdopen(GetStderrFdDup(), "w");
     FUZZTEST_PCHECK(file) << "fdopen(GetStderrFdDup()) error";
-    absl::MutexLock lock(&stderr_file_guard_);
+    absl::MutexLock lock(stderr_file_guard_);
     stderr_file_ = file;
   }
   Silence(fd);
@@ -139,10 +139,10 @@ void RestoreTargetStdoutAndStderr() {
   // The CHECK-s below call GetStderr(), which accesses stderr_file_, which
   // would lead to a deadlock if we kept the guard locked and the CHECK-s
   // failed. To avoid this, we use a local variable.
-  stderr_file_guard_.Lock();
+  stderr_file_guard_.lock();
   FILE* silenced_stderr = stderr_file_;
   stderr_file_ = stderr;
-  stderr_file_guard_.Unlock();
+  stderr_file_guard_.unlock();
   FUZZTEST_CHECK(silenced_stderr != stderr)
       << "RestoreStderr was called without calling DupandSilenceStderr first.";
   FUZZTEST_PCHECK(dup2(fileno(silenced_stderr), STDERR_FILENO) != -1);
