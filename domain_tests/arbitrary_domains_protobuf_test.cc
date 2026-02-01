@@ -36,6 +36,7 @@
 #include "absl/time/time.h"
 #include "./fuzztest/domain.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
@@ -780,6 +781,47 @@ TEST(ProtocolBuffer, MutationInParallelIsEfficient) {
   std::cout << "total time (" << num_threads
             << " threads): " << multi_thread_time << "\n";
   std::cout << "ratio: " << multi_thread_time / single_thread_time << "\n";
+}
+
+TEST(ProtobufDomainTest,
+     WithRepeatedFieldsMaxSizeIgnoredMutationRespectsMaxSize) {
+  auto domain = Arbitrary<TestProtobuf>().WithRepeatedFieldsMaxSizeIgnored();
+  TestProtobuf message;
+  for (int i = 0; i < internal::kDefaultContainerMaxSize + 1; ++i) {
+    message.add_rep_i32(i);
+  }
+  auto corpus = domain.FromValue(message);
+  ASSERT_TRUE(corpus.has_value());
+  EXPECT_OK(domain.ValidateCorpusValue(*corpus));
+
+  absl::BitGen bitgen;
+  for (int i = 0; i < 1000; ++i) {
+    domain.Mutate(*corpus, bitgen, {}, /*only_shrink=*/false);
+    auto mutated_message = domain.GetValue(*corpus);
+    EXPECT_LE(mutated_message.rep_i32_size(),
+              internal::kDefaultContainerMaxSize + 1);
+  }
+}
+
+TEST(ProtobufDomainTest,
+     WithRepeatedFieldsMaxSizeIgnoredMutationRespectsMaxSizeForNested) {
+  auto domain = Arbitrary<TestProtobuf>().WithRepeatedFieldsMaxSizeIgnored();
+  TestProtobuf message;
+  auto* subproto = message.add_rep_subproto();
+  for (int i = 0; i < internal::kDefaultContainerMaxSize + 1; ++i) {
+    subproto->add_subproto_rep_i32(i);
+  }
+  auto corpus = domain.FromValue(message);
+  ASSERT_TRUE(corpus.has_value());
+  absl::BitGen bitgen;
+  for (int i = 0; i < 1000; ++i) {
+    domain.Mutate(*corpus, bitgen, {}, /*only_shrink=*/false);
+    auto mutated_message = domain.GetValue(*corpus);
+    if (mutated_message.rep_subproto_size() > 0) {
+      EXPECT_LE(mutated_message.rep_subproto(0).subproto_rep_i32_size(),
+                internal::kDefaultContainerMaxSize + 1);
+    }
+  }
 }
 
 }  // namespace
