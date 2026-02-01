@@ -283,6 +283,11 @@ class ProtoPolicy {
         {/*filter=*/std::move(filter), /*value=*/max_size});
   }
 
+  void SetSkipMaxSizeValidationForRepeatedFields(Filter filter, bool skip) {
+    skip_max_size_validation_for_repeated_fields_.push_back(
+        {/*filter=*/std::move(filter), /*value=*/skip});
+  }
+
   OptionalPolicy GetOptionalPolicy(const FieldDescriptor* field) const {
     FUZZTEST_CHECK(!field->is_required() && !field->is_repeated())
         << "GetOptionalPolicy should apply to optional fields only!";
@@ -316,6 +321,15 @@ class ProtoPolicy {
                                    << " size range is not valid!";
     }
     return max;
+  }
+
+  bool GetSkipMaxSizeValidationForRepeatedFields(
+      const FieldDescriptor* field) const {
+    FUZZTEST_CHECK(field->is_repeated())
+        << "GetSkipMaxSizeValidationForRepeatedFields should apply to repeated "
+           "fields only!";
+    return GetPolicyValue(skip_max_size_validation_for_repeated_fields_, field)
+        .value_or(false);
   }
 
   std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
@@ -490,6 +504,8 @@ class ProtoPolicy {
   std::vector<FilterToValue<OptionalPolicy>> optional_policies_;
   std::vector<FilterToValue<int64_t>> min_repeated_fields_sizes_;
   std::vector<FilterToValue<int64_t>> max_repeated_fields_sizes_;
+  std::vector<FilterToValue<bool>>
+      skip_max_size_validation_for_repeated_fields_;
 
 #define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                        \
  private:                                                                   \
@@ -915,6 +931,13 @@ class ProtobufDomainUntypedImpl
   ProtobufDomainUntypedImpl&& WithRepeatedFieldsMaxSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
     policy_.SetMaxRepeatedFieldsSize(std::move(filter), max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainUntypedImpl&& WithRepeatedFieldsMaxSizeIgnored(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    policy_.SetSkipMaxSizeValidationForRepeatedFields(std::move(filter), true);
     return std::move(*this);
   }
 
@@ -1626,7 +1649,9 @@ class ProtobufDomainUntypedImpl
       return ModifyDomainForRepeatedFieldRule(
           std::move(domain),
           use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
-          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
+          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt,
+          use_policy ? policy_.GetSkipMaxSizeValidationForRepeatedFields(field)
+                     : false);
     } else if (IsRequired(field)) {
       return ModifyDomainForRequiredFieldRule(std::move(domain));
     } else {
@@ -1687,15 +1712,19 @@ class ProtobufDomainUntypedImpl
 
   // Simple wrapper that converts a Domain<T> into a Domain<vector<T>>.
   template <typename T>
-  static auto ModifyDomainForRepeatedFieldRule(
-      const Domain<T>& d, std::optional<int64_t> min_size,
-      std::optional<int64_t> max_size) {
+  static auto ModifyDomainForRepeatedFieldRule(const Domain<T>& d,
+                                               std::optional<int64_t> min_size,
+                                               std::optional<int64_t> max_size,
+                                               bool skip_max_size_validation) {
     auto result = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
     if (min_size.has_value()) {
       result.WithMinSize(*min_size);
     }
     if (max_size.has_value()) {
       result.WithMaxSize(*max_size);
+    }
+    if (skip_max_size_validation) {
+      result.SkipMaxSizeValidation();
     }
     return result;
   }
@@ -2156,6 +2185,14 @@ class ProtobufDomainImpl
   ProtobufDomainImpl&& WithRepeatedFieldsMaxSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
     inner_.GetPolicy().SetMaxRepeatedFieldsSize(std::move(filter), max_size);
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsMaxSizeIgnored(
+      std::function<bool(const FieldDescriptor*)> filter =
+          IncludeAll<FieldDescriptor>()) && {
+    inner_.GetPolicy().SetSkipMaxSizeValidationForRepeatedFields(
+        std::move(filter), true);
     return std::move(*this);
   }
 
