@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <vector>
 
+#include "absl/base/nullability.h"
 #include "./centipede/runner_interface.h"
 #include "./common/defs.h"
 

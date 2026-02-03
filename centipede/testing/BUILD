@@ -165,6 +165,7 @@ cc_binary(
         "notap",
     ],
     deps = [
+        "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//common:defs",
     ],
