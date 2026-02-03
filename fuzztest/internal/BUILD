@@ -547,6 +547,7 @@ cc_library(
     deps = [
         ":meta",
         ":printer",
+        "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/numeric:int128",
