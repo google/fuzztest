@@ -51,7 +51,8 @@ class GTest_TestAdaptor : public ::testing::Test {
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
       // In "bug reproduction" mode, sometimes we need to reproduce multiple
       // bugs, i.e., run multiple tests that lead to a crash.
-#if defined(GTEST_HAS_DEATH_TEST) && !defined(FUZZTEST_USE_CENTIPEDE)
+#if defined(GTEST_HAS_DEATH_TEST)
+
       const bool needs_subprocess =
           configuration_.crashing_input_to_reproduce.has_value() &&
           (!configuration_.replay_in_single_process ||
@@ -59,6 +60,7 @@ class GTest_TestAdaptor : public ::testing::Test {
            // the subprocess there's only one test to run.
            testing::internal::InDeathTestChild());
 #else
+
       const bool needs_subprocess = false;
 #endif
       if (needs_subprocess) {
