@@ -177,13 +177,29 @@ struct Command::ForkServerProps {
 // out-of-line here, now that ForkServerProps is complete (that's by-the-book
 // PIMPL).
 Command::~Command() {
-  if (is_executing()) {
-    FUZZTEST_LOG(WARNING)
-        << "Destructing Command object for " << path() << " with "
-        << (fork_server_ ? absl::StrCat("fork server PID ", fork_server_->pid_)
-                         : absl::StrCat("PID ", pid_))
-        << " still running. Requesting it to stop without waiting for it...";
-    RequestStop();
+  if (!is_executing()) return;
+  FUZZTEST_LOG(WARNING)
+      << "Destructing Command object for " << path() << " with "
+      << (fork_server_ ? absl::StrCat("fork server PID ", fork_server_->pid_)
+                       : absl::StrCat("PID ", pid_))
+      << " still running. Requesting it to stop without waiting for it...";
+  RequestStop();
+  // If detaching the command while running, the output files may still be
+  // written concurrently, which may interfere with new command outputs if
+  // they share the same paths. Thus we want to clean up the output files, so
+  // new commands will create new output files.
+  if (!options_.stdout_file.empty()) {
+    if (std::error_code ec; std::filesystem::remove(options_.stdout_file, ec)) {
+      FUZZTEST_LOG(ERROR) << "Failed to remove the stdout file "
+                          << options_.stdout_file << ": " << ec;
+    }
+  }
+  if (!options_.stderr_file.empty() &&
+      options_.stderr_file != options_.stdout_file) {
+    if (std::error_code ec; std::filesystem::remove(options_.stderr_file, ec)) {
+      FUZZTEST_LOG(ERROR) << "Failed to remove the stderr file "
+                          << options_.stderr_file << ": " << ec;
+    }
   }
 }
 
