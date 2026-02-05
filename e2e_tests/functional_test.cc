@@ -38,7 +38,6 @@
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
@@ -449,14 +448,15 @@ TEST_F(UnitTestModeTest, CustomSourceCodePrinterCorrectlyPrintsValue) {
   auto [status, std_out, std_err] =
       Run("MySuite.CustomSourceCodePrinterCorrectlyPrintsValue");
   ExpectTargetAbort(status, std_err);
-  // This is the argument to the output domain.
+  // Human-readable mode.
   EXPECT_THAT_LOG(
       std_err,
-      HasSubstr("MyCustomPrintableTestType::BuildWithValue(\"abcd\")"));
-  // This is the argument to the input domain.
-  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0: \"abcd\"")));
+      HasSubstr("argument 0: MyCustomPrintableTestType{val=\"abcd\"}"));
+  // Source code mode.
   EXPECT_THAT_LOG(
-      std_err, HasSubstr("argument 0: MyCustomPrintableTestType - input=abcd"));
+      std_err, HasReproducerTest(
+                   "MySuite", "CustomSourceCodePrinterCorrectlyPrintsValue",
+                   "MyCustomPrintableTestType::BuildWithValue\\(\"abcd\"\\)"));
 }
 
 TEST_F(UnitTestModeTest, PrintsVeryLongInputsTrimmed) {
