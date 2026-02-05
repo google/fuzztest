@@ -938,6 +938,7 @@ cc_library(
     name = "runner_cmp_trace",
     hdrs = ["runner_cmp_trace.h"],
     copts = DISABLE_SANCOV_COPTS,
+    deps = ["@abseil-cpp//absl/base:core_headers"],
 )
 
 # Library for manipulating centipede runner flags. This is not used by the
