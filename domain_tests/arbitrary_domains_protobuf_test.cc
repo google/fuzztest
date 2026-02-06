@@ -782,5 +782,53 @@ TEST(ProtocolBuffer, MutationInParallelIsEfficient) {
   std::cout << "ratio: " << multi_thread_time / single_thread_time << "\n";
 }
 
+TEST(ProtobufDomainTest, CorpusExceedingSoftMaxSizeIsValidWhileHardMaxIsNot) {
+  auto domain_with_soft_max_size =
+      Arbitrary<TestProtobuf>().WithRepeatedFieldsSoftMaxSize(100);
+  auto domain_with_hard_max_size =
+      Arbitrary<TestProtobuf>().WithRepeatedFieldsMaxSize(100);
+  TestProtobuf message;
+  for (int i = 0; i < 200; ++i) {
+    message.add_rep_i32(i);
+  }
+  auto corpus_with_soft_max_size = domain_with_soft_max_size.FromValue(message);
+  ASSERT_TRUE(corpus_with_soft_max_size.has_value());
+  EXPECT_TRUE(
+      domain_with_soft_max_size.ValidateCorpusValue(*corpus_with_soft_max_size)
+          .ok());
+
+  auto corpus_with_hard_max_size = domain_with_hard_max_size.FromValue(message);
+  ASSERT_TRUE(corpus_with_hard_max_size.has_value());
+  EXPECT_FALSE(
+      domain_with_hard_max_size.ValidateCorpusValue(*corpus_with_hard_max_size)
+          .ok());
+}
+
+TEST(ProtobufDomainTest,
+     NestedCorpusExceedingSoftMaxSizeIsValidAndMutationIsBounded) {
+  auto domain = Arbitrary<TestProtobuf>().WithRepeatedFieldsSoftMaxSize(100);
+  TestProtobuf message;
+  for (int i = 0; i < 200; ++i) {
+    message.add_rep_i32(i);
+  }
+  auto* subproto = message.add_rep_subproto();
+  for (int i = 0; i < 200; ++i) {
+    subproto->add_subproto_rep_i32(i);
+  }
+  auto corpus = domain.FromValue(message);
+  ASSERT_TRUE(corpus.has_value());
+  EXPECT_TRUE(domain.ValidateCorpusValue(*corpus).ok());
+
+  absl::BitGen bitgen;
+  for (int i = 0; i < 1000; ++i) {
+    domain.Mutate(*corpus, bitgen, {}, /*only_shrink=*/false);
+    auto mutated_message = domain.GetValue(*corpus);
+    EXPECT_LE(mutated_message.rep_i32_size(), 200);
+    if (mutated_message.rep_subproto_size() > 0) {
+      EXPECT_LE(mutated_message.rep_subproto(0).subproto_rep_i32_size(), 200);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace fuzztest
