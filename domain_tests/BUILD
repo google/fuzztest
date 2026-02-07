@@ -73,6 +73,7 @@ cc_test(
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:domain",
         "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
         "@protobuf",
     ],
