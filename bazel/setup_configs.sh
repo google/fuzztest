@@ -9,7 +9,7 @@ cat <<EOF
 #
 # To regenerate, run the following from your project's workspace:
 #
-#  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
+#  bazel run @fuzztest//bazel:setup_configs > fuzztest.bazelrc
 #
 # And don't forget to add the following to your project's .bazelrc:
 #
@@ -95,7 +95,7 @@ cat <<EOF
 # want to use both, you can use --config=fuzztest-experimental --config=asan.
 
 build:fuzztest-experimental --config=fuzztest-common
-build:fuzztest-experimental --@com_google_fuzztest//fuzztest:centipede_integration
+build:fuzztest-experimental --@fuzztest//fuzztest:centipede_integration
 
 # Generate line tables for debugging.
 build:fuzztest-experimental --copt=-gline-tables-only
