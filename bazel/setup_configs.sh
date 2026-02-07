@@ -29,8 +29,8 @@ build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 build:fuzztest-common --copt=-UNDEBUG
 
 # Enable libc++ assertions.
-# See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
-build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
+# See https://libcxx.llvm.org/Hardening.html
+build:fuzztest-common --copt=-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE
 
 EOF
 
