@@ -14,7 +14,7 @@
 
 """BUILD rule for Centipede puzzles"""
 
-load("@com_google_fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
+load("@fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
 
 def puzzle(name):
     """Generates a cc_fuzz_target target instrumented with sancov and a sh script to run it.
@@ -41,7 +41,7 @@ def puzzle(name):
             data = [
                 ":" + name,
                 name + ".cc",
-                "@com_google_fuzztest//centipede:centipede_uninstrumented",
-                "@com_google_fuzztest//centipede:test_util_sh",
+                "@fuzztest//centipede:centipede_uninstrumented",
+                "@fuzztest//centipede:test_util_sh",
             ],
         )

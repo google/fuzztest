@@ -15,6 +15,6 @@ references with the following steps:
 
 2.  In the Bazel BUILD/bzl files, replace any references of the Centipede
     repository `@centipede//` with the new package path
-    `@com_google_fuzztest//centipede` in the FuzzTest repository. E.g.
+    `@fuzztest//centipede` in the FuzzTest repository. E.g.
     `@centipede//:centipede_runner` becomes
-    `@com_google_fuzztest//centipede:centipede_runner`.
+    `@fuzztest//centipede:centipede_runner`.

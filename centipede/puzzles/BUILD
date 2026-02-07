@@ -24,7 +24,7 @@ load(":puzzle.bzl", "puzzle")
 
 licenses(["notice"])
 
-package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpackages__"])
+package(default_visibility = ["@fuzztest//centipede/puzzles:__subpackages__"])
 
 # The puzzles use a simple configuration language, see run_puzzle.sh.
 [puzzle(name = n) for n in [

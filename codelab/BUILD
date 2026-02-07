@@ -32,7 +32,7 @@ cc_test(
     srcs = ["escaping_test.cc"],
     deps = [
         ":escaping",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
