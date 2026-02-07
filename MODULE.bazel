@@ -15,8 +15,6 @@
 module(
     name = "fuzztest",
     version = "head",
-    # TODO(lszekeres): Remove and use default name.
-    repo_name = "com_google_fuzztest",
 )
 
 bazel_dep(

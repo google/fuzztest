@@ -20,7 +20,7 @@
 #
 #    FUZZTEST_MINIMIZE_REPRODUCER=/tmp/reproducers/r3pr0dUc3r \
 #    bazel run --config=fuzztest :escaping_test \
-#      --run_under=@com_google_fuzztest//tools:minimizer \
+#      --run_under=@fuzztest//tools:minimizer \
 #      -- --fuzz=UnescapingAStringNeverTriggersUndefinedBehavior
 #
 #  This will try to find smaller and smaller inputs until you manually stop the
