@@ -9,7 +9,7 @@ cat <<EOF
 #
 # To regenerate, run the following from your project's workspace:
 #
-#  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
+#  bazel run @fuzztest//bazel:setup_configs > fuzztest.bazelrc
 #
 # And don't forget to add the following to your project's .bazelrc:
 #
@@ -29,8 +29,8 @@ build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 build:fuzztest-common --copt=-UNDEBUG
 
 # Enable libc++ assertions.
-# See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
-build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
+# See https://libcxx.llvm.org/Hardening.html
+build:fuzztest-common --copt=-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE
 
 EOF
 
@@ -95,7 +95,7 @@ cat <<EOF
 # want to use both, you can use --config=fuzztest-experimental --config=asan.
 
 build:fuzztest-experimental --config=fuzztest-common
-build:fuzztest-experimental --@com_google_fuzztest//fuzztest:centipede_integration
+build:fuzztest-experimental --@fuzztest//fuzztest:centipede_integration
 
 # Generate line tables for debugging.
 build:fuzztest-experimental --copt=-gline-tables-only

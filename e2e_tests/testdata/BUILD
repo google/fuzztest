@@ -37,9 +37,9 @@ cc_binary(
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest/internal:test_protobuf_cc_proto",
     ],
 )
 
@@ -56,9 +56,9 @@ cc_binary(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest/internal:test_protobuf_cc_proto",
         "@protobuf",
         "@re2",
     ],
@@ -92,13 +92,13 @@ cc_binary(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:flatbuffers",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
-        "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
-        "@com_google_fuzztest//fuzztest/internal:test_flatbuffers_cc_fbs",
-        "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:flatbuffers",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest:googletest_fixture_adapter",
+        "@fuzztest//fuzztest/internal:test_flatbuffers_cc_fbs",
+        "@fuzztest//fuzztest/internal:test_protobuf_cc_proto",
         "@protobuf",
         "@re2",
     ],
@@ -111,8 +111,8 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_with_invalid_seeds.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
@@ -121,8 +121,8 @@ cc_binary(
     testonly = 1,
     srcs = ["dynamically_registered_fuzz_tests.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
@@ -131,8 +131,8 @@ cc_binary(
     testonly = 1,
     srcs = ["unit_test_and_fuzz_tests.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
@@ -141,8 +141,8 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_for_corpus_database_testing.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],
 )
 
@@ -151,7 +151,7 @@ cc_binary(
     testonly = 1,
     srcs = ["llvm_fuzzer_with_custom_mutator.cc"],
     deps = [
-        "@com_google_fuzztest//fuzztest:llvm_fuzzer_main",
-        "@com_google_fuzztest//fuzztest:llvm_fuzzer_wrapper",
+        "@fuzztest//fuzztest:llvm_fuzzer_main",
+        "@fuzztest//fuzztest:llvm_fuzzer_wrapper",
     ],
 )

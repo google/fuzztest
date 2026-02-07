@@ -29,7 +29,7 @@ licenses(["notice"])
 # requirements and needs to compile the file directly with specific flags.
 exports_files(
     srcs = ["defs.h"],
-    visibility = ["@com_google_fuzztest//centipede:__pkg__"],
+    visibility = ["@fuzztest//centipede:__pkg__"],
 )
 
 ### Libraries
@@ -51,7 +51,7 @@ cc_library(
     srcs = ["blob_file.cc"],
     hdrs = ["blob_file.h"],
     defines = select({
-        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "@fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
     deps = [
@@ -68,7 +68,7 @@ cc_library(
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
     ] + select({
-        "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+        "@fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
             "@com_google_riegeli//riegeli/base:object",
             "@com_google_riegeli//riegeli/base:types",
@@ -88,7 +88,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@com_google_fuzztest//fuzztest/internal:io",
+        "@fuzztest//fuzztest/internal:io",
     ],
 )
 
@@ -122,7 +122,7 @@ cc_library(
     srcs = ["remote_file.cc"],
     hdrs = ["remote_file.h"],
     defines = select({
-        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "@fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
     deps = [
@@ -137,7 +137,7 @@ cc_library(
                "//conditions:default": [":remote_file_oss"],
            }) +
            select({
-               "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+               "@fuzztest//fuzztest:disable_riegeli": [],
                "//conditions:default": [
                    "@com_google_riegeli//riegeli/bytes:reader",
                    "@com_google_riegeli//riegeli/bytes:writer",
@@ -152,7 +152,7 @@ cc_library(
         "remote_file_oss.cc",
     ],
     defines = select({
-        "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
+        "@fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:private"],
@@ -165,7 +165,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
     ] + select({
-        "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+        "@fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [
             "@com_google_riegeli//riegeli/bytes:fd_reader",
             "@com_google_riegeli//riegeli/bytes:fd_writer",

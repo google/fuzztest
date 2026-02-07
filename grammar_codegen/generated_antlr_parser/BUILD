@@ -16,7 +16,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
-package(default_visibility = ["@com_google_fuzztest//grammar_codegen:__pkg__"])
+package(default_visibility = ["@fuzztest//grammar_codegen:__pkg__"])
 
 licenses(["notice"])
 

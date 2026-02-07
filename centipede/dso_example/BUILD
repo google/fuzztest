@@ -37,7 +37,7 @@ cc_binary(
     linkopts = ["-ldl"],
     linkstatic = False,
     deps = [
-        "@com_google_fuzztest//centipede:centipede_runner_no_main",  # build-cleaner:keep
+        "@fuzztest//centipede:centipede_runner_no_main",  # build-cleaner:keep
     ],
 )
 
@@ -56,10 +56,10 @@ sh_test(
         ":fuzz_me.so",
         ":main",
         ":main_with_dlopen",
-        "@com_google_fuzztest//centipede",
-        "@com_google_fuzztest//centipede:centipede_runner_no_main.so",
+        "@fuzztest//centipede",
+        "@fuzztest//centipede:centipede_runner_no_main.so",
     ],
     deps = [
-        "@com_google_fuzztest//centipede:test_util_sh",
+        "@fuzztest//centipede:test_util_sh",
     ],
 )
