@@ -216,6 +216,60 @@ TEST(Container, ValidationRejectsInvalidSize) {
               IsInvalid("Invalid size: 2. Min size: 3"));
 }
 
+TEST(Container, CorpusValidationSucceedsWhenSizeExceedsSoftMaxSize) {
+  auto domain_soft = Arbitrary<std::vector<int>>().WithSoftMaxSize(2);
+  auto domain_hard = Arbitrary<std::vector<int>>().WithMaxSize(2);
+
+  std::vector<int> value = {1, 2, 3};
+  auto corpus_val_soft = domain_soft.FromValue(value);
+  ASSERT_TRUE(corpus_val_soft.has_value());
+  EXPECT_TRUE(domain_soft.ValidateCorpusValue(*corpus_val_soft).ok());
+
+  auto corpus_val_hard = domain_hard.FromValue(value);
+  ASSERT_TRUE(corpus_val_hard.has_value());
+  EXPECT_FALSE(domain_hard.ValidateCorpusValue(*corpus_val_hard).ok());
+}
+
+TEST(Container, MaxSizeAndSoftMaxSizeOverwriteEachOther) {
+  auto domain_hard =
+      Arbitrary<std::vector<int>>().WithSoftMaxSize(2).WithMaxSize(2);
+  auto domain_soft =
+      Arbitrary<std::vector<int>>().WithMaxSize(2).WithSoftMaxSize(2);
+
+  std::vector<int> value = {1, 2, 3};
+
+  auto corpus_val_hard = domain_hard.FromValue(value);
+  ASSERT_TRUE(corpus_val_hard.has_value());
+  EXPECT_FALSE(domain_hard.ValidateCorpusValue(*corpus_val_hard).ok());
+
+  auto corpus_val_soft = domain_soft.FromValue(value);
+  ASSERT_TRUE(corpus_val_soft.has_value());
+  EXPECT_TRUE(domain_soft.ValidateCorpusValue(*corpus_val_soft).ok());
+}
+
+TEST(ContainerDeathTest, MutationAbortsWhenSizeExceedsMaxSize) {
+  auto domain_hard = Arbitrary<std::vector<int>>().WithMaxSize(2);
+  std::vector<int> value = {1, 2, 3};
+  Value val(domain_hard, value);
+  absl::BitGen bitgen;
+
+  EXPECT_DEATH(
+      val.Mutate(domain_hard, bitgen, /*metadata=*/{}, /*only_shrink=*/false),
+      "Size 3 is not between 0 and 2");
+}
+
+TEST(ContainerTest, WithSoftMaxSizeMutationDoesNotGrowIfSizeExceedsLimit) {
+  auto domain_soft = Arbitrary<std::vector<int>>().WithSoftMaxSize(2);
+  std::vector<int> value = {1, 2, 3};
+  Value val(domain_soft, value);
+  absl::BitGen bitgen;
+
+  for (int i = 0; i < 100; ++i) {
+    val.Mutate(domain_soft, bitgen, /*metadata=*/{}, /*only_shrink=*/false);
+    EXPECT_LE(val.user_value.size(), 3);
+  }
+}
+
 TEST(Container, ValidationRejectsInvalidElements) {
   absl::BitGen bitgen;
 

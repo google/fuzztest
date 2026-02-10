@@ -283,6 +283,19 @@ class ProtoPolicy {
         {/*filter=*/std::move(filter), /*value=*/max_size});
   }
 
+  void EnableMaxSizeValidationForRepeatedFields(Filter filter) {
+    disable_max_size_validation_for_repeated_fields_.push_back(
+        {/*filter=*/std::move(filter), /*value=*/false});
+  }
+
+  void DisableMaxSizeValidationForRepeatedFields(Filter filter) {
+    disable_max_size_validation_for_repeated_fields_.push_back(
+        {/*filter=*/std::move(filter), /*value=*/true});
+  }
+  void DisableMaxSizeValidationForFields() {
+    DisableMaxSizeValidationForRepeatedFields(IncludeAll<FieldDescriptor>());
+  }
+
   OptionalPolicy GetOptionalPolicy(const FieldDescriptor* field) const {
     FUZZTEST_CHECK(!field->is_required() && !field->is_repeated())
         << "GetOptionalPolicy should apply to optional fields only!";
@@ -316,6 +329,15 @@ class ProtoPolicy {
                                    << " size range is not valid!";
     }
     return max;
+  }
+
+  bool ShouldValidateMaxSize(const FieldDescriptor* repeated_field) const {
+    FUZZTEST_CHECK(repeated_field->is_repeated())
+        << "ShouldValidateMaxSize should apply to repeated "
+           "fields only!";
+    return !GetPolicyValue(disable_max_size_validation_for_repeated_fields_,
+                           repeated_field)
+                .value_or(false);
   }
 
   std::optional<bool> IsFieldFinitelyRecursive(const FieldDescriptor* field) {
@@ -490,6 +512,8 @@ class ProtoPolicy {
   std::vector<FilterToValue<OptionalPolicy>> optional_policies_;
   std::vector<FilterToValue<int64_t>> min_repeated_fields_sizes_;
   std::vector<FilterToValue<int64_t>> max_repeated_fields_sizes_;
+  std::vector<FilterToValue<bool>>
+      disable_max_size_validation_for_repeated_fields_;
 
 #define FUZZTEST_INTERNAL_POLICY_MEMBERS(Camel, cpp)                        \
  private:                                                                   \
@@ -908,13 +932,27 @@ class ProtobufDomainUntypedImpl
   }
 
   ProtobufDomainUntypedImpl&& WithRepeatedFieldsMaxSize(int64_t max_size) && {
-    policy_.SetMaxRepeatedFieldsSize(IncludeAll<FieldDescriptor>(), max_size);
-    return std::move(*this);
+    return std::move(*this).WithRepeatedFieldsMaxSize(
+        IncludeAll<FieldDescriptor>(), max_size);
   }
 
   ProtobufDomainUntypedImpl&& WithRepeatedFieldsMaxSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
-    policy_.SetMaxRepeatedFieldsSize(std::move(filter), max_size);
+    policy_.SetMaxRepeatedFieldsSize(filter, max_size);
+    policy_.EnableMaxSizeValidationForRepeatedFields(std::move(filter));
+    return std::move(*this);
+  }
+
+  ProtobufDomainUntypedImpl&& WithRepeatedFieldsSoftMaxSize(
+      int64_t max_size) && {
+    return std::move(*this).WithRepeatedFieldsSoftMaxSize(
+        IncludeAll<FieldDescriptor>(), max_size);
+  }
+
+  ProtobufDomainUntypedImpl&& WithRepeatedFieldsSoftMaxSize(
+      std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
+    policy_.SetMaxRepeatedFieldsSize(filter, max_size);
+    policy_.DisableMaxSizeValidationForRepeatedFields(std::move(filter));
     return std::move(*this);
   }
 
@@ -1626,7 +1664,8 @@ class ProtobufDomainUntypedImpl
       return ModifyDomainForRepeatedFieldRule(
           std::move(domain),
           use_policy ? policy_.GetMinRepeatedFieldSize(field) : std::nullopt,
-          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt);
+          use_policy ? policy_.GetMaxRepeatedFieldSize(field) : std::nullopt,
+          use_policy ? policy_.ShouldValidateMaxSize(field) : true);
     } else if (IsRequired(field)) {
       return ModifyDomainForRequiredFieldRule(std::move(domain));
     } else {
@@ -1687,14 +1726,17 @@ class ProtobufDomainUntypedImpl
 
   // Simple wrapper that converts a Domain<T> into a Domain<vector<T>>.
   template <typename T>
-  static auto ModifyDomainForRepeatedFieldRule(
-      const Domain<T>& d, std::optional<int64_t> min_size,
-      std::optional<int64_t> max_size) {
+  static auto ModifyDomainForRepeatedFieldRule(const Domain<T>& d,
+                                               std::optional<int64_t> min_size,
+                                               std::optional<int64_t> max_size,
+                                               bool validate_max_size) {
     auto result = ContainerOfImpl<std::vector<T>, Domain<T>>(d);
     if (min_size.has_value()) {
       result.WithMinSize(*min_size);
     }
-    if (max_size.has_value()) {
+    if (!validate_max_size && max_size.has_value()) {
+      result.WithSoftMaxSize(*max_size);
+    } else if (max_size.has_value()) {
       result.WithMaxSize(*max_size);
     }
     return result;
@@ -2148,15 +2190,29 @@ class ProtobufDomainImpl
   }
 
   ProtobufDomainImpl&& WithRepeatedFieldsMaxSize(int64_t max_size) && {
-    inner_.GetPolicy().SetMaxRepeatedFieldsSize(IncludeAll<FieldDescriptor>(),
-                                                max_size);
-    return std::move(*this);
+    return std::move(*this).WithRepeatedFieldsMaxSize(
+        IncludeAll<FieldDescriptor>(), max_size);
   }
 
   ProtobufDomainImpl&& WithRepeatedFieldsMaxSize(
       std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
-    inner_.GetPolicy().SetMaxRepeatedFieldsSize(std::move(filter), max_size);
+    inner_.GetPolicy().SetMaxRepeatedFieldsSize(filter, max_size);
+    inner_.GetPolicy().EnableMaxSizeValidationForRepeatedFields(
+        std::move(filter));
     return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsSoftMaxSize(
+      std::function<bool(const FieldDescriptor*)> filter, int64_t max_size) && {
+    inner_.GetPolicy().SetMaxRepeatedFieldsSize(filter, max_size);
+    inner_.GetPolicy().DisableMaxSizeValidationForRepeatedFields(
+        std::move(filter));
+    return std::move(*this);
+  }
+
+  ProtobufDomainImpl&& WithRepeatedFieldsSoftMaxSize(int64_t max_size) && {
+    return std::move(*this).WithRepeatedFieldsSoftMaxSize(
+        IncludeAll<FieldDescriptor>(), max_size);
   }
 
   ProtobufDomainImpl&& WithFieldUnset(absl::string_view field) && {

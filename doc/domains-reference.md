@@ -319,8 +319,17 @@ The following shorthand aliases are available:
 
 ### Custom Container Size
 
-The size of any container domain can be customized using the `WithSize()`,
-`WithMinSize()` and `WithMaxSize()` setters.
+You can customize the size of any container domain with the following setters:
+
+*   `WithSize(S)`: sets container size to exactly `S`.
+*   `WithMinSize(S)`: sets minimum container size to `S`.
+*   `WithMaxSize(S)`: sets maximum container size to `S`.
+*   `WithSoftMaxSize(S)`: sets the maximum size to S and disables maximum size
+    validation. The domain accepts containers with more than S elements as valid
+    (e.g., when provided as seeds), but it only shrinks them during mutation.
+
+If `WithSoftMaxSize(N)` and `WithMaxSize(M)` are both used, the latter call
+overrides the former.
 
 For instance, to represent arbitrary integer vectors of size 42, we can use:
 

@@ -114,9 +114,15 @@ class ContainerOfImplBase
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
-    FUZZTEST_CHECK(min_size() <= val.size() && val.size() <= max_size())
-        << "Size " << val.size() << " is not between " << min_size() << " and "
-        << max_size();
+    if (!validate_max_size()) {
+      FUZZTEST_CHECK(min_size() <= val.size())
+          << "Size " << val.size() << " is smaller than min size "
+          << min_size();
+    } else {
+      FUZZTEST_CHECK(min_size() <= val.size() && val.size() <= max_size())
+          << "Size " << val.size() << " is not between " << min_size()
+          << " and " << max_size();
+    }
 
     const bool can_shrink = val.size() > min_size();
     const bool can_grow = !only_shrink && val.size() < max_size();
@@ -232,6 +238,15 @@ class ContainerOfImplBase
         << "Maximal size " << s << " cannot be smaller than minimal size "
         << min_size_;
     max_size_ = s;
+    validate_max_size_ = true;
+    return Self();
+  }
+  Derived& WithSoftMaxSize(size_t s) {
+    FUZZTEST_PRECONDITION(min_size_ <= s)
+        << "Maximal size " << s << " cannot be smaller than minimal size "
+        << min_size_;
+    max_size_ = s;
+    validate_max_size_ = false;
     return Self();
   }
   Derived& WithDictionary(absl::Span<const value_type> manual_dict) {
@@ -327,7 +342,7 @@ class ContainerOfImplBase
       return absl::InvalidArgumentError(absl::StrCat(
           "Invalid size: ", corpus_value.size(), ". Min size: ", min_size()));
     }
-    if (corpus_value.size() > max_size()) {
+    if (validate_max_size() && corpus_value.size() > max_size()) {
       return absl::InvalidArgumentError(absl::StrCat(
           "Invalid size: ", corpus_value.size(), ". Max size: ", max_size()));
     }
@@ -355,6 +370,7 @@ class ContainerOfImplBase
                                                      OtherInnerDomain>& other) {
     min_size_ = other.min_size_;
     max_size_ = other.max_size_;
+    validate_max_size_ = other.validate_max_size_;
   }
 
  protected:
@@ -379,6 +395,7 @@ class ContainerOfImplBase
   size_t max_size() const {
     return max_size_.value_or(std::max(min_size_, kDefaultContainerMaxSize));
   }
+  bool validate_max_size() const { return validate_max_size_; }
 
  private:
   Derived& Self() { return static_cast<Derived&>(*this); }
@@ -395,6 +412,7 @@ class ContainerOfImplBase
   // DO NOT use directly. Use min_size() and max_size() instead.
   size_t min_size_ = 0;
   std::optional<size_t> max_size_ = std::nullopt;
+  bool validate_max_size_ = true;
 
   // Temporary memory dictionary. Collected from tracing the program
   // execution. It will always be empty if no execution_coverage_ is found,
