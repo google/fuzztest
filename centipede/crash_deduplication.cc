@@ -15,6 +15,7 @@
 #include "./centipede/crash_deduplication.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
@@ -53,6 +54,8 @@ std::string GetInputFileName(std::string_view bug_id,
 
 absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
     const WorkDir& workdir, size_t total_shards) {
+  const bool fail_on_empty_crash_metadata =
+      std::getenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA") != nullptr;
   absl::flat_hash_map<std::string, CrashDetails> crashes;
   for (size_t shard_idx = 0; shard_idx < total_shards; ++shard_idx) {
     std::vector<std::string> crashing_input_paths =
@@ -79,6 +82,15 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
             << " due to failure to read the crash signature: " << status;
         continue;
       }
+      if (crash_signature.empty()) {
+        FUZZTEST_LOG_IF(FATAL, fail_on_empty_crash_metadata)
+            << "Empty crash signature for " << crashing_input_file_name;
+        FUZZTEST_LOG(ERROR)
+            << "Ignoring crashing input " << crashing_input_file_name
+            << " due to empty crash signature. This is an internal error; "
+               "please report it to the FuzzTest team!";
+        continue;
+      }
       if (crashes.contains(crash_signature)) continue;
 
       const std::string crash_description_path =
@@ -86,9 +98,22 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
       std::string crash_description;
       const absl::Status description_status =
           RemoteFileGetContents(crash_description_path, crash_description);
-      FUZZTEST_LOG_IF(WARNING, !description_status.ok())
-          << "Failed to read crash description for " << crashing_input_file_name
-          << ".Status: " << description_status;
+      if (!description_status.ok()) {
+        FUZZTEST_LOG(WARNING)
+            << "Ignoring crashing input " << crashing_input_file_name
+            << " due to failure to read the crash description: "
+            << description_status;
+        continue;
+      }
+      if (crash_description.empty()) {
+        FUZZTEST_LOG_IF(FATAL, fail_on_empty_crash_metadata)
+            << "Empty crash description for " << crashing_input_file_name;
+        FUZZTEST_LOG(ERROR)
+            << "Ignoring crashing input " << crashing_input_file_name
+            << " due to empty crash description. This is an internal error; "
+               "please report it to the FuzzTest team!";
+        continue;
+      }
       crashes.insert(
           {std::move(crash_signature),
            // Centipede uses the input signature (i.e., the hash of the input)
