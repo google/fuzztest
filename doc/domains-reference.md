@@ -905,7 +905,7 @@ values, and you can customize the output for each:
     expression. This is used in the auto-generated regression tests to recreate
     the exact value that caused the failure. This mode is purely best-effort.
 
-### Customizing the human-readable printer:
+### Customizing the human-readable printer
 
 The simplest and most recommended way to implement custom printing for your
 types is to implement `AbslStringify`. This hooks into Abseil's string
@@ -923,26 +923,45 @@ struct MyObject {
 };
 ```
 
-### Customizing the source code printer:
+### Customizing the source code printer
 
-To provide a custom source code printer, you can implement the
-`FuzzTestPrintSourceCode` function for your type:
+To provide a custom source code representation (which is used in regression
+tests), you can implement the `FuzzTestPrintSourceCode` function for your type.
+For example:
 
 ```c++
-void FuzzTestPrintSourceCode(const YourValueType& v, std::ostream* os) {
-  // Write a valid C++ expression that recreates `v` into the output stream.
-  *os << "my_namespace::CreateMyObject(" << v.GetId() << ").WithName(\"" << v.name << "\")";
-}
+class MyObject {
+ public:
+  static MyObject Make(int id, std::string name) {
+    return MyObject{id, std::move(name)};
+  }
+
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const MyObject& v) {
+    absl::Format(&sink, "MyObject::Make(%d, \"%s\")", v.id_, v.name_);
+  }
+
+ private:
+  MyObject(int id, std::string name) : id_{id}, name_{std::move(name)} {}
+
+  int id_ = 0;
+  std::string name_;
+};
 ```
 
-FuzzTest will call this function to generate the reproduction code for a test
-failure.
+If you define only one of `AbslStringify` and `FuzzTestPrintSourceCode`,
+FuzzTest will use the defined function for both the human-readable and the
+source-code mode. If you define both, FuzzTest will use `AbslStringify` for the
+human-readable mode, and `FuzzTestPrintSourceCode` for the source-code mode.
+Note that this fallback behavior primarily applies to non-aggregate types. For
+aggregate types (like simple structs), FuzzTest prefers field-level printing for
+the mode that doesn't have a custom extension point.
 
 NOTE: FuzzTest does not validate the output. You are responsible for ensuring
-the function prints a valid C++ expression that correctly recreates the original
-value.
+that in the source-code mode, the function prints a valid C++ expression that
+correctly recreates the original value.
 
-NOTE: FuzzTest uses C++ name resolution to find `FuzzTestPrintSourceCode` (and
-`AbslStringify` for that matter). This function should generally be declared
-either at the same place as the printed struct/class or in the same translation
-unit as the fuzz test.
+NOTE: FuzzTest uses ADL resolution to find `AbslStringify` and
+`FuzzTestPrintSourceCode`. These functions should generally be declared either
+at the same place as the printed struct/class or in the same translation unit as
+the fuzz test.

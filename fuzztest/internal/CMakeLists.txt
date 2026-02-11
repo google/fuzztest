@@ -550,6 +550,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::meta
     fuzztest::printer
+    absl::nullability
     absl::symbolize
     absl::function_ref
     absl::int128

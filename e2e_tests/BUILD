@@ -72,7 +72,6 @@ cc_test(
         "@com_google_fuzztest//common:temp_dir",
         "@com_google_fuzztest//fuzztest/internal:escaping",
         "@com_google_fuzztest//fuzztest/internal:io",
-        "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:printer",
         "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal:subprocess",
