@@ -91,6 +91,16 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
   // `isig4` lacks `.sig` and `.desc` files and should be ignored.
   SetContentsAndGetPath(crashes1, "isig4", "input4");
 
+  // `isig5` has empty crash signature and should be ignored.
+  auto input5_path = SetContentsAndGetPath(crashes1, "isig5", "input5");
+  SetContentsAndGetPath(crash_metadata1, "isig5.sig", "");
+  SetContentsAndGetPath(crash_metadata1, "isig5.desc", "desc5");
+
+  // `isig6` has empty crash description and should be ignored.
+  auto input6_path = SetContentsAndGetPath(crashes1, "isig6", "input6");
+  SetContentsAndGetPath(crash_metadata1, "isig6.sig", "csig6");
+  SetContentsAndGetPath(crash_metadata1, "isig6.desc", "");
+
   const auto crashes = GetCrashesFromWorkdir(workdir, /*total_shards=*/2);
   EXPECT_THAT(
       crashes,
@@ -98,6 +108,52 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
           Pair("csig1", AnyOf(FieldsAre("isig1", "desc1", input1_path),
                               FieldsAre("isig3", "desc1", input3_path))),
           Pair("csig2", FieldsAre("isig2", "desc2", input2_path))));
+}
+
+TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashSignatureIfEnvVarSet) {
+  TempDir test_dir;
+  const std::string workdir_path = test_dir.path();
+  WorkDir workdir{workdir_path, "binary_name", "binary_hash",
+                  /*my_shard_index=*/0};
+
+  const std::filesystem::path crashes =
+      workdir.CrashReproducerDirPaths().Shard(0);
+  const std::filesystem::path crash_metadata =
+      workdir.CrashMetadataDirPaths().Shard(0);
+  std::filesystem::create_directories(crashes);
+  std::filesystem::create_directories(crash_metadata);
+
+  auto input_path = SetContentsAndGetPath(crashes, "isig", "input");
+  SetContentsAndGetPath(crash_metadata, "isig.sig", "");
+  SetContentsAndGetPath(crash_metadata, "isig.desc", "desc");
+
+  setenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA", "1", /*overwrite=*/1);
+  EXPECT_DEATH(GetCrashesFromWorkdir(workdir, /*total_shards=*/1),
+               "Empty crash signature");
+  unsetenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA");
+}
+
+TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashDescriptionIfEnvVarSet) {
+  TempDir test_dir;
+  const std::string workdir_path = test_dir.path();
+  WorkDir workdir{workdir_path, "binary_name", "binary_hash",
+                  /*my_shard_index=*/0};
+
+  const std::filesystem::path crashes =
+      workdir.CrashReproducerDirPaths().Shard(0);
+  const std::filesystem::path crash_metadata =
+      workdir.CrashMetadataDirPaths().Shard(0);
+  std::filesystem::create_directories(crashes);
+  std::filesystem::create_directories(crash_metadata);
+
+  auto input_path = SetContentsAndGetPath(crashes, "isig", "input");
+  SetContentsAndGetPath(crash_metadata, "isig.sig", "csig");
+  SetContentsAndGetPath(crash_metadata, "isig.desc", "");
+
+  setenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA", "1", /*overwrite=*/1);
+  EXPECT_DEATH(GetCrashesFromWorkdir(workdir, /*total_shards=*/1),
+               "Empty crash description");
+  unsetenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA");
 }
 
 class FakeCentipedeCallbacks : public CentipedeCallbacks {
