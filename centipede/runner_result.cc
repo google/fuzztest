@@ -22,6 +22,7 @@
 
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -185,8 +186,8 @@ bool MutationResult::WriteHasCustomMutator(bool has_custom_mutator,
        reinterpret_cast<const uint8_t *>(&has_custom_mutator)});
 }
 
-bool MutationResult::WriteMutant(ByteSpan mutant, BlobSequence &blobseq) {
-  return blobseq.Write({kTagMutant, mutant.size(), mutant.data()});
+bool MutationResult::WriteMutant(ByteSpan data, BlobSequence& blobseq) {
+  return blobseq.Write({kTagMutant, data.size(), data.data()});
 }
 
 bool MutationResult::Read(size_t num_mutants, BlobSequence &blobseq) {
@@ -202,7 +203,7 @@ bool MutationResult::Read(size_t num_mutants, BlobSequence &blobseq) {
     const Blob blob = blobseq.Read();
     if (blob.tag != kTagMutant) return false;
     if (blob.size == 0) break;
-    mutants_.emplace_back(blob.data, blob.data + blob.size);
+    mutants_.push_back({ByteArray{blob.data, blob.data + blob.size}});
   }
   return true;
 }

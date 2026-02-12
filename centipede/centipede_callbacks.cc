@@ -48,7 +48,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"

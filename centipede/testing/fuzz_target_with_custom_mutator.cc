@@ -19,7 +19,7 @@
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./common/defs.h"
 
@@ -39,11 +39,9 @@ class CustomMutatorRunnerCallbacks
   bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
               size_t num_mutants,
               std::function<void(ByteSpan)> new_mutant_callback) override {
-    size_t i = 0;
-    for (fuzztest::internal::MutationInputRef input : inputs) {
-      if (i++ >= num_mutants) break;
+    for (size_t i = 0; i < inputs.size() && i < num_mutants; ++i) {
       // Just return the original input as a mutant.
-      new_mutant_callback(input.data);
+      new_mutant_callback(inputs[i].data);
     }
     return true;
   }

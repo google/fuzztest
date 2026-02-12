@@ -30,7 +30,7 @@
 #include "./centipede/command.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
@@ -72,8 +72,8 @@ class CentipedeCallbacks {
                        BatchResult &batch_result) = 0;
 
   // Takes non-empty `inputs` and returns at most `num_mutants` mutated inputs.
-  virtual std::vector<ByteArray> Mutate(
-      const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+  virtual std::vector<Mutant> Mutate(
+      const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
     return env_.use_legacy_default_mutator
                ? byte_array_mutator_.MutateMany(inputs, num_mutants)
                : fuzztest_mutator_.MutateMany(inputs, num_mutants);

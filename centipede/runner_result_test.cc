@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 #include "./common/test_util.h"
@@ -224,7 +225,7 @@ TEST(MutationResult, WriteThenRead) {
   EXPECT_TRUE(mutation_result.has_custom_mutator());
   EXPECT_THAT(
       mutation_result.mutants(),
-      ElementsAre(ByteArray{1, 2, 3}, ByteArray{4, 5, 6}, ByteArray{7, 8, 9}));
+      ElementsAre(Mutant{{1, 2, 3}}, Mutant{{4, 5, 6}}, Mutant{{7, 8, 9}}));
 }
 
 TEST(ExecutionResult, ReadResultSucceedsOnlyWithInputBegin) {

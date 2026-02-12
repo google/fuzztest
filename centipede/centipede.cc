@@ -82,7 +82,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"
@@ -425,10 +425,10 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 }
 
 bool Centipede::RunBatch(
-    const std::vector<ByteArray> &input_vec,
-    BlobFileWriter *absl_nullable corpus_file,
-    BlobFileWriter *absl_nullable features_file,
-    BlobFileWriter *absl_nullable unconditional_features_file) {
+    const std::vector<ByteArray>& input_vec,
+    BlobFileWriter* absl_nullable corpus_file,
+    BlobFileWriter* absl_nullable features_file,
+    BlobFileWriter* absl_nullable unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
@@ -866,12 +866,18 @@ void Centipede::FuzzingLoop() {
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }
 
-    const std::vector<ByteArray> mutants =
+    const std::vector<Mutant> mutants =
         user_callbacks_.Mutate(mutation_inputs, batch_size);
     if (ShouldStop()) break;
 
+    std::vector<ByteArray> next_batch;
+    next_batch.reserve(mutants.size());
+    for (auto& mutant : mutants) {
+      next_batch.push_back(std::move(mutant.data));
+    }
+
     bool gained_new_coverage =
-        RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
+        RunBatch(next_batch, corpus_file.get(), features_file.get(), nullptr);
     new_runs += mutants.size();
 
     if (gained_new_coverage) {
