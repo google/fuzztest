@@ -53,7 +53,11 @@ will use `Arbitrary<int>()` and `Arbitrary<std::string>()` as sub-domains.
 
 User defined structs must support
 [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization),
-must have only public members and no more than 64 fields.
+must have only public members, and no more than 80 fields. In addition, they
+cannot have C-style array members (e.g., `int[5]`).
+
+TIP: If your struct doesn't satisfy the requirements for `Arbitrary`, you can
+construct a domain for it using `Map`, `ReversibleMap`, or `FlatMap`.
 
 Recall that `Arbitrary` is the default input domain, which means that you can
 fuzz a function like below without a `.WithDomains()` clause:
@@ -550,7 +554,7 @@ auto ConstrainedNonZero() {
 This may be useful in cases where 0 is silently interpreted as a sentinel value
 (e.g., "not set").
 
-### Map
+### Map {#map}
 
 Often the best way to define a domain is using a mapping function. The `Map()`
 domain combinator takes a mapping function and an input domain for each of its
@@ -572,6 +576,13 @@ Note: Domains defined using `Map()` don't support
 [seeded domain](#seeded-domains)—a domain skewed toward certain values—consider
 seeding the input domains passed to `Map()`. Otherwise, if you need full support
 for seeds, consider using [`ReversibleMap()`](#reversible-map).
+
+Note: If your return type is an
+[aggregate type](https://en.cppreference.com/w/cpp/language/aggregate_initialization)
+with a nested C-style array, you may get a compile-time error about a mismatch
+between the number of elements the type binds to and the number of names
+provided (e.g., `binds to 2 elements, but 3 names were provided`). A workaround
+is to define a [custom value printer](#custom-value-printers) for the type.
 
 ### ReversibleMap {#reversible-map}
 
@@ -651,6 +662,9 @@ b)` such that `a >= b`. Thus, when `a < b`, the inverse mapping function (call
 it `g`) must return `std::nullopt` because there is no possible value it could
 return so that `f(g(std::pair{a, b})) == std::pair{a, b}`.
 
+Note: The [note for `Map`](#map) about aggregate types with nested C-style
+arrays also applies to `ReversibleMap`.
+
 ### FlatMap
 
 Sometimes we need to fuzz parameters that are dependent on each other. Think of
@@ -700,6 +714,9 @@ Note: Domains defined using `FlatMap()` don't support
 [initial seeds](fuzz-test-macro.md#initial-seeds). If you need a
 [seeded domain](#seeded-domains)—a domain skewed toward certain values—consider
 seeding the input domains passed to `FlatMap()`.
+
+Note: The [note for `Map`](#map) about aggregate types with nested C-style
+arrays also applies to `FlatMap`.
 
 ### Filter
 
@@ -891,13 +908,14 @@ only for certain types (see [`ElementOf`](#element-of)). Complex domains
 constructed using combinators `ConstructorOf`, `Map`, and `FlatMap` don't
 support seeds.
 
-## Customizing Value Printers
+## Customizing Value Printers {#custom-value-printers}
 
 FuzzTest provides a mechanism to display the values that cause a test to fail.
-By default, it knows how to print standard C++ types, but you can extend this
-system to support your own custom types. This is especially useful for making
-test failure reports clear and actionable. There are two ways FuzzTest prints
-values, and you can customize the output for each:
+By default, it knows how to print standard C++ types, including
+[aggregate types](https://en.cppreference.com/w/cpp/language/aggregate_initialization),
+but you can extend this system to support your own custom types. This is
+especially useful for making test failure reports clear and actionable. There
+are two ways FuzzTest prints values, and you can customize the output for each:
 
 -   Human-readable mode: This mode is designed to be easily read and understood
     by a developer. The goal is clarity, not necessarily compilable code.
@@ -907,9 +925,21 @@ values, and you can customize the output for each:
 
 ### Customizing the human-readable printer
 
-The simplest and most recommended way to implement custom printing for your
-types is to implement `AbslStringify`. This hooks into Abseil's string
-formatting library, which FuzzTest uses internally. For example:
+For aggregate types, FuzzTest already provides a default printer that performs
+field-level printing, but without field names. For example, if you have:
+
+```c++
+struct MyObject {
+  int id;
+  std::string name;
+};
+```
+
+The default output for `MyObject{1, "Alice"}` will be `MyObject{1, "Alice"}`.
+
+To customize the output, the simplest and most recommended way is to implement
+`AbslStringify`. This hooks into Abseil's string formatting library, which
+FuzzTest uses internally. For example:
 
 ```c++
 struct MyObject {
@@ -918,10 +948,18 @@ struct MyObject {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const MyObject& obj) {
-    absl::Format(&sink, "MyObject[%d](name=\"%s\")", obj.id, obj.name);
+    absl::Format(&sink, "MyObject{.id = %d, .name = \"%s\"}", obj.id, obj.name);
   }
 };
 ```
+
+Now the output for `MyObject{1, "Alice"}` will be
+`MyObject{.id = 1, .name = "Alice"}`.
+
+WARNING: If your aggregate type contains a nested C-style array, the default
+field-type printing may yield a compile-time error (see the
+[note for `Map`](#map)). In this case, you should define a custom printer as
+a workaround.
 
 ### Customizing the source code printer
 
@@ -953,9 +991,6 @@ If you define only one of `AbslStringify` and `FuzzTestPrintSourceCode`,
 FuzzTest will use the defined function for both the human-readable and the
 source-code mode. If you define both, FuzzTest will use `AbslStringify` for the
 human-readable mode, and `FuzzTestPrintSourceCode` for the source-code mode.
-Note that this fallback behavior primarily applies to non-aggregate types. For
-aggregate types (like simple structs), FuzzTest prefers field-level printing for
-the mode that doesn't have a custom extension point.
 
 NOTE: FuzzTest does not validate the output. You are responsible for ensuring
 that in the source-code mode, the function prints a valid C++ expression that

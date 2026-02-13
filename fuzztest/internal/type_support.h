@@ -221,6 +221,60 @@ struct StringPrinter {
   }
 };
 
+// A wrapper around `RawSink` that can be passed to the user's
+// `FuzzTestPrintSourceCode` function, a FTADLE extension point for custom
+// printers. This is so that the function can look more like `AbslStringify`,
+// which is parameterized by the sink type and passes a pointer to the sink to
+// `absl::Format()`.
+struct RawSinkWrapper {
+  domain_implementor::RawSink& raw_sink;
+
+  friend void AbslFormatFlush(RawSinkWrapper* absl_nonnull sink,
+                              absl::string_view part) {
+    absl::Format(sink->raw_sink, "%s", part);
+  }
+};
+
+template <typename T, typename = void>
+struct HasCustomSourceCodePrinter : std::false_type {};
+
+template <typename T>
+struct HasCustomSourceCodePrinter<
+    T, std::enable_if_t<std::is_void<decltype(FuzzTestPrintSourceCode(
+           std::declval<RawSinkWrapper&>(), std::declval<const T&>()))>::value>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool has_custom_source_code_printer_v =
+    HasCustomSourceCodePrinter<T>::value;
+
+template <typename T>
+inline constexpr bool has_custom_printer_v =
+    has_absl_stringify_v<T> || has_custom_source_code_printer_v<T>;
+
+struct CustomPrinter {
+  template <typename T, typename = std::enable_if_t<has_custom_printer_v<T>>>
+  void PrintUserValue(const T& v, domain_implementor::RawSink out,
+                      domain_implementor::PrintMode mode) {
+    RawSinkWrapper sink{out};
+    if (mode == domain_implementor::PrintMode::kHumanReadable) {
+      // Prefer AbslStringify, fall back on source code printer.
+      if constexpr (has_absl_stringify_v<T>) {
+        absl::Format(out, "%v", v);
+      } else {
+        FuzzTestPrintSourceCode(sink, v);
+      }
+    } else {
+      // Prefer source code printer, fall back on AbslStringify.
+      if constexpr (has_custom_source_code_printer_v<T>) {
+        FuzzTestPrintSourceCode(sink, v);
+      } else {
+        absl::Format(out, "%v", v);
+      }
+    }
+  }
+};
+
 template <typename DomainT, typename... Inner>
 struct AggregatePrinter {
   const DomainT& domain;
@@ -230,12 +284,10 @@ struct AggregatePrinter {
   void PrintCorpusValue(const corpus_type_t<DomainT>& v,
                         domain_implementor::RawSink out,
                         domain_implementor::PrintMode mode) const {
-    if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      // In human-readable mode, prefer formatting with Abseil if possible.
-      if constexpr (has_absl_stringify_v<value_type_t<DomainT>>) {
-        absl::Format(out, "%v", domain.GetValue(v));
-        return;
-      }
+    if constexpr (has_custom_printer_v<value_type_t<DomainT>>) {
+      // Prefer the custom printer if there is one.
+      CustomPrinter{}.PrintUserValue(domain.GetValue(v), out, mode);
+      return;
     }
 
     absl::Format(out, "%s", type_name);
@@ -543,55 +595,10 @@ struct TimePrinter {
   }
 };
 
-// A wrapper around `RawSink` that can be passed to the user's
-// `FuzzTestPrintSourceCode` function, a FTADLE extension point for custom
-// printers. This is so that the function can look more like `AbslStringify`,
-// which is parameterized by the sink type and passes a pointer to the sink to
-// `absl::Format()`.
-struct RawSinkWrapper {
-  domain_implementor::RawSink& raw_sink;
-
-  friend void AbslFormatFlush(RawSinkWrapper* absl_nonnull sink,
-                              absl::string_view part) {
-    absl::Format(sink->raw_sink, "%s", part);
-  }
-};
-
-template <typename T, typename = void>
-struct HasCustomSourceCodePrinter : std::false_type {};
-
-template <typename T>
-struct HasCustomSourceCodePrinter<
-    T, std::enable_if_t<std::is_void<decltype(FuzzTestPrintSourceCode(
-           std::declval<RawSinkWrapper&>(), std::declval<const T&>()))>::value>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool has_custom_source_code_printer_v =
-    HasCustomSourceCodePrinter<T>::value;
-
-template <typename T>
-inline constexpr bool has_custom_printer_v =
-    has_absl_stringify_v<T> || has_custom_source_code_printer_v<T>;
-
 struct AutodetectAggregatePrinter {
   template <typename T>
   void PrintUserValue(const T& v, domain_implementor::RawSink out,
                       domain_implementor::PrintMode mode) {
-    if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      // In human-readable mode, prefer formatting with Abseil if possible.
-      if constexpr (has_absl_stringify_v<T>) {
-        absl::Format(out, "%v", v);
-        return;
-      }
-    } else {
-      // In source-code mode, prefer custom source-code printer if possible.
-      if constexpr (has_custom_source_code_printer_v<T>) {
-        RawSinkWrapper sink{out};
-        FuzzTestPrintSourceCode(sink, v);
-        return;
-      }
-    }
     std::tuple bound = DetectBindAggregate(v);
     const auto print_one = [&](auto I) {
       if (I > 0) absl::Format(out, ", ");
@@ -606,40 +613,11 @@ struct AutodetectAggregatePrinter {
   }
 };
 
-template <typename T, typename = std::enable_if_t<has_custom_printer_v<T>>>
-struct CustomPrinter {
-  void PrintUserValue(const T& v, domain_implementor::RawSink out,
-                      domain_implementor::PrintMode mode) {
-    RawSinkWrapper sink{out};
-    if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      // Prefer AbslStringify, fall back on source code printer.
-      if constexpr (has_absl_stringify_v<T>) {
-        absl::Format(out, "%v", v);
-      } else {
-        FuzzTestPrintSourceCode(sink, v);
-      }
-    } else {
-      // Prefer source code printer, fall back on AbslStringify.
-      if constexpr (has_custom_source_code_printer_v<T>) {
-        FuzzTestPrintSourceCode(sink, v);
-      } else {
-        absl::Format(out, "%v", v);
-      }
-    }
-  }
-};
-
 struct UnknownPrinter {
   template <typename T>
   void PrintUserValue(const T& v, domain_implementor::RawSink out,
                       domain_implementor::PrintMode mode) {
     if (mode == domain_implementor::PrintMode::kHumanReadable) {
-      // Try formatting with Abseil. We can't guarantee a good source code
-      // result, but it should be ok for human readable.
-      if constexpr (has_absl_stringify_v<T>) {
-        absl::Format(out, "%v", v);
-        return;
-      }
       // Some standard types have operator<<.
       if constexpr (std::is_scalar_v<T> || is_std_complex_v<T>) {
         absl::Format(out, "%s", absl::FormatStreamed(v));
@@ -654,8 +632,8 @@ template <typename T>
 decltype(auto) AutodetectTypePrinter() {
   // The order of these checks somewhat matters. Most of the concrete types have
   // AbslStringify, so they should come first not to be captured by the custom
-  // printer case. The aggregate case is also more specific than the custom
-  // printer case, so it needs to come before.
+  // printer case. The aggregate case comes after the custom case so that the
+  // user can override the default aggregate printer.
   if constexpr (is_protocol_buffer_enum_v<T>) {
     return ProtobufEnumPrinter<const google::protobuf::EnumDescriptor*>{
         google::protobuf::GetEnumDescriptor<T>()};
@@ -676,10 +654,10 @@ decltype(auto) AutodetectTypePrinter() {
     return DurationPrinter{};
   } else if constexpr (std::is_same_v<T, absl::Time>) {
     return TimePrinter{};
+  } else if constexpr (has_custom_printer_v<T>) {
+    return CustomPrinter{};
   } else if constexpr (is_bindable_aggregate_v<T>) {
     return AutodetectAggregatePrinter{};
-  } else if constexpr (has_custom_printer_v<T>) {
-    return CustomPrinter<T>{};
   } else {
     return UnknownPrinter{};
   }

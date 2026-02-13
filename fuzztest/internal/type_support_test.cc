@@ -206,13 +206,57 @@ TEST(ByteArrayTest, Printer) {
   EXPECT_EQ(std::string("\000a\223b\"", 5).size(), 5);
 }
 
-struct UserDefinedWithAbslStringify {
-  std::string foo;
+struct AggregateWithoutCustomPrinter {
+  int i;
+  double d;
+  std::string s;
+};
+
+struct AggregateWithAbslStringify {
+  int i;
+  double d;
+  std::string s;
 
   template <typename Sink>
-  friend void AbslStringify(Sink& sink, const UserDefinedWithAbslStringify& v) {
-    absl::Format(&sink, "{foo=\"%s\"}", v.foo);
+  friend void AbslStringify(Sink& sink, const AggregateWithAbslStringify& v) {
+    absl::Format(&sink, "AbslStringify={%d, %.1f, \"%s\"}", v.i, v.d, v.s);
   }
+};
+
+struct AggregateWithCustomSourceCodePrinter {
+  int i;
+  double d;
+  std::string s;
+
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(
+      Sink& sink, const AggregateWithCustomSourceCodePrinter& v) {
+    absl::Format(&sink, "CustomSourceCodePrinter={%d, %.1f, \"%s\"}", v.i, v.d,
+                 v.s);
+  }
+};
+
+struct AggregateWithBoth {
+  int i;
+  double d;
+  std::string s;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const AggregateWithBoth& v) {
+    absl::Format(&sink, "AbslStringify={%d, %.1f, \"%s\"}", v.i, v.d, v.s);
+  }
+
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const AggregateWithBoth& v) {
+    absl::Format(&sink, "CustomSourceCodePrinter={%d, %.1f, \"%s\"}", v.i, v.d,
+                 v.s);
+  }
+};
+
+class NonAggregateWithoutCustomPrinter {
+ private:
+  // Needs a private member so that it isn't considered monostate.
+  [[maybe_unused]] int a_ = 0;
 };
 
 TEST(CompoundTest, Printer) {
@@ -222,21 +266,27 @@ TEST(CompoundTest, Printer) {
   EXPECT_THAT(TestPrintValue(std::tuple(2, -3, -0.0),
                              Arbitrary<std::tuple<int, int, double>>()),
               Each("{2, -3, -0.}"));
-
-  struct UserDefined {
-    int i;
-    double d;
-    std::string s;
-  };
-  EXPECT_THAT(TestPrintValue(
-                  std::tuple{2, -3.5, "Foo"},
-                  StructOf<UserDefined>(Arbitrary<int>(), Arbitrary<double>(),
-                                        Arbitrary<std::string>())),
-              Each("UserDefined{2, -3.5, \"Foo\"}"));
-  EXPECT_THAT(
-      TestPrintValue(std::tuple{"Foo"}, StructOf<UserDefinedWithAbslStringify>(
-                                            Arbitrary<std::string>())),
-      ElementsAre("{foo=\"Foo\"}", "UserDefinedWithAbslStringify{\"Foo\"}"));
+  EXPECT_THAT(TestPrintValue(std::tuple{2, -3.5, "Foo"},
+                             StructOf<AggregateWithoutCustomPrinter>(
+                                 Arbitrary<int>(), Arbitrary<double>(),
+                                 Arbitrary<std::string>())),
+              Each("AggregateWithoutCustomPrinter{2, -3.5, \"Foo\"}"));
+  EXPECT_THAT(TestPrintValue(std::tuple{2, -3.5, "Foo"},
+                             StructOf<AggregateWithAbslStringify>(
+                                 Arbitrary<int>(), Arbitrary<double>(),
+                                 Arbitrary<std::string>())),
+              Each("AbslStringify={2, -3.5, \"Foo\"}"));
+  EXPECT_THAT(TestPrintValue(std::tuple{2, -3.5, "Foo"},
+                             StructOf<AggregateWithCustomSourceCodePrinter>(
+                                 Arbitrary<int>(), Arbitrary<double>(),
+                                 Arbitrary<std::string>())),
+              Each("CustomSourceCodePrinter={2, -3.5, \"Foo\"}"));
+  EXPECT_THAT(TestPrintValue(std::tuple{2, -3.5, "Foo"},
+                             StructOf<AggregateWithBoth>(
+                                 Arbitrary<int>(), Arbitrary<double>(),
+                                 Arbitrary<std::string>())),
+              ElementsAre("AbslStringify={2, -3.5, \"Foo\"}",
+                          "CustomSourceCodePrinter={2, -3.5, \"Foo\"}"));
 }
 
 TEST(ProtobufTest, Printer) {
@@ -488,57 +538,14 @@ TEST(MonostateTest, Printer) {
   EXPECT_THAT(TestPrintValue(UserDefinedEmpty{}), Each("UserDefinedEmpty{}"));
 }
 
-struct AggregateWithoutCustomPrinter {
-  int i = 1;
-  std::pair<std::string, std::string> nested = {"Foo", "Bar"};
-};
-
-struct AggregateWithAbslStringify {
-  int i = 1;
-  std::pair<std::string, std::string> nested = {"Foo", "Bar"};
-
-  template <typename Sink>
-  friend void AbslStringify(Sink& sink, const AggregateWithAbslStringify& s) {
-    absl::Format(&sink, "value={%d, {%s, %s}}", s.i, s.nested.first,
-                 s.nested.second);
-  }
-};
-
-struct AggregateWithCustomSourceCodePrinter {
-  int i = 1;
-  std::pair<std::string, std::string> nested = {"Foo", "Bar"};
-
-  static AggregateWithCustomSourceCodePrinter Make(int i, std::string fst,
-                                                   std::string snd) {
-    return AggregateWithCustomSourceCodePrinter{
-        i, {std::move(fst), std::move(snd)}};
-  }
-
-  template <typename Sink>
-  friend void FuzzTestPrintSourceCode(
-      Sink& sink, const AggregateWithCustomSourceCodePrinter& s) {
-    absl::Format(
-        &sink, "AggregateWithCustomSourceCodePrinter::Make(%d, \"%s\", \"%s\")",
-        s.i, s.nested.first, s.nested.second);
-  }
-};
-
 TEST(AutodetectAggregateTest, Printer) {
   // MonostateTest handles empty tuple and array.
 
   EXPECT_THAT(TestPrintValue(std::tuple{123}), Each("{123}"));
   EXPECT_THAT(TestPrintValue(std::pair{123, 456}), Each("{123, 456}"));
   EXPECT_THAT(TestPrintValue(std::array{123, 456}), Each("{123, 456}"));
-  EXPECT_THAT(TestPrintValue(AggregateWithoutCustomPrinter{}),
-              Each(R"(AggregateWithoutCustomPrinter{1, {"Foo", "Bar"}})"));
-  EXPECT_THAT(TestPrintValue(AggregateWithAbslStringify{}),
-              ElementsAre("value={1, {Foo, Bar}}",
-                          R"(AggregateWithAbslStringify{1, {"Foo", "Bar"}})"));
-  EXPECT_THAT(
-      TestPrintValue(AggregateWithCustomSourceCodePrinter{}),
-      ElementsAre(
-          R"(AggregateWithCustomSourceCodePrinter{1, {"Foo", "Bar"}})",
-          R"(AggregateWithCustomSourceCodePrinter::Make(1, "Foo", "Bar"))"));
+  EXPECT_THAT(TestPrintValue(AggregateWithoutCustomPrinter{2, -3.5, "Foo"}),
+              Each("AggregateWithoutCustomPrinter{2, -3.5, \"Foo\"}"));
 }
 
 TEST(DurationTest, Printer) {
@@ -575,103 +582,27 @@ TEST(TimeTest, Printer) {
                           "absl::UnixEpoch() + absl::Seconds(-1290000)"));
 }
 
-class ClassWithoutCustomPrinter {
- private:
-  // Needs a private member so that it isn't monostate or a bindable aggregate.
-  [[maybe_unused]] int a_ = 0;
-};
-
-static_assert(!is_monostate_v<ClassWithoutCustomPrinter>);
-static_assert(!is_bindable_aggregate_v<ClassWithoutCustomPrinter>);
-
-class ClassWithAbslStringify {
- public:
-  ClassWithAbslStringify(int a, std::string b) : a_{a}, b_{std::move(b)} {}
-
-  template <typename Sink>
-  friend void AbslStringify(Sink& sink, const ClassWithAbslStringify& v) {
-    absl::Format(&sink, "value={%d, \"%s\"}", v.a_, v.b_);
-  }
-
- private:
-  int a_ = 0;
-  std::string b_;
-};
-
-class ClassWithCustomSourceCodePrinter {
- public:
-  static ClassWithCustomSourceCodePrinter Make(int a, std::string b) {
-    return ClassWithCustomSourceCodePrinter{a, std::move(b)};
-  }
-
-  template <typename Sink>
-  friend void FuzzTestPrintSourceCode(
-      Sink& sink, const ClassWithCustomSourceCodePrinter& v) {
-    absl::Format(&sink, "ClassWithCustomSourceCodePrinter::Make(%d, \"%s\")",
-                 v.a_, v.b_);
-  }
-
- private:
-  ClassWithCustomSourceCodePrinter(int a, std::string b)
-      : a_{a}, b_{std::move(b)} {}
-
-  int a_ = 0;
-  std::string b_;
-};
-
-class ClassWithAbslStringifyAndCustomSourceCodePrinter {
- public:
-  static ClassWithAbslStringifyAndCustomSourceCodePrinter Make(int a,
-                                                               std::string b) {
-    return ClassWithAbslStringifyAndCustomSourceCodePrinter{a, std::move(b)};
-  }
-
-  template <typename Sink>
-  friend void AbslStringify(
-      Sink& sink, const ClassWithAbslStringifyAndCustomSourceCodePrinter& v) {
-    absl::Format(&sink, "value={a=%d, b=\"%s\"}", v.a_, v.b_);
-  }
-
-  template <typename Sink>
-  friend void FuzzTestPrintSourceCode(
-      Sink& sink, const ClassWithAbslStringifyAndCustomSourceCodePrinter& v) {
-    absl::Format(
-        &sink,
-        "ClassWithAbslStringifyAndCustomSourceCodePrinter::Make(%d, \"%s\")",
-        v.a_, v.b_);
-  }
-
- private:
-  ClassWithAbslStringifyAndCustomSourceCodePrinter(int a, std::string b)
-      : a_{a}, b_{std::move(b)} {}
-
-  int a_ = 0;
-  std::string b_;
-};
-
 TEST(HasCustomPrinterTest, CorrectlyDetectsCustomPrinters) {
-  static_assert(has_custom_printer_v<ClassWithAbslStringify>);
-  static_assert(has_custom_printer_v<ClassWithCustomSourceCodePrinter>);
-  static_assert(
-      has_custom_printer_v<ClassWithAbslStringifyAndCustomSourceCodePrinter>);
-  static_assert(!has_custom_printer_v<ClassWithoutCustomPrinter>);
+  static_assert(has_custom_printer_v<AggregateWithAbslStringify>);
+  static_assert(has_custom_printer_v<AggregateWithCustomSourceCodePrinter>);
+  static_assert(has_custom_printer_v<AggregateWithBoth>);
+  static_assert(!has_custom_printer_v<NonAggregateWithoutCustomPrinter>);
+  static_assert(!has_custom_printer_v<AggregateWithoutCustomPrinter>);
 }
 
 TEST(CustomPrinterTest, PrintsValuesCorrectly) {
-  EXPECT_THAT(TestPrintValue(ClassWithAbslStringify{1, "foo"}),
-              Each("value={1, \"foo\"}"));
-  EXPECT_THAT(TestPrintValue(ClassWithCustomSourceCodePrinter::Make(1, "foo")),
-              Each("ClassWithCustomSourceCodePrinter::Make(1, \"foo\")"));
+  EXPECT_THAT(TestPrintValue(AggregateWithAbslStringify{2, -3.5, "Foo"}),
+              Each("AbslStringify={2, -3.5, \"Foo\"}"));
   EXPECT_THAT(
-      TestPrintValue(
-          ClassWithAbslStringifyAndCustomSourceCodePrinter::Make(1, "foo")),
-      ElementsAre("value={a=1, b=\"foo\"}",
-                  "ClassWithAbslStringifyAndCustomSourceCodePrinter::Make(1, "
-                  "\"foo\")"));
+      TestPrintValue(AggregateWithCustomSourceCodePrinter{2, -3.5, "Foo"}),
+      Each("CustomSourceCodePrinter={2, -3.5, \"Foo\"}"));
+  EXPECT_THAT(TestPrintValue(AggregateWithBoth{2, -3.5, "Foo"}),
+              ElementsAre("AbslStringify={2, -3.5, \"Foo\"}",
+                          "CustomSourceCodePrinter={2, -3.5, \"Foo\"}"));
 }
 
 TEST(UnprintableTest, PrintsUnprintableValues) {
-  EXPECT_THAT(TestPrintValue(ClassWithoutCustomPrinter{}),
+  EXPECT_THAT(TestPrintValue(NonAggregateWithoutCustomPrinter{}),
               Each("<unprintable value>"));
 }
 
