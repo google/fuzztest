@@ -111,12 +111,9 @@ int ForEachBlob(const Environment& env) {
     }
     ByteSpan blob;
     while (blob_reader->Read(blob) == absl::OkStatus()) {
-      ByteArray bytes;
-      bytes.insert(bytes.begin(), blob.data(), blob.end());
-      // TODO(kcc): [impl] add a variant of WriteToLocalFile that accepts Span.
-      WriteToLocalFile(tmpfile, bytes);
+      WriteToLocalFile(tmpfile, blob);
       std::string command_line = absl::StrReplaceAll(
-          env.for_each_blob, {{"%P", tmpfile}, {"%H", Hash(bytes)}});
+          env.for_each_blob, {{"%P", tmpfile}, {"%H", Hash(blob)}});
       Command cmd(command_line);
       // TODO(kcc): [as-needed] this creates one process per blob.
       // If this flag gets active use, we may want to define special cases,

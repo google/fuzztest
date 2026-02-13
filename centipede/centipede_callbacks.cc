@@ -45,10 +45,11 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
@@ -518,7 +519,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
-    std::string_view binary, const std::vector<ByteArray>& inputs,
+    std::string_view binary, absl::Span<const ByteSpan> inputs,
     BatchResult& batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
@@ -715,7 +716,7 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
 
 // See also: MutateInputsFromShmem().
 MutationResult CentipedeCallbacks::MutateViaExternalBinary(
-    std::string_view binary, const std::vector<MutationInputRef>& inputs,
+    std::string_view binary, absl::Span<const MutationInputRef> inputs,
     size_t num_mutants) {
   FUZZTEST_CHECK(!env_.has_input_wildcards)
       << "Standalone binary does not support custom mutator";

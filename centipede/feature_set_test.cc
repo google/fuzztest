@@ -17,11 +17,36 @@
 #include <bitset>
 #include <cstddef>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "./centipede/feature.h"
 
 namespace fuzztest::internal {
 namespace {
+
+using ::testing::ElementsAre;
+
+TEST(FeatureSet, CanonicalizesFeatures) {
+  FeatureSet fs(10, {});
+  FeatureVec features{feature_domains::kPCs.ConvertToMe(3),
+                      feature_domains::kPCs.ConvertToMe(2),
+                      feature_domains::kPCs.ConvertToMe(3),
+                      feature_domains::kPCs.ConvertToMe(1),
+                      feature_domains::kPCs.ConvertToMe(2)};
+  fs.CanonicalizeFeatures(features);
+  // Should keep unique features.
+  EXPECT_THAT(features, ElementsAre(feature_domains::kPCs.ConvertToMe(1),
+                                    feature_domains::kPCs.ConvertToMe(2),
+                                    feature_domains::kPCs.ConvertToMe(3)));
+
+  FeatureVec cmp_features{feature_domains::kCMPModDiff.ConvertToMe(1),
+                          feature_domains::kCMPModDiff.ConvertToMe(2),
+                          feature_domains::kCMPModDiff.ConvertToMe(0)};
+  fs.CanonicalizeFeatures(cmp_features);
+  // Should keep only the highest score of a CMP feature index.
+  EXPECT_THAT(cmp_features,
+              ElementsAre(feature_domains::kCMPModDiff.ConvertToMe(2)));
+}
 
 TEST(FeatureSet, ComputeWeight) {
   FeatureSet feature_set(10, {});
@@ -258,6 +283,38 @@ TEST(FeatureSet, MergingLowerComparisonScoresDoesNotIncreaseFrequencies) {
   fs.MergeFeatures({cmp_lowest_score});
   EXPECT_EQ(fs.Frequency(cmp_lowest_score), 0);
   EXPECT_EQ(fs.Frequency(cmp_highest_score), 1);
+}
+
+TEST(IsFeatureVecSubsumed, ReturnsTrueForSubsumedFeatureVec) {
+  FeatureSet fs(/*frequency_threshold=*/123, /*should_discard_domain=*/false);
+  FeatureVec a{feature_domains::kPCs.ConvertToMe(2),
+               feature_domains::kCMPModDiff.ConvertToMe(0)};
+  FeatureVec b{feature_domains::kPCs.ConvertToMe(2),
+               feature_domains::kCMPModDiff.ConvertToMe(1)};
+  fs.CanonicalizeFeatures(a);
+  fs.CanonicalizeFeatures(b);
+  EXPECT_TRUE(IsFeatureVecSubsumed(a, b));
+}
+
+TEST(IsFeatureVecSubsumed, ReturnsFalseForMissingFeature) {
+  FeatureSet fs(/*frequency_threshold=*/123, /*should_discard_domain=*/false);
+  FeatureVec a{feature_domains::kPCs.ConvertToMe(2),
+               feature_domains::kCMPModDiff.ConvertToMe(0)};
+  FeatureVec b{feature_domains::kPCs.ConvertToMe(2)};
+  fs.CanonicalizeFeatures(a);
+  fs.CanonicalizeFeatures(b);
+  EXPECT_FALSE(IsFeatureVecSubsumed(a, b));
+}
+
+TEST(IsFeatureVecSubsumed, ReturnsFalseForLowerCmpScore) {
+  FeatureSet fs(/*frequency_threshold=*/123, /*should_discard_domain=*/false);
+  FeatureVec a{feature_domains::kPCs.ConvertToMe(2),
+               feature_domains::kCMPModDiff.ConvertToMe(1)};
+  FeatureVec b{feature_domains::kPCs.ConvertToMe(2),
+               feature_domains::kCMPModDiff.ConvertToMe(0)};
+  fs.CanonicalizeFeatures(a);
+  fs.CanonicalizeFeatures(b);
+  EXPECT_FALSE(IsFeatureVecSubsumed(a, b));
 }
 
 }  // namespace

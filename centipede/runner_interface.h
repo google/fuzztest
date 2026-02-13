@@ -25,7 +25,8 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/mutation_input.h"
+#include "absl/types/span.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 
 // Typedefs for the libFuzzer API, https://llvm.org/docs/LibFuzzer.html
@@ -153,9 +154,9 @@ class RunnerCallbacks {
   //
   // TODO(xinhaoyuan): Consider supporting only_shrink to speed up
   // input shrinking.
-  virtual bool Mutate(const std::vector<MutationInputRef> &inputs,
+  virtual bool Mutate(absl::Span<const MutationInputRef> inputs,
                       size_t num_mutants,
-                      std::function<void(ByteSpan)> new_mutant_callback);
+                      std::function<void(MutantRef)> new_mutant_callback);
   virtual ~RunnerCallbacks() = default;
 };
 

@@ -31,6 +31,7 @@
 
 #include "absl/base/nullability.h"
 #include "./centipede/execution_metadata.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -433,6 +434,7 @@ using fuzztest::internal::in_test_callback;
 using fuzztest::internal::kDispatcherTestGetSeedsOutputDirFlagHeader;
 using fuzztest::internal::kDispatcherTestListingPrefixFlagHeader;
 using fuzztest::internal::kDispatcherTestNameFlagHeader;
+using fuzztest::internal::MutantRef;
 using fuzztest::internal::MutationResult;
 
 int FuzzTestDispatcherIsEnabled() {
@@ -536,7 +538,11 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size) {
   auto* output = GetOutputsBlobSequence();
   DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
   DispatcherCheck(MutationResult::WriteMutant(
-                      {static_cast<const uint8_t*>(data), size}, *output),
+                      MutantRef{{static_cast<const uint8_t*>(data), size},
+                                // TODO(xinhaoyuan): change the dispatcher
+                                // interface to include the origin.
+                                fuzztest::internal::Mutant::kOriginNone},
+                      *output),
                   "failed to write mutant");
 }
 

@@ -25,6 +25,7 @@
 
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -217,7 +218,7 @@ class MutationResult {
                                     BlobSequence& blobseq);
 
   // Writes one mutant to `blobseq`. Returns true iff successful.
-  static bool WriteMutant(ByteSpan mutant, BlobSequence& blobseq);
+  static bool WriteMutant(MutantRef mutant, BlobSequence& blobseq);
 
   // Reads whether the target has a custom mutator, and if so, reads at most
   // `num_mutants` mutants from `blobseq`. Returns true iff successful.
@@ -227,13 +228,13 @@ class MutationResult {
   int exit_code() const { return exit_code_; }
   int& exit_code() { return exit_code_; }
   bool has_custom_mutator() const { return has_custom_mutator_; }
-  const std::vector<ByteArray>& mutants() const& { return mutants_; }
-  std::vector<ByteArray>&& mutants() && { return std::move(mutants_); }
+  const std::vector<Mutant>& mutants() const& { return mutants_; }
+  std::vector<Mutant>&& mutants() && { return std::move(mutants_); }
 
  private:
   int exit_code_ = EXIT_SUCCESS;
   bool has_custom_mutator_ = false;
-  std::vector<ByteArray> mutants_;
+  std::vector<Mutant> mutants_;
 };
 
 }  // namespace fuzztest::internal

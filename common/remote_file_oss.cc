@@ -90,11 +90,11 @@ class LocalRemoteFile : public RemoteFile {
     return absl::OkStatus();
   }
 
-  absl::Status Write(const ByteArray &ba) {
-    static constexpr auto elt_size = sizeof(ba[0]);
-    const auto elts_to_write = ba.size();
+  absl::Status Write(ByteSpan contents) {
+    static constexpr auto elt_size = sizeof(contents[0]);
+    const auto elts_to_write = contents.size();
     const auto elts_written =
-        std::fwrite(ba.data(), elt_size, elts_to_write, file_);
+        std::fwrite(contents.data(), elt_size, elts_to_write, file_);
     if (elts_written != elts_to_write) {
       return absl::UnknownError(absl::StrCat(
           "fwrite() wrote less elements that expected, wrote: ", elts_written,
@@ -327,8 +327,8 @@ absl::Status RemoteFileSetWriteBufferSize(RemoteFile *absl_nonnull f,
   return static_cast<LocalRemoteFile *>(f)->SetWriteBufSize(size);
 }
 
-absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f, const ByteArray &ba) {
-  return static_cast<LocalRemoteFile *>(f)->Write(ba);
+absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f, ByteSpan contents) {
+  return static_cast<LocalRemoteFile*>(f)->Write(contents);
 }
 
 absl::Status RemoteFileFlush(RemoteFile *absl_nonnull f) {

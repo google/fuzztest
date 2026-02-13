@@ -27,6 +27,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
@@ -168,7 +169,7 @@ class FakeCentipedeCallbacks : public CentipedeCallbacks {
       absl::flat_hash_map<std::string, Crash> crashing_inputs)
       : CentipedeCallbacks(env), crashing_inputs_(std::move(crashing_inputs)) {}
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
     batch_result.ClearAndResize(inputs.size());
     for (ByteSpan input : inputs) {
