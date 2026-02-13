@@ -168,7 +168,7 @@ class FakeCentipedeCallbacks : public CentipedeCallbacks {
       absl::flat_hash_map<std::string, Crash> crashing_inputs)
       : CentipedeCallbacks(env), crashing_inputs_(std::move(crashing_inputs)) {}
 
-  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+  bool Execute(std::string_view binary, const std::vector<ByteSpan>& inputs,
                BatchResult& batch_result) override {
     batch_result.ClearAndResize(inputs.size());
     for (ByteSpan input : inputs) {

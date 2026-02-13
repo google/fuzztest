@@ -226,13 +226,11 @@ std::string ExtractHashFromArray(ByteArray &ba) {
   return res;
 }
 
-ByteArray PackFeaturesAndHash(const ByteArray &data,
-                              const FeatureVec &features) {
+ByteArray PackFeaturesAndHash(ByteSpan data, const FeatureVec& features) {
   return PackFeaturesAndHashAsRawBytes(data, AsByteSpan(features));
 }
 
-ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
-                                        ByteSpan features) {
+ByteArray PackFeaturesAndHashAsRawBytes(ByteSpan data, ByteSpan features) {
   ByteArray feature_bytes_with_hash(features.size() + kHashLen);
   auto hash = Hash(data);
   FUZZTEST_CHECK_EQ(hash.size(), kHashLen);

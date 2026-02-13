@@ -229,7 +229,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
   return subset_to_remove.size();
 }
 
-void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
+void Corpus::Add(ByteSpan data, const FeatureVec& fv,
                  const ExecutionMetadata& metadata,
                  const ExecutionResult::Stats& stats, const FeatureSet& fs,
                  const CoverageFrontier& coverage_frontier) {
@@ -237,17 +237,44 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
   FUZZTEST_CHECK(!data.empty())
       << "Got request to add empty element to corpus: ignoring";
   FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
-  records_.push_back({data, fv, metadata, stats});
+  records_.push_back({{data.begin(), data.end()}, fv, metadata, stats});
   // Will be updated by `UpdateWeights`.
   weighted_distribution_.AddWeight(0);
 }
 
-const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
-  return records_[weighted_distribution_.RandomIndex(rng)];
+bool Corpus::TryReduceInput(size_t index, ByteSpan data, const FeatureVec& fv,
+                            const ExecutionMetadata& metadata,
+                            const ExecutionResult::Stats& stats) {
+  // Check if all original features is covered.
+  const auto& origin_fv = records_[index].features;
+  size_t cursor = 0;
+  for (const auto origin_feature : origin_fv) {
+    while (cursor < fv.size() && fv[cursor] < origin_feature) ++cursor;
+    // Missing previous feature - not reduction.
+    if (cursor == fv.size()) return false;
+    if (fv[cursor] == origin_feature) continue;
+    if (feature_domains::IsComparisonScoreFeature(fv[cursor]) &&
+        feature_domains::IsComparisonScoreFeature(origin_feature) &&
+        feature_domains::CMPScoreFeatureIndex(fv[cursor]) ==
+            feature_domains::CMPScoreFeatureIndex(origin_feature)) {
+      continue;
+    }
+    // Missing previous feature - not reduction.
+    return false;
+  }
+  records_[index].data = {data.begin(), data.end()};
+  // Note that we don't update the features to focus on the original features.
+  records_[index].metadata = metadata;
+  records_[index].stats = stats;
+  return true;
 }
 
-const CorpusRecord& Corpus::UniformRandom(absl::BitGenRef rng) const {
-  return records_[absl::Uniform<size_t>(rng, 0, records_.size())];
+size_t Corpus::WeightedRandom(absl::BitGenRef rng) const {
+  return weighted_distribution_.RandomIndex(rng);
+}
+
+size_t Corpus::UniformRandom(absl::BitGenRef rng) const {
+  return absl::Uniform<size_t>(rng, 0, records_.size());
 }
 
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,

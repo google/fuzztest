@@ -31,6 +31,7 @@
 
 #include "absl/base/nullability.h"
 #include "./centipede/execution_metadata.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -535,9 +536,13 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size) {
                   "mutant must be non-empty with a valid pointer");
   auto* output = GetOutputsBlobSequence();
   DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
-  DispatcherCheck(MutationResult::WriteMutant(
-                      {static_cast<const uint8_t*>(data), size}, *output),
-                  "failed to write mutant");
+  DispatcherCheck(
+      MutationResult::WriteMutant({{static_cast<const uint8_t*>(data), size},
+                                   // TODO(xinhaoyuan): change the dispatcher
+                                   // interface to include the origin.
+                                   fuzztest::internal::Mutant::kOriginNone},
+                                  *output),
+      "failed to write mutant");
 }
 
 void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,

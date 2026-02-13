@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -37,8 +37,8 @@ enum Tags : Blob::SizeAndTagT {
 };
 
 // Writes `inputs` to `blobseq`, returns the number of inputs written.
-static size_t WriteInputs(const std::vector<ByteArray> &inputs,
-                          BlobSequence &blobseq) {
+static size_t WriteInputs(const std::vector<ByteSpan>& inputs,
+                          BlobSequence& blobseq) {
   size_t num_inputs = inputs.size();
   if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
   size_t result = 0;
@@ -75,8 +75,8 @@ static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
 
 }  // namespace
 
-size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        BlobSequence &blobseq) {
+size_t RequestExecution(const std::vector<ByteSpan>& inputs,
+                        BlobSequence& blobseq) {
   if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
   return WriteInputs(inputs, blobseq);
 }

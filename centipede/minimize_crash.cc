@@ -26,7 +26,7 @@
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/thread_pool.h"
@@ -114,21 +114,21 @@ static void MinimizeCrash(const Environment &env,
     // discarding all inputs that are too large.
     // TODO(kcc): modify the Mutate() interface such that max_len can be passed.
     //
-    const std::vector<ByteArray> mutants = callbacks->Mutate(
+    const std::vector<Mutant> mutants = callbacks->Mutate(
         GetMutationInputRefsFromDataInputs(recent_crashers), env.batch_size);
-    std::vector<ByteArray> smaller_mutants;
+    std::vector<ByteSpan> smaller_mutants;
     for (const auto &m : mutants) {
-      if (m.size() < min_known_size) smaller_mutants.push_back(m);
+      if (m.data.size() < min_known_size) smaller_mutants.push_back(m.data);
     }
 
     // Execute all mutants. If a new crasher is found, add it to `queue`.
     if (!callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
       size_t crash_inputs_idx = batch_result.num_outputs_read();
       FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
-      const auto &new_crasher = smaller_mutants[crash_inputs_idx];
+      const auto new_crasher = smaller_mutants[crash_inputs_idx];
       FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
                          << AsPrintableString(new_crasher, /*max_len=*/40);
-      queue.AddCrasher(new_crasher);
+      queue.AddCrasher({new_crasher.begin(), new_crasher.end()});
     }
   }
 }

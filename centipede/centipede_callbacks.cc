@@ -48,7 +48,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
@@ -518,7 +518,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
-    std::string_view binary, const std::vector<ByteArray>& inputs,
+    std::string_view binary, const std::vector<ByteSpan>& inputs,
     BatchResult& batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());

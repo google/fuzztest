@@ -17,6 +17,7 @@
 
 #include "./common/remote_file.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -28,10 +29,16 @@
 
 namespace fuzztest::internal {
 
+absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f,
+                              const ByteArray& contents) {
+  return RemoteFileAppend(f, ByteSpan{contents.data(), contents.size()});
+}
+
 absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
                               const std::string &contents) {
-  ByteArray contents_ba{contents.cbegin(), contents.cend()};
-  return RemoteFileAppend(f, contents_ba);
+  return RemoteFileAppend(
+      f, ByteSpan{reinterpret_cast<const uint8_t*>(contents.data()),
+                  contents.size()});
 }
 
 absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents) {
@@ -43,17 +50,18 @@ absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents) {
 
 absl::Status RemoteFileSetContents(std::string_view path,
                                    const ByteArray &contents) {
-  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
-  if (file == nullptr) {
-    return absl::UnknownError(
-        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
-  }
-  RETURN_IF_NOT_OK(RemoteFileAppend(file, contents));
-  return RemoteFileClose(file);
+  return RemoteFileSetContents(path,
+                               ByteSpan{contents.data(), contents.size()});
 }
 
 absl::Status RemoteFileSetContents(std::string_view path,
                                    const std::string &contents) {
+  return RemoteFileSetContents(
+      path, ByteSpan{reinterpret_cast<const uint8_t*>(contents.data()),
+                     contents.size()});
+}
+
+absl::Status RemoteFileSetContents(std::string_view path, ByteSpan contents) {
   ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
   if (file == nullptr) {
     return absl::UnknownError(
