@@ -28,7 +28,7 @@
 #include "absl/status/statusor.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
 
@@ -40,10 +40,10 @@ class CentipedeDefaultCallbacks : public CentipedeCallbacks {
   explicit CentipedeDefaultCallbacks(const Environment &env);
   size_t GetSeeds(size_t num_seeds, std::vector<ByteArray> &seeds) override;
   absl::StatusOr<std::string> GetSerializedTargetConfig() override;
-  bool Execute(std::string_view binary, const std::vector<ByteArray> &inputs,
-               BatchResult &batch_result) override;
-  std::vector<ByteArray> Mutate(const std::vector<MutationInputRef> &inputs,
-                                size_t num_mutants) override;
+  bool Execute(std::string_view binary, const std::vector<ByteSpan>& inputs,
+               BatchResult& batch_result) override;
+  std::vector<Mutant> Mutate(const std::vector<MutationInputRef>& inputs,
+                             size_t num_mutants) override;
 
  private:
   std::optional<bool> custom_mutator_is_usable_ = std::nullopt;

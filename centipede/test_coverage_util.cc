@@ -41,7 +41,8 @@ std::vector<CorpusRecord> RunInputsAndCollectCorpusRecords(
   }
   BatchResult batch_result;
   // Run.
-  CBs.Execute(env.binary, byte_array_inputs, batch_result);
+  CBs.Execute(env.binary, {byte_array_inputs.begin(), byte_array_inputs.end()},
+              batch_result);
 
   // Repackage execution results into a vector of CorpusRecords.
   std::vector<CorpusRecord> corpus_records;

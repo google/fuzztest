@@ -121,7 +121,7 @@ class Corpus {
   // Adds a corpus element, consisting of 'data' (the input bytes, non-empty),
   // 'fv' (the features associated with this input), and execution `metadata`.
   // `fs` is used to compute weights of `fv`.
-  void Add(const ByteArray& data, const FeatureVec& fv,
+  void Add(ByteSpan data, const FeatureVec& fv,
            const ExecutionMetadata& metadata,
            const ExecutionResult::Stats& stats, const FeatureSet& fs,
            const CoverageFrontier& coverage_frontier);

@@ -82,7 +82,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/rusage_stats.h"
@@ -360,7 +360,7 @@ void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
   }
 }
 
-bool Centipede::InputPassesFilter(const ByteArray &input) {
+bool Centipede::InputPassesFilter(ByteSpan input) {
   if (env_.input_filter.empty()) return true;
   WriteToLocalFile(input_filter_path_, input);
   bool result = input_filter_cmd_.Execute() == EXIT_SUCCESS;
@@ -369,8 +369,8 @@ bool Centipede::InputPassesFilter(const ByteArray &input) {
 }
 
 bool Centipede::ExecuteAndReportCrash(std::string_view binary,
-                                      const std::vector<ByteArray> &input_vec,
-                                      BatchResult &batch_result) {
+                                      const std::vector<ByteSpan>& input_vec,
+                                      BatchResult& batch_result) {
   bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
   if (success) return true;
   if (ShouldStop()) {
@@ -425,10 +425,10 @@ size_t Centipede::AddPcPairFeatures(FeatureVec &fv) {
 }
 
 bool Centipede::RunBatch(
-    const std::vector<ByteArray> &input_vec,
-    BlobFileWriter *absl_nullable corpus_file,
-    BlobFileWriter *absl_nullable features_file,
-    BlobFileWriter *absl_nullable unconditional_features_file) {
+    const std::vector<ByteSpan>& input_vec,
+    BlobFileWriter* absl_nullable corpus_file,
+    BlobFileWriter* absl_nullable features_file,
+    BlobFileWriter* absl_nullable unconditional_features_file) {
   BatchResult batch_result;
   bool success = ExecuteAndReportCrash(env_.binary, input_vec, batch_result);
   FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
@@ -580,11 +580,11 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   while (!to_rerun.empty()) {
     if (ShouldStop()) break;
     size_t batch_size = std::min(to_rerun.size(), env_.batch_size);
-    std::vector<ByteArray> batch(to_rerun.end() - batch_size, to_rerun.end());
-    to_rerun.resize(to_rerun.size() - batch_size);
+    std::vector<ByteSpan> batch(to_rerun.end() - batch_size, to_rerun.end());
     if (RunBatch(batch, nullptr, nullptr, features_file.get())) {
       UpdateAndMaybeLogStats("rerun-old", 1);
     }
+    to_rerun.resize(to_rerun.size() - batch_size);
   }
 }
 
@@ -776,7 +776,7 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
     seed_inputs.push_back({0});
   }
 
-  RunBatch(seed_inputs, corpus_file, features_file,
+  RunBatch({seed_inputs.begin(), seed_inputs.end()}, corpus_file, features_file,
            /*unconditional_features_file=*/nullptr);
   FUZZTEST_LOG(INFO) << "Number of input seeds available: "
                      << num_seeds_available
@@ -866,13 +866,18 @@ void Centipede::FuzzingLoop() {
           MutationInputRef{corpus_record.data, &corpus_record.metadata});
     }
 
-    const std::vector<ByteArray> mutants =
+    std::vector<Mutant> mutants =
         user_callbacks_.Mutate(mutation_inputs, batch_size);
     if (ShouldStop()) break;
-
-    bool gained_new_coverage =
-        RunBatch(mutants, corpus_file.get(), features_file.get(), nullptr);
     new_runs += mutants.size();
+
+    std::vector<ByteSpan> inputs;
+    inputs.reserve(mutants.size());
+    for (auto& mutant : mutants) {
+      inputs.push_back(mutant.data);
+    }
+    bool gained_new_coverage =
+        RunBatch(inputs, corpus_file.get(), features_file.get(), nullptr);
 
     if (gained_new_coverage) {
       UpdateAndMaybeLogStats("new-feature", 1);
@@ -915,8 +920,8 @@ void Centipede::FuzzingLoop() {
 }
 
 void Centipede::ReportCrash(std::string_view binary,
-                            const std::vector<ByteArray> &input_vec,
-                            const BatchResult &batch_result) {
+                            const std::vector<ByteSpan>& input_vec,
+                            const BatchResult& batch_result) {
   FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
 
   const size_t suspect_input_idx = std::clamp<size_t>(
@@ -1012,7 +1017,7 @@ void Centipede::ReportCrash(std::string_view binary,
       << "Executing inputs one-by-one, trying to find the reproducer";
   for (auto input_idx : input_idxs_to_try) {
     if (ShouldStop()) break;
-    const auto &one_input = input_vec[input_idx];
+    const auto one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result) &&
         one_input_batch_result.IsInputFailure() &&

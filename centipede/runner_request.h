@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 
@@ -35,8 +35,8 @@ enum class PersistentModeRequest : char {
 
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
-size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        BlobSequence &blobseq);
+size_t RequestExecution(const std::vector<ByteSpan>& inputs,
+                        BlobSequence& blobseq);
 
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
