@@ -86,6 +86,7 @@ def __sancov_fuzz_target_impl(ctx):
         inputs = [executable_src],
         outputs = [executable_dst],
         command = "cp %s %s" % (executable_src.path, executable_dst.path),
+        mnemonic = "CentipedeSancovFuzzTargetCopy",
     )
 
     # We need to explicitly collect the runfiles from all relevant attributes.
