@@ -536,7 +536,7 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size) {
   auto* output = GetOutputsBlobSequence();
   DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
   DispatcherCheck(MutationResult::WriteMutant(
-                      {static_cast<const uint8_t*>(data), size}, *output),
+                      {{static_cast<const uint8_t*>(data), size}}, *output),
                   "failed to write mutant");
 }
 

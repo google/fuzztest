@@ -140,12 +140,10 @@ void AppendHashToArray(ByteArray &ba, std::string_view hash);
 std::string ExtractHashFromArray(ByteArray &ba);
 
 // Pack {features, Hash(data)} into a byte array.
-ByteArray PackFeaturesAndHash(const ByteArray &data,
-                              const FeatureVec &features);
+ByteArray PackFeaturesAndHash(ByteSpan data, const FeatureVec& features);
 
 // Pack `features` and the hash of `data` directly from their raw data format.
-ByteArray PackFeaturesAndHashAsRawBytes(const ByteArray &data,
-                                        ByteSpan features);
+ByteArray PackFeaturesAndHashAsRawBytes(ByteSpan data, ByteSpan features);
 
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
 // `features` and return the hash.

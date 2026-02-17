@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -56,10 +57,10 @@ TEST(CmpTrace, T1) {
     observed_pairs.push_back(cmp_pair);
   };
 
-  CmpTrace<2, 10> trace2;
-  CmpTrace<4, 11> trace4;
-  CmpTrace<8, 12> trace8;
-  CmpTrace<0, 13> traceN;
+  CmpTrace<2, 10> trace2 = {};
+  CmpTrace<4, 11> trace4 = {};
+  CmpTrace<8, 12> trace8 = {};
+  CmpTrace<0, 13> traceN = {};
   trace2.Clear();
   trace4.Clear();
   trace8.Clear();
@@ -102,12 +103,12 @@ TEST(CmpTrace, T1) {
 
   constexpr uint8_t value0[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
   constexpr uint8_t value1[10] = {0, 9, 8, 7, 6, 5, 4, 3, 2, 1};
-  constexpr uint8_t long_array[20] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
-                                      10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+  uint8_t long_array[129];
+  std::iota(long_array, long_array + 129, 0);
   traceN.Capture(7, value0, value1);
   traceN.Capture(3, value0, value1);
   traceN.Capture(10, value0, value1);
-  traceN.Capture(20, long_array, long_array);  // will be trimmed to 16.
+  traceN.Capture(129, long_array, long_array);  // will be trimmed to 128.
   observed_pairs.clear();
   traceN.ForEachNonZero(callback);
   EXPECT_THAT(observed_pairs,
@@ -115,7 +116,7 @@ TEST(CmpTrace, T1) {
                   TwoArraysToByteVector(value0, value1, 10),
                   TwoArraysToByteVector(value0, value1, 7),
                   TwoArraysToByteVector(value0, value1, 3),
-                  TwoArraysToByteVector(long_array, long_array, 16)));
+                  TwoArraysToByteVector(long_array, long_array, 128)));
 }
 
 }  // namespace

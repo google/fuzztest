@@ -70,7 +70,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
@@ -516,10 +516,8 @@ class CentipedeAdaptorRunnerCallbacks
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
-              size_t num_mutants,
-              std::function<void(fuzztest::internal::ByteSpan)>
-                  new_mutant_callback) override {
+  bool Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+              std::function<void(MutantRef)> new_mutant_callback) override {
     if (inputs.empty()) return false;
     cmp_tables.resize(inputs.size());
     absl::Cleanup cmp_tables_cleaner = [this]() { cmp_tables.clear(); };
@@ -556,7 +554,7 @@ class CentipedeAdaptorRunnerCallbacks
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args));
       }
       new_mutant_callback(
-          {(unsigned char*)mutant_data.data(), mutant_data.size()});
+          {{(unsigned char*)mutant_data.data(), mutant_data.size()}});
     }
     return true;
   }
@@ -1018,7 +1016,7 @@ class CentipedeCallbacksForRunnerFlagsExtraction
   using fuzztest::internal::CentipedeCallbacks::CentipedeCallbacks;
 
   bool Execute(std::string_view binary,
-               const std::vector<fuzztest::internal::ByteArray>& inputs,
+               const std::vector<fuzztest::internal::ByteSpan>& inputs,
                fuzztest::internal::BatchResult& batch_result) override {
     return false;
   }
