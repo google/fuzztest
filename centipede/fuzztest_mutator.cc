@@ -29,7 +29,7 @@
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
@@ -41,6 +41,16 @@ namespace {
 
 using MutatorDomainBase =
     decltype(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>()));
+
+template <typename T>
+bool SampleInsert(const T& cmp_table, size_t& counter) {
+  static thread_local absl::BitGen bitgen;
+  counter++;
+  if (counter <= cmp_table.kTableSize) {
+    return true;
+  }
+  return absl::Uniform<size_t>(bitgen, 0, counter) < cmp_table.kTableSize;
+}
 
 template <typename T>
 void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b,
@@ -57,27 +67,38 @@ void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b,
 void PopulateCmpEntries(const ExecutionMetadata& metadata,
                         TablesOfRecentCompares& cmp_tables) {
   // Size limits on the cmp entries to be populated.
-  static constexpr uint8_t kMaxCmpEntrySize = 15;
+  static constexpr uint8_t kMaxCmpEntrySize = 128;
   static constexpr uint8_t kMinCmpEntrySize = 2;
+  size_t uint16_sample_counter = 0;
+  size_t uint32_sample_counter = 0;
+  size_t uint64_sample_counter = 0;
+  size_t mem_sample_counter = 0;
 
-  metadata.ForEachCmpEntry([&cmp_tables](fuzztest::internal::ByteSpan a,
-                                         fuzztest::internal::ByteSpan b) {
+  metadata.ForEachCmpEntry([&](fuzztest::internal::ByteSpan a,
+                               fuzztest::internal::ByteSpan b) {
     FUZZTEST_CHECK(a.size() == b.size())
         << "cmp operands must have the same size";
     const size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
     if (size > kMaxCmpEntrySize) return;
-    if (size == 2) {
+    if (size == 2 && SampleInsert(cmp_tables.GetMutable<sizeof(uint16_t)>(),
+                                  uint16_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
                                                     cmp_tables);
-    } else if (size == 4) {
+    } else if (size == 4 &&
+               SampleInsert(cmp_tables.GetMutable<sizeof(uint32_t)>(),
+                            uint32_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
                                                     cmp_tables);
-    } else if (size == 8) {
+    } else if (size == 8 &&
+               SampleInsert(cmp_tables.GetMutable<sizeof(uint64_t)>(),
+                            uint64_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
                                                     cmp_tables);
     }
-    cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    if (SampleInsert(cmp_tables.GetMutable<0>(), mem_sample_counter)) {
+      cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    }
   });
 }
 
@@ -139,32 +160,35 @@ void FuzzTestMutator::CrossOver(ByteArray &data, const ByteArray &other) {
   }
 }
 
-std::vector<ByteArray> FuzzTestMutator::MutateMany(
-    const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+std::vector<Mutant> FuzzTestMutator::MutateMany(
+    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
   if (inputs.empty()) abort();
   auto& cmp_tables = mutation_metadata_->cmp_tables;
   cmp_tables.resize(inputs.size());
-  std::vector<ByteArray> mutants;
+  std::vector<Mutant> mutants;
   mutants.reserve(num_mutants);
-  for (int i = 0; i < num_mutants; ++i) {
-    auto index = absl::Uniform<size_t>(prng_, 0, inputs.size());
-    if (!cmp_tables[index].has_value() && inputs[index].metadata != nullptr) {
-      cmp_tables[index].emplace(/*compact=*/true);
-      PopulateCmpEntries(*inputs[index].metadata, *cmp_tables[index]);
+  for (size_t i = 0; i < num_mutants; ++i) {
+    Mutant mutant;
+    mutant.origin = absl::Uniform<size_t>(prng_, 0, inputs.size());
+    if (!cmp_tables[mutant.origin].has_value() &&
+        inputs[mutant.origin].metadata != nullptr) {
+      cmp_tables[mutant.origin].emplace(/*compact=*/true);
+      PopulateCmpEntries(*inputs[mutant.origin].metadata,
+                         *cmp_tables[mutant.origin]);
     }
-    auto mutant = inputs[index].data;
-    if (mutant.size() > max_len_) mutant.resize(max_len_);
+    mutant.data = inputs[mutant.origin].data;
+    if (mutant.data.size() > max_len_) mutant.data.resize(max_len_);
     if (knobs_.GenerateBool(knob_mutate_or_crossover, prng_())) {
       // Perform crossover with some other input. It may be the same input.
       const auto &other_input =
           inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
-      CrossOver(mutant, other_input);
+      CrossOver(mutant.data, other_input);
     } else {
-      domain_->Mutate(
-          mutant, prng_,
-          {/*cmp_tables=*/cmp_tables[index].has_value() ? &*cmp_tables[index]
-                                                        : nullptr},
-          /*only_shrink=*/false);
+      domain_->Mutate(mutant.data, prng_,
+                      {/*cmp_tables=*/cmp_tables[mutant.origin].has_value()
+                           ? &*cmp_tables[mutant.origin]
+                           : nullptr},
+                      /*only_shrink=*/false);
     }
     mutants.push_back(std::move(mutant));
   }

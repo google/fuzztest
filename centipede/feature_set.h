@@ -42,6 +42,10 @@ class FeatureSet {
       : frequency_threshold_(frequency_threshold),
         should_discard_domain_(should_discard_domain) {}
 
+  // Canonicalize feature vector so that features are sorted by order without
+  // redundant features.
+  void CanonicalizeFeatures(FeatureVec& fv);
+
   // Returns true if there are features in `features` not present in `this`.
   bool HasUnseenFeatures(const FeatureVec &features) const;
 

@@ -198,6 +198,9 @@ CENTIPEDE_FLAG(std::string, corpus_weight_method, "uniform",
 CENTIPEDE_FLAG(
     bool, exec_time_weight_scaling, true,
     "If true, scale the corpus weight by the execution time of each input.")
+CENTIPEDE_FLAG(bool, reduce_inputs, true,
+               "If true, attempt to reduce the size of in-memory corpus inputs "
+               "on the fly.")
 CENTIPEDE_FLAG(
     bool, use_coverage_frontier, false,
     "If true, use coverage frontier when choosing the corpus element to "

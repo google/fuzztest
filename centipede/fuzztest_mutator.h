@@ -22,7 +22,7 @@
 
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
@@ -44,8 +44,8 @@ class FuzzTestMutator {
   ~FuzzTestMutator();
 
   // Takes non-empty `inputs` and produces `num_mutants` mutants.
-  std::vector<ByteArray> MutateMany(const std::vector<MutationInputRef> &inputs,
-                                    size_t num_mutants);
+  std::vector<Mutant> MutateMany(const std::vector<MutationInputRef>& inputs,
+                                 size_t num_mutants);
 
   // Adds `dict_entries` to the internal mutation dictionary.
   void AddToDictionary(const std::vector<ByteArray>& dict_entries);
