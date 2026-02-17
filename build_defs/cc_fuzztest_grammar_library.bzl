@@ -39,7 +39,7 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None, insert_whites
     """
 
     output_file_name = name + ".h"
-    cmd = "$(location @com_google_fuzztest//tools:grammar_domain_code_generator)" + \
+    cmd = "$(location @fuzztest//tools:grammar_domain_code_generator)" + \
           " --output_header_file_path " + "$(@D)/" + output_file_name + \
           (" --insert_whitespace" if insert_whitespace else " --noinsert_whitespace") + \
           " --input_grammar_files " + "`echo $(SRCS) | tr ' ' ','`"
@@ -52,10 +52,10 @@ def cc_fuzztest_grammar_library(name, srcs, top_level_rule = None, insert_whites
         outs = [output_file_name],
         cmd = cmd,
         heuristic_label_expansion = False,
-        tools = ["@com_google_fuzztest//tools:grammar_domain_code_generator"],
+        tools = ["@fuzztest//tools:grammar_domain_code_generator"],
     )
     cc_library(
         name = name,
         hdrs = [output_file_name],
-        deps = ["@com_google_fuzztest//fuzztest/internal/domains:in_grammar_impl"],
+        deps = ["@fuzztest//fuzztest/internal/domains:in_grammar_impl"],
     )

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
+package(default_visibility = ["@fuzztest//:__subpackages__"])
 
 licenses(["notice"])
 
@@ -21,8 +21,8 @@ cc_library(
     hdrs = ["absl_helpers.h"],
     deps = [
         "@abseil-cpp//absl/time",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest/internal:logging",
     ],
 )
 
@@ -69,16 +69,16 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
-        "@com_google_fuzztest//fuzztest/internal:any",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:meta",
-        "@com_google_fuzztest//fuzztest/internal:printer",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:status",
-        "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
-        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest:fuzzing_bit_gen",
+        "@fuzztest//fuzztest/internal:any",
+        "@fuzztest//fuzztest/internal:logging",
+        "@fuzztest//fuzztest/internal:meta",
+        "@fuzztest//fuzztest/internal:printer",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:status",
+        "@fuzztest//fuzztest/internal:table_of_recent_compares",
+        "@fuzztest//fuzztest/internal:type_support",
     ],
 )
 
@@ -96,13 +96,13 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:any",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:meta",
-        "@com_google_fuzztest//fuzztest/internal:printer",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest/internal:any",
+        "@fuzztest//fuzztest/internal:logging",
+        "@fuzztest//fuzztest/internal:meta",
+        "@fuzztest//fuzztest/internal:printer",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:type_support",
     ],
 )
 
@@ -123,10 +123,10 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:meta",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@fuzztest//fuzztest/internal:logging",
+        "@fuzztest//fuzztest/internal:meta",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:type_support",
     ],
 )
 
@@ -143,11 +143,11 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:status",
-        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest/internal:logging",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:status",
+        "@fuzztest//fuzztest/internal:type_support",
     ],
 )
 
@@ -167,14 +167,14 @@ cc_library(
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_fuzztest//fuzztest/internal:any",
-        "@com_google_fuzztest//fuzztest/internal:logging",
-        "@com_google_fuzztest//fuzztest/internal:meta",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:status",
-        "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest:domain_core",
+        "@fuzztest//fuzztest/internal:any",
+        "@fuzztest//fuzztest/internal:logging",
+        "@fuzztest//fuzztest/internal:meta",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:status",
+        "@fuzztest//fuzztest/internal:type_support",
     ],
 )
 
@@ -195,12 +195,12 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest:domain_core",
-        "@com_google_fuzztest//fuzztest/internal:any",
-        "@com_google_fuzztest//fuzztest/internal:meta",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
-        "@com_google_fuzztest//fuzztest/internal:status",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest:domain_core",
+        "@fuzztest//fuzztest/internal:any",
+        "@fuzztest//fuzztest/internal:meta",
+        "@fuzztest//fuzztest/internal:serialization",
+        "@fuzztest//fuzztest/internal:status",
         "@flatbuffers//:runtime_cc",
     ],
 )
@@ -217,8 +217,8 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
+        "@fuzztest//common:logging",
+        "@fuzztest//fuzztest/internal:logging",
         "@re2",
     ],
 )

@@ -31,7 +31,7 @@ cc_binary(
     deps = [
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
-        "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//grammar_codegen:code_generation",
+        "@fuzztest//common:logging",
+        "@fuzztest//grammar_codegen:code_generation",
     ],
 )
