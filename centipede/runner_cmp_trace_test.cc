@@ -56,10 +56,10 @@ TEST(CmpTrace, T1) {
     observed_pairs.push_back(cmp_pair);
   };
 
-  CmpTrace<2, 10> trace2;
-  CmpTrace<4, 11> trace4;
-  CmpTrace<8, 12> trace8;
-  CmpTrace<0, 13> traceN;
+  CmpTrace<2, 10> trace2 = {};
+  CmpTrace<4, 11> trace4 = {};
+  CmpTrace<8, 12> trace8 = {};
+  CmpTrace<0, 13> traceN = {};
   trace2.Clear();
   trace4.Clear();
   trace8.Clear();
