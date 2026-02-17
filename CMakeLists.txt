@@ -15,6 +15,14 @@
 cmake_minimum_required(VERSION 3.19)
 project(fuzztest)
 
+option(FUZZTEST_DOWNLOAD_ABSL "Download abseil-cpp using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_RE2 "Download re2 using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_GTEST "Download googletest using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_PROTOBUF "Download protobuf using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_NLOHMANN "Download nlohmann_json using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_FLATBUFFERS "Download flatbuffers using FetchContent." OFF)
+option(FUZZTEST_DOWNLOAD_DEPENDENCIES "Download all dependencies using FetchContent." ON)
+
 option(FUZZTEST_BUILD_TESTING "Building the tests." OFF)
 option(FUZZTEST_BUILD_FLATBUFFERS "Building the flatbuffers support." OFF)
 option(FUZZTEST_FUZZING_MODE "Building the fuzztest in fuzzing mode." OFF)

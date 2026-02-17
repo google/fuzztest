@@ -43,78 +43,113 @@ if(POLICY CMP0135)
 	set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
-FetchContent_Declare(
-  abseil-cpp
-  GIT_REPOSITORY ${absl_URL}
-  GIT_TAG        ${absl_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_ABSL)
+  FetchContent_Declare(
+    abseil-cpp
+    GIT_REPOSITORY ${absl_URL}
+    GIT_TAG        ${absl_TAG}
+  )
+else()
+  find_package(absl REQUIRED)
+endif()
 
-FetchContent_Declare(
-  re2
-  GIT_REPOSITORY ${re2_URL}
-  GIT_TAG        ${re2_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_RE2)
+  FetchContent_Declare(
+    re2
+    GIT_REPOSITORY ${re2_URL}
+    GIT_TAG        ${re2_TAG}
+  )
+else()
+  find_package(re2 REQUIRED)
+endif()
 
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY ${gtest_URL}
-  GIT_TAG        ${gtest_TAG}
-)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_GTEST)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY ${gtest_URL}
+    GIT_TAG        ${gtest_TAG}
+  )
+else()
+  find_package(GTest REQUIRED)
+endif()
 
 FetchContent_Declare(
   antlr_cpp
-  URL      ${antlr_cpp_URL}
+  URL          ${antlr_cpp_URL}
   URL_HASH MD5=${antlr_cpp_MD5}
 )
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
-  FetchContent_Declare(
-    flatbuffers
-    GIT_REPOSITORY ${flatbuffers_URL}
-    GIT_TAG        ${flatbuffers_TAG}
-  )
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_FLATBUFFERS)
+    FetchContent_Declare(
+      flatbuffers
+      GIT_REPOSITORY ${flatbuffers_URL}
+      GIT_TAG        ${flatbuffers_TAG}
+    )
+  else()
+    find_package(flatbuffers REQUIRED)
+  endif()
 endif()
 
 if (FUZZTEST_BUILD_TESTING)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_PROTOBUF)
+    FetchContent_Declare(
+      protobuf
+      GIT_REPOSITORY ${proto_URL}
+      GIT_TAG        ${proto_TAG}
+    )
+    else()
+      find_package(Protobuf REQUIRED)
+      if(TARGET Protobuf::protobuf AND NOT TARGET protobuf::libprotobuf)
+        add_library(protobuf::libprotobuf ALIAS Protobuf::protobuf)
+      endif()
+  endif ()
 
-  FetchContent_Declare(
-    protobuf
-    GIT_REPOSITORY ${proto_URL}
-    GIT_TAG        ${proto_TAG}
-  )
-
-  FetchContent_Declare(
-    nlohmann_json
-    GIT_REPOSITORY ${nlohmann_json_URL}
-    GIT_TAG        ${nlohmann_json_TAG}
-  )
-
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_NLOHMANN)
+    FetchContent_Declare(
+      nlohmann_json
+      GIT_REPOSITORY ${nlohmann_json_URL}
+      GIT_TAG        ${nlohmann_json_TAG}
+    )
+  else()
+    find_package(nlohmann_json REQUIRED)
+  endif()
 endif ()
 
-set(ABSL_PROPAGATE_CXX_STD ON)
-set(ABSL_ENABLE_INSTALL ON)
-FetchContent_MakeAvailable(abseil-cpp)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES)
+  set(ABSL_PROPAGATE_CXX_STD ON)
+  set(ABSL_ENABLE_INSTALL ON)
+  FetchContent_MakeAvailable(abseil-cpp)
+endif()
 
-set(RE2_BUILD_TESTING OFF)
-FetchContent_MakeAvailable(re2)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_RE2)
+  set(RE2_BUILD_TESTING OFF)
+  FetchContent_MakeAvailable(re2)
+endif ()
 
-set(GTEST_HAS_ABSL ON)
-FetchContent_MakeAvailable(googletest)
+if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_ABSL)
+  set(GTEST_HAS_ABSL ON)
+  FetchContent_MakeAvailable(googletest)
+endif()
 
 FetchContent_MakeAvailable(antlr_cpp)
 
 if (FUZZTEST_BUILD_TESTING)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_PROTOBUF)
+    set(protobuf_BUILD_TESTS OFF)
+    set(protobuf_INSTALL OFF)
+    FetchContent_MakeAvailable(protobuf)
+  endif()
 
-  set(protobuf_BUILD_TESTS OFF)
-  set(protobuf_INSTALL OFF)
-  FetchContent_MakeAvailable(protobuf)
-
-  FetchContent_MakeAvailable(nlohmann_json)
-
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_NLOHMANN)
+    FetchContent_MakeAvailable(nlohmann_json)
+  endif()
 endif ()
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
-  set(FLATBUFFERS_BUILD_TESTS OFF)
-  set(FLATBUFFERS_BUILD_INSTALL OFF)
-  FetchContent_MakeAvailable(flatbuffers)
+  if(FUZZTEST_DOWNLOAD_DEPENDENCIES OR FUZZTEST_DOWNLOAD_FLATBUFFERS)
+    set(FLATBUFFERS_BUILD_TESTS OFF)
+    set(FLATBUFFERS_BUILD_INSTALL OFF)
+    FetchContent_MakeAvailable(flatbuffers)
+  endif()
 endif()
