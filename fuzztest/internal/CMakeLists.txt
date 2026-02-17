@@ -531,6 +531,7 @@ if (FUZZTEST_BUILD_FLATBUFFERS)
       test_flatbuffers_headers
     SCHEMAS
       "test_flatbuffers.fbs"
+      "test_flatbuffers_64bits.fbs"
     FLAGS 
       --bfbs-gen-embed --gen-name-strings
     TESTONLY

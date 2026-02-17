@@ -137,7 +137,9 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
     }
     field_counter++;
 
-    if (field->type()->base_type() == reflection::BaseType::Obj) {
+    auto base_type = field->type()->base_type();
+
+    if (base_type == reflection::BaseType::Obj) {
       auto sub_object = schema_->objects()->Get(field->type()->index());
       if (!sub_object->is_struct()) {
         field_counter +=
@@ -146,7 +148,16 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
                 selected_field_index - field_counter);
       }
       // TODO: Add support for structs.
+    } else if (base_type == reflection::BaseType::Vector) {
+      field_counter += MutateVectorField<FlatbuffersVectorTag>(
+          field, val, prng, metadata, only_shrink,
+          selected_field_index - field_counter);
+    } else if (base_type == reflection::BaseType::Vector64) {
+      field_counter += MutateVectorField<FlatbuffersVector64Tag>(
+          field, val, prng, metadata, only_shrink,
+          selected_field_index - field_counter);
     }
+    // TODO: Add support for unions.
 
     if (field_counter > selected_field_index) {
       return field_counter;
@@ -266,15 +277,25 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
     auto sub_object = schema_->objects()->Get(field->type()->index());
     return !sub_object->is_struct();
   };
+  if (base_type == reflection::BaseType::Vector ||
+      base_type == reflection::BaseType::Vector64) {
+    auto elem_type = field->type()->element();
+    if (flatbuffers::IsScalar(elem_type)) return true;
+    if (elem_type == reflection::BaseType::String) return true;
+    if (elem_type == reflection::BaseType::Obj) {
+      auto sub_object = schema_->objects()->Get(field->type()->index());
+      return !sub_object->is_struct();
+    }
+  }
   return false;
 }
 
 uint32_t FlatbuffersTableUntypedDomainImpl::BuildTable(
-    const corpus_type& value, flatbuffers::FlatBufferBuilder& builder) const {
+    const corpus_type& value, flatbuffers::FlatBufferBuilder64& builder) const {
   // Add all the fields to the builder.
 
   // Offsets is the map of field id to its offset in the table.
-  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset_t>
+  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset64_t>
       offsets;
 
   // Some fields are stored inline in the flatbuffer table itself (a.k.a

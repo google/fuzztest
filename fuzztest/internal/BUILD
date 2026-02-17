@@ -578,8 +578,13 @@ cc_test(
 
 flatbuffer_library_public(
     name = "test_flatbuffers_fbs",
-    srcs = ["test_flatbuffers.fbs"],
+    srcs = [
+        "test_flatbuffers.fbs",
+        "test_flatbuffers_64bits.fbs",
+    ],
     outs = [
+        "test_flatbuffers_64bits_bfbs_generated.h",
+        "test_flatbuffers_64bits_generated.h",
         "test_flatbuffers_bfbs_generated.h",
         "test_flatbuffers_generated.h",
     ],
