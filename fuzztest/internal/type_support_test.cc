@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <list>
@@ -604,6 +605,42 @@ TEST(CustomPrinterTest, PrintsValuesCorrectly) {
 TEST(UnprintableTest, PrintsUnprintableValues) {
   EXPECT_THAT(TestPrintValue(NonAggregateWithoutCustomPrinter{}),
               Each("<unprintable value>"));
+}
+
+TEST(AutodetectTypePrinterTest, DetectsSmartPointers) {
+  class CustomIntPtr {
+   public:
+    using element_type = int;
+    CustomIntPtr() : n_(std::monostate{}) {}
+    explicit CustomIntPtr(int n) : n_(n) {}
+    const int* get() const { return std::get_if<int>(&n_); }
+    int* get() { return &std::get<int>(n_); }
+    const int& operator*() const { return *get(); }
+    int& operator*() { return *get(); }
+    bool operator!() const { return n_.index() == 0; }
+    bool operator==(std::nullptr_t) const { return !*this; }
+
+   private:
+    std::variant<std::monostate, int> n_;
+  };
+
+  static_assert(is_smart_pointer_v<std::unique_ptr<int>>);
+  static_assert(is_smart_pointer_v<const std::unique_ptr<int>>);
+  static_assert(is_smart_pointer_v<std::shared_ptr<int>>);
+  static_assert(is_smart_pointer_v<const std::shared_ptr<int>>);
+  static_assert(is_smart_pointer_v<CustomIntPtr>);
+  static_assert(is_smart_pointer_v<const CustomIntPtr>);
+
+  EXPECT_THAT(TestPrintValue(std::unique_ptr<int>(nullptr)), Each("nullptr"));
+  EXPECT_THAT(TestPrintValue(std::shared_ptr<int>(nullptr)), Each("nullptr"));
+  EXPECT_THAT(TestPrintValue(CustomIntPtr()), Each("nullptr"));
+
+  EXPECT_THAT(TestPrintValue(std::make_unique<int>(7)),
+              ElementsAre("(7)", "std::make_unique<int>(7)"));
+  EXPECT_THAT(TestPrintValue(std::make_shared<int>(7)),
+              ElementsAre("(7)", "std::make_shared<int>(7)"));
+  EXPECT_THAT(TestPrintValue(CustomIntPtr(7)),
+              ElementsAre("(7)", "<MAKE_SMART_POINTER><int>(7)"));
 }
 
 }  // namespace
