@@ -25,7 +25,7 @@
 #include "absl/status/statusor.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./common/defs.h"
@@ -46,8 +46,8 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
 }
 
 bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
-                                        const std::vector<ByteArray> &inputs,
-                                        BatchResult &batch_result) {
+                                        const std::vector<ByteSpan>& inputs,
+                                        BatchResult& batch_result) {
   return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result) ==
          0;
 }
@@ -72,8 +72,8 @@ CentipedeDefaultCallbacks::GetSerializedTargetConfig() {
       "Failed to get serialized configuration from the target binary.");
 }
 
-std::vector<ByteArray> CentipedeDefaultCallbacks::Mutate(
-    const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
+    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
   if (num_mutants == 0) return {};
   // In persistent mode, mutation could fail due to previous asynchronous
   // failure, thus give it one more chance to mutate in a clean state.

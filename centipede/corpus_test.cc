@@ -173,8 +173,7 @@ TEST(Corpus, UniformWeightMethodsWorkAsExpected) {
     freq.clear();
     freq.resize(corpus.NumActive());
     for (int i = 0; i < kNumIter; i++) {
-      const auto& record = corpus.WeightedRandom(rng);
-      const auto id = record.data[0];
+      const auto id = corpus.Records()[corpus.WeightedRandom(rng)].data[0];
       ASSERT_LT(id, freq.size());
       freq[id]++;
     }
@@ -215,8 +214,7 @@ TEST(Corpus, RecencyWeightMethodsWorkAsExpected) {
     freq.clear();
     freq.resize(corpus.NumActive());
     for (int i = 0; i < kNumIter; i++) {
-      const auto& record = corpus.WeightedRandom(rng);
-      const auto id = record.data[0];
+      const auto id = corpus.Records()[corpus.WeightedRandom(rng)].data[0];
       ASSERT_LT(id, freq.size());
       freq[id]++;
     }
@@ -256,8 +254,7 @@ TEST(Corpus, FeatureRarityWeightMethodsWorkAsExpected) {
     freq.clear();
     freq.resize(corpus.NumActive());
     for (int i = 0; i < kNumIter; i++) {
-      const auto& record = corpus.WeightedRandom(rng);
-      const auto id = record.data[0];
+      const auto id = corpus.Records()[corpus.WeightedRandom(rng)].data[0];
       ASSERT_LT(id, freq.size());
       freq[id]++;
     }
@@ -300,10 +297,8 @@ TEST(Corpus, ScalesWeightsWithExecTime) {
     freq.clear();
     freq.resize(corpus.NumActive());
     for (int i = 0; i < kNumIter; i++) {
-      const auto& record = corpus.WeightedRandom(rng);
-      const auto id = record.data[0];
-      ASSERT_LT(id, freq.size());
-      freq[id]++;
+      const size_t idx = corpus.WeightedRandom(rng);
+      freq[idx]++;
     }
   };
 

@@ -229,7 +229,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
   return subset_to_remove.size();
 }
 
-void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
+void Corpus::Add(ByteSpan data, const FeatureVec& fv,
                  const ExecutionMetadata& metadata,
                  const ExecutionResult::Stats& stats, const FeatureSet& fs,
                  const CoverageFrontier& coverage_frontier) {
@@ -237,17 +237,17 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
   FUZZTEST_CHECK(!data.empty())
       << "Got request to add empty element to corpus: ignoring";
   FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
-  records_.push_back({data, fv, metadata, stats});
+  records_.push_back({{data.begin(), data.end()}, fv, metadata, stats});
   // Will be updated by `UpdateWeights`.
   weighted_distribution_.AddWeight(0);
 }
 
-const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
-  return records_[weighted_distribution_.RandomIndex(rng)];
+size_t Corpus::WeightedRandom(absl::BitGenRef rng) const {
+  return weighted_distribution_.RandomIndex(rng);
 }
 
-const CorpusRecord& Corpus::UniformRandom(absl::BitGenRef rng) const {
-  return records_[absl::Uniform<size_t>(rng, 0, records_.size())];
+size_t Corpus::UniformRandom(absl::BitGenRef rng) const {
+  return absl::Uniform<size_t>(rng, 0, records_.size());
 }
 
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,

@@ -24,7 +24,7 @@
 #include "absl/strings/str_join.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
@@ -33,6 +33,7 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Each;
+using ::testing::Field;
 using ::testing::IsSupersetOf;
 using ::testing::Le;
 using ::testing::SizeIs;
@@ -49,10 +50,10 @@ TEST(FuzzTestMutator, DifferentRngSeedsLeadToDifferentMutantSequences) {
     std::vector<MutationInputRef> mutation_inputs = {{data}};
     constexpr size_t kMutantSequenceLength = 100;
     for (size_t iter = 0; iter < kMutantSequenceLength; iter++) {
-      const std::vector<ByteArray> mutants =
+      const std::vector<Mutant> mutants =
           mutator[i].MutateMany(mutation_inputs, 1);
       ASSERT_EQ(mutants.size(), 1);
-      res[i].push_back(mutants[0]);
+      res[i].push_back(mutants[0].data);
     }
   }
   EXPECT_NE(res[0], res[1]);
@@ -64,7 +65,7 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   EXPECT_TRUE(mutator.set_max_len(kMaxLen));
   constexpr size_t kNumMutantsToGenerate = 10000;
-  const std::vector<ByteArray> mutants = mutator.MutateMany(
+  const std::vector<Mutant> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
           {/*data=*/{0}},
@@ -74,70 +75,70 @@ TEST(FuzzTestMutator, MutateManyWorksWithInputsLargerThanMaxLen) {
       },
       kNumMutantsToGenerate);
 
-  EXPECT_THAT(mutants,
-              AllOf(SizeIs(kNumMutantsToGenerate), Each(SizeIs(Le(kMaxLen)))));
+  EXPECT_THAT(mutants, AllOf(SizeIs(kNumMutantsToGenerate),
+                             Each(Field(&Mutant::data, SizeIs(Le(kMaxLen))))));
 }
 
 TEST(FuzzTestMutator, CrossOverInsertsDataFromOtherInputs) {
   const Knobs knobs;
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   constexpr size_t kNumMutantsToGenerate = 100000;
-  const std::vector<ByteArray> mutants = mutator.MutateMany(
+  const std::vector<Mutant> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3}},
           {/*data=*/{4, 5, 6, 7}},
       },
       kNumMutantsToGenerate);
 
-  EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
-                           // The entire other input
-                           {4, 5, 6, 7, 0, 1, 2, 3},
-                           {0, 1, 4, 5, 6, 7, 2, 3},
-                           {0, 1, 2, 3, 4, 5, 6, 7},
-                           // The prefix of other input
-                           {4, 5, 6, 0, 1, 2, 3},
-                           {0, 1, 4, 5, 6, 2, 3},
-                           {0, 1, 2, 3, 4, 5, 6},
-                           // The suffix of other input
-                           {5, 6, 7, 0, 1, 2, 3},
-                           {0, 1, 5, 6, 7, 2, 3},
-                           {0, 1, 2, 3, 5, 6, 7},
-                           // The middle of other input
-                           {5, 6, 0, 1, 2, 3},
-                           {0, 1, 5, 6, 2, 3},
-                           {0, 1, 2, 3, 5, 6},
-                       }));
+  EXPECT_THAT(GetDataFromMutants(mutants), IsSupersetOf(std::vector<ByteArray>{
+                                               // The entire other input
+                                               {4, 5, 6, 7, 0, 1, 2, 3},
+                                               {0, 1, 4, 5, 6, 7, 2, 3},
+                                               {0, 1, 2, 3, 4, 5, 6, 7},
+                                               // The prefix of other input
+                                               {4, 5, 6, 0, 1, 2, 3},
+                                               {0, 1, 4, 5, 6, 2, 3},
+                                               {0, 1, 2, 3, 4, 5, 6},
+                                               // The suffix of other input
+                                               {5, 6, 7, 0, 1, 2, 3},
+                                               {0, 1, 5, 6, 7, 2, 3},
+                                               {0, 1, 2, 3, 5, 6, 7},
+                                               // The middle of other input
+                                               {5, 6, 0, 1, 2, 3},
+                                               {0, 1, 5, 6, 2, 3},
+                                               {0, 1, 2, 3, 5, 6},
+                                           }));
 }
 
 TEST(FuzzTestMutator, CrossOverOverwritesDataFromOtherInputs) {
   const Knobs knobs;
   FuzzTestMutator mutator(knobs, /*seed=*/1);
   constexpr size_t kNumMutantsToGenerate = 100000;
-  const std::vector<ByteArray> mutants = mutator.MutateMany(
+  const std::vector<Mutant> mutants = mutator.MutateMany(
       {
           {/*data=*/{0, 1, 2, 3, 4, 5, 6, 7}},
           {/*data=*/{100, 101, 102, 103}},
       },
       kNumMutantsToGenerate);
 
-  EXPECT_THAT(mutants, IsSupersetOf(std::vector<ByteArray>{
-                           // The entire other input
-                           {100, 101, 102, 103, 4, 5, 6, 7},
-                           {0, 1, 100, 101, 102, 103, 6, 7},
-                           {0, 1, 2, 3, 100, 101, 102, 103},
-                           // The prefix of other input
-                           {100, 101, 102, 3, 4, 5, 6, 7},
-                           {0, 1, 2, 100, 101, 102, 6, 7},
-                           {0, 1, 2, 3, 4, 100, 101, 102},
-                           // The suffix of other input
-                           {101, 102, 103, 3, 4, 5, 6, 7},
-                           {0, 1, 2, 101, 102, 103, 6, 7},
-                           {0, 1, 2, 3, 4, 101, 102, 103},
-                           // The middle of other input
-                           {101, 102, 2, 3, 4, 5, 6, 7},
-                           {0, 1, 2, 101, 102, 5, 6, 7},
-                           {0, 1, 2, 3, 4, 5, 101, 102},
-                       }));
+  EXPECT_THAT(GetDataFromMutants(mutants), IsSupersetOf(std::vector<ByteArray>{
+                                               // The entire other input
+                                               {100, 101, 102, 103, 4, 5, 6, 7},
+                                               {0, 1, 100, 101, 102, 103, 6, 7},
+                                               {0, 1, 2, 3, 100, 101, 102, 103},
+                                               // The prefix of other input
+                                               {100, 101, 102, 3, 4, 5, 6, 7},
+                                               {0, 1, 2, 100, 101, 102, 6, 7},
+                                               {0, 1, 2, 3, 4, 100, 101, 102},
+                                               // The suffix of other input
+                                               {101, 102, 103, 3, 4, 5, 6, 7},
+                                               {0, 1, 2, 101, 102, 103, 6, 7},
+                                               {0, 1, 2, 3, 4, 101, 102, 103},
+                                               // The middle of other input
+                                               {101, 102, 2, 3, 4, 5, 6, 7},
+                                               {0, 1, 2, 101, 102, 5, 6, 7},
+                                               {0, 1, 2, 3, 4, 5, 101, 102},
+                                           }));
 }
 
 // Test parameter containing the mutation settings and the expectations of a
@@ -181,12 +182,12 @@ TEST_P(MutationStepTest, GeneratesExpectedMutantsAndAvoidsUnexpectedMutants) {
   const std::vector<MutationInputRef> inputs = {
       {/*data=*/GetParam().seed_input, /*metadata=*/&metadata}};
   for (size_t i = 0; i < GetParam().max_num_iterations; i++) {
-    const std::vector<ByteArray> mutants = mutator.MutateMany(inputs, 1);
+    const std::vector<Mutant> mutants = mutator.MutateMany(inputs, 1);
     ASSERT_EQ(mutants.size(), 1);
     const auto& mutant = mutants[0];
-    EXPECT_FALSE(unexpected_mutants.contains(mutant))
-        << "Unexpected mutant: {" << absl::StrJoin(mutant, ",") << "}";
-    unmatched_expected_mutants.erase(mutant);
+    EXPECT_FALSE(unexpected_mutants.contains(mutant.data))
+        << "Unexpected mutant: {" << absl::StrJoin(mutant.data, ",") << "}";
+    unmatched_expected_mutants.erase(mutant.data);
     if (unmatched_expected_mutants.empty() &&
         i >= GetParam().min_num_iterations)
       break;
@@ -284,22 +285,34 @@ INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest, Values([] {
 INSTANTIATE_TEST_SUITE_P(SkipsLongCmpEntry, MutationStepTest, Values([] {
                            MutationStepTestParameter params;
                            params.seed_input = {0};
+                           ByteArray short_entry;
+                           for (size_t i = 0; i < 5; ++i) {
+                             short_entry.push_back(i);
+                           }
                            params.expected_mutants = {
-                               {0, 1, 2, 3, 4},
+                               short_entry,
                            };
+                           ByteArray long_entry;
+                           for (size_t i = 0; i < 129; ++i) {
+                             long_entry.push_back(i);
+                           }
                            params.unexpected_mutants = {
-                               {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
-                                11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+                               long_entry,
                            };
-                           params.cmp_data = {
-                               20,  // size
-                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // lhs
-                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // rhs
-                               4,                                       // size
-                               1,  2,  3,  4,                           // lhs
-                               1,  2,  3,  4};                          // rhs
+                           params.cmp_data.push_back(short_entry.size());
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  short_entry.begin(),
+                                                  short_entry.end());  // lhs
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  short_entry.begin(),
+                                                  short_entry.end());  // rhs
+                           params.cmp_data.push_back(long_entry.size());
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  long_entry.begin(),
+                                                  long_entry.end());  // lhs
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  long_entry.begin(),
+                                                  long_entry.end());  // rhs
                            return params;
                          }()));
 

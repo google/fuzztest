@@ -28,7 +28,7 @@ namespace {
 class FakeCallbacks : public CentipedeCallbacks {
  public:
   explicit FakeCallbacks(const Environment& env) : CentipedeCallbacks(env) {}
-  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+  bool Execute(std::string_view binary, const std::vector<ByteSpan>& inputs,
                BatchResult& batch_result) override {
     return true;
   }
