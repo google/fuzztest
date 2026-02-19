@@ -14,6 +14,7 @@
 
 """BUILD rule for Centipede puzzles"""
 
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("@com_google_fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
 
 def puzzle(name):
@@ -35,7 +36,7 @@ def puzzle(name):
     # repeatability. Each sh_test performs a single run with a single seed, so
     # that the log is minimal.
     for seed in ["1", "2"]:
-        native.sh_test(
+        sh_test(
             name = "run_" + seed + "_" + name,
             srcs = ["run_puzzle.sh"],
             data = [

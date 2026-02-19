@@ -21,27 +21,51 @@ module(
 
 bazel_dep(
     name = "rules_cc",
-    version = "0.2.2",
+    version = "0.2.17",
+)
+bazel_dep(
+    name = "rules_shell",
+    version = "0.6.1",
 )
 bazel_dep(
     name = "abseil-cpp",
-    version = "20250814.1",
+    version = "20260107.1",
 )
 bazel_dep(
     name = "re2",
-    version = "2024-07-02.bcr.1",
+    version = "2025-11-05.bcr.1",
 )
 bazel_dep(
     name = "bazel_skylib",
-    version = "1.7.1",
+    version = "1.9.0",
 )
 bazel_dep(
     name = "platforms",
-    version = "0.0.10",
+    version = "1.0.0",
 )
 bazel_dep(
     name = "flatbuffers",
-    version = "25.2.10",
+    # When updating, check if we still need to override the versions of
+    # rules_foreign_cc and aspect_bazel_lib below.
+    version = "25.12.19",
+)
+
+# Needed to override problematic versions of the modules transitively inherited
+# from flatbuffers. To check if this is still needed, comment out the overrides
+# and run:
+#
+#   bazel mod all_paths rules_foreign_cc aspect_bazel_lib
+#
+# Verify that the version of rules_foreign_cc in the output is at least 0.13.0,
+# and that the version of aspect_bazel_lib in the output is at least 2.19.1.
+single_version_override(
+    module_name = "rules_foreign_cc",
+    version = "0.15.1",
+)
+
+single_version_override(
+    module_name = "aspect_bazel_lib",
+    version = "2.22.5",
 )
 
 # GoogleTest is not a dev dependency, because it's needed when FuzzTest is used
@@ -49,22 +73,19 @@ bazel_dep(
 # framework can be used without GoogleTest integration as well.
 bazel_dep(
     name = "googletest",
-    version = "1.16.0",
+    version = "1.17.0.bcr.2",
 )
 
-# TODO(lszekeres): Make this a dev dependency, as the protobuf library is only
-# required for testing.
+# Protobuf is not a dev dependency; it is needed for Bazel BUILD rules:
+# https://github.com/protocolbuffers/protobuf/blob/main/bazel/proto_library.bzl
+# https://github.com/protocolbuffers/protobuf/blob/main/bazel/cc_proto_library.bzl
 bazel_dep(
     name = "protobuf",
-    version = "31.1",
-)
-bazel_dep(
-    name = "rules_proto",
-    version = "7.1.0",
+    version = "33.5",
 )
 bazel_dep(
     name = "riegeli",
-    version = "0.0.0-20250706-c4d1f27",
+    version = "0.0.0-20250822-9f2744d",
     repo_name = "com_google_riegeli",
 )
 
@@ -73,12 +94,12 @@ bazel_dep(
 # module (https://bazel.build/rules/lib/globals/module#bazel_dep).
 bazel_dep(
     name = "nlohmann_json",
-    version = "3.11.3",
+    version = "3.12.0.bcr.1",
     dev_dependency = True,
 )
 bazel_dep(
     name = "antlr4-cpp-runtime",
-    version = "4.12.0",
+    version = "4.13.2",
     dev_dependency = True,
     repo_name = "antlr_cpp",
 )

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 package(default_compatible_with = ["//buildenv/target:non_prod"])
 
 licenses(["notice"])

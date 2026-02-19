@@ -64,6 +64,7 @@ cc_test(
     tags = ["cpu:4"],
     deps = [
         ":domain_testing",
+        "@protobuf//:differencer",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
@@ -144,6 +145,7 @@ cc_library(
     hdrs = ["domain_testing.h"],
     visibility = ["@com_google_fuzztest//:__subpackages__"],
     deps = [
+        "@protobuf//:differencer",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/random",
@@ -157,7 +159,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:test_protobuf_cc_proto",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest",
-        "@protobuf",
     ],
 )
 

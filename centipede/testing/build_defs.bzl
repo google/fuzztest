@@ -20,6 +20,8 @@ to change its configuration (i.e., add the necessary compilation flags). The con
 affect all its transitive dependencies as well.
 """
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 # Change the flags from the default ones to sancov:
 # https://clang.llvm.org/docs/SanitizerCoverage.html.
 def _sancov_transition_impl(settings, attr):
@@ -165,7 +167,7 @@ def centipede_fuzz_target(
         # A dummy binary that is going to be wrapped by sancov.
         # __sancov_fuzz_target() below uses the dependencies here
         # to rebuild an instrumented binary using transition.
-        native.cc_binary(
+        cc_binary(
             name = fuzz_target,
             srcs = srcs or [name + ".cc"],
             deps = deps + ["@com_google_fuzztest//centipede:centipede_runner"],

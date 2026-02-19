@@ -17,26 +17,26 @@ cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_TAG 20250814.1)
+set(absl_TAG 20260107.1)
 
 set(re2_URL https://github.com/google/re2.git)
-set(re2_TAG 2024-07-02)
+set(re2_TAG 2025-11-05)
 
 set(gtest_URL https://github.com/google/googletest.git)
-set(gtest_TAG v1.16.0)
+set(gtest_TAG v1.17.0)
 
 # From https://www.antlr.org/download.html
-set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.12.0-source.zip)
-set(antlr_cpp_MD5 acf7371bd7562188712751266d8a7b90)
+set(antlr_cpp_URL https://www.antlr.org/download/antlr4-cpp-runtime-4.13.2-source.zip)
+set(antlr_cpp_MD5 bac8aef215ffd7b23a1dde2fcfe3c842)
 
 set(proto_URL https://github.com/protocolbuffers/protobuf.git)
-set(proto_TAG v30.2)
+set(proto_TAG v33.5)
 
 set(nlohmann_json_URL https://github.com/nlohmann/json.git)
-set(nlohmann_json_TAG v3.11.3)
+set(nlohmann_json_TAG v3.12.0)
 
 set(flatbuffers_URL https://github.com/google/flatbuffers.git)
-set(flatbuffers_TAG v25.2.10)
+set(flatbuffers_TAG v25.12.19)
 
 if(POLICY CMP0135)
 	cmake_policy(SET CMP0135 NEW)

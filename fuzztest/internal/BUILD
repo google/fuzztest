@@ -15,7 +15,8 @@
 load("@flatbuffers//:build_defs.bzl", "flatbuffer_library_public")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
 
@@ -468,6 +469,7 @@ cc_test(
     deps = [
         ":serialization",
         ":test_protobuf_cc_proto",
+        "@protobuf//:differencer",
         "@googletest//:gtest_main",
         "@protobuf",
     ],

@@ -15,6 +15,11 @@
 # Build file for the dso_example
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:private"])
+
+licenses(["notice"])
 
 # Shared library that we want to fuzz, built with (some) coverage instrumentation.
 # It has unresolved instrumentation symbol(s) which will be resolved dynamically.

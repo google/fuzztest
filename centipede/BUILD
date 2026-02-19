@@ -15,11 +15,14 @@
 # Description:
 #   Centipede: an experimental distributed fuzzing engine.
 
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_shell//shell:sh_library.bzl", "sh_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load(":instrument.bzl", "cc_uninstrumented_binary")
 
 DEFAULT_VISIBILITY = ["//visibility:public"]
