@@ -53,7 +53,7 @@
 #include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
@@ -327,8 +327,8 @@ void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
 std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
 
 bool RunnerCallbacks::Mutate(
-    const std::vector<MutationInputRef> & /*inputs*/, size_t /*num_mutants*/,
-    std::function<void(ByteSpan)> /*new_mutant_callback*/) {
+    const std::vector<MutationInputRef>& /*inputs*/, size_t /*num_mutants*/,
+    std::function<void(MutantRef)> /*new_mutant_callback*/) {
   RunnerCheck(!HasCustomMutator(),
               "Class deriving from RunnerCallbacks must implement Mutate() if "
               "HasCustomMutator() returns true.");
@@ -358,8 +358,8 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
     return custom_mutator_cb_ != nullptr;
   }
 
-  bool Mutate(const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-              std::function<void(ByteSpan)> new_mutant_callback) override;
+  bool Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+              std::function<void(MutantRef)> new_mutant_callback) override;
 
  private:
   FuzzerTestOneInputCallback test_one_input_cb_;
@@ -623,7 +623,7 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
   }
   if (!callbacks.HasCustomMutator()) return EXIT_SUCCESS;
 
-  if (!callbacks.Mutate(input_refs, num_mutants, [&](ByteSpan mutant) {
+  if (!callbacks.Mutate(input_refs, num_mutants, [&](MutantRef mutant) {
         MutationResult::WriteMutant(mutant, outputs_blobseq);
       })) {
     return EXIT_FAILURE;
@@ -632,36 +632,41 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
 }
 
 bool LegacyRunnerCallbacks::Mutate(
-    const std::vector<MutationInputRef> &inputs, size_t num_mutants,
-    std::function<void(ByteSpan)> new_mutant_callback) {
+    const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+    std::function<void(MutantRef)> new_mutant_callback) {
   if (custom_mutator_cb_ == nullptr) return false;
   unsigned int seed = GetRandomSeed();
   const size_t num_inputs = inputs.size();
   const size_t max_mutant_size = state->run_time_flags.max_len;
   constexpr size_t kAverageMutationAttempts = 2;
-  ByteArray mutant(max_mutant_size);
+  // Reused across iterations to save memory allocations.
+  Mutant mutant;
   for (size_t attempt = 0, num_outputs = 0;
        attempt < num_mutants * kAverageMutationAttempts &&
        num_outputs < num_mutants;
        ++attempt) {
-    const auto &input_data = inputs[rand_r(&seed) % num_inputs].data;
-
+    const auto& input_data = inputs[rand_r(&seed) % num_inputs].data;
     size_t size = std::min(input_data.size(), max_mutant_size);
-    std::copy(input_data.cbegin(), input_data.cbegin() + size, mutant.begin());
+    mutant.data.resize(max_mutant_size);
+    std::copy(input_data.cbegin(), input_data.cbegin() + size,
+              mutant.data.begin());
     size_t new_size = 0;
     if ((custom_crossover_cb_ != nullptr) &&
         rand_r(&seed) % 100 < state->run_time_flags.crossover_level) {
       // Perform crossover `crossover_level`% of the time.
       const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
-      new_size = custom_crossover_cb_(
-          input_data.data(), input_data.size(), other_data.data(),
-          other_data.size(), mutant.data(), max_mutant_size, rand_r(&seed));
+      new_size = custom_crossover_cb_(input_data.data(), input_data.size(),
+                                      other_data.data(), other_data.size(),
+                                      mutant.data.data(), max_mutant_size,
+                                      rand_r(&seed));
     } else {
-      new_size = custom_mutator_cb_(mutant.data(), size, max_mutant_size,
+      new_size = custom_mutator_cb_(mutant.data.data(), size, max_mutant_size,
                                     rand_r(&seed));
     }
     if (new_size == 0) continue;
-    new_mutant_callback({mutant.data(), new_size});
+    if (new_size > max_mutant_size) new_size = max_mutant_size;
+    mutant.data.resize(new_size);
+    new_mutant_callback(MutantRef{mutant});
     ++num_outputs;
   }
   return true;

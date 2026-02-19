@@ -84,10 +84,10 @@ class Centipede {
   //   * its features are written to `features_file` (if that's non-null).
   // Returns true if new features were observed.
   // Post-condition: `batch_result.results.size()` == `input_vec.size()`.
-  bool RunBatch(const std::vector<ByteArray> &input_vec,
-                BlobFileWriter *absl_nullable corpus_file,
-                BlobFileWriter *absl_nullable features_file,
-                BlobFileWriter *absl_nullable unconditional_features_file);
+  bool RunBatch(const std::vector<ByteArray>& input_vec,
+                BlobFileWriter* absl_nullable corpus_file,
+                BlobFileWriter* absl_nullable features_file,
+                BlobFileWriter* absl_nullable unconditional_features_file);
   // Loads seed inputs from the user callbacks, execute them, and store them
   // with the corresponding features into `corpus_file` and `features_file`.
   void LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,

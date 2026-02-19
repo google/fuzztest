@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 

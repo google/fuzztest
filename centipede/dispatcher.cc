@@ -433,6 +433,7 @@ using fuzztest::internal::in_test_callback;
 using fuzztest::internal::kDispatcherTestGetSeedsOutputDirFlagHeader;
 using fuzztest::internal::kDispatcherTestListingPrefixFlagHeader;
 using fuzztest::internal::kDispatcherTestNameFlagHeader;
+using fuzztest::internal::MutantRef;
 using fuzztest::internal::MutationResult;
 
 int FuzzTestDispatcherIsEnabled() {
@@ -535,9 +536,10 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size) {
                   "mutant must be non-empty with a valid pointer");
   auto* output = GetOutputsBlobSequence();
   DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
-  DispatcherCheck(MutationResult::WriteMutant(
-                      {static_cast<const uint8_t*>(data), size}, *output),
-                  "failed to write mutant");
+  DispatcherCheck(
+      MutationResult::WriteMutant(
+          MutantRef{{static_cast<const uint8_t*>(data), size}}, *output),
+      "failed to write mutant");
 }
 
 void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,
