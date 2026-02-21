@@ -273,17 +273,41 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    fuzzing_mock_stream
+  HDRS
+    "fuzzing_mock_stream.h"
+  DEPS
+    absl::function_ref
+    absl::bits
+)
+
+fuzztest_cc_library(
+  NAME
     register_fuzzing_mocks
   HDRS
     "register_fuzzing_mocks.h"
   SRCS
     "register_fuzzing_mocks.cc"
   DEPS
+    fuzztest::fuzzing_mock_stream
     absl::fast_type_id
     absl::function_ref
     absl::random_distributions
     absl::span
     fuzztest::common_logging
+)
+
+fuzztest_cc_test(
+  NAME
+    register_fuzzing_mocks_test
+  SRCS
+    "register_fuzzing_mocks_test.cc"
+  DEPS
+    fuzztest::register_fuzzing_mocks
+    fuzztest::fuzzing_bit_gen
+    absl::random_random
+    absl::random_bit_gen_ref
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
