@@ -116,7 +116,6 @@ cc_library(
 
 cc_library(
     name = "init_fuzztest",
-    testonly = 1,
     srcs = ["init_fuzztest.cc"],
     hdrs = ["init_fuzztest.h"],
     deps = [
@@ -236,7 +235,6 @@ cc_library(
 
 cc_library(
     name = "googletest_fixture_adapter",
-    testonly = True,
     hdrs = ["googletest_fixture_adapter.h"],
     deps = [
         "@com_google_fuzztest//fuzztest/internal:fixture_driver",
