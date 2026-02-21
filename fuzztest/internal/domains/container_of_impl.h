@@ -99,7 +99,7 @@ class ContainerOfImplBase
       is_vector_or_string;
 
   // If `!container_has_memory_dict`, dict_type is a bool and dict
-  // is not used. This conditional_t may be neccessary because some
+  // is not used. This conditional_t may be necessary because some
   // value_type may not have copy constructors(for example, proto).
   // Making it a safe type(bool) to not break some targets.
   using dict_type = std::conditional_t<container_has_memory_dict,

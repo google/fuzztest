@@ -15,18 +15,21 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_REGISTER_FUZZING_MOCKS_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_REGISTER_FUZZING_MOCKS_H_
 
+#include <cstddef>
 #include <cstdint>
 
 #include "absl/base/fast_type_id.h"
 #include "absl/functional/function_ref.h"
-#include "absl/types/span.h"
 
 namespace fuzztest::internal {
 
-// TypeErasedFuzzFunctionT(datastream, args_tuple, result) is a type erased
-// function pointer for use with absl::MockingBitGen and fuzztest mocking.
-using TypeErasedFuzzFunctionT = void (*)(absl::Span<const uint8_t>&, void*,
-                                         void*);
+// DataStreamFn copies up to n bytes from the data stream to the buffer pointer.
+using DataStreamFn = absl::FunctionRef<void(void*, size_t)>;
+
+// TypeErasedFuzzFunctionT(data_stream_fn, control_byte, args_tuple, result)
+// is a type erased function pointer for use with absl::MockingBitGen and
+// fuzztest mocking.
+using TypeErasedFuzzFunctionT = void (*)(DataStreamFn, uint8_t, void*, void*);
 
 // Registers the fuzzing functions for Abseil distributions.
 void RegisterAbslRandomFuzzingMocks(

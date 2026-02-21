@@ -15,6 +15,7 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_BIT_GEN_REF_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_BIT_GEN_REF_H_
 
+#include <cassert>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -39,35 +40,50 @@ namespace fuzztest::internal {
 // destroyed when CleanupBitGen is called.
 class BitGenCorpusValue {
  public:
-  using InitializerData = std::vector<uint8_t>;
   using URBG = FuzzingBitGen;
 
-  explicit BitGenCorpusValue(InitializerData data)
-      : initializer_data_(std::move(data)) {}
+  explicit BitGenCorpusValue(std::vector<uint8_t> data,
+                             std::vector<uint8_t> control, uint64_t seed)
+      : data_(std::move(data)), control_(std::move(control)), seed_(seed) {}
   ~BitGenCorpusValue() { CleanupBitGen(); }
 
   // Copy and move do not initialize the internal URBG instance.
   BitGenCorpusValue(const BitGenCorpusValue& o)
-      : initializer_data_(o.initializer_data_), bitgen_(std::nullopt) {}
+      : data_(o.data_),
+        control_(o.control_),
+        seed_(o.seed_),
+        bitgen_(std::nullopt) {}
   BitGenCorpusValue& operator=(const BitGenCorpusValue& o) {
     // The internal URBG should be unused.
     FUZZTEST_CHECK(!bitgen_.has_value());
-    initializer_data_ = o.initializer_data_;
+    data_ = o.data_;
+    control_ = o.control_;
+    seed_ = o.seed_;
     return *this;
   }
   BitGenCorpusValue(BitGenCorpusValue&& o)
-      : initializer_data_(std::move(o.initializer_data_)),
+      : data_(std::move(o.data_)),
+        control_(std::move(o.control_)),
+        seed_(std::move(o.seed_)),
         bitgen_(std::nullopt) {}
   BitGenCorpusValue& operator=(BitGenCorpusValue&& o) {
     // The internal URBG should be unused.
     FUZZTEST_CHECK(!o.bitgen_.has_value());
     FUZZTEST_CHECK(!bitgen_.has_value());
-    initializer_data_ = std::move(o.initializer_data_);
+    data_ = std::move(o.data_);
+    control_ = std::move(o.control_);
+    seed_ = o.seed_;
     return *this;
   }
 
-  InitializerData& initializer_data() { return initializer_data_; }
-  const InitializerData& initializer_data() const { return initializer_data_; }
+  std::vector<uint8_t>& data() { return data_; }
+  const std::vector<uint8_t>& data() const { return data_; }
+
+  std::vector<uint8_t>& control() { return control_; }
+  const std::vector<uint8_t>& control() const { return control_; }
+
+  uint64_t& seed() { return seed_; }
+  const uint64_t& seed() const { return seed_; }
 
   // Cleanup the internal URBG instance.
   void CleanupBitGen() { bitgen_.reset(); }
@@ -77,16 +93,16 @@ class BitGenCorpusValue {
   // NOTE: The returned reference is valid until the next call to CleanupBitGen.
   URBG& GetBitGen() const {
     if (!bitgen_.has_value()) {
-      bitgen_.emplace(initializer_data_);
+      bitgen_.emplace(data_, control_, seed_);
     }
     return *bitgen_;
   }
 
  private:
-  // Underlying fuzzed data stream; the input to the URBG constructor.
-  // When using util_random::FuzzingBitGen, this is a vector of uint8_t which
-  // defines the sequence of random variates.
-  std::vector<uint8_t> initializer_data_;
+  // Inputs to the FuzzingBitGen constructor which must outlive it.
+  std::vector<uint8_t> data_;     // fuzztest generated data stream.
+  std::vector<uint8_t> control_;  // fuzztest generated control stream.
+  uint64_t seed_;                 // fuzztest generated seed.
   mutable std::optional<URBG> bitgen_;
 };
 
@@ -99,21 +115,25 @@ class BitGenCorpusValue {
 //
 // The domain accepts an input "data stream" corpus which is used to initialize
 // a FuzzingBitGen instance. This internal FuzzingBitGen instance is bound to an
-// absl::BitGenRef when GetValue is called.
+// absl::BitGenRef when GetValue is called. The control stream is reused
+// (wrapped around) when exhausted. The data stream falls back to an LCG PRNG
+// when exhausted.
 //
 // BitGenRefDomain does not support seeded domains.
 // BitGenRefDomain does not support GetRandomValue.
-template <typename Inner>
+template <typename DataSequence, typename ControlSequence, typename SeedValue>
 class BitGenRefDomain
-    : public domain_implementor::DomainBase<BitGenRefDomain<Inner>,
-                                            /*value_type=*/absl::BitGenRef,
-                                            /*corpus_type=*/BitGenCorpusValue> {
+    : public domain_implementor::DomainBase<
+          BitGenRefDomain<DataSequence, ControlSequence, SeedValue>,
+          /*value_type=*/absl::BitGenRef, BitGenCorpusValue> {
  public:
   using typename BitGenRefDomain::DomainBase::corpus_type;
   using typename BitGenRefDomain::DomainBase::value_type;
 
-  explicit BitGenRefDomain(const Inner& inner) : inner_(inner) {}
-  explicit BitGenRefDomain(Inner&& inner) : inner_(std::move(inner)) {}
+  explicit BitGenRefDomain(const DataSequence& data,
+                           const ControlSequence& control,
+                           const SeedValue& seed_value)
+      : data_(data), control_(control), seed_value_(seed_value) {}
 
   BitGenRefDomain(const BitGenRefDomain&) = default;
   BitGenRefDomain(BitGenRefDomain&&) = default;
@@ -121,17 +141,35 @@ class BitGenRefDomain
   BitGenRefDomain& operator=(BitGenRefDomain&&) = default;
 
   corpus_type Init(absl::BitGenRef prng) {
-    return corpus_type{inner_.Init(prng)};
+    auto data = data_.Init(prng);
+    auto control = control_.Init(prng);
+    auto seed_value = seed_value_.Init(prng);
+    return corpus_type{data_.GetValue(data), control_.GetValue(control),
+                       seed_value_.GetValue(seed_value)};
   }
   void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
     corpus_value.CleanupBitGen();
-    inner_.Mutate(corpus_value.initializer_data(), prng, metadata, only_shrink);
+    auto data_corpus = data_.FromValue(corpus_value.data());
+    if (data_corpus.has_value()) {
+      data_.Mutate(*data_corpus, prng, metadata, only_shrink);
+      corpus_value.data() = data_.GetValue(*data_corpus);
+    }
+    auto control_corpus = control_.FromValue(corpus_value.control());
+    if (control_corpus.has_value()) {
+      control_.Mutate(*control_corpus, prng, metadata, only_shrink);
+      corpus_value.control() = control_.GetValue(*control_corpus);
+    }
+    auto seed_corpus = seed_value_.FromValue(corpus_value.seed());
+    if (seed_corpus.has_value()) {
+      seed_value_.Mutate(*seed_corpus, prng, metadata, only_shrink);
+      corpus_value.seed() = seed_value_.GetValue(*seed_corpus);
+    }
   }
 
-  absl::BitGenRef GetValue(const corpus_type& corpus_value) const {
-    return absl::BitGenRef(corpus_value.GetBitGen());
+  value_type GetValue(const corpus_type& corpus_value) const {
+    return corpus_value.GetBitGen();
   }
 
   value_type GetRandomValue(absl::BitGenRef prng) {
@@ -143,24 +181,70 @@ class BitGenRefDomain
     // No conversion from absl::BitGenRef back to corpus.
     return std::nullopt;
   }
+
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
-    return inner_.ValidateCorpusValue(corpus_value.initializer_data());
+    absl::Status status;
+    auto data_corpus = data_.FromValue(corpus_value.data());
+    if (!data_corpus.has_value()) {
+      return absl::InvalidArgumentError("Invalid data stream");
+    }
+    auto control_corpus = control_.FromValue(corpus_value.control());
+    if (!control_corpus.has_value()) {
+      return absl::InvalidArgumentError("Invalid control stream");
+    }
+    auto seed_corpus = seed_value_.FromValue(corpus_value.seed());
+    if (!seed_corpus.has_value()) {
+      return absl::InvalidArgumentError("Invalid seed value");
+    }
+    status.Update(data_.ValidateCorpusValue(*data_corpus));
+    status.Update(control_.ValidateCorpusValue(*control_corpus));
+    status.Update(seed_value_.ValidateCorpusValue(*seed_corpus));
+    return status;
   }
+
   void UpdateMemoryDictionary(
       const corpus_type& corpus_value,
       domain_implementor::ConstCmpTablesPtr cmp_tables) {
-    return inner_.UpdateMemoryDictionary(corpus_value.initializer_data(),
-                                         cmp_tables);
+    auto data_corpus = data_.FromValue(corpus_value.data());
+    auto control_corpus = control_.FromValue(corpus_value.control());
+    auto seed_corpus = seed_value_.FromValue(corpus_value.seed());
+    assert(data_corpus.has_value());
+    assert(control_corpus.has_value());
+    assert(seed_corpus.has_value());
+    data_.UpdateMemoryDictionary(*data_corpus, cmp_tables);
+    control_.UpdateMemoryDictionary(*control_corpus, cmp_tables);
+    seed_value_.UpdateMemoryDictionary(*seed_corpus, cmp_tables);
   }
+
   std::optional<corpus_type> ParseCorpus(const internal::IRObject& obj) const {
-    auto x = inner_.ParseCorpus(obj);
-    if (x.has_value()) {
-      return corpus_type(*std::move(x));
+    auto container = obj.Subs();
+    if (container && container->size() == 3) {
+      auto x = data_.ParseCorpus((*container)[0]);
+      auto y = control_.ParseCorpus((*container)[1]);
+      auto z = seed_value_.ParseCorpus((*container)[2]);
+      if (x.has_value() && y.has_value() && z.has_value()) {
+        return corpus_type(data_.GetValue(*x), control_.GetValue(*y),
+                           seed_value_.GetValue(*z));
+      }
     }
     return std::nullopt;
   }
+
   internal::IRObject SerializeCorpus(const corpus_type& corpus_value) const {
-    return inner_.SerializeCorpus(corpus_value.initializer_data());
+    auto data_corpus = data_.FromValue(corpus_value.data());
+    auto control_corpus = control_.FromValue(corpus_value.control());
+    auto seed_corpus = seed_value_.FromValue(corpus_value.seed());
+    assert(data_corpus.has_value());
+    assert(control_corpus.has_value());
+    assert(seed_corpus.has_value());
+
+    internal::IRObject obj;
+    auto& v = obj.MutableSubs();
+    v.reserve(3);
+    v.emplace_back(data_.SerializeCorpus(*data_corpus));
+    v.emplace_back(control_.SerializeCorpus(*control_corpus));
+    v.emplace_back(seed_value_.SerializeCorpus(*seed_corpus));
+    return obj;
   }
 
   auto GetPrinter() const { return Printer{}; }
@@ -174,7 +258,9 @@ class BitGenRefDomain
     }
   };
 
-  Inner inner_;
+  DataSequence data_;
+  ControlSequence control_;
+  SeedValue seed_value_;
 };
 
 }  // namespace fuzztest::internal

@@ -314,8 +314,17 @@ cc_library(
         "@abseil-cpp//absl/base:fast_type_id",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/random:distributions",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_test(
+    name = "register_fuzzing_mocks_test",
+    srcs = ["register_fuzzing_mocks_test.cc"],
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
+        "@googletest//:gtest_main",
     ],
 )
 
