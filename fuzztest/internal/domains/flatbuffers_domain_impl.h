@@ -391,7 +391,7 @@ class FlatbuffersTableUntypedDomainImpl
     using DomainT = decltype(get_optional_domain());
     // Do the operation under a lock to prevent race conditions in `const`
     // methods.
-    absl::MutexLock l(&mutex_);
+    absl::MutexLock l(mutex_);
     auto it = domains_.find(field->id());
     if (it == domains_.end()) {
       it = domains_

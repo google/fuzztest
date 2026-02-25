@@ -372,7 +372,7 @@ class ProtoPolicy {
         std::unique_ptr<std::vector<const FieldDescriptor*>>>>
         descriptor_to_fields ABSL_GUARDED_BY(mutex);
     {
-      absl::MutexLock l(&mutex);
+      absl::MutexLock l(mutex);
       auto it = descriptor_to_fields->find(descriptor);
       if (it != descriptor_to_fields->end()) return *(it->second);
     }
@@ -381,7 +381,7 @@ class ProtoPolicy {
     for (int i = 0; i < descriptor->field_count(); ++i) {
       fields.push_back(descriptor->field(i));
     }
-    absl::MutexLock l(&mutex);
+    absl::MutexLock l(mutex);
     if (ShouldEnumerateExtensions(descriptor)) {
       descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
     }

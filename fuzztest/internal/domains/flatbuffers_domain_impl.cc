@@ -45,8 +45,8 @@ FlatbuffersTableUntypedDomainImpl::FlatbuffersTableUntypedDomainImpl(
     : DomainBase(other),
       schema_(other.schema_),
       table_object_(other.table_object_) {
-  absl::MutexLock l_other(&other.mutex_);
-  absl::MutexLock l_this(&mutex_);
+  absl::MutexLock l_other(other.mutex_);
+  absl::MutexLock l_this(mutex_);
   domains_ = other.domains_;
 }
 
@@ -55,8 +55,8 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
   DomainBase::operator=(other);
   schema_ = other.schema_;
   table_object_ = other.table_object_;
-  absl::MutexLock l_other(&other.mutex_);
-  absl::MutexLock l_this(&mutex_);
+  absl::MutexLock l_other(other.mutex_);
+  absl::MutexLock l_this(mutex_);
   domains_ = other.domains_;
   return *this;
 }
@@ -64,8 +64,8 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
 FlatbuffersTableUntypedDomainImpl::FlatbuffersTableUntypedDomainImpl(
     FlatbuffersTableUntypedDomainImpl&& other)
     : schema_(other.schema_), table_object_(other.table_object_) {
-  absl::MutexLock l_other(&other.mutex_);
-  absl::MutexLock l_this(&mutex_);
+  absl::MutexLock l_other(other.mutex_);
+  absl::MutexLock l_this(mutex_);
   domains_ = std::move(other.domains_);
   DomainBase::operator=(std::move(other));
 }
@@ -74,8 +74,8 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
     FlatbuffersTableUntypedDomainImpl&& other) {
   schema_ = other.schema_;
   table_object_ = other.table_object_;
-  absl::MutexLock l_other(&other.mutex_);
-  absl::MutexLock l_this(&mutex_);
+  absl::MutexLock l_other(other.mutex_);
+  absl::MutexLock l_this(mutex_);
   domains_ = std::move(other.domains_);
   DomainBase::operator=(std::move(other));
   return *this;
