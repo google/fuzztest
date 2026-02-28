@@ -74,12 +74,12 @@ absl::Status RemoteFileClose(RemoteFile *absl_nonnull f);
 absl::Status RemoteFileSetWriteBufferSize(RemoteFile *absl_nonnull f,
                                           size_t size);
 
-// Appends bytes from 'ba' to 'f'.
-absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f, const ByteArray &ba);
-
 // Appends characters from 'contents' to 'f'.
 absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
                               const std::string &contents);
+
+// Appends bytes from 'contents' to 'f'.
+absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f, ByteSpan contents);
 
 // Flushes the file's internal buffer. Some dynamic results of a running
 // pipeline are consumed by itself (e.g. shard cross-pollination) and can be
@@ -99,11 +99,10 @@ absl::Status RemoteMkdir(std::string_view dir_path);
 
 // Sets the contents of the file at 'path' to 'contents'.
 absl::Status RemoteFileSetContents(std::string_view path,
-                                   const ByteArray &contents);
+                                   const std::string& contents);
 
 // Sets the contents of the file at 'path' to 'contents'.
-absl::Status RemoteFileSetContents(std::string_view path,
-                                   const std::string &contents);
+absl::Status RemoteFileSetContents(std::string_view path, ByteSpan contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
 absl::Status RemoteFileGetContents(std::string_view path, ByteArray &contents);

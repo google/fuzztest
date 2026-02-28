@@ -25,12 +25,13 @@
 
 #include "absl/base/nullability.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/command.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/util.h"
@@ -68,12 +69,12 @@ class CentipedeCallbacks {
   // Post-condition:
   // `batch_result` has results for every `input`, even on failure.
   virtual bool Execute(std::string_view binary,
-                       const std::vector<ByteArray> &inputs,
-                       BatchResult &batch_result) = 0;
+                       absl::Span<const ByteSpan> inputs,
+                       BatchResult& batch_result) = 0;
 
   // Takes non-empty `inputs` and returns at most `num_mutants` mutated inputs.
-  virtual std::vector<ByteArray> Mutate(
-      const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+  virtual std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
+                                     size_t num_mutants) {
     return env_.use_legacy_default_mutator
                ? byte_array_mutator_.MutateMany(inputs, num_mutants)
                : fuzztest_mutator_.MutateMany(inputs, num_mutants);
@@ -105,9 +106,9 @@ class CentipedeCallbacks {
 
   // Same as ExecuteCentipedeSancovBinary, but uses shared memory.
   // Much faster for fast targets since it uses fewer system calls.
-  int ExecuteCentipedeSancovBinaryWithShmem(
-      std::string_view binary, const std::vector<ByteArray> &inputs,
-      BatchResult &batch_result);
+  int ExecuteCentipedeSancovBinaryWithShmem(std::string_view binary,
+                                            absl::Span<const ByteSpan> inputs,
+                                            BatchResult& batch_result);
 
   // Constructs a string CENTIPEDE_RUNNER_FLAGS=":flag1:flag2:...",
   // where the flags are determined by `env` and also include `extra_flags`.
@@ -151,7 +152,7 @@ class CentipedeCallbacks {
   // whether the binary has a custom mutator, and if it does, `mutants` contains
   // at most `num_mutants` non-empty mutants.
   MutationResult MutateViaExternalBinary(
-      std::string_view binary, const std::vector<MutationInputRef> &inputs,
+      std::string_view binary, absl::Span<const MutationInputRef> inputs,
       size_t num_mutants);
 
   // Loads the dictionary from `dictionary_path`,

@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "./centipede/corpus.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
@@ -41,7 +42,9 @@ std::vector<CorpusRecord> RunInputsAndCollectCorpusRecords(
   }
   BatchResult batch_result;
   // Run.
-  CBs.Execute(env.binary, byte_array_inputs, batch_result);
+  std::vector<ByteSpan> byte_span_inputs(byte_array_inputs.begin(),
+                                         byte_array_inputs.end());
+  CBs.Execute(env.binary, byte_span_inputs, batch_result);
 
   // Repackage execution results into a vector of CorpusRecords.
   std::vector<CorpusRecord> corpus_records;

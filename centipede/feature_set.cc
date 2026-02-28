@@ -14,6 +14,7 @@
 
 #include "./centipede/feature_set.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
@@ -31,6 +32,27 @@ namespace fuzztest::internal {
 //------------------------------------------------------------------------------
 //                                FeatureSet
 //------------------------------------------------------------------------------
+
+void FeatureSet::CanonicalizeFeatures(FeatureVec& features) {
+  std::sort(features.begin(), features.end());
+  size_t cursor = 0;
+  for (size_t i = 0; i < features.size(); ++i) {
+    if (cursor > 0) {
+      const auto& last_feature = features[cursor - 1];
+      if (last_feature == features[i]) continue;
+      if (feature_domains::IsComparisonScoreFeature(last_feature) &&
+          feature_domains::IsComparisonScoreFeature(features[i]) &&
+          feature_domains::CMPScoreFeatureIndex(last_feature) ==
+              feature_domains::CMPScoreFeatureIndex(features[i])) {
+        std::swap(features[cursor - 1], features[i]);
+        continue;
+      }
+    }
+    std::swap(features[cursor], features[i]);
+    cursor++;
+  }
+  features.resize(cursor);
+}
 
 // This implementation is slow (needs to iterate over the entire domain),
 // but there is no need for it to be fast.
@@ -169,6 +191,23 @@ std::string FeatureSet::DebugString() const {
   os << VV(num_features_);
   os << this;
   return os.str();
+}
+
+bool IsFeatureVecSubsumed(const FeatureVec& a, const FeatureVec& b) {
+  size_t cursor = 0;
+  for (const auto a_feature : a) {
+    while (cursor < b.size() && b[cursor] < a_feature) ++cursor;
+    if (cursor == b.size()) return false;
+    if (b[cursor] == a_feature) continue;
+    if (feature_domains::IsComparisonScoreFeature(b[cursor]) &&
+        feature_domains::IsComparisonScoreFeature(a_feature) &&
+        feature_domains::CMPScoreFeatureIndex(b[cursor]) ==
+            feature_domains::CMPScoreFeatureIndex(a_feature)) {
+      continue;
+    }
+    return false;
+  }
+  return true;
 }
 
 std::ostream &operator<<(std::ostream &out, const FeatureSet &fs) {

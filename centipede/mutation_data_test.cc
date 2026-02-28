@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 
 #include <vector>
 

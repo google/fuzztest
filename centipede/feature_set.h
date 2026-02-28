@@ -42,6 +42,9 @@ class FeatureSet {
       : frequency_threshold_(frequency_threshold),
         should_discard_domain_(should_discard_domain) {}
 
+  // Processes `features` to be sorted in order without redundancy.
+  void CanonicalizeFeatures(FeatureVec& features);
+
   // Returns true if there are features in `features` not present in `this`.
   bool HasUnseenFeatures(const FeatureVec &features) const;
 
@@ -151,6 +154,13 @@ class FeatureSet {
 
   FeatureDomainSet should_discard_domain_;
 };
+
+// Returns true if every feature in `a` is subsumed by some feature in `b`,
+// false otherwise.
+//
+// Time complexity is O(a.size() + b.size()). Requires `a` and `b` to be
+// processed with `FeatureSet::CanonicalizeFeatures`.
+bool IsFeatureVecSubsumed(const FeatureVec& a, const FeatureVec& b);
 
 // Stream out description and count of features in feature set.
 std::ostream &operator<<(std::ostream &out, const FeatureSet &fs);
