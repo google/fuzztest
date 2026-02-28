@@ -56,27 +56,23 @@ PCTable ReadPcTableFromFile(std::string_view file_path) {
 PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
                                         std::string_view objdump_path,
                                         std::string_view tmp_path) {
-  const std::string stderr_path = absl::StrCat(tmp_path, ".log");
   Command::Options cmd_options;
   cmd_options.args = {"-d", std::string(binary_path)};
-  cmd_options.stdout_file = std::string(tmp_path);
-  cmd_options.stderr_file = stderr_path;
+  cmd_options.stdout_file_prefix = absl::StrCat(tmp_path, ".out");
+  cmd_options.stderr_file_prefix = absl::StrCat(tmp_path, ".log");
   Command cmd{objdump_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
     std::string log_text;
-    ReadFromLocalFile(stderr_path, log_text);
+    ReadFromLocalFile(cmd.stderr_file(), log_text);
     FUZZTEST_LOG(ERROR) << "Failed to use objdump to get PC table; stderr is:";
     for (const auto &line : absl::StrSplit(log_text, '\n')) {
       FUZZTEST_LOG(ERROR).NoPrefix() << line;
     }
-    std::filesystem::remove(tmp_path);
-    std::filesystem::remove(stderr_path);
     return {};
   }
-  std::filesystem::remove(stderr_path);
   PCTable pc_table;
-  std::ifstream in(std::string{tmp_path});
+  std::ifstream in(cmd.stdout_file());
   FUZZTEST_CHECK(in.good()) << VV(tmp_path);
   bool saw_new_function = false;
 
@@ -98,7 +94,6 @@ PCTable GetPcTableFromBinaryWithTracePC(std::string_view binary_path,
     saw_new_function = false;  // next trace_pc will be in the same function.
     pc_table.push_back({pc, flags});
   }
-  std::filesystem::remove(tmp_path);
   return pc_table;
 }
 

@@ -435,8 +435,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
   Command::Options cmd_options;
   cmd_options.env_add = std::move(env);
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
 
   CommandContext& command_context =
@@ -485,8 +485,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       std::min(absl::Now() + amortized_timeout, GetStopTime());
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
-    if (!cmd.is_executing() && !cmd.ExecuteAsync()) {
-      return true;
+    if (!cmd.is_executing()) {
+      const bool execute_ret = cmd.ExecuteAsync();
+      last_execute_log_path_ = cmd.stdout_file();
+      if (!execute_ret) {
+        return true;
+      }
     }
     if (command_context.persistent_mode_server != nullptr &&
         command_context.persistent_mode_server->RunBatch(deadline, exit_code)) {
@@ -508,6 +512,18 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;
     }();
+    // We need to save any execution log before the destruction of the command.
+    std::error_code ec;
+    std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_,
+                            ec);
+    if (ec) {
+      FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
+                          << last_execute_log_path_ << " to "
+                          << saved_execute_log_path_ << "(" << ec.message()
+                          << "). Left with an empty log ...";
+      (void)std::filesystem::remove(saved_execute_log_path_, ec);
+    };
+    last_execute_log_path_ = saved_execute_log_path_;
     command_contexts_.erase(
         std::find_if(command_contexts_.begin(), command_contexts_.end(),
                      [=](const auto& command_context) {
@@ -574,7 +590,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
   // the target exits via `std::_Exit(0)`.
   if (exit_code != EXIT_SUCCESS) {
-    ReadFromLocalFile(execute_log_path_, batch_result.log());
+    ReadFromLocalFile(last_execute_log_path_, batch_result.log());
 
     if (std::filesystem::exists(failure_description_path_)) {
       ReadFromLocalFile(failure_description_path_,
@@ -627,12 +643,14 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   Command::Options cmd_options;
   cmd_options.env_add = {std::move(centipede_runner_flags)};
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
+  const bool execute_ret = cmd.ExecuteAsync();
+  last_execute_log_path_ = cmd.stdout_file();
   const int retval = [&] {
-    if (!cmd.ExecuteAsync()) {
+    if (!execute_ret) {
       FUZZTEST_LOG(ERROR) << "Failed to execute seeding command "
                           << cmd.ToString();
       return EXIT_FAILURE;
@@ -690,11 +708,12 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   Command::Options cmd_options;
   cmd_options.env_add = {std::move(centipede_runner_flags)};
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
   const bool is_success = cmd.Execute() == 0;
+  last_execute_log_path_ = cmd.stdout_file();
 
   if (is_success) {
     if (std::filesystem::exists(config_file_path)) {
@@ -789,14 +808,14 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
 }
 
 void CentipedeCallbacks::PrintExecutionLog() const {
-  if (!std::filesystem::exists(execute_log_path_)) {
+  if (!std::filesystem::exists(last_execute_log_path_)) {
     FUZZTEST_LOG(WARNING)
         << "Log file for the last executed binary does not exist: "
-        << execute_log_path_;
+        << last_execute_log_path_;
     return;
   }
   std::string log_text;
-  ReadFromLocalFile(execute_log_path_, log_text);
+  ReadFromLocalFile(last_execute_log_path_, log_text);
   absl::MutexLock lock(GetExecutionLoggingMutex());
   for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {

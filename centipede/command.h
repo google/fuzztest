@@ -40,11 +40,19 @@ class Command final {
     std::vector<std::string> env_add;
     // Environment variables to unset in the subprocess executing the command.
     std::vector<std::string> env_remove;
-    // Redirect stdout to this file. If empty, use parent's STDOUT.
-    std::string stdout_file;
-    // Redirect stderr to this file. If empty, use parent's STDERR. If `out` ==
-    // `err` and both are non-empty, stdout/stderr are combined.
-    std::string stderr_file;
+    // Redirect stdout to this file path with an opaque suffix. If empty, use
+    // parent's STDOUT.
+    //
+    // `Command` automatically unlinks any previous redirected files on
+    // execution and destruction.
+    std::string stdout_file_prefix;
+    // Redirect stderr to this file path with an opaque suffix. If empty, use
+    // parent's STDERR. If `out` == `err` and both are non-empty, stdout/stderr
+    // are combined.
+    //
+    // `Command` automatically unlinks any previous redirected files on
+    // execution and destruction.
+    std::string stderr_file_prefix;
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -68,6 +76,10 @@ class Command final {
 
   // Returns a string representing the command, e.g. like this
   // "env -u ENV1 ENV2=VAL2 path arg1 arg2 > out 2>& err"
+  //
+  // Note that the result reflects the latest command executed and can be
+  // changed after next execution. It can be missing some parts (e.g. output
+  // redirection) if there is no previous execution.
   std::string ToString() const;
 
   // Execute the command asynchronously. Returns true if it starts a new
@@ -104,11 +116,28 @@ class Command final {
   // Accessors.
   const std::string& path() const { return path_; }
 
+  // Accessors to the paths of the {stdout,stderr} of the last command
+  // execution, if redirected to files. Otherwise the paths will be empty. Note
+  // that it is possible that the files does not exist on the paths, e.g. if the
+  // command haven't touch them yet.
+  const std::string& stdout_file() const { return stdout_file_; }
+  const std::string& stderr_file() const { return stderr_file_; }
+
  private:
   struct ForkServerProps;
 
   int pid_ = -1;
   bool is_executing_ = false;
+
+  // Derived from Options::{stdout,stderr}_file_prefix, with the realized suffix
+  // if the options are non-empty.
+  std::string stdout_file_;
+  std::string stderr_file_;
+
+  // Removes previous files (if any), and sets {stdout,stderr}_file_ with
+  // `new_suffix` if both parts are not empty. Note that it only sets the new
+  // file paths without touching the files.
+  void ResetRedirectionFiles(std::string_view new_suffix);
 
   // Returns the status of the fork server process. Expects that the server was
   // previously started using `StartForkServer()`.
@@ -131,7 +160,7 @@ class Command final {
 
   const std::string path_;
   const Options options_;
-  const std::string command_line_ = ToString();
+  std::string command_line_;
 
   std::unique_ptr<ForkServerProps> fork_server_;
 };

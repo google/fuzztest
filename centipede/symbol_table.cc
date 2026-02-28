@@ -102,8 +102,8 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   const std::string dso_basename = std::filesystem::path{dso_path}.filename();
   const ScopedFile pcs_file{
       tmp_dir_path, absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
-  const ScopedFile symbols_file{
-      tmp_dir_path, absl::StrCat(dso_basename, ".symbols.", unique_id_value)};
+  const auto symbols_file_prefix = std::filesystem::path{tmp_dir_path} /
+                                   absl::StrCat(dso_basename, ".symbols");
 
   // Create the input file (one PC per line).
   std::string pcs_string;
@@ -123,7 +123,7 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
       "<",
       std::string(pcs_file.path()),
   };
-  cmd_options.stdout_file = std::string(symbols_file.path());
+  cmd_options.stdout_file_prefix = symbols_file_prefix;
   Command cmd{symbolizer_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
@@ -134,7 +134,7 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
   }
 
   // Get and process the symbolizer output.
-  std::ifstream symbolizer_output{std::string{symbols_file.path()}};
+  std::ifstream symbolizer_output{cmd.stdout_file()};
   size_t old_size = size();
   ReadFromLLVMSymbolizer(symbolizer_output);
   size_t new_size = size();

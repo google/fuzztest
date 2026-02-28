@@ -50,32 +50,6 @@ TEST(CommandTest, ToString) {
     EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
               "env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
   }
-  {
-    Command::Options cmd_options;
-    cmd_options.stdout_file = "out";
-    EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\nx \\\n> out");
-  }
-  {
-    Command::Options cmd_options;
-    cmd_options.stderr_file = "err";
-    EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\nx \\\n2> err");
-  }
-  {
-    Command::Options cmd_options;
-    cmd_options.stdout_file = "out";
-    cmd_options.stderr_file = "err";
-    EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\nx \\\n> out \\\n2> err");
-  }
-  {
-    Command::Options cmd_options;
-    cmd_options.stdout_file = "out";
-    cmd_options.stderr_file = "out";
-    EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\nx \\\n> out \\\n2>&1");
-  }
 }
 
 TEST(CommandTest, Execute) {
@@ -114,79 +88,79 @@ TEST(CommandTest, ForkServer) {
 
   {
     const std::string input = "success";
-    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
     Command cmd{helper, std::move(cmd_options)};
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     EXPECT_EQ(cmd.Execute(), EXIT_SUCCESS);
     std::string log_contents;
-    ReadFromLocalFile(log, log_contents);
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 
   {
     const std::string input = "fail";
-    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
     Command cmd{helper, std::move(cmd_options)};
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     EXPECT_EQ(cmd.Execute(), EXIT_FAILURE);
     std::string log_contents;
-    ReadFromLocalFile(log, log_contents);
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 
   {
     const std::string input = "ret42";
-    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
     Command cmd{helper, std::move(cmd_options)};
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     EXPECT_EQ(cmd.Execute(), 42);
     std::string log_contents;
-    ReadFromLocalFile(log, log_contents);
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 
   {
     const std::string input = "abort";
-    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
     Command cmd{helper, std::move(cmd_options)};
     EXPECT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     // WTERMSIG() needs an lvalue on some platforms.
     const int ret = cmd.Execute();
     EXPECT_EQ(WTERMSIG(ret), SIGABRT);
     std::string log_contents;
-    ReadFromLocalFile(log, log_contents);
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 
   {
     const std::string input = "hang";
-    const std::string log = std::filesystem::path{test_tmpdir} / input;
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
     cmd_options.args = {input};
-    cmd_options.stdout_file = log;
-    cmd_options.stderr_file = log;
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
     Command cmd{helper, std::move(cmd_options)};
     ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     ASSERT_TRUE(cmd.ExecuteAsync());
     EXPECT_EQ(cmd.Wait(absl::Now() + absl::Seconds(2)), std::nullopt);
     std::string log_contents;
-    ReadFromLocalFile(log, log_contents);
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
   }
 

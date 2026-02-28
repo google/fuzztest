@@ -186,8 +186,13 @@ class CentipedeCallbacks {
   std::string temp_dir_ = TemporaryLocalDirPath();
   std::string temp_input_file_path_ =
       std::filesystem::path(temp_dir_).append("temp_input_file");
-  const std::string execute_log_path_ =
+  const std::string execute_log_prefix_ =
       std::filesystem::path(temp_dir_).append("log");
+  // An owned file path to save the last execution log before it goes out of
+  // scope.
+  const std::string saved_execute_log_path_ =
+      std::filesystem::path(temp_dir_).append("saved_log");
+  std::string last_execute_log_path_;
   std::string failure_description_path_ =
       std::filesystem::path(temp_dir_).append("failure_description");
   std::string failure_signature_path_ =

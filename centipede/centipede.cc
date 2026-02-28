@@ -126,8 +126,10 @@ Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
       input_filter_cmd_{[&] {
         Command::Options cmd_options;
         cmd_options.args = {input_filter_path_};
-        cmd_options.stdout_file = "/dev/null";
-        cmd_options.stderr_file = "/dev/null";
+        cmd_options.stdout_file_prefix =
+            std::filesystem::path(TemporaryLocalDirPath())
+                .append("filter-input.log");
+        cmd_options.stderr_file_prefix = cmd_options.stdout_file_prefix;
         return Command{env_.input_filter, std::move(cmd_options)};
       }()},
       rusage_profiler_(
