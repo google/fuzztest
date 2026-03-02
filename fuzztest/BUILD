@@ -218,11 +218,23 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "fuzzing_bit_gen_test",
+    srcs = ["fuzzing_bit_gen_test.cc"],
+    deps = [
+        ":fuzzing_bit_gen",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "fuzzing_bit_gen",
     srcs = ["fuzzing_bit_gen.cc"],
     hdrs = ["fuzzing_bit_gen.h"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:fast_type_id",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",

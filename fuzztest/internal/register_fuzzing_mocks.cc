@@ -14,12 +14,8 @@
 
 #include "./fuzztest/internal/register_fuzzing_mocks.h"
 
-#include <algorithm>
-#include <climits>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <tuple>
 #include <type_traits>
@@ -34,148 +30,80 @@
 #include "absl/random/log_uniform_int_distribution.h"
 #include "absl/random/poisson_distribution.h"
 #include "absl/random/zipf_distribution.h"
-#include "absl/types/span.h"
-#include "./common/logging.h"
 
 namespace fuzztest::internal {
 namespace {
 
-// Reference type to consume bytes from a data stream; these are used by
-// the fuzzing bitgen distribution implementations.
-struct DataStreamConsumer {
-  // This is a reference to the fuzzing data stream since the mutations
-  // (src.remove_prefix(...), etc.) are applied to the source stream.
-  absl::Span<const uint8_t>& src;
+enum class Instruction : uint8_t {
+  kDataStreamVariate = 0,
+  kLCGVariate = 1,
+  kMin = 2,
+  kMax = 3,
+  kMean = 4,
+  kAlternateVariate = 5,
+};
 
-  // Consumes up to num_bytes from the head of the data stream.
-  size_t ConsumeHead(void* destination, size_t num_bytes) {
-    num_bytes = std::min(num_bytes, src.size());
-    std::memcpy(destination, src.data(), num_bytes);
-    src.remove_prefix(num_bytes);
-    return num_bytes;
+class ImplURBG {
+ public:
+  DataStreamFn data_stream_fn_;
+  uint8_t control_byte_;
+
+  Instruction instruction() {
+    return static_cast<Instruction>(control_byte_ % 6);
   }
 
-  // Consumes up to num_bytes from the tail of the data stream.
-  size_t ConsumeTail(void* destination, size_t num_bytes) {
-    num_bytes = std::min(num_bytes, src.size());
-    std::memcpy(destination, src.data() + src.size() - num_bytes, num_bytes);
-    src.remove_suffix(num_bytes);
-    return num_bytes;
-  }
-
-  // Consumes a T from the head of the data stream.
   template <typename T>
-  T ConsumeHead() {
-    std::conditional_t<std::is_same_v<T, bool>, uint8_t, T> x{};
-    ConsumeHead(&x, sizeof(x));
-    if constexpr (std::is_same_v<T, bool>) {
-      return static_cast<bool>(x & 1);
+  T get_int_value() {
+    T x = 0;
+    data_stream_fn_(&x, sizeof(x));
+    return x;
+  }
+
+  template <typename T>
+  T get_int_value_in_range(uint64_t range) {
+    // Consume fewer bytes of the data_stream when dealing with a power
+    // of 2 range.
+    if (range == 0) {
+      return 0;
+    }
+    uint64_t x = 0;
+    if (range <= (std::numeric_limits<uint8_t>::max)()) {
+      x = get_int_value<uint8_t>();
+    } else if (range <= (std::numeric_limits<uint16_t>::max)()) {
+      x = get_int_value<uint16_t>();
+    } else if (range <= (std::numeric_limits<uint32_t>::max)()) {
+      x = get_int_value<uint32_t>();
     } else {
-      return x;
+      x = get_int_value<uint64_t>();
     }
-  }
-
-  // Consumes a T from the tail of the data stream.
-  template <typename T>
-  T ConsumeTail() {
-    std::conditional_t<std::is_same_v<T, bool>, uint8_t, T> x{};
-    ConsumeTail(&x, sizeof(x));
-    if constexpr (std::is_same_v<T, bool>) {
-      return static_cast<bool>(x & 1);
+    if ((range & (range + 1)) == 0) {
+      return static_cast<T>(x & range);  // power of 2 range
     } else {
-      return x;
+      return static_cast<T>(x % (range + 1));
     }
   }
 
-  // Returns a real value in the range [0.0, 1.0].
-  template <typename T>
-  T ConsumeProbability() {
-    static_assert(std::is_floating_point_v<T> && sizeof(T) <= sizeof(uint64_t),
-                  "A floating point type is required.");
-    using IntegralType =
-        typename std::conditional_t<(sizeof(T) <= sizeof(uint32_t)), uint32_t,
-                                    uint64_t>;
-    auto int_value = ConsumeTail<IntegralType>();
-    return static_cast<T>(int_value) /
-           static_cast<T>(std::numeric_limits<IntegralType>::max());
+  // URBG interface.
+  using result_type = uint64_t;
+
+  static constexpr result_type(min)() {
+    return (std::numeric_limits<result_type>::min)();
+  }
+  static constexpr result_type(max)() {
+    return (std::numeric_limits<result_type>::max)();
   }
 
-  // Returns a value in the closed-closed range [min, max].
-  template <typename T>
-  T ConsumeValueInRange(T min, T max) {
-    FUZZTEST_CHECK_LE(min, max);
+  void reset() {}
 
-    if (min == max) return min;
-
-    // Return the min or max value more frequently.
-    uint8_t byte = ConsumeHead<uint8_t>();
-    if (byte == 0) {
-      return min;
-    } else if (byte == 1) {
-      return max;
-    }
-    byte >>= 1;
-
-    return ConsumeValueInRangeImpl<T>(min, max, byte);
-  }
-
- private:
-  // Returns a real value in the range [min, max]
-  template <typename T>
-  std::enable_if_t<std::is_floating_point_v<T>, T>  //
-  ConsumeValueInRangeImpl(T min, T max, uint8_t byte) {
-    static_assert(sizeof(T) <= sizeof(uint64_t), "Unsupported float type.");
-    // Returns a floating point value in the given range by consuming bytes
-    // from the input data. If there's no input data left, returns |min|. Note
-    // that |min| must be less than or equal to |max|.
-    T range = .0;
-    T result = min;
-    constexpr T zero(.0);
-    if (max > zero && min < zero && max > min + std::numeric_limits<T>::max()) {
-      // The diff |max - min| would overflow the given floating point type.
-      // Use the half of the diff as the range and consume a bool to decide
-      // whether the result is in the first of the second part of the diff.
-      range = (max / 2.0) - (min / 2.0);
-      if (byte & 1) {
-        result += range;
-      }
-    } else {
-      range = max - min;
-    }
-    return result + range * ConsumeProbability<T>();
-  }
-
-  // Returns an integral value in the range [min, max]
-  template <typename T>
-  std::enable_if_t<std::is_integral_v<T>, T>  //
-  ConsumeValueInRangeImpl(T min, T max, uint8_t) {
-    static_assert(sizeof(T) <= sizeof(uint64_t), "Unsupported integral type.");
-
-    // Use the biggest type possible to hold the range and the result.
-    uint64_t range = static_cast<uint64_t>(max) - static_cast<uint64_t>(min);
-    uint64_t result = 0;
-    size_t offset = 0;
-    while (offset < sizeof(T) * CHAR_BIT && (range >> offset) > 0 &&
-           !src.empty()) {
-      uint8_t byte = src.back();
-      src.remove_suffix(1);
-      result = (result << CHAR_BIT) | byte;
-      offset += CHAR_BIT;
-    }
-
-    // Avoid division by 0, in case |range + 1| results in overflow.
-    if (range != std::numeric_limits<decltype(range)>::max()) {
-      result = result % (range + 1);
-    }
-
-    return static_cast<T>(static_cast<uint64_t>(min) + result);
-  }
+  uint64_t operator()() { return get_int_value<uint64_t>(); }
 };
 
 // -----------------------------------------------------------------------------
 
 // Bernoulli
-struct ImplBernoulli : public DataStreamConsumer {
+struct ImplBernoulli {
+  ImplURBG urbg;
+
   using DistrT = absl::bernoulli_distribution;
   using ArgTupleT = std::tuple<double>;
   using ResultT = bool;
@@ -183,150 +111,260 @@ struct ImplBernoulli : public DataStreamConsumer {
   ResultT operator()(double p) {
     // Just generate a boolean; mostly ignoring p.
     // The 0/1 cases are special cased to avoid returning false on constants.
-    if (p == 0.0) {
+    if (p <= 0.0) {
       return false;
-    } else if (p == 1.0) {
+    } else if (p >= 1.0) {
       return true;
-    } else {
-      return ConsumeHead<bool>();
     }
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return false;
+      case Instruction::kMax:
+        return true;
+      case Instruction::kMean:
+        return p >= 0.5;
+      default:
+        break;
+    }
+    return urbg.get_int_value<uint8_t>() & 1;
   }
 };
 
 // Beta
 template <typename RealType>
-struct ImplBeta : public DataStreamConsumer {
+struct ImplBeta {
+  ImplURBG urbg;
+
   using DistrT = absl::beta_distribution<RealType>;
   using ArgTupleT = std::tuple<RealType, RealType>;
   using ResultT = RealType;
 
   ResultT operator()(RealType a, RealType b) {
-    if (!src.empty()) {
-      auto x = ConsumeTail<RealType>();
-      if (std::isfinite(x)) {
-        return x;
-      }
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return 0.0;
+      case Instruction::kMax:
+        return 1.0;
+      case Instruction::kMean:
+        return a / (a + b);  // mean
+      default:
+        break;
     }
-    return a / (a + b);  // mean
+    return DistrT(a, b)(urbg);
   }
 };
 
 // Exponential
 template <typename RealType>
-struct ImplExponential : public DataStreamConsumer {
+struct ImplExponential {
+  ImplURBG urbg;
+
   using DistrT = absl::exponential_distribution<RealType>;
   using ArgTupleT = std::tuple<RealType>;
   using ResultT = RealType;
 
   ResultT operator()(RealType lambda) {
-    if (!src.empty()) {
-      auto x = ConsumeTail<RealType>();
-      if (std::isfinite(x)) {
-        return x;
-      }
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return 0;
+      case Instruction::kMean:
+        return RealType{1} / lambda;  // mean
+      case Instruction::kMax:
+        return (std::numeric_limits<RealType>::max)();
+      case Instruction::kAlternateVariate:
+        return absl::uniform_real_distribution<RealType>(
+            0, (std::numeric_limits<RealType>::max)())(urbg);
+      default:
+        break;
     }
-    return RealType{1} / lambda;  // mean
+    return DistrT(lambda)(urbg);
   }
 };
 
 // Gaussian
 template <typename RealType>
-struct ImplGaussian : public DataStreamConsumer {
+struct ImplGaussian {
+  ImplURBG urbg;
+
   using DistrT = absl::gaussian_distribution<RealType>;
   using ArgTupleT = std::tuple<RealType, RealType>;
   using ResultT = RealType;
 
   ResultT operator()(RealType mean, RealType sigma) {
-    if (src.empty()) return mean;
     const auto ten_sigma = sigma * 10;
-    RealType min = mean - ten_sigma;
-    RealType max = mean + ten_sigma;
-    return ConsumeValueInRange<RealType>(min, max);
+    switch (urbg.instruction()) {
+      // Technically the min/max are -inf/+inf.
+      case Instruction::kMin:
+        return -(std::numeric_limits<RealType>::max)();
+      case Instruction::kMax:
+        return (std::numeric_limits<RealType>::max)();
+      case Instruction::kMean:
+        return mean;
+      case Instruction::kAlternateVariate:
+        // this makes unlikely values much more likely.
+        return absl::uniform_real_distribution<RealType>(
+            mean - ten_sigma, mean + ten_sigma)(urbg);
+      default:
+        break;
+    }
+    return DistrT(mean, sigma)(urbg);
   }
 };
 
 // LogUniform
 template <typename IntType>
-struct ImplLogUniform : public DataStreamConsumer {
+struct ImplLogUniform {
+  ImplURBG urbg;
+
   using DistrT = absl::log_uniform_int_distribution<IntType>;
   using ArgTupleT = std::tuple<IntType, IntType, IntType>;
   using ResultT = IntType;
 
-  ResultT operator()(IntType a, IntType b, IntType) {
-    if (src.empty()) return a;
-    return ConsumeValueInRange<IntType>(a, b);
+  ResultT operator()(IntType a, IntType b, IntType base) {
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return a;
+      case Instruction::kMax:
+        return b;
+      case Instruction::kMean:
+        if (a > 0 && b > a) {
+          double log_b_over_a = std::log(static_cast<double>(b) / a);
+          return static_cast<IntType>(static_cast<double>(b - a) /
+                                      log_b_over_a);
+        }
+        break;
+      case Instruction::kAlternateVariate:
+        return urbg.get_int_value_in_range<IntType>(b - a) + a;
+      default:
+        break;
+    }
+    return DistrT(a, b, base)(urbg);
   }
 };
 
 // Poisson
 template <typename IntType>
-struct ImplPoisson : public DataStreamConsumer {
+struct ImplPoisson {
+  ImplURBG urbg;
+
   using DistrT = absl::poisson_distribution<IntType>;
   using ArgTupleT = std::tuple<double>;
   using ResultT = IntType;
 
-  ResultT operator()(double) {
-    if (src.empty()) return 0;
-    return ConsumeValueInRange<IntType>(0, std::numeric_limits<IntType>::max());
+  ResultT operator()(double lambda) {
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return 0;
+      case Instruction::kMax:
+        return (std::numeric_limits<IntType>::max)();
+      case Instruction::kMean:
+        return static_cast<IntType>(lambda);
+      case Instruction::kAlternateVariate:
+        return urbg.get_int_value_in_range<IntType>(
+            (std::numeric_limits<IntType>::max)());
+      default:
+        break;
+    }
+    return DistrT(lambda)(urbg);
   }
 };
 
 // Zipf
 template <typename IntType>
-struct ImplZipf : public DataStreamConsumer {
+struct ImplZipf {
+  ImplURBG urbg;
+
   using DistrT = absl::zipf_distribution<IntType>;
   using ArgTupleT = std::tuple<IntType, double, double>;
   using ResultT = IntType;
 
-  ResultT operator()(IntType a, double, double) {
-    if (src.empty()) return 0;
-    return ConsumeValueInRange<IntType>(0, a);
+  ResultT operator()(IntType k, double q, double v) {
+    switch (urbg.instruction()) {
+      case Instruction::kMin:
+        return 0;
+      case Instruction::kMax:
+        return k;
+      case Instruction::kAlternateVariate:
+        return urbg.get_int_value_in_range<IntType>(k);
+      default:
+        break;
+    }
+    return DistrT(k, q, v)(urbg);
   }
 };
 
 // Uniform
 template <typename R>
-struct ImplUniform : public DataStreamConsumer {
+struct ImplUniform {
+  ImplURBG urbg;
   using DistrT = absl::random_internal::UniformDistributionWrapper<R>;
   using ResultT = R;
 
   ResultT operator()(absl::IntervalClosedClosedTag, R min, R max) {
-    if (src.empty()) return min;
-    return ConsumeValueInRange<R>(min, max);
+    if constexpr (std::is_floating_point_v<R>) {
+      return operator()(absl::IntervalClosedOpen, min,
+                        std::nexttoward(max, (std::numeric_limits<R>::max)()));
+    }
+    // Only int-typed calls should reach here.
+    if constexpr (std::is_integral_v<R>) {
+      switch (urbg.instruction()) {
+        case Instruction::kMin:
+          return min;
+        case Instruction::kMax:
+          return max;
+        case Instruction::kMean:
+          return min + ((max - min) / 2);
+        default:
+          break;
+      }
+      if constexpr (sizeof(R) <= sizeof(uint8_t)) {
+        return min + urbg.get_int_value_in_range<R>(static_cast<uint64_t>(max) -
+                                                    static_cast<uint64_t>(min));
+      }
+      // Fallback to absl::uniform_int_distribution.
+      return absl::uniform_int_distribution<R>(min, max)(urbg);
+    } else {
+      return 0;
+    }
   }
 
   ResultT operator()(absl::IntervalClosedOpenTag, R min, R max) {
-    if (src.empty()) return min;
+    if constexpr (std::is_integral_v<R>) {
+      return operator()(absl::IntervalClosedClosed, min, max - 1);
+    }
+    // Only real-typed calls should reach here.
     if constexpr (std::is_floating_point_v<R>) {
-      max = std::nexttoward(max, min);
-      return ConsumeValueInRange<R>(min, max);
+      switch (urbg.instruction()) {
+        case Instruction::kMin:
+          return min;
+        case Instruction::kMax:
+          return std::nexttoward(max, std::numeric_limits<R>::min());
+        case Instruction::kMean:
+          return min + ((max - min) / 2);
+        default:
+          break;
+      }
+      return absl::uniform_real_distribution<R>(min, max)(urbg);
     } else {
-      max--;
-      return ConsumeValueInRange<R>(min, max);
+      return 0;
     }
   }
 
   ResultT operator()(absl::IntervalOpenOpenTag, R min, R max) {
-    if (src.empty()) return min;
     if constexpr (std::is_floating_point_v<R>) {
-      min = std::nexttoward(min, max);
-      max = std::nexttoward(max, min);
-      return ConsumeValueInRange<R>(min, max);
+      return operator()(absl::IntervalClosedOpen, std::nexttoward(min, max),
+                        max);
     } else {
-      min++;
-      max--;
-      return ConsumeValueInRange<R>(min, max);
+      return operator()(absl::IntervalClosedOpen, min + 1, max);
     }
   }
 
   ResultT operator()(absl::IntervalOpenClosedTag, R min, R max) {
-    if (src.empty()) return min;
     if constexpr (std::is_floating_point_v<R>) {
-      min = std::nexttoward(min, max);
-      return ConsumeValueInRange<R>(min, max);
+      return operator()(absl::IntervalClosedClosed, std::nexttoward(min, max),
+                        max);
     } else {
-      min++;
-      return ConsumeValueInRange<R>(min, max);
+      return operator()(absl::IntervalClosedClosed, min + 1, max);
     }
   }
 
@@ -336,23 +374,23 @@ struct ImplUniform : public DataStreamConsumer {
 
   ResultT operator()() {
     static_assert(std::is_unsigned_v<R>);
-    if (src.empty()) return 0;
-    return ConsumeTail<R>();
+    return operator()(absl::IntervalClosedClosed, 0,
+                      (std::numeric_limits<R>::max)());
   }
 };
 
 // -----------------------------------------------------------------------------
 
-// InvokeFuzzFunction is a type-erased function pointer which is responsible for
-// casting the args_tuple and result parameters to the correct types and then
-// invoking the implementation functor. It is important that the ArgsTupleT and
-// ResultT types match the types of the distribution and the implementation
-// functions, so the HandleFuzzedFunction overloads are used to determine the
-// correct types.
+// InvokeFuzzFunction is a type-erased function pointer which is responsible
+// for casting the args_tuple and result parameters to the correct types and
+// then invoking the implementation functor. It is important that the
+// ArgsTupleT and ResultT types match the types of the distribution and the
+// implementation functions, so the HandleFuzzedFunction overloads are used to
+// determine the correct types.
 template <typename FuzzFunctionT, typename ResultT, typename ArgTupleT>
-void InvokeFuzzFunction(absl::Span<const uint8_t>& src, void* args_tuple,
-                        void* result) {
-  FuzzFunctionT fn{src};
+void InvokeFuzzFunction(DataStreamFn data_stream_fn, uint8_t control_byte,
+                        void* args_tuple, void* result) {
+  FuzzFunctionT fn{ImplURBG{data_stream_fn, control_byte}};
   *static_cast<ResultT*>(result) =
       absl::apply(fn, *static_cast<ArgTupleT*>(args_tuple));
 }
