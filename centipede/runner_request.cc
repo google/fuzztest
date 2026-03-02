@@ -17,6 +17,7 @@
 #include <cstring>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -37,8 +38,8 @@ enum Tags : Blob::SizeAndTagT {
 };
 
 // Writes `inputs` to `blobseq`, returns the number of inputs written.
-static size_t WriteInputs(const std::vector<ByteArray> &inputs,
-                          BlobSequence &blobseq) {
+static size_t WriteInputs(absl::Span<const ByteSpan> inputs,
+                          BlobSequence& blobseq) {
   size_t num_inputs = inputs.size();
   if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
   size_t result = 0;
@@ -59,8 +60,8 @@ static bool WriteMetadataFromRefOrDefault(const ExecutionMetadata *metadata,
 }
 
 // Similar to above, but for mutation inputs.
-static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
-                          BlobSequence &blobseq) {
+static size_t WriteInputs(absl::Span<const MutationInputRef> inputs,
+                          BlobSequence& blobseq) {
   size_t num_inputs = inputs.size();
   if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
   size_t result = 0;
@@ -75,15 +76,15 @@ static size_t WriteInputs(const std::vector<MutationInputRef> &inputs,
 
 }  // namespace
 
-size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        BlobSequence &blobseq) {
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        BlobSequence& blobseq) {
   if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
   return WriteInputs(inputs, blobseq);
 }
 
 size_t RequestMutation(size_t num_mutants,
-                       const std::vector<MutationInputRef> &inputs,
-                       BlobSequence &blobseq) {
+                       absl::Span<const MutationInputRef> inputs,
+                       BlobSequence& blobseq) {
   if (!blobseq.Write({kTagMutation, 0, nullptr})) return 0;
   if (!blobseq.Write(kTagNumMutants, num_mutants)) return 0;
   return WriteInputs(inputs, blobseq);

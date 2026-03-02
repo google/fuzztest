@@ -30,8 +30,7 @@ namespace fuzztest::internal {
 
 absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
                               const std::string &contents) {
-  ByteArray contents_ba{contents.cbegin(), contents.cend()};
-  return RemoteFileAppend(f, contents_ba);
+  return RemoteFileAppend(f, AsByteSpan(contents));
 }
 
 absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents) {
@@ -42,18 +41,11 @@ absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents) {
 }
 
 absl::Status RemoteFileSetContents(std::string_view path,
-                                   const ByteArray &contents) {
-  ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
-  if (file == nullptr) {
-    return absl::UnknownError(
-        "RemoteFileOpen returned an OK status but a nullptr RemoteFile*");
-  }
-  RETURN_IF_NOT_OK(RemoteFileAppend(file, contents));
-  return RemoteFileClose(file);
+                                   const std::string& contents) {
+  return RemoteFileSetContents(path, AsByteSpan(contents));
 }
 
-absl::Status RemoteFileSetContents(std::string_view path,
-                                   const std::string &contents) {
+absl::Status RemoteFileSetContents(std::string_view path, ByteSpan contents) {
   ASSIGN_OR_RETURN_IF_NOT_OK(RemoteFile * file, RemoteFileOpen(path, "w"));
   if (file == nullptr) {
     return absl::UnknownError(

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/types/span.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
@@ -108,7 +109,7 @@ class ByteArrayMutator {
   }
 
   // Takes non-empty `inputs` and produces `num_mutants` mutants.
-  std::vector<Mutant> MutateMany(const std::vector<MutationInputRef>& inputs,
+  std::vector<Mutant> MutateMany(absl::Span<const MutationInputRef> inputs,
                                  size_t num_mutants);
 
   using CrossOverFn = void (ByteArrayMutator::*)(ByteArray &,

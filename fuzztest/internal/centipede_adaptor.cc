@@ -516,7 +516,7 @@ class CentipedeAdaptorRunnerCallbacks
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+  bool Mutate(absl::Span<const MutationInputRef> inputs, size_t num_mutants,
               std::function<void(MutantRef)> new_mutant_callback) override {
     if (inputs.empty()) return false;
     cmp_tables.resize(inputs.size());
@@ -1016,7 +1016,7 @@ class CentipedeCallbacksForRunnerFlagsExtraction
   using fuzztest::internal::CentipedeCallbacks::CentipedeCallbacks;
 
   bool Execute(std::string_view binary,
-               const std::vector<fuzztest::internal::ByteArray>& inputs,
+               absl::Span<const fuzztest::internal::ByteSpan> inputs,
                fuzztest::internal::BatchResult& batch_result) override {
     return false;
   }

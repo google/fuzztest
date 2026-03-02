@@ -49,6 +49,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
@@ -327,7 +328,7 @@ void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
 std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
 
 bool RunnerCallbacks::Mutate(
-    const std::vector<MutationInputRef>& /*inputs*/, size_t /*num_mutants*/,
+    absl::Span<const MutationInputRef> /*inputs*/, size_t /*num_mutants*/,
     std::function<void(MutantRef)> /*new_mutant_callback*/) {
   RunnerCheck(!HasCustomMutator(),
               "Class deriving from RunnerCallbacks must implement Mutate() if "
@@ -358,7 +359,7 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
     return custom_mutator_cb_ != nullptr;
   }
 
-  bool Mutate(const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+  bool Mutate(absl::Span<const MutationInputRef> inputs, size_t num_mutants,
               std::function<void(MutantRef)> new_mutant_callback) override;
 
  private:
@@ -632,7 +633,7 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
 }
 
 bool LegacyRunnerCallbacks::Mutate(
-    const std::vector<MutationInputRef>& inputs, size_t num_mutants,
+    absl::Span<const MutationInputRef> inputs, size_t num_mutants,
     std::function<void(MutantRef)> new_mutant_callback) {
   if (custom_mutator_cb_ == nullptr) return false;
   unsigned int seed = GetRandomSeed();

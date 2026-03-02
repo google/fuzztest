@@ -23,6 +23,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/mutation_data.h"
@@ -46,8 +47,8 @@ CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
 }
 
 bool CentipedeDefaultCallbacks::Execute(std::string_view binary,
-                                        const std::vector<ByteArray> &inputs,
-                                        BatchResult &batch_result) {
+                                        absl::Span<const ByteSpan> inputs,
+                                        BatchResult& batch_result) {
   return ExecuteCentipedeSancovBinaryWithShmem(binary, inputs, batch_result) ==
          0;
 }
@@ -73,7 +74,7 @@ CentipedeDefaultCallbacks::GetSerializedTargetConfig() {
 }
 
 std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
-    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
+    absl::Span<const MutationInputRef> inputs, size_t num_mutants) {
   if (num_mutants == 0) return {};
   // In persistent mode, mutation could fail due to previous asynchronous
   // failure, thus give it one more chance to mutate in a clean state.

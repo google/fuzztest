@@ -31,7 +31,7 @@ class AsyncFailingTargetRunnerCallbacks
     return true;
   }
 
-  bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
+  bool Mutate(absl::Span<const fuzztest::internal::MutationInputRef> inputs,
               size_t num_mutants,
               std::function<void(fuzztest::internal::MutantRef)>
                   new_mutant_callback) override {

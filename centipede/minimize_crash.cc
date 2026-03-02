@@ -116,7 +116,7 @@ static void MinimizeCrash(const Environment &env,
     //
     const std::vector<Mutant> mutants = callbacks->Mutate(
         GetMutationInputRefsFromDataInputs(recent_crashers), env.batch_size);
-    std::vector<ByteArray> smaller_mutants;
+    std::vector<ByteSpan> smaller_mutants;
     for (const auto &m : mutants) {
       if (m.data.size() < min_known_size) smaller_mutants.push_back(m.data);
     }
@@ -125,10 +125,10 @@ static void MinimizeCrash(const Environment &env,
     if (!callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
       size_t crash_inputs_idx = batch_result.num_outputs_read();
       FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
-      const auto &new_crasher = smaller_mutants[crash_inputs_idx];
+      const auto new_crasher = smaller_mutants[crash_inputs_idx];
       FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
                          << AsPrintableString(new_crasher, /*max_len=*/40);
-      queue.AddCrasher(new_crasher);
+      queue.AddCrasher({new_crasher.begin(), new_crasher.end()});
     }
   }
 }

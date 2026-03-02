@@ -24,6 +24,7 @@
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
@@ -84,7 +85,7 @@ class Centipede {
   //   * its features are written to `features_file` (if that's non-null).
   // Returns true if new features were observed.
   // Post-condition: `batch_result.results.size()` == `input_vec.size()`.
-  bool RunBatch(const std::vector<ByteArray>& input_vec,
+  bool RunBatch(absl::Span<const ByteSpan> input_vec,
                 BlobFileWriter* absl_nullable corpus_file,
                 BlobFileWriter* absl_nullable features_file,
                 BlobFileWriter* absl_nullable unconditional_features_file);
@@ -140,13 +141,13 @@ class Centipede {
                                         size_t batch_index);
 
   // Returns true if `input` passes env_.input_filter.
-  bool InputPassesFilter(const ByteArray &input);
+  bool InputPassesFilter(ByteSpan input);
   // Executes `binary` with `input_vec` and `batch_result` as input/output.
   // If the binary crashes, calls ReportCrash().
   // Returns true iff there were no crashes.
   bool ExecuteAndReportCrash(std::string_view binary,
-                             const std::vector<ByteArray> &input_vec,
-                             BatchResult &batch_result);
+                             absl::Span<const ByteSpan> input_vec,
+                             BatchResult& batch_result);
   // Reports a crash and saves the reproducer to workdir/crashes, if possible.
   // `binary` is the binary causing the crash.
   // Prints the first `env_.max_num_crash_reports` logs.
@@ -156,8 +157,8 @@ class Centipede {
   // as a hint when choosing which input to try first.
   // Stops early if `EarlyExitRequested()`.
   void ReportCrash(std::string_view binary,
-                   const std::vector<ByteArray> &input_vec,
-                   const BatchResult &batch_result);
+                   absl::Span<const ByteSpan> input_vec,
+                   const BatchResult& batch_result);
   // Merges shard `shard_index_to_merge` of the corpus in `merge_from_dir`
   // into the current corpus.
   // Writes added inputs to the current shard.

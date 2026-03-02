@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
@@ -322,7 +323,7 @@ void ByteArrayMutator::CrossOver(ByteArray &data, const ByteArray &other) {
 const KnobId knob_mutate_or_crossover = Knobs::NewId("mutate_or_crossover");
 
 std::vector<Mutant> ByteArrayMutator::MutateMany(
-    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
+    absl::Span<const MutationInputRef> inputs, size_t num_mutants) {
   if (inputs.empty()) abort();
   // TODO(xinhaoyuan): Consider metadata in other inputs instead of always the
   // first one.

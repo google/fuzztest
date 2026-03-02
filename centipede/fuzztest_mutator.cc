@@ -140,7 +140,7 @@ void FuzzTestMutator::CrossOver(ByteArray &data, const ByteArray &other) {
 }
 
 std::vector<Mutant> FuzzTestMutator::MutateMany(
-    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
+    absl::Span<const MutationInputRef> inputs, size_t num_mutants) {
   if (inputs.empty()) abort();
   auto& cmp_tables = mutation_metadata_->cmp_tables;
   cmp_tables.resize(inputs.size());

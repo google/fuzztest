@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/types/span.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 
@@ -153,7 +154,7 @@ class RunnerCallbacks {
   //
   // TODO(xinhaoyuan): Consider supporting only_shrink to speed up
   // input shrinking.
-  virtual bool Mutate(const std::vector<MutationInputRef>& inputs,
+  virtual bool Mutate(absl::Span<const MutationInputRef> inputs,
                       size_t num_mutants,
                       std::function<void(MutantRef)> new_mutant_callback);
   virtual ~RunnerCallbacks() = default;

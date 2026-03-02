@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -35,14 +36,14 @@ enum class PersistentModeRequest : char {
 
 // Sends a request (via `blobseq`) to execute `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
-size_t RequestExecution(const std::vector<ByteArray> &inputs,
-                        BlobSequence &blobseq);
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        BlobSequence& blobseq);
 
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants,
-                       const std::vector<MutationInputRef> &inputs,
-                       BlobSequence &blobseq);
+                       absl::Span<const MutationInputRef> inputs,
+                       BlobSequence& blobseq);
 
 // Returns whether `blob` indicates an execution request.
 bool IsExecutionRequest(Blob blob);

@@ -229,7 +229,7 @@ size_t Corpus::Prune(const FeatureSet &fs,
   return subset_to_remove.size();
 }
 
-void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
+void Corpus::Add(ByteSpan data, const FeatureVec& fv,
                  const ExecutionMetadata& metadata,
                  const ExecutionResult::Stats& stats, const FeatureSet& fs,
                  const CoverageFrontier& coverage_frontier) {
@@ -237,7 +237,7 @@ void Corpus::Add(const ByteArray& data, const FeatureVec& fv,
   FUZZTEST_CHECK(!data.empty())
       << "Got request to add empty element to corpus: ignoring";
   FUZZTEST_CHECK_EQ(records_.size(), weighted_distribution_.size());
-  records_.push_back({data, fv, metadata, stats});
+  records_.push_back({{data.begin(), data.end()}, fv, metadata, stats});
   // Will be updated by `UpdateWeights`.
   weighted_distribution_.AddWeight(0);
 }
