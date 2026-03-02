@@ -242,12 +242,12 @@ void Corpus::Add(ByteSpan data, const FeatureVec& fv,
   weighted_distribution_.AddWeight(0);
 }
 
-const CorpusRecord& Corpus::WeightedRandom(absl::BitGenRef rng) const {
-  return records_[weighted_distribution_.RandomIndex(rng)];
+size_t Corpus::WeightedRandom(absl::BitGenRef rng) const {
+  return weighted_distribution_.RandomIndex(rng);
 }
 
-const CorpusRecord& Corpus::UniformRandom(absl::BitGenRef rng) const {
-  return records_[absl::Uniform<size_t>(rng, 0, records_.size())];
+size_t Corpus::UniformRandom(absl::BitGenRef rng) const {
+  return absl::Uniform<size_t>(rng, 0, records_.size());
 }
 
 void Corpus::DumpStatsToFile(const FeatureSet &fs, std::string_view filepath,

@@ -214,18 +214,18 @@ TEST(MutationResult, WriteThenRead) {
 
   // Write a mutation result.
   ASSERT_TRUE(MutationResult::WriteHasCustomMutator(true, blobseq));
-  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{1, 2, 3}}, blobseq));
-  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{4, 5, 6}}, blobseq));
-  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{7, 8, 9}}, blobseq));
+  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{1, 2, 3}, 3}, blobseq));
+  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{4, 5, 6}, 2}, blobseq));
+  ASSERT_TRUE(MutationResult::WriteMutant(MutantRef{{7, 8, 9}, 1}, blobseq));
   blobseq.Reset();
 
   MutationResult mutation_result;
   ASSERT_TRUE(mutation_result.Read(3, blobseq));
 
   EXPECT_TRUE(mutation_result.has_custom_mutator());
-  EXPECT_THAT(
-      mutation_result.mutants(),
-      ElementsAre(Mutant{{1, 2, 3}}, Mutant{{4, 5, 6}}, Mutant{{7, 8, 9}}));
+  EXPECT_THAT(mutation_result.mutants(),
+              ElementsAre(Mutant{{1, 2, 3}, 3}, Mutant{{4, 5, 6}, 2},
+                          Mutant{{7, 8, 9}, 1}));
 }
 
 TEST(ExecutionResult, ReadResultSucceedsOnlyWithInputBegin) {

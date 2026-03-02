@@ -646,7 +646,9 @@ bool LegacyRunnerCallbacks::Mutate(
        attempt < num_mutants * kAverageMutationAttempts &&
        num_outputs < num_mutants;
        ++attempt) {
-    const auto& input_data = inputs[rand_r(&seed) % num_inputs].data;
+    mutant.origin = rand_r(&seed) % num_inputs;
+    const auto& input_data = inputs[mutant.origin].data;
+
     size_t size = std::min(input_data.size(), max_mutant_size);
     mutant.data.resize(max_mutant_size);
     std::copy(input_data.cbegin(), input_data.cbegin() + size,

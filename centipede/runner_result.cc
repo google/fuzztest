@@ -45,6 +45,7 @@ enum Tags : Blob::SizeAndTagT {
 
   // Mutation result tags.
   kTagHasCustomMutator,
+  kTagMutantOrigin,
   kTagMutant,
 };
 
@@ -187,6 +188,10 @@ bool MutationResult::WriteHasCustomMutator(bool has_custom_mutator,
 }
 
 bool MutationResult::WriteMutant(MutantRef mutant, BlobSequence& blobseq) {
+  if (!blobseq.Write({kTagMutantOrigin, sizeof(mutant.origin),
+                      reinterpret_cast<const uint8_t*>(&mutant.origin)})) {
+    return false;
+  }
   return blobseq.Write({kTagMutant, mutant.data.size(), mutant.data.data()});
 }
 
@@ -200,10 +205,17 @@ bool MutationResult::Read(size_t num_mutants, BlobSequence &blobseq) {
   mutants_.clear();
   mutants_.reserve(num_mutants);
   for (size_t i = 0; i < num_mutants; ++i) {
+    size_t origin = Mutant::kOriginNone;
+    {
+      const Blob blob = blobseq.Read();
+      if (blob.tag != kTagMutantOrigin) return false;
+      if (blob.size != sizeof(origin)) return false;
+      std::memcpy(&origin, blob.data, sizeof(origin));
+    }
     const Blob blob = blobseq.Read();
     if (blob.tag != kTagMutant) return false;
     if (blob.size == 0) break;
-    mutants_.push_back({ByteArray{blob.data, blob.data + blob.size}});
+    mutants_.push_back({ByteArray{blob.data, blob.data + blob.size}, origin});
   }
   return true;
 }

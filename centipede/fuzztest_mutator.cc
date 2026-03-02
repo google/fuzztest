@@ -146,13 +146,13 @@ std::vector<Mutant> FuzzTestMutator::MutateMany(
   cmp_tables.resize(inputs.size());
   std::vector<Mutant> mutants;
   mutants.reserve(num_mutants);
-  for (int i = 0; i < num_mutants; ++i) {
-    auto index = absl::Uniform<size_t>(prng_, 0, inputs.size());
-    if (!cmp_tables[index].has_value() && inputs[index].metadata != nullptr) {
-      cmp_tables[index].emplace(/*compact=*/true);
-      PopulateCmpEntries(*inputs[index].metadata, *cmp_tables[index]);
+  for (size_t i = 0; i < num_mutants; ++i) {
+    const size_t origin = absl::Uniform<size_t>(prng_, 0, inputs.size());
+    if (!cmp_tables[origin].has_value() && inputs[origin].metadata != nullptr) {
+      cmp_tables[origin].emplace(/*compact=*/true);
+      PopulateCmpEntries(*inputs[origin].metadata, *cmp_tables[origin]);
     }
-    Mutant mutant = {/*data=*/inputs[index].data};
+    auto mutant = Mutant{inputs[origin].data, origin};
     if (mutant.data.size() > max_len_) mutant.data.resize(max_len_);
     if (knobs_.GenerateBool(knob_mutate_or_crossover, prng_())) {
       // Perform crossover with some other input. It may be the same input.
@@ -162,8 +162,8 @@ std::vector<Mutant> FuzzTestMutator::MutateMany(
     } else {
       domain_->Mutate(
           mutant.data, prng_,
-          {/*cmp_tables=*/cmp_tables[index].has_value() ? &*cmp_tables[index]
-                                                        : nullptr},
+          {/*cmp_tables=*/cmp_tables[origin].has_value() ? &*cmp_tables[origin]
+                                                         : nullptr},
           /*only_shrink=*/false);
     }
     mutants.push_back(std::move(mutant));

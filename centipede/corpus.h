@@ -149,11 +149,11 @@ class Corpus {
   size_t NumActive() const { return records_.size(); }
   // Returns the max and avg sizes of the inputs.
   std::pair<size_t, size_t> MaxAndAvgSize() const;
-  // Returns a random active corpus record using weighted distribution.
+  // Returns a random active corpus record index using weighted distribution.
   // See WeightedDistribution.
-  const CorpusRecord& WeightedRandom(absl::BitGenRef rng) const;
-  // Returns a random active corpus record using uniform distribution.
-  const CorpusRecord& UniformRandom(absl::BitGenRef rng) const;
+  size_t WeightedRandom(absl::BitGenRef rng) const;
+  // Returns a random active corpus record index using uniform distribution.
+  size_t UniformRandom(absl::BitGenRef rng) const;
   // Returns the element with index 'idx', where `idx` < NumActive().
   const ByteArray &Get(size_t idx) const { return records_[idx].data; }
   // Returns the execution metadata for the element `idx`, `idx` < NumActive().

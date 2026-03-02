@@ -333,8 +333,8 @@ std::vector<Mutant> ByteArrayMutator::MutateMany(
   std::vector<Mutant> mutants;
   mutants.reserve(num_mutants);
   for (size_t i = 0; i < num_mutants; ++i) {
-    Mutant mutant;
-    mutant.data = inputs[rng_() % num_inputs].data;
+    const size_t origin = rng_() % num_inputs;
+    auto mutant = Mutant{inputs[origin].data, origin};
     if (mutant.data.size() <= max_len_ &&
         knobs_.GenerateBool(knob_mutate_or_crossover, rng_())) {
       // Do crossover only if the mutant is not over the max_len_.

@@ -121,12 +121,13 @@ class CentipedeMock : public CentipedeCallbacks {
     for (size_t i = 0; i < num_mutants; ++i) {
       num_mutations_++;
       if (num_mutations_ < 256) {
-        mutants.push_back({/*data=*/{static_cast<uint8_t>(num_mutations_)}});
+        mutants.push_back({/*data=*/{static_cast<uint8_t>(num_mutations_)},
+                           Mutant::kOriginNone});
         continue;
       }
       uint8_t byte0 = (num_mutations_ - 256) / 256;
       uint8_t byte1 = (num_mutations_ - 256) % 256;
-      mutants.push_back({/*data=*/{byte0, byte1}});
+      mutants.push_back({/*data=*/{byte0, byte1}, Mutant::kOriginNone});
     }
     return mutants;
   }
@@ -514,6 +515,7 @@ class MergeMock : public CentipedeCallbacks {
     for (auto &mutant : mutants) {
       mutant.data.resize(1);
       mutant.data[0] = ++number_of_mutations_;
+      mutant.origin = Mutant::kOriginNone;
     }
     return mutants;
   }
@@ -603,7 +605,8 @@ class FunctionFilterMock : public CentipedeCallbacks {
     std::vector<Mutant> mutants;
     mutants.reserve(num_mutants);
     for (size_t i = 0; i < num_mutants; ++i) {
-      mutants.push_back({/*data=*/GetMutant(++number_of_mutations_)});
+      mutants.push_back(
+          {/*data=*/GetMutant(++number_of_mutations_), Mutant::kOriginNone});
     }
     return mutants;
   }
@@ -720,6 +723,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
     for (auto &mutant : mutants) {
       mutant.data.resize(1);
       mutant.data[0] = ++number_of_mutations_;
+      mutant.origin = Mutant::kOriginNone;
     }
     return mutants;
   }
@@ -853,7 +857,8 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
     mutants.reserve(num_mutants);
     for (size_t i = 0; i < num_mutants; ++i) {
       // The contents of each mutant is simply its sequential number.
-      mutants.push_back({/*data=*/{static_cast<uint8_t>(curr_input_idx_++)}});
+      mutants.push_back({/*data=*/{static_cast<uint8_t>(curr_input_idx_++)},
+                         Mutant::kOriginNone});
     }
     return mutants;
   }
@@ -1009,7 +1014,7 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
 
   std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
                              size_t num_mutants) override {
-    return {num_mutants, {/*data=*/{0}}};
+    return {num_mutants, {/*data=*/{0}, Mutant::kOriginNone}};
   }
 
   bool thread_check_passed() { return thread_check_passed_; }
@@ -1065,7 +1070,7 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
 
   std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
                              size_t num_mutants) override {
-    return {num_mutants, {/*data=*/{0}}};
+    return {num_mutants, {/*data=*/{0}, Mutant::kOriginNone}};
   }
 
   int execute_count() const { return execute_count_; }
@@ -1103,7 +1108,7 @@ class SkippedTestCallbacks : public CentipedeCallbacks {
 
   std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
                              size_t num_mutants) override {
-    return {num_mutants, {/*data=*/{0}}};
+    return {num_mutants, {/*data=*/{0}, Mutant::kOriginNone}};
   }
 
   int execute_count() const { return execute_count_; }
@@ -1141,7 +1146,7 @@ class IgnoredFailureCallbacks : public CentipedeCallbacks {
 
   std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
                              size_t num_mutants) override {
-    return {num_mutants, {/*data=*/{0}}};
+    return {num_mutants, {/*data=*/{0}, Mutant::kOriginNone}};
   }
 
   int execute_count() const { return execute_count_; }

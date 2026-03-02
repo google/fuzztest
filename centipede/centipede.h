@@ -76,7 +76,7 @@ class Centipede {
                                      std::string_view dir);
 
  private:
-  // Executes inputs from `input_vec`.
+  // Executes inputs from `mutants` and update the corpus.
   // For every input, its pruned features are written to
   // `unconditional_features_file`, (if that's non-null).
   // For every input that caused new features to be observed:
@@ -84,8 +84,8 @@ class Centipede {
   //   * the input is written to `corpus_file` (if that's non-null).
   //   * its features are written to `features_file` (if that's non-null).
   // Returns true if new features were observed.
-  // Post-condition: `batch_result.results.size()` == `input_vec.size()`.
-  bool RunBatch(absl::Span<const ByteSpan> input_vec,
+  // Post-condition: `batch_result.results.size()` == `mutants.size()`.
+  bool RunBatch(absl::Span<const MutantRef> mutants,
                 BlobFileWriter* absl_nullable corpus_file,
                 BlobFileWriter* absl_nullable features_file,
                 BlobFileWriter* absl_nullable unconditional_features_file);

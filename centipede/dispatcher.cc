@@ -537,10 +537,13 @@ void FuzzTestDispatcherEmitMutant(const void* data, size_t size) {
                   "mutant must be non-empty with a valid pointer");
   auto* output = GetOutputsBlobSequence();
   DispatcherCheck(output != nullptr, "outputs blob sequence must exist");
-  DispatcherCheck(
-      MutationResult::WriteMutant(
-          MutantRef{{static_cast<const uint8_t*>(data), size}}, *output),
-      "failed to write mutant");
+  DispatcherCheck(MutationResult::WriteMutant(
+                      MutantRef{{static_cast<const uint8_t*>(data), size},
+                                // TODO(xinhaoyuan): change the dispatcher
+                                // interface to include the origin.
+                                fuzztest::internal::Mutant::kOriginNone},
+                      *output),
+                  "failed to write mutant");
 }
 
 void FuzzTestDispatcherEmitFeedbackAs32BitFeatures(const uint32_t* features,

@@ -19,6 +19,7 @@
 #ifndef THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
 #define THIRD_PARTY_CENTIPEDE_MUTATION_DATA_H_
 
+#include <cstddef>
 #include <vector>
 
 #include "./centipede/execution_metadata.h"
@@ -52,10 +53,16 @@ inline std::vector<MutationInputRef> GetMutationInputRefsFromDataInputs(
 struct Mutant {
   // The mutant `data`.
   ByteArray data;
+  // The index of the input used to mutate into `data`. The base array may be
+  // different depending on the context: As mutation output it refers to the
+  // mutation input batch; As execution input it refers to the in-memory corpus.
+  size_t origin = kOriginNone;
+  // A special `origin` value to indicate that the mutant has no origin.
+  static constexpr size_t kOriginNone = static_cast<size_t>(-1);
 };
 
 inline bool operator==(const Mutant& mutant, const Mutant& other) {
-  return mutant.data == other.data;
+  return mutant.data == other.data && mutant.origin == other.origin;
 }
 
 // A reference counterpart of `Mutant`. Needed because it can be constructed
@@ -66,9 +73,11 @@ struct MutantRef {
 
   explicit MutantRef(const Mutant& mutant) : data(mutant.data) {}
 
-  explicit MutantRef(ByteSpan data) : data(data) {}
+  explicit MutantRef(ByteSpan data, size_t origin)
+      : data(data), origin(origin) {}
 
   ByteSpan data;
+  size_t origin = Mutant::kOriginNone;
 };
 
 inline std::vector<ByteArray> GetDataFromMutants(

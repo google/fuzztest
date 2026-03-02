@@ -43,7 +43,7 @@ class CustomMutatorRunnerCallbacks
               std::function<void(MutantRef)> new_mutant_callback) override {
     for (size_t i = 0; i < inputs.size() && i < num_mutants; ++i) {
       // Just return the original input as a mutant.
-      new_mutant_callback(MutantRef{inputs[i].data});
+      new_mutant_callback(MutantRef{inputs[i].data, i});
     }
     return true;
   }
