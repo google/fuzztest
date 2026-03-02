@@ -29,7 +29,7 @@
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
@@ -139,12 +139,12 @@ void FuzzTestMutator::CrossOver(ByteArray &data, const ByteArray &other) {
   }
 }
 
-std::vector<ByteArray> FuzzTestMutator::MutateMany(
-    const std::vector<MutationInputRef> &inputs, size_t num_mutants) {
+std::vector<Mutant> FuzzTestMutator::MutateMany(
+    const std::vector<MutationInputRef>& inputs, size_t num_mutants) {
   if (inputs.empty()) abort();
   auto& cmp_tables = mutation_metadata_->cmp_tables;
   cmp_tables.resize(inputs.size());
-  std::vector<ByteArray> mutants;
+  std::vector<Mutant> mutants;
   mutants.reserve(num_mutants);
   for (int i = 0; i < num_mutants; ++i) {
     auto index = absl::Uniform<size_t>(prng_, 0, inputs.size());
@@ -152,16 +152,16 @@ std::vector<ByteArray> FuzzTestMutator::MutateMany(
       cmp_tables[index].emplace(/*compact=*/true);
       PopulateCmpEntries(*inputs[index].metadata, *cmp_tables[index]);
     }
-    auto mutant = inputs[index].data;
-    if (mutant.size() > max_len_) mutant.resize(max_len_);
+    Mutant mutant = {/*data=*/inputs[index].data};
+    if (mutant.data.size() > max_len_) mutant.data.resize(max_len_);
     if (knobs_.GenerateBool(knob_mutate_or_crossover, prng_())) {
       // Perform crossover with some other input. It may be the same input.
       const auto &other_input =
           inputs[absl::Uniform<size_t>(prng_, 0, inputs.size())].data;
-      CrossOver(mutant, other_input);
+      CrossOver(mutant.data, other_input);
     } else {
       domain_->Mutate(
-          mutant, prng_,
+          mutant.data, prng_,
           {/*cmp_tables=*/cmp_tables[index].has_value() ? &*cmp_tables[index]
                                                         : nullptr},
           /*only_shrink=*/false);

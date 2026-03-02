@@ -85,7 +85,7 @@ cc_binary(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
-        "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//centipede:mutation_data",
         "@com_google_fuzztest//common:defs",
     ],
 )

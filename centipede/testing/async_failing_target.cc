@@ -33,7 +33,7 @@ class AsyncFailingTargetRunnerCallbacks
 
   bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
               size_t num_mutants,
-              std::function<void(fuzztest::internal::ByteSpan)>
+              std::function<void(fuzztest::internal::MutantRef)>
                   new_mutant_callback) override {
     if (to_fail_in_mutation) {
       fprintf(stderr, "Fail in mutation\n");
