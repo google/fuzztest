@@ -224,3 +224,16 @@ fuzztest_cc_library(
   DEPS
     absl::string_view
 )
+fuzztest_cc_library(
+  NAME
+    lazy
+  HDRS
+    "lazy.h"
+  DEPS
+    fuzztest::core_domains_impl
+    absl::random_bit_gen_ref
+    absl::status
+    fuzztest::common_logging
+    fuzztest::meta
+    fuzztest::serialization
+)

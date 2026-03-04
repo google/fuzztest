@@ -235,4 +235,5 @@ fuzztest_cc_library(
     fuzztest::common_logging
     fuzztest::io
     fuzztest::core_domains_impl
+    fuzztest::lazy
 )

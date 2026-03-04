@@ -171,6 +171,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:io",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
+        "@com_google_fuzztest//fuzztest/internal/domains:lazy",
     ],
     alwayslink = True,
 )

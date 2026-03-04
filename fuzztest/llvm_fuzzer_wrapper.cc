@@ -21,12 +21,12 @@
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/lazy.h"
 #include "./fuzztest/internal/io.h"
 
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_dict_file);
 ABSL_DECLARE_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir);
-
-constexpr static size_t kByteArrayMaxLen = 4096;
+ABSL_DECLARE_FLAG(size_t, llvm_fuzzer_wrapper_max_input_size);
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
@@ -56,7 +56,10 @@ std::vector<std::vector<uint8_t>> ReadByteArraysFromDirectory() {
   for (const fuzztest::internal::FilePathAndData& file : files) {
     out.push_back(
         {file.data.begin(),
-         file.data.begin() + std::min(file.data.size(), kByteArrayMaxLen)});
+         file.data.begin() +
+             std::min(
+                 file.data.size(),
+                 absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_max_input_size))});
   }
   return out;
 }
@@ -177,16 +180,17 @@ class ArbitraryByteVector
  public:
   using typename Base::corpus_type;
 
-  ArbitraryByteVector() { WithMaxSize(kByteArrayMaxLen); }
+  ArbitraryByteVector() = default;
 
   void Mutate(corpus_type& val, absl::BitGenRef prng,
               const MutationMetadata& metadata, bool only_shrink) {
     if (LLVMFuzzerCustomMutator) {
       const size_t size = val.size();
-      const size_t max_size = only_shrink ? size : kByteArrayMaxLen;
-      val.resize(max_size);
+      const size_t mutant_max_size = only_shrink ? size : max_size();
+      val.resize(mutant_max_size);
       mutation_metadata_manager->Activate(metadata);
-      val.resize(LLVMFuzzerCustomMutator(val.data(), size, max_size, prng()));
+      val.resize(
+          LLVMFuzzerCustomMutator(val.data(), size, mutant_max_size, prng()));
       mutation_metadata_manager->Deactivate();
     } else {
       Base::Mutate(val, prng, metadata, only_shrink);
@@ -199,6 +203,9 @@ void TestOneInput(const std::vector<uint8_t>& data) {
 }
 
 FUZZ_TEST(LLVMFuzzer, TestOneInput)
-    .WithDomains(ArbitraryByteVector()
-                     .WithDictionary(ReadByteArrayDictionaryFromFile)
-                     .WithSeeds(ReadByteArraysFromDirectory));
+    .WithDomains(fuzztest::internal::Lazy<ArbitraryByteVector>().WithLazySetup(
+        [](auto& d) {
+          d.WithMaxSize(absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_max_input_size))
+              .WithDictionary(ReadByteArrayDictionaryFromFile)
+              .WithSeeds(ReadByteArraysFromDirectory);
+        }));

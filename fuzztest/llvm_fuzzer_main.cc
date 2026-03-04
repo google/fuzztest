@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -14,6 +15,9 @@ ABSL_FLAG(std::string, llvm_fuzzer_wrapper_dict_file, "",
 ABSL_FLAG(std::string, llvm_fuzzer_wrapper_corpus_dir, "",
           "Path to seed corpus directory used by the wrapped legacy LLVMFuzzer "
           "target (https://llvm.org/docs/LibFuzzer.html#fuzz-target).");
+ABSL_FLAG(size_t, llvm_fuzzer_wrapper_max_input_size, 4096,
+          "Maximum input size for the wrapped legacy LLVMFuzzer target "
+          "(https://llvm.org/docs/LibFuzzer.html#fuzz-target).");
 
 int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);

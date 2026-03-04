@@ -235,3 +235,16 @@ cc_library(
     hdrs = ["utf.h"],
     deps = ["@abseil-cpp//absl/strings:string_view"],
 )
+
+cc_library(
+    name = "lazy",
+    hdrs = ["lazy.h"],
+    deps = [
+        ":core_domains_impl",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/status",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
+    ],
+)
