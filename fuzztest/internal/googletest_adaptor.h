@@ -93,6 +93,7 @@ class GTest_TestAdaptor : public ::testing::Test {
       EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_))
           << "Failure(s) found in the fuzzing mode.";
     }
+    EXPECT_FALSE(Runtime::instance().external_failure_detected());
   }
 
   static void SetUpTestSuite() {
