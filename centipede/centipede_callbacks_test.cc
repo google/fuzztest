@@ -15,7 +15,6 @@
 #include "./centipede/centipede_callbacks.h"
 
 #include <string_view>
-#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
