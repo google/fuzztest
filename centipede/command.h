@@ -96,10 +96,11 @@ class Command final {
   // call `RequestEarlyStop()` (see stop.h).
   std::optional<int> Wait(absl::Time deadline);
 
-  // Requests the command execution to stop. Must be called only when the
-  // command is executing. Note that after calling this, `Wait()` is still
-  // needed to complete the execution.
-  void RequestStop();
+  // Requests the command execution to stop by sending SIGTERM or SIGKILL (when
+  // `force` is true). Must be called only when the command is executing. Note
+  // that after calling this, `Wait()` is still needed to complete the
+  // execution.
+  void RequestStop(bool force = false);
 
   // Convenient method to execute synchronously.
   int Execute() {

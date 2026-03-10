@@ -209,6 +209,9 @@ void ForkServerCallMeVeryEarly() {
   struct sigaction sigchld_act{};
   sigchld_act.sa_handler = [](int) {};
 
+  struct sigaction sigusr1_act{};
+  sigusr1_act.sa_handler = [](int) {};
+
   sigset_t server_sigset;
   if (sigprocmask(SIG_SETMASK, nullptr, &server_sigset) != 0) {
     Exit("###sigprocmask() failed to get the existing sigset\n");
@@ -221,6 +224,9 @@ void ForkServerCallMeVeryEarly() {
   }
   if (sigaddset(&server_sigset, SIGCHLD) != 0) {
     Exit("###sigaddset() failed to add SIGCHLD\n");
+  }
+  if (sigaddset(&server_sigset, SIGUSR1) != 0) {
+    Exit("###sigaddset() failed to add SIGUSR1\n");
   }
 
   sigset_t wait_sigset;
@@ -236,10 +242,14 @@ void ForkServerCallMeVeryEarly() {
   if (sigaddset(&wait_sigset, SIGCHLD) != 0) {
     Exit("###sigaddset() failed to add SIGCHLD to the wait sigset\n");
   }
+  if (sigaddset(&wait_sigset, SIGUSR1) != 0) {
+    Exit("###sigaddset() failed to add SIGUSR1 to the wait sigset\n");
+  }
 
   struct sigaction old_sigint_act{};
   struct sigaction old_sigterm_act{};
   struct sigaction old_sigchld_act{};
+  struct sigaction old_sigusr1_act{};
   sigset_t old_sigset;
   bool to_restore_signal_handling = false;
   // Loop.
@@ -258,7 +268,7 @@ void ForkServerCallMeVeryEarly() {
           Exit("###sigpending() failed\n");
         }
         if (sigismember(&pending, SIGINT) || sigismember(&pending, SIGTERM) ||
-            sigismember(&pending, SIGCHLD)) {
+            sigismember(&pending, SIGCHLD) || sigismember(&pending, SIGUSR1)) {
           int unused_sig;
           if (sigwait(&wait_sigset, &unused_sig) != 0) {
             Exit("###sigwait() failed\n");
@@ -275,6 +285,9 @@ void ForkServerCallMeVeryEarly() {
       }
       if (sigaction(SIGCHLD, &old_sigchld_act, nullptr) != 0) {
         Exit("###sigaction failed on SIGCHLD for the child");
+      }
+      if (sigaction(SIGUSR1, &old_sigusr1_act, nullptr) != 0) {
+        Exit("###sigaction failed on SIGUSR1 for the child");
       }
       if (sigprocmask(SIG_SETMASK, &old_sigset, nullptr) != 0) {
         Exit("###sigprocmask() failed to restore the previous sigset\n");
@@ -302,6 +315,9 @@ void ForkServerCallMeVeryEarly() {
     }
     if (sigaction(SIGCHLD, &sigchld_act, &old_sigchld_act) != 0) {
       Exit("###sigaction failed on SIGCHLD for the fork server");
+    }
+    if (sigaction(SIGUSR1, &sigusr1_act, &old_sigusr1_act) != 0) {
+      Exit("###sigaction failed on SIGUSR1 for the fork server");
     }
     if (sigprocmask(SIG_SETMASK, &server_sigset, &old_sigset) != 0) {
       Exit("###sigprocmask() failed to set the fork server sigset\n");
@@ -335,6 +351,9 @@ void ForkServerCallMeVeryEarly() {
       } else if (sig == SIGTERM) {
         Log("###Got SIGTERM - forwarding to the child\n");
         kill(pid, SIGTERM);
+      } else if (sig == SIGUSR1) {
+        Log("###Got SIGUSR1 - sending SIGKILL to the child\n");
+        kill(pid, SIGKILL);
       } else if (sig == SIGCHLD) {
         Log("###Got SIGCHLD - reaping the child\n");
         const pid_t ret = waitpid(pid, &status, WNOHANG);

@@ -24,6 +24,7 @@
 #include <string_view>
 #include <utility>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
@@ -34,6 +35,8 @@
 
 namespace fuzztest::internal {
 namespace {
+
+using ::testing::Optional;
 
 TEST(CommandTest, ToString) {
   EXPECT_EQ(Command{"x"}.ToString(), "env \\\nx");
@@ -149,6 +152,24 @@ TEST(CommandTest, ForkServer) {
   }
 
   {
+    const std::string input = "sleep";
+    const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
+    Command::Options cmd_options;
+    cmd_options.args = {input};
+    cmd_options.stdout_file_prefix = log_prefix;
+    cmd_options.stderr_file_prefix = log_prefix;
+    Command cmd{helper, std::move(cmd_options)};
+    ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
+    ASSERT_TRUE(cmd.ExecuteAsync());
+    EXPECT_EQ(cmd.Wait(absl::Now() + absl::Seconds(2)), std::nullopt);
+    cmd.RequestStop(/*force=*/false);
+    EXPECT_THAT(cmd.Wait(absl::Now() + absl::Seconds(2)), Optional(SIGTERM));
+    std::string log_contents;
+    ReadFromLocalFile(cmd.stdout_file(), log_contents);
+    EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));
+  }
+
+  {
     const std::string input = "hang";
     const std::string log_prefix = std::filesystem::path{test_tmpdir} / input;
     Command::Options cmd_options;
@@ -159,6 +180,10 @@ TEST(CommandTest, ForkServer) {
     ASSERT_TRUE(cmd.StartForkServer(test_tmpdir, "ForkServer"));
     ASSERT_TRUE(cmd.ExecuteAsync());
     EXPECT_EQ(cmd.Wait(absl::Now() + absl::Seconds(2)), std::nullopt);
+    cmd.RequestStop(/*force=*/false);
+    EXPECT_EQ(cmd.Wait(absl::Now() + absl::Seconds(2)), std::nullopt);
+    cmd.RequestStop(/*force=*/true);
+    EXPECT_THAT(cmd.Wait(absl::Now() + absl::Seconds(2)), Optional(SIGKILL));
     std::string log_contents;
     ReadFromLocalFile(cmd.stdout_file(), log_contents);
     EXPECT_EQ(log_contents, absl::Substitute("Got input: $0", input));

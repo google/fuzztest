@@ -1675,6 +1675,7 @@ cc_binary(
     deps = [
         ":runner_fork_server",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/time",
     ],
 )
 

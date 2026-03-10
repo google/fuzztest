@@ -15,11 +15,14 @@
 #include <unistd.h>
 
 #include <cassert>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include "absl/base/nullability.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 // A binary linked with the fork server that exits/crashes in different ways.
 int main(int argc, char** absl_nonnull argv) {
@@ -31,6 +34,13 @@ int main(int argc, char** absl_nonnull argv) {
   if (!strcmp(argv[1], "ret42")) return 42;
   if (!strcmp(argv[1], "abort")) abort();
   // Sleep longer than kTimeout in CommandDeathTest_ForkServerHangingBinary.
-  if (!strcmp(argv[1], "hang")) sleep(5);
+  if (!strcmp(argv[1], "sleep")) absl::SleepFor(absl::Seconds(5));
+  if (!strcmp(argv[1], "hang")) {
+    struct sigaction act{};
+    act.sa_handler = [](int) {};
+    sigaction(SIGTERM, &act, nullptr);
+    absl::SleepFor(absl::Seconds(10));
+  }
+
   return 17;
 }

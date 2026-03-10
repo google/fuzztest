@@ -185,12 +185,14 @@ struct Command::ForkServerProps {
 // PIMPL).
 Command::~Command() {
   if (is_executing()) {
-    FUZZTEST_LOG(WARNING)
-        << "Destructing Command object for " << path() << " with "
-        << (fork_server_ ? absl::StrCat("fork server PID ", fork_server_->pid_)
-                         : absl::StrCat("PID ", pid_))
-        << " still running. Requesting it to stop without waiting for it...";
-    RequestStop();
+    FUZZTEST_LOG(WARNING) << "Destructing Command object for " << path()
+                          << " with "
+                          << (fork_server_ ? absl::StrCat("fork server PID ",
+                                                          fork_server_->pid_)
+                                           : absl::StrCat("PID ", pid_))
+                          << " still running. Requesting it to force-stop "
+                             "without waiting for it...";
+    RequestStop(/*force=*/true);
   }
   ResetRedirectionFiles(/*new_suffix=*/"");
 }
@@ -520,15 +522,18 @@ std::optional<int> Command::Wait(absl::Time deadline) {
   return exit_code;
 }
 
-void Command::RequestStop() {
+void Command::RequestStop(bool force) {
   FUZZTEST_CHECK(is_executing());
   if (fork_server_) {
     FUZZTEST_CHECK_NE(fork_server_->pid_, -1);
-    kill(fork_server_->pid_, SIGTERM);
+    // Cannot send SIGKILL to the fork server as it kills only the parent
+    // process, but not the child. The fork server would send SIGKILL to the
+    // child on SIGUSR1.
+    kill(fork_server_->pid_, force ? SIGUSR1 : SIGTERM);
     return;
   }
   FUZZTEST_CHECK_NE(pid_, -1);
-  kill(pid_, SIGTERM);
+  kill(pid_, force ? SIGKILL : SIGTERM);
 }
 
 std::string Command::ReadRedirectedStdout() const {
