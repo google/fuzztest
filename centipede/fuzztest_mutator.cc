@@ -43,6 +43,16 @@ using MutatorDomainBase =
     decltype(fuzztest::VectorOf(fuzztest::Arbitrary<uint8_t>()));
 
 template <typename T>
+bool SampleInsert(const T& cmp_table, size_t& counter) {
+  static thread_local absl::BitGen bitgen;
+  counter++;
+  if (counter <= cmp_table.kTableSize) {
+    return true;
+  }
+  return absl::Uniform<size_t>(bitgen, 0, counter) < cmp_table.kTableSize;
+}
+
+template <typename T>
 void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b,
                                          TablesOfRecentCompares& cmp_tables) {
   T a_int;
@@ -59,25 +69,36 @@ void PopulateCmpEntries(const ExecutionMetadata& metadata,
   // Size limits on the cmp entries to be populated.
   static constexpr uint8_t kMaxCmpEntrySize = 15;
   static constexpr uint8_t kMinCmpEntrySize = 2;
+  size_t uint16_sample_counter = 0;
+  size_t uint32_sample_counter = 0;
+  size_t uint64_sample_counter = 0;
+  size_t mem_sample_counter = 0;
 
-  metadata.ForEachCmpEntry([&cmp_tables](fuzztest::internal::ByteSpan a,
-                                         fuzztest::internal::ByteSpan b) {
+  metadata.ForEachCmpEntry([&](fuzztest::internal::ByteSpan a,
+                               fuzztest::internal::ByteSpan b) {
     FUZZTEST_CHECK(a.size() == b.size())
         << "cmp operands must have the same size";
     const size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
     if (size > kMaxCmpEntrySize) return;
-    if (size == 2) {
+    if (size == 2 && SampleInsert(cmp_tables.GetMutable<sizeof(uint16_t)>(),
+                                  uint16_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
                                                     cmp_tables);
-    } else if (size == 4) {
+    } else if (size == 4 &&
+               SampleInsert(cmp_tables.GetMutable<sizeof(uint32_t)>(),
+                            uint32_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
                                                     cmp_tables);
-    } else if (size == 8) {
+    } else if (size == 8 &&
+               SampleInsert(cmp_tables.GetMutable<sizeof(uint64_t)>(),
+                            uint64_sample_counter)) {
       InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
                                                     cmp_tables);
     }
-    cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    if (SampleInsert(cmp_tables.GetMutable<0>(), mem_sample_counter)) {
+      cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    }
   });
 }
 
