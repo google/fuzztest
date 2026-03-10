@@ -43,7 +43,7 @@ template <uint8_t kFixedSize, size_t kNumItems>
 class CmpTrace {
  public:
   // kMaxNumBytesPerValue does not depend on kFixedSize.
-  static constexpr size_t kMaxNumBytesPerValue = 16;
+  static constexpr size_t kMaxNumBytesPerValue = 128;
   static constexpr size_t kNumBytesPerValue =
       kFixedSize ? kFixedSize : kMaxNumBytesPerValue;
 

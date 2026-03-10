@@ -285,22 +285,34 @@ INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest, Values([] {
 INSTANTIATE_TEST_SUITE_P(SkipsLongCmpEntry, MutationStepTest, Values([] {
                            MutationStepTestParameter params;
                            params.seed_input = {0};
+                           ByteArray short_entry;
+                           for (size_t i = 0; i < 5; ++i) {
+                             short_entry.push_back(i);
+                           }
                            params.expected_mutants = {
-                               {0, 1, 2, 3, 4},
+                               short_entry,
                            };
+                           ByteArray long_entry;
+                           for (size_t i = 0; i < 129; ++i) {
+                             long_entry.push_back(i);
+                           }
                            params.unexpected_mutants = {
-                               {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
-                                11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+                               long_entry,
                            };
-                           params.cmp_data = {
-                               20,  // size
-                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // lhs
-                               1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,  // rhs
-                               4,                                       // size
-                               1,  2,  3,  4,                           // lhs
-                               1,  2,  3,  4};                          // rhs
+                           params.cmp_data.push_back(short_entry.size());
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  short_entry.begin(),
+                                                  short_entry.end());  // lhs
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  short_entry.begin(),
+                                                  short_entry.end());  // rhs
+                           params.cmp_data.push_back(long_entry.size());
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  long_entry.begin(),
+                                                  long_entry.end());  // lhs
+                           params.cmp_data.insert(params.cmp_data.end(),
+                                                  long_entry.begin(),
+                                                  long_entry.end());  // rhs
                            return params;
                          }()));
 

@@ -67,7 +67,7 @@ void InsertCmpEntryIntoIntegerDictionary(const uint8_t* a, const uint8_t* b,
 void PopulateCmpEntries(const ExecutionMetadata& metadata,
                         TablesOfRecentCompares& cmp_tables) {
   // Size limits on the cmp entries to be populated.
-  static constexpr uint8_t kMaxCmpEntrySize = 15;
+  static constexpr uint8_t kMaxCmpEntrySize = 128;
   static constexpr uint8_t kMinCmpEntrySize = 2;
   size_t uint16_sample_counter = 0;
   size_t uint32_sample_counter = 0;

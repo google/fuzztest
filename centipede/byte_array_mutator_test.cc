@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -93,8 +94,9 @@ TEST(ByteArrayMutator, RoundDownToRemoveCorrectly) {
 namespace {
 
 TEST(DictEntry, DictEntry) {
-  uint8_t bytes[17] = {0, 1,  2,  3,  4,  5,  6,  7, 8,
-                       9, 10, 11, 12, 13, 14, 15, 16};
+  uint8_t bytes[129];
+  std::iota(bytes, bytes + 129, 0);
+
   DictEntry a_0_10({bytes + 0, 10});
   DictEntry a_0_4({bytes + 0, 4});
   DictEntry a_1_8({bytes + 1, 8});
@@ -103,7 +105,7 @@ TEST(DictEntry, DictEntry) {
   EXPECT_LT(a_0_10, a_1_8);
   EXPECT_EQ(memcmp(a_0_10.begin(), bytes, a_0_10.end() - a_0_10.begin()), 0);
 
-  EXPECT_DEATH({ DictEntry a_0_10({bytes, 17}); }, "");
+  EXPECT_DEATH({ DictEntry a_0_10({bytes, 129}); }, "");
 }
 
 TEST(CmpDictionary, CmpDictionary) {
@@ -162,7 +164,7 @@ TEST(CmpDictionary, CmpDictionaryIsCompatibleWithCmpTrace) {
   traceN.Clear();
   constexpr uint8_t long_array[20] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
                                       10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
-  traceN.Capture(20, long_array, long_array);  // will be trimmed to 16.
+  traceN.Capture(20, long_array, long_array);
 
   ExecutionMetadata metadata;
   bool append_failed = false;
