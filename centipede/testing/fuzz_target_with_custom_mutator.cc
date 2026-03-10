@@ -14,7 +14,6 @@
 
 #include <cstdlib>
 #include <functional>
-#include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"

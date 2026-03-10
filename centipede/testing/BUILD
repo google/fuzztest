@@ -169,6 +169,7 @@ cc_binary(
     ],
     deps = [
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//common:defs",
     ],

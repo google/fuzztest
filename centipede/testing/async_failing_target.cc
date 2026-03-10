@@ -15,9 +15,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
-#include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/types/span.h"
 #include "./centipede/runner_interface.h"
 #include "./common/defs.h"
 
