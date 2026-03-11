@@ -875,7 +875,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
     if (!WriteAll(state->persistent_mode_socket,
                   reinterpret_cast<const char*>(&result), sizeof(result))) {
       perror("Failed to write response to the persistent mode socket");
-      return EXIT_FAILURE;
+      break;
     }
   }
   return EXIT_SUCCESS;
