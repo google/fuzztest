@@ -61,19 +61,21 @@ class CmpTrace {
       }
       capture_count_ = 0;
       to_clear = false;
+      if (rand_seed_ == 0) {
+        // Initialize the random seed (likely) once.
+        struct timeval tv = {};
+        constexpr size_t kUsecInSec = 1000000;
+        // There is a chance that `gettimeofday()` triggers `Capture()`
+        // recursively, but this should be fine as we unset `to_clear` before.
+        gettimeofday(&tv, nullptr);
+        rand_seed_ = tv.tv_sec * kUsecInSec + tv.tv_usec;
+      }
     }
     if (size > kNumBytesPerValue) size = kNumBytesPerValue;
     // Fill the initial `kNumItems` pairs sequentially, then randomly overwrite
     // previous entries with diminishing probability.
     size_t index = capture_count_++;
     if (index >= kNumItems) {
-      if (rand_seed_ == 0) {
-        // Initialize the random seed (likely) once.
-        struct timeval tv = {};
-        constexpr size_t kUsecInSec = 1000000;
-        gettimeofday(&tv, nullptr);
-        rand_seed_ = tv.tv_sec * kUsecInSec + tv.tv_usec;
-      }
       rand_seed_ = rand_seed_ * 1103515245 + 12345;
       index = rand_seed_ % capture_count_;
       if (index >= kNumItems) return;
