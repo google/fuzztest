@@ -29,6 +29,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_utils.h"
 #include "./centipede/sancov_state.h"
 
 namespace fuzztest::internal {
@@ -60,10 +61,6 @@ using fuzztest::internal::tls;
 // compilers require both to actually enforce inlining, e.g. GCC:
 // https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html.
 #define ENFORCE_INLINE __attribute__((always_inline)) inline
-
-// Use this attribute for functions that must not be instrumented even if
-// the runner is built with sanitizers (asan, etc).
-#define NO_SANITIZE __attribute__((no_sanitize("all")))
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceLoad(void *addr) {
@@ -262,6 +259,23 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
   sancov_state->path_feature_set.set(hash);
 }
 
+// Updates the lowest stack using the current stack pointer `sp` and checks
+// against the stack limit if needed.
+static ENFORCE_INLINE void UpdateLowestStackAndCheckLimit(uintptr_t sp) {
+  // It should be rare for the stack pointer to be valid and exceed the previous
+  // record.
+  if (ABSL_PREDICT_FALSE(sp < tls.lowest_sp && sp <= tls.top_frame_sp &&
+                         sp >= tls.stack_region_low &&
+                         tls.stack_region_low > 0)) {
+    tls.lowest_sp = sp;
+    if (fuzztest::internal::CheckStackLimit == nullptr) {
+      return;
+    }
+    fuzztest::internal::CheckStackLimit(tls.top_frame_sp - sp,
+                                        /*is_current=*/true);
+  }
+}
+
 // Handles one observed PC.
 // `normalized_pc` is an integer representation of PC that is stable between
 // the executions.
@@ -278,18 +292,7 @@ static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
 
   if (pc_guard.is_function_entry) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-    // It should be rare for the stack depth to exceed the previous record.
-    if (__builtin_expect(
-            sp < tls.lowest_sp &&
-                // And ignore the stack pointer when it is not in the known
-                // region (e.g. for signal handling with an alternative stack).
-                (tls.stack_region_low == 0 || sp >= tls.stack_region_low),
-            0)) {
-      tls.lowest_sp = sp;
-      if (fuzztest::internal::CheckStackLimit != nullptr) {
-        fuzztest::internal::CheckStackLimit(sp);
-      }
-    }
+    UpdateLowestStackAndCheckLimit(sp);
     if (sancov_state->flags.callstack_level != 0) {
       tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
       sancov_state->callstack_set.set(tls.call_stack.Hash());
@@ -361,6 +364,7 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 // This instrumentation is redundant if other instrumentation
 // (e.g. trace-pc-guard) is available, but GCC as of 2022-04 only supports
 // this variant.
+NO_SANITIZE
 void __sanitizer_cov_trace_pc() {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
@@ -395,6 +399,14 @@ void __sanitizer_cov_trace_pc_guard(PCGuard *absl_nonnull guard) {
   // is false. Once state.run_time_flags.use_pc_features becomes true, it is
   // already ok to call this function.
   HandleOnePc(*guard);
+}
+
+// This callback is called by the compiler on every function entry when enabled.
+// https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-stack-depth
+NO_SANITIZE void __sanitizer_cov_stack_depth() {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  UpdateLowestStackAndCheckLimit(
+      reinterpret_cast<uintptr_t>(__builtin_frame_address(0)));
 }
 
 }  // extern "C"
