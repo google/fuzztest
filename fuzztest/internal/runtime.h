@@ -175,6 +175,7 @@ class Runtime {
     ResetCrashType();
   }
   void DisableReporter() { reporter_enabled_ = false; }
+  bool reporter_enabled() const { return reporter_enabled_; }
 
   struct Args {
     const GenericDomainCorpusType& corpus_value;

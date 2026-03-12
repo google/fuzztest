@@ -122,6 +122,7 @@ class GTest_EventListener : public Base {
   void OnTestPartResult(const TestPartResult& test_part_result) override {
     if (!test_part_result.failed()) return;
     Runtime& runtime = Runtime::instance();
+    if (!runtime.reporter_enabled()) return;
     runtime.SetCrashTypeIfUnset("GoogleTest assertion failure");
     if (runtime.run_mode() == RunMode::kFuzz) {
       if (runtime.should_terminate_on_non_fatal_failure()) {

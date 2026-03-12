@@ -863,6 +863,11 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   runtime_.SetRunMode(mode);
   runtime_.SetSkippingRequested(false);
   runtime_.SetCurrentTest(&test_, &configuration);
+  // We don't always enable reporter, but always disable it at the end for
+  // simplicity.
+  absl::Cleanup always_disable_reporter = [this]() {
+    runtime_.DisableReporter();
+  };
   if (is_running_property_function_in_this_process) {
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
     // TODO(b/393582695): Consider whether we need some kind of reporting
