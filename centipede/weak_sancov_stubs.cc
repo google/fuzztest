@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 #define WEAK_SANCOV_DEF(return_type, name, ...)                           \
   extern "C" __attribute__((visibility("default"))) __attribute__((weak)) \
   return_type                                                             \
@@ -42,3 +44,7 @@ WEAK_SANCOV_DEF(void, __sanitizer_cov_load2, void) {}
 WEAK_SANCOV_DEF(void, __sanitizer_cov_load4, void) {}
 WEAK_SANCOV_DEF(void, __sanitizer_cov_load8, void) {}
 WEAK_SANCOV_DEF(void, __sanitizer_cov_load16, void) {}
+
+WEAK_SANCOV_DEF(void, __sanitizer_cov_stack_depth, void) {}
+extern "C" __attribute__((visibility("default")))
+__attribute__((weak)) thread_local uintptr_t __sancov_lowest_stack;
