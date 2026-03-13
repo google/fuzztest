@@ -106,6 +106,7 @@ cc_test(
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest/internal:printer",
         "@googletest//:gtest_main",
     ],
 )

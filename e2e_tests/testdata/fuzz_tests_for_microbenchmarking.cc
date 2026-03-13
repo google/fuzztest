@@ -24,6 +24,7 @@
 // i.e., to check that the fuzzer behaves as expected and outputs the expected
 // results. E.g., the fuzzer finds the abort() or bug.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -33,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -240,14 +242,25 @@ FUZZ_TEST(MySuite, FixedSizeVectorValue)
     .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<char>()).WithSize(4));
 
 __attribute__((optnone)) void BitGenRef(absl::BitGenRef bitgen) {
+  // This uses FuzzingBitGen's mocking support for absl::Uniform().
   if (absl::Uniform(bitgen, 0, 256) == 'F' &&
       absl::Uniform(bitgen, 0, 256) == 'U' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z') {
+      absl::Uniform(bitgen, 32, 128) == 'Z' &&
+      absl::Uniform(bitgen, 32, 128) == 'Z') {
     std::abort();  // Bug!
   }
 }
 FUZZ_TEST(MySuite, BitGenRef);
+
+__attribute__((optnone)) void BitGenRefShuffle(absl::BitGenRef bitgen) {
+  // This uses FuzzingBitGen's operator().
+  std::vector<int> v = {4, 1, 3, 2, 5};
+  std::shuffle(v.begin(), v.end(), bitgen);
+  if (std::is_sorted(v.begin(), v.end())) {
+    std::abort();  // Bug!
+  }
+}
+FUZZ_TEST(MySuite, BitGenRefShuffle);
 
 __attribute__((optnone)) void WithDomainClass(uint8_t a, double d) {
   // This will only crash with a=10, to make it easier to check the results.

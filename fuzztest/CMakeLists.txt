@@ -60,6 +60,7 @@ fuzztest_cc_library(
   SRCS
     "fuzzing_bit_gen.cc"
   DEPS
+    absl::core_headers
     absl::fast_type_id
     absl::no_destructor
     absl::flat_hash_map
@@ -67,7 +68,20 @@ fuzztest_cc_library(
     absl::int128
     absl::random_bit_gen_ref
     absl::span
+    fuzztest::fuzzing_mock_stream
     fuzztest::register_fuzzing_mocks
+)
+
+fuzztest_cc_test(
+  NAME
+    fuzzing_bit_gen_test
+  SRCS
+    "fuzzing_bit_gen_test.cc"
+  DEPS
+    fuzztest::fuzzing_bit_gen
+    absl::random_random
+    absl::random_bit_gen_ref
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
