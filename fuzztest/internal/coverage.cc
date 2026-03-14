@@ -23,6 +23,10 @@
 #include <memory>
 #include <type_traits>
 
+#if defined(_WIN32)
+#include <malloc.h>  // For _aligned_malloc / _aligned_free.
+#endif
+
 #include "absl/base/attributes.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -173,15 +177,15 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   }
 }
 
-// Coverage only available in Clang, but only for Linux, macOS, and newer
-// versions of Android. Windows might not have what we need.
+// Coverage only available in Clang for Linux, macOS, newer versions of
+// Android, and Windows (clang-cl).
 #if /* Supported compilers */                         \
     defined(__clang__) &&                             \
     (/* Supported platforms */                        \
      (defined(__linux__) && !defined(__ANDROID__)) || \
      (defined(__ANDROID_MIN_SDK_VERSION__) &&         \
       __ANDROID_MIN_SDK_VERSION__ >= 28) ||           \
-     defined(__APPLE__))
+     defined(__APPLE__) || defined(_WIN32))
 #define FUZZTEST_COVERAGE_IS_AVAILABLE
 #endif
 
@@ -281,11 +285,21 @@ CorpusCoverage::CorpusCoverage(size_t map_size) {
   // necessary space.
   map_size += alignment;
   corpus_map_size_ = map_size;
+#if defined(_WIN32)
+  corpus_map_ = static_cast<uint8_t*>(_aligned_malloc(map_size, alignment));
+#else
   corpus_map_ = static_cast<uint8_t*>(std::aligned_alloc(alignment, map_size));
+#endif
   std::fill(corpus_map_, corpus_map_ + corpus_map_size_, 0);
 }
 
-CorpusCoverage::~CorpusCoverage() { std::free(corpus_map_); }
+CorpusCoverage::~CorpusCoverage() {
+#if defined(_WIN32)
+  _aligned_free(corpus_map_);
+#else
+  std::free(corpus_map_);
+#endif
+}
 
 bool CorpusCoverage::Update(ExecutionCoverage* execution_coverage) {
   absl::Span<uint8_t> execution_map = execution_coverage->GetCounterMap();
