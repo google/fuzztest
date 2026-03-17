@@ -22,6 +22,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "./centipede/runner_utils.h"
 #include "./centipede/sancov_state.h"
 
 using fuzztest::internal::tls;
@@ -30,7 +31,6 @@ using fuzztest::internal::tls;
 // before or during the sanitizer initialization. Instead, we check if the
 // current thread is marked as started by the runner as the proxy of sanitizier
 // initialization. If not, we skip the interception logic.
-#define NO_SANITIZE __attribute__((no_sanitize("all")))
 
 namespace {
 
@@ -131,8 +131,8 @@ DECLARE_CENTIPEDE_ORIG_FUNC(int, pthread_create,
 
 // Fallback for the case *cmp_orig is null.
 // Will be executed several times at process startup, if at all.
-static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
-                                       size_t n) {
+static FUZZTEST_NO_SANITIZE int memcmp_fallback(const void* s1, const void* s2,
+                                                size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
   for (size_t i = 0; i < n; ++i) {
@@ -143,8 +143,8 @@ static NO_SANITIZE int memcmp_fallback(const void *s1, const void *s2,
 }
 
 // Fallback for case insensitive comparison.
-static NO_SANITIZE int memcasecmp_fallback(const void* s1, const void* s2,
-                                           size_t n) {
+static FUZZTEST_NO_SANITIZE int memcasecmp_fallback(const void* s1,
+                                                    const void* s2, size_t n) {
   static uint8_t to_lower[256];
   [[maybe_unused]] static bool initialize_to_lower = [&] {
     for (size_t i = 0; i < sizeof(to_lower); ++i) {
@@ -166,7 +166,8 @@ static NO_SANITIZE int memcasecmp_fallback(const void* s1, const void* s2,
 
 // memcmp interceptor.
 // Calls the real memcmp() and possibly modifies state.cmp_feature_set.
-extern "C" NO_SANITIZE int memcmp(const void *s1, const void *s2, size_t n) {
+extern "C" FUZZTEST_NO_SANITIZE int memcmp(const void* s1, const void* s2,
+                                           size_t n) {
   const int result =
       memcmp_orig ? memcmp_orig(s1, s2, n) : memcmp_fallback(s1, s2, n);
   if (ABSL_PREDICT_FALSE(!tls.traced)) {
@@ -183,7 +184,7 @@ extern "C" NO_SANITIZE int memcmp(const void *s1, const void *s2, size_t n) {
 
 // strcmp interceptor.
 // Calls the real strcmp() and possibly modifies state.cmp_feature_set.
-extern "C" NO_SANITIZE int strcmp(const char *s1, const char *s2) {
+extern "C" FUZZTEST_NO_SANITIZE int strcmp(const char* s1, const char* s2) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strcmp_orig` because we're passing it to `TraceMemCmp()`.
@@ -205,7 +206,8 @@ extern "C" NO_SANITIZE int strcmp(const char *s1, const char *s2) {
 
 // strncmp interceptor.
 // Calls the real strncmp() and possibly modifies state.cmp_feature_set.
-extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
+extern "C" FUZZTEST_NO_SANITIZE int strncmp(const char* s1, const char* s2,
+                                            size_t n) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strncmp_orig` because we're passing it to `TraceMemCmp()`.
@@ -228,7 +230,7 @@ extern "C" NO_SANITIZE int strncmp(const char *s1, const char *s2, size_t n) {
 
 // strcasecmp interceptor.
 // Calls the real strcasecmp() and possibly modifies state.cmp_feature_set.
-extern "C" NO_SANITIZE int strcasecmp(const char* s1, const char* s2) {
+extern "C" FUZZTEST_NO_SANITIZE int strcasecmp(const char* s1, const char* s2) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strcasecmp_orig` because we're passing it to `TraceMemCmp()`.
@@ -251,8 +253,8 @@ extern "C" NO_SANITIZE int strcasecmp(const char* s1, const char* s2) {
 
 // strncasecmp interceptor.
 // Calls the real strncasecmp() and possibly modifies state.cmp_feature_set.
-extern "C" NO_SANITIZE int strncasecmp(const char* s1, const char* s2,
-                                       size_t n) {
+extern "C" FUZZTEST_NO_SANITIZE int strncasecmp(const char* s1, const char* s2,
+                                                size_t n) {
   // Find the length of the shorter string, as this determines the actual number
   // of bytes that are compared. Note that this is needed even if we call
   // `strncasecmp_orig` because we're passing it to `TraceMemCmp()`.

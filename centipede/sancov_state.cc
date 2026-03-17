@@ -38,6 +38,10 @@ __attribute__((weak)) extern fuzztest::internal::feature_t
 __attribute__((weak)) extern fuzztest::internal::feature_t
     __stop___centipede_extra_features;
 
+// May be updated by sancov with -fsanitize-coverage=stack-depth.
+__attribute__((visibility("default")))
+__attribute__((weak)) thread_local uintptr_t __sancov_lowest_stack;
+
 namespace fuzztest::internal {
 
 ExplicitLifetime<SancovState> sancov_state;
@@ -56,9 +60,8 @@ namespace {
 //
 // Must not be sanitized because sanitizers may trigger this on unsanitized
 // data, causing false positives and nested failures.
-__attribute__((no_sanitize("all"))) size_t LengthOfCommonPrefix(const void* s1,
-                                                                const void* s2,
-                                                                size_t n) {
+FUZZTEST_NO_SANITIZE size_t LengthOfCommonPrefix(const void* s1, const void* s2,
+                                                 size_t n) {
   const auto *p1 = static_cast<const uint8_t *>(s1);
   const auto *p2 = static_cast<const uint8_t *>(s2);
   static constexpr size_t kMaxLen = feature_domains::kCMPScoreBitmask;
@@ -122,7 +125,8 @@ void ThreadLocalSancovState::OnThreadStart() {
   // Always trace threads by default. Internal threads that do not want tracing
   // will set this to false later.
   tls.traced = true;
-  tls.lowest_sp = tls.top_frame_sp =
+  tls.sancov_lowest_sp = &__sancov_lowest_stack;
+  *tls.sancov_lowest_sp = tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.stack_region_low = GetCurrentThreadStackRegionLow();
   if (tls.stack_region_low == 0) {
@@ -142,6 +146,13 @@ void ThreadLocalSancovState::OnThreadStart() {
 void ThreadLocalSancovState::OnThreadStop() {
   tls.traced = false;
   LockGuard lock(sancov_state->tls_list_mu);
+  const size_t sancov_lowest_sp = *tls.sancov_lowest_sp;
+  tls.sancov_lowest_sp = nullptr;
+  if (sancov_lowest_sp <= tls.top_frame_sp &&
+      sancov_lowest_sp < tls.lowest_sp &&
+      sancov_lowest_sp >= tls.stack_region_low && tls.stack_region_low > 0) {
+    tls.lowest_sp = sancov_lowest_sp;
+  }
   // Remove myself from state.tls_list. The list never
   // becomes empty because the main thread does not call OnThreadStop().
   if (&tls == sancov_state->tls_list) {
@@ -297,13 +308,17 @@ void MaybeAddFeature(feature_t feature) {
 
 void CleanUpSancovTls() {
   sancov_state->CleanUpDetachedTls();
-  if (sancov_state->flags.path_level != 0) {
-    sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
+  sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
+    if (sancov_state->flags.path_level != 0) {
       tls.path_ring_buffer.Reset(sancov_state->flags.path_level);
+    }
+    if (sancov_state->flags.callstack_level != 0) {
       tls.call_stack.Reset(sancov_state->flags.callstack_level);
-      tls.lowest_sp = tls.top_frame_sp;
-    });
-  }
+    }
+    RunnerCheck(tls.sancov_lowest_sp != nullptr,
+                "sancov_lowest_sp is null for a live thread");
+    *tls.sancov_lowest_sp = tls.lowest_sp = tls.top_frame_sp;
+  });
 }
 
 void PrepareSancov(bool full_clear) {
@@ -439,10 +454,23 @@ void PostProcessSancov(bool reject_input) {
 
   // Iterate all threads and get features from TLS data.
   sancov_state->ForEachTls([&feature_handler](ThreadLocalSancovState& tls) {
+    RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
+                "bad values of tls.top_frame_sp and tls.lowest_sp");
+    uintptr_t lowest_sp = tls.lowest_sp;
+    if (tls.sancov_lowest_sp != nullptr) {
+      const uintptr_t sancov_lowest_sp = *tls.sancov_lowest_sp;
+      if (sancov_lowest_sp <= tls.top_frame_sp &&
+          sancov_lowest_sp <= lowest_sp &&
+          sancov_lowest_sp >= tls.stack_region_low &&
+          tls.stack_region_low > 0) {
+        lowest_sp = sancov_lowest_sp;
+      }
+    }
+    const size_t sp_diff = tls.top_frame_sp - lowest_sp;
+    if (CheckStackLimit != nullptr) {
+      CheckStackLimit(sp_diff, /*is_current_stack=*/false);
+    }
     if (sancov_state->flags.callstack_level != 0) {
-      RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
-                  "bad values of tls.top_frame_sp and tls.lowest_sp");
-      size_t sp_diff = tls.top_frame_sp - tls.lowest_sp;
       feature_handler(feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
   });

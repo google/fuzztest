@@ -29,6 +29,7 @@
 #include "./centipede/pc_info.h"
 #include "./centipede/reverse_pc_table.h"
 #include "./centipede/runner_dl_info.h"
+#include "./centipede/runner_utils.h"
 #include "./centipede/sancov_state.h"
 
 namespace fuzztest::internal {
@@ -60,10 +61,6 @@ using fuzztest::internal::tls;
 // compilers require both to actually enforce inlining, e.g. GCC:
 // https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html.
 #define ENFORCE_INLINE __attribute__((always_inline)) inline
-
-// Use this attribute for functions that must not be instrumented even if
-// the runner is built with sanitizers (asan, etc).
-#define NO_SANITIZE __attribute__((no_sanitize("all")))
 
 // NOTE: Enforce inlining so that `__builtin_return_address` works.
 ENFORCE_INLINE static void TraceLoad(void *addr) {
@@ -127,55 +124,65 @@ ENFORCE_INLINE void TraceCmp(T a, T b, uintptr_t pc) {
 //------------------------------------------------------------------------------
 
 extern "C" {
-NO_SANITIZE void __sanitizer_cov_load1(uint8_t *addr) { TraceLoad(addr); }
-NO_SANITIZE void __sanitizer_cov_load2(uint16_t *addr) { TraceLoad(addr); }
-NO_SANITIZE void __sanitizer_cov_load4(uint32_t *addr) { TraceLoad(addr); }
-NO_SANITIZE void __sanitizer_cov_load8(uint64_t *addr) { TraceLoad(addr); }
-NO_SANITIZE void __sanitizer_cov_load16(__uint128_t *addr) { TraceLoad(addr); }
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_load1(uint8_t* addr) {
+  TraceLoad(addr);
+}
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_load2(uint16_t* addr) {
+  TraceLoad(addr);
+}
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_load4(uint32_t* addr) {
+  TraceLoad(addr);
+}
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_load8(uint64_t* addr) {
+  TraceLoad(addr);
+}
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_load16(__uint128_t* addr) {
+  TraceLoad(addr);
+}
 
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp1(uint8_t Arg1, uint8_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp2(uint16_t Arg1, uint16_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp4(uint32_t Arg1, uint32_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_const_cmp8(uint64_t Arg1, uint64_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_cmp1(uint8_t Arg1, uint8_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_cmp2(uint16_t Arg1, uint16_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_cmp4(uint32_t Arg1, uint32_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
            reinterpret_cast<uintptr_t>(__builtin_return_address(0)));
 }
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   TraceCmp(Arg1, Arg2,
@@ -188,7 +195,7 @@ void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
 // LLVM/libFuzzer implementation).
 //
 // Source: https://clang.llvm.org/docs/SanitizerCoverage.html
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_switch(uint64_t val, uint64_t* cases) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   const auto num_cases = cases[0];
@@ -262,6 +269,23 @@ __attribute__((noinline)) static void HandlePath(uintptr_t normalized_pc) {
   sancov_state->path_feature_set.set(hash);
 }
 
+// Updates the lowest stack using the current stack pointer `sp` and checks
+// against the stack limit if needed.
+static ENFORCE_INLINE void UpdateLowestStackAndCheckLimit(uintptr_t sp) {
+  // It should be rare for the stack pointer to be valid and exceed the previous
+  // record.
+  if (ABSL_PREDICT_FALSE(sp < tls.lowest_sp && sp <= tls.top_frame_sp &&
+                         sp >= tls.stack_region_low &&
+                         tls.stack_region_low > 0)) {
+    tls.lowest_sp = sp;
+    if (fuzztest::internal::CheckStackLimit == nullptr) {
+      return;
+    }
+    fuzztest::internal::CheckStackLimit(tls.top_frame_sp - sp,
+                                        /*is_current_stack=*/true);
+  }
+}
+
 // Handles one observed PC.
 // `normalized_pc` is an integer representation of PC that is stable between
 // the executions.
@@ -278,18 +302,7 @@ static ENFORCE_INLINE void HandleOnePc(PCGuard pc_guard) {
 
   if (pc_guard.is_function_entry) {
     uintptr_t sp = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-    // It should be rare for the stack depth to exceed the previous record.
-    if (__builtin_expect(
-            sp < tls.lowest_sp &&
-                // And ignore the stack pointer when it is not in the known
-                // region (e.g. for signal handling with an alternative stack).
-                (tls.stack_region_low == 0 || sp >= tls.stack_region_low),
-            0)) {
-      tls.lowest_sp = sp;
-      if (fuzztest::internal::CheckStackLimit != nullptr) {
-        fuzztest::internal::CheckStackLimit(sp);
-      }
-    }
+    UpdateLowestStackAndCheckLimit(sp);
     if (sancov_state->flags.callstack_level != 0) {
       tls.call_stack.OnFunctionEntry(pc_guard.pc_index, sp);
       sancov_state->callstack_set.set(tls.call_stack.Hash());
@@ -361,6 +374,7 @@ __attribute__((noinline)) static void MainObjectLazyInit() {
 // This instrumentation is redundant if other instrumentation
 // (e.g. trace-pc-guard) is available, but GCC as of 2022-04 only supports
 // this variant.
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_pc() {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   uintptr_t pc = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
@@ -386,7 +400,7 @@ void __sanitizer_cov_trace_pc_guard_init(PCGuard *absl_nonnull start,
 }
 
 // This function is called on every instrumented edge.
-NO_SANITIZE
+FUZZTEST_NO_SANITIZE
 void __sanitizer_cov_trace_pc_guard(PCGuard *absl_nonnull guard) {
   if (ABSL_PREDICT_FALSE(!tls.traced)) return;
   // This function may be called very early during the DSO initialization,
@@ -395,6 +409,14 @@ void __sanitizer_cov_trace_pc_guard(PCGuard *absl_nonnull guard) {
   // is false. Once state.run_time_flags.use_pc_features becomes true, it is
   // already ok to call this function.
   HandleOnePc(*guard);
+}
+
+// This callback is called by the compiler on every function entry when enabled.
+// https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-stack-depth
+FUZZTEST_NO_SANITIZE void __sanitizer_cov_stack_depth() {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  UpdateLowestStackAndCheckLimit(
+      reinterpret_cast<uintptr_t>(__builtin_frame_address(0)));
 }
 
 }  // extern "C"

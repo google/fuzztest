@@ -110,8 +110,22 @@ struct ThreadLocalSancovState {
   uintptr_t top_frame_sp;
   // The lower bound of the stack region of this thread. 0 means unknown.
   uintptr_t stack_region_low;
-  // Lowest observed value of SP.
+
+  // `lowest_sp` and `*sancov_lowest_sp` are read and written by both
+  // the current thread and the sancov processing thread. Thus race conditions
+  // may happen. We don't use mutex/atomic because they are slow (and it is not
+  // possible on sancov_lowest_sp). Instead we let race conditions happen and
+  // tolerate them with the best effort. An SP value is valid if and only if
+  // `stack_region_low <= SP <= top_frame_sp && stack_region_low > 0`.
+  // This should reject most bad values caused by race conditions.
+  //
+  // Lowest sp observed by the this library.
   uintptr_t lowest_sp;
+  // A pointer to the lowest sp updated by sancov (if enabled). It is constant
+  // and non-null when the thread is alive, and set to null when the thread
+  // is terminated, guarded by `state.tls_list_mu`. So no race conditions on
+  // the pointer itself.
+  uintptr_t* sancov_lowest_sp;
 
   // The (imprecise) call stack is updated by the PC callback.
   CallStack<> call_stack;
@@ -296,8 +310,10 @@ SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures();
 // Gets the execution metadata gathered in `PostProcessSancov`.
 const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata();
 
-// Check for stack limit for the stack pointer `sp` in the current thread.
-__attribute__((weak)) void CheckStackLimit(uintptr_t sp);
+// Check for stack limit for `stack_usage`, with `is_current_stack` set if it
+// is for the current calling stack.
+__attribute__((weak)) void CheckStackLimit(size_t stack_usage,
+                                           bool is_current_stack);
 
 extern ExplicitLifetime<SancovState> sancov_state;
 extern __thread ThreadLocalSancovState tls;

@@ -24,6 +24,10 @@
 
 #include "absl/base/nullability.h"
 
+// Use this attribute for functions that must not be instrumented even if
+// the library is built with sanitizers (asan, etc).
+#define FUZZTEST_NO_SANITIZE __attribute__((no_sanitize("all")))
+
 namespace fuzztest::internal {
 
 // If `condition` prints `error` and calls exit(1).

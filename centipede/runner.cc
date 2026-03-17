@@ -216,20 +216,21 @@ static void CheckWatchdogLimits() {
   }
 }
 
-__attribute__((noinline)) void CheckStackLimit(uintptr_t sp) {
+__attribute__((noinline)) void CheckStackLimit(size_t stack_usage,
+                                               bool is_current_stack) {
   static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
   const size_t stack_limit = state->run_time_flags.stack_limit_kb.load() << 10;
   // Check for the stack limit only if sp is inside the stack region.
-  if (stack_limit > 0 && tls.stack_region_low &&
-      tls.top_frame_sp - sp > stack_limit) {
+  if (stack_limit > 0 && stack_usage > stack_limit) {
     const bool test_not_running = state->input_start_time == 0;
-    if (test_not_running) return;
+    if (test_not_running && is_current_stack) return;
     if (stack_limit_exceeded.test_and_set()) return;
     fprintf(stderr,
-            "========= Stack limit exceeded: %" PRIuPTR
+            "========= Stack limit exceeded: %zu"
             " > %zu"
-            " (byte); aborting\n",
-            tls.top_frame_sp - sp, stack_limit);
+            " (byte) in %s; aborting\n",
+            stack_usage, stack_limit,
+            is_current_stack ? "the current stack" : "a previous stack");
     CentipedeSetFailureDescription(
         fuzztest::internal::kExecutionFailureStackLimitExceeded.data());
     std::abort();
