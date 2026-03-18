@@ -146,6 +146,8 @@ class UpdateCorpusDatabaseTest
         }
         centipede_options.flags = {
             {"binary", absl::StrJoin(binary_args, " ")},
+            // Needed when built without PC tables.
+            {"populate_binary_info", "false"},
             // Disable symbolization to more quickly get to fuzzing.
             {"symbolizer_path", ""},
         };

@@ -1345,6 +1345,8 @@ class FuzzingModeFixtureTest
         run_options.flags = {
             {"print_runner_log", "true"},
             {"exit_on_crash", "true"},
+            // Needed when built without PC tables.
+            {"populate_binary_info", "false"},
             {"workdir", workdir.path()},
             {"binary", absl::StrCat(BinaryPath(kDefaultTargetBinary), " ",
                                     CreateFuzzTestFlag("fuzz", test_name))},
@@ -1491,6 +1493,8 @@ class FuzzingModeCrashFindingTest
       RunOptions run_options;
       run_options.flags = {
           {"exit_on_crash", "true"},
+          // Needed when built without PC tables.
+          {"populate_binary_info", "false"},
           {"timeout_per_input", "0"},
           {"stop_at", absl::StrCat(absl::Now() + timeout)},
           {"workdir", workdir.path()},
