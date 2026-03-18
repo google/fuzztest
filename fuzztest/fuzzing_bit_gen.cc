@@ -18,42 +18,115 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <utility>
 
 #include "absl/base/fast_type_id.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/numeric/bits.h"
+#include "absl/numeric/int128.h"
 #include "absl/types/span.h"
-#include "./fuzztest/internal/register_fuzzing_mocks.h"
+#include "./fuzztest/internal/fuzzing_mock_stream.h"
+#include "./fuzztest/internal/register_absl_fuzzing_mocks.h"
 
 namespace fuzztest {
+namespace {
 
-FuzzingBitGen::FuzzingBitGen(absl::Span<const uint8_t> data_stream)
-    : data_stream_(data_stream) {
-  // Seed the internal URBG with the first 8 bytes of the data stream.
-  uint64_t stream_seed = 0x6C7FD535EDC7A62D;
-  if (!data_stream_.empty()) {
-    size_t num_bytes = std::min(sizeof(stream_seed), data_stream_.size());
-    std::memcpy(&stream_seed, data_stream_.data(), num_bytes);
-    data_stream_.remove_prefix(num_bytes);
-  }
-  seed(stream_seed);
+using FuzzingMockStream = ::fuzztest::internal::FuzzingMockStream;
+using Instruction = FuzzingMockStream::Instruction;
+
+// Minimal implementation of a PCG64 engine equivalent to xsl_rr_128_64.
+inline constexpr absl::uint128 multiplier() {
+  return absl::MakeUint128(0x2360ed051fc65da4, 0x4385df649fccf645);
+}
+inline constexpr absl::uint128 increment() {
+  return absl::MakeUint128(0x5851f42d4c957f2d, 0x14057b7ef767814f);
+}
+inline absl::uint128 lcg(absl::uint128 s) {
+  return s * multiplier() + increment();
+}
+inline uint64_t mix(absl::uint128 state) {
+  uint64_t h = absl::Uint128High64(state);
+  uint64_t rotate = h >> 58u;
+  uint64_t s = absl::Uint128Low64(state) ^ h;
+  return absl::rotr(s, rotate);
 }
 
-FuzzingBitGen::result_type FuzzingBitGen::operator()() {
-  // The non-mockable calls will consume the next 8 bytes from the data
-  // stream until it is exhausted, then they will return a value from the
-  // internal URBG.
-  if (!data_stream_.empty()) {
-    result_type x = 0;
-    size_t num_bytes = std::min(sizeof(x), data_stream_.size());
-    std::memcpy(&x, data_stream_.data(), num_bytes);
-    data_stream_.remove_prefix(num_bytes);
-    return x;
+inline uint64_t GetSeedFromDataStream(absl::Span<const uint8_t>& data_stream) {
+  // Seed the internal URBG with the first 8 bytes of the data stream.
+  uint64_t stream_seed = 0x6C7FD535EDC7A62D;
+  if (!data_stream.empty()) {
+    size_t num_bytes = std::min(sizeof(stream_seed), data_stream.size());
+    std::memcpy(&stream_seed, data_stream.data(), num_bytes);
+    data_stream.remove_prefix(num_bytes);
+  }
+  return stream_seed;
+}
+
+}  // namespace
+
+FuzzingBitGen::FuzzingBitGen(absl::Span<const uint8_t> data_stream)
+    : control_stream_({}), data_stream_(data_stream) {
+  seed(GetSeedFromDataStream(data_stream_));
+}
+
+FuzzingBitGen::FuzzingBitGen(absl::Span<const uint8_t> data_stream,
+                             absl::Span<const uint8_t> control_stream,
+                             uint64_t seed_value)
+    : control_stream_(control_stream), data_stream_(data_stream) {
+  seed(seed_value);
+}
+
+void FuzzingBitGen::DataStreamFn(bool use_lcg, void* result,
+                                 size_t result_size) {
+  if (!use_lcg && !data_stream_.empty()) {
+    // Consume up to result_size bytes from the data stream and copy to result.
+    // leaving the remaining bytes unchanged.
+    size_t n = std::min(result_size, data_stream_.size());
+    memcpy(result, data_stream_.data(), n);
+    data_stream_.remove_prefix(n);
+    return;
   }
 
-  // Fallback to the internal URBG.
-  state_ = lcg(state_);
-  return mix(state_);
+  // The stream is expired. Generate up to 16 bytes from the LCG, and copy to
+  // result, leaving the remaining bytes unchanged.
+  //
+  // NOTE: This will satisfy uniform values up to uint128, however it
+  // will not fill longer string values.
+  urbg_state_ = lcg(urbg_state_);
+  uint64_t x = mix(urbg_state_);
+  memcpy(result, &x, std::min(result_size, sizeof(x)));
+  if (result_size > sizeof(x)) {
+    urbg_state_ = lcg(urbg_state_);
+    x = mix(urbg_state_);
+    memcpy(static_cast<uint8_t*>(result) + sizeof(x), &x,
+           std::min(result_size - sizeof(x), sizeof(x)));
+  }
+}
+
+uint64_t FuzzingBitGen::operator()() {
+  // Use the control stream to determine the return value.
+  Instruction instruction =
+      FuzzingMockStream::GetNextInstruction(control_stream_);
+  switch (instruction) {
+    case Instruction::kMin:
+      return 0;
+    case Instruction::kMax:
+      return (std::numeric_limits<uint64_t>::max)();
+    case Instruction::kMean:
+      return (std::numeric_limits<uint64_t>::max)() / 2;
+    default:
+      break;
+  }
+  uint64_t x = 0;
+  DataStreamFn(instruction == Instruction::kLCGVariate, &x, sizeof(x));
+  return x;
+}
+
+void FuzzingBitGen::seed(result_type seed_value) {
+  absl::uint128 tmp = seed_value;
+  urbg_state_ = lcg(tmp + increment());
 }
 
 bool FuzzingBitGen::InvokeMock(absl::FastTypeIdType key_id, void* args_tuple,
@@ -73,7 +146,16 @@ bool FuzzingBitGen::InvokeMock(absl::FastTypeIdType key_id, void* args_tuple,
   if (it == fuzzing_map->end()) {
     return false;
   }
-  it->second(data_stream_, args_tuple, result);
+
+  Instruction instruction =
+      FuzzingMockStream::GetNextInstruction(control_stream_);
+  bool use_lcg = instruction == Instruction::kLCGVariate;
+  it->second(FuzzingMockStream(
+                 [this, use_lcg](void* result, size_t n) {
+                   this->DataStreamFn(use_lcg, result, n);
+                 },
+                 instruction),
+             args_tuple, result);
   return true;
 }
 

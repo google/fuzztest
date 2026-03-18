@@ -24,6 +24,7 @@
 // i.e., to check that the fuzzer behaves as expected and outputs the expected
 // results. E.g., the fuzzer finds the abort() or bug.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -33,10 +34,12 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "./fuzztest/fuzztest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/strings/str_format.h"
@@ -240,14 +243,31 @@ FUZZ_TEST(MySuite, FixedSizeVectorValue)
     .WithDomains(fuzztest::VectorOf(fuzztest::Arbitrary<char>()).WithSize(4));
 
 __attribute__((optnone)) void BitGenRef(absl::BitGenRef bitgen) {
-  if (absl::Uniform(bitgen, 0, 256) == 'F' &&
-      absl::Uniform(bitgen, 0, 256) == 'U' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z' &&
-      absl::Uniform(bitgen, 0, 256) == 'Z') {
-    std::abort();  // Bug!
+  // Driving FuzzingBitGen towards specific sequences takes a long time,
+  // so here test that the min, mean, and max values are present along with
+  // one additional value.
+  constexpr int kMax = 256;
+
+  absl::flat_hash_set<int> seen;
+  for (size_t i = 0; i < 5; i++) {
+    seen.insert(absl::Uniform(absl::IntervalClosedClosed, bitgen, 0, kMax));
+  }
+  if (seen.contains(0) && seen.contains(kMax) && seen.contains(kMax / 2) &&
+      seen.size() == 5) {
+    std::abort();
   }
 }
 FUZZ_TEST(MySuite, BitGenRef);
+
+__attribute__((optnone)) void BitGenRefShuffle(absl::BitGenRef bitgen) {
+  // This uses FuzzingBitGen's operator().
+  std::vector<int> v = {4, 1, 3, 2, 5};
+  std::shuffle(v.begin(), v.end(), bitgen);
+  if (std::is_sorted(v.begin(), v.end())) {
+    std::abort();  // Bug!
+  }
+}
+FUZZ_TEST(MySuite, BitGenRefShuffle);
 
 __attribute__((optnone)) void WithDomainClass(uint8_t a, double d) {
   // This will only crash with a=10, to make it easier to check the results.

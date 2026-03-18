@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/printer.h"
 
 namespace fuzztest {
 namespace {
@@ -27,35 +31,52 @@ TEST(BitGenRefDomainTest, DistinctVariatesGeneratedByCallOperator) {
   absl::BitGen bitgen_for_seeding;
 
   Domain<absl::BitGenRef> domain = Arbitrary<absl::BitGenRef>();
-  Value v0(domain, bitgen_for_seeding);
-  Value v1(domain, bitgen_for_seeding);
 
-  // Discard the first value, which may be from the data stream.
-  // If the implementation of BitGenRefDomain changes this may break.
-  v0.user_value();
-  v1.user_value();
-
-  std::vector<absl::BitGenRef::result_type> a, b;
+  // Initialize a set of bitgen references.
+  std::vector<decltype(Value(domain, bitgen_for_seeding))> values;
+  values.reserve(10);
   for (int i = 0; i < 10; ++i) {
-    a.push_back(v0.user_value());
-    b.push_back(v1.user_value());
+    values.emplace_back(domain, bitgen_for_seeding);
   }
-  EXPECT_NE(a, b);
+
+  // Some of the "randomly initialized" streams should be different.
+  for (int i = 0; i < 10; ++i) {
+    absl::flat_hash_set<absl::BitGenRef::result_type> s;
+    for (auto& v : values) {
+      s.insert(v.user_value());
+    }
+    EXPECT_NE(s.size(), 1) << *s.begin();
+  }
 }
 
-TEST(BitGenRefDomainTest, AbseilUniformReturnsLowerBoundWhenExhausted) {
+TEST(BitGenRefDomainTest, AbseilUniformIsFunctionalWhenExhausted) {
+  absl::BitGen bitgen_for_seeding;
+
+  Domain<absl::BitGenRef> domain = Arbitrary<absl::BitGenRef>();
+  Value v0(domain, bitgen_for_seeding);
+  Value v1(v0, domain);
+
+  // When the same domain is used to generate multiple values, the generated
+  // data sequence should be identical.
+  std::vector<int> values;
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(absl::Uniform<int>(v0.user_value, 0, 100),
+              absl::Uniform<int>(v1.user_value, 0, 100))
+        << i;
+  }
+}
+
+TEST(BitGenRefDomainTest, IsPrintable) {
   absl::BitGen bitgen_for_seeding;
 
   Domain<absl::BitGenRef> domain = Arbitrary<absl::BitGenRef>();
   Value v0(domain, bitgen_for_seeding);
 
-  // Discard the first value, which may be from the data stream.
-  // If the implementation of BitGenRefDomain changes this may break.
-  v0.user_value();
-
-  for (int i = 0; i < 10; ++i) {
-    EXPECT_EQ(absl::Uniform<int>(v0.user_value, 0, 100), 0);
-  }
+  // Print corpus value
+  std::string s;
+  domain.GetPrinter().PrintCorpusValue(
+      v0.corpus_value, &s, domain_implementor::PrintMode::kHumanReadable);
+  EXPECT_THAT(s, testing::StartsWith("FuzzingBitGen"));
 }
 
 }  // namespace

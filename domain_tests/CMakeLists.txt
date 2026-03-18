@@ -82,6 +82,22 @@ fuzztest_cc_test(
 
 fuzztest_cc_test(
   NAME
+    bitgen_ref_domain_test
+  SRCS
+    "bitgen_ref_domain_test.cc"
+  DEPS
+    fuzztest::domain_testing
+    absl::flat_hash_set
+    absl::random_bit_gen_ref
+    absl::random_random
+    fuzztest::domain_core
+    fuzztest::meta
+    fuzztest::printer
+    GTest::gmock_main
+)
+
+fuzztest_cc_test(
+  NAME
     container_combinators_test
   SRCS
     "container_combinators_test.cc"

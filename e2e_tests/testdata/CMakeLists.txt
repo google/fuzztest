@@ -10,6 +10,7 @@ target_link_libraries(
   fuzztest::test_protobuf_cc_proto
   absl::random_bit_gen_ref
   absl::random_distributions
+  absl::flat_hash_set
   absl::str_format
   absl::string_view
 )

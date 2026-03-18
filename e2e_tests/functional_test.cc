@@ -1703,7 +1703,16 @@ TEST_P(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
 
 TEST_P(FuzzingModeCrashFindingTest, BitGenRefTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitGenRef");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: absl::BitGenRef{}"));
+  EXPECT_THAT_LOG(std_err, AnyOf(HasSubstr("argument 0: absl::BitGenRef{}"),
+                                 HasSubstr("argument 0: FuzzingBitGen")));
+  ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       BitGenRefShuffleTestFindsAbortInFuzzingMode) {
+  auto [status, std_out, std_err] = Run("MySuite.BitGenRefShuffle");
+  EXPECT_THAT_LOG(std_err, AnyOf(HasSubstr("argument 0: absl::BitGenRef{}"),
+                                 HasSubstr("argument 0: FuzzingBitGen")));
   ExpectTargetAbort(status, std_err);
 }
 

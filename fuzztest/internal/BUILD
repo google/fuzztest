@@ -307,15 +307,35 @@ cc_library(
 )
 
 cc_library(
-    name = "register_fuzzing_mocks",
-    srcs = ["register_fuzzing_mocks.cc"],
-    hdrs = ["register_fuzzing_mocks.h"],
+    name = "fuzzing_mock_stream",
+    hdrs = ["fuzzing_mock_stream.h"],
     deps = [
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "register_absl_fuzzing_mocks",
+    srcs = ["register_absl_fuzzing_mocks.cc"],
+    hdrs = ["register_absl_fuzzing_mocks.h"],
+    deps = [
+        ":fuzzing_mock_stream",
         "@abseil-cpp//absl/base:fast_type_id",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/random:distributions",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_test(
+    name = "register_absl_fuzzing_mocks_test",
+    srcs = ["register_absl_fuzzing_mocks_test.cc"],
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
+        "@googletest//:gtest_main",
     ],
 )
 

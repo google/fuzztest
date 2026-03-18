@@ -449,8 +449,8 @@ AggregateOfImpl<T, RequireCustomCorpusType::kYes, ArbitraryImpl<Elem>...>
 // improve if possible.
 template <typename T, int N = *DetectBindableFieldCount<T>()>
 decltype(DetectAggregateOfImpl2<T>(
-    BindAggregate(std::declval<T&>(), std::integral_constant<int, N>{})))
-DetectAggregateOfImpl();
+    BindAggregate(std::declval<T&>(),
+                  std::integral_constant<int, N>{}))) DetectAggregateOfImpl();
 
 template <typename T>
 class ArbitraryImpl<
@@ -584,13 +584,42 @@ class ArbitraryImpl<absl::Time>
 // Arbitrary for absl::BitGenRef.
 template <>
 class ArbitraryImpl<absl::BitGenRef>
-    : public BitGenRefDomain<SequenceContainerOfImpl<std::vector<uint8_t>,
-                                                     ArbitraryImpl<uint8_t>>> {
-  using InnerContainer =
+    : public BitGenRefDomain<
+          /*Tuple=*/
+          AggregateOfImpl<
+              std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, uint64_t>,
+              internal::RequireCustomCorpusType::kNo,
+              /*DataSequence=*/
+              SequenceContainerOfImpl<std::vector<uint8_t>,
+                                      ArbitraryImpl<uint8_t>>,
+              /*ControlSequence=*/
+              SequenceContainerOfImpl<std::vector<uint8_t>,
+                                      ElementOfImpl<uint8_t>>,
+              /*Seed=*/ElementOfImpl<uint64_t> /**/
+              >> {
+  using ValueType =
+      std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, uint64_t>;
+  // The control stream determines the behavior of the FuzzingBitGen;
+  // See the implementation for valid value, which may change.
+
+  using DataSequence =
       SequenceContainerOfImpl<std::vector<uint8_t>, ArbitraryImpl<uint8_t>>;
+  using ControlSequence =
+      SequenceContainerOfImpl<std::vector<uint8_t>, ElementOfImpl<uint8_t>>;
+
+  // NOTE: The seed could be an ArbitraryImpl<uint64_t>.
+  using Seed = ElementOfImpl<uint64_t>;
+
+  using Tuple =
+      AggregateOfImpl<ValueType, internal::RequireCustomCorpusType::kNo,
+                      DataSequence, ControlSequence, Seed>;
 
  public:
-  ArbitraryImpl() : BitGenRefDomain(InnerContainer{}.WithMinSize(8)) {}
+  ArbitraryImpl()
+      : BitGenRefDomain(
+            Tuple(std::in_place, DataSequence{},
+                  ControlSequence{ElementOfImpl<uint8_t>({0, 1, 2, 3, 4, 5})},
+                  Seed({0}))) {}
 };
 
 }  // namespace fuzztest::internal

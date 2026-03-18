@@ -33,6 +33,7 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_for_microbenchmarking.cc"],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/strings:str_format",

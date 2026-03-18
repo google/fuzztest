@@ -103,9 +103,11 @@ cc_test(
     srcs = ["bitgen_ref_domain_test.cc"],
     deps = [
         ":domain_testing",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest/internal:printer",
         "@googletest//:gtest_main",
     ],
 )
