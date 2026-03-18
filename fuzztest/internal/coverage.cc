@@ -185,7 +185,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
      (defined(__linux__) && !defined(__ANDROID__)) || \
      (defined(__ANDROID_MIN_SDK_VERSION__) &&         \
       __ANDROID_MIN_SDK_VERSION__ >= 28) ||           \
-     defined(__APPLE__) ||                            \
+     defined(__APPLE__) || defined(_WIN32))           \
      defined(_WIN32))
 #define FUZZTEST_COVERAGE_IS_AVAILABLE
 #endif
