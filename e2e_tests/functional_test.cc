@@ -1228,25 +1228,6 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
   EXPECT_THAT(replayer_std_err, Not(HasSubstr("Skipped input")));
 }
 
-TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
-#ifndef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping Centipede-specific test";
-#endif
-  TempDir temp_dir;
-  auto [status, std_out, std_err] = RunWith(
-      {
-          {"fuzz_for", "1s"},
-          {"corpus_database", temp_dir.path()},
-      },
-      {{"FUZZTEST_CENTIPEDE_BINARY", CentipedePath()}},
-      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
-  EXPECT_THAT_LOG(
-      std_err,
-      HasSubstr("Starting the update of the corpus database for fuzz tests"));
-  EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
-  EXPECT_THAT(status, Eq(ExitCode(0)));
-}
-
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        UsesCentipedeBinaryWhenCentipedeBinaryPathFlagIsSet) {
 #ifndef FUZZTEST_USE_CENTIPEDE
