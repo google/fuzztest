@@ -226,6 +226,7 @@ cc_test(
         ":fuzzing_bit_gen",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/random:mocking_access",
         "@googletest//:gtest_main",
     ],
 )
