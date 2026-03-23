@@ -333,7 +333,7 @@ void InstallCentipedeTerminationHandler() {
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
-        RequestEarlyStop(EXIT_FAILURE);
+        RequestEarlyStop(EXIT_SUCCESS);
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
@@ -368,8 +368,8 @@ int RunCentipede(const Environment& env,
   if (Runtime::instance().termination_requested()) {
     absl::FPrintF(GetStderr(),
                   "Not running Centipede due to termination requested - "
-                  "returning as a failure\n");
-    return EXIT_FAILURE;
+                  "returning with success\n");
+    return EXIT_SUCCESS;
   }
   if (centipede_command.has_value()) {
     std::string cmdline = "exec 2>&1 ";
