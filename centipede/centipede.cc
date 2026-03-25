@@ -474,30 +474,55 @@ bool Centipede::RunBatch(
     bool input_gained_new_coverage = fs_.PruneFeaturesAndCountUnseen(fv) != 0;
     if (env_.use_pcpair_features && AddPcPairFeatures(fv) != 0)
       input_gained_new_coverage = true;
+    bool canonicalized = false;
     if (unconditional_features_file != nullptr) {
+      fs_.CanonicalizeFeatures(fv);
+      canonicalized = true;
       FUZZTEST_CHECK_OK(unconditional_features_file->Write(
           PackFeaturesAndHash(inputs[i], fv)));
     }
+
+    const auto& result = batch_result.results()[i];
+    const bool may_reduce =
+        mutants[i].origin != Mutant::kOriginNone && env_.reduce_inputs &&
+        // Consider mutator-provided signals for smaller-ness.
+        inputs[i].size() < corpus_.Records()[mutants[i].origin].data.size();
+
+    if (!input_gained_new_coverage && !may_reduce) continue;
+    // TODO: [impl] add stats for filtered-out inputs.
+    if (!InputPassesFilter(inputs[i])) continue;
+
+    // Need `fv` to be canonicalized at this point.
+    if (!canonicalized) {
+      fs_.CanonicalizeFeatures(fv);
+    }
+
+    bool write_to_files = false;
     if (input_gained_new_coverage) {
-      // TODO(kcc): [impl] add stats for filtered-out inputs.
-      if (!InputPassesFilter(inputs[i])) continue;
       fs_.MergeFeatures(fv);
       LogFeaturesAsSymbols(fv);
       batch_gained_new_coverage = true;
       FUZZTEST_CHECK_GT(fv.size(), 0UL);
       if (function_filter_passed) {
-        corpus_.Add(inputs[i], fv, batch_result.results()[i].metadata(),
-                    batch_result.results()[i].stats(), fs_, coverage_frontier_);
+        corpus_.Add(inputs[i], fv, result.metadata(), result.stats(), fs_,
+                    coverage_frontier_);
       }
+      write_to_files = true;
+    } else if (may_reduce &&
+               corpus_.TryReduceInput(mutants[i].origin, inputs[i], fv,
+                                      result.metadata(), result.stats())) {
+      write_to_files = true;
+    }
+    if (write_to_files) {
       if (corpus_file != nullptr) {
         FUZZTEST_CHECK_OK(corpus_file->Write(inputs[i]));
-      }
-      if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
-        WriteToLocalHashedFileInDir(env_.corpus_dir[0], inputs[i]);
       }
       if (features_file != nullptr) {
         FUZZTEST_CHECK_OK(
             features_file->Write(PackFeaturesAndHash(inputs[i], fv)));
+      }
+      if (!env_.corpus_dir.empty() && !env_.corpus_dir[0].empty()) {
+        WriteToLocalHashedFileInDir(env_.corpus_dir[0], inputs[i]);
       }
     }
   }

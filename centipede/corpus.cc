@@ -242,6 +242,20 @@ void Corpus::Add(ByteSpan data, const FeatureVec& fv,
   weighted_distribution_.AddWeight(0);
 }
 
+bool Corpus::TryReduceInput(size_t index, ByteSpan data, const FeatureVec& fv,
+                            const ExecutionMetadata& metadata,
+                            const ExecutionResult::Stats& stats) {
+  if (!IsFeatureVecSubsumed(records_[index].features, fv)) {
+    return false;
+  }
+  // Replace the record except the features to keep reducing for the original
+  // features.
+  records_[index].data = {data.begin(), data.end()};
+  records_[index].metadata = metadata;
+  records_[index].stats = stats;
+  return true;
+}
+
 size_t Corpus::WeightedRandom(absl::BitGenRef rng) const {
   return weighted_distribution_.RandomIndex(rng);
 }

@@ -120,7 +120,8 @@ class Corpus {
 
   // Adds a corpus element, consisting of 'data' (the input bytes, non-empty),
   // 'fv' (the features associated with this input), and execution `metadata`.
-  // `fs` is used to compute weights of `fv`.
+  // `fs` is used to compute weights of `fv`. Requires that `fv` is
+  // canonicalized using `FeatureSet::CanonicalizeFeatures`.
   void Add(ByteSpan data, const FeatureVec& fv,
            const ExecutionMetadata& metadata,
            const ExecutionResult::Stats& stats, const FeatureSet& fs,
@@ -131,6 +132,13 @@ class Corpus {
   // Returns the number of removed elements.
   size_t Prune(const FeatureSet &fs, const CoverageFrontier &coverage_frontier,
                size_t max_corpus_size, Rng &rng);
+  // Checks if the input at `index` can be reduced using `data` with `fv`,
+  // `metadata`, and `stats`. Requires that `fv` is canonicalized using
+  // `FeatureSet::CanonicalizeFeatures`. Returns whether the input is reduced or
+  // not.
+  bool TryReduceInput(size_t index, ByteSpan data, const FeatureVec& fv,
+                      const ExecutionMetadata& metadata,
+                      const ExecutionResult::Stats& stats);
   // Updates the corpus weights according to `fs` and `coverage_frontier` using
   // the weight `method`. If `scale_by_exec_time` is set, scales the weights by
   // the corpus execution time relative to the average.

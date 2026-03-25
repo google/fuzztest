@@ -54,7 +54,9 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::ContainsRegex;
 using ::testing::Each;
+using ::testing::ExitedWithCode;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
@@ -1168,6 +1170,77 @@ TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
   NonOwningCallbacksFactory factory(mock);
   EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
   EXPECT_GE(mock.execute_count(), 2);
+}
+
+// A mock for CentipedeCallbacks to test input reduction.
+class CentipedeMockForInputReduction : public CentipedeCallbacks {
+ public:
+  CentipedeMockForInputReduction(const Environment& env)
+      : CentipedeCallbacks(env) {}
+  // Doesn't execute anything
+  // Sets `batch_result.results()` based on the first 4 bits of `inputs`:
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_result.results().clear();
+    for (auto& input : inputs) {
+      FeatureVec features;
+      FUZZTEST_CHECK(!input.empty());
+      features.push_back(feature_domains::kPCs.ConvertToMe(input[0] % 16));
+      batch_result.results().emplace_back(ExecutionResult{features});
+    }
+    return true;
+  }
+
+  // Use unminimized inputs as seeds.
+  size_t GetSeeds(size_t num_seeds, std::vector<ByteArray>& seeds) override {
+    seeds.resize(num_seeds);
+    for (size_t i = 0; i < num_seeds; ++i) {
+      seeds[i] = {static_cast<uint8_t>(i), static_cast<uint8_t>(i)};
+    }
+    return num_seeds;
+  }
+};
+
+TEST(Centipede, DoesNotReduceInputWhenTheOptionIsUnset) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path();
+  env.num_runs = 1000000;  // Should be enough
+  env.batch_size = 7;      // Just some small number.
+  env.require_pc_table = false;
+  env.reduce_inputs = false;
+  CentipedeMockForInputReduction mock(env);
+  NonOwningCallbacksFactory factory(mock);
+  // Match the corpus size logging.
+  EXPECT_EXIT(
+      [&] {
+        CentipedeMain(env, factory);
+        std::exit(0);
+      }(),
+      ExitedWithCode(0),
+      ContainsRegex("end-fuzz: ft: 16 cov: 16 corp: 16/16 max/avg: "
+                    "([2-9]|1[0-9])[0-9]*/"));
+}
+
+TEST(Centipede, ReducesInputWhenTheOptionIsSet) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path();
+  env.num_runs = 1000000;  // Should be enough
+  env.batch_size = 7;      // Just some small number.
+  env.require_pc_table = false;
+  env.reduce_inputs = true;
+  CentipedeMockForInputReduction mock(env);
+  NonOwningCallbacksFactory factory(mock);
+  // Match the corpus size logging at the end to see the max size of corpus
+  // inputs is 1.
+  EXPECT_EXIT(
+      [&] {
+        CentipedeMain(env, factory);
+        std::exit(0);
+      }(),
+      ExitedWithCode(0),
+      HasSubstr("end-fuzz: ft: 16 cov: 16 corp: 16/16 max/avg: 1/1"));
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {

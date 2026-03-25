@@ -199,6 +199,9 @@ CENTIPEDE_FLAG(
     bool, exec_time_weight_scaling, true,
     "If true, scale the corpus weight by the execution time of each input.")
 CENTIPEDE_FLAG(
+    bool, reduce_inputs, true,
+    "If true, attempt to reduce input size of the corpus during fuzzing.")
+CENTIPEDE_FLAG(
     bool, use_coverage_frontier, false,
     "If true, use coverage frontier when choosing the corpus element to "
     "mutate. This flag is mostly for Centipede developers.")
