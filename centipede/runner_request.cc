@@ -15,7 +15,6 @@
 #include "./centipede/runner_request.h"
 
 #include <cstring>
-#include <vector>
 
 #include "absl/types/span.h"
 #include "./centipede/execution_metadata.h"
