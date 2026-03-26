@@ -196,7 +196,7 @@ class TableOfRecentCompares {
         result = val;
       }
     } else {
-      ValueType val = static_cast<ValueType>(entry.lhs);
+      ValueType val = static_cast<ValueType>(entry.rhs);
       if (min <= val && val <= max) {
         result = val;
       }
