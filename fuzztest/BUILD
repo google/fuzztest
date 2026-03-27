@@ -16,6 +16,7 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -174,6 +175,21 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal/domains:lazy",
     ],
     alwayslink = True,
+)
+
+# A full self-contained library archive that external llvm fuzzers should link
+# to their fuzz targets to make them compatible with FuzzTest.
+#
+# Note that the library should be linked with
+# `--undefined=fuzztest_llvm_fuzzer_wrapper_link_hook` or `--whole-archive`
+# linker flag, as otherwise the test registration would not work.
+cc_static_library(
+    name = "fuzztest_llvm_fuzzer_static",
+    testonly = True,
+    deps = [
+        ":llvm_fuzzer_main",
+        ":llvm_fuzzer_wrapper",
+    ],
 )
 
 cc_library(
