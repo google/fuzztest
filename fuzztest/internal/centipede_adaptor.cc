@@ -269,6 +269,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
                       // Always fail on crash for reproducer tests.
                       configuration.crashing_input_to_reproduce.has_value();
   env.print_runner_log = configuration.print_subprocess_log;
+  env.runner_cleanup_timeout = configuration.subprocess_cleanup_timeout;
   env.workdir = workdir;
   if (configuration.corpus_database.empty()) {
     if (total_time_limit != absl::InfiniteDuration()) {

@@ -176,6 +176,11 @@ FUZZTEST_DEFINE_FLAG(
     "If set, print the log of the subprocesses spawned by FuzzTest.");
 
 FUZZTEST_DEFINE_FLAG(
+    absl::Duration, subprocess_cleanup_timeout, absl::Seconds(60),
+    "The timeout for the subprocesses spanwed by FuzzTest to exit cleanly. "
+    "After the timeout, the subprocesses will be forcefully terminated.");
+
+FUZZTEST_DEFINE_FLAG(
     bool, continue_after_crash, false,
     "Controls the fuzzing and corpus replaying behavior when a crashing input "
     "is found. If set to false (default), the test execution will stop upon "
@@ -369,6 +374,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       /*replay_in_single_process=*/false,
       absl::GetFlag(FUZZTEST_FLAG(execution_id)),
       absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),
+      absl::GetFlag(FUZZTEST_FLAG(subprocess_cleanup_timeout)),
       /*stack_limit=*/absl::GetFlag(FUZZTEST_FLAG(stack_limit_kb)) * 1024,
       /*rss_limit=*/absl::GetFlag(FUZZTEST_FLAG(rss_limit_mb)) * 1024 * 1024,
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),

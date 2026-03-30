@@ -160,6 +160,8 @@ CENTIPEDE_FLAG(
     "vary depending on the runner.")
 CENTIPEDE_FLAG(size_t, ignore_timeout_reports, false,
                "If set, will ignore reporting timeouts as errors.")
+CENTIPEDE_FLAG(absl::Duration, runner_cleanup_timeout, absl::Seconds(60),
+               "Cleanup timeout for runner commands.")
 CENTIPEDE_FLAG(
     absl::Time, stop_at, absl::InfiniteFuture(),
     "Stop fuzzing in all shards (--total_shards) at approximately this "

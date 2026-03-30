@@ -83,6 +83,8 @@ struct Configuration {
   std::optional<std::string> execution_id;
   // If set, print log from subprocesses spawned by FuzzTest.
   bool print_subprocess_log = false;
+  // The timeout for cleaning up subprocesses spawned by FuzzTest.
+  absl::Duration subprocess_cleanup_timeout = absl::Seconds(60);
 
   // Stack limit in bytes.
   size_t stack_limit = 128 * 1024;

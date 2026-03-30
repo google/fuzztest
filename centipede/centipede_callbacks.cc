@@ -62,7 +62,6 @@
 
 namespace fuzztest::internal {
 
-constexpr auto kCommandCleanupTimeout = absl::Seconds(60);
 constexpr auto kPollMinimalTimeout = absl::Milliseconds(1);
 
 class CentipedeCallbacks::PersistentModeServer {
@@ -458,7 +457,8 @@ void CentipedeCallbacks::CleanUpPersistentMode() {
           [&](auto& command_context) {
             if (command_context->cmd.is_executing() &&
                 command_context->persistent_mode_server != nullptr) {
-              const absl::Time deadline = absl::Now() + kCommandCleanupTimeout;
+              const absl::Time deadline =
+                  absl::Now() + env_.runner_cleanup_timeout;
               command_context->persistent_mode_server->RequestExit(deadline);
               const auto ret = command_context->cmd.Wait(deadline);
               FUZZTEST_LOG_IF(ERROR, !ret.has_value())
@@ -506,9 +506,9 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
       FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
-                          << kCommandCleanupTimeout;
+                          << env_.runner_cleanup_timeout;
       cmd.RequestStop();
-      const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
+      const auto ret = cmd.Wait(absl::Now() + env_.runner_cleanup_timeout);
       if (ret.has_value()) return *ret;
       FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;

@@ -28,6 +28,8 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.replay_in_single_process == other->replay_in_single_process &&
          config.execution_id == other->execution_id &&
          config.print_subprocess_log == other->print_subprocess_log &&
+         config.subprocess_cleanup_timeout ==
+             other->subprocess_cleanup_timeout &&
          config.stack_limit == other->stack_limit &&
          config.rss_limit == other->rss_limit &&
          config.time_limit_per_input == other->time_limit_per_input &&
@@ -56,6 +58,7 @@ TEST(ConfigurationTest,
                               /*replay_in_single_process=*/true,
                               "execution_id",
                               /*print_subprocess_log=*/true,
+                              /*subprocess_cleanup_time=*/absl::Seconds(42),
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),
@@ -85,6 +88,7 @@ TEST(ConfigurationTest,
                               /*replay_in_single_process=*/true,
                               "execution_id",
                               /*print_subprocess_log=*/true,
+                              /*subprocess_cleanup_time=*/absl::Seconds(42),
                               /*stack_limit=*/100,
                               /*rss_limit=*/200,
                               /*time_limit_per_input=*/absl::Seconds(42),

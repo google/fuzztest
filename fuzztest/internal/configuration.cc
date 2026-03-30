@@ -197,6 +197,8 @@ absl::StatusOr<absl::Duration> ParseDuration(absl::string_view duration) {
 }  // namespace
 
 std::string Configuration::Serialize() const {
+  std::string subprocess_cleanup_timeout_str =
+      absl::FormatDuration(subprocess_cleanup_timeout);
   std::string time_limit_per_input_str =
       absl::FormatDuration(time_limit_per_input);
   std::string time_limit_str = absl::FormatDuration(time_limit);
@@ -209,7 +211,8 @@ std::string Configuration::Serialize() const {
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
              SpaceFor(replay_in_single_process) + SpaceFor(execution_id) +
-             SpaceFor(print_subprocess_log) + SpaceFor(stack_limit) +
+             SpaceFor(print_subprocess_log) +
+             SpaceFor(subprocess_cleanup_timeout_str) + SpaceFor(stack_limit) +
              SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
              SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
              SpaceFor(jobs) + SpaceFor(centipede_command) +
@@ -229,6 +232,7 @@ std::string Configuration::Serialize() const {
   offset = WriteIntegral(out, offset, replay_in_single_process);
   offset = WriteOptionalString(out, offset, execution_id);
   offset = WriteIntegral(out, offset, print_subprocess_log);
+  offset = WriteString(out, offset, subprocess_cleanup_timeout_str);
   offset = WriteIntegral(out, offset, stack_limit);
   offset = WriteIntegral(out, offset, rss_limit);
   offset = WriteString(out, offset, time_limit_per_input_str);
@@ -260,6 +264,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(replay_in_single_process, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(execution_id, ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(print_subprocess_log, Consume<bool>(serialized));
+    ASSIGN_OR_RETURN(subprocess_cleanup_timeout_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(stack_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(rss_limit, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
@@ -275,6 +280,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
     }
+    ASSIGN_OR_RETURN(subprocess_cleanup_timeout,
+                     ParseDuration(*subprocess_cleanup_timeout_str));
     ASSIGN_OR_RETURN(time_limit_per_input,
                      ParseDuration(*time_limit_per_input_str));
     ASSIGN_OR_RETURN(time_limit, ParseDuration(*time_limit_str));
@@ -293,6 +300,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *replay_in_single_process,
                          *std::move(execution_id),
                          *print_subprocess_log,
+                         *subprocess_cleanup_timeout,
                          *stack_limit,
                          *rss_limit,
                          *time_limit_per_input,
