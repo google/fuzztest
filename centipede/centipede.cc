@@ -393,6 +393,7 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
     FUZZTEST_LOG_FIRST_N(WARNING, 1)
         << "Crash found but the stop condition is met - not reporting further "
            "possibly related crashes.";
+    ReportCrash(binary, input_vec, batch_result);
     return true;
   }
   ReportCrash(binary, input_vec, batch_result);
