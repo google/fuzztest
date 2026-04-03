@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"
@@ -92,6 +93,23 @@ For reproducing findings please rely on file based reproduction.
 
   runtime.DisableReporter();
   EXPECT_EQ(get_failure(), "");
+}
+
+TEST(RegressionTestNameForCrashingInputTest,
+     ReturnsRegressionTestNameForValidInputFilename) {
+  const absl::StatusOr<std::string> regression_test_name =
+      RegressionTestNameForCrashingInput("MySuite.MyTest",
+                                         "/path/to/bug_id-crash_sig-input_sig");
+  ASSERT_TRUE(regression_test_name.ok());
+  EXPECT_EQ(*regression_test_name, "MySuite.MyTest/Regression/bug_id");
+}
+
+TEST(RegressionTestNameForCrashingInputTest,
+     ReturnsErrorForInvalidInputFilename) {
+  const absl::StatusOr<std::string> regression_test_name =
+      RegressionTestNameForCrashingInput("MySuite.MyTest",
+                                         "single_dash-is_invalid");
+  EXPECT_FALSE(regression_test_name.ok());
 }
 
 }  // namespace

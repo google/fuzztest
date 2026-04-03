@@ -57,6 +57,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./common/bazel.h"
+#include "./common/crashing_input_filename.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
@@ -92,11 +93,6 @@ constexpr size_t kValueMaxPrintLength = 2048;
 constexpr absl::string_view kTrimIndicator = " ...<value too long>";
 constexpr absl::string_view kReproducerDirName = "fuzztest_repro";
 
-std::string GetFilterForCrashingInput(absl::string_view test_name,
-                                      absl::string_view crashing_input_path) {
-  return absl::StrCat(test_name, "/Regression/", Basename(crashing_input_path));
-}
-
 // Returns a reproduction command for replaying
 // `configuration.crashing_input_to_reproduce` or `reproducer_path` from a
 // command line, using the `configuration.reproduction_command_template`.
@@ -130,11 +126,13 @@ std::string GetReproductionCommand(const Configuration* configuration,
     }
     std::vector<std::string> extra_args = {absl::StrCat(
         "--test_arg=--", FUZZTEST_FLAG_PREFIX, "corpus_database=", corpus_db)};
+    const absl::StatusOr<std::string> test_filter =
+        RegressionTestNameForCrashingInput(
+            test_name, *configuration->crashing_input_to_reproduce);
+    FUZZTEST_CHECK(test_filter.ok());
     return absl::StrReplaceAll(
         command_template,
-        {{kTestFilterPlaceholder,
-          GetFilterForCrashingInput(
-              test_name, *configuration->crashing_input_to_reproduce)},
+        {{kTestFilterPlaceholder, *test_filter},
          {kExtraArgsPlaceholder, absl::StrJoin(extra_args, " ")}});
   } else {
     return absl::StrReplaceAll(
@@ -1350,6 +1348,14 @@ bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
   runtime_.DisableReporter();
   runtime_.SetCurrentTest(nullptr, nullptr);
   return success;
+}
+
+absl::StatusOr<std::string> RegressionTestNameForCrashingInput(
+    absl::string_view test_name, absl::string_view crashing_input_path) {
+  absl::StatusOr<InputFileComponents> components = ParseCrashingInputFilename(
+      std::string_view{crashing_input_path.data(), crashing_input_path.size()});
+  if (!components.ok()) return std::move(components).status();
+  return absl::StrCat(test_name, "/Regression/", components->bug_id);
 }
 
 }  // namespace fuzztest::internal
