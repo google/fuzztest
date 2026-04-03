@@ -38,6 +38,7 @@ class GTest_TestAdaptor : public ::testing::Test {
         configuration_(std::move(configuration)) {}
 
   void TestBody() override {
+    RecordProperty("fuzz_test", "true");
     auto test = test_.make();
     configuration_.fuzz_tests_in_current_shard = GetFuzzTestsInCurrentShard();
     // We replay a reproducer in the same process to help debugging when

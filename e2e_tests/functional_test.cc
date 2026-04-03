@@ -62,6 +62,7 @@ using ::fuzztest::domain_implementor::PrintMode;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
+using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::Eq;
 using ::testing::FieldsAre;
@@ -116,6 +117,20 @@ int CountTargetRuns(absl::string_view std_err) {
 
 class UnitTestModeTest : public ::testing::Test {
  protected:
+  RunResults RunWithExactFuzzerFlags(
+      absl::string_view test_filter,
+      absl::string_view target_binary = kDefaultTargetBinary,
+      const absl::flat_hash_map<std::string, std::string>& env = {},
+      absl::flat_hash_map<std::string, std::string> fuzzer_flags = {}) {
+    RunOptions run_options;
+    run_options.flags = {
+        {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
+        {"symbolize_stacktrace", "0"}};
+    run_options.fuzztest_flags = std::move(fuzzer_flags);
+    run_options.env = WithTestSanitizerOptions(env);
+    return RunBinary(BinaryPath(target_binary), run_options);
+  }
+
   RunResults Run(
       absl::string_view test_filter,
       absl::string_view target_binary = kDefaultTargetBinary,
@@ -126,13 +141,8 @@ class UnitTestModeTest : public ::testing::Test {
     if (!fuzzer_flags.contains("fuzz_for")) {
       fuzzer_flags["fuzz_for"] = "10s";
     }
-    RunOptions run_options;
-    run_options.flags = {
-        {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
-        {"symbolize_stacktrace", "0"}};
-    run_options.fuzztest_flags = std::move(fuzzer_flags);
-    run_options.env = WithTestSanitizerOptions(env);
-    return RunBinary(BinaryPath(target_binary), run_options);
+    return RunWithExactFuzzerFlags(test_filter, target_binary, env,
+                                   std::move(fuzzer_flags));
   }
 };
 
@@ -666,6 +676,52 @@ TEST_F(UnitTestModeTest, InputsAreSkippedWhenRequestedInTests) {
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
   EXPECT_THAT_LOG(std_err, HasSubstr("Skipped input"));
+}
+
+// Identifies fuzz tests as those with test suite name "FuzzTest".
+MATCHER(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty, "") {
+  absl::string_view xml = arg;
+  absl::string_view attrs;
+  while (RE2::FindAndConsume(&xml, R"re((?s)<testcase\s(.*?)>)re", &attrs)) {
+    const bool is_fuzz_test =
+        RE2::PartialMatch(attrs, R"re(classname="FuzzTest")re");
+    if (!attrs.empty() && attrs.back() == '/') {
+      // Self-closing tag; no properties.
+      if (is_fuzz_test) {
+        *result_listener << "found a fuzz test without fuzz_test property";
+        return false;
+      }
+      continue;
+    }
+    bool has_fuzz_test_property = false;
+    absl::string_view body;
+    if (RE2::Consume(&xml, R"re((?s)(.*?)</testcase>)re", &body)) {
+      has_fuzz_test_property =
+          RE2::PartialMatch(body, R"re(<property name="fuzz_test")re");
+    }
+    if (is_fuzz_test != has_fuzz_test_property) {
+      *result_listener << "found a "
+                       << (is_fuzz_test ? "fuzz test " : "unit test ")
+                       << (has_fuzz_test_property ? "with " : "without ")
+                       << "fuzz_test property";
+      return false;
+    }
+  }
+  return true;
+}
+
+TEST_F(UnitTestModeTest, FuzzTestsRecordFuzzTestProperty) {
+  TempDir out_dir;
+  const std::string xml_output_file = out_dir.path() / "output.xml";
+  auto [status, std_out, std_err] =
+      RunWithExactFuzzerFlags("*", "testdata/unit_test_and_fuzz_tests",
+                              {{"XML_OUTPUT_FILE", xml_output_file}});
+
+  // Ensure that we've executed at least one unit test and one fuzz test.
+  EXPECT_THAT_LOG(std_out, AllOf(HasSubstr("UnitTest.AlwaysPasses"),
+                                 HasSubstr("FuzzTest.AlwaysPasses")));
+  EXPECT_THAT(ReadFile(xml_output_file),
+              Optional(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty()));
 }
 
 // Tests for the FuzzTest command line interface.
@@ -1245,6 +1301,28 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT_LOG(std_err, HasSubstr("Running Centipede command"));
   EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FuzzTestsRecordFuzzTestPropertyWhenRunningWithCentipede) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir temp_dir;
+  const std::string xml_output_file = temp_dir.path() / "output.xml";
+  auto [status, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "1s"},
+          {"corpus_database", temp_dir.path() / "corpus_database"},
+          {"internal_centipede_command", ShellEscape(CentipedePath())},
+      },
+      {{"XML_OUTPUT_FILE", xml_output_file}},
+      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
+
+  // Ensure that we've executed at least one fuzz test.
+  EXPECT_THAT_LOG(std_out, HasSubstr("FuzzTest.AlwaysPasses"));
+  EXPECT_THAT(ReadFile(xml_output_file),
+              Optional(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty()));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
