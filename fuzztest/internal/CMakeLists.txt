@@ -185,7 +185,6 @@ fuzztest_cc_library(
     fuzztest::configuration
     fuzztest::corpus_database
     fuzztest::flag_name
-    fuzztest::io
     fuzztest::registry
     fuzztest::runtime
     GTest::gtest
@@ -193,7 +192,6 @@ fuzztest_cc_library(
     absl::strings
     absl::str_format
     absl::string_view
-    fuzztest::crashing_input_filename
     fuzztest::common_logging
 )
 
@@ -359,11 +357,11 @@ fuzztest_cc_library(
     fuzztest::fixture_driver
     fuzztest::flag_name
     fuzztest::io
-    fuzztest::common_logging
+    fuzztest::logging
     fuzztest::printer
     fuzztest::registration
-    fuzztest::seed_seq
     fuzztest::sanitizer_interface
+    fuzztest::seed_seq
     fuzztest::serialization
     fuzztest::status
     absl::core_headers
@@ -380,7 +378,8 @@ fuzztest_cc_library(
     absl::time
     absl::span
     fuzztest::bazel
-    fuzztest::logging
+    fuzztest::common_logging
+    fuzztest::crashing_input_filename
     fuzztest::core_domains_impl
 )
 
@@ -393,10 +392,11 @@ fuzztest_cc_test(
     fuzztest::configuration
     fuzztest::runtime
     fuzztest::test_protobuf_cc_proto
+    GTest::gmock_main
+    absl::statusor
     absl::strings
     absl::time
     fuzztest::domain_core
-    GTest::gmock_main
 )
 
 fuzztest_cc_library(
