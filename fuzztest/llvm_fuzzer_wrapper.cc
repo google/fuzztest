@@ -45,6 +45,11 @@ extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t* data1, size_t size1,
   exit(-1);
 }
 
+// A dummy symbol to be referenced by the linker flag
+// `--undefined=fuzztest_llvm_fuzzer_wrapper_link_hook` to force this file to be
+// included, otherwise the test registration would not be triggered.
+extern "C" [[maybe_unused]] int fuzztest_llvm_fuzzer_wrapper_link_hook = 42;
+
 std::vector<std::vector<uint8_t>> ReadByteArraysFromDirectory() {
   const std::string flag = absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_corpus_dir);
   if (flag.empty()) return {};
