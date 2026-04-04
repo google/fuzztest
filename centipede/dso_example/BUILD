@@ -21,6 +21,8 @@ package(default_visibility = ["//visibility:private"])
 
 licenses(["notice"])
 
+package(default_applicable_licenses = ["@com_google_fuzztest//fuzztest:license"])
+
 # Shared library that we want to fuzz, built with (some) coverage instrumentation.
 # It has unresolved instrumentation symbol(s) which will be resolved dynamically.
 cc_binary(
