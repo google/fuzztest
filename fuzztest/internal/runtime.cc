@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
@@ -576,6 +577,10 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
   if (!has_old_handler || signum != SIGTRAP ||
       (info->si_code != TRAP_PERF && info->si_code != SI_TIMER)) {
     // Dump our info first.
+    absl::Format(&signal_out_sink,
+                 "[!] Reporting crashing signal %d as an external failure.\n",
+                 signum);
+    runtime.SetExternalFailureDetected(true);
     runtime.PrintReport(&signal_out_sink);
     // The old signal handler might print important messages (e.g., strack
     // trace) to the original file descriptors, therefore we restore them before
@@ -597,7 +602,7 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
     raise(signum);
     absl::Format(&signal_out_sink,
                  "[!] The default action of crashing signal %d did not crash - "
-                 "aborting",
+                 "aborting\n",
                  signum);
     // At this point abort should be fine even if signum == SIGABRT.
     std::abort();
@@ -751,7 +756,11 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     const Configuration& configuration) {
   // Crashing inputs are discovered in fuzzing mode. To increase the chance of
   // reproducing the crash, fuzzing mode should be used.
+  const auto old_run_mode = runtime_.run_mode();
   runtime_.SetRunMode(RunMode::kFuzz);
+  absl::Cleanup restore_run_mode = [this, old_run_mode]() {
+    runtime_.SetRunMode(old_run_mode);
+  };
 
   auto replay_input = absl::bind_front(&FuzzTestFuzzerImpl::ReplayInput, this);
   if (const auto file_paths = GetFilesToReplay()) {

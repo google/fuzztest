@@ -366,6 +366,7 @@ fuzztest_cc_library(
     fuzztest::sanitizer_interface
     fuzztest::serialization
     fuzztest::status
+    absl::cleanup
     absl::core_headers
     absl::any_invocable
     absl::bind_front
