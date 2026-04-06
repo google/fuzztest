@@ -199,20 +199,21 @@ std::vector<std::string> GetEnvDiffForBinaries() {
   // See list of environment variables here:
   // https://bazel.build/reference/test-encyclopedia#initial-conditions
   std::vector<std::string> env_diff = {
-      "-TEST_DIAGNOSTICS_OUTPUT_DIR",              //
-      "-TEST_INFRASTRUCTURE_FAILURE_FILE",         //
-      "-TEST_LOGSPLITTER_OUTPUT_FILE",             //
-      "-TEST_PREMATURE_EXIT_FILE",                 //
-      "-TEST_RANDOM_SEED",                         //
-      "-TEST_RUN_NUMBER",                          //
-      "-TEST_SHARD_INDEX",                         //
-      "-TEST_SHARD_STATUS_FILE",                   //
-      "-TEST_TOTAL_SHARDS",                        //
-      "-TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
-      "-TEST_UNDECLARED_OUTPUTS_DIR",              //
-      "-TEST_WARNINGS_OUTPUT_FILE",                //
+      // "-TEST_DIAGNOSTICS_OUTPUT_DIR",              //
+      // "-TEST_INFRASTRUCTURE_FAILURE_FILE",         //
+      // "-TEST_LOGSPLITTER_OUTPUT_FILE",             //
+      // "-TEST_PREMATURE_EXIT_FILE",                 //
+      // "-TEST_RANDOM_SEED",                         //
+      // "-TEST_RUN_NUMBER",                          //
+      // "-TEST_SHARD_INDEX",                         //
+      // "-TEST_SHARD_STATUS_FILE",                   //
+      // "-TEST_TOTAL_SHARDS",                        //
+      // "-TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
+      // "-TEST_UNDECLARED_OUTPUTS_DIR",              //
+      // "-TEST_WARNINGS_OUTPUT_FILE",                //
       "-GTEST_OUTPUT",                             //
-      "-XML_OUTPUT_FILE"};
+      // "-XML_OUTPUT_FILE"
+  };
   return env_diff;
 }
 
