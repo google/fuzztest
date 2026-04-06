@@ -3,7 +3,6 @@
 
 #include <cstdlib>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -13,12 +12,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "./common/crashing_input_filename.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/flag_name.h"
-#include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -48,16 +45,29 @@ namespace {
 template <typename T>
 void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
                              const Configuration& configuration,
-                             absl::string_view suffix = "") {
+                             absl::string_view crashing_input_path = "") {
   auto fixture_factory = [argc, argv, &test,
-                          configuration = configuration]() -> T* {
-    return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv,
-                                                       configuration);
+                          configuration = configuration]() mutable -> T* {
+    return new ::fuzztest::internal::GTest_TestAdaptor(
+        test, argc, argv, std::move(configuration));
   };
-  const std::string test_name_with_suffix =
-      absl::StrCat(test.test_name(), suffix);
+  if (crashing_input_path.empty()) {
+    ::testing::RegisterTest(test.suite_name().c_str(), test.test_name().c_str(),
+                            nullptr, nullptr, test.file().c_str(), test.line(),
+                            std::move(fixture_factory));
+    return;
+  }
+  const absl::StatusOr<std::string> regression_test_name =
+      RegressionTestNameForCrashingInput(test.test_name(), crashing_input_path);
+  if (!regression_test_name.ok()) {
+    FUZZTEST_LOG(WARNING)
+        << "Failed to get regression test name for crashing input "
+        << crashing_input_path << ". Not registering a regression test for it. "
+        << "Status: " << regression_test_name.status();
+    return;
+  }
   ::testing::RegisterTest(
-      test.suite_name().c_str(), test_name_with_suffix.c_str(), nullptr,
+      test.suite_name().c_str(), regression_test_name->c_str(), nullptr,
       nullptr, test.file().c_str(), test.line(), std::move(fixture_factory));
 }
 
@@ -77,19 +87,7 @@ void RegisterSeparateRegressionTestForEachCrashingInput(
   for (const std::string& input : crash_inputs) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
-    absl::string_view file_name = Basename(input);
-    const absl::StatusOr<InputFileComponents> components =
-        ParseCrashingInputFilename(
-            std::string_view{file_name.data(), file_name.size()});
-    if (!components.ok()) {
-      FUZZTEST_LOG(WARNING)
-          << "Failed to parse crashing input filename " << file_name
-          << ". Not registering a regression test for it. Status: "
-          << components.status();
-      continue;
-    }
-    const std::string suffix = absl::StrCat("/Regression/", components->bug_id);
-    RegisterFuzzTestAsGTest<T>(argc, argv, test, updated_configuration, suffix);
+    RegisterFuzzTestAsGTest<T>(argc, argv, test, updated_configuration, input);
   }
 }
 

@@ -442,8 +442,13 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 // A reproduction command template will include these placeholders. These
 // placeholders then will be replaced by the proper test filter when creating
 // the final reproduction command from the template.
-static constexpr absl::string_view kTestFilterPlaceholder = "$TEST_FILTER";
-static constexpr absl::string_view kExtraArgsPlaceholder = "$EXTRA_ARGS";
+inline constexpr absl::string_view kTestFilterPlaceholder = "$TEST_FILTER";
+inline constexpr absl::string_view kExtraArgsPlaceholder = "$EXTRA_ARGS";
+
+// Returns the name of a regression test that replays `test_name` on the
+// crashing input at `crashing_input_path`.
+absl::StatusOr<std::string> RegressionTestNameForCrashingInput(
+    absl::string_view test_name, absl::string_view crashing_input_path);
 
 }  // namespace internal
 }  // namespace fuzztest
