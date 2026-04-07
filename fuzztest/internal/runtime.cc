@@ -802,6 +802,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
         counter = 0;
       }
     }
+    runtime_.DisableReporter();
     std::exit(130);  // Exit code termination.
   }
 
