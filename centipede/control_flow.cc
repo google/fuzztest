@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>  // NOLINT
 #include <fstream>
 #include <istream>
 #include <iterator>
