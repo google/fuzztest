@@ -339,15 +339,15 @@ void InstallCentipedeTerminationHandler() {
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
           constexpr char msg[] = "\n[!] SIGTERM received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          (void)write(fd, msg, sizeof(msg) - 1);  // Ignore result of write.
           return;
         } else if (signum == SIGHUP) {
           constexpr char msg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          (void)write(fd, msg, sizeof(msg) - 1);  // Ignore result of write.
           return;
         }
         constexpr char msg[] = "\n[!] Unexpected signal received - aborting.\n";
-        write(fd, msg, sizeof(msg) - 1);
+        (void)write(fd, msg, sizeof(msg) - 1);  // Ignore result of write.
         std::abort();
       };
 
