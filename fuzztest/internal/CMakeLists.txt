@@ -364,6 +364,7 @@ fuzztest_cc_library(
     fuzztest::seed_seq
     fuzztest::serialization
     fuzztest::status
+    absl::cleanup
     absl::core_headers
     absl::any_invocable
     absl::bind_front
