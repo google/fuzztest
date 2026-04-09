@@ -484,3 +484,11 @@ CENTIPEDE_FLAG(
     bool, report_crash_summary, true,
     "If set, reports a summary of crashes found during fuzzing or replay."
 )
+CENTIPEDE_FLAG(
+    std::vector<std::string>, env_for_binaries, {},
+    "A comma-separated list of environment variables (KEY=VALUE) to pass to the "
+    "target binary, coverage binary, and extra binaries. By default, these "
+    "binaries inherit the parent process's environment, except for certain "
+    "test-related variables (e.g., Bazel's TEST_*) that are explicitly unset "
+    "to avoid interference."
+)

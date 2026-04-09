@@ -415,7 +415,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
         std::make_unique<CentipedeCallbacks::PersistentModeServer>(
             std::move(server_path));
   }
-  std::vector<std::string> env = {ConstructRunnerFlags(
+  std::vector<std::string> env = env_.env_for_binaries;
+  env.push_back(ConstructRunnerFlags(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
                    inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
@@ -425,12 +426,13 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
                        : absl::StrCat(":persistent_mode_socket=",
                                       persistent_mode_server->server_path()),
                    ":"),
-      disable_coverage)};
+      disable_coverage));
 
-  if (env_.clang_coverage_binary == binary)
-    env.emplace_back(
+  if (env_.clang_coverage_binary == binary) {
+    env.push_back(
         absl::StrCat("LLVM_PROFILE_FILE=",
                      WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
+  }
 
   Command::Options cmd_options;
   cmd_options.env_add = std::move(env);
@@ -642,7 +644,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
+  cmd_options.env_add = env_.env_for_binaries;
+  cmd_options.env_add.push_back(std::move(centipede_runner_flags));
   cmd_options.env_remove = EnvironmentVariablesToUnset();
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
@@ -707,7 +710,8 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
+  cmd_options.env_add = env_.env_for_binaries;
+  cmd_options.env_add.push_back(std::move(centipede_runner_flags));
   cmd_options.env_remove = EnvironmentVariablesToUnset();
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
