@@ -484,3 +484,10 @@ CENTIPEDE_FLAG(
     bool, report_crash_summary, true,
     "If set, reports a summary of crashes found during fuzzing or replay."
 )
+CENTIPEDE_FLAG(
+    std::vector<std::string>, env_diff_for_binaries, {},
+    "A comma-separated list of environment variables to set or unset when "
+    "running the target binary, coverage binary, and extra binaries, relative "
+    "to the parent process's environment. Variables in the form 'VAR=VAL' are "
+    "set, and variables in the form '-VAR' are unset."
+)

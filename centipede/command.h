@@ -34,12 +34,10 @@ class Command final {
     // shell, so the arguments need to be shell-escaped.
     // TODO(b/381910257): Escape the arguments for passing to the shell.
     std::vector<std::string> args;
-    // Environment variables/values in the form "KEY=VALUE" to set in the
-    // subprocess executing the command. These are added to the environment
-    // variables inherited from the parent process.
-    std::vector<std::string> env_add;
-    // Environment variables to unset in the subprocess executing the command.
-    std::vector<std::string> env_remove;
+    // Environment variables to set or unset in the subprocess, relative to the
+    // environment of the parent process. The variables in the form "KEY=VALUE"
+    // are set, and the variables in the form "-KEY" are unset.
+    std::vector<std::string> env_diff;
     // Redirect stdout to this file path with an opaque suffix. If empty, use
     // parent's STDOUT.
     //

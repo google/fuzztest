@@ -40,8 +40,9 @@ constexpr std::string_view kCfTableFileName = "cf-table";
 }  // namespace
 
 void BinaryInfo::InitializeFromSanCovBinary(
-    std::string_view binary_path_with_args, std::string_view objdump_path,
-    std::string_view symbolizer_path, std::string_view tmp_dir_path) {
+    std::string_view binary_path_with_args, std::vector<std::string> env_diff,
+    std::string_view objdump_path, std::string_view symbolizer_path,
+    std::string_view tmp_dir_path) {
   if (binary_path_with_args.empty()) {
     // This usually happens in tests.
     FUZZTEST_LOG(INFO) << __func__ << ": binary_path_with_args is empty";
@@ -58,10 +59,11 @@ void BinaryInfo::InitializeFromSanCovBinary(
       std::filesystem::path{tmp_dir_path} / "binary_info_log_tmp";
   FUZZTEST_LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
-  Command::Options cmd_options;
-  cmd_options.env_add = {absl::StrCat(
+  env_diff.push_back(absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=", pc_table_path.path(),
-      ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":")};
+      ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":"));
+  Command::Options cmd_options;
+  cmd_options.env_diff = std::move(env_diff);
   cmd_options.stdout_file_prefix = log_prefix;
   Command cmd{binary_path_with_args, std::move(cmd_options)};
   int exit_code = cmd.Execute();

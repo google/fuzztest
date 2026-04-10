@@ -200,7 +200,7 @@ TEST(CFTable, GetCfTable) {
   // Load the cf table.
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(
-      target_path, GetObjDumpPath(), GetLLVMSymbolizerPath(),
+      target_path, /*env_diff=*/{}, GetObjDumpPath(), GetLLVMSymbolizerPath(),
       GetTestTempDir(test_info_->name()).string());
   const auto &cf_table = binary_info.cf_table;
   FUZZTEST_LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
@@ -278,7 +278,8 @@ TEST(CFTable, GetCfTable) {
 static void SymbolizeBinary(std::string_view test_dir,
                             std::string_view target_path, bool use_trace_pc) {
   BinaryInfo binary_info;
-  binary_info.InitializeFromSanCovBinary(target_path, GetObjDumpPath(),
+  binary_info.InitializeFromSanCovBinary(target_path, /*env_diff=*/{},
+                                         GetObjDumpPath(),
                                          GetLLVMSymbolizerPath(), test_dir);
   // Load the pc table.
   const auto &pc_table = binary_info.pc_table;
