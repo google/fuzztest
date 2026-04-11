@@ -164,7 +164,7 @@ inline constexpr bool is_smart_pointer_v = Requires<T>(
 
 template <typename T>
 inline constexpr bool is_complete_type_v =
-    Requires<T>([](auto x) -> decltype(sizeof(T)) {});
+    Requires<T>([](auto /*x*/) -> decltype(sizeof(T)) {});
 
 template <typename T>
 inline constexpr bool is_std_complex_v = false;

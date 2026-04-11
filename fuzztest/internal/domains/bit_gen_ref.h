@@ -145,7 +145,7 @@ class BitGenRefDomain : public domain_implementor::DomainBase<
     return corpus_value.GetBitGen(inner_);
   }
 
-  value_type GetRandomValue(absl::BitGenRef prng) {
+  value_type GetRandomValue(absl::BitGenRef /*prng*/) {
     // See b/404828355
     FUZZTEST_LOG(FATAL) << "The domain doesn't support GetRandomValue().";
   }
@@ -184,7 +184,7 @@ class BitGenRefDomain : public domain_implementor::DomainBase<
   struct Printer {
     void PrintCorpusValue(const corpus_type& val,
                           domain_implementor::RawSink out,
-                          domain_implementor::PrintMode mode) const {
+                          domain_implementor::PrintMode /*mode*/) const {
       absl::Format(out, "FuzzingBitGen({");
       bool first = true;
       for (const auto& x : std::get<0>(val.inner_corpus())) {

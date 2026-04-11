@@ -78,7 +78,9 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
   void Mutate(value_type&, absl::BitGenRef,
               const domain_implementor::MutationMetadata&, bool) {}
 
-  value_type GetRandomCorpusValue(absl::BitGenRef prng) { return value_type{}; }
+  value_type GetRandomCorpusValue(absl::BitGenRef /*prng*/) {
+    return value_type{};
+  }
 
   absl::Status ValidateCorpusValue(const value_type&) const {
     return absl::OkStatus();  // Nothing to validate.

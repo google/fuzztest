@@ -155,7 +155,7 @@ class DomainBase {
     return IRObject::FromCorpus(v);
   }
 
-  void UpdateMemoryDictionary(const CorpusType& val, ConstCmpTablesPtr) {}
+  void UpdateMemoryDictionary(const CorpusType& /*val*/, ConstCmpTablesPtr) {}
 
   uint64_t CountNumberOfFields(const CorpusType&) { return 0; }
 
