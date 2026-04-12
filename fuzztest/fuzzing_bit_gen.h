@@ -24,6 +24,7 @@
 #include "absl/base/fast_type_id.h"
 #include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
+#include "absl/random/mocking_access.h"
 #include "absl/types/span.h"
 
 namespace fuzztest {
@@ -99,10 +100,7 @@ class FuzzingBitGen {
   absl::Span<const uint8_t> control_stream_;
   absl::Span<const uint8_t> data_stream_;
 
-  template <typename>
-  friend struct ::absl::random_internal::DistributionCaller;  // for InvokeMock
-  friend class ::absl::random_internal::MockHelpers;          // for InvokeMock
-  friend class ::absl::BitGenRef;                             // for InvokeMock
+  friend class ::absl::RandomMockingAccess;  // for InvokeMock
 };
 
 }  // namespace fuzztest
