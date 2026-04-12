@@ -57,8 +57,8 @@ TEST(GetCoverage, SimpleCoverageResults) {
   bool uses_legacy_trace_pc_instrumentation = {};
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(
-      GetTargetPath(), GetObjDumpPath(), GetLLVMSymbolizerPath(),
-      GetTestTempDir(test_info_->name()).string());
+      GetTargetPath(), /*env_diff=*/{}, GetObjDumpPath(),
+      GetLLVMSymbolizerPath(), GetTestTempDir(test_info_->name()).string());
   const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
   const SymbolTable &symbols = binary_info.symbols;
@@ -93,7 +93,8 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
 
   const std::string test_tmpdir = GetTestTempDir(test_info_->name());
   BinaryInfo binary_info;
-  binary_info.InitializeFromSanCovBinary(GetTargetPath(), GetObjDumpPath(),
+  binary_info.InitializeFromSanCovBinary(GetTargetPath(), /*env_diff=*/{},
+                                         GetObjDumpPath(),
                                          GetLLVMSymbolizerPath(), test_tmpdir);
   CoverageResults coverage_results =
       GetCoverage(corpus_records, std::move(binary_info));

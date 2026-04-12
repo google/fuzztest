@@ -204,16 +204,22 @@ Command::Command(std::string_view path) : Command{path, {}} {}
 
 std::string Command::ToString() const {
   std::vector<std::string> ss;
-  ss.reserve(/*env*/ 1 + options_.env_add.size() + options_.env_remove.size() +
-             /*path*/ 1 + /*args*/ options_.args.size() + /*out/err*/ 2);
+  ss.reserve(/*env*/ 1 + options_.env_diff.size() + /*path*/ 1 +
+             /*args*/ options_.args.size() + /*out/err*/ 2);
   // env.
   ss.push_back("env");
+  std::vector<std::string> env_to_set;
+  env_to_set.reserve(options_.env_diff.size());
   // Arguments that unset environment variables must appear first.
-  for (const auto& var : options_.env_remove) {
-    ss.push_back(absl::StrCat("-u ", var));
+  for (std::string_view var : options_.env_diff) {
+    if (absl::StartsWith(var, "-")) {
+      ss.push_back(absl::StrCat("-u ", var.substr(1)));
+    } else {
+      env_to_set.emplace_back(var);
+    }
   }
-  for (const auto& var : options_.env_add) {
-    ss.push_back(var);
+  for (auto& var : env_to_set) {
+    ss.push_back(std::move(var));
   }
   // path.
   std::string path = path_;

@@ -192,6 +192,30 @@ fuzztest::internal::Environment CreateDefaultCentipedeEnvironment() {
   return env;
 }
 
+std::vector<std::string> GetEnvDiffForBinaries() {
+  // When running a test binary in a subprocess, we don't want these environment
+  // variables to be inherited and affect the execution of the tests.
+  //
+  // See list of environment variables here:
+  // https://bazel.build/reference/test-encyclopedia#initial-conditions
+  std::vector<std::string> env_diff = {
+      "-TEST_DIAGNOSTICS_OUTPUT_DIR",              //
+      "-TEST_INFRASTRUCTURE_FAILURE_FILE",         //
+      "-TEST_LOGSPLITTER_OUTPUT_FILE",             //
+      "-TEST_PREMATURE_EXIT_FILE",                 //
+      "-TEST_RANDOM_SEED",                         //
+      "-TEST_RUN_NUMBER",                          //
+      "-TEST_SHARD_INDEX",                         //
+      "-TEST_SHARD_STATUS_FILE",                   //
+      "-TEST_TOTAL_SHARDS",                        //
+      "-TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
+      "-TEST_UNDECLARED_OUTPUTS_DIR",              //
+      "-TEST_WARNINGS_OUTPUT_FILE",                //
+      "-GTEST_OUTPUT",                             //
+      "-XML_OUTPUT_FILE"};
+  return env_diff;
+}
+
 fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
     const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name, RunMode run_mode) {
@@ -265,6 +289,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   env.coverage_binary = (*args)[0];
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
   env.binary_hash = "DUMMY_HASH";
+  env.env_diff_for_binaries = GetEnvDiffForBinaries();
   env.exit_on_crash = !configuration.continue_after_crash ||
                       // Always fail on crash for reproducer tests.
                       configuration.crashing_input_to_reproduce.has_value();
