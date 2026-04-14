@@ -48,8 +48,7 @@ TEST(CommandTest, ToString) {
   }
   {
     Command::Options cmd_options;
-    cmd_options.env_add = {"K1=V1", "K2=V2"};
-    cmd_options.env_remove = {"K3"};
+    cmd_options.env_diff = {"K1=V1", "K2=V2", "-K3"};
     EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
               "env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
   }

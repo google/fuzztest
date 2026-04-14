@@ -196,8 +196,8 @@ TEST(Coverage, CoverageFeatures) {
   bool uses_legacy_trace_pc_instrumentation = {};
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(
-      GetTargetPath(), GetObjDumpPath(), GetLLVMSymbolizerPath(),
-      GetTestTempDir(test_info_->name()).string());
+      GetTargetPath(), /*env_diff=*/{}, GetObjDumpPath(),
+      GetLLVMSymbolizerPath(), GetTestTempDir(test_info_->name()).string());
   const auto &pc_table = binary_info.pc_table;
   EXPECT_FALSE(uses_legacy_trace_pc_instrumentation);
   const SymbolTable &symbols = binary_info.symbols;
@@ -422,8 +422,8 @@ TEST(Coverage, FunctionFilter) {
   // Initialize coverage data.
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(
-      GetTargetPath(), GetObjDumpPath(), GetLLVMSymbolizerPath(),
-      GetTestTempDir(test_info_->name()).string());
+      GetTargetPath(), /*env_diff=*/{}, GetObjDumpPath(),
+      GetLLVMSymbolizerPath(), GetTestTempDir(test_info_->name()).string());
 
   const PCTable &pc_table = binary_info.pc_table;
   EXPECT_FALSE(binary_info.uses_legacy_trace_pc_instrumentation);

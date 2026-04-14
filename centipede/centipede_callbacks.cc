@@ -290,38 +290,10 @@ class CentipedeCallbacks::PersistentModeServer {
   int conn_socket_ = -1;
 };
 
-namespace {
-
-// When running a test binary in a subprocess, we don't want these environment
-// variables to be inherited and affect the execution of the tests.
-//
-// See list of environment variables here:
-// https://bazel.build/reference/test-encyclopedia#initial-conditions
-//
-// TODO(fniksic): Add end-to-end tests that make sure we don't observe the
-// effects of these variables in the test binary.
-std::vector<std::string> EnvironmentVariablesToUnset() {
-  return {"TEST_DIAGNOSTICS_OUTPUT_DIR",              //
-          "TEST_INFRASTRUCTURE_FAILURE_FILE",         //
-          "TEST_LOGSPLITTER_OUTPUT_FILE",             //
-          "TEST_PREMATURE_EXIT_FILE",                 //
-          "TEST_RANDOM_SEED",                         //
-          "TEST_RUN_NUMBER",                          //
-          "TEST_SHARD_INDEX",                         //
-          "TEST_SHARD_STATUS_FILE",                   //
-          "TEST_TOTAL_SHARDS",                        //
-          "TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
-          "TEST_UNDECLARED_OUTPUTS_DIR",              //
-          "TEST_WARNINGS_OUTPUT_FILE",                //
-          "GTEST_OUTPUT",                             //
-          "XML_OUTPUT_FILE"};
-}
-
-}  // namespace
-
 void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
   binary_info.InitializeFromSanCovBinary(
-      env_.coverage_binary, env_.objdump_path, env_.symbolizer_path, temp_dir_);
+      env_.coverage_binary, env_.env_diff_for_binaries, env_.objdump_path,
+      env_.symbolizer_path, temp_dir_);
   // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
@@ -415,7 +387,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
         std::make_unique<CentipedeCallbacks::PersistentModeServer>(
             std::move(server_path));
   }
-  std::vector<std::string> env = {ConstructRunnerFlags(
+  std::vector<std::string> env_diff = env_.env_diff_for_binaries;
+  env_diff.push_back(ConstructRunnerFlags(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
                    inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
@@ -425,16 +398,16 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
                        : absl::StrCat(":persistent_mode_socket=",
                                       persistent_mode_server->server_path()),
                    ":"),
-      disable_coverage)};
+      disable_coverage));
 
-  if (env_.clang_coverage_binary == binary)
-    env.emplace_back(
+  if (env_.clang_coverage_binary == binary) {
+    env_diff.push_back(
         absl::StrCat("LLVM_PROFILE_FILE=",
                      WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
+  }
 
   Command::Options cmd_options;
-  cmd_options.env_add = std::move(env);
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = std::move(env_diff);
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
@@ -642,8 +615,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = env_.env_diff_for_binaries;
+  cmd_options.env_diff.push_back(std::move(centipede_runner_flags));
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
@@ -707,8 +680,8 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = env_.env_diff_for_binaries;
+  cmd_options.env_diff.push_back(std::move(centipede_runner_flags));
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
