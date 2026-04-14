@@ -176,6 +176,7 @@ void ThreadLocalSancovState::OnThreadStop() {
   // TODO(xinhaoyuan): Consider refactoring the list operations into class
   // methods instead of duplicating them.
   ThreadLocalSancovState *detached_tls = new ThreadLocalSancovState(tls);
+  detached_tls->detached = true;
   auto* old_list = sancov_state->detached_tls_list;
   detached_tls->next = old_list;
   sancov_state->detached_tls_list = detached_tls;
@@ -309,6 +310,7 @@ void MaybeAddFeature(feature_t feature) {
 void CleanUpSancovTls() {
   sancov_state->CleanUpDetachedTls();
   sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
+    if (tls.detached) return;
     if (sancov_state->flags.path_level != 0) {
       tls.path_ring_buffer.Reset(sancov_state->flags.path_level);
     }

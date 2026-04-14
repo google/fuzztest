@@ -101,6 +101,9 @@ struct ThreadLocalSancovState {
   // Whether the thread should be traced for execution feedback.
   bool traced;
 
+  // Whether the thread state is detached, i.e. the thread has ended.
+  bool detached;
+
   // Paths are thread-local, so we maintain the current bounded path here.
   // We allow paths of up to 100, controlled at run-time via the "path_level".
   static constexpr uint64_t kBoundedPathLength = 100;
