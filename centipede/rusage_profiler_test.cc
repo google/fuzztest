@@ -245,4 +245,24 @@ TEST(RUsageProfilerTest, ValidateReport) {
   rprof.GenerateReport(&report_capture);
 }
 
+TEST(RUsageProfilerTest, DeadlockReproduction) {
+  const auto rusage_scope = RUsageScope::ThisProcess();
+  for (int i = 0; i < 1000; ++i) {
+    RUsageProfiler rprof{rusage_scope,
+                         RUsageProfiler::kAllMetrics,
+                         RUsageProfiler::kRaiiOff,
+                         {__FILE__, __LINE__}};
+    // Use a tiny interval to trigger frequent snapshots
+    rprof.StartTimelapse({__FILE__, __LINE__}, absl::Microseconds(10),
+                         /*also_log=*/false, "Timelapse");
+
+    // Briefly wait to ensure the background thread starts running
+    absl::SleepFor(absl::Microseconds(10));
+
+    // This call frequently deadlocks because it holds the mutex while
+    // waiting for the background thread to finish its TakeSnapshot() call.
+    rprof.StopTimelapse();
+  }
+}
+
 }  // namespace fuzztest::internal

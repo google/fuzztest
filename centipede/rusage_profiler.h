@@ -427,17 +427,19 @@ class RUsageProfiler {
   // The sequential ID of this profiler. Used to annotate all log
   const int id_;
 
-  // Mutex for the mutable data further below.
-  mutable absl::Mutex mutex_;
+  // Mutexes for the mutable data further below.
+  mutable absl::Mutex snapshots_mutex_;
+  mutable absl::Mutex recorder_mutex_;
 
   // Chronological snapshots. Using std::deque gives a better-than-vector
   // average insertion speed, preserves iterators across insertions, and strikes
   // a balance between vector's and list's additional storage.
-  std::deque<Snapshot> snapshots_ ABSL_GUARDED_BY(mutex_);
+  std::deque<Snapshot> snapshots_ ABSL_GUARDED_BY(snapshots_mutex_);
   // A temporarily lived periodic action that records and optionally logs
   // timelapse snapshots. (Re)created by each new call to StartTimelapse() and
   // terminated by StopTimelapse() or the dtor, whichever comes first.
-  std::unique_ptr<PeriodicAction> timelapse_recorder_ ABSL_GUARDED_BY(mutex_);
+  std::unique_ptr<PeriodicAction> timelapse_recorder_
+      ABSL_GUARDED_BY(recorder_mutex_);
 
   // An auto-starting timer passed to RUsageTiming::Snapshot() in order to track
   // this RUsageProfiler object's lifetime stats rather than the process's
