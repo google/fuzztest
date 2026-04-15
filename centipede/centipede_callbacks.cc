@@ -465,6 +465,8 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       if (!execute_ret) {
         return true;
       }
+    } else {
+      last_execute_log_path_ = cmd.stdout_file();
     }
     if (command_context.persistent_mode_server != nullptr &&
         command_context.persistent_mode_server->RunBatch(deadline, exit_code)) {
