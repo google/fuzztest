@@ -390,6 +390,7 @@ cc_library(
         ":serialization",
         ":status",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/functional:bind_front",
         "@abseil-cpp//absl/functional:function_ref",
