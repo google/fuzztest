@@ -455,8 +455,11 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       env_.timeout_per_batch == 0
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
-  const auto deadline =
-      std::min(absl::Now() + amortized_timeout, GetStopTime());
+  const auto deadline = std::min(
+      absl::Now() + amortized_timeout,
+      GetStopTime() +
+          // Add a buffer to the deadline for the batch to finish normally.
+          env_.runner_cleanup_timeout);
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing()) {
