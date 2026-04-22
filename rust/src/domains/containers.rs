@@ -1,7 +1,8 @@
 use rand::RngExt;
 use std::fmt;
-
+use crate::domains::SeedableDomain;
 use super::Domain;
+use super::DomainSeeds;
 
 const DEFAULT_MAX_LEN: usize = 5000;
 
@@ -82,42 +83,60 @@ pub trait ContainerDomain: Sized {
     fn with_soft_max_len(self, soft_max_len: usize) -> Self;
 }
 
-pub struct VecOf<T> {
+pub struct VecOf<T: Domain> {
     inner: T,
     min_len: usize,
     max_len: Option<usize>,
     max_len_is_soft: bool,
+    seeds: DomainSeeds<Vec<T::CorpusValue>>,
 }
 
-impl<T: Clone> Clone for VecOf<T> {
+impl<T: Domain + Clone> Clone for VecOf<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
             min_len: self.min_len,
             max_len: self.max_len,
             max_len_is_soft: self.max_len_is_soft,
+            seeds: self.seeds.clone(),
         }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for VecOf<T> {
+impl<T: Domain + fmt::Debug> fmt::Debug for VecOf<T>
+where
+    T::CorpusValue: fmt::Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VecOf")
             .field("inner", &self.inner)
             .field("min_len", &self.min_len)
             .field("max_len", &self.max_len)
             .field("max_len_is_soft", &self.max_len_is_soft)
+            .field("seeds", &self.seeds)
             .finish()
     }
 }
 
-impl<T> VecOf<T> {
+impl<T: Domain> VecOf<T> {
     pub fn new(inner: T) -> Self {
-        Self { inner, min_len: 0, max_len: None, max_len_is_soft: false }
+        Self {
+            inner,
+            min_len: 0,
+            max_len: None,
+            max_len_is_soft: false,
+            seeds: DomainSeeds::new(),
+        }
     }
 
     fn max_len(&self) -> usize {
         self.max_len.unwrap_or(self.min_len.max(DEFAULT_MAX_LEN))
+    }
+}
+
+impl<T: Domain + 'static> SeedableDomain for VecOf<T> {
+    fn seeds_mut(&mut self) -> &mut DomainSeeds<Self::CorpusValue> {
+        &mut self.seeds
     }
 }
 
@@ -128,7 +147,11 @@ where
     type CorpusValue = Vec<T::CorpusValue>;
     type UserValue<'user> = Vec<T::UserValue<'user>>;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        if let Some(seed) = self.seeds.sample(rng) {
+            return Ok(seed);
+        }
+
         if self.max_len() == 0 {
             return Ok(Vec::new());
         }
@@ -143,7 +166,7 @@ where
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -193,9 +216,40 @@ where
         }
         Ok(user_values)
     }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        let mut corpus_values = Vec::with_capacity(value.len());
+        for item in value {
+            corpus_values.push(self.inner.from_value(item)?);
+        }
+        Ok(corpus_values)
+    }
+
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        if self.max_len_is_soft {
+            anyhow::ensure!(
+                self.min_len <= corpus_value.len(),
+                "Length {} is less than the minimum length {}",
+                corpus_value.len(),
+                self.min_len
+            );
+        } else {
+            anyhow::ensure!(
+                self.min_len <= corpus_value.len() && corpus_value.len() <= self.max_len(),
+                "Length {} is not between the minimum length {} and maximum length {}",
+                corpus_value.len(),
+                self.min_len,
+                self.max_len()
+            );
+        }
+        for item in corpus_value {
+            self.inner.validate_corpus_value(item)?;
+        }
+        Ok(())
+    }
 }
 
-impl<T> ContainerDomain for VecOf<T> {
+impl<T: Domain> ContainerDomain for VecOf<T> {
     fn with_len(self, len: usize) -> Self {
         Self { min_len: len, max_len: Some(len), ..self }
     }
@@ -245,7 +299,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_shrink() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(10);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(10);
 
         let mut rng = get_rng();
 
@@ -264,7 +318,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_grow_and_change() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(10);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(10);
 
         let mut rng = get_rng();
 
@@ -284,7 +338,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_init_respects_min_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(5);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(5);
         let mut rng = get_rng();
 
         for _ in 0..100 {
@@ -295,7 +349,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_init_fixed_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_len(7);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_len(7);
         let mut rng = get_rng();
 
         for _ in 0..100 {
@@ -306,7 +360,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_init_default_max_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default());
+        let mut domain = VecOf::new(Arbitrary::<u32>::default());
         let mut rng = get_rng();
 
         for _ in 0..100 {
@@ -317,7 +371,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_respects_min_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(3);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(3);
         let mut rng = get_rng();
 
         let mut val = vec![1, 2, 3];
@@ -329,7 +383,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_respects_max_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(3);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_max_len(3);
         let mut rng = get_rng();
 
         let mut val = vec![1, 2, 3];
@@ -341,7 +395,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_min_len_validation() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(5);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_min_len(5);
         let mut rng = get_rng();
 
         let mut val = vec![1, 2, 3]; // Length 3, which is < 5
@@ -358,7 +412,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_soft_max_len_behavior() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_soft_max_len(5);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_soft_max_len(5);
         let mut rng = get_rng();
 
         // Valid mutation within bounds
@@ -394,7 +448,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_mutate_no_action_at_bounds() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_len(1);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_len(1);
         let mut rng = get_rng();
 
         let mut val = vec![100u32];
@@ -415,7 +469,7 @@ mod tests {
 
     #[gtest]
     fn test_vec_of_zero_len() {
-        let domain = VecOf::new(Arbitrary::<u32>::default()).with_len(0);
+        let mut domain = VecOf::new(Arbitrary::<u32>::default()).with_len(0);
         let mut rng = get_rng();
 
         let val = domain.init(&mut rng).unwrap();
@@ -432,5 +486,62 @@ mod tests {
         let corpus_val = vec![1u32, 2u32, 3u32];
         let user_val = domain.get_user_value(&corpus_val).unwrap();
         expect_that!(user_val, container_eq(vec![1u32, 2u32, 3u32]));
+    }
+
+    #[gtest]
+    fn test_vec_of_with_valid_seeds() {
+        let mut domain = VecOf::new(Arbitrary::<u32>::default())
+            .with_max_len(5)
+            .with_seeds(vec![vec![10, 20], vec![30, 40, 50]]);
+        let mut rng = get_rng();
+        let mut found_seeds = false;
+        for _ in 0..100 {
+            let val = domain.init(&mut rng).unwrap();
+            if val == vec![10, 20] || val == vec![30, 40, 50] {
+                found_seeds = true;
+            }
+        }
+        expect_that!(found_seeds, eq(true));
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Length 4 is not between the minimum length 1 and maximum length 2")]
+    fn test_vec_of_with_invalid_seeds_length_panics() {
+        let _ = VecOf::new(Arbitrary::<u32>::default())
+            .with_min_len(1)
+            .with_max_len(2)
+            .with_seeds(vec![vec![1, 2, 3, 4]]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Value 99 is out of range [0, 10]")]
+    fn test_vec_of_with_invalid_seeds_inner_panics() {
+        use crate::domains::range::InRange;
+        let _ = VecOf::new(InRange::<i32>::new(0, 10))
+            .with_seeds(vec![vec![1, 2, 99]]);
+    }
+
+    #[gtest]
+    fn test_vec_of_try_with_seeds_invalid_returns_error() {
+        let result = VecOf::new(Arbitrary::<u32>::default())
+            .with_min_len(1)
+            .with_max_len(2)
+            .try_with_seeds(vec![vec![1, 2, 3, 4]]);
+        expect_that!(result.is_err(), eq(true));
+    }
+
+    #[gtest]
+    fn test_vec_of_with_seed_provider() {
+        let mut domain = VecOf::new(Arbitrary::<u32>::default())
+            .with_seed_provider(|| vec![vec![1, 2, 3]]);
+        let mut rng = get_rng();
+        let mut found_seed = false;
+        for _ in 0..100 {
+            let val = domain.init(&mut rng).unwrap();
+            if val == vec![1, 2, 3] {
+                found_seed = true;
+            }
+        }
+        expect_that!(found_seed, eq(true));
     }
 }
