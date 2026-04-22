@@ -57,12 +57,12 @@ impl Domain for InRange<i32> {
     type UserValue<'user> = i32;
     type CorpusValue = i32;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         Ok(self.get_in_range(rng))
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -80,6 +80,22 @@ impl Domain for InRange<i32> {
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*corpus_value)
+    }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        if *corpus_value < self.lower || *corpus_value > self.upper {
+            anyhow::bail!(
+                "Value {} is out of range [{}, {}]",
+                corpus_value,
+                self.lower,
+                self.upper
+            );
+        }
+        Ok(())
     }
 }
 

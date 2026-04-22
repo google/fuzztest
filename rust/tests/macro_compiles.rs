@@ -15,6 +15,7 @@
 use fuzztest::domains::arbitrary::Arbitrary;
 use fuzztest::domains::containers::ContainerDomain;
 use fuzztest::domains::containers::VecOf;
+use fuzztest::domains::seeds::SeedableDomain;
 use fuzztest::fuzztest;
 
 #[fuzztest(_a = Arbitrary::<i32>::default())]
@@ -25,6 +26,12 @@ fn fuzztest_macro_compiles_with_two_args(_a: i32, _b: i32) {}
 
 #[fuzztest(_a = VecOf::new(Arbitrary::<i32>::default()).with_max_len(10))]
 fn fuzztest_macro_compiles_with_vec(_a: Vec<i32>) {}
+
+#[fuzztest(_a = Arbitrary::<i32>::default().with_seeds([1, 2, 3]))]
+fn fuzztest_macro_compiles_with_seeds(_a: i32) {}
+
+#[fuzztest(_a = Arbitrary::<i32>::default().with_seed_provider(|| vec![1, 2, 3]))]
+fn fuzztest_macro_compiles_with_seed_provider(_a: i32) {}
 
 fn main() {
     // The property function is defined in the scope where the macro is

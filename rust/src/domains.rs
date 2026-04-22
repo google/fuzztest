@@ -123,14 +123,14 @@ pub trait Domain {
     type CorpusValue: Serialize + DeserializeOwned + Clone;
 
     /// Initializes a new value drawn from the domain.
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;
 
     /// Mutates the value in `val` to a new value drawn from the domain.
     ///
     /// If `only_shrink` is `true`, then the mutation must not increase the size of the corpus
     /// value. Otherwise, the mutation can both shrink and grow the corpus value.
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -158,7 +158,129 @@ pub trait Domain {
     fn serialize_corpus(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<Vec<u8>> {
         postcard::to_stdvec(corpus_value).context("Failed to serialize corpus value to bytes")
     }
+
+    /// Converts a user value to a corpus value.
+    #[allow(clippy::wrong_self_convention)]
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue>;
+
+    /// Validates that a corpus value satisfies the domain's constraints.
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
+
+mod seeds {
+    use super::Domain;
+
+    use rand::RngExt;
+
+    use std::fmt;
+    use std::sync::Arc;
+
+    /// Helper struct that stores seeds and optional lazy seed provider for a domain.
+    #[derive(Clone)]
+    pub struct DomainSeeds<C> {
+        seeds: Vec<C>,
+        seed_provider: Option<Arc<Box<dyn Fn() -> Vec<C> + Send + Sync>>>,
+    }
+
+    impl<C> Default for DomainSeeds<C> {
+        fn default() -> Self {
+            Self { seeds: Vec::new(), seed_provider: None }
+        }
+    }
+
+    impl<C: fmt::Debug> fmt::Debug for DomainSeeds<C> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("DomainSeeds")
+                .field("seeds", &self.seeds)
+                .field("has_seed_provider", &self.seed_provider.is_some())
+                .finish()
+        }
+    }
+
+    impl<C> DomainSeeds<C> {
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+
+    /// Helper methods for the `DomainSeeds` struct. Those methods are private to the domain module
+    /// as they are not intended to be used by the user.
+    /// Internals of the `DomainSeeds` should only be accessed through the SeedableDomain trait.
+    impl<C: Clone> DomainSeeds<C> {
+        fn extend_seeds(&mut self, seeds: impl IntoIterator<Item = C>) {
+            self.seeds.extend(seeds);
+        }
+
+        fn set_provider<F>(&mut self, provider: F)
+        where
+            F: Fn() -> Vec<C> + Send + Sync + 'static,
+        {
+            self.seed_provider = Some(Arc::new(Box::new(provider)));
+        }
+
+        /// Returns a random seed with 50% probability. Does not call the seed provider as seeds
+        /// must be validated by the domain before being added to the domain seeds.
+        fn sample(&self, rng: &mut dyn rand::Rng) -> Option<C> {
+            if self.seeds.is_empty() || !rng.random_bool(0.5) {
+                None
+            } else {
+                let idx = rng.random_range(0..self.seeds.len());
+                Some(self.seeds[idx].clone())
+            }
+        }
+    }
+
+    pub trait SeedableDomain: Domain + Sized {
+        /// Mutable accessor to the domain's seed storage.
+        fn seeds_mut(&mut self) -> &mut DomainSeeds<Self::CorpusValue>;
+
+        /// Evaluates & validates the lazy seed provider (if any) once, then samples with 50%
+        /// probability.
+        fn sample_seed(
+            &mut self,
+            rng: &mut dyn rand::Rng,
+        ) -> anyhow::Result<Option<Self::CorpusValue>> {
+            if let Some(provider) = self.seeds_mut().seed_provider.take() {
+                let seeds = provider()
+                    .into_iter()
+                    .map(|s| self.validate_corpus_value(&s).map(|_| s))
+                    .collect::<anyhow::Result<Vec<Self::CorpusValue>>>()?;
+                self.seeds_mut().extend_seeds(seeds);
+            }
+            Ok(self.seeds_mut().sample(rng))
+        }
+
+        /// Adds pre-defined seeds. Panics if any seed is invalid for this domain.
+        fn with_seeds(
+            mut self,
+            seeds: impl IntoIterator<Item = impl Into<Self::CorpusValue>>,
+        ) -> Self {
+            for seed in seeds {
+                let corpus_val = seed.into();
+                if let Err(e) = self.validate_corpus_value(&corpus_val) {
+                    panic!("Invalid seed value for domain: {e:?}");
+                }
+                self.seeds_mut().extend_seeds([corpus_val]);
+            }
+            self
+        }
+
+        /// Adds a lazy seed provider evaluated on first sampling.
+        fn with_seed_provider<F, I, S>(mut self, seed_provider: F) -> Self
+        where
+            F: Fn() -> I + Send + Sync + 'static,
+            I: IntoIterator<Item = S>,
+            Self::CorpusValue: From<S>,
+        {
+            self.seeds_mut().set_provider(move || {
+                seed_provider().into_iter().map(Self::CorpusValue::from).collect()
+            });
+            self
+        }
+    }
+} // mod seeds
 
 /// A type-erased interface for Domain types.
 ///
@@ -170,14 +292,14 @@ pub trait GenericDomain {
     /// Initializes a new value drawn from the domain.
     ///
     /// See `Domain::init` for more details.
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue>;
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue>;
 
     /// Mutates the value in `val` to a new value drawn from the domain.
     ///
     /// See `Domain::mutate` for more details.
     fn mutate(
-        &self,
-        val: &mut GenericCorpusValue,
+        &mut self,
+        corpus_value: &mut GenericCorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
     ) -> anyhow::Result<()>;
@@ -202,7 +324,7 @@ where
     D: Domain,
     D::CorpusValue: 'static,
 {
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue> {
         Ok(Box::new(self.init(rng)?))
     }
 
@@ -214,13 +336,13 @@ where
     ///
     /// See `GenericDomain::mutate` for more details.
     fn mutate(
-        &self,
-        val: &mut GenericCorpusValue,
+        &mut self,
+        corpus_value: &mut GenericCorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
     ) -> anyhow::Result<()> {
         self.mutate(
-            val.downcast_mut().context("Failed to retrieve the Corpus Value")?,
+            corpus_value.downcast_mut().context("Failed to retrieve the Corpus Value")?,
             rng,
             only_shrink,
         )
