@@ -142,7 +142,11 @@ class SkippedTestFixturePerIteration
   // when initializing the corpus for fuzzing. So we always accept the first
   // input.
   SkippedTestFixturePerIteration() {
-    if (!first_iteration_) fuzztest::SkipTestsOrCurrentInput();
+    if (!first_iteration_) {
+      fprintf(stderr,
+              "Request to skip SkippedTestFixturePerIteration.SkippedTest\n");
+      fuzztest::SkipTestsOrCurrentInput();
+    }
   }
 
   void SkippedTest() {

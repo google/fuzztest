@@ -661,11 +661,17 @@ TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerTest) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
-TEST_F(UnitTestModeTest, TestIsSkippedWhenRequestedInFixturePerIteration) {
+TEST_F(UnitTestModeTest, IterationIsSkippedWhenRequestedInFixturePerIteration) {
   auto [status, std_out, std_err] =
       Run("SkippedTestFixturePerIteration.SkippedTest", kDefaultTargetBinary,
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
+  // Check that the there are more than one iteration skipped from the fixture.
+  EXPECT_GT(CountSubstrs(
+                std_err,
+                "Request to skip SkippedTestFixturePerIteration.SkippedTest"),
+            1)
+      << std_err;
   EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest is executed")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
