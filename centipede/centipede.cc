@@ -389,6 +389,11 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                                       BatchResult& batch_result) {
   bool success = user_callbacks_.Execute(binary, input_vec, batch_result);
   if (success) return true;
+  if (batch_result.IsIgnoredFailure()) {
+    FUZZTEST_LOG(INFO) << "Skip reporting "
+                       << batch_result.failure_description();
+    return true;
+  }
   if (ShouldStop()) {
     FUZZTEST_LOG_FIRST_N(WARNING, 1)
         << "Crash found but the stop condition is met - not reporting further "
@@ -396,7 +401,7 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
     return true;
   }
   ReportCrash(binary, input_vec, batch_result);
-  return batch_result.IsIgnoredFailure();
+  return false;
 }
 
 // *** Highly experimental and risky. May not scale well for large targets. ***
@@ -980,6 +985,8 @@ void Centipede::ReportCrash(std::string_view binary,
                             const BatchResult& batch_result) {
   FUZZTEST_CHECK_EQ(input_vec.size(), batch_result.results().size());
 
+  if (batch_result.IsIgnoredFailure()) return;
+
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
   auto log_execution_failure = [&](std::string_view log_prefix) {
@@ -1004,12 +1011,6 @@ void Centipede::ReportCrash(std::string_view binary,
     }
     FUZZTEST_LOG(INFO).NoPrefix() << "\n";
   };
-
-  if (batch_result.IsIgnoredFailure()) {
-    FUZZTEST_LOG(INFO) << "Skip further processing of "
-                       << batch_result.failure_description();
-    return;
-  }
 
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");

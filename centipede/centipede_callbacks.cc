@@ -101,11 +101,9 @@ class CentipedeCallbacks::PersistentModeServer {
 
   const std::string& server_path() const { return server_path_; }
 
-  // Triggers the persistent mode to run one batch request. If the persistent
-  // mode finished normally, returns true with `exit_code` set to the return
-  // value of the handler (which would be returned as the command exit code if
-  // running without persistent mode, hence the name). Returns false otherwise.
-  bool RunBatch(absl::Time deadline, int& exit_code) {
+  // Requests the persistent mode client to run one batch request. Returns true
+  // if the request is sent successfully with in `deadline`, false otherwise.
+  bool RequestBatch(absl::Time deadline) {
     if (!EnsureConnection(deadline)) {
       return false;
     }
@@ -113,17 +111,28 @@ class CentipedeCallbacks::PersistentModeServer {
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kRunBatch)) {
       FUZZTEST_LOG(ERROR)
           << "Failed to request the persistent mode client to run a "
-             "batch - disconnecting.";
-      Disconnect();
+             "batch.";
       return false;
     }
+    in_batch_ = true;
+    return true;
+  }
+
+  // Waits for the persistent mode client to finish the batch (if previously
+  // requested) and gather the result. Returns true with `exit_code` set to the
+  // return value of the client (which would be returned as the command exit
+  // code if running without persistent mode, hence the name). Returns false
+  // otherwise.
+  bool WaitBatch(absl::Time deadline, int& exit_code) {
+    if (conn_socket_ == -1) return false;
+    if (!in_batch_) return false;
     if (!ReadFd(conn_socket_, deadline, exit_code)) {
       FUZZTEST_LOG(ERROR)
           << "Failed to receive the batch response from the persistent "
-             "mode client - disconnecting.";
-      Disconnect();
+             "mode client.";
       return false;
     }
+    in_batch_ = false;
     return true;
   }
 
@@ -288,6 +297,7 @@ class CentipedeCallbacks::PersistentModeServer {
   std::string server_path_;
   int server_socket_ = -1;
   int conn_socket_ = -1;
+  bool in_batch_ = false;
 };
 
 void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
@@ -468,8 +478,14 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     } else {
       last_execute_log_path_ = cmd.stdout_file();
     }
-    if (command_context.persistent_mode_server != nullptr &&
-        command_context.persistent_mode_server->RunBatch(deadline, exit_code)) {
+    if (command_context.persistent_mode_server != nullptr) {
+      if (!command_context.persistent_mode_server->RequestBatch(deadline)) {
+        return true;
+      }
+      if (!command_context.persistent_mode_server->WaitBatch(deadline,
+                                                             exit_code)) {
+        return true;
+      }
       return false;
     }
     const std::optional<int> ret = cmd.Wait(deadline);
@@ -477,35 +493,43 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     exit_code = *ret;
     return false;
   }();
-  if (should_clean_up) {
-    exit_code = [&] {
-      if (!cmd.is_executing()) return EXIT_FAILURE;
-      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
-                          << env_.runner_cleanup_timeout;
-      cmd.RequestStop();
-      const auto ret = cmd.Wait(absl::Now() + env_.runner_cleanup_timeout);
-      if (ret.has_value()) return *ret;
-      FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
-      return EXIT_FAILURE;
-    }();
-    // We need to save any execution log before the destruction of the command.
-    std::error_code ec;
-    std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_,
-                            ec);
-    if (ec) {
-      FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
-                          << last_execute_log_path_ << " to "
-                          << saved_execute_log_path_ << "(" << ec.message()
-                          << "). Left with an empty log ...";
-      (void)std::filesystem::remove(saved_execute_log_path_, ec);
-    };
-    last_execute_log_path_ = saved_execute_log_path_;
-    command_contexts_.erase(
-        std::find_if(command_contexts_.begin(), command_contexts_.end(),
-                     [=](const auto& command_context) {
-                       return command_context->cmd.path() == binary;
-                     }));
+  if (!should_clean_up) return exit_code;
+  FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
+                      << env_.runner_cleanup_timeout;
+  const auto cleanup_deadline = absl::Now() + env_.runner_cleanup_timeout;
+  if (cmd.is_executing() && command_context.persistent_mode_server != nullptr) {
+    // Give a chance for the batch to gracefully stop. If succeeded, we can keep
+    // the Command.
+    cmd.RequestStop();
+    if (command_context.persistent_mode_server->WaitBatch(cleanup_deadline,
+                                                          exit_code)) {
+      return exit_code;
+    }
   }
+  exit_code = [&] {
+    if (!cmd.is_executing()) return EXIT_FAILURE;
+    cmd.RequestStop();
+    const auto ret = cmd.Wait(cleanup_deadline);
+    if (ret.has_value()) return *ret;
+    FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
+    return EXIT_FAILURE;
+  }();
+  // We need to save any execution log before the destruction of the command.
+  std::error_code ec;
+  std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_, ec);
+  if (ec) {
+    FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
+                        << last_execute_log_path_ << " to "
+                        << saved_execute_log_path_ << "(" << ec.message()
+                        << "). Left with an empty log ...";
+    (void)std::filesystem::remove(saved_execute_log_path_, ec);
+  }
+  last_execute_log_path_ = saved_execute_log_path_;
+  command_contexts_.erase(
+      std::find_if(command_contexts_.begin(), command_contexts_.end(),
+                   [=](const auto& command_context) {
+                     return command_context->cmd.path() == binary;
+                   }));
   return exit_code;
 }
 
