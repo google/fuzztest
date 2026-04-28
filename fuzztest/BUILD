@@ -257,3 +257,12 @@ cc_library(
         "@googletest//:gtest",
     ],
 )
+
+# Explicitly exempt the file from checks for a corresponding Bazel rule, since
+# this is an experimental script.
+filegroup(
+    name = "generate_cmake_from_bazel",
+    srcs = ["cmake/generate_cmake_from_bazel.py"],
+    tags = ["ignore_srcs"],
+    visibility = ["//visibility:private"],
+)
