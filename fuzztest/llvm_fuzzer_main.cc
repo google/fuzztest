@@ -19,7 +19,12 @@ ABSL_FLAG(size_t, llvm_fuzzer_wrapper_max_input_size, 4096,
           "Maximum input size for the wrapped legacy LLVMFuzzer target "
           "(https://llvm.org/docs/LibFuzzer.html#fuzz-target).");
 
+// Defined in the FuzzTest LLVMFuzzer wrapper library, referenced here to make
+// sure that the wrapper library is linked.
+extern "C" void FuzzTestForceLinkLLVMFuzzerRegistration();
+
 int main(int argc, char** argv) {
+  FuzzTestForceLinkLLVMFuzzerRegistration();
   absl::ParseCommandLine(argc, argv);
   testing::InitGoogleTest(&argc, argv);
   if (LLVMFuzzerInitialize) {

@@ -45,6 +45,10 @@ extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t* data1, size_t size1,
   exit(-1);
 }
 
+// A dummy function to be referenced by the FuzzTest LLVMFuzzer main library,
+// otherwise the test registration here would not be triggered.
+extern "C" [[maybe_unused]] void FuzzTestForceLinkLLVMFuzzerRegistration() {}
+
 std::vector<std::vector<uint8_t>> ReadByteArraysFromDirectory() {
   const std::string flag = absl::GetFlag(FLAGS_llvm_fuzzer_wrapper_corpus_dir);
   if (flag.empty()) return {};
