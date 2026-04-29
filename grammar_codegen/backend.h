@@ -62,7 +62,7 @@ class CodeGenerator {
 
   // Get the name of the generated class for the block.
   std::string GetClassName(const Block& block);
-  std::string GetClassNameForSymbol(const std::string id);
+  std::string GetClassNameForSymbol(std::string id);
   std::string GetClassNameForLiteral(absl::string_view s);
   std::string GetClassNameForCharSet(absl::string_view s);
 
