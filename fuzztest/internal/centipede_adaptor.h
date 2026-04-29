@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/runtime.h"
