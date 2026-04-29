@@ -15,13 +15,10 @@
 #include "./fuzztest/internal/seed_seq.h"
 
 #include <cstdint>
-#include <cstdlib>
 #include <optional>
 #include <random>
 #include <sstream>
 #include <string>
-#include <tuple>
-#include <type_traits>
 #include <vector>
 
 #include "gmock/gmock.h"
