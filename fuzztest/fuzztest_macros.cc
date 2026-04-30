@@ -14,7 +14,6 @@
 
 #include "./fuzztest/fuzztest_macros.h"
 
-#include <cstring>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <functional>

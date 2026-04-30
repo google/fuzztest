@@ -96,6 +96,7 @@ cc_test(
     deps = [
         ":fuzztest_macros",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
