@@ -21,7 +21,9 @@
 //   --output_header_file=json_grammar.h
 
 #include <filesystem>
+#include <fstream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
