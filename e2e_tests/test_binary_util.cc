@@ -17,7 +17,6 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
-#include <system_error>  // NOLINT
 #include <vector>
 
 #include "absl/strings/match.h"
