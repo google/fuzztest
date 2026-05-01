@@ -19,7 +19,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>

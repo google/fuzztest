@@ -14,20 +14,10 @@
 
 // Tests of DomainBuilder.
 
-#include <bitset>
-#include <cctype>
-#include <deque>
-#include <iterator>
-#include <list>
-#include <optional>
-#include <set>
 #include <string>
-#include <unordered_set>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"

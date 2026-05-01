@@ -23,7 +23,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 

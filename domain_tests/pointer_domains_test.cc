@@ -15,8 +15,9 @@
 // Tests of domains whose values are pointers, such as UniquePtrOf, SharedPtrOf
 // and SmartPointerOf.
 
+#include <cstddef>
+#include <memory>
 #include <optional>
-#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -29,7 +29,6 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"

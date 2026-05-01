@@ -15,6 +15,9 @@
 // Tests of domain `InJsonGrammar`, the one provided example of an InGrammar
 // domain.
 
+#include <cstddef>
+#include <iostream>
+#include <ostream>
 #include <string>
 
 #include "gtest/gtest.h"
