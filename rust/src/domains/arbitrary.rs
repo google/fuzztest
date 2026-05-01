@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::domains::SeedableDomain;
+
 use super::utility::choose_value;
 use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::Domain;
+use super::DomainSeeds;
 use std::char;
 use std::fmt;
 use std::marker::PhantomData;
@@ -36,39 +39,58 @@ use rand::RngExt;
 /// # use rand::rngs::SmallRng;
 /// # use rand::SeedableRng;
 ///
-/// let arbitrary_i32 = Arbitrary::<i32>::default();
+/// let mut arbitrary_i32 = Arbitrary::<i32>::default();
 /// let mut rng = SmallRng::seed_from_u64(73);
 ///
 /// let sample = arbitrary_i32.init(&mut rng);
 /// assert!(sample.is_ok());
 /// ```
 pub struct Arbitrary<T> {
+    seeds: DomainSeeds<T>,
     _phantom: PhantomData<T>,
 }
 
-impl<T> Clone for Arbitrary<T> {
+impl<T: Clone> Clone for Arbitrary<T> {
     fn clone(&self) -> Self {
-        Self { _phantom: PhantomData }
+        Self {
+            seeds: self.seeds.clone(),
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<T> fmt::Debug for Arbitrary<T> {
+impl<T: fmt::Debug + Clone> fmt::Debug for Arbitrary<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Arbitrary").field("_phantom", &self._phantom).finish()
+        f.debug_struct("Arbitrary")
+            .field("seeds", &self.seeds)
+            .field("_phantom", &self._phantom)
+            .finish()
     }
 }
 
 // We cannot just use `#[derive(Default)]` because `T` might not be `Default`.
 impl<T> Default for Arbitrary<T> {
     fn default() -> Self {
-        Self { _phantom: PhantomData }
+        Self {
+            seeds: DomainSeeds::new(),
+            _phantom: PhantomData,
+        }
     }
 }
 
 impl<T> Arbitrary<T> {
     /// Creates a new `Arbitrary` domain for the given type `T`.
     pub fn new() -> Self {
-        Self { _phantom: PhantomData }
+        Self::default()
+    }
+}
+
+impl<T: Clone + 'static> SeedableDomain for Arbitrary<T>
+where
+    Arbitrary<T>: Domain<CorpusValue = T>,
+{
+    fn seeds_mut(&mut self) -> &mut DomainSeeds<Self::CorpusValue> {
+        &mut self.seeds
     }
 }
 
@@ -76,12 +98,15 @@ impl Domain for Arbitrary<bool> {
     type UserValue<'user> = bool;
     type CorpusValue = bool;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        if let Some(seed) = self.seeds.sample(rng) {
+            return Ok(seed);
+        }
         Ok(rng.random())
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -101,6 +126,14 @@ impl Domain for Arbitrary<bool> {
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*corpus_value)
     }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 macro_rules! impl_domain_for_integer {
@@ -112,14 +145,17 @@ macro_rules! impl_domain_for_integer {
             type UserValue<'user> = $ty;
             type CorpusValue = $ty;
 
-            fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
-                // We generate a the equivalent integer type so this works for size types.
+            fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+                if let Some(seed) = self.seeds.sample(rng) {
+                    return Ok(seed);
+                }
+                // We generate the equivalent integer type so this works for size types.
                 let val: $int_ty = choose_value(rng);
                 Ok(val as $ty)
             }
 
             fn mutate(
-                &self,
+                &mut self,
                 val: &mut Self::CorpusValue,
                 rng: &mut dyn rand::Rng,
                 only_shrink: bool,
@@ -144,6 +180,17 @@ macro_rules! impl_domain_for_integer {
             ) -> anyhow::Result<Self::UserValue<'a>> {
                 Ok(*corpus_value)
             }
+
+            fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+
+            fn validate_corpus_value(
+                &self,
+                _corpus_value: &Self::CorpusValue,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
         }
     };
 }
@@ -167,12 +214,15 @@ macro_rules! impl_domain_for_float {
             type UserValue<'user> = $ty;
             type CorpusValue = $ty;
 
-            fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+            fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+                if let Some(seed) = self.seeds.sample(rng) {
+                    return Ok(seed);
+                }
                 Ok(choose_value(rng))
             }
 
             fn mutate(
-                &self,
+                &mut self,
                 val: &mut Self::CorpusValue,
                 rng: &mut dyn rand::Rng,
                 only_shrink: bool,
@@ -214,6 +264,17 @@ macro_rules! impl_domain_for_float {
                 corpus_value: &'a Self::CorpusValue,
             ) -> anyhow::Result<Self::UserValue<'a>> {
                 Ok(*corpus_value)
+            }
+
+            fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+
+            fn validate_corpus_value(
+                &self,
+                _corpus_value: &Self::CorpusValue,
+            ) -> anyhow::Result<()> {
+                Ok(())
             }
         }
     };
@@ -263,12 +324,15 @@ impl Domain for Arbitrary<char> {
     type UserValue<'user> = char;
     type CorpusValue = char;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        if let Some(seed) = self.seeds.sample(rng) {
+            return Ok(seed);
+        }
         Ok(choose_value(rng))
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -300,18 +364,29 @@ impl Domain for Arbitrary<char> {
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*corpus_value)
     }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 impl Domain for Arbitrary<()> {
     type UserValue<'user> = ();
     type CorpusValue = ();
 
-    fn init(&self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        if let Some(seed) = self.seeds.sample(rng) {
+            return Ok(seed);
+        }
         Ok(())
     }
 
     fn mutate(
-        &self,
+        &mut self,
         _val: &mut Self::CorpusValue,
         _rng: &mut dyn rand::Rng,
         _only_shrink: bool,
@@ -324,6 +399,14 @@ impl Domain for Arbitrary<()> {
         &self,
         _corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
+        Ok(())
+    }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -412,7 +495,7 @@ mod tests {
         CorpusValueForArbitrary<T>:
             std::fmt::Debug + Default + Clone + Copy + PartialOrd + PartialEq + 'static,
     {
-        let domain = Arbitrary::<T>::default();
+        let mut domain = Arbitrary::<T>::default();
         let mut rng = get_rng();
         let mut value = domain.init(&mut rng).unwrap();
 
@@ -442,7 +525,7 @@ mod tests {
             + std::hash::Hash
             + 'static,
     {
-        let domain = Arbitrary::<T>::default();
+        let mut domain = Arbitrary::<T>::default();
         let mut rng = get_rng();
         for _ in 0..100 {
             let mut value = domain.init(&mut rng).unwrap();
@@ -474,7 +557,7 @@ mod tests {
             + NumTraitsExtended
             + 'static,
     {
-        let domain = Arbitrary::<T>::default();
+        let mut domain = Arbitrary::<T>::default();
         let mut rng = get_rng();
 
         // Get a value that is not the shrink target
@@ -619,7 +702,7 @@ mod tests {
     }
 
     fn test_bool_shrink() {
-        let domain = Arbitrary::<bool>::default();
+        let mut domain = Arbitrary::<bool>::default();
         let mut rng = get_rng();
         let mut value = true;
         domain.mutate(&mut value, &mut rng, true).unwrap();
@@ -636,7 +719,7 @@ mod tests {
     #[test]
     fn test_unit() {
         let mut rng = get_rng();
-        let domain = Arbitrary::<()>::default();
+        let mut domain = Arbitrary::<()>::default();
 
         // init() always returns ()
         assert_eq!(domain.init(&mut rng).unwrap(), ());
@@ -659,7 +742,7 @@ mod tests {
             Float + SampleUniform + std::fmt::Display + std::fmt::Debug + SpecialValues + 'static,
         StandardUniform: Distribution<T>,
     {
-        let domain = Arbitrary::<T>::default();
+        let mut domain = Arbitrary::<T>::default();
         let mut rng = get_rng();
 
         // Positive.
@@ -723,7 +806,7 @@ mod tests {
 
     #[test]
     fn test_char_mutate_boundaries() {
-        let domain = Arbitrary::<char>::default();
+        let mut domain = Arbitrary::<char>::default();
         let mut rng = get_rng();
         let mut val = '\u{0000}';
         domain.mutate(&mut val, &mut rng, false).unwrap();
@@ -762,7 +845,7 @@ mod tests {
     #[test]
     fn test_char_shrink_to_null() {
         for _ in 0..10 {
-            let domain = Arbitrary::<char>::default();
+            let mut domain = Arbitrary::<char>::default();
             let mut rng = get_rng();
             let mut value = domain.init(&mut rng).unwrap();
 

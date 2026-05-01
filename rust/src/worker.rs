@@ -158,7 +158,9 @@ impl RustFuzzTestAdapter {
     }
 
     pub fn get_random_seed_input(&self, sink: &mut InputSink) {
-        match self.fuzz_test.domains().init(&mut rand::rng()) {
+        let domains = self.fuzz_test.domains();
+        let mut domains_guard = domains.lock().expect("Failed to lock domains");
+        match domains_guard.init(&mut rand::rng()) {
             Ok(val) => {
                 sink.emit(pack_input(val));
             }
@@ -170,8 +172,10 @@ impl RustFuzzTestAdapter {
 
     pub fn mutate(&self, origin: &GenericCorpusValue, shrink: bool, sink: &mut InputSink) {
         let mut mutant = origin.clone();
+        let domains = self.fuzz_test.domains();
+        let mut domains_guard = domains.lock().expect("Failed to lock domains");
 
-        if let Err(e) = self.fuzz_test.domains().mutate(&mut mutant, &mut rand::rng(), shrink) {
+        if let Err(e) = domains_guard.mutate(&mut mutant, &mut rand::rng(), shrink) {
             emit_error(&format!("Failed to mutate: {:?}", e));
             return;
         }
@@ -211,7 +215,9 @@ impl RustFuzzTestAdapter {
     }
 
     pub fn serialize_input_content(&self, input: &GenericCorpusValue, sink: &mut BytesSink) {
-        match self.fuzz_test.domains().serialize_corpus(input) {
+        let domains = self.fuzz_test.domains();
+        let domains_guard = domains.lock().expect("Failed to lock domains");
+        match domains_guard.serialize_corpus(input) {
             Ok(serialized) => {
                 sink.emit(&serialized);
             }
@@ -222,7 +228,9 @@ impl RustFuzzTestAdapter {
     }
 
     pub fn deserialize_input_content(&self, content: &[u8], sink: &mut InputSink) {
-        match self.fuzz_test.domains().parse_corpus(content) {
+        let domains = self.fuzz_test.domains();
+        let domains_guard = domains.lock().expect("Failed to lock domains");
+        match domains_guard.parse_corpus(content) {
             Ok(val) => {
                 sink.emit(pack_input(val));
             }
@@ -639,6 +647,8 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
 
     let mut generic_corpus_value = fuzztest
         .domains()
+        .lock()
+        .expect("Failed to lock domains")
         .init(&mut rng)
         .expect("domain initialization should succeed to provide an initial corpus value");
 
@@ -649,6 +659,8 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
     while start_time.elapsed() < smoke_test_duration {
         fuzztest
             .domains()
+            .lock()
+            .expect("Failed to lock domains")
             .mutate(&mut generic_corpus_value, &mut rng, only_shrink)
             .expect("domain mutation should succeed");
         let result = fuzztest.execute(&generic_corpus_value);
