@@ -15,6 +15,7 @@
 use fuzztest::domains::arbitrary::Arbitrary;
 use fuzztest::domains::range::InRange;
 use fuzztest::domains::Domain;
+use fuzztest::domains::SeedableDomain;
 use fuzztest::fuzztest;
 use rand::RngExt;
 use std::mem::MaybeUninit;
@@ -32,14 +33,14 @@ impl Domain for ByteVectorDomain {
     type UserValue<'user> = Vec<u8>;
     type CorpusValue = Vec<u8>;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         let mut val = vec![0u8; rng.random_range(0..100)];
         rng.fill(&mut val[..]);
         Ok(val)
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -77,6 +78,10 @@ impl Domain for ByteVectorDomain {
         val: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(val.clone())
+    }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
     }
 }
 
@@ -160,12 +165,12 @@ impl Domain for FallibleDomain {
     type UserValue<'user> = u32;
     type CorpusValue = u32;
 
-    fn init(&self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         Ok(0)
     }
 
     fn mutate(
-        &self,
+        &mut self,
         _val: &mut Self::CorpusValue,
         _rng: &mut dyn rand::Rng,
         _only_shrink: bool,
@@ -179,7 +184,17 @@ impl Domain for FallibleDomain {
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*val)
     }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
 }
 
 #[fuzztest(a = FallibleDomain::new())]
 fn fallible_fuzz_test(_a: u32) {}
+
+#[fuzztest(
+    _a = Arbitrary::<i32>::default().with_seeds([42, 100]),
+    _b = InRange::new(0, 50).with_seeds([10, 20])
+)]
+fn multi_arg_seeds_fuzz_test(_a: i32, _b: i32) {}
