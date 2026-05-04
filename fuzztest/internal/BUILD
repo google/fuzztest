@@ -272,7 +272,6 @@ cc_test(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
-        "@com_google_fuzztest//fuzztest:fuzztest_core",
         "@googletest//:gtest_main",
     ],
 )

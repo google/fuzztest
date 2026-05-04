@@ -33,13 +33,13 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./common/blob_file.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./common/temp_dir.h"
-#include "./fuzztest/fuzztest_core.h"
 
 namespace fuzztest::internal {
 namespace {
