@@ -16,7 +16,10 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_CENTIPEDE_ADAPTOR_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "absl/strings/string_view.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/runtime.h"

@@ -34,7 +34,6 @@ fuzztest_cc_test(
     "any_test.cc"
   DEPS
     fuzztest::any
-    absl::strings
     GTest::gmock_main
 )
 
@@ -98,7 +97,6 @@ fuzztest_cc_library(
     fuzztest::io
     absl::strings
     absl::string_view
-    absl::time
 )
 
 fuzztest_cc_library(
@@ -552,11 +550,11 @@ fuzztest_proto_library(
 
 if (FUZZTEST_BUILD_FLATBUFFERS)
   fuzztest_flatbuffers_generate_headers(
-    TARGET 
+    TARGET
       test_flatbuffers_headers
     SCHEMAS
       "test_flatbuffers.fbs"
-    FLAGS 
+    FLAGS
       --bfbs-gen-embed --gen-name-strings
     TESTONLY
   )
