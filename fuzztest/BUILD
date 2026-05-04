@@ -83,7 +83,6 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:registration",
         "@com_google_fuzztest//fuzztest/internal:registry",
         "@com_google_fuzztest//fuzztest/internal:runtime",
@@ -96,6 +95,7 @@ cc_test(
     deps = [
         ":fuzztest_macros",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
