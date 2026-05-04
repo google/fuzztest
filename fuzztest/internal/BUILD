@@ -37,7 +37,6 @@ cc_test(
     srcs = ["any_test.cc"],
     deps = [
         ":any",
-        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )
@@ -78,7 +77,6 @@ cc_library(
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//centipede:environment",
-        "@com_google_fuzztest//centipede:execution_metadata",
         "@com_google_fuzztest//centipede:fuzztest_mutator",
         "@com_google_fuzztest//centipede:mutation_data",
         "@com_google_fuzztest//centipede:runner_result",
@@ -144,7 +142,6 @@ cc_library(
         ":io",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
-        "@abseil-cpp//absl/time",
     ],
 )
 
