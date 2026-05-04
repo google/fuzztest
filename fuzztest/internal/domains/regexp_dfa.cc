@@ -31,10 +31,8 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
-#include "./fuzztest/internal/logging.h"
 #include "re2/prog.h"
 #include "re2/regexp.h"
 

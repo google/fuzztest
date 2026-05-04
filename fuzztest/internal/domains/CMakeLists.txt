@@ -205,10 +205,8 @@ fuzztest_cc_library(
     absl::random_distributions
     absl::status
     absl::statusor
-    absl::strings
     absl::string_view
     fuzztest::common_logging
-    fuzztest::logging
     re2::re2
 )
 
