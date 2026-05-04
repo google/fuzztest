@@ -217,10 +217,8 @@ cc_library(
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
         "@re2",
     ],
 )
