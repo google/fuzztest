@@ -14,7 +14,6 @@
 
 #include "./fuzztest/fuzztest_macros.h"
 
-#include <cstring>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <functional>
@@ -32,7 +31,6 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
 
 namespace fuzztest {

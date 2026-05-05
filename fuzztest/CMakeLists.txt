@@ -162,7 +162,6 @@ fuzztest_cc_library(
     absl::statusor
     absl::strings
     absl::string_view
-    fuzztest::logging
     fuzztest::common_logging
     fuzztest::registration
     fuzztest::registry
@@ -176,11 +175,12 @@ fuzztest_cc_test(
     "fuzztest_macros_test.cc"
   DEPS
     fuzztest::fuzztest_macros
+    GTest::gmock_main
     absl::status
+    absl::statusor
     absl::strings
     fuzztest::common_logging
     fuzztest::temp_dir
-    GTest::gmock_main
 )
 
 fuzztest_cc_library(
