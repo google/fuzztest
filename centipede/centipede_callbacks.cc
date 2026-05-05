@@ -274,8 +274,8 @@ class CentipedeCallbacks::PersistentModeServer {
     // socket at the beginning of the execution, waiting for the connection
     // should be fast if the the runner is able to connect at all. But we
     // need to give enough time for the binary to load and reach the runner
-    // logic (60s should be enough).
-    deadline = std::min(deadline, absl::Now() + absl::Seconds(60));
+    // logic (120s should be enough).
+    deadline = std::min(deadline, absl::Now() + absl::Seconds(120));
     FUZZTEST_CHECK_NE(server_socket_, -1);
     do {
       if (!PollFd(server_socket_, POLLIN, deadline)) {
