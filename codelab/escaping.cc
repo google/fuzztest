@@ -14,6 +14,10 @@
 
 #include "./escaping.h"
 
+#include <cstddef>
+#include <string>
+#include <string_view>
+
 namespace codelab {
 
 std::string Escape(std::string_view str) {
