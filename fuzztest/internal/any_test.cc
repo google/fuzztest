@@ -14,13 +14,11 @@
 
 #include "./fuzztest/internal/any.h"
 
-#include <optional>
+#include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "gtest/gtest.h"
-#include "absl/strings/str_cat.h"
 
 namespace fuzztest::internal {
 namespace {

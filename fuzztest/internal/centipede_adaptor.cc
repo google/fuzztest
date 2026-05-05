@@ -68,7 +68,6 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"

@@ -34,7 +34,6 @@ fuzztest_cc_test(
     "any_test.cc"
   DEPS
     fuzztest::any
-    absl::strings
     GTest::gmock_main
 )
 
@@ -98,7 +97,6 @@ fuzztest_cc_library(
     fuzztest::io
     absl::strings
     absl::string_view
-    absl::time
 )
 
 fuzztest_cc_library(

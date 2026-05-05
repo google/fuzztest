@@ -14,14 +14,11 @@
 
 #include "./fuzztest/internal/corpus_database.h"
 
-#include <cstdlib>
 #include <string>
 #include <vector>
 
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/time.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/io.h"
 
