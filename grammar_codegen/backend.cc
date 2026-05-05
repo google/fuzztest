@@ -15,8 +15,10 @@
 #include "./grammar_codegen/backend.h"
 
 #include <cctype>
+#include <cstddef>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/strings/ascii.h"

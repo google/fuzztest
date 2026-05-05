@@ -14,15 +14,14 @@
 
 #include "./grammar_codegen/antlr_frontend.h"
 
-#include <fstream>
+#include <cstddef>
 #include <optional>
-#include <streambuf>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/strings/ascii.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
