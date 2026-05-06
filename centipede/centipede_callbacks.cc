@@ -634,8 +634,9 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     std::vector<ByteArray>& seeds) {
   const auto output_dir = std::filesystem::path{temp_dir_} / "seed_inputs";
   std::error_code error;
-  FUZZTEST_CHECK(std::filesystem::create_directories(output_dir, error));
-  FUZZTEST_CHECK(!error);
+  std::filesystem::create_directories(output_dir, error);
+  FUZZTEST_CHECK(!error) << "Failed to create seed inputs directory "
+                         << output_dir << ": " << error.message();
 
   std::string centipede_runner_flags = absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
