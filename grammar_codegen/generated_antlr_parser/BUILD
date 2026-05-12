@@ -36,10 +36,6 @@ cc_library(
     ],
     copts = [
         "-fexceptions",
-        # FIXME: antlr generates broken C++ code that attempts to construct
-        # a std::string from nullptr. It's not clear whether the relevant
-        # constructs are reachable.
-        "-Wno-nonnull",
     ],
     features = ["-use_header_modules"],  # Incompatible with -fexceptions.
     deps = ["@antlr_cpp//:antlr4-cpp-runtime"],
