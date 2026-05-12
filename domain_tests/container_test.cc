@@ -247,15 +247,29 @@ TEST(Container, MaxSizeAndSoftMaxSizeOverwriteEachOther) {
   EXPECT_TRUE(domain_soft.ValidateCorpusValue(*corpus_val_soft).ok());
 }
 
-TEST(ContainerDeathTest, MutationAbortsWhenSizeExceedsMaxSize) {
+TEST(ContainerTest,
+     MutationDoesNotAbortWhenSizeExceedsMaxSizeButEnforcesShrink) {
   auto domain_hard = Arbitrary<std::vector<int>>().WithMaxSize(2);
   std::vector<int> value = {1, 2, 3};
   Value val(domain_hard, value);
   absl::BitGen bitgen;
 
-  EXPECT_DEATH(
-      val.Mutate(domain_hard, bitgen, /*metadata=*/{}, /*only_shrink=*/false),
-      "Size 3 is not between 0 and 2");
+  // Should not crash, despite size 3 > max_size 2.
+  val.Mutate(domain_hard, bitgen, /*metadata=*/{}, /*only_shrink=*/false);
+
+  // Size should not have grown.
+  EXPECT_LE(val.user_value.size(), 3);
+
+  // If we mutate enough times, it should eventually shrink to <= 2.
+  bool shrunk = false;
+  for (int i = 0; i < 1000; ++i) {
+    val.Mutate(domain_hard, bitgen, /*metadata=*/{}, /*only_shrink=*/false);
+    if (val.user_value.size() <= 2) {
+      shrunk = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(shrunk);
 }
 
 TEST(ContainerTest, WithSoftMaxSizeMutationDoesNotGrowIfSizeExceedsLimit) {
