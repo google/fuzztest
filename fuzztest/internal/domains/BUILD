@@ -41,6 +41,7 @@ cc_library(
         "domain_base.h",
         "domain_type_erasure.h",
         "element_of_impl.h",
+        "enum_reflection.h",
         "filter_impl.h",
         "flat_map_impl.h",
         "in_range_impl.h",

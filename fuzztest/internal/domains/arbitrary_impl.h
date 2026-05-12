@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -31,6 +32,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -40,6 +42,7 @@
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/element_of_impl.h"
+#include "./fuzztest/internal/domains/enum_reflection.h"
 #include "./fuzztest/internal/domains/in_range_impl.h"
 #include "./fuzztest/internal/domains/map_impl.h"
 #include "./fuzztest/internal/domains/one_of_impl.h"
@@ -50,7 +53,6 @@
 #include "./fuzztest/internal/domains/variant_of_impl.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
-#include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -62,6 +64,16 @@ class ArbitraryImpl {
   static_assert(always_false<T>,
                 "=> Type not supported yet. Consider filing an issue."
   );
+};
+
+// Arbitrary for enums.
+// See limitations in fuzztest::internal::enum_reflection::GetEnumValues
+template <typename T>
+class ArbitraryImpl<
+    T, std::enable_if_t<std::is_enum_v<T> && !is_protocol_buffer_enum_v<T>>>
+    : public ElementOfImpl<T> {
+ public:
+  ArbitraryImpl() : ElementOfImpl<T>(enum_reflection::GetEnumValues<T>()) {}
 };
 
 // Arbitrary for monostate.
@@ -581,6 +593,51 @@ class ArbitraryImpl<absl::Time>
               return std::optional{std::tuple{time - absl::UnixEpoch()}};
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+// Arbitrary for absl::StatusCode.
+template <>
+class ArbitraryImpl<absl::StatusCode>
+    : public ReversibleMapImpl<absl::StatusCode (*)(int),
+                               std::optional<std::tuple<int>> (*)(
+                                   absl::StatusCode),
+                               InRangeImpl<int>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<absl::StatusCode (*)(int),
+                          std::optional<std::tuple<int>> (*)(absl::StatusCode),
+                          InRangeImpl<int>>(
+            [](int code) { return static_cast<absl::StatusCode>(code); },
+            [](absl::StatusCode code) {
+              return std::optional{std::tuple{static_cast<int>(code)}};
+            },
+            InRangeImpl<int>(0, 16)) {}
+};
+
+// Arbitrary for absl::Status.
+// Note: This does not generate payloads.
+template <>
+class ArbitraryImpl<absl::Status>
+    : public ReversibleMapImpl<
+          absl::Status (*)(absl::StatusCode, std::string),
+          std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+              absl::Status),
+          ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<
+            absl::Status (*)(absl::StatusCode, std::string),
+            std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+                absl::Status),
+            ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>>(
+            [](absl::StatusCode code, std::string msg) {
+              return absl::Status(code, msg);
+            },
+            [](absl::Status status) {
+              return std::optional{
+                  std::tuple{status.code(), std::string(status.message())}};
+            },
+            ArbitraryImpl<absl::StatusCode>(), ArbitraryImpl<std::string>()) {}
 };
 
 // Arbitrary for absl::BitGenRef.
