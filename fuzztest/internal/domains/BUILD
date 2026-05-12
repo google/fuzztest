@@ -22,6 +22,9 @@ cc_library(
     name = "absl_helpers",
     hdrs = ["absl_helpers.h"],
     deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:cord",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:logging",

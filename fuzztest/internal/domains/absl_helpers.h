@@ -19,6 +19,9 @@
 #include <limits>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/logging.h"
@@ -62,6 +65,13 @@ inline int64_t GetSeconds(absl::Duration d) {
 // Note: duration `d` needs to be finite.
 inline uint32_t GetTicks(absl::Duration d) {
   return GetSecondsAndTicks(d).second;
+}
+
+inline bool HasPayload(const absl::Status& status) {
+  bool has_payload = false;
+  status.ForEachPayload(
+      [&](absl::string_view, const absl::Cord&) { has_payload = true; });
+  return has_payload;
 }
 
 }  // namespace fuzztest::internal
