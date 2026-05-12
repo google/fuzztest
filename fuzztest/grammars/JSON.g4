@@ -16,7 +16,7 @@
 //
 // With some simplifications:
 // - Restricted character set (e.g., no unicode chars).
-// - No escape sequences (e.g., \n, \t, \uff01, etc.)
+// - No unicode escape sequences (e.g., \uff01)
 
 grammar JSON_GRAMMAR;
 
@@ -36,9 +36,11 @@ elements : element (',' element)* ;
 
 element : value ;
 
-STRING : '"' CHARACTER* '"' ;
+STRING : '"' (CHARACTER | '\\' ESCAPED )* '"' ;
 
 CHARACTER : [a-zA-Z0-9_];
+
+ESCAPED : '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' ;
 
 NUMBER : INTEGER FRACTION? EXPONENT? ;
 
