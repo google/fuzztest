@@ -165,6 +165,16 @@ cc_library(
 )
 
 cc_test(
+    name = "enum_reflection_test",
+    srcs = ["enum_reflection_test.cc"],
+    deps = [
+        "@abseil-cpp//absl/strings:string_view",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "in_grammar_domain_test",
     srcs = ["in_grammar_domain_test.cc"],
     deps = [

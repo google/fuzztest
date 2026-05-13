@@ -42,6 +42,9 @@ protocol buffers. Specifically, for the following types:
 -   Protocol buffer types: `MyProtoMessage`, etc.
 -   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):
     `absl::Duration`, `absl::Time`.
+-   [Abseil status types](https://abseil.io/docs/cpp/guides/status):
+    `absl::StatusCode`, `absl::Status`.
+-   Enum types: `enum class Color { kRed, kGreen, kBlue };`
 
 Composite or container types, like `std::optional<T>` or `std::vector<T>`, are
 supported as long as the inner types are. For example,
@@ -58,6 +61,9 @@ cannot have C-style array members (e.g., `int[5]`).
 
 TIP: If your struct doesn't satisfy the requirements for `Arbitrary`, you can
 construct a domain for it using `Map`, `ReversibleMap`, or `FlatMap`.
+
+Enum types only supported for `clang` and `gcc`
+with enums that have fewer than 256 fields.
 
 Recall that `Arbitrary` is the default input domain, which means that you can
 fuzz a function like below without a `.WithDomains()` clause:
