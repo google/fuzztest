@@ -42,6 +42,8 @@ protocol buffers. Specifically, for the following types:
 -   Protocol buffer types: `MyProtoMessage`, etc.
 -   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):
     `absl::Duration`, `absl::Time`.
+-   [Abseil status types](https://abseil.io/docs/cpp/guides/status):
+    `absl::StatusCode`.
 
 Composite or container types, like `std::optional<T>` or `std::vector<T>`, are
 supported as long as the inner types are. For example,

@@ -626,5 +626,44 @@ TEST(ArbitraryTimeTest, ArbitraryVectorHasAllTypesOfValues) {
   EXPECT_THAT(to_find, IsEmpty());
 }
 
+TEST(ArbitraryStatusCodeTest, GeneratesAllValues) {
+  absl::flat_hash_set<absl::StatusCode> to_find = {
+      absl::StatusCode::kOk,
+      absl::StatusCode::kCancelled,
+      absl::StatusCode::kUnknown,
+      absl::StatusCode::kInvalidArgument,
+      absl::StatusCode::kDeadlineExceeded,
+      absl::StatusCode::kNotFound,
+      absl::StatusCode::kAlreadyExists,
+      absl::StatusCode::kPermissionDenied,
+      absl::StatusCode::kResourceExhausted,
+      absl::StatusCode::kFailedPrecondition,
+      absl::StatusCode::kAborted,
+      absl::StatusCode::kOutOfRange,
+      absl::StatusCode::kUnimplemented,
+      absl::StatusCode::kInternal,
+      absl::StatusCode::kUnavailable,
+      absl::StatusCode::kDataLoss,
+      absl::StatusCode::kUnauthenticated,
+  };
+  auto domain = Arbitrary<absl::StatusCode>();
+  absl::BitGen prng;
+
+  const int max_iterations = IterationsToHitAll(17, 1.0 / (4 * 17));
+  for (int i = 0; i < max_iterations && !to_find.empty(); ++i) {
+    to_find.erase(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+TEST(ArbitraryStatusCodeTest, InitGeneratesSeeds) {
+  Domain<absl::StatusCode> domain = Arbitrary<absl::StatusCode>().WithSeeds(
+      {absl::StatusCode::kInvalidArgument});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, absl::StatusCode::kInvalidArgument)));
+}
+
 }  // namespace
 }  // namespace fuzztest

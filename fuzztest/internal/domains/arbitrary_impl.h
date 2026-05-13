@@ -31,6 +31,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -581,6 +582,32 @@ class ArbitraryImpl<absl::Time>
               return std::optional{std::tuple{time - absl::UnixEpoch()}};
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+// Arbitrary for absl::StatusCode.
+using StatusCodeUnderlyingT = std::underlying_type_t<absl::StatusCode>;
+
+template <>
+class ArbitraryImpl<absl::StatusCode>
+    : public ReversibleMapImpl<
+          absl::StatusCode (*)(StatusCodeUnderlyingT),
+          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+              absl::StatusCode),
+          InRangeImpl<StatusCodeUnderlyingT>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<absl::StatusCode (*)(StatusCodeUnderlyingT),
+                          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+                              absl::StatusCode),
+                          InRangeImpl<StatusCodeUnderlyingT>>(
+            [](StatusCodeUnderlyingT code) {
+              return static_cast<absl::StatusCode>(code);
+            },
+            [](absl::StatusCode code) {
+              return std::optional{
+                  std::tuple{static_cast<StatusCodeUnderlyingT>(code)}};
+            },
+            InRangeImpl<StatusCodeUnderlyingT>(0, 16)) {}
 };
 
 // Arbitrary for absl::BitGenRef.
