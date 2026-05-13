@@ -34,6 +34,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
@@ -624,6 +625,79 @@ TEST(ArbitraryTimeTest, ArbitraryVectorHasAllTypesOfValues) {
     }
   }
   EXPECT_THAT(to_find, IsEmpty());
+}
+
+TEST(ArbitraryStatusCodeTest, GeneratesAllValues) {
+  absl::flat_hash_set<absl::StatusCode> to_find = {
+      absl::StatusCode::kOk,
+      absl::StatusCode::kCancelled,
+      absl::StatusCode::kUnknown,
+      absl::StatusCode::kInvalidArgument,
+      absl::StatusCode::kDeadlineExceeded,
+      absl::StatusCode::kNotFound,
+      absl::StatusCode::kAlreadyExists,
+      absl::StatusCode::kPermissionDenied,
+      absl::StatusCode::kResourceExhausted,
+      absl::StatusCode::kFailedPrecondition,
+      absl::StatusCode::kAborted,
+      absl::StatusCode::kOutOfRange,
+      absl::StatusCode::kUnimplemented,
+      absl::StatusCode::kInternal,
+      absl::StatusCode::kUnavailable,
+      absl::StatusCode::kDataLoss,
+      absl::StatusCode::kUnauthenticated,
+  };
+  auto domain = Arbitrary<absl::StatusCode>();
+  absl::BitGen prng;
+
+  const int max_iterations = IterationsToHitAll(17, 1.0 / (4 * 17));
+  for (int i = 0; i < max_iterations && !to_find.empty(); ++i) {
+    to_find.erase(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(to_find, IsEmpty());
+}
+
+TEST(ArbitraryStatusCodeTest, InitGeneratesSeeds) {
+  Domain<absl::StatusCode> domain = Arbitrary<absl::StatusCode>().WithSeeds(
+      {absl::StatusCode::kInvalidArgument});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, absl::StatusCode::kInvalidArgument)));
+}
+
+TEST(ArbitraryStatusTest, GeneratesOkAndError) {
+  auto domain = Arbitrary<absl::Status>();
+  absl::BitGen prng;
+  bool found_ok = false;
+  bool found_error = false;
+
+  for (int i = 0; i < 100 && (!found_ok || !found_error); ++i) {
+    absl::Status s = domain.GetRandomValue(prng);
+    if (s.ok()) {
+      found_ok = true;
+    } else {
+      found_error = true;
+    }
+  }
+
+  EXPECT_TRUE(found_ok);
+  EXPECT_TRUE(found_error);
+}
+
+TEST(ArbitraryStatusTest, InitGeneratesSeeds) {
+  absl::Status seed = absl::InvalidArgumentError("seed message");
+  Domain<absl::Status> domain = Arbitrary<absl::Status>().WithSeeds({seed});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, seed)));
+}
+
+TEST(ArbitraryStatusTest, FromValueReturnsNulloptWhenPayloadsArePresent) {
+  auto domain = Arbitrary<absl::Status>();
+  absl::Status status = absl::InvalidArgumentError("msg");
+  status.SetPayload("some_url", absl::Cord("payload"));
+  EXPECT_FALSE(domain.FromValue(status).has_value());
 }
 
 }  // namespace

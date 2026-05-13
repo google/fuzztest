@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -31,6 +32,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -581,6 +583,63 @@ class ArbitraryImpl<absl::Time>
               return std::optional{std::tuple{time - absl::UnixEpoch()}};
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+// Arbitrary for absl::StatusCode.
+using StatusCodeUnderlyingT = std::underlying_type_t<absl::StatusCode>;
+
+template <>
+class ArbitraryImpl<absl::StatusCode>
+    : public ReversibleMapImpl<
+          absl::StatusCode (*)(StatusCodeUnderlyingT),
+          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+              absl::StatusCode),
+          InRangeImpl<StatusCodeUnderlyingT>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<absl::StatusCode (*)(StatusCodeUnderlyingT),
+                          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+                              absl::StatusCode),
+                          InRangeImpl<StatusCodeUnderlyingT>>(
+            [](StatusCodeUnderlyingT code) {
+              return static_cast<absl::StatusCode>(code);
+            },
+            [](absl::StatusCode code) {
+              return std::optional{
+                  std::tuple{static_cast<StatusCodeUnderlyingT>(code)}};
+            },
+            InRangeImpl<StatusCodeUnderlyingT>(0, 16)) {}
+};
+
+// Arbitrary for absl::Status.
+// Note: This does not generate payloads. Seeds with payloads will be skipped
+// to avoid violating the ReversibleMap invariant (payloads would be stripped).
+template <>
+class ArbitraryImpl<absl::Status>
+    : public ReversibleMapImpl<
+          absl::Status (*)(absl::StatusCode, std::string),
+          std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+              absl::Status),
+          ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<
+            absl::Status (*)(absl::StatusCode, std::string),
+            std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+                absl::Status),
+            ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>>(
+            [](absl::StatusCode code, std::string msg) {
+              return absl::Status(code, msg);
+            },
+            +[](absl::Status status)
+                -> std::optional<std::tuple<absl::StatusCode, std::string>> {
+              if (HasPayload(status)) {
+                return std::nullopt;
+              }
+              return std::optional{
+                  std::tuple{status.code(), std::string(status.message())}};
+            },
+            ArbitraryImpl<absl::StatusCode>(), ArbitraryImpl<std::string>()) {}
 };
 
 // Arbitrary for absl::BitGenRef.
