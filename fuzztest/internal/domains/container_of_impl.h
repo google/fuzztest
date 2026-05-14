@@ -114,14 +114,10 @@ class ContainerOfImplBase
               const domain_implementor::MutationMetadata& metadata,
               bool only_shrink) {
     permanent_dict_candidate_ = std::nullopt;
-    if (!validate_max_size()) {
-      FUZZTEST_CHECK(min_size() <= val.size())
-          << "Size " << val.size() << " is smaller than min size "
-          << min_size();
-    } else {
-      FUZZTEST_CHECK(min_size() <= val.size() && val.size() <= max_size())
-          << "Size " << val.size() << " is not between " << min_size()
-          << " and " << max_size();
+    FUZZTEST_CHECK(min_size() <= val.size())
+        << "Size " << val.size() << " is smaller than min size " << min_size();
+    if (validate_max_size() && val.size() > max_size()) {
+      only_shrink = true;
     }
 
     const bool can_shrink = val.size() > min_size();
