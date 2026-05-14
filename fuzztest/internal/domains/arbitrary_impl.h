@@ -364,8 +364,8 @@ class ArbitraryImpl<std::basic_string_view<Char>>
     return IRObject::FromCorpus(v);
   }
 
-  absl::Status ValidateCorpusValue(const corpus_type&) const {
-    return absl::OkStatus();  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type& val) const {
+    return inner_.ValidateCorpusValue(val);
   }
 
  private:
@@ -423,8 +423,8 @@ class ArbitraryImpl<absl::string_view>
     return IRObject::FromCorpus(v);
   }
 
-  absl::Status ValidateCorpusValue(const corpus_type&) const {
-    return absl::OkStatus();  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type& val) const {
+    return inner_.ValidateCorpusValue(val);
   }
 
  private:

@@ -281,8 +281,10 @@ cc_test(
         ":domain_testing",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
     ],
 )

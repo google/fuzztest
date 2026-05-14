@@ -26,8 +26,10 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/random.h"
+#include "absl/strings/string_view.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest {
@@ -223,6 +225,22 @@ TEST(Domain, AsciiStringUsesDictionary) {
     mutants.push_back(domain.GetValue(*mutant));
   }
   EXPECT_THAT(mutants, Contains(HasSubstr("1234")));
+}
+
+TEST(StringViewTest, ValidationFailsWhenExceedingDefaultMaxSize) {
+  auto domain = Arbitrary<std::string_view>();
+
+  // Value larger than default max size should be invalid.
+  std::vector<char> invalid_corpus(internal::kDefaultContainerMaxSize + 1, 'a');
+  EXPECT_FALSE(domain.ValidateCorpusValue(invalid_corpus).ok());
+}
+
+TEST(AbslStringViewTest, ValidationFailsWhenExceedingDefaultMaxSize) {
+  auto domain = Arbitrary<absl::string_view>();
+
+  // Value larger than default max size should be invalid.
+  std::vector<char> invalid_corpus(internal::kDefaultContainerMaxSize + 1, 'a');
+  EXPECT_FALSE(domain.ValidateCorpusValue(invalid_corpus).ok());
 }
 
 }  // namespace

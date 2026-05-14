@@ -275,6 +275,8 @@ fuzztest_cc_test(
     fuzztest::domain_testing
     absl::flat_hash_set
     absl::random_random
+    absl::status
+    absl::strings
     fuzztest::domain_core
     fuzztest::table_of_recent_compares
     GTest::gmock_main
