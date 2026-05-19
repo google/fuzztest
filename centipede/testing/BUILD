@@ -107,6 +107,10 @@ centipede_fuzz_target(
 # Simple fuzz target used for testing.
 centipede_fuzz_target(
     name = "test_fuzz_target",
+    copts = [
+        "-mllvm",
+        "-enable-jump-table-to-switch=false",
+    ],
 )
 
 centipede_fuzz_target(
