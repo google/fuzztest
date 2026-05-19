@@ -135,8 +135,8 @@ absl::Status RemoteGlobMatch(std::string_view glob,
 
 // Lists all files within `path`, recursively expanding subdirectories if
 // `recursively` is true. Does not return any directories. Returns an empty
-// vector if `path` is an empty directory, or `path` does not exist. Returns
-// `{path}` if `path` is a non-directory.
+// vector if `path` is an empty directory, `path` does not exist, or `path`
+// is a non-directory.
 absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
                                                          bool recursively);
 
