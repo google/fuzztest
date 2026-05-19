@@ -94,9 +94,13 @@ class UpdateCorpusDatabaseTest
     auto &run = (*run_map_)[GetParam()];
     run.workspace = std::make_unique<TempDir>();
     RunOptions run_options;
+    std::string fuzz_for = "30s";
+#if defined(__has_feature) && __has_feature(address_sanitizer)
+    fuzz_for = "90s";
+#endif
     run_options.fuzztest_flags = {
         {"corpus_database", GetCorpusDatabasePath()},
-        {"fuzz_for", "30s"},
+        {"fuzz_for", fuzz_for},
         {"jobs", "2"},
     };
     auto [status_unused, std_out_unused, std_err] = RunBinaryMaybeWithCentipede(

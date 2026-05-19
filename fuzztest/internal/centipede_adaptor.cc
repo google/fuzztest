@@ -75,6 +75,7 @@
 #include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/env_util.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/temp_dir.h"
@@ -219,7 +220,8 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
     const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name, RunMode run_mode) {
   fuzztest::internal::Environment env = CreateDefaultCentipedeEnvironment();
-  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(3);
+  absl::Duration unit_test_default_duration = GetDurationFromEnv(
+      "FUZZTEST_UNIT_TEST_DEFAULT_DURATION", absl::Seconds(3));
   env.fuzztest_multi_test_mode_soon_to_be_removed = false;
   if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
     const int64_t time_limit_seconds =
@@ -261,7 +263,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   // duration as the special value.
   if (total_time_limit == absl::ZeroDuration() &&
       run_mode == RunMode::kUnitTest) {
-    total_time_limit = kUnitTestDefaultDuration;
+    total_time_limit = unit_test_default_duration;
   }
   {
     Configuration single_test_configuration = configuration;

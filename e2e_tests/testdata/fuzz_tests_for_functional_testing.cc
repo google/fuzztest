@@ -38,6 +38,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/env_util.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/test_flatbuffers_generated.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
@@ -819,7 +820,11 @@ void DetectRegressionAndCoverageInputs(const std::string& input) {
     static bool first_input = true;
     if (first_input) {
       first_input = false;
-      absl::SleepFor(absl::Seconds(2));
+      absl::Duration sleep_duration = fuzztest::internal::GetDurationFromEnv(
+          "TEST_INPUT_SLEEP", absl::Seconds(2));
+      if (sleep_duration > absl::ZeroDuration()) {
+        absl::SleepFor(sleep_duration);
+      }
     }
   }
 }
