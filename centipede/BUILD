@@ -33,8 +33,10 @@ package(default_visibility = DEFAULT_VISIBILITY)
 licenses(["notice"])
 
 exports_files([
-    "crash_deduplication.h",
+    "centipede_main.cc",
     "crash_deduplication.cc",
+    "crash_deduplication.h",
+    "seed_corpus_maker.cc",
 ])
 
 ################################################################################
@@ -44,6 +46,7 @@ exports_files([
 cc_binary(
     name = "centipede",
     srcs = ["centipede_main.cc"],
+    compatible_with = [],
     deps = [
         ":centipede_callbacks",
         ":centipede_default_callbacks",
@@ -52,18 +55,21 @@ cc_binary(
         ":environment_flags",
         ":stop",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log:flags",
     ],
 )
 
 cc_uninstrumented_binary(
     name = "centipede_uninstrumented",
     binary = ":centipede",
+    compatible_with = [],
 )
 
 # A standalone seed corpus generator.
 cc_binary(
     name = "seed_corpus_maker",
     srcs = ["seed_corpus_maker.cc"],
+    compatible_with = [],
     deps = [
         ":config_init",
         ":seed_corpus_maker_flags",
@@ -79,6 +85,7 @@ cc_binary(
 cc_binary(
     name = "blob_file_converter",
     srcs = ["blob_file_converter.cc"],
+    compatible_with = [],
     deps = [
         ":config_init",
         ":rusage_profiler",
