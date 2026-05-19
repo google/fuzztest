@@ -68,6 +68,7 @@ fuzztest_cc_test(
     "arbitrary_domains_test.cc"
   DEPS
     fuzztest::domain_testing
+    absl::cord
     absl::flat_hash_set
     absl::random_random
     absl::random_bit_gen_ref

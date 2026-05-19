@@ -16,8 +16,9 @@ use out of the box.
 
 ### Arbitrary Domains
 
-The `Arbitrary<T>()` domain is implemented for all native C++ types and for
-protocol buffers. Specifically, for the following types:
+The `Arbitrary<T>()` domain is implemented for all native C++ types,
+protocol buffers, and some Abseil types.
+Specifically, for the following types:
 
 -   Boolean type: `bool`.
 -   Character types: `char`, `signed char`, `unsigned char`.
@@ -43,7 +44,7 @@ protocol buffers. Specifically, for the following types:
 -   [Abseil time library types](https://abseil.io/docs/cpp/guides/time):
     `absl::Duration`, `absl::Time`.
 -   [Abseil status types](https://abseil.io/docs/cpp/guides/status):
-    `absl::StatusCode`.
+    `absl::StatusCode`, `absl::Status` (without support for payloads).
 
 Composite or container types, like `std::optional<T>` or `std::vector<T>`, are
 supported as long as the inner types are. For example,

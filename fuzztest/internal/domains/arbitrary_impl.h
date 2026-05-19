@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -608,6 +609,33 @@ class ArbitraryImpl<absl::StatusCode>
                   std::tuple{static_cast<StatusCodeUnderlyingT>(code)}};
             },
             InRangeImpl<StatusCodeUnderlyingT>(0, 16)) {}
+};
+
+// Arbitrary for absl::Status.
+// Note: This does not generate payloads. Payloads in seeds are ignored.
+template <>
+class ArbitraryImpl<absl::Status>
+    : public ReversibleMapImpl<
+          absl::Status (*)(absl::StatusCode, std::string),
+          std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+              absl::Status),
+          ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<
+            absl::Status (*)(absl::StatusCode, std::string),
+            std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+                absl::Status),
+            ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>>(
+            [](absl::StatusCode code, std::string msg) {
+              return absl::Status(code, msg);
+            },
+            +[](absl::Status status)
+                -> std::optional<std::tuple<absl::StatusCode, std::string>> {
+              return std::optional{
+                  std::tuple{status.code(), std::string(status.message())}};
+            },
+            ArbitraryImpl<absl::StatusCode>(), ArbitraryImpl<std::string>()) {}
 };
 
 // Arbitrary for absl::BitGenRef.

@@ -34,6 +34,7 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"  // IWYU pragma: keep
 #include "./domain_tests/domain_testing.h"
@@ -663,6 +664,44 @@ TEST(ArbitraryStatusCodeTest, InitGeneratesSeeds) {
 
   EXPECT_THAT(GenerateInitialValues(domain, 1000),
               Contains(Value(domain, absl::StatusCode::kInvalidArgument)));
+}
+
+TEST(ArbitraryStatusTest, GeneratesOkAndError) {
+  auto domain = Arbitrary<absl::Status>();
+  absl::BitGen prng;
+  bool found_ok = false;
+  bool found_error = false;
+
+  for (int i = 0; i < 100 && (!found_ok || !found_error); ++i) {
+    absl::Status s = domain.GetRandomValue(prng);
+    if (s.ok()) {
+      found_ok = true;
+    } else {
+      found_error = true;
+    }
+  }
+
+  EXPECT_TRUE(found_ok);
+  EXPECT_TRUE(found_error);
+}
+
+TEST(ArbitraryStatusTest, InitGeneratesSeeds) {
+  absl::Status seed = absl::InvalidArgumentError("seed message");
+  Domain<absl::Status> domain = Arbitrary<absl::Status>().WithSeeds({seed});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 1000),
+              Contains(Value(domain, seed)));
+}
+
+TEST(ArbitraryStatusTest, FromValueAndGetValuePreserveCodeAndMessage) {
+  auto domain = Arbitrary<absl::Status>();
+  absl::Status status = absl::InvalidArgumentError("msg");
+  status.SetPayload("some_url", absl::Cord("payload"));
+  auto corpus_val = domain.FromValue(status);
+  ASSERT_TRUE(corpus_val.has_value());
+  absl::Status mapped_status = domain.GetValue(*corpus_val);
+  EXPECT_EQ(mapped_status.code(), status.code());
+  EXPECT_EQ(mapped_status.message(), status.message());
 }
 
 }  // namespace

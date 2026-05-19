@@ -88,6 +88,7 @@ cc_test(
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:cord",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:serialization",
