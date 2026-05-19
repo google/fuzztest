@@ -276,8 +276,9 @@ class RiegeliWriter : public BlobFileWriter {
   absl::Status Open(std::string_view path, std::string_view mode) override {
     FUZZTEST_CHECK(mode == "w" || mode == "a") << VV(mode);
     if (absl::Status s = Close(); !s.ok()) return s;
-    const auto kWriterOpts =
-        riegeli::RecordWriterBase::Options{}.set_chunk_size(kMaxBufferedBytes);
+    const auto kWriterOpts = riegeli::RecordWriterBase::Options{}
+                                 .set_chunk_size(kMaxBufferedBytes)
+                                 .set_zstd();
     ASSIGN_OR_RETURN_IF_NOT_OK(std::unique_ptr<riegeli::Writer> new_writer,
                                CreateRiegeliFileWriter(path, mode == "a"));
     writer_.Reset(std::move(new_writer), kWriterOpts);
