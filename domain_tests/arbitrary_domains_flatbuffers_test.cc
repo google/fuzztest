@@ -36,6 +36,7 @@
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/flatbuffers.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/test_flatbuffers_64bits_generated.h"
 #include "./fuzztest/internal/test_flatbuffers_generated.h"
 
 namespace fuzztest {
@@ -43,6 +44,7 @@ namespace {
 
 using ::fuzztest::internal::BoolTable;
 using ::fuzztest::internal::DefaultTable;
+using ::fuzztest::internal::DefaultTable64;
 using ::fuzztest::internal::OptionalTable;
 using ::fuzztest::internal::RecursiveTable;
 using ::fuzztest::internal::RequiredTable;
@@ -590,6 +592,30 @@ TEST(FlatbuffersTableDomainImplTest, RecursiveTable) {
     new_table = nested_table->t();
   }
   ASSERT_THAT(new_table, IsNull());
+}
+
+TEST(FlatbuffersTableDomainImplTest, DefaultTable64ValueRoundTrip) {
+  flatbuffers::FlatBufferBuilder64 fbb;
+  auto str_offset = fbb.CreateString<flatbuffers::Offset64>("foo bar baz");
+  auto table_offset = internal::CreateDefaultTable64(fbb, str_offset);
+  fbb.Finish(table_offset);
+  auto table = flatbuffers::GetRoot<DefaultTable64>(fbb.GetBufferPointer());
+
+  auto domain = Arbitrary<const DefaultTable64*>();
+  auto corpus = domain.FromValue(table);
+  ASSERT_TRUE(corpus.has_value());
+  ASSERT_OK(domain.ValidateCorpusValue(*corpus));
+
+  auto ir = domain.SerializeCorpus(corpus.value());
+
+  auto new_corpus = domain.ParseCorpus(ir);
+  ASSERT_TRUE(new_corpus.has_value());
+  ASSERT_OK(domain.ValidateCorpusValue(*new_corpus));
+
+  auto new_table = domain.GetValue(*new_corpus);
+  ASSERT_THAT(new_table, NotNull());
+  ASSERT_THAT(new_table->str(), NotNull());
+  EXPECT_EQ(new_table->str()->str(), "foo bar baz");
 }
 
 }  // namespace
