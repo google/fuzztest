@@ -1255,6 +1255,11 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "engine_abi",
+    hdrs = ["engine_abi.h"],
+)
+
 sh_library(
     name = "test_fuzzing_util_sh",
     srcs = ["test_fuzzing_util.sh"],
