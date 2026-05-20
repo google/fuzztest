@@ -42,6 +42,26 @@ cc_test(
 )
 
 cc_library(
+    name = "enum_reflection",
+    hdrs = ["enum_reflection.h"],
+    deps = [
+        ":meta",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "enum_reflection_test",
+    srcs = ["enum_reflection_test.cc"],
+    deps = [
+        ":enum_reflection",
+        "@abseil-cpp//absl/strings:string_view",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "centipede_adaptor",
     srcs = ["centipede_adaptor.cc"],
     hdrs = ["centipede_adaptor.h"],

@@ -39,6 +39,28 @@ fuzztest_cc_test(
 
 fuzztest_cc_library(
   NAME
+    enum_reflection
+  HDRS
+    "enum_reflection.h"
+  DEPS
+    absl::strings
+    absl::string_view
+    fuzztest::meta
+)
+
+fuzztest_cc_test(
+  NAME
+    enum_reflection_test
+  SRCS
+    "enum_reflection_test.cc"
+  DEPS
+    fuzztest::enum_reflection
+    GTest::gmock_main
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
     compatibility_mode
   HDRS
     "compatibility_mode.h"

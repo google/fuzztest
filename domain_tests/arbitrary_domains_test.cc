@@ -54,6 +54,7 @@ using ::testing::Each;
 using ::testing::Ge;
 using ::testing::IsEmpty;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 
 TEST(BoolTest, Arbitrary) {
   absl::BitGen bitgen;
@@ -702,6 +703,23 @@ TEST(ArbitraryStatusTest, FromValueAndGetValuePreserveCodeAndMessage) {
   absl::Status mapped_status = domain.GetValue(*corpus_val);
   EXPECT_EQ(mapped_status.code(), status.code());
   EXPECT_EQ(mapped_status.message(), status.message());
+}
+
+TEST(ArbitraryEnumTest, GeneratesAllValues) {
+  enum class MyTestEnum { kValue0, kValue1, kValue2 };
+
+  auto domain = Arbitrary<MyTestEnum>();
+  absl::BitGen prng;
+  absl::flat_hash_set<MyTestEnum> found;
+
+  const int max_iterations = IterationsToHitAll(3, 1.0 / 3);
+  for (int i = 0; i < max_iterations && found.size() < 3; ++i) {
+    found.insert(domain.GetRandomValue(prng));
+  }
+
+  EXPECT_THAT(found,
+              UnorderedElementsAre(MyTestEnum::kValue0, MyTestEnum::kValue1,
+                                   MyTestEnum::kValue2));
 }
 
 }  // namespace

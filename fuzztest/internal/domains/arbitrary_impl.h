@@ -50,6 +50,7 @@
 #include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
+#include "./fuzztest/internal/enum_reflection.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
@@ -64,6 +65,21 @@ class ArbitraryImpl {
   static_assert(always_false<T>,
                 "=> Type not supported yet. Consider filing an issue."
   );
+};
+
+// Arbitrary for enums.
+// See limitations in fuzztest::internal::enum_reflection::GetEnumValues
+template <typename T>
+class ArbitraryImpl<
+    T, std::enable_if_t<std::is_enum_v<T> && !is_protocol_buffer_enum_v<T>>>
+    : public ElementOfImpl<T> {
+  static_assert(enum_reflection::HasEnumValuesInRange<T>(),
+                "Arbitrary<T>() for enums requires at least one value in the "
+                "supported range [-128, 127] for automatic reflection. "
+                "Please use ElementOf directly with explicit values.");
+
+ public:
+  ArbitraryImpl() : ElementOfImpl<T>(enum_reflection::GetEnumValues<T>()) {}
 };
 
 // Arbitrary for monostate.

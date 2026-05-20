@@ -74,6 +74,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
         "@com_google_fuzztest//fuzztest/internal:any",
+        "@com_google_fuzztest//fuzztest/internal:enum_reflection",
         "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:meta",
         "@com_google_fuzztest//fuzztest/internal:printer",
