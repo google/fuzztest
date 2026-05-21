@@ -14,6 +14,7 @@
 
 #include "./fuzztest/internal/corpus_database.h"
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -28,9 +29,23 @@ namespace {
 std::vector<std::string> GetInputs(
     absl::string_view corpus_path_for_test_binary, absl::string_view test_name,
     absl::string_view subdir) {
-  if (corpus_path_for_test_binary.empty()) return {};
-  return ListDirectory(
-      absl::StrCat(corpus_path_for_test_binary, "/", test_name, "/", subdir));
+  if (corpus_path_for_test_binary.empty()) {
+    fprintf(
+        stderr,
+        "[DEBUG_CORPUS] GetInputs: corpus_path_for_test_binary is empty!\n");
+    return {};
+  }
+  std::string path =
+      absl::StrCat(corpus_path_for_test_binary, "/", test_name, "/", subdir);
+  fprintf(stderr, "[DEBUG_CORPUS] GetInputs: listing directory path: '%s'\n",
+          path.c_str());
+  auto results = ListDirectory(path);
+  fprintf(stderr, "[DEBUG_CORPUS] GetInputs: found %zu files in '%s'\n",
+          results.size(), path.c_str());
+  for (const auto& file : results) {
+    fprintf(stderr, "  [DEBUG_CORPUS] file: '%s'\n", file.c_str());
+  }
+  return results;
 }
 
 }  // namespace

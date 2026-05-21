@@ -71,20 +71,33 @@ void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
       nullptr, test.file().c_str(), test.line(), std::move(fixture_factory));
 }
 
+#include <cstdio>
+
 template <typename T>
 void RegisterSeparateRegressionTestForEachCrashingInput(
     int* argc, char*** argv, FuzzTest& test,
     const Configuration& configuration) {
+  fprintf(stderr,
+          "[DEBUG_ADAPTOR] RegisterSeparateRegressionTestForEachCrashingInput "
+          "for test '%s'\n",
+          test.full_name().c_str());
+  fprintf(stderr, "[DEBUG_ADAPTOR] reproduce_findings_as_separate_tests: %d\n",
+          configuration.reproduce_findings_as_separate_tests);
   if (!configuration.reproduce_findings_as_separate_tests) return;
 #ifdef FUZZTEST_USE_CENTIPEDE
+  fprintf(stderr, "[DEBUG_ADAPTOR] FUZZTEST_USE_CENTIPEDE is defined\n");
   const std::vector<std::string> crash_inputs =
       ListCrashIdsUsingCentipede(configuration, test.full_name());
 #else
+  fprintf(stderr, "[DEBUG_ADAPTOR] FUZZTEST_USE_CENTIPEDE is NOT defined\n");
   CorpusDatabase corpus_database(configuration);
   const std::vector<std::string> crash_inputs =
       corpus_database.GetCrashingInputsIfAny(test.full_name());
 #endif
+  fprintf(stderr, "[DEBUG_ADAPTOR] found %zu crash inputs\n",
+          crash_inputs.size());
   for (const std::string& input : crash_inputs) {
+    fprintf(stderr, "  [DEBUG_ADAPTOR] crash input: '%s'\n", input.c_str());
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
     RegisterFuzzTestAsGTest<T>(argc, argv, test, updated_configuration, input);
