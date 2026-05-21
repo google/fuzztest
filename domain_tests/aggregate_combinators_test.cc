@@ -351,9 +351,9 @@ TEST(OptionalOf, MutateCanMakeValuesOrNull) {
 }
 
 TEST(OptionalOf, WorksWithACustomOptionalType) {
-  auto domain = OptionalOf<absl::optional<int>>(InRange(1, 3));
+  auto domain = OptionalOf<std::optional<int>>(InRange(1, 3));
   absl::BitGen bitgen;
-  absl::optional<int> v = Value(domain, bitgen).user_value;
+  std::optional<int> v = Value(domain, bitgen).user_value;
   EXPECT_THAT(v, AnyOf(absl::nullopt, Optional(_)));
 }
 
