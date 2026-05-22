@@ -367,6 +367,17 @@ sh_test(
 )
 
 sh_test(
+    name = "engine_test",
+    srcs = ["engine_test.sh"],
+    data = [
+        ":test_binary_for_engine_testing",
+        "@com_google_fuzztest//centipede",
+        "@com_google_fuzztest//centipede:test_fuzzing_util_sh",
+        "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+sh_test(
     name = "runner_test",
     srcs = ["runner_test.sh"],
     data = [
@@ -495,5 +506,16 @@ sh_test(
         ":external_target_server",
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
+    ],
+)
+
+cc_binary(
+    name = "test_binary_for_engine_testing",
+    srcs = ["test_binary_for_engine_testing.cc"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
+        "@com_google_fuzztest//centipede:engine_worker",
     ],
 )
