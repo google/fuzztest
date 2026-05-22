@@ -213,26 +213,17 @@ TEST(FlatbuffersEnumDomainImplTest, InvalidEnumValuesAreRejected) {
       internal::FlatbuffersEnumDomainImpl<uint8_t>(enum_def).WithExcludedValues(
           {internal::ByteEnum_First});
   {
-    auto invalid_value =
-        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
-            internal::ByteEnum_MIN - 1);
-
-    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
-                StatusIs(absl::StatusCode::kInvalidArgument));
+    auto invalid_corpus_value = domain.FromValue(internal::ByteEnum_First);
+    EXPECT_FALSE(invalid_corpus_value.has_value());
   }
   {
-    auto invalid_value =
-        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
-            internal::ByteEnum_MAX + 1);
-
-    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
-                StatusIs(absl::StatusCode::kInvalidArgument));
+    auto invalid_corpus_value = domain.FromValue(internal::ByteEnum_MAX + 1);
+    EXPECT_FALSE(invalid_corpus_value.has_value());
   }
   {
-    auto invalid_value =
-        static_cast<internal::FlatbuffersEnumDomainImpl<uint8_t>::corpus_type>(
-            internal::ByteEnum_First);
-    EXPECT_THAT(domain.ValidateCorpusValue(invalid_value),
+    EXPECT_THAT(domain.ValidateCorpusValue(
+                    internal::corpus_type_t<
+                        internal::FlatbuffersEnumDomainImpl<uint8_t>>(255ul)),
                 StatusIs(absl::StatusCode::kInvalidArgument));
   }
 }

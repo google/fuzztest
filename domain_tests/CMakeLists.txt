@@ -33,7 +33,6 @@ if (FUZZTEST_BUILD_FLATBUFFERS)
       fuzztest::domain
       fuzztest::domain_testing
       fuzztest::flatbuffers
-      fuzztest::fuzztest_macros
       GTest::gmock_main
       fuzztest_test_flatbuffers_headers
   )

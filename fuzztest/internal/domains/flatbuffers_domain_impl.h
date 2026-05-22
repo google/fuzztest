@@ -16,7 +16,6 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_DOMAINS_FLATBUFFERS_DOMAIN_IMPL_H_
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
@@ -187,11 +186,11 @@ auto VisitFlatbufferField(const reflection::Schema* absl_nonnull schema,
 }
 
 // Flatbuffers enum domain implementation.
-template <typename Underlaying>
+template <typename Underlying>
 class FlatbuffersEnumDomainImpl
     : public domain_implementor::DomainBase<
-          /*Derived=*/FlatbuffersEnumDomainImpl<Underlaying>,
-          /*ValueType=*/Underlaying,
+          /*Derived=*/FlatbuffersEnumDomainImpl<Underlying>,
+          /*ValueType=*/Underlying,
           /*CorpusType=*/ElementOfImplCorpusType> {
  public:
   using typename FlatbuffersEnumDomainImpl::DomainBase::corpus_type;
@@ -204,7 +203,7 @@ class FlatbuffersEnumDomainImpl
       std::initializer_list<value_type> excluded_values) {
     excluded_values_ = {excluded_values.begin(), excluded_values.end()};
     inner_ =
-        ElementOfImpl<Underlaying>(GetEnumValues(enum_def_, excluded_values));
+        ElementOfImpl<Underlying>(GetEnumValues(enum_def_, excluded_values));
     return *this;
   }
 
@@ -236,15 +235,7 @@ class FlatbuffersEnumDomainImpl
   }
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
-    for (const auto* value : *enum_def_->values()) {
-      if (excluded_values_.contains(value->value())) continue;
-      if (value->value() == static_cast<size_t>(corpus_value)) {
-        return absl::OkStatus();
-      }
-    }
-    return absl::InvalidArgumentError(absl::StrCat("Enum value ", corpus_value,
-                                                   " is not valid for enum ",
-                                                   enum_def_->name()->str()));
+    return inner_.ValidateCorpusValue(corpus_value);
   }
 
   auto GetPrinter() const { return Printer{*this}; }
@@ -252,7 +243,7 @@ class FlatbuffersEnumDomainImpl
  private:
   const reflection::Enum* enum_def_;
   absl::flat_hash_set<value_type> excluded_values_;
-  ElementOfImpl<Underlaying> inner_;
+  ElementOfImpl<Underlying> inner_;
 
   static std::vector<value_type> GetEnumValues(
       const reflection::Enum* enum_def,
