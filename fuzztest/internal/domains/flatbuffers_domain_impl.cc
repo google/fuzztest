@@ -103,7 +103,8 @@ void FlatbuffersTableUntypedDomainImpl::Mutate(
                          CountNumberOfMutableFieldsVisitor{*this, field_count,
                                                            val, only_shrink});
   }
-  auto selected_field_index = absl::Uniform(prng, 0ul, field_count);
+  if (field_count == 0) return;
+  auto selected_field_index = absl::Uniform(prng, 1ul, field_count + 1);
 
   MutateSelectedField(val, prng, metadata, only_shrink, selected_field_index);
 }
@@ -124,18 +125,23 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
     const domain_implementor::MutationMetadata& metadata, bool only_shrink,
     uint64_t selected_field_index) {
   uint64_t field_counter = 0;
+  uint64_t fields_count = CountNumberOfFields(val);
+  if (fields_count < selected_field_index) {
+    return fields_count;
+  }
+
   for (const auto* field : *table_object_->fields()) {
     if (!IsSupportedField(field)) {
       if (only_shrink && !val.contains(field->id())) continue;
     }
 
+    ++field_counter;
     if (field_counter == selected_field_index) {
       VisitFlatbufferField(
           schema_, field,
           MutateVisitor{*this, prng, metadata, only_shrink, val});
       return field_counter;
     }
-    field_counter++;
 
     if (field->type()->base_type() == reflection::BaseType::Obj) {
       auto sub_object = schema_->objects()->Get(field->type()->index());
@@ -148,7 +154,7 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
       // TODO: Add support for structs.
     }
 
-    if (field_counter > selected_field_index) {
+    if (field_counter >= selected_field_index) {
       return field_counter;
     }
   }
