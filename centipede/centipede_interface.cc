@@ -659,6 +659,7 @@ int UpdateCorpusDatabaseForFuzzTests(
 
 int ListCrashIds(const Environment& env,
                  const fuzztest::internal::Configuration& target_config) {
+  fprintf(stderr, "[DEBUG_CENTIPEDE] ListCrashIds called!\n");
   FUZZTEST_CHECK(!env.list_crash_ids_file.empty())
       << "Need list_crash_ids_file to be set for listing crash IDs";
   FUZZTEST_CHECK_EQ(target_config.fuzz_tests_in_current_shard.size(), 1);
@@ -668,12 +669,22 @@ int ListCrashIds(const Environment& env,
                          target_config.binary_identifier /
                          target_config.fuzz_tests_in_current_shard[0] /
                          "crashing";
+  fprintf(stderr, "[DEBUG_CENTIPEDE] crash_dir: '%s'\n", crash_dir.c_str());
+  fprintf(stderr, "[DEBUG_CENTIPEDE] RemotePathExists(crash_dir): %d\n",
+          RemotePathExists(crash_dir.string()));
   if (RemotePathExists(crash_dir.string())) {
+    fprintf(stderr, "[DEBUG_CENTIPEDE] RemotePathIsDirectory(crash_dir): %d\n",
+            RemotePathIsDirectory(crash_dir.string()));
     FUZZTEST_CHECK(RemotePathIsDirectory(crash_dir.string()))
         << "Crash dir " << crash_dir << " in the corpus database "
         << target_config.corpus_database << " is not a directory";
     crash_paths =
         ValueOrDie(RemoteListFiles(crash_dir.string(), /*recursively=*/false));
+    fprintf(stderr, "[DEBUG_CENTIPEDE] RemoteListFiles found %zu paths\n",
+            crash_paths.size());
+    for (const auto& path : crash_paths) {
+      fprintf(stderr, "  [DEBUG_CENTIPEDE] path: '%s'\n", path.c_str());
+    }
   }
   std::vector<std::string> results;
   results.reserve(crash_paths.size());
@@ -681,6 +692,8 @@ int ListCrashIds(const Environment& env,
     std::string crash_id = std::filesystem::path{crash_path}.filename();
     results.push_back(std::move(crash_id));
   }
+  fprintf(stderr, "[DEBUG_CENTIPEDE] writing %zu results to %s\n",
+          results.size(), env.list_crash_ids_file.c_str());
   FUZZTEST_CHECK_OK(RemoteFileSetContents(env.list_crash_ids_file,
                                           absl::StrJoin(results, "\n")));
   return EXIT_SUCCESS;
