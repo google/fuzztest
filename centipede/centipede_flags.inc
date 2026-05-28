@@ -448,7 +448,7 @@ CENTIPEDE_FLAG(bool, load_shards_only, false,
                "If set, load/merge shards without fuzzing new inputs. For "
                "FuzzTest framework only, do not use from end-users.")
 CENTIPEDE_FLAG(
-    bool, fuzztest_multi_test_mode_soon_to_be_removed, true,
+    bool, fuzztest_multi_test_mode_soon_to_be_removed, false,
     "If set, operate on multiple fuzz tests queried from the binary if it is "
     "using FuzzTest. This mode is going to be removed soon, and Centipede will "
     "operate on only one fuzz test per invocation after that.")

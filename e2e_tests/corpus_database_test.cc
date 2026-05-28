@@ -65,7 +65,6 @@ absl::StatusOr<std::string> FindFile(absl::string_view root_path,
 enum class ExecutionModelParam {
   kTestBinary,
   kTestBinaryInvokingCentipedeBinary,
-  kCentipedeBinary
 };
 
 struct UpdateCorpusDatabaseRun {
@@ -131,27 +130,6 @@ class UpdateCorpusDatabaseTest
         centipede_options.fuzztest_flags["internal_centipede_command"] =
             ShellEscape(CentipedePath());
         return RunBinary(binary_path, centipede_options);
-      }
-      case ExecutionModelParam::kCentipedeBinary: {
-        RunOptions centipede_options;
-        centipede_options.env = options.env;
-        centipede_options.timeout = options.timeout;
-        std::vector<std::string> binary_args;
-        binary_args.push_back(std::string(binary_path));
-        for (const auto &[key, value] : options.fuzztest_flags) {
-          binary_args.push_back(CreateFuzzTestFlag(key, value));
-        }
-        for (const auto &[key, value] : options.flags) {
-          binary_args.push_back(absl::StrCat("--", key, "=", value));
-        }
-        centipede_options.flags = {
-            {"binary", absl::StrJoin(binary_args, " ")},
-            // Needed when built without PC tables.
-            {"populate_binary_info", "false"},
-            // Disable symbolization to more quickly get to fuzzing.
-            {"symbolizer_path", ""},
-        };
-        return RunBinary(CentipedePath(), centipede_options);
       }
     }
     FUZZTEST_LOG(FATAL) << "Unsupported execution model!";
@@ -418,9 +396,10 @@ TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
 
 INSTANTIATE_TEST_SUITE_P(
     UpdateCorpusDatabaseTestWithExecutionModel, UpdateCorpusDatabaseTest,
-    testing::ValuesIn({ExecutionModelParam::kTestBinary,
-                       ExecutionModelParam::kTestBinaryInvokingCentipedeBinary,
-                       ExecutionModelParam::kCentipedeBinary}));
+    testing::ValuesIn({
+        ExecutionModelParam::kTestBinary,
+        ExecutionModelParam::kTestBinaryInvokingCentipedeBinary,
+    }));
 
 }  // namespace
 }  // namespace fuzztest::internal
