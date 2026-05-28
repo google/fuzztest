@@ -37,10 +37,10 @@ using FuzzingMockStream = ::fuzztest::internal::FuzzingMockStream;
 using Instruction = FuzzingMockStream::Instruction;
 
 // Minimal implementation of a PCG64 engine equivalent to xsl_rr_128_64.
-inline constexpr absl::uint128 multiplier() {
+constexpr absl::uint128 multiplier() {
   return absl::MakeUint128(0x2360ed051fc65da4, 0x4385df649fccf645);
 }
-inline constexpr absl::uint128 increment() {
+constexpr absl::uint128 increment() {
   return absl::MakeUint128(0x5851f42d4c957f2d, 0x14057b7ef767814f);
 }
 inline absl::uint128 lcg(absl::uint128 s) {
