@@ -235,8 +235,8 @@ struct BinaryParseBuf {
   const char* str;
   size_t size;
 
-  inline bool empty() const { return size == 0; }
-  inline void Advance(size_t s) {
+  bool empty() const { return size == 0; }
+  void Advance(size_t s) {
     if (s > size) s = size;
     str += s;
     size -= s;
