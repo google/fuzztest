@@ -190,11 +190,11 @@ inline constexpr int kCMPScoreBits = 6;
 inline constexpr feature_t kCMPScoreBitmask =
     (feature_t{1} << kCMPScoreBits) - 1;
 
-inline constexpr size_t CMPScoreFeatureIndex(feature_t feature) {
+constexpr size_t CMPScoreFeatureIndex(feature_t feature) {
   return (feature - kCMPScoreDomains.front().begin()) >> kCMPScoreBits;
 }
 
-inline constexpr bool IsComparisonScoreFeature(feature_t feature) {
+constexpr bool IsComparisonScoreFeature(feature_t feature) {
   return kCMPScoreDomains.front().begin() <= feature &&
          feature < kCMPScoreDomains.back().end();
 }
