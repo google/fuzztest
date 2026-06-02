@@ -77,7 +77,7 @@ typedef struct {
   FuzzTestInputSinkCtx* ctx;
 
   // Emits a test `input` to the engine. Engine would call
-  // `FuzzTestAdapter::FreeTestInput` on the emitted input after the engine is
+  // `FuzzTestAdapter::FreeInput` on the emitted input after the engine is
   // done with it.
   void (*Emit)(FuzzTestInputSinkCtx* ctx, FuzzTestInputHandle input);
 } FuzzTestInputSink;
@@ -99,7 +99,7 @@ typedef struct {
   //
   //   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a
   //     logically independent feature namespace registered in
-  //     `FuzzTestAdapter::GetCoverageDomains`.
+  //     `FuzzTestAdapter::SetUpCoverageDomains`.
   //   - Bits 58..32: 27-bit feature ID within the domain.
   //   - Bits 31..0:  32-bit counter value of the feature.
   //
@@ -120,12 +120,13 @@ typedef struct {
   uint8_t counter_bit_size;
 } FuzzTestCoverageDomain;
 
-typedef struct FuzzTestDomainRegistryCtx FuzzTestDomainRegistryCtx;
+typedef struct FuzzTestCoverageDomainRegistryCtx
+    FuzzTestCoverageDomainRegistryCtx;
 typedef struct {
-  FuzzTestDomainRegistryCtx* ctx;
+  FuzzTestCoverageDomainRegistryCtx* ctx;
 
   // Registers a new coverage `domain`.
-  void (*Register)(FuzzTestDomainRegistryCtx* ctx,
+  void (*Register)(FuzzTestCoverageDomainRegistryCtx* ctx,
                    const FuzzTestCoverageDomain* domain);
 } FuzzTestCoverageDomainRegistry;
 
@@ -133,12 +134,15 @@ typedef struct FuzzTestAdapterCtx FuzzTestAdapterCtx;
 typedef struct FuzzTestAdapter {
   FuzzTestAdapterCtx* ctx;
 
-  // Registers coverage domains with `registry`.
-  void (*GetCoverageDomains)(FuzzTestAdapterCtx* ctx,
-                             const FuzzTestCoverageDomainRegistry* registry);
+  // Sets up coverage domains using the domain `registry`.
+  // The domain registrations must be the same for the all the test adapters of
+  // the same test (identified by the test name and the binary).
+  void (*SetUpCoverageDomains)(FuzzTestAdapterCtx* ctx,
+                               const FuzzTestCoverageDomainRegistry* registry);
 
   // [Optional] Emits any preset seed inputs of the test using `sink`.
-  // The output must be deterministic.
+  // The output must be the same for the all the test adapters of the same test
+  // (identified by the test name and the binary).
   void (*GetPresetSeedInputs)(FuzzTestAdapterCtx* ctx,
                               const FuzzTestInputSink* sink);
 
@@ -190,7 +194,7 @@ typedef struct FuzzTestAdapter {
                               FuzzTestInputHandle input);
 
   // Drops the ownership of `input` from the engine.
-  void (*FreeTestInput)(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle input);
+  void (*FreeInput)(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle input);
 
   // Drops the ownership of `ctx` from the engine.
   void (*FreeCtx)(FuzzTestAdapterCtx* ctx);
@@ -215,30 +219,6 @@ typedef struct {
                            const FuzzTestDiagnosticSink* diagnostic_sink,
                            FuzzTestAdapter* adapter_out);
 } FuzzTestAdapterManager;
-
-typedef enum {
-  kFuzzTestWorkerSuccess = 0,  // Test should finish with a success
-  kFuzzTestWorkerFailure,      // Test should finish with a failure.
-  kFuzzTestWorkerNotRequired,  // Test should continue with controller commands.
-} FuzzTestWorkerStatus;
-
-// Try to run as a FuzzTest worker with `manager` if needed.
-FuzzTestWorkerStatus FuzzTestWorkerMaybeRun(
-    const FuzzTestAdapterManager* manager);
-
-typedef enum {
-  kFuzzTestControllerSuccess = 0,
-  kFuzzTestControllerFailure,
-} FuzzTestControllerStatus;
-
-typedef struct {
-  const FuzzTestBytesView* views;
-  size_t count;
-} FuzzTestBytesViews;
-
-// Run the FuzzTest controller with `flags` and `manager`.
-FuzzTestControllerStatus FuzzTestControllerRun(
-    const FuzzTestAdapterManager* manager, const FuzzTestBytesViews* flags);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -974,6 +974,37 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "engine_worker",
+    srcs = [
+        "engine_worker.cc",
+        "runner_utils.h",
+    ],
+    hdrs = ["engine_worker_abi.h"],
+    deps = [
+        ":execution_metadata",
+        ":feature",
+        ":runner_request",
+        ":runner_result",
+        ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+cc_library(
+    name = "engine_controller_with_subprocess",
+    srcs = ["engine_controller_with_subprocess.cc"],
+    hdrs = ["engine_controller_abi.h"],
+    deps = [
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
+    ],
+)
+
 # The runner library is special:
 #   * It must not be instrumented with asan, sancov, etc.
 #   * It must not have heavy dependencies, and ideally not at all.
