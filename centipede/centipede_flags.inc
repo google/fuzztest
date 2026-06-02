@@ -450,8 +450,8 @@ CENTIPEDE_FLAG(bool, load_shards_only, false,
 CENTIPEDE_FLAG(
     bool, fuzztest_multi_test_mode_soon_to_be_removed, false,
     "If set, operate on multiple fuzz tests queried from the binary if it is "
-    "using FuzzTest. This mode is going to be removed soon, and Centipede will "
-    "operate on only one fuzz test per invocation after that.")
+    "using FuzzTest. The feature is removed but this flag is kept shortly for "
+    "debugging.")
 CENTIPEDE_FLAG(
     std::string, fuzztest_configuration, "",
     "If set, deserializes the FuzzTest configuration from the value as a "
@@ -490,3 +490,29 @@ CENTIPEDE_FLAG(
     "running the target binary, coverage binary, and extra binaries, relative "
     "to the parent process's environment. Variables in the form 'VAR=VAL' are "
     "set, and variables in the form '-VAR' are unset.")
+
+CENTIPEDE_FLAG(
+    std::string, fuzztest_corpus_database, "",
+    "If set to non-empty, updates the corpus database that contains coverage, "
+    "regression, and crashing inputs for each test binary and fuzz test.")
+CENTIPEDE_FLAG(std::string, fuzztest_binary_identifier, "",
+               "The identifier of the test binary in the corpus database.")
+CENTIPEDE_FLAG(
+    std::string, fuzztest_stats_root, "",
+    "The directory path to export stats for working on the corpus database.")
+CENTIPEDE_FLAG(std::string, fuzztest_workdir_root, "",
+               "The root directory for Centipede workdirs for working on the "
+               "corpus database.")
+CENTIPEDE_FLAG(bool, fuzztest_only_replay, false,
+               "If set, further steps are skipped after replaying with the "
+               "corpus database.")
+CENTIPEDE_FLAG(
+    std::string, fuzztest_execution_id, "",
+    "If set, will be used when working on a corpus database to resume "
+    "the progress in case the execution got interrupted.")
+CENTIPEDE_FLAG(bool, fuzztest_replay_coverage_inputs, false,
+               "If set, coverage inputs are included for replaying with the "
+               "corpus database.")
+CENTIPEDE_FLAG(
+    absl::Duration, fuzztest_time_limit_per_test, absl::InfiniteDuration(),
+    "The time limit per fuzz test for working on the corpus database.")

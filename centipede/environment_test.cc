@@ -186,6 +186,31 @@ TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
                "stack_limit in the target binary");
 }
 
+TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
+  Environment env;
+  fuzztest::internal::Configuration config;
+  config.corpus_database = "db";
+  config.binary_identifier = "bin";
+  config.stats_root = "stats";
+  config.workdir_root = "workdir";
+  config.only_replay = true;
+  config.execution_id = "exec";
+  config.replay_coverage_inputs = true;
+  config.time_limit = absl::Seconds(10);
+  config.time_budget_type = TimeBudgetType::kPerTest;
+
+  env.UpdateWithTargetConfig(config);
+
+  EXPECT_EQ(env.fuzztest_corpus_database, "db");
+  EXPECT_EQ(env.fuzztest_binary_identifier, "bin");
+  EXPECT_EQ(env.fuzztest_stats_root, "stats");
+  EXPECT_EQ(env.fuzztest_workdir_root, "workdir");
+  EXPECT_TRUE(env.fuzztest_only_replay);
+  EXPECT_EQ(env.fuzztest_execution_id, "exec");
+  EXPECT_TRUE(env.fuzztest_replay_coverage_inputs);
+  EXPECT_EQ(env.fuzztest_time_limit_per_test, absl::Seconds(10));
+}
+
 TEST(Environment, UpdatesReplayOnlyConfiguration) {
   Environment env;
   fuzztest::internal::Configuration config;

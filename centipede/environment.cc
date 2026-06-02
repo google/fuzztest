@@ -241,6 +241,15 @@ void Environment::ReadKnobsFileIfSpecified() {
 
 void Environment::UpdateWithTargetConfig(
     const fuzztest::internal::Configuration &config) {
+  fuzztest_corpus_database = config.corpus_database;
+  fuzztest_binary_identifier = config.binary_identifier;
+  fuzztest_stats_root = config.stats_root;
+  fuzztest_workdir_root = config.workdir_root;
+  fuzztest_only_replay = config.only_replay;
+  fuzztest_execution_id = config.execution_id.value_or("");
+  fuzztest_replay_coverage_inputs = config.replay_coverage_inputs;
+  fuzztest_time_limit_per_test = config.GetTimeLimitPerTest();
+
   // Allow more crashes to be reported when running with FuzzTest. This allows
   // more unique crashes to collected after deduplication. But we don't want to
   // make the limit too large to stress the filesystem, so this is not a perfect
@@ -307,9 +316,13 @@ void Environment::UpdateWithTargetConfig(
       << VV(stack_limit_kb) << VV(config.stack_limit);
   stack_limit_kb = bytes_to_kb(config.stack_limit);
 
-  if (config.only_replay) {
+  if (fuzztest_only_replay) {
     load_shards_only = true;
     populate_binary_info = false;
+  }
+
+  if (test_name.empty() && config.fuzz_tests_in_current_shard.size() == 1) {
+    test_name = config.fuzz_tests_in_current_shard[0];
   }
 }
 
