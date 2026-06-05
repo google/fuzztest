@@ -30,6 +30,7 @@
 #include <cstring>
 
 #ifdef __APPLE__
+#include <algorithm>
 #include <functional>
 #endif  // __APPLE__
 

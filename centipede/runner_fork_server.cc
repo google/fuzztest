@@ -212,37 +212,40 @@ void ForkServerCallMeVeryEarly() {
   struct sigaction sigusr1_act{};
   sigusr1_act.sa_handler = [](int) {};
 
+  // On MacOS, sigaddset() and sigemptyset() will always return 0 and cause
+  // clang to complain about unreachable code unless 0 is surrounded with extra
+  // parentheses to indicate it is "dead" code.
   sigset_t server_sigset;
   if (sigprocmask(SIG_SETMASK, nullptr, &server_sigset) != 0) {
     Exit("###sigprocmask() failed to get the existing sigset\n");
   }
-  if (sigaddset(&server_sigset, SIGINT) != 0) {
+  if (sigaddset(&server_sigset, SIGINT) != (0)) {
     Exit("###sigaddset() failed to add SIGINT\n");
   }
-  if (sigaddset(&server_sigset, SIGTERM) != 0) {
+  if (sigaddset(&server_sigset, SIGTERM) != (0)) {
     Exit("###sigaddset() failed to add SIGTERM\n");
   }
-  if (sigaddset(&server_sigset, SIGCHLD) != 0) {
+  if (sigaddset(&server_sigset, SIGCHLD) != (0)) {
     Exit("###sigaddset() failed to add SIGCHLD\n");
   }
-  if (sigaddset(&server_sigset, SIGUSR1) != 0) {
+  if (sigaddset(&server_sigset, SIGUSR1) != (0)) {
     Exit("###sigaddset() failed to add SIGUSR1\n");
   }
 
   sigset_t wait_sigset;
-  if (sigemptyset(&wait_sigset) != 0) {
+  if (sigemptyset(&wait_sigset) != (0)) {
     Exit("###sigemptyset() failed\n");
   }
-  if (sigaddset(&wait_sigset, SIGINT) != 0) {
+  if (sigaddset(&wait_sigset, SIGINT) != (0)) {
     Exit("###sigaddset() failed to add SIGINT to the wait sigset\n");
   }
-  if (sigaddset(&wait_sigset, SIGTERM) != 0) {
+  if (sigaddset(&wait_sigset, SIGTERM) != (0)) {
     Exit("###sigaddset() failed to add SIGTERM to the wait sigset\n");
   }
-  if (sigaddset(&wait_sigset, SIGCHLD) != 0) {
+  if (sigaddset(&wait_sigset, SIGCHLD) != (0)) {
     Exit("###sigaddset() failed to add SIGCHLD to the wait sigset\n");
   }
-  if (sigaddset(&wait_sigset, SIGUSR1) != 0) {
+  if (sigaddset(&wait_sigset, SIGUSR1) != (0)) {
     Exit("###sigaddset() failed to add SIGUSR1 to the wait sigset\n");
   }
 

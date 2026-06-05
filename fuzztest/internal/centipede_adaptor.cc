@@ -135,7 +135,7 @@ absl::StatusOr<std::vector<std::string>> GetProcessArgs() {
                          start_pos - current_argv_pos);
     ++start_pos;
   }
-  return result;
+  return results;
 #elif defined(__linux__)
   const int fd = open("/proc/self/cmdline", O_RDONLY);
   if (fd < 0) {
