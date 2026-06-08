@@ -25,6 +25,7 @@
 #include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/serialization.h"
 
@@ -47,6 +48,20 @@ class FilterImpl
     while (true) {
       auto v = inner_.Init(prng);
       if (RunFilter(v)) return v;
+    }
+  }
+
+  corpus_type InitWithTracker(absl::BitGenRef prng,
+                              TraversalContextWithTotalCount<FilterImpl> ctx) {
+    if (ctx.IsFailed()) return inner_.InitWithTracker(prng, ctx);
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+
+    auto checkpoint = ctx.Checkpoint();
+    while (true) {
+      auto v = inner_.InitWithTracker(prng, ctx);
+      if (ctx.IsFailed()) return v;
+      if (RunFilter(v)) return v;
+      ctx.Restore(checkpoint);
     }
   }
 

@@ -281,3 +281,15 @@ fuzztest_cc_test(
     fuzztest::table_of_recent_compares
     GTest::gmock_main
 )
+
+fuzztest_cc_test(
+  NAME
+    traversal_context_test
+  SRCS
+    "traversal_context_test.cc"
+  DEPS
+    fuzztest::domain_core
+    fuzztest::meta
+    absl::status
+    GTest::gmock_main
+)

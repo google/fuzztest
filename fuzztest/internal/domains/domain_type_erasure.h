@@ -36,6 +36,7 @@
 #include "./common/logging.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
@@ -58,6 +59,9 @@ class UntypedDomainConcept {
 
   virtual std::unique_ptr<UntypedDomainConcept> UntypedClone() const = 0;
   virtual GenericDomainCorpusType UntypedInit(absl::BitGenRef) = 0;
+  virtual GenericDomainCorpusType UntypedInitWithTracker(
+      absl::BitGenRef,
+      TraversalContextWithTotalCount<UntypedDomainConcept>) = 0;
   virtual void UntypedMutate(
       GenericDomainCorpusType& val, absl::BitGenRef prng,
       const domain_implementor::MutationMetadata& metadata,
@@ -138,6 +142,13 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
   GenericDomainCorpusType UntypedInit(absl::BitGenRef prng) final {
     return GenericDomainCorpusType(std::in_place_type<CorpusType>,
                                    domain_.Init(prng));
+  }
+
+  GenericDomainCorpusType UntypedInitWithTracker(
+      absl::BitGenRef prng,
+      TraversalContextWithTotalCount<UntypedDomainConcept> ctx) final {
+    return GenericDomainCorpusType(std::in_place_type<CorpusType>,
+                                   domain_.InitWithTracker(prng, ctx));
   }
 
   void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,

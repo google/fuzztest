@@ -31,6 +31,7 @@
 #include "absl/types/optional.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -489,6 +490,58 @@ TEST(TupleOf, DomainWithCustomPairCorpusType) {
   std::tuple<std::pair<uint8_t, uint8_t>> value{{1, 2}};
   auto optional_corpus_tuple = domain.FromValue(value);
   EXPECT_TRUE(optional_corpus_tuple.has_value());
+}
+
+TEST(StructOf, InitWithTrackerUpdatesCount) {
+  struct LocalStruct {
+    int a;
+    double b;
+  };
+  auto domain = StructOf<LocalStruct>(Arbitrary<int>(), Arbitrary<double>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.count = 10;
+
+  Value val(domain, prng, state);
+
+  // 1 (root) + 2 (fields: int, double) = 3 decrements
+  EXPECT_EQ(*state.count, 7);
+}
+
+TEST(StructOf, InitWithTrackerPropagatesFailureFromInnerDomain) {
+  struct LocalStruct {
+    int a;
+    std::vector<int> v;
+  };
+  // Inner container cannot be empty.
+  auto domain = StructOf<LocalStruct>(
+      Arbitrary<int>(), VectorOf(Arbitrary<int>()).WithMinSize(1));
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  // The parent init decrements to 0 and the inner vector init decrements to -1
+  // and fails due to the min size constraint.
+  state.depth = 1;
+
+  Value val(domain, prng, state);
+
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.ToString(),
+              testing::HasSubstr("Traversal budget exceeded"));
+}
+
+TEST(StructOf, InitWithTrackerHandlesPreExistingFailure) {
+  auto domain = StructOf<MyStruct>(Arbitrary<int>(), Arbitrary<std::string>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.status = absl::CancelledError("Pre-existing failure");
+
+  Value val(domain, prng, state);
+
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_EQ(state.status.message(), "Pre-existing failure");
 }
 
 }  // namespace

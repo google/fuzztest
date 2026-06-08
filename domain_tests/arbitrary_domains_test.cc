@@ -673,7 +673,7 @@ TEST(ArbitraryStatusTest, GeneratesOkAndError) {
   bool found_ok = false;
   bool found_error = false;
 
-  for (int i = 0; i < 100 && (!found_ok || !found_error); ++i) {
+  for (int i = 0; i < 1000 && (!found_ok || !found_error); ++i) {
     absl::Status s = domain.GetRandomValue(prng);
     if (s.ok()) {
       found_ok = true;

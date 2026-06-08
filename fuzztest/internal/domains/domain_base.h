@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
@@ -132,6 +133,12 @@ class DomainBase {
   // stability/reproducibility guarantees as `prng`.
   ValueType GetRandomValue(absl::BitGenRef prng) {
     return derived().GetValue(derived().GetRandomCorpusValue(prng));
+  }
+
+  corpus_type InitWithTracker(
+      absl::BitGenRef prng,
+      ::fuzztest::internal::TraversalContextWithTotalCount<Derived> ctx) {
+    return derived().Init(prng);
   }
 
   // Default GetValue and FromValue functions for !has_custom_corpus_type

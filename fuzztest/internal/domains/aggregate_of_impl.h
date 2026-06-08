@@ -26,6 +26,7 @@
 #include "absl/random/distributions.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
@@ -61,6 +62,17 @@ class AggregateOfImpl
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     return std::apply(
         [&](auto&... inner) { return corpus_type{inner.Init(prng)...}; },
+        inner_);
+  }
+
+  corpus_type InitWithTracker(
+      absl::BitGenRef prng,
+      TraversalContextWithTotalCount<AggregateOfImpl> ctx) {
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    return std::apply(
+        [&](auto&... inner) {
+          return corpus_type{inner.InitWithTracker(prng, ctx)...};
+        },
         inner_);
   }
 
