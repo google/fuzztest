@@ -602,27 +602,26 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
   // In-loop variables declared outside to save allocations.
   std::vector<uint64_t> features;
   std::vector<uint8_t> serialized_metadata;
+  std::vector<FuzzTestInputHandle> emitted_inputs;
+  const auto input_sink = GetInputSinkTo(emitted_inputs);
 
   for (size_t i = 0; i < num_inputs; i++) {
     auto blob = inputs_blobseq->Read();
     if (!blob.IsValid()) return;  // no more blobs to read.
     WorkerCheck(IsDataInput(blob), "Must read data input");
 
-    FuzzTestInputHandle input;
-    FuzzTestInputSink sink = {
-        /*ctx=*/reinterpret_cast<FuzzTestInputSinkCtx*>(&input),
-        /*Emit=*/[](FuzzTestInputSinkCtx* ctx, FuzzTestInputHandle input) {
-          *reinterpret_cast<decltype(&input)>(ctx) = input;
-        }};
-
     if (!BatchResult::WriteInputBegin(*outputs_blobseq)) {
       WorkerLog("failed to write input begin");
       break;
     }
 
+    emitted_inputs.clear();
     const auto input_content = FuzzTestBytesView{blob.data, blob.size};
-    adapter.DeserializeInputContent(adapter.ctx, &input_content, &sink);
+    adapter.DeserializeInputContent(adapter.ctx, &input_content, &input_sink);
     WORKER_CHECK_FOR_ERROR();
+    WorkerCheck(emitted_inputs.size() == 1,
+                "Deserialize must emit exactly one input");
+    auto input = emitted_inputs[0];
 
     features.clear();
     FuzzTestFeedbackSink feedback_sink = {
