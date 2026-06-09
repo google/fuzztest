@@ -504,7 +504,7 @@ void WorkerDoMutate(const FuzzTestAdapter& adapter) {
     WORKER_CHECK_FOR_ERROR();
     WorkerCheck(emitted_inputs.size() == 1,
                 "DeserializeInputContent must emit exactly one input");
-    if (adapter.UpdateInputMetadata) {
+    if (adapter.UpdateInputMetadata != nullptr) {
       adapter.UpdateInputMetadata(adapter.ctx, &input_metadata,
                                   emitted_inputs[0]);
     }
@@ -640,7 +640,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     WORKER_CHECK_FOR_ERROR();
 
     serialized_metadata.clear();
-    if (adapter.SerializeInputMetadata) {
+    if (adapter.SerializeInputMetadata != nullptr) {
       const auto metadata_sink = GetBytesSinkTo(serialized_metadata);
       adapter.SerializeInputMetadata(adapter.ctx, input, &metadata_sink);
     }
@@ -754,6 +754,8 @@ FuzzTestWorkerStatus WorkerMaybeRun(const FuzzTestAdapterManager& manager) {
   manager.ConstructAdapter(manager.ctx, /*diagnostic_sink=*/&diagnostic_sink,
                            &adapter);
   WORKER_CHECK_FOR_ERROR();
+  WorkerCheck(adapter.SetUpCoverageDomains != nullptr,
+              "SetUpCoverageDomains must be defined");
   WorkerCheck(adapter.GetRandomSeedInput != nullptr,
               "GetRandomSeedInput must be defined");
   WorkerCheck(adapter.Execute != nullptr, "Execute must be defined");
