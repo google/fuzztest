@@ -37,6 +37,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "flatbuffers/base.h"
+#include "flatbuffers/buffer.h"
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/reflection_generated.h"
 #include "flatbuffers/string.h"
@@ -365,7 +366,7 @@ class FlatbuffersTableUntypedDomainImpl
   bool IsSupportedField(const reflection::Field* absl_nonnull field) const;
 
   uint32_t BuildTable(const corpus_type& value,
-                      flatbuffers::FlatBufferBuilder& builder) const;
+                      flatbuffers::FlatBufferBuilder64& builder) const;
 
   // Returns the domain for the given field.
   // The domain is cached, and the same instance is returned for the same field.
@@ -441,9 +442,15 @@ class FlatbuffersTableUntypedDomainImpl
         }
       } else if constexpr (std::is_same_v<T, std::string>) {
         if (user_value->CheckField(field->offset())) {
-          inner_value = std::optional(
-              user_value->GetPointer<flatbuffers::String*>(field->offset())
-                  ->str());
+          if (field->offset64()) {
+            inner_value = std::optional(
+                user_value->GetPointer64<flatbuffers::String*>(field->offset())
+                    ->str());
+          } else {
+            inner_value = std::optional(
+                user_value->GetPointer<flatbuffers::String*>(field->offset())
+                    ->str());
+          }
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         auto sub_object = self.schema_->objects()->Get(field->type()->index());
@@ -464,9 +471,9 @@ class FlatbuffersTableUntypedDomainImpl
   // Create out-of-line table fields, see `BuildTable` for details.
   struct TableFieldBuilderVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    flatbuffers::FlatBufferBuilder& builder;
-    absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset_t>&
-        offsets;
+    flatbuffers::FlatBufferBuilder64& builder;
+    absl::flat_hash_map<typename corpus_type::key_type,
+                        flatbuffers::uoffset64_t>& offsets;
     const typename corpus_type::mapped_type& corpus_value;
 
     template <typename T>
@@ -475,8 +482,16 @@ class FlatbuffersTableUntypedDomainImpl
         auto& domain = self.GetCachedDomain<T>(field);
         auto user_value = domain.GetValue(corpus_value);
         if (user_value.has_value()) {
-          auto offset =
-              builder.CreateString(user_value->data(), user_value->size()).o;
+          flatbuffers::uoffset64_t offset;
+          if (field->offset64()) {
+            offset = builder
+                         .CreateString<flatbuffers::Offset64>(
+                             user_value->data(), user_value->size())
+                         .o;
+          } else {
+            offset =
+                builder.CreateString(user_value->data(), user_value->size()).o;
+          }
           offsets.insert({field->id(), offset});
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
@@ -502,9 +517,9 @@ class FlatbuffersTableUntypedDomainImpl
   // offsets for "out-of-line fields". See `BuildTable` for details.
   struct TableBuilderVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    flatbuffers::FlatBufferBuilder& builder;
-    const absl::flat_hash_map<typename corpus_type::key_type,
-                              flatbuffers::uoffset_t>& offsets;
+    flatbuffers::FlatBufferBuilder64& builder;
+    absl::flat_hash_map<typename corpus_type::key_type,
+                        flatbuffers::uoffset64_t>& offsets;
     const typename corpus_type::value_type::second_type& corpus_value;
 
     template <typename T>
@@ -521,9 +536,15 @@ class FlatbuffersTableUntypedDomainImpl
       } else if constexpr (std::is_same_v<T, std::string>) {
         // "Out-of-line field". Store just offset.
         if (auto it = offsets.find(field->id()); it != offsets.end()) {
-          builder.AddOffset(
-              field->offset(),
-              flatbuffers::Offset<flatbuffers::String>(it->second));
+          if (field->offset64()) {
+            builder.AddOffset(
+                field->offset(),
+                flatbuffers::Offset64<flatbuffers::String>(it->second));
+          } else {
+            builder.AddOffset(
+                field->offset(),
+                flatbuffers::Offset<flatbuffers::String>(it->second));
+          }
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         // "Out-of-line field". Store just offset.
@@ -753,7 +774,7 @@ class FlatbuffersTableDomainImpl
 
   // Converts corpus value into the exact flatbuffer.
   value_type GetValue(const corpus_type& value) const {
-    flatbuffers::FlatBufferBuilder builder;
+    flatbuffers::FlatBufferBuilder64 builder;
     const uint32_t offset = inner_->BuildTable(value.untyped_corpus, builder);
     builder.Finish(flatbuffers::Offset<flatbuffers::Table>(offset));
     value.buffer =

@@ -276,11 +276,11 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
 }
 
 uint32_t FlatbuffersTableUntypedDomainImpl::BuildTable(
-    const corpus_type& value, flatbuffers::FlatBufferBuilder& builder) const {
+    const corpus_type& value, flatbuffers::FlatBufferBuilder64& builder) const {
   // Add all the fields to the builder.
 
   // Offsets is the map of field id to its offset in the table.
-  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset_t>
+  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset64_t>
       offsets;
 
   // Some fields are stored inline in the flatbuffer table itself (a.k.a
