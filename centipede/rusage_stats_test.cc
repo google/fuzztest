@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/base/nullability.h"
 #include "absl/flags/flag.h"
 #include "absl/synchronization/barrier.h"
@@ -266,8 +267,9 @@ TEST(RUsageMemoryTest, Accuracy) {
 
 // NOTE: The sanitizers heavily instrument the code and skew any time
 //  measurements.
-#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
-    !defined(MEMORY_SANITIZER)
+#if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_THREAD_SANITIZER) &&  \
+    !defined(ABSL_HAVE_MEMORY_SANITIZER)
     EXPECT_EQ(delta.mem_rss, after.mem_rss - before.mem_rss);
     EXPECT_EQ(delta.mem_data, after.mem_data - before.mem_data);
     // VPeak can only grow. VSize may grow to fit BigThing or fit it as-is.
@@ -293,8 +295,9 @@ TEST(RUsageMemoryTest, Accuracy) {
 
 // NOTE: The sanitizers heavily instrument the code and skew any time
 //  measurements.
-#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
-    !defined(MEMORY_SANITIZER)
+#if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_THREAD_SANITIZER) &&  \
+    !defined(ABSL_HAVE_MEMORY_SANITIZER)
   EXPECT_NEAR(mem_rss_histo.Average(), kBytes, kRssLeeway) << mem_rss_histo;
 #ifdef __APPLE__
   // `data` is not supported.

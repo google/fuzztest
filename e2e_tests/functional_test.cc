@@ -26,6 +26,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -1603,7 +1604,7 @@ class FuzzingModeCrashFindingTest
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringViewInFuzzingMode) {
-#ifndef ADDRESS_SANITIZER
+#ifndef ABSL_HAVE_ADDRESS_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
 #endif
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithStringView");
@@ -1616,7 +1617,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        UninitializedReadIsDetectedWithStringInFuzzingMode) {
-#ifndef MEMORY_SANITIZER
+#ifndef ABSL_HAVE_MEMORY_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for MSAN errors without MSAN";
 #endif
   auto [status, std_out, std_err] = Run("MySuite.UninitializedReadWithString");
@@ -1639,7 +1640,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringInFuzzingMode) {
-#ifndef ADDRESS_SANITIZER
+#ifndef ABSL_HAVE_ADDRESS_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
 #endif
   auto [status, std_out, std_err] = Run("MySuite.BufferOverreadWithString");
@@ -1650,7 +1651,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndLvalueStringViewRef) {
-#ifndef ADDRESS_SANITIZER
+#ifndef ABSL_HAVE_ADDRESS_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
 #endif
   auto [status, std_out, std_err] =
@@ -1662,7 +1663,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        BufferOverflowIsDetectedWithStringAndRvalueStringViewRef) {
-#ifndef ADDRESS_SANITIZER
+#ifndef ABSL_HAVE_ADDRESS_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
 #endif
   auto [status, std_out, std_err] =
@@ -1675,7 +1676,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 TEST_P(FuzzingModeCrashFindingTest, DivByZeroTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.DivByZero");
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 1: 0"));
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || defined(ABSL_HAVE_MEMORY_SANITIZER)
   EXPECT_THAT(status, Ne(ExitCode(0))) << std_err;
 #else
   EXPECT_THAT(status, Eq(Signal(SIGFPE))) << std_err;
@@ -1996,7 +1997,7 @@ TEST_P(FuzzingModeCrashFindingTest, InputsAreSkippedWhenRequestedInTests) {
 }
 
 TEST_P(FuzzingModeCrashFindingTest, AsanCrashMetadataIsDumpedIfEnvVarIsSet) {
-#ifndef ADDRESS_SANITIZER
+#ifndef ABSL_HAVE_ADDRESS_SANITIZER
   GTEST_SKIP() << "Skipping crash finding test for ASAN errors without ASAN";
 #endif
   TempDir out_dir;

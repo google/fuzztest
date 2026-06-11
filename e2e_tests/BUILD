@@ -63,6 +63,7 @@ cc_test(
     ],
     deps = [
         ":test_binary_util",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",

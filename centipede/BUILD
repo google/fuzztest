@@ -1430,6 +1430,7 @@ cc_test(
     deps = [
         ":rusage_stats",
         ":thread_pool",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/synchronization",
@@ -1467,6 +1468,7 @@ cc_test(
     deps = [
         ":rusage_profiler",
         ":rusage_stats",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
