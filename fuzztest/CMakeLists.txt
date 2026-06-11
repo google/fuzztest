@@ -66,7 +66,7 @@ fuzztest_cc_library(
     absl::flat_hash_map
     absl::bits
     absl::int128
-    absl::random_bit_gen_ref
+    absl::random_mocking_access
     absl::span
     fuzztest::fuzzing_mock_stream
     fuzztest::register_absl_fuzzing_mocks

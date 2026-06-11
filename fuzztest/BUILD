@@ -252,7 +252,7 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/numeric:int128",
-        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/random:mocking_access",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest/internal:fuzzing_mock_stream",
         "@com_google_fuzztest//fuzztest/internal:register_absl_fuzzing_mocks",

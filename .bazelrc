@@ -30,6 +30,10 @@ build --cxxopt=-Wc++17-compat-pedantic
 build --host_cxxopt=-std=c++17
 build --host_cxxopt=-Wc++17-compat-pedantic
 
+# Abseil emits a warning on clang <16 that's treated as an error by default.
+# See https://github.com/abseil/abseil-cpp/issues/2073.
+build --per_file_copt=-external/.*@-Wno-invalid-partial-specialization
+
 # Build GoogleTest with ABSL support.
 build --define absl=1
 

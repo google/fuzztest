@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
 set(absl_URL https://github.com/abseil/abseil-cpp.git)
-set(absl_TAG 20260107.1)
+set(absl_TAG 20260526.0)
 
 set(re2_URL https://github.com/google/re2.git)
 set(re2_TAG 2025-11-05)
@@ -39,8 +39,8 @@ set(flatbuffers_URL https://github.com/google/flatbuffers.git)
 set(flatbuffers_TAG v25.12.19)
 
 if(POLICY CMP0135)
-	cmake_policy(SET CMP0135 NEW)
-	set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
+  cmake_policy(SET CMP0135 NEW)
+  set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
 endif()
 
 FetchContent_Declare(
