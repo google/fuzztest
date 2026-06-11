@@ -317,6 +317,12 @@ void CleanUpSancovTls() {
     if (sancov_state->flags.callstack_level != 0) {
       tls.call_stack.Reset(sancov_state->flags.callstack_level);
     }
+    if (sancov_state->flags.use_auto_dictionary) {
+      tls.cmp_trace2.Clear();
+      tls.cmp_trace4.Clear();
+      tls.cmp_trace8.Clear();
+      tls.cmp_traceN.Clear();
+    }
     RunnerCheck(tls.sancov_lowest_sp != nullptr,
                 "sancov_lowest_sp is null for a live thread");
     *tls.sancov_lowest_sp = tls.lowest_sp = tls.top_frame_sp;
@@ -325,14 +331,6 @@ void CleanUpSancovTls() {
 
 void PrepareSancov(bool full_clear) {
   if (full_clear) {
-    sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
-      if (sancov_state->flags.use_auto_dictionary) {
-        tls.cmp_trace2.Clear();
-        tls.cmp_trace4.Clear();
-        tls.cmp_trace8.Clear();
-        tls.cmp_traceN.Clear();
-      }
-    });
     sancov_state->pc_counter_set.ForEachNonZeroByte(
         [](size_t idx, uint8_t value) {}, 0,
         sancov_state->actual_pc_counter_set_size_aligned);
