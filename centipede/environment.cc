@@ -341,9 +341,9 @@ void Environment::UpdateBinaryHashIfEmpty() {
 
 std::vector<std::string> Environment::CreateFlags() const {
   std::vector<std::string> flags;
-#define CENTIPEDE_FLAG(_TYPE, NAME, _DEFAULT, _DESC)                        \
-  if (NAME != Default().NAME) {                                             \
-    flags.push_back(absl::StrCat("--" #NAME "=", absl::UnparseFlag(NAME))); \
+#define CENTIPEDE_FLAG(_TYPE, NAME, _DEFAULT, _DESC)                      \
+  if (NAME != Default().NAME) {                                           \
+    flags.push_back(absl::StrCat("--" #NAME "=", AbslUnparseFlag(NAME))); \
   }
 #include "./centipede/centipede_flags.inc"
 #undef CENTIPEDE_FLAG
