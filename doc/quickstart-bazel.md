@@ -206,6 +206,10 @@ Note: Google Test filter = MyTestSuite.IntegerAdditionCommutes
 ^C
 ```
 
+NOTE: if your test is configured to use sharding by setting the `shard_count`
+attribute, you must pass `--test_sharding_strategy=disabled` on your `bazel run`
+command.
+
 Congratulations! You're now all set for fuzzing with FuzzTest.
 
 ## Next steps
