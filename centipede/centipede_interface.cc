@@ -775,7 +775,11 @@ int CentipedeMain(const Environment& env,
     }();
     Environment updated_env = env;
     if (updated_env.fuzztest_corpus_database.empty()) {
-      FUZZTEST_CHECK_OK(serialized_target_config.status());
+      if (!serialized_target_config.ok()) {
+        FUZZTEST_LOG(ERROR) << "Failed to get the serialized target config: "
+                            << serialized_target_config.status();
+        return EXIT_FAILURE;
+      }
       if (!serialized_target_config->empty()) {
         const auto target_config =
             fuzztest::internal::Configuration::Deserialize(

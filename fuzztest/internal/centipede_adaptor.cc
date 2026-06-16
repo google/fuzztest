@@ -390,6 +390,8 @@ void InstallCentipedeTerminationHandler() {
 
 int RunCentipede(const Environment& env,
                  const std::optional<std::string>& centipede_command) {
+  FUZZTEST_CHECK(!IsCentipedeRunner())
+      << "Unexpected RunCentipede() in runner mode.";
   if (Runtime::instance().termination_requested()) {
     absl::FPrintF(GetStderr(),
                   "Not running Centipede due to termination requested - "
@@ -908,11 +910,6 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
           CentipedeSetFailureDescription(std::string{crash_type}.c_str());
         });
   }
-  if (!configuration.corpus_database.empty() &&
-      configuration.crashing_input_to_reproduce.has_value() &&
-      configuration.replay_in_single_process) {
-    return ReplayCrashInSingleProcess(configuration);
-  }
   if (runner_mode) {
     std::optional<int> result;
     fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
@@ -928,7 +925,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     FUZZTEST_CHECK(result.has_value())
         << "No result is set for running fuzz test";
     return *result == EXIT_SUCCESS;
-  } else if (is_running_property_function_in_this_process) {
+  }
+  if (!configuration.corpus_database.empty() &&
+      configuration.crashing_input_to_reproduce.has_value() &&
+      configuration.replay_in_single_process) {
+    return ReplayCrashInSingleProcess(configuration);
+  }
+  if (is_running_property_function_in_this_process) {
     // If `is_running_property_function_in_this_process` holds at this point. We
     // assume it is for `ReplayInputsIfAvailable` to handle `FUZZTEST_REPLAY`
     // and `FUZZTEST_MINIMIZE_REPRODUCER`, which Centipede does not support.
