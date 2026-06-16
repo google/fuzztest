@@ -456,7 +456,9 @@ CENTIPEDE_FLAG(
     std::string, fuzztest_configuration, "",
     "If set, deserializes the FuzzTest configuration from the value as a "
     "base64url string instead of querying the configuration via runner "
-    "callbacks. For FuzzTest framework only, do not use from end-users.")
+    "callbacks. Specially, if set to `(null)`, assumes no configuration "
+    "without querying the runner. For FuzzTest framework only, do not use from "
+    "end-users.")
 CENTIPEDE_FLAG(
     bool, list_crash_ids, false,
     "If set, lists the crash IDs of a single test of the binary to the "

@@ -269,8 +269,8 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
         std::string{test_name}};
     single_test_configuration.time_limit = total_time_limit;
     single_test_configuration.time_budget_type = TimeBudgetType::kTotal;
-    env.fuzztest_configuration =
-        absl::WebSafeBase64Escape(single_test_configuration.Serialize());
+    env.UpdateWithTargetConfig(single_test_configuration);
+    env.fuzztest_configuration = "(null)";
   }
 
   absl::StrAppend(&env.binary,

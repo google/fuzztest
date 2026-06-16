@@ -764,7 +764,9 @@ int CentipedeMain(const Environment& env,
       // TODO: b/410051414 Use Centipede flags to pass necessary information
       // instead of passing the entirely serialized Configuration once switched
       // to the unified execution model.
-      if (!env.fuzztest_configuration.empty()) {
+      if (env.fuzztest_configuration == "(null)") {
+        return "";
+      } else if (!env.fuzztest_configuration.empty()) {
         std::string result;
         FUZZTEST_CHECK(
             absl::WebSafeBase64Unescape(env.fuzztest_configuration, &result));
