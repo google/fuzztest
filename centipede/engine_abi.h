@@ -87,21 +87,32 @@ typedef struct {
   size_t size;
 } FuzzTestUint64sView;
 
+// Constants for the layout of the coverage feature as a 64-bit unsigned
+// integer:
+//
+//   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a
+//     logically independent feature namespace registered in
+//     `FuzzTestAdapter::SetUpCoverageDomains`.
+//   - Bits 58..32: 27-bit feature ID within the domain.
+//   - Bits 31..0:  32-bit counter value of the feature.
+//
+typedef enum {
+  kFuzzTestCoverageCounterStartBit = 0,
+  kFuzzTestCoverageCounterBitSize = 32,
+  kFuzzTestCoverageFeatureIdStartBit = 32,
+  kFuzzTestCoverageFeatureIdBitSize = 27,
+  kFuzzTestCoverageDomainIdStartBit = 59,
+  kFuzzTestCoverageDomainIdBitSize = 5,
+} FuzzTestCoverageFeatureLayout;
+
 // Sink for execution feedback.
 typedef struct FuzzTestFeedbackSinkCtx FuzzTestFeedbackSinkCtx;
 typedef struct {
   FuzzTestFeedbackSinkCtx* ctx;
 
   // Emits an array of coverage features captured from the execution
-  // inside `Execute` call.
-  //
-  // Each feature is a 64-bit unsigned integer with the following layout:
-  //
-  //   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a
-  //     logically independent feature namespace registered in
-  //     `FuzzTestAdapter::SetUpCoverageDomains`.
-  //   - Bits 58..32: 27-bit feature ID within the domain.
-  //   - Bits 31..0:  32-bit counter value of the feature.
+  // inside `Execute` call. See `FuzzTestCoverageFeatureLayout` for the feature
+  // layout.
   //
   // Multiple emissions are concatenated.
   void (*EmitCoverageFeatures)(FuzzTestFeedbackSinkCtx* ctx,

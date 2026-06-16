@@ -1074,6 +1074,7 @@ RUNNER_DEPS = [
     ":knobs",
     ":mutation_data",
     ":rolling_hash",
+    ":engine_abi",
     ":runner_cmp_trace",
     ":runner_fork_server",
     ":runner_request",
@@ -1231,6 +1232,7 @@ cc_library(
     deps = [
         ":callstack",
         ":dispatcher_flag_helper",
+        ":engine_abi",
         ":execution_metadata",
         ":feature",
         ":foreach_nonzero",

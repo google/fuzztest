@@ -542,13 +542,6 @@ void WorkerDoMutate(const FuzzTestAdapter& adapter) {
   }
 }
 
-constexpr size_t kCounterStartBit = 0;
-constexpr size_t kCounterBitSize = 32;
-constexpr size_t kFeatureIdStartBit = 32;
-constexpr size_t kFeatureIdBitSize = 27;
-constexpr size_t kDomainIdStartBit = 59;
-constexpr size_t kDomainIdBitSize = 5;
-
 template <typename T>
 constexpr T Bits(T v, size_t begin, size_t size) {
   return (v >> begin) & ((T{1} << size) - 1);
@@ -560,7 +553,8 @@ struct CoverageDomainConfiguration {
   uint8_t feature_id_bit_size;
   uint8_t counter_bit_size;
 };
-std::array<CoverageDomainConfiguration, 1 << kDomainIdBitSize> coverage_domains;
+std::array<CoverageDomainConfiguration, 1 << kFuzzTestCoverageDomainIdBitSize>
+    coverage_domains;
 
 void WorkerDoExecute(const FuzzTestAdapter& adapter) {
   auto* inputs_blobseq = GetInputsBlobSequence();
@@ -579,12 +573,15 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
         /*ctx=*/nullptr,
         /*Register=*/[](FuzzTestCoverageDomainRegistryCtx* ctx,
                         const FuzzTestCoverageDomain* domain) {
-          WorkerCheck(domain->domain_id < (1 << kDomainIdBitSize),
-                      "domain ID is too large");
-          WorkerCheck(domain->feature_id_bit_size <= kFeatureIdBitSize,
-                      "domain feature id bit size is too large");
-          WorkerCheck(domain->counter_bit_size <= kCounterBitSize,
-                      "domain counter bit size is too large");
+          WorkerCheck(
+              domain->domain_id < (1 << kFuzzTestCoverageDomainIdBitSize),
+              "domain ID is too large");
+          WorkerCheck(
+              domain->feature_id_bit_size <= kFuzzTestCoverageFeatureIdBitSize,
+              "domain feature id bit size is too large");
+          WorkerCheck(
+              domain->counter_bit_size <= kFuzzTestCoverageCounterBitSize,
+              "domain counter bit size is too large");
           WorkerCheck(!coverage_domains[domain->domain_id].registered,
                       "domain ID is already registered");
           coverage_domains[domain->domain_id].registered = true;
@@ -651,14 +648,15 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     // Convert to the Centipede feature layout with possible loss.
     for (auto& feature : features) {
       const uint64_t domain_id =
-          Bits(feature, kDomainIdStartBit, kDomainIdBitSize);
+          Bits(feature, kFuzzTestCoverageDomainIdStartBit,
+               kFuzzTestCoverageDomainIdBitSize);
       WorkerCheck(coverage_domains[domain_id].registered,
                   "Emitted features in unregistered domain");
       const auto& domain = coverage_domains[domain_id];
-      uint64_t feature_id =
-          Bits(feature, kFeatureIdStartBit, domain.feature_id_bit_size);
-      uint64_t counter =
-          Bits(feature, kCounterStartBit, domain.counter_bit_size);
+      uint64_t feature_id = Bits(feature, kFuzzTestCoverageFeatureIdStartBit,
+                                 domain.feature_id_bit_size);
+      uint64_t counter = Bits(feature, kFuzzTestCoverageCounterStartBit,
+                              domain.counter_bit_size);
       if (coverage_domains[domain_id].counter_bit_size > 0) {
         // Assume that `domain_id` is one of the scoring domains in Centipede,
         // which uses the lower 6 bits for the counter value. The conversion is

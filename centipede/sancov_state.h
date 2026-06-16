@@ -313,6 +313,10 @@ SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures();
 // Gets the execution metadata gathered in `PostProcessSancov`.
 const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata();
 
+// Convert Centipede features in `{start, start + size}` to the engine feature
+// layout as in `engine_abi.h`.
+void SanCovRuntimeConvertToEngineFeatures(feature_t* start, size_t size);
+
 // Check for stack limit for `stack_usage`, with `is_current_stack` set if it
 // is for the current calling stack.
 __attribute__((weak)) void CheckStackLimit(size_t stack_usage,

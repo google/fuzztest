@@ -23,6 +23,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "./centipede/engine_abi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,7 +50,27 @@ void SanCovRuntimeClearCoverage(bool full_clear);
 // the process.
 //
 // If `reject_input==true`, then it will simply empty the feature array.
+//
+// DEPRECATED: the features here is in the raw Centipede layout instead of
+// the standard engine layout. Use `SanCovRuntimePostProcessCoverage` +
+// `SanCovRuntimeEmitFeatures` to work with the engine.
 struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(bool reject_input);
+
+// Registers the SanCov coverage domains. Returns next available domain ID.
+size_t SanCovRuntimeSetUpCoverageDomains(
+    const FuzzTestCoverageDomainRegistry* registry);
+
+// Post-processes all coverage data, and saves it internally for later emission
+// and retrival.
+//
+// If `reject_input==true`, no coverage would be saved.
+void SanCovRuntimePostProcessCoverage(bool reject_input);
+
+// Emits post-processed SanCov coverage features into the engine `sink`.
+//
+// Should be called at most once after `SanCovPostProcessCoverage` - later calls
+// will emit empty coverage.
+void SanCovRuntimeEmitFeatures(const FuzzTestFeedbackSink* sink);
 
 #ifdef __cplusplus
 }  // extern "C"
