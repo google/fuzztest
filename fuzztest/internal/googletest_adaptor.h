@@ -86,13 +86,15 @@ class GTest_TestAdaptor : public ::testing::Test {
 #endif
       } else {
         EXPECT_TRUE(test->RunInUnitTestMode(configuration_))
-            << "Failure(s) found in the unit-test mode.";
+            << "Failure(s) found in the unit-test mode - please see the test "
+               "log for more details.";
       }
     } else {
       // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
       // tolerate crashes in fuzzing mode.
       EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_))
-          << "Failure(s) found in the fuzzing mode.";
+          << "Failure(s) found in the fuzzing mode - please see the test log "
+             "for more details.";
     }
   }
 
