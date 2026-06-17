@@ -354,7 +354,7 @@ TEST(OptionalOf, WorksWithACustomOptionalType) {
   auto domain = OptionalOf<std::optional<int>>(InRange(1, 3));
   absl::BitGen bitgen;
   std::optional<int> v = Value(domain, bitgen).user_value;
-  EXPECT_THAT(v, AnyOf(absl::nullopt, Optional(_)));
+  EXPECT_THAT(v, AnyOf(std::nullopt, Optional(_)));
 }
 
 TEST(OptionalOf, AlwaysGenerateNulloptWhenPolicySet) {
