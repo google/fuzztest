@@ -204,10 +204,10 @@ typedef struct FuzzTestAdapter {
                               const FuzzTestBytesView* metadata,
                               FuzzTestInputHandle input);
 
-  // Drops the ownership of `input` from the engine.
+  // Callback to run when the engine is done with `input`.
   void (*FreeInput)(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle input);
 
-  // Drops the ownership of `ctx` from the engine.
+  // Callback to run when the engine is done with `ctx` (and the adapter).
   void (*FreeCtx)(FuzzTestAdapterCtx* ctx);
 } FuzzTestAdapter;
 
@@ -225,7 +225,8 @@ typedef struct {
 
   // Constructs an adapter of the test into `adapter_out`. Any diagnostics
   // happening during the construction or running the adapter should be emitted
-  // to `diagnostic_sink`.
+  // to `diagnostic_sink`. `diagnostic_sink` is guaranteed to live until
+  // `FreeCtx` is called on the adapter.
   void (*ConstructAdapter)(FuzzTestAdapterManagerCtx* ctx,
                            const FuzzTestDiagnosticSink* diagnostic_sink,
                            FuzzTestAdapter* adapter_out);
