@@ -96,6 +96,7 @@ class GTest_TestAdaptor : public ::testing::Test {
           << "Failure(s) found in the fuzzing mode - please see the test log "
              "for more details.";
     }
+    EXPECT_FALSE(Runtime::instance().external_failure_detected());
   }
 
   static void SetUpTestSuite() {
