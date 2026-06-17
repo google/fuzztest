@@ -38,6 +38,7 @@ licenses(["notice"])
 cc_binary(
     name = "centipede",
     srcs = ["centipede_main.cc"],
+    compatible_with = [],
     deps = [
         ":centipede_callbacks",
         ":centipede_default_callbacks",
@@ -52,12 +53,14 @@ cc_binary(
 cc_uninstrumented_binary(
     name = "centipede_uninstrumented",
     binary = ":centipede",
+    compatible_with = [],
 )
 
 # A standalone seed corpus generator.
 cc_binary(
     name = "seed_corpus_maker",
     srcs = ["seed_corpus_maker.cc"],
+    compatible_with = [],
     deps = [
         ":config_init",
         ":seed_corpus_maker_flags",
@@ -73,6 +76,7 @@ cc_binary(
 cc_binary(
     name = "blob_file_converter",
     srcs = ["blob_file_converter.cc"],
+    compatible_with = [],
     deps = [
         ":config_init",
         ":rusage_profiler",
@@ -1993,4 +1997,13 @@ sh_test(
         ":centipede",
         ":test_util_sh",
     ],
+)
+
+filegroup(
+    name = "oss_srcs",
+    srcs = [
+        "centipede_main.cc",
+        "seed_corpus_maker.cc",
+    ],
+    visibility = ["//visibility:private"],
 )

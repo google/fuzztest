@@ -14,7 +14,6 @@
 
 # The package contains libraries that are common to both FuzzTest and Centipede.
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 DEFAULT_VISIBILITY = ["//visibility:public"]
@@ -99,6 +98,17 @@ cc_library(
 )
 
 cc_library(
+    name = "env_util",
+    srcs = ["env_util.cc"],
+    hdrs = ["env_util.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
     name = "hash",
     srcs = ["hash.cc"],
     hdrs = ["hash.h"],
@@ -126,23 +136,21 @@ cc_library(
         "//conditions:default": [],
     }),
     deps = [
-               ":defs",
-               ":logging",
-               ":status_macros",
-               "@abseil-cpp//absl/base:nullability",
-               "@abseil-cpp//absl/status",
-               "@abseil-cpp//absl/status:statusor",
-               "@abseil-cpp//absl/strings",
-           ] + select({
-               "//conditions:default": [":remote_file_oss"],
-           }) +
-           select({
-               "@com_google_fuzztest//fuzztest:disable_riegeli": [],
-               "//conditions:default": [
-                   "@com_google_riegeli//riegeli/bytes:reader",
-                   "@com_google_riegeli//riegeli/bytes:writer",
-               ],
-           }),
+        ":defs",
+        ":logging",
+        ":remote_file_oss",
+        ":status_macros",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+    ] + select({
+        "@com_google_fuzztest//fuzztest:disable_riegeli": [],
+        "//conditions:default": [
+            "@com_google_riegeli//riegeli/bytes:reader",
+            "@com_google_riegeli//riegeli/bytes:writer",
+        ],
+    }),
 )
 
 cc_library(
@@ -155,7 +163,6 @@ cc_library(
         "@com_google_fuzztest//fuzztest:disable_riegeli": ["CENTIPEDE_DISABLE_RIEGELI"],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:private"],
     deps = [
         ":defs",
         ":logging",
@@ -253,13 +260,11 @@ cc_test(
 )
 
 # TODO(b/324462306): Merge this with remote_file_test once the bug is fixed.
-cc_library(
-    name = "remote_file_test_lib",
-    testonly = True,
+exports_files(["remote_file_test.cc"])
+
+cc_test(
+    name = "remote_file_test",
     srcs = ["remote_file_test.cc"],
-    defines = select({
-        "//conditions:default": [],
-    }),
     deps = [
         ":logging",
         ":remote_file",
@@ -267,16 +272,6 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest",
-    ] + select({
-        "//conditions:default": [],
-    }),
-    alwayslink = True,
-)
-
-cc_test(
-    name = "remote_file_test",
-    deps = [
-        ":remote_file_test_lib",
         "@googletest//:gtest_main",
     ],
 )

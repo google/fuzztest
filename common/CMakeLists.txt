@@ -84,6 +84,19 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    env_util
+  HDRS
+    "env_util.h"
+  SRCS
+    "env_util.cc"
+  DEPS
+    absl::strings
+    absl::str_format
+    absl::time
+)
+
+fuzztest_cc_library(
+  NAME
     hash
   HDRS
     "hash.h"
