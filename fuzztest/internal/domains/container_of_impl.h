@@ -387,8 +387,13 @@ class ContainerOfImplBase
     // container generate `0-10` elements when calling `Init`, then
     // `E(recursive) =  4.5 E(X)`, which will make `E(X) = Infinite`.
     // Make some smallish random seed containers.
-    return absl::Uniform(prng, min_size(),
-                         std::min(max_size() + 1, min_size() + 2));
+    size_t size = absl::Uniform(prng, min_size(),
+                                std::max(max_size() + 1, min_size() + 2));
+    if (size > max_size()) {
+      size = max_size();
+    }
+
+    return size;
   }
 
   size_t min_size() const { return min_size_; }
