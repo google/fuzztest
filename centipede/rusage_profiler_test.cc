@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/flags/flag.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -106,7 +107,7 @@ TEST(RUsageProfilerTest, TimelapseSnapshots) {
 // and skews the test's memory measurements. 2) The test allocates large
 // memory blocks to fight small number volatility of the system allocator, but
 // MSAN's custom allocator can't cope and intermittently OOMs.
-#if !defined(MEMORY_SANITIZER)
+#if !defined(ABSL_HAVE_MEMORY_SANITIZER)
 // Compare RUsageProfiler's manually taken snapshots against raw RUsageTiming
 // and RUsageMemory numbers acquired approximately at the same time.
 // "Approximately the same" is still not *the same*, so some discrepancies are
@@ -168,8 +169,9 @@ TEST(RUsageProfilerTest, ValidateManualSnapshots) {
   // well as the delta timing partially determined by it, from validation.
   // 2) All *SANs slow down execution, so skip timing checks under them.
   // However, still run RUsageProfiler under them to catch any respective bugs.
-#if !defined(MEMORY_SANITIZER) && !defined(ADDRESS_SANITIZER) && \
-    !defined(THREAD_SANITIZER)
+#if !defined(ABSL_HAVE_MEMORY_SANITIZER) &&  \
+    !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_THREAD_SANITIZER)
   // EXPECT_SYS_TIMING_NEAR(before_snapshot.timing, before_timing);
   EXPECT_SYS_TIMING_NEAR(after_snapshot.timing, after_timing);
   // EXPECT_SYS_TIMING_NEAR(after_snapshot.delta_timing, delta_timing);
@@ -202,8 +204,9 @@ TEST(RUsageProfilerTest, ValidateTimelapseSnapshots) {
 
   // NOTE: The sanitizers heavily instrument the code and skew any time
   //  measurements.
-#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
-    !defined(MEMORY_SANITIZER)
+#if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_THREAD_SANITIZER) &&  \
+    !defined(ABSL_HAVE_MEMORY_SANITIZER)
   const auto& snapshots = rprof.GetSnapshots();
   ASSERT_NEAR(snapshots.size(), absl::FDivDuration(kWasteTime, kInterval), 1);
   for (int i = 1; i < snapshots.size(); ++i) {

@@ -33,7 +33,7 @@ special way.
 
 *   `-g -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -UNDEBUG`
 *   `-fsanitize-coverage=inline-8bit-counters -fsanitize-coverage=trace-cmp`
-*   `-fsanitize=address -DADDRESS_SANITIZER` (optionally enabling sanitizer)
+*   `-fsanitize=address` (optionally enabling sanitizer)
 
 The FuzzTest framework doesn't need to be built with these flags, only the target project.
 
@@ -233,18 +233,18 @@ INFO: found LLVMFuzzerCustomMutator (0x55edfe61cac0). Disabling -len_control by 
 INFO: libFuzzer ignores flags that start with '--'
 INFO: Running with entropic power schedule (0xFF, 100).
 INFO: Seed: 1109364873
-INFO: Loaded 1 modules   (18692 inline 8-bit counters): 18692 [0x55edfe975548, 0x55edfe979e4c), 
-INFO: Loaded 1 PC tables (18692 PCs): 18692 [0x55edfe979e50,0x55edfe9c2e90), 
+INFO: Loaded 1 modules   (18692 inline 8-bit counters): 18692 [0x55edfe975548, 0x55edfe979e4c),
+INFO: Loaded 1 PC tables (18692 PCs): 18692 [0x55edfe979e50,0x55edfe9c2e90),
 INFO: -max_len is not provided; libFuzzer will not generate inputs larger than 4096 bytes
 INFO: A corpus is not provided, starting from an empty corpus
-#2	INITED cov: 17 ft: 18 corp: 1/1b exec/s: 0 rss: 38Mb
-#3	NEW    cov: 104 ft: 108 corp: 2/66b lim: 4096 exec/s: 0 rss: 38Mb L: 65/65 MS: 1 Custom-
-#4	NEW    cov: 105 ft: 112 corp: 3/121b lim: 4096 exec/s: 0 rss: 38Mb L: 55/65 MS: 1 Custom-
-#5	NEW    cov: 105 ft: 113 corp: 4/196b lim: 4096 exec/s: 0 rss: 38Mb L: 75/75 MS: 1 Custom-
-#16	REDUCE cov: 105 ft: 113 corp: 4/195b lim: 4096 exec/s: 0 rss: 38Mb L: 54/75 MS: 1 Custom-
-#41	NEW    cov: 105 ft: 114 corp: 5/247b lim: 4096 exec/s: 0 rss: 38Mb L: 52/75 MS: 5 Custom-Custom-Custom-Custom-Custom-
-#65	NEW    cov: 106 ft: 115 corp: 6/312b lim: 4096 exec/s: 0 rss: 38Mb L: 65/75 MS: 4 Custom-Custom-Custom-Custom-
-#69	NEW    cov: 108 ft: 119 corp: 7/365b lim: 4096 exec/s: 0 rss: 38Mb L: 53/75 MS: 4 Custom-Custom-Custom-Custom-
+#2  INITED cov: 17 ft: 18 corp: 1/1b exec/s: 0 rss: 38Mb
+#3  NEW    cov: 104 ft: 108 corp: 2/66b lim: 4096 exec/s: 0 rss: 38Mb L: 65/65 MS: 1 Custom-
+#4  NEW    cov: 105 ft: 112 corp: 3/121b lim: 4096 exec/s: 0 rss: 38Mb L: 55/65 MS: 1 Custom-
+#5  NEW    cov: 105 ft: 113 corp: 4/196b lim: 4096 exec/s: 0 rss: 38Mb L: 75/75 MS: 1 Custom-
+#16 REDUCE cov: 105 ft: 113 corp: 4/195b lim: 4096 exec/s: 0 rss: 38Mb L: 54/75 MS: 1 Custom-
+#41 NEW    cov: 105 ft: 114 corp: 5/247b lim: 4096 exec/s: 0 rss: 38Mb L: 52/75 MS: 5 Custom-Custom-Custom-Custom-Custom-
+#65 NEW    cov: 106 ft: 115 corp: 6/312b lim: 4096 exec/s: 0 rss: 38Mb L: 65/75 MS: 4 Custom-Custom-Custom-Custom-
+#69 NEW    cov: 108 ft: 119 corp: 7/365b lim: 4096 exec/s: 0 rss: 38Mb L: 53/75 MS: 4 Custom-Custom-Custom-Custom-
 ```
 
 ## Next steps

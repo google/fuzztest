@@ -405,6 +405,7 @@ cc_library(
         ":seed_seq",
         ":serialization",
         ":status",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/functional:bind_front",
