@@ -470,7 +470,9 @@ bool Centipede::RunBatch(
   if (stop_condition_.EarlyStopRequested()) return false;
   if (!success && env_.exit_on_crash) {
     FUZZTEST_LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
-    stop_condition_.RequestEarlyStop(EXIT_FAILURE);
+    stop_condition_.RequestEarlyStop(EXIT_FAILURE,
+                                     "A crash was found in the test with "
+                                     "--exit_on_crash set for the engine");
     return false;
   }
   bool batch_gained_new_coverage = false;
@@ -1017,7 +1019,7 @@ void Centipede::ReportCrash(std::string_view binary,
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");
     FUZZTEST_LOG(INFO) << "Requesting early stop due to skipped test.";
-    stop_condition_.RequestEarlyStop(EXIT_SUCCESS);
+    stop_condition_.RequestEarlyStop(EXIT_SUCCESS, "The test was skipped");
     return;
   }
 
@@ -1025,7 +1027,7 @@ void Centipede::ReportCrash(std::string_view binary,
     log_execution_failure("Test Setup Failure: ");
     FUZZTEST_LOG(INFO)
         << "Requesting early stop due to setup failure in the test.";
-    stop_condition_.RequestEarlyStop(EXIT_FAILURE);
+    stop_condition_.RequestEarlyStop(EXIT_FAILURE, "Setup failed in the test");
     return;
   }
 

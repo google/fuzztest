@@ -36,7 +36,8 @@ void SetSignalHandlers() {
     const char msg[] = "\n[!] Ctrl-C pressed: winding down\n";
     [[maybe_unused]] auto write_res =
         write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    global_stop_condition.RequestEarlyStop(EXIT_FAILURE);
+    global_stop_condition.RequestEarlyStopInSignal(EXIT_FAILURE,
+                                                   "Ctrl-C pressed");
   };
   sigaction(SIGINT, &sigact, nullptr);
 }

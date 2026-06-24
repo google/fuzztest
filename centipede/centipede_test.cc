@@ -1299,8 +1299,9 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
   EXPECT_THAT(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
                                inputs.size()),
               IsEmpty());
-  EXPECT_TRUE(stop_condition.EarlyStopRequested());
-  EXPECT_EQ(stop_condition.ExitCode(), EXIT_FAILURE);
+  StopCondition::EarlyStopRequest stop_request;
+  EXPECT_TRUE(stop_condition.EarlyStopRequested(&stop_request));
+  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir,
@@ -1325,7 +1326,7 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   StopCondition stop_condition;
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
   const auto start = absl::Now();
-  stop_condition.ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
+  stop_condition.SetStopTime(start + absl::Seconds(3));
   std::vector<ByteArray> seeds;
   callbacks.GetSeeds(/*num_seeds=*/1, seeds);
   // Give it some slack to stop in 5s.
