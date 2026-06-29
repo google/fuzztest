@@ -695,9 +695,9 @@ const char* FuzzTestWorkerGetTestName() {
   return test_name;
 }
 
-FuzzTestWorkerStatus WorkerMaybeRun(const FuzzTestAdapterManager& manager) {
+FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   const auto& flags = GetWorkerFlags();
-  if (!flags.present) return kFuzzTestWorkerNotRequired;
+  WorkerCheck(flags.present, "worker flags must present");
 
   if (HasWorkerSwitchFlag("dump_configuration")) {
     return kFuzzTestWorkerSuccess;
@@ -786,11 +786,21 @@ FuzzTestWorkerStatus WorkerMaybeRun(const FuzzTestAdapterManager& manager) {
 
 }  // namespace fuzztest::internal
 
+namespace {
+
+using ::fuzztest::internal::GetWorkerFlags;
 using ::fuzztest::internal::WorkerCheck;
-using ::fuzztest::internal::WorkerMaybeRun;
+using ::fuzztest::internal::WorkerRun;
+
+}  // namespace
+
+int FuzzTestWorkerIsRequired() { return GetWorkerFlags().present; }
 
 FuzzTestWorkerStatus FuzzTestWorkerMaybeRun(
     const FuzzTestAdapterManager* manager) {
   WorkerCheck(manager != nullptr, "manager must not be nullptr");
-  return WorkerMaybeRun(*manager);
+  if (!FuzzTestWorkerIsRequired()) {
+    return kFuzzTestWorkerNotRequired;
+  }
+  return WorkerRun(*manager);
 }

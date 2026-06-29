@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 typedef enum {
-  kFuzzTestWorkerSuccess = 0,  // Test should finish with a success
+  kFuzzTestWorkerSuccess = 0,  // Test should finish with a success.
   kFuzzTestWorkerFailure,      // Test should finish with a failure.
   kFuzzTestWorkerNotRequired,  // Test should continue with controller commands.
 } FuzzTestWorkerStatus;
@@ -37,6 +37,10 @@ typedef enum {
 // Try to run as a FuzzTest worker with `manager` if needed.
 FuzzTestWorkerStatus FuzzTestWorkerMaybeRun(
     const FuzzTestAdapterManager* manager);
+
+// Returns whether the current process is running as a FuzzTest worker -
+// non-zero means yes and zero means no. It can be called outside of tests.
+int FuzzTestWorkerIsRequired();
 
 #ifdef __cplusplus
 }  // extern "C"

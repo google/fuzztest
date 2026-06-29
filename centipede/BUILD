@@ -982,6 +982,7 @@ cc_library(
     ],
     hdrs = ["engine_worker_abi.h"],
     deps = [
+        ":engine_abi",
         ":execution_metadata",
         ":feature",
         ":runner_request",
@@ -990,7 +991,6 @@ cc_library(
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/random:bit_gen_ref",
-        "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//common:defs",
     ],
 )
