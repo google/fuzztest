@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+#include "./centipede/stop.h"
 
 namespace fuzztest::internal {
 
@@ -90,9 +91,10 @@ class Command final {
 
   // Waits for the command execution and returns the exit status if the
   // execution finishes within `deadline`. Must be called only when the command
-  // is executing. execution or the execution times out. If interrupted, may
-  // call `RequestEarlyStop()` (see stop.h).
-  std::optional<int> Wait(absl::Time deadline);
+  // is executing. If interrupted, may call `stop_condition->RequestEarlyStop()`
+  // (see stop.h).
+  std::optional<int> Wait(absl::Time deadline,
+                          StopCondition* stop_condition = nullptr);
 
   // Requests the command execution to stop by sending SIGTERM or SIGKILL (when
   // `force` is true). Must be called only when the command is executing. Note
@@ -101,9 +103,9 @@ class Command final {
   void RequestStop(bool force = false);
 
   // Convenient method to execute synchronously.
-  int Execute() {
+  int Execute(StopCondition* stop_condition = nullptr) {
     if (!ExecuteAsync()) return EXIT_FAILURE;
-    return Wait(absl::InfiniteFuture()).value_or(EXIT_FAILURE);
+    return Wait(absl::InfiniteFuture(), stop_condition).value_or(EXIT_FAILURE);
   }
 
   // Attempts to start a fork server, returns true on success.

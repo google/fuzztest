@@ -434,7 +434,8 @@ bool Command::ExecuteAsync() {
   return true;
 }
 
-std::optional<int> Command::Wait(absl::Time deadline) {
+std::optional<int> Command::Wait(absl::Time deadline,
+                                 StopCondition* stop_condition) {
   FUZZTEST_CHECK(is_executing());
   int exit_code = EXIT_SUCCESS;
 
@@ -506,7 +507,9 @@ std::optional<int> Command::Wait(absl::Time deadline) {
   } else if (WIFSIGNALED(exit_code)) {
     const auto signal = WTERMSIG(exit_code);
     if (signal == SIGINT) {
-      RequestEarlyStop(EXIT_FAILURE);
+      if (stop_condition != nullptr) {
+        stop_condition->RequestEarlyStop(EXIT_FAILURE);
+      }
       // When the user kills Centipede via ^C, they are unlikely to be
       // interested in any of the subprocesses' outputs. Also, ^C terminates all
       // the subprocesses, including all the runners, so all their outputs would

@@ -351,6 +351,8 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   return env;
 }
 
+StopCondition global_stop_condition;
+
 void InstallCentipedeTerminationHandler() {
   [[maybe_unused]] static bool install_once = [] {
     for (int signum : {SIGTERM, SIGHUP}) {
@@ -358,7 +360,7 @@ void InstallCentipedeTerminationHandler() {
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
-        RequestEarlyStop(EXIT_SUCCESS);
+        global_stop_condition.RequestEarlyStop(EXIT_SUCCESS);
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
@@ -428,9 +430,11 @@ int RunCentipede(const Environment& env,
         << "Termination status must be Exited if not Signaled";
     return static_cast<int>(std::get<ExitCodeT>(status.Status()));
   }
+  global_stop_condition.ClearEarlyStopRequestAndSetStopTime(
+      absl::InfiniteFuture());
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;
-  return CentipedeMain(env, *factory);
+  return CentipedeMain(env, *factory, &global_stop_condition);
 }
 
 }  // namespace
@@ -1079,7 +1083,8 @@ extern "C" const char* CentipedeGetRunnerFlags() {
 
   // Set the runner flags according to the FuzzTest default environment.
   const auto env = fuzztest::internal::CreateDefaultCentipedeEnvironment();
-  CentipedeCallbacksForRunnerFlagsExtraction callbacks(env);
+  CentipedeCallbacksForRunnerFlagsExtraction callbacks(
+      env, fuzztest::internal::global_stop_condition);
   const std::string runner_flags = callbacks.GetRunnerFlagsContent();
   ABSL_VLOG(1) << "[.] Centipede runner flags: " << runner_flags;
   return strdup(runner_flags.c_str());

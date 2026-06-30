@@ -21,35 +21,28 @@
 #include "absl/time/time.h"
 
 namespace fuzztest::internal {
-namespace {
 
-struct EarlyStop {
-  int exit_code = EXIT_SUCCESS;
-  bool is_requested = false;
-};
-std::atomic<EarlyStop> early_stop;
-
-absl::Time stop_time = absl::InfiniteFuture();
-
-}  // namespace
-
-bool EarlyStopRequested() {
-  return early_stop.load(std::memory_order_acquire).is_requested;
+bool StopCondition::EarlyStopRequested() const {
+  return early_stop_.load(std::memory_order_acquire).is_requested;
 }
 
-void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
-  early_stop.store({}, std::memory_order_release);
-  ::fuzztest::internal::stop_time = stop_time;
+void StopCondition::ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
+  early_stop_.store({}, std::memory_order_release);
+  stop_time_ = stop_time;
 }
 
-void RequestEarlyStop(int exit_code) {
-  early_stop.store({exit_code, true}, std::memory_order_release);
+void StopCondition::RequestEarlyStop(int exit_code) {
+  early_stop_.store({exit_code, true}, std::memory_order_release);
 }
 
-absl::Time GetStopTime() { return stop_time; }
+absl::Time StopCondition::GetStopTime() const { return stop_time_; }
 
-bool ShouldStop() { return EarlyStopRequested() || stop_time < absl::Now(); }
+bool StopCondition::ShouldStop() const {
+  return EarlyStopRequested() || stop_time_ < absl::Now();
+}
 
-int ExitCode() { return early_stop.load(std::memory_order_acquire).exit_code; }
+int StopCondition::ExitCode() const {
+  return early_stop_.load(std::memory_order_acquire).exit_code;
+}
 
 }  // namespace fuzztest::internal

@@ -38,6 +38,7 @@
 #include "./centipede/runner_result.h"
 #include "./centipede/rusage_profiler.h"
 #include "./centipede/stats.h"
+#include "./centipede/stop.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/workdir.h"
 #include "./common/blob_file.h"
@@ -48,9 +49,9 @@ namespace fuzztest::internal {
 // The main fuzzing class.
 class Centipede {
  public:
-  Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
-            const BinaryInfo &binary_info, CoverageLogger &coverage_logger,
-            std::atomic<Stats> &stats);
+  Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
+            const BinaryInfo& binary_info, CoverageLogger& coverage_logger,
+            std::atomic<Stats>& stats, StopCondition& stop_condition);
   virtual ~Centipede() = default;
 
   // Non-copyable and non-movable.
@@ -175,6 +176,7 @@ class Centipede {
   size_t AddPcPairFeatures(FeatureVec &fv);
 
   const Environment &env_;
+  StopCondition& stop_condition_;
   const WorkDir wd_{env_};
 
   CentipedeCallbacks &user_callbacks_;

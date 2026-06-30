@@ -31,6 +31,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
@@ -38,7 +39,8 @@ namespace fuzztest::internal {
 // Example of customized CentipedeCallbacks.
 class CentipedeDefaultCallbacks : public CentipedeCallbacks {
  public:
-  explicit CentipedeDefaultCallbacks(const Environment &env);
+  CentipedeDefaultCallbacks(const Environment& env,
+                            StopCondition& stop_condition);
   size_t GetSeeds(size_t num_seeds, std::vector<ByteArray> &seeds) override;
   absl::StatusOr<std::string> GetSerializedTargetConfig() override;
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,

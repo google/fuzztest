@@ -27,6 +27,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
@@ -38,7 +39,8 @@ namespace {
 // A mock for CentipedeCallbacks.
 class MinimizerMock : public CentipedeCallbacks {
  public:
-  MinimizerMock(const Environment &env) : CentipedeCallbacks(env) {}
+  MinimizerMock(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
 
   // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true.
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
@@ -65,12 +67,15 @@ class MinimizerMock : public CentipedeCallbacks {
     }
     return false;
   }
+
+  StopCondition internal_stop_condition_;
 };
 
 // Factory that creates/destroys MinimizerMock.
 class MinimizerMockFactory : public CentipedeCallbacksFactory {
  public:
-  CentipedeCallbacks *absl_nonnull create(const Environment &env) override {
+  CentipedeCallbacks* absl_nonnull create(
+      const Environment& env, StopCondition& stop_condition) override {
     return new MinimizerMock(env);
   }
   void destroy(CentipedeCallbacks *cb) override { delete cb; }
@@ -83,20 +88,24 @@ TEST(MinimizeTest, MinimizeTest) {
   env.num_runs = 100000;
   const WorkDir wd{env};
   MinimizerMockFactory factory;
+  StopCondition stop_condition;
 
   // Test with a non-crashy input.
-  EXPECT_EQ(MinimizeCrash({1, 2, 3}, env, factory), EXIT_FAILURE);
+  EXPECT_EQ(MinimizeCrash({1, 2, 3}, env, factory, stop_condition),
+            EXIT_FAILURE);
 
   ByteArray expected_minimized = {'f', 'u', 'z'};
 
   // Test with a crashy input that can't be minimized further.
-  EXPECT_EQ(MinimizeCrash(expected_minimized, env, factory), EXIT_FAILURE);
+  EXPECT_EQ(MinimizeCrash(expected_minimized, env, factory, stop_condition),
+            EXIT_FAILURE);
 
   // Test the actual minimization.
   ByteArray original_crasher = {'f', '.', '.', '.', '.', '.', '.', '.',
                                 '.', '.', '.', 'u', '.', '.', '.', '.',
                                 '.', '.', '.', '.', '.', '.', 'z'};
-  EXPECT_EQ(MinimizeCrash(original_crasher, env, factory), EXIT_SUCCESS);
+  EXPECT_EQ(MinimizeCrash(original_crasher, env, factory, stop_condition),
+            EXIT_SUCCESS);
   // Collect the new crashers from the crasher dir.
   std::vector<ByteArray> crashers;
   for (auto const &dir_entry : std::filesystem::directory_iterator{

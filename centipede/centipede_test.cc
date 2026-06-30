@@ -74,7 +74,8 @@ inline std::vector<ByteSpan> AsByteSpans(const std::vector<ByteArray>& inputs) {
 // A mock for CentipedeCallbacks.
 class CentipedeMock : public CentipedeCallbacks {
  public:
-  CentipedeMock(const Environment &env) : CentipedeCallbacks(env) {}
+  CentipedeMock(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
   // Doesn't execute anything
   // Sets `batch_result.results()` based on the values of `inputs`:
   // Collects various stats about the inputs, to be checked in tests.
@@ -142,6 +143,9 @@ class CentipedeMock : public CentipedeCallbacks {
   size_t num_mutations_ = 0;
   size_t max_batch_size_ = 0;
   size_t min_batch_size_ = -1;
+
+ private:
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, MockTest) {
@@ -352,7 +356,8 @@ TEST(Centipede, InputFilter) {
 // Callbacks for MutateViaExternalBinary test.
 class MutateCallbacks : public CentipedeCallbacks {
  public:
-  explicit MutateCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
+  explicit MutateCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
   // Will not be called.
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -368,6 +373,9 @@ class MutateCallbacks : public CentipedeCallbacks {
 
   // Redeclare a protected member function as public so the tests can call it.
   using CentipedeCallbacks::MutateViaExternalBinary;
+
+ private:
+  StopCondition internal_stop_condition_;
 };
 
 // Maintains `TemporaryLocalDirPath()` during the lifetime.
@@ -389,6 +397,8 @@ class CentipedeWithTemporaryLocalDir : public testing::Test {
   ~CentipedeWithTemporaryLocalDir() override {
     std::filesystem::remove_all(TemporaryLocalDirPath());
   }
+
+  StopCondition stop_condition;
 };
 
 TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
@@ -495,7 +505,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
 // A mock for MergeFromOtherCorpus test.
 class MergeMock : public CentipedeCallbacks {
  public:
-  explicit MergeMock(const Environment &env) : CentipedeCallbacks(env) {}
+  explicit MergeMock(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
 
   // Doesn't execute anything.
   // All inputs are 1-byte long.
@@ -526,6 +537,7 @@ class MergeMock : public CentipedeCallbacks {
 
  private:
   size_t number_of_mutations_ = 0;
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, MergeFromOtherCorpus) {
@@ -578,8 +590,8 @@ TEST(Centipede, MergeFromOtherCorpus) {
 // A mock for FunctionFilter test.
 class FunctionFilterMock : public CentipedeCallbacks {
  public:
-  explicit FunctionFilterMock(const Environment &env)
-      : CentipedeCallbacks(env) {
+  explicit FunctionFilterMock(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {
     std::vector<ByteArray> seed_inputs;
     const size_t num_seeds_available = GetSeeds(/*num_seeds=*/1, seed_inputs);
     FUZZTEST_CHECK_EQ(num_seeds_available, 1)
@@ -628,6 +640,7 @@ class FunctionFilterMock : public CentipedeCallbacks {
 
  private:
   size_t number_of_mutations_ = 0;
+  StopCondition internal_stop_condition_;
 };
 
 // Runs a short fuzzing session with the provided `function_filter`.
@@ -695,8 +708,9 @@ struct Crash {
 // A mock for ExtraBinaries test.
 class ExtraBinariesMock : public CentipedeCallbacks {
  public:
-  explicit ExtraBinariesMock(const Environment &env, std::vector<Crash> crashes)
-      : CentipedeCallbacks(env), crashes_(std::move(crashes)) {}
+  explicit ExtraBinariesMock(const Environment& env, std::vector<Crash> crashes)
+      : CentipedeCallbacks(env, internal_stop_condition_),
+        crashes_(std::move(crashes)) {}
 
   // Doesn't execute anything.
   // On certain combinations of {binary,input} returns false.
@@ -733,6 +747,7 @@ class ExtraBinariesMock : public CentipedeCallbacks {
  private:
   size_t number_of_mutations_ = 0;
   std::vector<Crash> crashes_;
+  StopCondition internal_stop_condition_;
 };
 
 struct FileAndContents {
@@ -811,9 +826,10 @@ TEST(Centipede, ExtraBinaries) {
 // A mock for UndetectedCrashingInput test.
 class UndetectedCrashingInputMock : public CentipedeCallbacks {
  public:
-  explicit UndetectedCrashingInputMock(const Environment &env,
+  explicit UndetectedCrashingInputMock(const Environment& env,
                                        size_t crashing_input_idx)
-      : CentipedeCallbacks{env}, crashing_input_idx_{crashing_input_idx} {
+      : CentipedeCallbacks{env, internal_stop_condition_},
+        crashing_input_idx_{crashing_input_idx} {
     FUZZTEST_CHECK_LE(crashing_input_idx_, std::numeric_limits<uint8_t>::max());
   }
 
@@ -876,6 +892,7 @@ class UndetectedCrashingInputMock : public CentipedeCallbacks {
   size_t num_inputs_triaged_ = 0;
   ByteArray crashing_input_ = {};
   bool first_pass_ = true;
+  StopCondition internal_stop_condition_;
 };
 
 // Test for preserving a crashing batch when 1-by-1 exec fails to reproduce.
@@ -943,7 +960,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   std::vector<ByteArray> seeds;
   EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
@@ -961,7 +978,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSerializedTargetConfig) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   ASSERT_TRUE(serialized_config.ok());
@@ -975,7 +992,7 @@ TEST_F(CentipedeWithTemporaryLocalDir,
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
           .c_str(),
       " --simulate_failure");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
   EXPECT_FALSE(serialized_config.ok());
@@ -985,7 +1002,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
       "centipede/testing/expensive_startup_fuzz_target");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
@@ -1002,9 +1019,10 @@ TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
 
 class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
  public:
-  FakeCentipedeCallbacksForThreadChecking(const Environment &env,
+  FakeCentipedeCallbacksForThreadChecking(const Environment& env,
                                           std::thread::id execute_thread_id)
-      : CentipedeCallbacks(env), execute_thread_id_(execute_thread_id) {}
+      : CentipedeCallbacks(env, internal_stop_condition_),
+        execute_thread_id_(execute_thread_id) {}
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -1024,6 +1042,7 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
  private:
   std::thread::id execute_thread_id_;
   bool thread_check_passed_ = true;
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
@@ -1046,7 +1065,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   env.stack_limit_kb = 64;
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {ByteArray{'s', 't', 'k'}};
@@ -1059,7 +1078,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
 
 class SetupFailureCallbacks : public CentipedeCallbacks {
  public:
-  using CentipedeCallbacks::CentipedeCallbacks;
+  explicit SetupFailureCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -1079,6 +1099,7 @@ class SetupFailureCallbacks : public CentipedeCallbacks {
 
  private:
   int execute_count_ = 0;
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, ReturnsFailureOnSetupFailure) {
@@ -1096,7 +1117,8 @@ TEST(Centipede, ReturnsFailureOnSetupFailure) {
 
 class SkippedTestCallbacks : public CentipedeCallbacks {
  public:
-  using CentipedeCallbacks::CentipedeCallbacks;
+  explicit SkippedTestCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -1117,6 +1139,7 @@ class SkippedTestCallbacks : public CentipedeCallbacks {
 
  private:
   int execute_count_ = 0;
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, ReturnsSuccessOnSkippedTest) {
@@ -1134,7 +1157,8 @@ TEST(Centipede, ReturnsSuccessOnSkippedTest) {
 
 class IgnoredFailureCallbacks : public CentipedeCallbacks {
  public:
-  using CentipedeCallbacks::CentipedeCallbacks;
+  explicit IgnoredFailureCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -1155,6 +1179,7 @@ class IgnoredFailureCallbacks : public CentipedeCallbacks {
 
  private:
   int execute_count_ = 0;
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
@@ -1176,7 +1201,7 @@ TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
 class CentipedeMockForInputReduction : public CentipedeCallbacks {
  public:
   CentipedeMockForInputReduction(const Environment& env)
-      : CentipedeCallbacks(env) {}
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
   // Doesn't execute anything
   // Sets `batch_result.results()` based on the first 4 bits of `inputs`:
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
@@ -1199,6 +1224,9 @@ class CentipedeMockForInputReduction : public CentipedeCallbacks {
     }
     return num_seeds;
   }
+
+ private:
+  StopCondition internal_stop_condition_;
 };
 
 TEST(Centipede, DoesNotReduceInputWhenTheOptionIsUnset) {
@@ -1247,7 +1275,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
       "centipede/testing/fuzz_target_with_custom_mutator");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
   const std::vector<Mutant> mutants = callbacks.Mutate(
@@ -1264,23 +1292,22 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
                        "centipede/testing/fuzz_target_with_custom_mutator")
                        .c_str(),
                    " --simulate_failure");
-  CentipedeDefaultCallbacks callbacks(env);
+  StopCondition stop_condition;
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
-  // Previous stop condition could interfere here.
-  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
   EXPECT_THAT(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
                                inputs.size()),
               IsEmpty());
-  EXPECT_TRUE(EarlyStopRequested());
-  EXPECT_EQ(ExitCode(), EXIT_FAILURE);
+  EXPECT_TRUE(stop_condition.EarlyStopRequested());
+  EXPECT_EQ(stop_condition.ExitCode(), EXIT_FAILURE);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir,
        FallsBackToBuiltInMutatorWhenCustomMutatorNotProvided) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/abort_fuzz_target");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
   const std::vector<Mutant> mutants = callbacks.Mutate(
@@ -1295,14 +1322,14 @@ TEST_F(CentipedeWithTemporaryLocalDir,
        GetsSeedViaExternalBinaryStopsAfterStopTime) {
   Environment env;
   env.binary = "sleep 100";
-  CentipedeDefaultCallbacks callbacks(env);
+  StopCondition stop_condition;
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
   const auto start = absl::Now();
-  ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
+  stop_condition.ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
   std::vector<ByteArray> seeds;
   callbacks.GetSeeds(/*num_seeds=*/1, seeds);
   // Give it some slack to stop in 5s.
   EXPECT_LE(absl::Now() - start, absl::Seconds(5));
-  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
@@ -1311,7 +1338,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
       GetDataDependencyFilepath("centipede/testing/hanging_fuzz_target");
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   env.timeout_per_batch = 1;
   env.fork_server = false;
@@ -1324,7 +1351,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
 TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
-  CentipedeDefaultCallbacks callbacks(env);
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
   BatchResult result;
   std::vector<ByteArray> inputs = {
       {'c', 'u', 's', 't', 'o', 'm'},
@@ -1344,12 +1371,12 @@ TEST_F(CentipedeWithTemporaryLocalDir, ToleratesAsyncFailureInMutation) {
   Environment env;
   env.binary =
       GetDataDependencyFilepath("centipede/testing/async_failing_target");
-  CentipedeDefaultCallbacks callbacks(env);
+  StopCondition stop_condition;
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
   BatchResult result;
   std::vector<ByteArray> inputs = {
       {'s', 'o', 'm', 'e'},
   };
-  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
   EXPECT_TRUE(callbacks.Execute(env.binary, AsByteSpans(inputs), result));
   // Match the error log to check for retrying mutation.
   EXPECT_DEATH(

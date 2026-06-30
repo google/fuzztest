@@ -17,6 +17,7 @@
 
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
+#include "./centipede/stop.h"
 
 namespace fuzztest::internal {
 
@@ -26,11 +27,13 @@ namespace fuzztest::internal {
 //     InitGoogle(argv[0], &argc, &argv, /*remove_flags=*/true);
 //     fuzztest::internal::Environment env;  // reads FLAGS.
 //     fuzztest::internal::DefaultCallbacksFactory<MyCentipedeCallbacks>
-//     callbacks_factory; return fuzztest::internal::CentipedeMain(env,
-//     callbacks_factory);
+//         callbacks_factory;
+//     return fuzztest::internal::CentipedeMain(env, callbacks_factory);
 //   }
-int CentipedeMain(const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory);
+
+int CentipedeMain(const Environment& env,
+                  CentipedeCallbacksFactory& callbacks_factory,
+                  StopCondition* stop_condition = nullptr);
 
 }  // namespace fuzztest::internal
 

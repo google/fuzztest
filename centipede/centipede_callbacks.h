@@ -34,6 +34,7 @@
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
@@ -47,9 +48,9 @@ namespace fuzztest::internal {
 // Note: the interface is not yet stable and may change w/o a notice.
 class CentipedeCallbacks {
  public:
-  // `env` is used to pass flags to `this`, it must outlive `this`.
-  CentipedeCallbacks(const Environment &env)
+  CentipedeCallbacks(const Environment& env, StopCondition& stop_condition)
       : env_(env),
+        stop_condition_(stop_condition),
         byte_array_mutator_(env.knobs, GetRandomSeed(env.seed)),
         fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)),
         inputs_blobseq_(shmem_name1_.c_str(), env.shmem_size_mb << 20,
@@ -164,6 +165,7 @@ class CentipedeCallbacks {
   void PrintExecutionLog() const;
 
   const Environment &env_;
+  StopCondition& stop_condition_;
   ByteArrayMutator byte_array_mutator_;
   FuzzTestMutator fuzztest_mutator_;
 
@@ -216,7 +218,8 @@ class CentipedeCallbacks {
 // and not actually delete it.
 class CentipedeCallbacksFactory {
  public:
-  virtual CentipedeCallbacks *create(const Environment &env) = 0;
+  virtual CentipedeCallbacks* create(const Environment& env,
+                                     StopCondition& stop_condition) = 0;
   virtual void destroy(CentipedeCallbacks *callbacks) = 0;
   virtual ~CentipedeCallbacksFactory() {}
 };
@@ -225,8 +228,9 @@ class CentipedeCallbacksFactory {
 template <typename Type>
 class DefaultCallbacksFactory : public CentipedeCallbacksFactory {
  public:
-  CentipedeCallbacks *create(const Environment &env) override {
-    return new Type(env);
+  CentipedeCallbacks* create(const Environment& env,
+                             StopCondition& stop_condition) override {
+    return new Type(env, stop_condition);
   }
   void destroy(CentipedeCallbacks *callbacks) override { delete callbacks; }
 };
@@ -239,7 +243,8 @@ class NonOwningCallbacksFactory : public CentipedeCallbacksFactory {
  public:
   explicit NonOwningCallbacksFactory(CentipedeCallbacks& callbacks)
       : callbacks_(callbacks) {}
-  CentipedeCallbacks* absl_nonnull create(const Environment& env) override {
+  CentipedeCallbacks* absl_nonnull create(
+      const Environment& env, StopCondition& stop_condition) override {
     const bool was_already_created =
         is_created_.exchange(true, std::memory_order_acq_rel);
     FUZZTEST_CHECK(!was_already_created)
@@ -263,9 +268,10 @@ class NonOwningCallbacksFactory : public CentipedeCallbacksFactory {
 // Creates a CentipedeCallbacks object in CTOR and destroys it in DTOR.
 class ScopedCentipedeCallbacks {
  public:
-  ScopedCentipedeCallbacks(CentipedeCallbacksFactory &factory,
-                           const Environment &env)
-      : factory_(factory), callbacks_(factory_.create(env)) {}
+  ScopedCentipedeCallbacks(CentipedeCallbacksFactory& factory,
+                           const Environment& env,
+                           StopCondition& stop_condition)
+      : factory_(factory), callbacks_(factory_.create(env, stop_condition)) {}
   ~ScopedCentipedeCallbacks() { factory_.destroy(callbacks_); }
   CentipedeCallbacks *absl_nonnull callbacks() { return callbacks_; }
 

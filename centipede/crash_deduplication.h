@@ -85,7 +85,7 @@ void OrganizeCrashingInputs(
     CentipedeCallbacksFactory& callbacks_factory,
     const absl::flat_hash_map<std::string, CrashDetails>&
         new_crashes_by_signature,
-    CrashSummary& crash_summary);
+    CrashSummary& crash_summary, StopCondition& stop_condition);
 
 }  // namespace fuzztest::internal
 

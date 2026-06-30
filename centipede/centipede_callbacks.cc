@@ -469,7 +469,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   const auto deadline =
-      std::min(absl::Now() + amortized_timeout, GetStopTime());
+      std::min(absl::Now() + amortized_timeout, stop_condition_.GetStopTime());
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing()) {
@@ -491,7 +491,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       }
       return false;
     }
-    const std::optional<int> ret = cmd.Wait(deadline);
+    const std::optional<int> ret = cmd.Wait(deadline, &stop_condition_);
     if (!ret.has_value()) return true;
     exit_code = *ret;
     return false;
@@ -660,7 +660,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                           << cmd.ToString();
       return EXIT_FAILURE;
     }
-    const auto wait_result = cmd.Wait(GetStopTime());
+    const auto wait_result =
+        cmd.Wait(stop_condition_.GetStopTime(), &stop_condition_);
     if (!wait_result.has_value()) {
       FUZZTEST_LOG(ERROR) << "Failed to wait for the seeding command "
                           << cmd.ToString();

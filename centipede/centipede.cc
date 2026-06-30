@@ -115,8 +115,10 @@ std::vector<MutantRef> InputsToMutantRefs(const std::vector<ByteSpan>& inputs) {
 
 Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
                      const BinaryInfo& binary_info,
-                     CoverageLogger& coverage_logger, std::atomic<Stats>& stats)
+                     CoverageLogger& coverage_logger, std::atomic<Stats>& stats,
+                     StopCondition& stop_condition)
     : env_(env),
+      stop_condition_(stop_condition),
       user_callbacks_(user_callbacks),
       rng_(env_.seed),
       // TODO(kcc): [impl] find a better way to compute frequency_threshold.
@@ -379,7 +381,7 @@ void Centipede::LogFeaturesAsSymbols(const FeatureVec &fv) {
 bool Centipede::InputPassesFilter(ByteSpan input) {
   if (env_.input_filter.empty()) return true;
   WriteToLocalFile(input_filter_path_, input);
-  bool result = input_filter_cmd_.Execute() == EXIT_SUCCESS;
+  bool result = input_filter_cmd_.Execute(&stop_condition_) == EXIT_SUCCESS;
   std::filesystem::remove(input_filter_path_);
   return result;
 }
@@ -394,7 +396,7 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                        << batch_result.failure_description();
     return true;
   }
-  if (ShouldStop()) {
+  if (stop_condition_.ShouldStop()) {
     FUZZTEST_LOG_FIRST_N(WARNING, 1)
         << "Crash found but the stop condition is met - not reporting further "
            "possibly related crashes.";
@@ -460,20 +462,20 @@ bool Centipede::RunBatch(
   FUZZTEST_CHECK_EQ(mutants.size(), batch_result.results().size());
 
   for (const auto &extra_binary : env_.extra_binaries) {
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     BatchResult extra_batch_result;
     success = ExecuteAndReportCrash(extra_binary, inputs, extra_batch_result) &&
               success;
   }
-  if (EarlyStopRequested()) return false;
+  if (stop_condition_.EarlyStopRequested()) return false;
   if (!success && env_.exit_on_crash) {
     FUZZTEST_LOG(INFO) << "--exit_on_crash is enabled; exiting soon";
-    RequestEarlyStop(EXIT_FAILURE);
+    stop_condition_.RequestEarlyStop(EXIT_FAILURE);
     return false;
   }
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < mutants.size(); i++) {
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     FeatureVec &fv = batch_result.results()[i].mutable_features();
     bool function_filter_passed = function_filter_.filter(fv);
     bool input_gained_new_coverage = fs_.PruneFeaturesAndCountUnseen(fv) != 0;
@@ -555,7 +557,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   std::vector<ByteArray> inputs_to_rerun;
   auto input_features_callback = [&](ByteArray input,
                                      FeatureVec input_features) {
-    if (ShouldStop()) return;
+    if (stop_condition_.ShouldStop()) return;
     if (input_features.empty()) {
       if (rerun) {
         inputs_to_rerun.emplace_back(std::move(input));
@@ -627,7 +629,7 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   // Re-run all inputs for which we don't know their features.
   // Run in batches of at most env_.batch_size inputs each.
   while (!to_rerun.empty()) {
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     size_t batch_size = std::min(to_rerun.size(), env_.batch_size);
     if (RunBatch(
             InputsToMutantRefs({to_rerun.end() - batch_size, to_rerun.end()}),
@@ -903,7 +905,7 @@ void Centipede::FuzzingLoop() {
   size_t new_runs = 0;
   size_t corpus_size_at_last_prune = corpus_.NumActive();
   for (size_t batch_index = 0; batch_index < number_of_batches; batch_index++) {
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     FUZZTEST_CHECK_LT(new_runs, env_.num_runs);
     auto remaining_runs = env_.num_runs - new_runs;
     auto batch_size = std::min(env_.batch_size, remaining_runs);
@@ -923,7 +925,7 @@ void Centipede::FuzzingLoop() {
 
     std::vector<Mutant> mutants =
         user_callbacks_.Mutate(mutation_inputs, batch_size);
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     new_runs += mutants.size();
 
     std::vector<MutantRef> mutant_refs;
@@ -1015,7 +1017,7 @@ void Centipede::ReportCrash(std::string_view binary,
   if (batch_result.IsSkippedTest()) {
     log_execution_failure("Skipped Test: ");
     FUZZTEST_LOG(INFO) << "Requesting early stop due to skipped test.";
-    RequestEarlyStop(EXIT_SUCCESS);
+    stop_condition_.RequestEarlyStop(EXIT_SUCCESS);
     return;
   }
 
@@ -1023,13 +1025,13 @@ void Centipede::ReportCrash(std::string_view binary,
     log_execution_failure("Test Setup Failure: ");
     FUZZTEST_LOG(INFO)
         << "Requesting early stop due to setup failure in the test.";
-    RequestEarlyStop(EXIT_FAILURE);
+    stop_condition_.RequestEarlyStop(EXIT_FAILURE);
     return;
   }
 
   // Skip reporting only if RequestEarlyStop is called - still reporting if time
-  // runs out.
-  if (EarlyStopRequested()) return;
+  // limit is reached.
+  if (stop_condition_.EarlyStopRequested()) return;
 
   if (++num_crashes_ > env_.max_num_crash_reports) return;
 
@@ -1073,14 +1075,14 @@ void Centipede::ReportCrash(std::string_view binary,
       << log_prefix
       << "Executing inputs one-by-one, trying to find the reproducer";
   for (auto input_idx : input_idxs_to_try) {
-    if (ShouldStop()) break;
+    if (stop_condition_.ShouldStop()) break;
     const auto one_input = input_vec[input_idx];
     BatchResult one_input_batch_result;
     if (!user_callbacks_.Execute(binary, {one_input}, one_input_batch_result) &&
         one_input_batch_result.IsInputFailure() &&
         one_input_batch_result.failure_signature() ==
             batch_result.failure_signature() &&
-        !ShouldStop()) {
+        !stop_condition_.ShouldStop()) {
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
       FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
@@ -1113,7 +1115,7 @@ void Centipede::ReportCrash(std::string_view binary,
     }
   }
 
-  if (ShouldStop()) {
+  if (stop_condition_.ShouldStop()) {
     FUZZTEST_LOG(INFO)
         << log_prefix
         << "Stop condition is on - skipping triaging the reproducer";

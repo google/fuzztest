@@ -20,6 +20,7 @@
 #include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
@@ -27,26 +28,33 @@ namespace {
 
 class FakeCallbacks : public CentipedeCallbacks {
  public:
-  explicit FakeCallbacks(const Environment& env) : CentipedeCallbacks(env) {}
+  explicit FakeCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
     return true;
   }
+
+ private:
+  StopCondition internal_stop_condition_;
 };
 
 TEST(NonOwningCallbacksFactoryTest, CreateReturnsUnderlyingCallbacks) {
   Environment env;
   FakeCallbacks callbacks(env);
   NonOwningCallbacksFactory factory(callbacks);
-  EXPECT_EQ(factory.create(env), &callbacks);
+  StopCondition stop_condition;
+  EXPECT_EQ(factory.create(env, stop_condition), &callbacks);
 }
 
 TEST(NonOwningCallbacksFactoryTest, CannotCreateTwice) {
   Environment env;
   FakeCallbacks callbacks(env);
   NonOwningCallbacksFactory factory(callbacks);
-  factory.create(env);
-  EXPECT_DEATH(factory.create(env), "create\\(\\) called before destroy\\(\\)");
+  StopCondition stop_condition;
+  factory.create(env, stop_condition);
+  EXPECT_DEATH(factory.create(env, stop_condition),
+               "create\\(\\) called before destroy\\(\\)");
 }
 
 TEST(NonOwningCallbacksFactoryTest, CannotDestroyBeforeCreate) {
@@ -61,7 +69,8 @@ TEST(NonOwningCallbacksFactoryTest, CannotDestroyTwice) {
   Environment env;
   FakeCallbacks callbacks(env);
   NonOwningCallbacksFactory factory(callbacks);
-  factory.create(env);
+  StopCondition stop_condition;
+  factory.create(env, stop_condition);
   factory.destroy(&callbacks);
   EXPECT_DEATH(factory.destroy(&callbacks),
                "destroy\\(\\) called before the matching create\\(\\)");

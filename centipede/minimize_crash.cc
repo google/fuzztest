@@ -85,10 +85,12 @@ struct MinimizerWorkQueue {
 };
 
 // Performs a minimization loop in one thread.
-static void MinimizeCrash(const Environment &env,
-                          CentipedeCallbacksFactory &callbacks_factory,
-                          MinimizerWorkQueue &queue) {
-  ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env);
+static void MinimizeCrash(const Environment& env,
+                          CentipedeCallbacksFactory& callbacks_factory,
+                          MinimizerWorkQueue& queue,
+                          StopCondition& stop_condition) {
+  ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env,
+                                           stop_condition);
   auto callbacks = scoped_callback.callbacks();
   BatchResult batch_result;
 
@@ -96,7 +98,7 @@ static void MinimizeCrash(const Environment &env,
   for (size_t i = 0; i < num_batches; ++i) {
     FUZZTEST_LOG_EVERY_POW_2(INFO)
         << "[" << i << "] Minimizing... Interrupt to stop";
-    if (ShouldStop()) break;
+    if (stop_condition.ShouldStop()) break;
     // Get up to kMaxNumCrashersToGet most recent crashers. We don't want just
     // the most recent crasher to avoid being stuck in local minimum.
     constexpr size_t kMaxNumCrashersToGet = 20;
@@ -133,9 +135,11 @@ static void MinimizeCrash(const Environment &env,
   }
 }
 
-int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory) {
-  ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env);
+int MinimizeCrash(ByteSpan crashy_input, const Environment& env,
+                  CentipedeCallbacksFactory& callbacks_factory,
+                  StopCondition& stop_condition) {
+  ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env,
+                                           stop_condition);
   auto callbacks = scoped_callback.callbacks();
 
   FUZZTEST_LOG(INFO) << "MinimizeCrash: trying the original crashy input";
@@ -156,8 +160,8 @@ int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
   {
     ThreadPool threads{static_cast<int>(env.num_threads)};
     for (size_t i = 0; i < env.num_threads; ++i) {
-      threads.Schedule([&env, &callbacks_factory, &queue]() {
-        MinimizeCrash(env, callbacks_factory, queue);
+      threads.Schedule([&env, &callbacks_factory, &queue, &stop_condition]() {
+        MinimizeCrash(env, callbacks_factory, queue, stop_condition);
       });
     }
   }  // The threads join here.

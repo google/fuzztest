@@ -28,6 +28,7 @@
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 namespace fuzztest::internal {
 // Runs all `inputs`, returns FeatureVec for every input.
@@ -43,7 +44,8 @@ std::vector<FeatureVec> RunInputsAndCollectCoverage(
 // A simple CentipedeCallbacks derivative.
 class TestCallbacks : public CentipedeCallbacks {
  public:
-  explicit TestCallbacks(const Environment &env) : CentipedeCallbacks(env) {}
+  explicit TestCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
     int result =
@@ -55,6 +57,9 @@ class TestCallbacks : public CentipedeCallbacks {
                              size_t num_mutants) override {
     return {};
   }
+
+ private:
+  StopCondition internal_stop_condition_;
 };
 }  // namespace fuzztest::internal
 

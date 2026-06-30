@@ -12,12 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unistd.h>
+
+#include <csignal>
+#include <cstdlib>
+
 #include "absl/base/nullability.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/config_file.h"
 #include "./centipede/environment_flags.h"
+#include "./centipede/stop.h"
+
+namespace {
+fuzztest::internal::StopCondition global_stop_condition;
+
+void SetSignalHandlers() {
+  struct sigaction sigact = {};
+  sigact.sa_flags = SA_ONSTACK;
+  sigact.sa_handler = [](int received_signum) {
+    if (received_signum != SIGINT) return;
+    const char msg[] = "\n[!] Ctrl-C pressed: winding down\n";
+    [[maybe_unused]] auto write_res =
+        write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    global_stop_condition.RequestEarlyStop(EXIT_FAILURE);
+  };
+  sigaction(SIGINT, &sigact, nullptr);
+}
+}  // namespace
 
 int main(int argc, char** absl_nonnull argv) {
   const auto runtime_state = fuzztest::internal::InitCentipede(argc, argv);
@@ -26,5 +49,6 @@ int main(int argc, char** absl_nonnull argv) {
   fuzztest::internal::DefaultCallbacksFactory<
       fuzztest::internal::CentipedeDefaultCallbacks>
       callbacks;
-  return CentipedeMain(env, callbacks);
+  SetSignalHandlers();
+  return CentipedeMain(env, callbacks, &global_stop_condition);
 }

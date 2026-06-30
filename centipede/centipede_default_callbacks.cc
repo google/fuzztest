@@ -34,8 +34,9 @@
 
 namespace fuzztest::internal {
 
-CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(const Environment &env)
-    : CentipedeCallbacks(env) {
+CentipedeDefaultCallbacks::CentipedeDefaultCallbacks(
+    const Environment& env, StopCondition& stop_condition)
+    : CentipedeCallbacks(env, stop_condition) {
   for (const auto &dictionary_path : env_.dictionary) {
     LoadDictionary(dictionary_path);
   }
@@ -106,7 +107,7 @@ std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
                "generate some using the built-in mutator.";
       }
       break;
-    } else if (ShouldStop()) {
+    } else if (stop_condition_.ShouldStop()) {
       FUZZTEST_LOG(WARNING)
           << "Custom mutator failed, but ignored since the stop "
              "condition it met. Possibly what triggered the stop "
@@ -123,7 +124,7 @@ std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
       PrintExecutionLog();
       FUZZTEST_LOG(ERROR) << "Test binary failed to mutate inputs at the final "
                              "attempt - exiting.";
-      RequestEarlyStop(EXIT_FAILURE);
+      stop_condition_.RequestEarlyStop(EXIT_FAILURE);
       return {};
     }
   }

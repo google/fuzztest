@@ -55,23 +55,25 @@ TEST(CommandTest, ToString) {
 }
 
 TEST(CommandTest, Execute) {
+  StopCondition stop_condition;
+
   // Check for default exit code.
   Command echo{"echo"};
-  EXPECT_EQ(echo.Execute(), 0);
-  EXPECT_FALSE(ShouldStop());
+  EXPECT_EQ(echo.Execute(&stop_condition), 0);
+  EXPECT_FALSE(stop_condition.ShouldStop());
 
   // Check for exit code 7.
   Command exit7{"bash -c 'exit 7'"};
-  EXPECT_EQ(exit7.Execute(), 7);
-  EXPECT_FALSE(ShouldStop());
+  EXPECT_EQ(exit7.Execute(&stop_condition), 7);
+  EXPECT_FALSE(stop_condition.ShouldStop());
 }
 
 TEST(CommandTest, HandlesInterruptedCommand) {
+  StopCondition stop_condition;
   Command self_sigint{"bash -c 'kill -SIGINT $$'"};
   self_sigint.ExecuteAsync();
-  self_sigint.Wait(absl::InfiniteFuture());
-  EXPECT_TRUE(ShouldStop());
-  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+  self_sigint.Wait(absl::InfiniteFuture(), &stop_condition);
+  EXPECT_TRUE(stop_condition.ShouldStop());
 }
 
 TEST(CommandTest, InputFileWildCard) {

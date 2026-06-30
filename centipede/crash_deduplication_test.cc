@@ -32,6 +32,7 @@
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
@@ -167,7 +168,8 @@ class FakeCentipedeCallbacks : public CentipedeCallbacks {
   explicit FakeCentipedeCallbacks(
       const Environment& env,
       absl::flat_hash_map<std::string, Crash> crashing_inputs)
-      : CentipedeCallbacks(env), crashing_inputs_(std::move(crashing_inputs)) {}
+      : CentipedeCallbacks(env, internal_stop_condition_),
+        crashing_inputs_(std::move(crashing_inputs)) {}
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
@@ -185,6 +187,7 @@ class FakeCentipedeCallbacks : public CentipedeCallbacks {
 
  private:
   absl::flat_hash_map<std::string, Crash> crashing_inputs_;
+  StopCondition internal_stop_condition_;
 };
 
 struct FileAndContents {
@@ -228,6 +231,7 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   }
   const Environment& env() const { return env_; }
   CrashSummary& crash_summary() { return crash_summary_; }
+  StopCondition& stop_condition() { return stop_condition_; }
 
  private:
   TempDir test_dir_;
@@ -236,6 +240,7 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   std::filesystem::path new_crashes_dir_;
   Environment env_;
   CrashSummary crash_summary_{"binary_id", "fuzz_test"};
+  StopCondition stop_condition_;
 };
 
 TEST_F(OrganizeCrashingInputsTest, CreatesDirectoriesIfMissing) {
@@ -246,7 +251,8 @@ TEST_F(OrganizeCrashingInputsTest, CreatesDirectoriesIfMissing) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir, crashing_dir, env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
 
   const std::filesystem::directory_entry crashing_dir_entry{crashing_dir};
   const std::filesystem::directory_entry regression_dir_entry{regression_dir};
@@ -263,7 +269,8 @@ TEST_F(OrganizeCrashingInputsTest, RenamesOldStyleCrashFileToNewStyle) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -285,7 +292,8 @@ TEST_F(OrganizeCrashingInputsTest, KeepsNewStyleCrashFileIfSignatureUnchanged) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -307,7 +315,8 @@ TEST_F(OrganizeCrashingInputsTest, UpdatesCrashSignatureInFileNameIfChanged) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -340,7 +349,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
 
   EXPECT_GT(std::filesystem::last_write_time(reproducible_input_path),
             reproducible_mtime_before);
@@ -359,7 +369,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -391,7 +402,8 @@ TEST_F(OrganizeCrashingInputsTest, KeepsFlakyCrashAndUpdatesModificationTime) {
   new_crashes_by_signature["csig"] = {"isig", "desc", new_input_path};
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -413,7 +425,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -434,7 +447,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -452,7 +466,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -474,7 +489,8 @@ TEST_F(OrganizeCrashingInputsTest,
   new_crashes_by_signature["csig"] = {"isig2", "desc2", input2_path};
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -499,7 +515,8 @@ TEST_F(OrganizeCrashingInputsTest,
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -525,7 +542,8 @@ TEST_F(OrganizeCrashingInputsTest, StoresNewCrashWithUniqueCrashSignature) {
   new_crashes_by_signature["csig"] = {"isig", "desc", input_path};
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -554,7 +572,8 @@ TEST_F(OrganizeCrashingInputsTest,
   new_crashes_by_signature["csig"] = {"isig2", "desc2", input2_path};
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -575,7 +594,8 @@ TEST_F(OrganizeCrashingInputsTest, DoesNotProcessInputsInRegressionDir) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary());
+                         /*new_crashes_by_signature=*/{}, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -614,7 +634,8 @@ TEST_F(OrganizeCrashingInputsTest, AddsNewCrashesUpToFileLimit) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -670,7 +691,8 @@ TEST_F(OrganizeCrashingInputsTest, ReplacesIrreproducibleCrashAtFileLimit) {
   NonOwningCallbacksFactory factory(callbacks);
 
   OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary());
+                         new_crashes_by_signature, crash_summary(),
+                         stop_condition());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 

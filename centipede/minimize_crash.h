@@ -17,6 +17,7 @@
 
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
@@ -28,8 +29,9 @@ namespace fuzztest::internal {
 // Also returns EXIT_FAILURE if the original input didn't crash.
 // Stores the newly found crashy inputs in
 // `WorkDir{env}.CrashReproducerDirPath()`.
-int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory);
+int MinimizeCrash(ByteSpan crashy_input, const Environment& env,
+                  CentipedeCallbacksFactory& callbacks_factory,
+                  StopCondition& stop_condition);
 
 }  // namespace fuzztest::internal
 

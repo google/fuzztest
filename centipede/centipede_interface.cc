@@ -79,23 +79,10 @@ namespace {
 // Sets signal handler for SIGINT.
 // TODO(b/378532202): Replace this with a more generic mechanism that allows
 // the called or `CentipedeMain()` to indicate when to stop.
-void SetSignalHandlers() {
-  struct sigaction sigact = {};
-  sigact.sa_flags = SA_ONSTACK;
-  sigact.sa_handler = [](int received_signum) {
-    if (received_signum == SIGINT) {
-      FUZZTEST_LOG(INFO) << "Ctrl-C pressed: winding down";
-      RequestEarlyStop(EXIT_FAILURE);
-      return;
-    }
-    ABSL_UNREACHABLE();
-  };
-  sigaction(SIGINT, &sigact, nullptr);
-}
 
 // Runs env.for_each_blob on every blob extracted from env.args.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
-int ForEachBlob(const Environment& env) {
+int ForEachBlob(const Environment& env, StopCondition& stop_condition) {
   auto tmpdir = TemporaryLocalDirPath();
   CreateLocalDirRemovedAtExit(tmpdir);
   std::string tmpfile = std::filesystem::path(tmpdir).append("t");
@@ -118,7 +105,7 @@ int ForEachBlob(const Environment& env) {
       // If this flag gets active use, we may want to define special cases,
       // e.g. if for_each_blob=="cp %P /some/where" we can do it in-process.
       cmd.Execute();
-      if (ShouldStop()) return ExitCode();
+      if (stop_condition.ShouldStop()) return stop_condition.ExitCode();
     }
   }
   return EXIT_SUCCESS;
@@ -154,12 +141,13 @@ void SavePCTableToFile(const PCTable& pc_table, std::string_view file_path) {
 
 BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
     const Environment& env, CentipedeCallbacksFactory& callbacks_factory,
-    std::string& pcs_file_path) {
+    std::string& pcs_file_path, StopCondition& stop_condition) {
   BinaryInfo binary_info;
   // Some fuzz targets have coverage not based on instrumenting binaries.
   // For those target, we should not populate binary info.
   if (env.populate_binary_info) {
-    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                              stop_condition);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }
   if (env.save_binary_info) {
@@ -193,7 +181,8 @@ std::vector<Environment> CreateEnvironmentsForThreads(
 
 int Fuzz(const Environment& env, const BinaryInfo& binary_info,
          std::string_view pcs_file_path,
-         CentipedeCallbacksFactory& callbacks_factory) {
+         CentipedeCallbacksFactory& callbacks_factory,
+         StopCondition& stop_condition) {
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
   std::vector<Environment> envs =
@@ -225,20 +214,22 @@ int Fuzz(const Environment& env, const BinaryInfo& binary_info,
         });
   }
 
-  auto fuzzing_worker =
-      [&env, &callbacks_factory, &binary_info, &coverage_logger](
-          Environment& my_env, std::atomic<Stats>& stats, bool create_tmpdir) {
-        if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-        // Uses TID, call in this thread.
-        my_env.seed = GetRandomSeed(env.seed);
+  auto fuzzing_worker = [&env, &callbacks_factory, &binary_info,
+                         &coverage_logger, &stop_condition](
+                            Environment& my_env, std::atomic<Stats>& stats,
+                            bool create_tmpdir) {
+    if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+    // Uses TID, call in this thread.
+    my_env.seed = GetRandomSeed(env.seed);
 
-        if (env.dry_run) return;
+    if (env.dry_run) return;
 
-        ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env);
-        Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
-                            coverage_logger, stats);
-        centipede.FuzzingLoop();
-      };
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env,
+                                              stop_condition);
+    Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
+                        coverage_logger, stats, stop_condition);
+    centipede.FuzzingLoop();
+  };
 
   if (env.num_threads == 1) {
     // When fuzzing with one thread, run fuzzing loop in the current
@@ -268,7 +259,7 @@ int Fuzz(const Environment& env, const BinaryInfo& binary_info,
 
   if (!env.knobs_file.empty()) PrintRewardValues(stats_vec, std::cerr);
 
-  return ExitCode();
+  return stop_condition.ExitCode();
 }
 
 TestShard SetUpTestSharding() {
@@ -351,7 +342,8 @@ PeriodicAction RecordFuzzingTime(std::string_view fuzzing_time_file,
 }
 
 int UpdateCorpusDatabase(Environment env,
-                         CentipedeCallbacksFactory& callbacks_factory) {
+                         CentipedeCallbacksFactory& callbacks_factory,
+                         StopCondition& stop_condition) {
   FUZZTEST_LOG(INFO) << "Starting the update of the corpus database for:"
                      << "\nFuzz test: " << env.test_name
                      << "\nBinary: " << env.binary
@@ -394,7 +386,7 @@ int UpdateCorpusDatabase(Environment env,
   env.save_binary_info = false;
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
-      env, callbacks_factory, pcs_file_path);
+      env, callbacks_factory, pcs_file_path, stop_condition);
 
   FUZZTEST_LOG(INFO) << "Test shard index: " << test_shard_index
                      << " Total test shards: " << total_test_shards;
@@ -404,7 +396,8 @@ int UpdateCorpusDatabase(Environment env,
   // Step 2: Run the fuzz test.
 
   // Clean up previous stop requests. stop_time will be set later.
-  ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
+  stop_condition.ClearEarlyStopRequestAndSetStopTime(
+      /*stop_time=*/absl::InfiniteFuture());
 
   if (!is_workdir_specified) {
     env.workdir = base_workdir_path / env.test_name;
@@ -464,8 +457,9 @@ int UpdateCorpusDatabase(Environment env,
         RemoteFileSetContents(execution_id_path, env.fuzztest_execution_id));
   }
 
-  absl::Cleanup clean_up_workdir = [is_workdir_specified, &env] {
-    if (!is_workdir_specified && !EarlyStopRequested()) {
+  absl::Cleanup clean_up_workdir = [is_workdir_specified, &env,
+                                    &stop_condition] {
+    if (!is_workdir_specified && !stop_condition.EarlyStopRequested()) {
       FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
     }
   };
@@ -496,9 +490,9 @@ int UpdateCorpusDatabase(Environment env,
   }
   is_resuming = false;
 
-  if (EarlyStopRequested()) {
-    if (ExitCode() != EXIT_SUCCESS) {
-      exit_code = ExitCode();
+  if (stop_condition.EarlyStopRequested()) {
+    if (stop_condition.ExitCode() != EXIT_SUCCESS) {
+      exit_code = stop_condition.ExitCode();
       FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
                           << " with failure exit code " << exit_code;
     } else {
@@ -513,10 +507,11 @@ int UpdateCorpusDatabase(Environment env,
                      << "\n\tTest binary: " << env.binary;
 
   const absl::Time start_time = absl::Now();
-  ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time + time_limit);
+  stop_condition.ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time +
+                                                     time_limit);
   PeriodicAction record_fuzzing_time =
       RecordFuzzingTime(fuzzing_time_file, start_time - time_spent);
-  Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+  Fuzz(env, binary_info, pcs_file_path, callbacks_factory, stop_condition);
   record_fuzzing_time.Nudge();
   record_fuzzing_time.Stop();
 
@@ -528,9 +523,9 @@ int UpdateCorpusDatabase(Environment env,
         (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp)).c_str()));
   }
 
-  if (EarlyStopRequested()) {
-    if (ExitCode() != EXIT_SUCCESS) {
-      exit_code = ExitCode();
+  if (stop_condition.EarlyStopRequested()) {
+    if (stop_condition.ExitCode() != EXIT_SUCCESS) {
+      exit_code = stop_condition.ExitCode();
       FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
                           << " with failure exit code " << exit_code;
     } else {
@@ -540,7 +535,8 @@ int UpdateCorpusDatabase(Environment env,
     return exit_code;
   }
   // The test time limit does not apply for the rest of the steps.
-  ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
+  stop_condition.ClearEarlyStopRequestAndSetStopTime(
+      /*stop_time=*/absl::InfiniteFuture());
 
   // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
   // of checking whether workdir is specified or not.
@@ -564,8 +560,8 @@ int UpdateCorpusDatabase(Environment env,
     return exit_code;
   }
   OrganizeCrashingInputs(regression_dir, fuzztest_db_path / "crashing", env,
-                         callbacks_factory, crashes_by_signature,
-                         crash_summary);
+                         callbacks_factory, crashes_by_signature, crash_summary,
+                         stop_condition);
   if (env.report_crash_summary) crash_summary.Report(&std::cerr);
 
   // Distill and store the coverage corpus.
@@ -618,7 +614,8 @@ int ListCrashIds(const Environment& env) {
 }
 
 int ReplayCrash(const Environment& env,
-                CentipedeCallbacksFactory& callbacks_factory) {
+                CentipedeCallbacksFactory& callbacks_factory,
+                StopCondition& stop_condition) {
   FUZZTEST_CHECK(!env.crash_id.empty())
       << "Need crash_id to be set for replay a crash";
   FUZZTEST_CHECK(!env.test_name.empty())
@@ -646,7 +643,8 @@ int ReplayCrash(const Environment& env,
       crash_corpus_config, env.binary_name, env.binary_hash));
   Environment run_crash_env = env;
   run_crash_env.load_shards_only = true;
-  int fuzz_result = Fuzz(run_crash_env, {}, "", callbacks_factory);
+  int fuzz_result =
+      Fuzz(run_crash_env, {}, "", callbacks_factory, stop_condition);
   if (env.report_crash_summary) {
     CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};
     const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
@@ -694,9 +692,13 @@ int ExportCrash(const Environment& env) {
 }  // namespace
 
 int CentipedeMain(const Environment& env,
-                  CentipedeCallbacksFactory& callbacks_factory) {
-  ClearEarlyStopRequestAndSetStopTime(env.stop_at);
-  SetSignalHandlers();
+                  CentipedeCallbacksFactory& callbacks_factory,
+                  StopCondition* stop_condition) {
+  StopCondition default_stop_condition;
+  if (stop_condition == nullptr) {
+    stop_condition = &default_stop_condition;
+  }
+  stop_condition->ClearEarlyStopRequestAndSetStopTime(env.stop_at);
 
   if (!env.corpus_to_files.empty()) {
     Centipede::CorpusToFiles(env, env.corpus_to_files);
@@ -711,12 +713,12 @@ int CentipedeMain(const Environment& env,
     return EXIT_FAILURE;
   }
 
-  if (!env.for_each_blob.empty()) return ForEachBlob(env);
+  if (!env.for_each_blob.empty()) return ForEachBlob(env, *stop_condition);
 
   if (!env.minimize_crash_file_path.empty()) {
     ByteArray crashy_input;
     ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    return MinimizeCrash(crashy_input, env, callbacks_factory);
+    return MinimizeCrash(crashy_input, env, callbacks_factory, *stop_condition);
   }
 
   // Just export the corpus from a local dir and exit.
@@ -758,7 +760,8 @@ int CentipedeMain(const Environment& env,
             absl::WebSafeBase64Unescape(env.fuzztest_configuration, &result));
         return result;
       }
-      ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+      ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                                *stop_condition);
       return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
     }();
     Environment updated_env = env;
@@ -788,7 +791,7 @@ int CentipedeMain(const Environment& env,
         return ListCrashIds(updated_env);
       }
       if (env.replay_crash) {
-        return ReplayCrash(updated_env, callbacks_factory);
+        return ReplayCrash(updated_env, callbacks_factory, *stop_condition);
       }
       if (env.export_crash) {
         return ExportCrash(updated_env);
@@ -801,7 +804,8 @@ int CentipedeMain(const Environment& env,
       FUZZTEST_CHECK(updated_env.fuzztest_time_limit_per_test >=
                      absl::Seconds(1))
           << "Time limit per fuzz test must be at least 1 second.";
-      return UpdateCorpusDatabase(updated_env, callbacks_factory);
+      return UpdateCorpusDatabase(updated_env, callbacks_factory,
+                                  *stop_condition);
     }
   }
 
@@ -813,11 +817,12 @@ int CentipedeMain(const Environment& env,
 
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
-      env, callbacks_factory, pcs_file_path);
+      env, callbacks_factory, pcs_file_path, *stop_condition);
 
   if (env.analyze) return Analyze(env);
 
-  return Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+  return Fuzz(env, binary_info, pcs_file_path, callbacks_factory,
+              *stop_condition);
   // TODO: fniksic - Report the crash summary here if requested. What are the
   // binary identifier and the fuzz test name here?
 }

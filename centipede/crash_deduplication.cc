@@ -33,6 +33,7 @@
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 #include "./common/crashing_input_filename.h"
 #include "./common/defs.h"
@@ -132,7 +133,7 @@ void OrganizeCrashingInputs(
     CentipedeCallbacksFactory& callbacks_factory,
     const absl::flat_hash_map<std::string, CrashDetails>&
         new_crashes_by_signature,
-    CrashSummary& crash_summary) {
+    CrashSummary& crash_summary, StopCondition& stop_condition) {
   FUZZTEST_CHECK_OK(RemoteMkdir(crashing_dir.c_str()));
   FUZZTEST_CHECK_OK(RemoteMkdir(regression_dir.c_str()));
 
@@ -141,7 +142,8 @@ void OrganizeCrashingInputs(
   std::vector<std::string> old_input_files =
       ValueOrDie(RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
   size_t crash_input_count = old_input_files.size();
-  ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+  ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                            stop_condition);
   BatchResult batch_result;
 
   absl::flat_hash_map<std::string, CrashDetails> reproduced_crashes;
