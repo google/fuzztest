@@ -52,6 +52,7 @@ cc_library(
         "serialization_helpers.h",
         "smart_pointer_of_impl.h",
         "special_values.h",
+        "traversal_context.h",
         "unique_elements_container_of_impl.h",
         "value_mutation_helpers.h",
         "variant_of_impl.h",

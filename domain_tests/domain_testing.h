@@ -37,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -135,6 +136,11 @@ struct Value {
 
   Value(Domain& domain, absl::BitGenRef prng)
       : corpus_value(domain.Init(prng)),
+        user_value(domain.GetValue(corpus_value)) {}
+
+  Value(Domain& domain, absl::BitGenRef prng, internal::TraversalState& state)
+      : corpus_value(domain.InitWithTracker(
+            prng, internal::TraversalContextWithTotalCount<Domain>(state))),
         user_value(domain.GetValue(corpus_value)) {}
 
   // If the value_type is not copy constructible we have to copy the corpus and

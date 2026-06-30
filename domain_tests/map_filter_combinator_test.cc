@@ -26,8 +26,10 @@
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 
 namespace fuzztest {
 namespace {
@@ -406,6 +408,66 @@ TEST(Filter, ValidationRejectsInvalidValue) {
       wrapped_domain_b.ValidateCorpusValue(wrapped_value_a.corpus_value),
       IsInvalid(
           HasSubstr("Invalid corpus value for the inner domain in Filter()")));
+}
+
+TEST(Filter, InitWithTrackerRestoresBudgetOnPredicateFailure) {
+  int attempts = 0;
+  // Fails 50 times, then succeeds.
+  auto domain =
+      Filter([&attempts](int i) { return ++attempts > 50; }, Arbitrary<int>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.depth = 100;
+  state.count = 10;
+
+  Value val(domain, prng, state);
+
+  EXPECT_TRUE(state.status.ok());
+  // 10 - 1 (root) - 3 (successful inner with type erasure) = 6.
+  // The 50 failed attempts are restored.
+  EXPECT_EQ(*state.count, 6);
+  EXPECT_EQ(state.depth, 100);
+}
+
+TEST(Filter, InitWithTrackerReturnsEarlyOnPreExistingFailure) {
+  auto domain = Filter(
+      [](int i) {
+        ADD_FAILURE() << "Predicate should not be called";
+        return false;
+      },
+      Arbitrary<int>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.status = absl::CancelledError("Pre-existing failure");
+
+  Value val(domain, prng, state);
+
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_EQ(state.status.message(), "Pre-existing failure");
+}
+
+TEST(Filter, InitWithTrackerReturnsInvalidValueOnFailure) {
+  auto domain = Filter(
+      [](const std::vector<int>& v) {
+        ADD_FAILURE() << "Predicate should not be called";
+        return false;
+      },
+      VectorOf(Arbitrary<int>()).WithMinSize(3));
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  // This causes the inner VectorOf initialization to fail due to budget
+  // exhaustion.
+  state.count = 2;
+
+  Value val(domain, prng, state);
+
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.ToString(),
+              testing::HasSubstr("Traversal budget exceeded"));
+  EXPECT_TRUE(val.user_value.empty());
 }
 
 }  // namespace

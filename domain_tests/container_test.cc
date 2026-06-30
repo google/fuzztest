@@ -34,6 +34,7 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest {
@@ -367,6 +368,96 @@ TEST(Container, ValidatesMemoryDictionaryMutationForInnerDomain) {
 
   EXPECT_THAT(mutants, Contains(std::vector<uint8_t>{17, 31, 113, 71}));
   EXPECT_THAT(mutants, Not(Contains(std::vector<uint8_t>{129, 129, 129, 129})));
+}
+
+TEST(ContainerTest,
+     SequenceInitWithTrackerDepthExhaustedWithMinSizeReturnsEmptyAndFails) {
+  auto domain = VectorOf(Arbitrary<int>()).WithMinSize(3);
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.depth = 0;
+
+  Value val(domain, prng, state);
+
+  EXPECT_TRUE(val.user_value.empty());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.ToString(),
+              testing::HasSubstr("Traversal budget exceeded"));
+}
+
+TEST(ContainerTest,
+     SequenceInitWithTrackerDepthExhaustedNoMinSizeReturnsEmptyAndSucceeds) {
+  auto domain = VectorOf(Arbitrary<int>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.depth = 0;
+
+  Value val(domain, prng, state);
+
+  EXPECT_TRUE(val.user_value.empty());
+  EXPECT_TRUE(state.status.ok());
+}
+
+TEST(ContainerTest, SequenceInitWithTrackerUpdatesCount) {
+  auto domain = VectorOf(Arbitrary<int>()).WithSize(3);
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.count = 10;
+
+  Value val(domain, prng, state);
+
+  EXPECT_EQ(val.user_value.size(), 3);
+  // 1 (root) + 3 (elements) = 4 decrements
+  EXPECT_EQ(*state.count, 6);
+}
+
+TEST(ContainerTest, SequenceInitWithTrackerCountExhaustedWithMinSizeFails) {
+  auto domain = VectorOf(Arbitrary<int>()).WithMinSize(3);
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.count = 0;  // Enter() will decrement to -1
+
+  Value val(domain, prng, state);
+
+  EXPECT_TRUE(val.user_value.empty());
+  EXPECT_FALSE(state.status.ok());
+}
+
+TEST(ContainerTest,
+     SequenceInitWithTrackerCountExhaustedNoMinSizeReturnsEmptyAndSucceeds) {
+  auto domain = VectorOf(Arbitrary<int>());
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  state.count = 0;
+
+  Value val(domain, prng, state);
+
+  EXPECT_TRUE(val.user_value.empty());
+  EXPECT_TRUE(state.status.ok());
+}
+
+TEST(ContainerTest,
+     SequenceInitWithTrackerPropagatesFailureFromInnerExhaustion) {
+  // Both the parent and inner vectors must not be empty.
+  auto domain =
+      VectorOf(VectorOf(Arbitrary<int>()).WithMinSize(1)).WithMinSize(1);
+
+  absl::BitGen prng;
+  internal::TraversalState state;
+  // The parent init decrements to 0 and the inner init decrements to -1
+  // and fails due to the min size constraint.
+  state.depth = 1;
+
+  Value val(domain, prng, state);
+
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.ToString(),
+              testing::HasSubstr("Traversal budget exceeded"));
 }
 
 }  // namespace

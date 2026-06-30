@@ -30,6 +30,7 @@
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -164,6 +165,12 @@ class Domain {
   // different values (e.g., when growing a `std::set<T>` and adding new `T`
   // values).
   corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
+
+  corpus_type InitWithTracker(
+      absl::BitGenRef prng,
+      internal::TraversalContextWithTotalCount<Domain> ctx) {
+    return inner_->UntypedInitWithTracker(prng, ctx);
+  }
 
   // Mutate() makes a relatively small modification on `val` of `corpus_type`.
   //
@@ -393,6 +400,7 @@ absl::StatusOr<typename DomainT::value_type> ParseOneReproducerValue(
   }
   return domain.GetValue(*corpus);
 }
+
 }  // namespace internal
 
 }  // namespace fuzztest

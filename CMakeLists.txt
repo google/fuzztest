@@ -15,6 +15,13 @@
 cmake_minimum_required(VERSION 3.19)
 project(fuzztest)
 
+# Limit parallel link jobs to avoid OOM in CI (GitHub Actions)
+if (CMAKE_GENERATOR STREQUAL "Ninja" AND DEFINED ENV{GITHUB_ACTIONS})
+  set_property(GLOBAL PROPERTY JOB_POOLS link_pool=1)
+  set(CMAKE_JOB_POOL_LINK link_pool)
+endif ()
+
+
 option(FUZZTEST_BUILD_TESTING "Building the tests." OFF)
 option(FUZZTEST_BUILD_FLATBUFFERS "Building the flatbuffers support." OFF)
 option(FUZZTEST_FUZZING_MODE "Building the fuzztest in fuzzing mode." OFF)

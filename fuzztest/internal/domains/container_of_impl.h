@@ -34,6 +34,7 @@
 #include "./common/logging.h"
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -41,6 +42,21 @@
 #include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
+
+inline void AbortIfIneffectiveSizeFilters(size_t min_size, size_t actual_size) {
+  if (actual_size < min_size) {
+    AbortInTest(absl::StrFormat(R"(
+
+[!] Ineffective use of WithSize()/WithMinSize() detected!
+
+The domain failed trying to find enough values that satisfy the constraints.
+The minimum size requested is %u and we could only find %u elements.
+
+Please verify that the inner domain can provide enough values.
+)",
+                                min_size, actual_size));
+  }
+}
 
 // Used for ChoosePosition();
 enum class IncludeEnd { kYes, kNo };
@@ -460,28 +476,17 @@ class AssociativeContainerOfImpl
 
     corpus_type val;
     Grow(val, prng, size, 10000);
-    if (val.size() < this->min_size()) {
-      // We tried to make a container with the minimum specified size and we
-      // could not after a lot of attempts. This could be caused by an
-      // unsatisfiable domain, such as one where the minimum desired size is
-      // greater than the number of unique `value_type` values that exist; for
-      // example, a uint8_t has only 256 possible values, so we can't create
-      // a std::set<uint8_t> whose size is greater than 256, as requested here:
-      //
-      //    SetOf(Arbitrary<uint8_t>()).WithMinSize(300)
-      //
-      // Abort the test and inform the user.
-      AbortInTest(absl::StrFormat(R"(
-
-[!] Ineffective use of WithSize()/WithMinSize() detected!
-
-The domain failed trying to find enough values that satisfy the constraints.
-The minimum size requested is %u and we could only find %u elements.
-
-Please verify that the inner domain can provide enough values.
-)",
-                                  this->min_size(), val.size()));
-    }
+    // We tried to make a container with the minimum specified size and we
+    // could not after a lot of attempts. This could be caused by an
+    // unsatisfiable domain, such as one where the minimum desired size is
+    // greater than the number of unique `value_type` values that exist; for
+    // example, a uint8_t has only 256 possible values, so we can't create
+    // a std::set<uint8_t> whose size is greater than 256, as requested here:
+    //
+    //    SetOf(Arbitrary<uint8_t>()).WithMinSize(300)
+    //
+    // Abort the test and inform the user if it failed.
+    AbortIfIneffectiveSizeFilters(this->min_size(), val.size());
     return val;
   }
 
@@ -579,6 +584,24 @@ class SequenceContainerOfImplBase
     corpus_type val;
     while (val.size() < size) {
       val.insert(val.end(), this->inner_.Init(prng));
+    }
+    return val;
+  }
+
+  corpus_type InitWithTracker(absl::BitGenRef prng,
+                              TraversalContextWithTotalCount<Derived> ctx) {
+    if (ctx.IsFailed() || ctx.IsResourceExhausted()) {
+      if (this->min_size() > 0) ctx.Fail();
+      return corpus_type{};
+    }
+
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
+    const size_t size = this->ChooseRandomInitialSize(prng);
+    corpus_type val;
+    while (val.size() < size) {
+      auto elem = this->inner_.InitWithTracker(prng, ctx);
+      if (ctx.IsFailed()) break;
+      val.insert(val.end(), std::move(elem));
     }
     return val;
   }

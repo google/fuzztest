@@ -31,11 +31,10 @@ cc_test(
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/types:optional",
-        "@abseil-cpp//absl/types:span",
-        "@abseil-cpp//absl/types:variant",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal:type_support",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
     ],
 )
@@ -137,6 +136,7 @@ cc_test(
         "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
     ],
 )
@@ -199,7 +199,9 @@ cc_test(
         ":domain_testing",
         "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/status",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
     ],
 )
@@ -256,6 +258,17 @@ cc_test(
         ":domain_testing",
         "@abseil-cpp//absl/random",
         "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "traversal_context_test",
+    srcs = ["traversal_context_test.cc"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
         "@googletest//:gtest_main",
     ],
 )
