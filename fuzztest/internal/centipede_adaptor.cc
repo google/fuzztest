@@ -355,7 +355,7 @@ StopCondition global_stop_condition;
 
 void InstallCentipedeTerminationHandler() {
   [[maybe_unused]] static bool install_once = [] {
-    for (int signum : {SIGTERM, SIGHUP}) {
+    for (int signum : {SIGTERM, SIGHUP, SIGINT}) {
       struct sigaction new_sigact = {};
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
@@ -364,16 +364,22 @@ void InstallCentipedeTerminationHandler() {
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
-          constexpr char msg[] = "\n[!] SIGTERM received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          constexpr char kMsg[] =
+              "\n[!] SIGTERM received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         } else if (signum == SIGHUP) {
-          constexpr char msg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          constexpr char kMsg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
+          return;
+        } else if (signum == SIGINT) {
+          constexpr char kMsg[] = "\n[!] SIGINT received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         }
-        constexpr char msg[] = "\n[!] Unexpected signal received - aborting.\n";
-        write(fd, msg, sizeof(msg) - 1);
+        constexpr char kMsg[] =
+            "\n[!] Unexpected signal received - aborting.\n";
+        write(fd, kMsg, sizeof(kMsg) - 1);
         std::abort();
       };
 
