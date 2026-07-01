@@ -173,6 +173,7 @@ fuzztest_cc_library(
     fuzztest::core_domains_impl
     absl::core_headers
     absl::no_destructor
+    absl::btree
     absl::flat_hash_map
     absl::flat_hash_set
     absl::random_random

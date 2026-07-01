@@ -187,9 +187,9 @@ cc_library(
     hdrs = ["flatbuffers_domain_impl.h"],
     deps = [
         ":core_domains_impl",
-        "@abseil-cpp//absl/algorithm:container",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random:bit_gen_ref",
@@ -204,6 +204,7 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:meta",
         "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal:status",
+        "@com_google_fuzztest//fuzztest/internal:type_support",
         "@flatbuffers//:runtime_cc",
     ],
 )

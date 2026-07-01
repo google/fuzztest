@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
+#include <list>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -26,9 +27,9 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
@@ -39,20 +40,24 @@
 #include "flatbuffers/base.h"
 #include "flatbuffers/buffer.h"
 #include "flatbuffers/flatbuffer_builder.h"
+#include "flatbuffers/reflection.h"
 #include "flatbuffers/reflection_generated.h"
 #include "flatbuffers/string.h"
 #include "flatbuffers/table.h"
+#include "flatbuffers/vector.h"
 #include "flatbuffers/verifier.h"
 #include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
+#include "./fuzztest/internal/domains/container_of_impl.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
 #include "./fuzztest/internal/domains/element_of_impl.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
+#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 
@@ -77,112 +82,213 @@ template <typename T>
 inline constexpr bool is_flatbuffers_enum_tag_v =
     is_flatbuffers_enum_tag<T>::value;
 
+//
+// Flatbuffers vector detection.
+//
+template <typename T>
+struct FlatbuffersVectorTag {
+  using value_type = T;
+};
+
+template <typename T>
+struct is_flatbuffers_vector_tag : std::false_type {};
+
+template <typename T>
+struct is_flatbuffers_vector_tag<FlatbuffersVectorTag<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_flatbuffers_vector_tag_v =
+    is_flatbuffers_vector_tag<T>::value;
+
+template <typename T>
+struct FlatbuffersVector64Tag {
+  using value_type = T;
+};
+
+template <typename T>
+struct is_flatbuffers_vector64_tag : std::false_type {};
+
+template <typename T>
+struct is_flatbuffers_vector64_tag<FlatbuffersVector64Tag<T>> : std::true_type {
+};
+
+template <typename T>
+inline constexpr bool is_flatbuffers_vector64_tag_v =
+    is_flatbuffers_vector64_tag<T>::value;
+
+template <typename T>
+inline constexpr bool is_any_flatbuffers_vector_tag_v =
+    is_flatbuffers_vector_tag_v<T> || is_flatbuffers_vector64_tag_v<T>;
+
+template <typename T>
+struct flatbuffers_vector_tag_offset;
+
+template <typename T>
+struct flatbuffers_vector_tag_offset<FlatbuffersVectorTag<T>> {
+  using type = flatbuffers::uoffset_t;
+};
+
+template <typename T>
+struct flatbuffers_vector_tag_offset<FlatbuffersVector64Tag<T>> {
+  using type = flatbuffers::uoffset64_t;
+};
+
+template <typename T>
+using flatbuffers_vector_tag_offset_t =
+    typename flatbuffers_vector_tag_offset<T>::type;
+
 struct FlatbuffersArrayTag;
+
+// Flatbuffers container element type detection.
+template <typename T, typename ValueType>
+inline constexpr bool is_flatbuffers_container_of_v = []() constexpr {
+  if constexpr (is_flatbuffers_vector_tag_v<T> ||
+                is_flatbuffers_vector64_tag_v<T>) {
+    return std::is_same_v<ValueType, typename T::value_type>;
+  } else {
+    return false;
+  }
+}();
+
 struct FlatbuffersTableTag;
 struct FlatbuffersStructTag;
 struct FlatbuffersUnionTag;
-struct FlatbuffersVectorTag;
+
+template <typename T>
+using IdentityWrapper = T;
 
 // Dynamic to static dispatch visitor pattern.
-template <typename Visitor>
-auto VisitFlatbufferField(const reflection::Schema* absl_nonnull schema,
+template <template <typename> typename Wrapper = IdentityWrapper,
+          bool in_container = false, typename Visitor>
+void VisitFlatbufferField(const reflection::Schema* absl_nonnull schema,
                           const reflection::Field* absl_nonnull field,
-                          Visitor visitor) {
-  auto field_index = field->type()->index();
-  switch (field->type()->base_type()) {
+                          Visitor&& visitor) {
+  const auto type =
+      in_container ? field->type()->element() : field->type()->base_type();
+  const auto field_index = field->type()->index();
+  const bool is_enum = flatbuffers::IsInteger(type) && field_index >= 0;
+  switch (type) {
     case reflection::BaseType::Bool:
-      visitor.template Visit<bool>(field);
+      std::forward<Visitor>(visitor).template Visit<Wrapper<bool>>(field);
       break;
     case reflection::BaseType::Byte:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<int8_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<int8_t>>>(field);
       } else {
-        visitor.template Visit<int8_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<int8_t>>(field);
       }
       break;
     case reflection::BaseType::Short:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<int16_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<int16_t>>>(field);
       } else {
-        visitor.template Visit<int16_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<int16_t>>(field);
       }
       break;
     case reflection::BaseType::Int:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<int32_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<int32_t>>>(field);
       } else {
-        visitor.template Visit<int32_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<int32_t>>(field);
       }
       break;
     case reflection::BaseType::Long:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<int64_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<int64_t>>>(field);
       } else {
-        visitor.template Visit<int64_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<int64_t>>(field);
       }
       break;
     case reflection::BaseType::UByte:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<uint8_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<uint8_t>>>(field);
       } else {
-        visitor.template Visit<uint8_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<uint8_t>>(field);
       }
       break;
     case reflection::BaseType::UShort:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<uint16_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<uint16_t>>>(field);
       } else {
-        visitor.template Visit<uint16_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<uint16_t>>(field);
       }
       break;
     case reflection::BaseType::UInt:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<uint32_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<uint32_t>>>(field);
       } else {
-        visitor.template Visit<uint32_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<uint32_t>>(field);
       }
       break;
     case reflection::BaseType::ULong:
-      if (field_index >= 0) {
-        visitor.template Visit<FlatbuffersEnumTag<uint64_t>>(field);
+      if (is_enum) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersEnumTag<uint64_t>>>(field);
       } else {
-        visitor.template Visit<uint64_t>(field);
+        std::forward<Visitor>(visitor).template Visit<Wrapper<uint64_t>>(field);
       }
       break;
     case reflection::BaseType::Float:
-      visitor.template Visit<float>(field);
+      std::forward<Visitor>(visitor).template Visit<Wrapper<float>>(field);
       break;
     case reflection::BaseType::Double:
-      visitor.template Visit<double>(field);
+      std::forward<Visitor>(visitor).template Visit<Wrapper<double>>(field);
       break;
     case reflection::BaseType::String:
-      visitor.template Visit<std::string>(field);
+      std::forward<Visitor>(visitor).template Visit<Wrapper<std::string>>(
+          field);
       break;
     case reflection::BaseType::Vector:
-    case reflection::BaseType::Vector64:
-      visitor.template Visit<FlatbuffersVectorTag>(field);
-      break;
-    case reflection::BaseType::Array:
-      visitor.template Visit<FlatbuffersArrayTag>(field);
-      break;
-    case reflection::BaseType::Obj: {
-      auto sub_object = schema->objects()->Get(field->type()->index());
-      if (sub_object->is_struct()) {
-        visitor.template Visit<FlatbuffersStructTag>(field);
+      if constexpr (in_container) {
+        FUZZTEST_LOG(FATAL) << "Nested containers are not supported.";
       } else {
-        visitor.template Visit<FlatbuffersTableTag>(field);
+        VisitFlatbufferField<FlatbuffersVectorTag, /*in_container=*/true>(
+            schema, field, std::forward<Visitor>(visitor));
       }
       break;
-    }
+    case reflection::BaseType::Vector64:
+      if constexpr (in_container) {
+        FUZZTEST_LOG(FATAL) << "Nested containers are not supported.";
+      } else {
+        VisitFlatbufferField<FlatbuffersVector64Tag, /*in_container=*/true>(
+            schema, field, std::forward<Visitor>(visitor));
+      }
+      break;
+    case reflection::BaseType::Array:
+      if constexpr (in_container) {
+        FUZZTEST_LOG(FATAL) << "Nested containers are not supported.";
+      } else {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersArrayTag>>(field);
+      }
+      break;
+    case reflection::BaseType::Obj:
+      if (schema->objects()->Get(field_index)->is_struct()) {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersStructTag>>(field);
+      } else {
+        std::forward<Visitor>(visitor)
+            .template Visit<Wrapper<FlatbuffersTableTag>>(field);
+      }
+      break;
     case reflection::BaseType::Union:
-      visitor.template Visit<FlatbuffersUnionTag>(field);
+      std::forward<Visitor>(visitor)
+          .template Visit<Wrapper<FlatbuffersUnionTag>>(field);
       break;
     case reflection::BaseType::UType:
-      // Noop
+      // Noop: Union type fields are handled when processing their
+      // corresponding union field
       break;
     default:
       FUZZTEST_LOG(FATAL) << "Unsupported base type: "
-                          << field->type()->base_type();
+                          << reflection::EnumNameBaseType(type);
   }
 }
 
@@ -285,10 +391,133 @@ template <typename T>
 auto GetDefaultDomain(const reflection::Schema* absl_nonnull schema,
                       const reflection::Field* absl_nonnull field);
 
+// From flatbuffers documentation:
+// Unions are encoded as the combination of two fields: an enum representing the
+// union choice and the offset to the actual element.
+// The type of the enum is always uint8_t as generated by the flatbuffers
+// compiler.
+using FlatbuffersUnionTypeDomainImpl = FlatbuffersEnumDomainImpl<uint8_t>;
+
+// Union domain corpus type.
+struct FlatbuffersUnionDomainCorpusType {
+  using type_type = typename FlatbuffersUnionTypeDomainImpl::corpus_type;
+  using value_type = GenericDomainCorpusType;
+
+  type_type type;
+  value_type value;
+};
+
+// Union domain value type.
+struct FlatbuffersUnionDomainValueType {
+  using type_type = typename FlatbuffersUnionTypeDomainImpl::value_type;
+  using value_type = const void*;
+
+  type_type type;
+  value_type value;
+};
+
+// Flatbuffers union domain implementation.
+class FlatbuffersUnionDomainImpl
+    : public domain_implementor::DomainBase<
+          /*Derived=*/FlatbuffersUnionDomainImpl,
+          /*ValueType=*/FlatbuffersUnionDomainValueType,
+          /*CorpusType=*/FlatbuffersUnionDomainCorpusType> {
+ public:
+  friend class FlatbuffersTableUntypedDomainImpl;
+
+  using typename FlatbuffersUnionDomainImpl::DomainBase::corpus_type;
+  using typename FlatbuffersUnionDomainImpl::DomainBase::value_type;
+
+  FlatbuffersUnionDomainImpl(const reflection::Schema* schema,
+                             const reflection::Enum* union_def);
+
+  FlatbuffersUnionDomainImpl(const FlatbuffersUnionDomainImpl& other);
+  FlatbuffersUnionDomainImpl(FlatbuffersUnionDomainImpl&& other);
+  FlatbuffersUnionDomainImpl& operator=(
+      const FlatbuffersUnionDomainImpl& other);
+  FlatbuffersUnionDomainImpl& operator=(FlatbuffersUnionDomainImpl&& other);
+
+  // Initializes the corpus value.
+  corpus_type Init(absl::BitGenRef prng);
+
+  // Mutates the corpus value.
+  void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
+              const domain_implementor::MutationMetadata& metadata,
+              bool only_shrink);
+
+  uint64_t CountNumberOfFields(corpus_type& corpus_value);
+
+  uint64_t MutateSelectedField(
+      corpus_type& corpus_value, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index);
+
+  auto GetPrinter() const { return Printer{*this}; }
+
+  absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const;
+
+  // UNSUPPORTED: Flatbuffers unions user values are not supported.
+  value_type GetValue(const corpus_type& corpus_value) const {
+    FUZZTEST_LOG(FATAL) << "GetValue is not supported for unions.";
+  }
+
+  // Gets the type of the union field.
+  auto GetType(const corpus_type& corpus_value) const {
+    return type_domain_.GetValue(corpus_value.type);
+  }
+
+  // Converts the value to a corpus value.
+  std::optional<corpus_type> FromValue(const value_type& value) const;
+
+  // Converts the IRObject to a corpus value.
+  std::optional<corpus_type> ParseCorpus(const IRObject& obj) const;
+
+  // Converts the corpus value to an IRObject.
+  IRObject SerializeCorpus(const corpus_type& corpus_value) const;
+
+ private:
+  const reflection::Schema* schema_;
+  const reflection::Enum* union_def_;
+  FlatbuffersEnumDomainImpl<typename FlatbuffersUnionTypeDomainImpl::value_type>
+      type_domain_;
+  mutable absl::Mutex mutex_;
+  mutable absl::flat_hash_map<
+      typename FlatbuffersUnionTypeDomainImpl::value_type, CopyableAny>
+      domains_ ABSL_GUARDED_BY(mutex_);
+
+  // Creates flatbuffer from the corpus value.
+  std::optional<flatbuffers::uoffset_t> BuildValue(
+      const corpus_type& corpus_value,
+      flatbuffers::FlatBufferBuilder64& builder) const;
+
+  // Returns the domain for the given enum value.
+  template <typename T>
+  auto& GetCachedDomain(const reflection::EnumVal& enum_value) const {
+    using DomainT = decltype(GetDefaultDomainForType<T>(enum_value));
+    absl::MutexLock l(mutex_);
+    auto [it, inserted] =
+        domains_.try_emplace(enum_value.value(), std::in_place_type<DomainT>,
+                             GetDefaultDomainForType<T>(enum_value));
+    return it->second.template GetAs<DomainT>();
+  }
+
+  // Creates new or returns existing domain for the given enum value.
+  template <typename T>
+  auto GetDefaultDomainForType(const reflection::EnumVal& enum_value) const;
+
+  struct Printer {
+    const FlatbuffersUnionDomainImpl& self;
+
+    void PrintCorpusValue(const corpus_type& value,
+                          domain_implementor::RawSink out,
+                          domain_implementor::PrintMode mode) const;
+  };
+};
+
 // Domain implementation for flatbuffers untyped tables.
 // The corpus type is a map of field ids to field values.
 class FlatbuffersTableUntypedDomainImpl
-    : public fuzztest::domain_implementor::DomainBase<
+    : public domain_implementor::DomainBase<
           /*Derived=*/FlatbuffersTableUntypedDomainImpl,
           /*ValueType=*/const flatbuffers::Table* absl_nonnull,
           /*CorpusType=*/
@@ -298,6 +527,7 @@ class FlatbuffersTableUntypedDomainImpl
  public:
   template <typename T>
   friend class FlatbuffersTableDomainImpl;
+  friend class FlatbuffersUnionDomainImpl;
 
   using typename FlatbuffersTableUntypedDomainImpl::DomainBase::corpus_type;
   using typename FlatbuffersTableUntypedDomainImpl::DomainBase::value_type;
@@ -359,6 +589,8 @@ class FlatbuffersTableUntypedDomainImpl
  private:
   const reflection::Schema* absl_nonnull schema_;
   const reflection::Object* absl_nonnull table_object_;
+  absl::btree_map<typename corpus_type::key_type, const reflection::Field*>
+      fields_by_id_;
   mutable absl::Mutex mutex_;
   mutable absl::flat_hash_map<typename corpus_type::key_type, CopyableAny>
       domains_ ABSL_GUARDED_BY(mutex_);
@@ -373,9 +605,17 @@ class FlatbuffersTableUntypedDomainImpl
   template <typename T>
   auto& GetCachedDomain(const reflection::Field* field) const {
     auto get_optional_domain = [this, field]() {
-      auto optional_domain = OptionalOf(GetDefaultDomain<T>(schema_, field));
-      if (!field->optional()) {
+      auto inner_domain = GetDefaultDomain<T>(schema_, field);
+      auto optional_domain = OptionalOf(inner_domain);
+      if (!field->optional() || field->required()) {
         optional_domain.SetWithoutNull();
+      }
+      if constexpr (std::is_same_v<T, FlatbuffersUnionTag>) {
+        auto union_type = schema_->enums()->Get(field->type()->index());
+        // If the union has only one type (NONE), we can always return null.
+        if (union_type->values()->size() == 1) {
+          optional_domain.SetAlwaysNull();
+        }
       }
       return Domain<value_type_t<decltype(optional_domain)>>{optional_domain};
     };
@@ -396,10 +636,10 @@ class FlatbuffersTableUntypedDomainImpl
 
   const reflection::Field* absl_nullable GetFieldById(
       typename corpus_type::key_type id) const {
-    const auto it =
-        absl::c_find_if(*table_object_->fields(),
-                        [id](const auto* field) { return field->id() == id; });
-    return it != table_object_->fields()->end() ? *it : nullptr;
+    if (auto it = fields_by_id_.find(id); it != fields_by_id_.end()) {
+      return it->second;
+    }
+    return nullptr;
   }
 
   struct SerializeVisitor {
@@ -419,11 +659,12 @@ class FlatbuffersTableUntypedDomainImpl
     corpus_type& corpus_value;
 
     template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
+    void Visit(const reflection::Field* absl_nonnull field) {
       [[maybe_unused]]
       reflection::BaseType base_type = field->type()->base_type();
       auto& domain = self.GetCachedDomain<T>(field);
-      value_type_t<std::decay_t<decltype(domain)>> inner_value;
+      using InnerDomain = std::decay_t<decltype(domain)>;
+      value_type_t<InnerDomain> inner_value;
 
       if constexpr (is_flatbuffers_enum_tag_v<T>) {
         if (!field->optional() || user_value->CheckField(field->offset())) {
@@ -459,13 +700,128 @@ class FlatbuffersTableUntypedDomainImpl
             << "Field must be a table type.";
         inner_value =
             user_value->GetPointer<const flatbuffers::Table*>(field->offset());
+      } else if constexpr (is_any_flatbuffers_vector_tag_v<T>) {
+        using ElementType = typename T::value_type;
+        if (user_value->CheckField(field->offset())) {
+          inner_value = typename value_type_t<InnerDomain>::value_type{};
+          VisitVector<ElementType, std::decay_t<decltype(domain)>,
+                      flatbuffers_vector_tag_offset_t<T>>(field, inner_value);
+        }
+      } else if constexpr (std::is_same_v<T, FlatbuffersUnionTag>) {
+        constexpr char kUnionTypeFieldSuffix[] = "_type";
+        auto enumdef = self.schema_->enums()->Get(field->type()->index());
+        auto type_field = self.table_object_->fields()->LookupByKey(
+            absl::StrCat(field->name()->c_str(), kUnionTypeFieldSuffix)
+                .c_str());
+        if (type_field == nullptr) {
+          return;
+        }
+        auto union_type =
+            user_value->GetField<uint8_t>(type_field->offset(), 0);
+        if (union_type > 0 /* NONE */) {
+          auto enumval = enumdef->values()->LookupByKey(union_type);
+          auto union_object =
+              self.schema_->objects()->Get(enumval->union_type()->index());
+          if (union_object->is_struct()) {
+            // TODO: (b/405939014) support structs in unions.
+          } else {
+            auto union_value =
+                user_value->GetPointer<flatbuffers::Table*>(field->offset());
+            inner_value =
+                FlatbuffersUnionDomainValueType{union_type, union_value};
+          }
+        }
       }
 
-      auto inner = domain.FromValue(inner_value);
-      if (inner) {
-        corpus_value[field->id()] = *std::move(inner);
+      if (inner_value) {
+        auto inner = domain.FromValue(inner_value);
+        if (inner) {
+          corpus_value[field->id()] = *std::move(inner);
+        }
       }
+    }
+
+    // Helper to get the flatbuffers vector type.
+    template <typename Element, typename Offset>
+    struct FlatbuffersVectorType {
+     private:
+      static_assert(std::is_same_v<Offset, flatbuffers::uoffset_t> ||
+                        std::is_same_v<Offset, flatbuffers::uoffset64_t>,
+                    "Offset must be uoffset_t or uoffset64_t.");
+      static_assert(std::is_arithmetic_v<Element> ||
+                        is_flatbuffers_enum_tag_v<Element> ||
+                        std::is_same_v<Element, std::string> ||
+                        std::is_same_v<Element, FlatbuffersTableTag> ||
+                        std::is_same_v<Element, FlatbuffersStructTag> ||
+                        std::is_same_v<Element, FlatbuffersUnionTag>,
+                    "Unsupported vector element type.");
+
+      static constexpr auto get_flatbuffers_type_pointer() {
+        if constexpr (std::is_integral_v<Element> ||
+                      std::is_floating_point_v<Element>) {
+          return static_cast<flatbuffers::Vector<Element, Offset>*>(nullptr);
+        } else if constexpr (is_flatbuffers_enum_tag_v<Element>) {
+          return static_cast<
+              flatbuffers::Vector<typename Element::type, Offset>*>(nullptr);
+        } else if constexpr (std::is_same_v<Element, std::string>) {
+          return static_cast<flatbuffers::Vector<
+              flatbuffers::Offset<flatbuffers::String>, Offset>*>(nullptr);
+        } else if constexpr (std::is_same_v<Element, FlatbuffersTableTag>) {
+          return static_cast<flatbuffers::Vector<
+              flatbuffers::Offset<flatbuffers::Table>, Offset>*>(nullptr);
+        } else if constexpr (std::is_same_v<Element, FlatbuffersUnionTag>) {
+          return static_cast<flatbuffers::Vector<flatbuffers::Offset<void>>*>(
+              nullptr);
+        }
+      }
+
+     public:
+      using type =
+          std::remove_pointer_t<decltype(get_flatbuffers_type_pointer())>;
     };
+
+    template <typename Element, typename Domain, typename Offset>
+    void VisitVector(const reflection::Field* field,
+                     value_type_t<Domain>& vector_corpus) const {
+      using FlatbuffersVector =
+          typename FlatbuffersVectorType<Element, Offset>::type;
+      if constexpr (std::is_same_v<Element, FlatbuffersStructTag>) {
+        // TODO: Add support for structs.
+        return;
+      } else {
+        const FlatbuffersVector* vec;
+        if constexpr (std::is_same_v<Offset, flatbuffers::uoffset64_t>) {
+          vec = user_value->GetPointer64<const FlatbuffersVector*>(
+              field->offset());
+        } else {
+          vec =
+              user_value->GetPointer<const FlatbuffersVector*>(field->offset());
+        }
+        vector_corpus->reserve(vec->size());
+        if constexpr (std::is_same_v<Element, FlatbuffersUnionTag>) {
+          constexpr char kUnionTypeFieldSuffix[] = "_type";
+          auto type_field = self.table_object_->fields()->LookupByKey(
+              absl::StrCat(field->name()->c_str(), kUnionTypeFieldSuffix)
+                  .c_str());
+          FUZZTEST_CHECK(type_field != nullptr)
+              << "Union type field not found.";
+          const auto* type_vec =
+              user_value->GetPointer<const flatbuffers::Vector<uint8_t>*>(
+                  type_field->offset());
+          for (decltype(vec->size()) i = 0; i < vec->size(); ++i) {
+            vector_corpus->push_back({type_vec->Get(i), vec->Get(i)});
+          }
+        } else {
+          for (decltype(vec->size()) i = 0; i < vec->size(); ++i) {
+            if constexpr (std::is_same_v<Element, std::string>) {
+              vector_corpus->push_back(vec->Get(i)->str());
+            } else {
+              vector_corpus->push_back(vec->Get(i));
+            }
+          }
+        }
+      }
+    }
   };
 
   // Create out-of-line table fields, see `BuildTable` for details.
@@ -477,7 +833,7 @@ class FlatbuffersTableUntypedDomainImpl
     const typename corpus_type::mapped_type& corpus_value;
 
     template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
+    void Visit(const reflection::Field* absl_nonnull field) {
       if constexpr (std::is_same_v<T, std::string>) {
         auto& domain = self.GetCachedDomain<T>(field);
         auto user_value = domain.GetValue(corpus_value);
@@ -497,18 +853,134 @@ class FlatbuffersTableUntypedDomainImpl
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         FlatbuffersTableUntypedDomainImpl inner_domain(
             self.schema_, self.schema_->objects()->Get(field->type()->index()));
-        auto optional_corpus = corpus_value.GetAs<
-            std::variant<std::monostate, fuzztest::GenericDomainCorpusType>>();
-        if (std::holds_alternative<fuzztest::GenericDomainCorpusType>(
-                optional_corpus)) {
-          auto inner_corpus =
-              std::get<fuzztest::GenericDomainCorpusType>(optional_corpus)
-                  .GetAs<corpus_type>();
+        auto optional_corpus =
+            corpus_value
+                .GetAs<std::variant<std::monostate, GenericDomainCorpusType>>();
+        if (std::holds_alternative<GenericDomainCorpusType>(optional_corpus)) {
+          auto inner_corpus = std::get<GenericDomainCorpusType>(optional_corpus)
+                                  .GetAs<corpus_type>();
           auto offset = inner_domain.BuildTable(inner_corpus, builder);
           offsets.insert({field->id(), offset});
         }
         // Else if the variant is std::monostate the optional field is null and
         // there is no table to build.
+      } else if constexpr (is_any_flatbuffers_vector_tag_v<T>) {
+        VisitVector<typename T::value_type, flatbuffers_vector_tag_offset_t<T>>(
+            field, self.GetCachedDomain<T>(field));
+      } else if constexpr (std::is_same_v<T, FlatbuffersUnionTag>) {
+        const reflection::Enum* union_type =
+            self.schema_->enums()->Get(field->type()->index());
+        FlatbuffersUnionDomainImpl inner_domain{self.schema_, union_type};
+        auto opt_corpus =
+            corpus_value
+                .GetAs<std::variant<std::monostate, GenericDomainCorpusType>>();
+        if (std::holds_alternative<GenericDomainCorpusType>(opt_corpus)) {
+          auto inner_corpus =
+              std::get<GenericDomainCorpusType>(opt_corpus)
+                  .GetAs<corpus_type_t<decltype(inner_domain)>>();
+          auto offset = inner_domain.BuildValue(inner_corpus, builder);
+          if (offset.has_value()) {
+            offsets.insert({field->id(), *offset});
+          }
+        }
+      }
+    }
+
+   private:
+    template <typename Element, typename Offset,
+              int&... ExplicitArgumentBarrier, typename Domain>
+    void VisitVector(const reflection::Field* field,
+                     const Domain& domain) const {
+      if constexpr (std::is_integral_v<Element> ||
+                    std::is_floating_point_v<Element> ||
+                    is_flatbuffers_enum_tag_v<Element>) {
+        auto value = domain.GetValue(corpus_value);
+        if (!value) {
+          return;
+        }
+        if constexpr (std::is_same_v<Offset, flatbuffers::uoffset_t>) {
+          offsets.insert({field->id(), builder.CreateVector(*value).o});
+        } else {
+          if constexpr (std::is_same_v<Element, bool>) {
+            // Workaround for missing overload for CreateVector64(const
+            // std::vector<T>&)
+            builder.StartVector<uint8_t, flatbuffers::Offset64>(value->size());
+            for (auto i = value->size(); i > 0;) {
+              builder.PushElement(static_cast<uint8_t>(value->at(--i)));
+            }
+            auto offset =
+                builder.EndVector<flatbuffers::uoffset64_t,
+                                  flatbuffers::uoffset64_t>(value->size());
+            offsets.insert({field->id(), offset});
+          } else {
+            offsets.insert({field->id(), builder.CreateVector64(*value).o});
+          }
+        }
+      } else if constexpr (std::is_same_v<Element, FlatbuffersTableTag>) {
+        FlatbuffersTableUntypedDomainImpl domain(
+            self.schema_, self.schema_->objects()->Get(field->type()->index()));
+        auto opt_corpus =
+            corpus_value
+                .GetAs<std::variant<std::monostate, GenericDomainCorpusType>>();
+        if (std::holds_alternative<std::monostate>(opt_corpus)) {
+          return;
+        }
+        auto container_corpus = std::get<GenericDomainCorpusType>(opt_corpus)
+                                    .GetAs<std::list<corpus_type>>();
+        std::vector<flatbuffers::Offset<flatbuffers::Table>> vec_offsets;
+        vec_offsets.reserve(container_corpus.size());
+        for (auto& inner_corpus : container_corpus) {
+          auto offset = domain.BuildTable(inner_corpus, builder);
+          vec_offsets.push_back(offset);
+        }
+        offsets.insert({field->id(), builder.CreateVector(vec_offsets).o});
+      } else if constexpr (std::is_same_v<Element, std::string>) {
+        auto value = domain.GetValue(corpus_value);
+        if (!value) {
+          return;
+        }
+        std::vector<flatbuffers::Offset<flatbuffers::String>> vec_offsets;
+        vec_offsets.reserve(value->size());
+        for (const auto& str : *value) {
+          auto offset = builder.CreateString(str);
+          vec_offsets.push_back(offset);
+        }
+        offsets.insert({field->id(), builder.CreateVector(vec_offsets).o});
+      } else if constexpr (std::is_same_v<Element, FlatbuffersUnionTag>) {
+        const reflection::Enum* union_type =
+            self.schema_->enums()->Get(field->type()->index());
+        FlatbuffersUnionDomainImpl domain{self.schema_, union_type};
+        constexpr char kUnionTypeFieldSuffix[] = "_type";
+        const reflection::Field* type_field =
+            self.table_object_->fields()->LookupByKey(
+                absl::StrCat(field->name()->c_str(), kUnionTypeFieldSuffix)
+                    .c_str());
+
+        auto opt_corpus =
+            corpus_value
+                .GetAs<std::variant<std::monostate, GenericDomainCorpusType>>();
+        if (std::holds_alternative<std::monostate>(opt_corpus)) {
+          return;
+        }
+        auto container_corpus =
+            std::get<GenericDomainCorpusType>(opt_corpus)
+                .GetAs<std::list<corpus_type_t<decltype(domain)>>>();
+
+        std::vector<
+            typename value_type_t<std::decay_t<decltype(domain)>>::type_type>
+            vec_types;
+        vec_types.reserve(container_corpus.size());
+        std::vector<flatbuffers::Offset<flatbuffers::Table>> vec_offsets;
+        vec_offsets.reserve(container_corpus.size());
+        for (auto& inner_corpus : container_corpus) {
+          auto offset = domain.BuildValue(inner_corpus, builder);
+          if (offset.has_value()) {
+            vec_offsets.push_back(*offset);
+            vec_types.push_back(domain.GetType(inner_corpus));
+          }
+        }
+        offsets.insert({field->id(), builder.CreateVector(vec_offsets).o});
+        offsets.insert({type_field->id(), builder.CreateVector(vec_types).o});
       }
     }
   };
@@ -523,7 +995,7 @@ class FlatbuffersTableUntypedDomainImpl
     const typename corpus_type::value_type::second_type& corpus_value;
 
     template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
+    void Visit(const reflection::Field* absl_nonnull field) {
       if constexpr (std::is_integral_v<T> || std::is_floating_point_v<T> ||
                     is_flatbuffers_enum_tag_v<T>) {
         auto& domain = self.GetCachedDomain<T>(field);
@@ -533,17 +1005,27 @@ class FlatbuffersTableUntypedDomainImpl
         }
         // Store "inline field" value inline.
         builder.AddElement(field->offset(), v.value());
-      } else if constexpr (std::is_same_v<T, std::string>) {
+      } else if constexpr (std::is_same_v<T, std::string> ||
+                           is_any_flatbuffers_vector_tag_v<T>) {
         // "Out-of-line field". Store just offset.
+        if constexpr (is_flatbuffers_container_of_v<T, FlatbuffersUnionTag>) {
+          constexpr char kUnionTypeFieldSuffix[] = "_type";
+          const reflection::Field* type_field =
+              self.table_object_->fields()->LookupByKey(
+                  absl::StrCat(field->name()->c_str(), kUnionTypeFieldSuffix)
+                      .c_str());
+          if (auto it = offsets.find(type_field->id()); it != offsets.end()) {
+            builder.AddOffset(type_field->offset(),
+                              flatbuffers::Offset<>(it->second));
+          }
+        }
         if (auto it = offsets.find(field->id()); it != offsets.end()) {
           if (field->offset64()) {
-            builder.AddOffset(
-                field->offset(),
-                flatbuffers::Offset64<flatbuffers::String>(it->second));
+            builder.AddOffset(field->offset(),
+                              flatbuffers::Offset64<>(it->second));
           } else {
-            builder.AddOffset(
-                field->offset(),
-                flatbuffers::Offset<flatbuffers::String>(it->second));
+            builder.AddOffset(field->offset(),
+                              flatbuffers::Offset<>(it->second));
           }
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
@@ -552,6 +1034,33 @@ class FlatbuffersTableUntypedDomainImpl
           builder.AddOffset(
               field->offset(),
               flatbuffers::Offset<flatbuffers::Table>(it->second));
+        }
+      } else if constexpr (std::is_same_v<T, FlatbuffersUnionTag>) {
+        // From flatbuffers documentation:
+        // Unions are encoded as the combination of two fields: an enum
+        // representing the union choice and the offset to the actual element
+        const reflection::Enum* union_type =
+            self.schema_->enums()->Get(field->type()->index());
+        FlatbuffersUnionDomainImpl domain(self.schema_, union_type);
+        if (auto it = offsets.find(field->id()); it != offsets.end()) {
+          // Store just an offset to the actual union element.
+          builder.AddOffset(field->offset(),
+                            flatbuffers::Offset<void>(it->second));
+
+          constexpr char kUnionTypeFieldSuffix[] = "_type";
+          const reflection::Field* type_field =
+              self.table_object_->fields()->LookupByKey(
+                  absl::StrCat(field->name()->c_str(), kUnionTypeFieldSuffix)
+                      .c_str());
+          auto opt_corpus = corpus_value.GetAs<
+              std::variant<std::monostate, GenericDomainCorpusType>>();
+          if (std::holds_alternative<std::monostate>(opt_corpus)) {
+            return;
+          }
+          auto inner_corpus = std::get<GenericDomainCorpusType>(opt_corpus)
+                                  .GetAs<corpus_type_t<decltype(domain)>>();
+          uint8_t type_value = domain.GetType(inner_corpus);
+          builder.AddElement<uint8_t>(type_field->offset(), type_value, 0);
         }
       }
     }
@@ -579,7 +1088,7 @@ class FlatbuffersTableUntypedDomainImpl
       out = domain.ValidateCorpusValue(corpus_value);
       if (!out.ok()) {
         out = Prefix(out, absl::StrCat("Invalid value for field ",
-                                       field->name()->str()));
+                                       field->name()->c_str()));
       }
     }
   };
@@ -598,42 +1107,67 @@ class FlatbuffersTableUntypedDomainImpl
 
   struct CountNumberOfMutableFieldsVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    uint64_t& total_weight;
-    corpus_type& val;
-    bool only_shrink = false;
+    uint64_t& field_count;
+    corpus_type& corpus_value;
+    const bool only_shrink = false;
 
     template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
+    void Visit(const reflection::Field* absl_nonnull field) {
       if (!self.IsSupportedField(field)) return;
-      if (only_shrink && !val.contains(field->id())) return;
+      auto it = corpus_value.find(field->id());
+      if (only_shrink && it == corpus_value.end()) return;
 
-      // Add the weight of the field itself.
-      total_weight += 1;
+      // Count the field.
+      field_count++;
 
-      auto& domain = self.GetCachedDomain<T>(field);
-      if (auto it = val.find(field->id()); it != val.end()) {
-        // Add the weight of the field corpus.
-        total_weight += domain.CountNumberOfFields(it->second);
+      // TODO(b/418993255): Add support for structs.
+      if constexpr (std::is_same_v<T, FlatbuffersTableTag> ||
+                    std::is_same_v<T, FlatbuffersUnionTag> ||
+                    is_flatbuffers_container_of_v<T, FlatbuffersTableTag> ||
+                    is_flatbuffers_container_of_v<T, FlatbuffersUnionTag>) {
+        if (it == corpus_value.end()) return;
+        auto& domain = self.GetCachedDomain<T>(field);
+        // Count the fields in the corpus for domains that support it.
+        field_count += domain.CountNumberOfFields(it->second);
       }
     }
   };
 
-  struct MutateVisitor {
+  struct MutateSelectedFieldVisitor {
     FlatbuffersTableUntypedDomainImpl& self;
+    uint64_t& field_counter;
+    corpus_type& corpus_value;
     absl::BitGenRef prng;
     const domain_implementor::MutationMetadata& metadata;
-    bool only_shrink;
-    corpus_type& corpus_value;
+    const bool only_shrink;
+    const uint64_t selected_field_index;
 
     template <typename T>
     void Visit(const reflection::Field* absl_nonnull field) {
-      auto& domain = self.GetCachedDomain<T>(field);
+      if (!self.IsSupportedField(field)) return;
       auto it = corpus_value.find(field->id());
-      if (it == corpus_value.end()) {
-        if (only_shrink) return;
-        it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+      if (only_shrink && it == corpus_value.end()) return;
+
+      field_counter++;
+      auto& domain = self.GetCachedDomain<T>(field);
+      if (field_counter == selected_field_index) {
+        if (it == corpus_value.end()) {
+          it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+        }
+        domain.Mutate(it->second, prng, metadata, only_shrink);
+        return;
       }
-      domain.Mutate(it->second, prng, metadata, only_shrink);
+
+      // TODO(b/418993255): Add support for structs.
+      if constexpr (std::is_same_v<T, FlatbuffersTableTag> ||
+                    std::is_same_v<T, FlatbuffersUnionTag> ||
+                    is_flatbuffers_container_of_v<T, FlatbuffersTableTag> ||
+                    is_flatbuffers_container_of_v<T, FlatbuffersUnionTag>) {
+        if (it == corpus_value.end()) return;
+        field_counter +=
+            domain.MutateSelectedField(it->second, prng, metadata, only_shrink,
+                                       selected_field_index - field_counter);
+      }
     }
   };
 
@@ -672,15 +1206,58 @@ class FlatbuffersTableUntypedDomainImpl
 
   struct PrinterVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    const GenericDomainCorpusType& val;
-    domain_implementor::RawSink out;
+    const GenericDomainCorpusType& field_corpus;
+    domain_implementor::RawSink sink;
     domain_implementor::PrintMode mode;
 
     template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
+    void Visit(const reflection::Field* absl_nonnull field) {
       auto& domain = self.GetCachedDomain<T>(field);
-      absl::Format(out, "%s: ", field->name()->str());
-      domain_implementor::PrintValue(domain, val, out, mode);
+      absl::Format(sink, "%s: ", field->name()->c_str());
+      if constexpr (is_flatbuffers_container_of_v<T, uint8_t> ||
+                    is_flatbuffers_container_of_v<
+                        T, FlatbuffersEnumTag<uint8_t>>) {
+        // Handle the case where the field is a vector<uint8_t> or enum<uint8_t>
+        // since the container domain would try to print it as a string.
+        GenericDomainCorpusType object_corpus;
+        if (field_corpus
+                .Has<std::variant<std::monostate, GenericDomainCorpusType>>()) {
+          auto opt_corpus = field_corpus.GetAs<
+              std::variant<std::monostate, GenericDomainCorpusType>>();
+          if (std::holds_alternative<GenericDomainCorpusType>(opt_corpus)) {
+            object_corpus = std::get<GenericDomainCorpusType>(opt_corpus);
+            absl::Format(sink, "(");
+          } else {
+            absl::Format(sink, "std::nullopt");
+            return;
+          }
+        } else {
+          object_corpus = field_corpus;
+        }
+
+        if constexpr (is_flatbuffers_container_of_v<T, uint8_t>) {
+          auto inner_corpus = object_corpus.GetAs<corpus_type_t<
+              ContainerOfImpl<std::vector<uint8_t>, ArbitraryImpl<uint8_t>>>>();
+          auto inner_domain = Arbitrary<uint8_t>();
+          auto printer = ContainerPrinter<
+              ContainerOfImpl<std::vector<uint8_t>, ArbitraryImpl<uint8_t>>,
+              ArbitraryImpl<uint8_t>>{inner_domain};
+          printer.PrintCorpusValue(inner_corpus, sink, mode);
+        } else {  // container of FlatbuffersEnumTag<uint8_t>
+          auto inner_corpus = object_corpus.GetAs<corpus_type_t<ContainerOfImpl<
+              std::vector<uint8_t>, FlatbuffersEnumDomainImpl<uint8_t>>>>();
+          auto enum_object = self.schema_->enums()->Get(field->type()->index());
+          auto inner_domain = FlatbuffersEnumDomainImpl<uint8_t>(enum_object);
+          auto printer = ContainerPrinter<
+              ContainerOfImpl<std::vector<uint8_t>,
+                              FlatbuffersEnumDomainImpl<uint8_t>>,
+              FlatbuffersEnumDomainImpl<uint8_t>>{inner_domain};
+          printer.PrintCorpusValue(inner_corpus, sink, mode);
+        }
+        absl::Format(sink, ")");
+      } else {
+        domain.GetPrinter().PrintCorpusValue(field_corpus, sink, mode);
+      }
     }
   };
 };
@@ -705,11 +1282,11 @@ auto GetDefaultDomain(const reflection::Schema* absl_nonnull schema,
     // TODO: support structs.
     return placeholder;
   } else if constexpr (std::is_same_v<T, FlatbuffersUnionTag>) {
-    // TODO: support unions.
-    return placeholder;
-  } else if constexpr (std::is_same_v<T, FlatbuffersVectorTag>) {
-    // TODO: support vectors.
-    return placeholder;
+    auto union_type = schema->enums()->Get(field->type()->index());
+    return FlatbuffersUnionDomainImpl{schema, union_type};
+  } else if constexpr (is_any_flatbuffers_vector_tag_v<T>) {
+    auto elem_domain = GetDefaultDomain<typename T::value_type>(schema, field);
+    return VectorOf(elem_domain);
   } else {
     return Arbitrary<T>();
   }
@@ -729,7 +1306,7 @@ struct FlatbuffersTableDomainCorpusType {
 // - The serialized buffer of the table.
 template <typename T>
 class FlatbuffersTableDomainImpl
-    : public fuzztest::domain_implementor::DomainBase<
+    : public domain_implementor::DomainBase<
           /*Derived=*/FlatbuffersTableDomainImpl<T>,
           /*ValueType=*/const T*,
           /*CorpusType=*/FlatbuffersTableDomainCorpusType> {
@@ -762,6 +1339,14 @@ class FlatbuffersTableDomainImpl
   // Returns the number of fields in the table.
   uint64_t CountNumberOfFields(corpus_type& val) {
     return inner_->CountNumberOfFields(val.untyped_corpus);
+  }
+
+  uint64_t MutateSelectedField(
+      corpus_type& val, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index) {
+    return inner_->MutateSelectedField(val.untyped_corpus, prng, metadata,
+                                       only_shrink, selected_field_index);
   }
 
   // Mutates the given corpus value.
