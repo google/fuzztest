@@ -114,27 +114,25 @@ if (FUZZTEST_BUILD_FLATBUFFERS)
     SRCS
       "internal/domains/flatbuffers_domain_impl.cc"
     DEPS
-      absl::algorithm_container
+      fuzztest::core_domains_impl
       absl::core_headers
+      absl::nullability
+      absl::btree
       absl::flat_hash_map
       absl::flat_hash_set
-      absl::nullability
       absl::random_bit_gen_ref
       absl::random_distributions
-      absl::random_random
       absl::status
-      absl::statusor
-      absl::str_format
       absl::strings
+      absl::str_format
       absl::synchronization
       flatbuffers
-      fuzztest::any
       fuzztest::domain_core
-      fuzztest::logging
+      fuzztest::common_logging
+      fuzztest::any
       fuzztest::meta
       fuzztest::serialization
       fuzztest::status
-      fuzztest::type_support
   )
 endif()
 

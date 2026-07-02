@@ -26,9 +26,9 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
@@ -359,6 +359,8 @@ class FlatbuffersTableUntypedDomainImpl
  private:
   const reflection::Schema* absl_nonnull schema_;
   const reflection::Object* absl_nonnull table_object_;
+  absl::btree_map<typename corpus_type::key_type, const reflection::Field*>
+      fields_by_id_;
   mutable absl::Mutex mutex_;
   mutable absl::flat_hash_map<typename corpus_type::key_type, CopyableAny>
       domains_ ABSL_GUARDED_BY(mutex_);
@@ -396,10 +398,10 @@ class FlatbuffersTableUntypedDomainImpl
 
   const reflection::Field* absl_nullable GetFieldById(
       typename corpus_type::key_type id) const {
-    const auto it =
-        absl::c_find_if(*table_object_->fields(),
-                        [id](const auto* field) { return field->id() == id; });
-    return it != table_object_->fields()->end() ? *it : nullptr;
+    if (auto it = fields_by_id_.find(id); it != fields_by_id_.end()) {
+      return it->second;
+    }
+    return nullptr;
   }
 
   struct SerializeVisitor {
