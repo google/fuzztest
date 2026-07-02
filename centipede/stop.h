@@ -17,6 +17,8 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <string>
+#include <string_view>
 
 #include "absl/time/time.h"
 
@@ -25,32 +27,50 @@ namespace fuzztest::internal {
 // Encapsulates the stop condition state for Centipede.
 class StopCondition {
  public:
-  StopCondition() = default;
+  StopCondition();
 
   StopCondition(const StopCondition&) = delete;
   StopCondition& operator=(const StopCondition&) = delete;
   StopCondition(StopCondition&&) = delete;
   StopCondition& operator=(StopCondition&&) = delete;
 
-  // Clears the request to stop early and sets the stop time.
+  // Clears the request to stop early and sets the new `stop_time`.
   //
   // REQUIRES: Must be called before starting concurrent threads that may invoke
-  // the other methods on this object instance. In particular, calling this
-  // function concurrently with `ShouldStop()` is not thread-safe.
-  void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time);
+  // the other methods on this object instance. Specifically, calling this
+  // function concurrently with `EarlyStopRequested()` is not thread-safe.
+  void ClearEarlyStopRequest();
+
+  struct EarlyStopRequest {
+    int exit_code = EXIT_SUCCESS;
+    std::string reason;
+  };
+
+  // Returns whether `RequestEarlyStop()` was called or not since the most
+  // recent call to `ClearEarlyStopRequest()` (if any). If `request` is not
+  // null, copy the stop request to the referred instance when early stop is
+  // requested.
+  //
+  // ENSURES: Thread-safe unless with `ClearEarlyStopRequest()`.
+  bool EarlyStopRequested(EarlyStopRequest* request = nullptr) const;
 
   // Requests that Centipede soon stops whatever it is doing (fuzzing,
   // minimizing reproducer, etc.), with `exit_code` indicating success (zero) or
   // failure (non-zero).
   //
-  // ENSURES: Thread-safe and safe to call from signal handlers.
-  void RequestEarlyStop(int exit_code);
-
-  // Returns whether `RequestEarlyStop()` was called or not since the most
-  // recent call to `ClearEarlyStopRequestAndSetStopTime()` (if any).
-  //
   // ENSURES: Thread-safe.
-  bool EarlyStopRequested() const;
+  void RequestEarlyStop(int exit_code, std::string_view reason);
+
+  // Similar to `RequestEarlyStop`, but safe to call in signal handlers, while
+  // `reason` maybe truncated due to no memory allocation.
+  void RequestEarlyStopInSignal(int exit_code, std::string_view reason);
+
+  // Sets the stop time.
+  //
+  // REQUIRES: Must be called before starting concurrent threads that may invoke
+  // the functions defined in this class. Specifically, calling this function
+  // concurrently with `ShouldStop()` and `GetStopTime()` is not thread-safe.
+  void SetStopTime(absl::Time stop_time);
 
   // Returns true iff it is time to stop, either because the stopping time has
   // been reached or `RequestEarlyStop()` was called since the most recent call
@@ -66,13 +86,6 @@ class StopCondition {
   // ENSURES: Thread-safe.
   absl::Time GetStopTime() const;
 
-  // Returns the value most recently passed to `RequestEarlyStop()` or 0 if
-  // `RequestEarlyStop()` was not called since the most recent call to
-  // `ClearEarlyStopRequestAndSetStopTime()` (if any).
-  //
-  // ENSURES: Thread-safe.
-  int ExitCode() const;
-
  private:
   struct EarlyStop {
     int exit_code = EXIT_SUCCESS;
@@ -81,6 +94,12 @@ class StopCondition {
   static_assert(std::atomic<EarlyStop>::is_always_lock_free);
   std::atomic<EarlyStop> early_stop_{EarlyStop{}};
   absl::Time stop_time_ = absl::InfiniteFuture();
+  // Set to true when RequestEarlyStop* is requested.
+  std::atomic<bool> stop_requested_ = false;
+  // Set to true when the below field is fully set.
+  std::atomic<bool> stop_request_ready_ = false;
+  int exit_code_ = EXIT_SUCCESS;
+  std::string reason_;
 };
 }  // namespace fuzztest::internal
 

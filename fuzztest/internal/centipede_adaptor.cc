@@ -360,19 +360,24 @@ void InstallCentipedeTerminationHandler() {
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
-        global_stop_condition.RequestEarlyStop(EXIT_SUCCESS);
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
+          global_stop_condition.RequestEarlyStopInSignal(EXIT_SUCCESS,
+                                                         "SIGTERM received");
           constexpr char kMsg[] =
               "\n[!] SIGTERM received - stopping fuzzing.\n";
           write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         } else if (signum == SIGHUP) {
+          global_stop_condition.RequestEarlyStopInSignal(EXIT_SUCCESS,
+                                                         "SIGHUP received");
           constexpr char kMsg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
           write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         } else if (signum == SIGINT) {
+          global_stop_condition.RequestEarlyStopInSignal(EXIT_SUCCESS,
+                                                         "SIGINT received");
           constexpr char kMsg[] = "\n[!] SIGINT received - stopping fuzzing.\n";
           write(fd, kMsg, sizeof(kMsg) - 1);
           return;
@@ -436,11 +441,12 @@ int RunCentipede(const Environment& env,
         << "Termination status must be Exited if not Signaled";
     return static_cast<int>(std::get<ExitCodeT>(status.Status()));
   }
-  global_stop_condition.ClearEarlyStopRequestAndSetStopTime(
-      absl::InfiniteFuture());
+  global_stop_condition.SetStopTime(absl::InfiniteFuture());
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;
-  return CentipedeMain(env, *factory, &global_stop_condition);
+  const int ret = CentipedeMain(env, *factory, &global_stop_condition);
+  global_stop_condition.ClearEarlyStopRequest();
+  return ret;
 }
 
 }  // namespace

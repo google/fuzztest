@@ -124,7 +124,8 @@ std::vector<Mutant> CentipedeDefaultCallbacks::Mutate(
       PrintExecutionLog();
       FUZZTEST_LOG(ERROR) << "Test binary failed to mutate inputs at the final "
                              "attempt - exiting.";
-      stop_condition_.RequestEarlyStop(EXIT_FAILURE);
+      stop_condition_.RequestEarlyStop(EXIT_FAILURE,
+                                       "Test binary failed to mutate inputs");
       return {};
     }
   }

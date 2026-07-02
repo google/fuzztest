@@ -508,7 +508,8 @@ std::optional<int> Command::Wait(absl::Time deadline,
     const auto signal = WTERMSIG(exit_code);
     if (signal == SIGINT) {
       if (stop_condition != nullptr) {
-        stop_condition->RequestEarlyStop(EXIT_FAILURE);
+        stop_condition->RequestEarlyStop(
+            EXIT_FAILURE, "Command killed: signal=SIGINT (likely Ctrl-C)");
       }
       // When the user kills Centipede via ^C, they are unlikely to be
       // interested in any of the subprocesses' outputs. Also, ^C terminates all
