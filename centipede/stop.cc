@@ -26,8 +26,11 @@ bool StopCondition::EarlyStopRequested() const {
   return early_stop_.load(std::memory_order_acquire).is_requested;
 }
 
-void StopCondition::ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time) {
+void StopCondition::ClearEarlyStopRequest() {
   early_stop_.store({}, std::memory_order_release);
+}
+
+void StopCondition::SetStopTime(absl::Time stop_time) {
   stop_time_ = stop_time;
 }
 

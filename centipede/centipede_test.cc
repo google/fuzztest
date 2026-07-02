@@ -1325,7 +1325,7 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   StopCondition stop_condition;
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
   const auto start = absl::Now();
-  stop_condition.ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
+  stop_condition.SetStopTime(start + absl::Seconds(3));
   std::vector<ByteArray> seeds;
   callbacks.GetSeeds(/*num_seeds=*/1, seeds);
   // Give it some slack to stop in 5s.
