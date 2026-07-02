@@ -32,12 +32,18 @@ class StopCondition {
   StopCondition(StopCondition&&) = delete;
   StopCondition& operator=(StopCondition&&) = delete;
 
-  // Clears the request to stop early and sets the stop time.
+  // Clears the request to stop early.
   //
   // REQUIRES: Must be called before starting concurrent threads that may invoke
-  // the other methods on this object instance. In particular, calling this
-  // function concurrently with `ShouldStop()` is not thread-safe.
-  void ClearEarlyStopRequestAndSetStopTime(absl::Time stop_time);
+  // the other methods on this object instance. Specifically, calling this
+  // function concurrently with `EarlyStopRequested()` is not thread-safe.
+  void ClearEarlyStopRequest();
+
+  // Returns whether `RequestEarlyStop()` was called or not since the most
+  // recent call to `ClearEarlyStopRequest()` (if any).
+  //
+  // ENSURES: Thread-safe unless with `ClearEarlyStopRequest()`.
+  bool EarlyStopRequested() const;
 
   // Requests that Centipede soon stops whatever it is doing (fuzzing,
   // minimizing reproducer, etc.), with `exit_code` indicating success (zero) or
@@ -46,11 +52,12 @@ class StopCondition {
   // ENSURES: Thread-safe and safe to call from signal handlers.
   void RequestEarlyStop(int exit_code);
 
-  // Returns whether `RequestEarlyStop()` was called or not since the most
-  // recent call to `ClearEarlyStopRequestAndSetStopTime()` (if any).
+  // Sets the stop time.
   //
-  // ENSURES: Thread-safe.
-  bool EarlyStopRequested() const;
+  // REQUIRES: Must be called before starting concurrent threads that may invoke
+  // the functions defined in this class. Specifically, calling this function
+  // concurrently with `ShouldStop()` and `GetStopTime()` is not thread-safe.
+  void SetStopTime(absl::Time stop_time);
 
   // Returns true iff it is time to stop, either because the stopping time has
   // been reached or `RequestEarlyStop()` was called since the most recent call

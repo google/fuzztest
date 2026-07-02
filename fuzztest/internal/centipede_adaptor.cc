@@ -436,11 +436,12 @@ int RunCentipede(const Environment& env,
         << "Termination status must be Exited if not Signaled";
     return static_cast<int>(std::get<ExitCodeT>(status.Status()));
   }
-  global_stop_condition.ClearEarlyStopRequestAndSetStopTime(
-      absl::InfiniteFuture());
+  global_stop_condition.ClearEarlyStopRequest();
+  global_stop_condition.SetStopTime(absl::InfiniteFuture());
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;
-  return CentipedeMain(env, *factory, &global_stop_condition);
+  const int ret = CentipedeMain(env, *factory, &global_stop_condition);
+  return ret;
 }
 
 }  // namespace
