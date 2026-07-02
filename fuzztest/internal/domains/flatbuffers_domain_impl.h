@@ -598,42 +598,53 @@ class FlatbuffersTableUntypedDomainImpl
 
   struct CountNumberOfMutableFieldsVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    uint64_t& total_weight;
-    corpus_type& val;
-    bool only_shrink = false;
-
-    template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
-      if (!self.IsSupportedField(field)) return;
-      if (only_shrink && !val.contains(field->id())) return;
-
-      // Add the weight of the field itself.
-      total_weight += 1;
-
-      auto& domain = self.GetCachedDomain<T>(field);
-      if (auto it = val.find(field->id()); it != val.end()) {
-        // Add the weight of the field corpus.
-        total_weight += domain.CountNumberOfFields(it->second);
-      }
-    }
-  };
-
-  struct MutateVisitor {
-    FlatbuffersTableUntypedDomainImpl& self;
-    absl::BitGenRef prng;
-    const domain_implementor::MutationMetadata& metadata;
-    bool only_shrink;
+    uint64_t& field_count;
     corpus_type& corpus_value;
+    const bool only_shrink = false;
 
     template <typename T>
     void Visit(const reflection::Field* absl_nonnull field) {
-      auto& domain = self.GetCachedDomain<T>(field);
+      if (!self.IsSupportedField(field)) return;
       auto it = corpus_value.find(field->id());
-      if (it == corpus_value.end()) {
-        if (only_shrink) return;
-        it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+      if (only_shrink && it == corpus_value.end()) return;
+
+      field_count++;
+
+      if (it == corpus_value.end()) return;
+      auto& domain = self.GetCachedDomain<T>(field);
+      field_count += domain.CountNumberOfFields(it->second);
+    }
+  };
+
+  struct MutateSelectedFieldVisitor {
+    FlatbuffersTableUntypedDomainImpl& self;
+    uint64_t& field_counter;
+    corpus_type& corpus_value;
+    absl::BitGenRef prng;
+    const domain_implementor::MutationMetadata& metadata;
+    const bool only_shrink;
+    const uint64_t selected_field_index;
+
+    template <typename T>
+    void Visit(const reflection::Field* absl_nonnull field) {
+      if (!self.IsSupportedField(field)) return;
+      auto it = corpus_value.find(field->id());
+      if (only_shrink && it == corpus_value.end()) return;
+
+      field_counter++;
+      auto& domain = self.GetCachedDomain<T>(field);
+      if (field_counter == selected_field_index) {
+        if (it == corpus_value.end()) {
+          it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+        }
+        domain.Mutate(it->second, prng, metadata, only_shrink);
+        return;
       }
-      domain.Mutate(it->second, prng, metadata, only_shrink);
+
+      if (it == corpus_value.end()) return;
+      field_counter +=
+          domain.MutateSelectedField(it->second, prng, metadata, only_shrink,
+                                     selected_field_index - field_counter);
     }
   };
 
@@ -762,6 +773,14 @@ class FlatbuffersTableDomainImpl
   // Returns the number of fields in the table.
   uint64_t CountNumberOfFields(corpus_type& val) {
     return inner_->CountNumberOfFields(val.untyped_corpus);
+  }
+
+  uint64_t MutateSelectedField(
+      corpus_type& val, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index) {
+    return inner_->MutateSelectedField(val.untyped_corpus, prng, metadata,
+                                       only_shrink, selected_field_index);
   }
 
   // Mutates the given corpus value.

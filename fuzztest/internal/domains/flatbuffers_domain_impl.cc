@@ -131,28 +131,13 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
   }
 
   for (const auto* field : *table_object_->fields()) {
-    if (!IsSupportedField(field)) {
-      if (only_shrink && !val.contains(field->id())) continue;
-    }
+    if (!IsSupportedField(field)) continue;
+    if (only_shrink && !val.contains(field->id())) continue;
 
-    ++field_counter;
-    if (field_counter == selected_field_index) {
-      VisitFlatbufferField(
-          schema_, field,
-          MutateVisitor{*this, prng, metadata, only_shrink, val});
-      return field_counter;
-    }
-
-    if (field->type()->base_type() == reflection::BaseType::Obj) {
-      auto sub_object = schema_->objects()->Get(field->type()->index());
-      if (!sub_object->is_struct()) {
-        field_counter +=
-            GetCachedDomain<FlatbuffersTableTag>(field).MutateSelectedField(
-                val[field->id()], prng, metadata, only_shrink,
-                selected_field_index - field_counter);
-      }
-      // TODO: Add support for structs.
-    }
+    VisitFlatbufferField(
+        schema_, field,
+        MutateSelectedFieldVisitor{*this, field_counter, val, prng, metadata,
+                                   only_shrink, selected_field_index});
 
     if (field_counter >= selected_field_index) {
       return field_counter;
