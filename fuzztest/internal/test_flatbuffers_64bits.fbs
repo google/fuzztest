@@ -16,6 +16,7 @@ namespace fuzztest.internal;
 
 table DefaultTable64 {
   str:string (offset64);
+  v_u8:[ubyte] (vector64);
 }
 
 root_type DefaultTable64;
