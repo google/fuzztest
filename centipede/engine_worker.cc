@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -105,7 +107,7 @@ struct WorkerFlags {
 };
 
 // The first call of this function must be outside of signal handlers since it
-// allocates memory (enforced by `GetWorkerFlagsEarly`). After that it would be
+// allocates memory (enforced by `WorkerInitEarly`). After that it would be
 // signal-safe.
 //
 // The worker flags format is `:(NAME=VALUE|SWITCH:)+`. `GetWorkerFlags`
@@ -135,10 +137,6 @@ const WorkerFlags& GetWorkerFlags() {
     return WorkerFlags{true, len, str};
   }();
   return worker_flags;
-}
-
-__attribute__((constructor(200))) void GetWorkerFlagsEarly() {
-  (void)GetWorkerFlags();
 }
 
 // `header` should be in the form of `FLAG_NAME=`.
@@ -237,6 +235,9 @@ constexpr std::string_view kWorkerInputsBlobSequencePathFlagHeader =
     "arg1=";  // TODO: Use better flag names when standardizing the protocol.
 constexpr std::string_view kWorkerOutputsBlobSequencePathFlagHeader =
     "arg2=";  // TODO: Use better flag names when standardizing the protocol.
+constexpr std::string_view kWorkerPersistentModeSocketPathFlagHeader =
+    "persistent_mode_socket=";  // TODO: Use better flag names when
+                                // standardizing the protocol.
 
 struct WorkerState {
   std::atomic<bool> has_failure_output = false;
@@ -321,6 +322,64 @@ inline std::string_view ToStringView(
 
 inline std::string_view ToStringView(const std::vector<uint8_t>& bytes) {
   return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+}
+
+// Zero initialized.
+static int persistent_mode_socket;
+
+__attribute__((constructor(200))) void WorkerInitEarly() {
+  const char* persistent_mode_socket_path =
+      GetWorkerFlag(kWorkerPersistentModeSocketPathFlagHeader);
+  if (persistent_mode_socket_path == nullptr) return;
+  persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (persistent_mode_socket < 0) {
+    WorkerLog(
+        "Failed to create persistent mode socket - not running persistent "
+        "mode.",
+        LogLnSync{});
+    return;
+  }
+
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  const size_t socket_path_len = strlen(persistent_mode_socket_path);
+  WorkerCheck(
+      socket_path_len < sizeof(addr.sun_path),
+      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
+  std::memcpy(addr.sun_path, persistent_mode_socket_path, socket_path_len);
+
+  int connect_ret = 0;
+  do {
+    connect_ret =
+        connect(persistent_mode_socket, (struct sockaddr*)&addr, sizeof(addr));
+  } while (connect_ret == -1 && errno == EINTR);
+  if (connect_ret == -1) {
+    WorkerLog("Failed to connect the persistent mode socket to ",
+              persistent_mode_socket_path, LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+
+  int flags = fcntl(persistent_mode_socket, F_GETFD);
+  if (flags == -1) {
+    WorkerLog(
+        "fcntl(F_GETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+  flags |= FD_CLOEXEC;
+  if (fcntl(persistent_mode_socket, F_SETFD, flags) == -1) {
+    WorkerLog(
+        "fcntl(F_SETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+  WorkerLog("Persistent mode: connected to ", persistent_mode_socket_path,
+            LogLnSync{});
 }
 
 BlobSequence* GetInputsBlobSequence() {
@@ -695,6 +754,70 @@ const char* FuzzTestWorkerGetTestName() {
   return test_name;
 }
 
+void HandlePersistentMode(const FuzzTestAdapter& adapter) {
+  auto* inputs_blobseq = GetInputsBlobSequence();
+  auto* outputs_blobseq = GetOutputsBlobSequence();
+  bool first = true;
+  while (true) {
+    PersistentModeRequest req;
+    if (!ReadAll(persistent_mode_socket, reinterpret_cast<char*>(&req), 1)) {
+      WorkerLog("Failed to read request from persistent mode socket: ",
+                LogErrNo{}, LogLnSync{});
+      return;
+    }
+    if (first) {
+      first = false;
+      WorkerLog("FuzzTest engine worker enter persistent mode", LogLnSync{});
+    } else {
+      // Reset stdout/stderr.
+      for (int fd = 1; fd <= 2; fd++) {
+        lseek(fd, 0, SEEK_SET);
+        // NOTE: Allow ftruncate() to fail by ignoring its return; that's okay
+        // to happen when the stdout/stderr are not redirected to a file.
+        (void)ftruncate(fd, 0);
+      }
+      WorkerLog(
+          "FuzzTest engine worker (",
+          req == PersistentModeRequest::kExit ? "exiting persistent mode"
+                                              : "persistent mode batch",
+          "); flags: ",
+          GetWorkerFlags().present
+              ? std::string_view{GetWorkerFlags().str, GetWorkerFlags().len}
+              : "",
+          LogLnSync{});
+    }
+    if (req == PersistentModeRequest::kExit) break;
+    WorkerCheck(req == PersistentModeRequest::kRunBatch,
+                "Unknown persistent mode request");
+
+    inputs_blobseq->Reset();
+    outputs_blobseq->Reset();
+
+    // Read the first blob. It indicates what further actions to take.
+    auto request_type_blob = inputs_blobseq->Read();
+    if (IsMutationRequest(request_type_blob)) {
+      inputs_blobseq->Reset();
+      WorkerDoMutate(adapter);
+    } else if (IsExecutionRequest(request_type_blob)) {
+      inputs_blobseq->Reset();
+      WorkerDoExecute(adapter);
+    } else {
+      WorkerCheck(false, "Unknown shmem request");
+    }
+
+    const int result =
+        GetWorkerState().has_finding.load(std::memory_order_relaxed)
+            ? EXIT_FAILURE
+            : EXIT_SUCCESS;
+    if (!WriteAll(persistent_mode_socket,
+                  reinterpret_cast<const char*>(&result), sizeof(result))) {
+      WorkerLog("Failed to write response to the persistent mode socket: ",
+                LogErrNo{}, LogLnSync{});
+      return;
+    }
+  }
+}
+
 FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   const auto& flags = GetWorkerFlags();
   WorkerCheck(flags.present, "worker flags must present");
@@ -764,7 +887,9 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   WorkerCheck(adapter.FreeInput != nullptr, "FreeInput must be defined");
   WorkerCheck(adapter.FreeCtx != nullptr, "FreeCtx must be defined");
 
-  if (action == WorkerAction::kTestGetSeeds) {
+  if (persistent_mode_socket > 0) {
+    HandlePersistentMode(adapter);
+  } else if (action == WorkerAction::kTestGetSeeds) {
     WorkerDoGetSeeds(adapter);
   } else if (action == WorkerAction::kTestMutate) {
     WorkerDoMutate(adapter);

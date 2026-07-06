@@ -23,6 +23,7 @@
 
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/dispatcher_flag_helper.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
@@ -118,6 +119,10 @@ struct GlobalRunnerState {
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
+
+  // Engine diagnostic sink, protected by a spinlock
+  std::atomic<bool> diagnostic_sink_spinlock;
+  const FuzzTestDiagnosticSink* diagnostic_sink;
 };
 
 extern ExplicitLifetime<GlobalRunnerState> state;

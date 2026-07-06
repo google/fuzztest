@@ -531,20 +531,23 @@ class CentipedeAdaptorRunnerCallbacks
     return false;
   }
 
-  void GetSeeds(std::function<void(fuzztest::internal::ByteSpan)> seed_callback)
-      override {
+  void GetPresetSeedInputs(std::function<void(fuzztest::internal::ByteSpan)>
+                               seed_callback) override {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
-    constexpr int kInitialValuesInSeeds = 32;
-    for (int i = 0; i < kInitialValuesInSeeds; ++i) {
-      seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
-    }
-    absl::c_shuffle(seeds, prng_);
     for (const auto& seed : seeds) {
       const auto seed_serialized =
           SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(seed));
       seed_callback(fuzztest::internal::AsByteSpan(seed_serialized));
     }
+  }
+
+  void GetRandomSeedInput(std::function<void(fuzztest::internal::ByteSpan)>
+                              seed_callback) override {
+    auto input = fuzzer_impl_.params_domain_.Init(prng_);
+    const auto serialized =
+        SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(input));
+    seed_callback(fuzztest::internal::AsByteSpan(serialized));
   }
 
   std::string GetSerializedTargetConfig() override {

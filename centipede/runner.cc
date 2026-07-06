@@ -52,6 +52,8 @@
 #include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/dispatcher_flag_helper.h"
+#include "./centipede/engine_abi.h"
+#include "./centipede/engine_worker_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
@@ -77,6 +79,21 @@ struct GlobalRunnerStateManager {
 };
 
 GlobalRunnerStateManager state_manager __attribute__((init_priority(200)));
+
+class SpinlockGuard {
+ public:
+  SpinlockGuard(std::atomic<bool>& lock, bool acquire = true) : lock_(lock) {
+    if (!acquire) return;
+    while (lock.exchange(true)) {
+      pthread_yield();
+    }
+  }
+
+  ~SpinlockGuard() { lock_ = false; }
+
+ private:
+  std::atomic<bool>& lock_;
+};
 
 }  // namespace
 
@@ -322,7 +339,11 @@ static void PrepareCoverage(bool full_clear) {
   PrepareSancov(full_clear);
 }
 
-void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
+void RunnerCallbacks::GetPresetSeedInputs(
+    std::function<void(ByteSpan)> seed_callback) {}
+
+void RunnerCallbacks::GetRandomSeedInput(
+    std::function<void(ByteSpan)> seed_callback) {
   seed_callback({0});
 }
 
@@ -488,66 +509,6 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
   return true;
 }
 
-// Handles an ExecutionRequest, see RequestExecution(). Reads inputs from
-// `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
-// Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
-static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
-                                  BlobSequence &outputs_blobseq,
-                                  RunnerCallbacks &callbacks) {
-  size_t num_inputs = 0;
-  if (!IsExecutionRequest(inputs_blobseq.Read())) return EXIT_FAILURE;
-  if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return EXIT_FAILURE;
-
-  CentipedeBeginExecutionBatch();
-
-  for (size_t i = 0; i < num_inputs; i++) {
-    auto blob = inputs_blobseq.Read();
-    // TODO(kcc): distinguish bad input from end of stream.
-    if (!blob.IsValid()) return EXIT_SUCCESS;  // no more blobs to read.
-    if (!IsDataInput(blob)) return EXIT_FAILURE;
-
-    // TODO(kcc): [impl] handle sizes larger than kMaxDataSize.
-    size_t size = std::min(kMaxDataSize, blob.size);
-    // Copy from blob to data so that to not pass the shared memory further.
-    std::vector<uint8_t> data(blob.data, blob.data + size);
-
-    // Starting execution of one more input.
-    if (!StartSendingOutputsToEngine(outputs_blobseq)) break;
-
-    RunOneInput(data.data(), data.size(), callbacks);
-
-    if (state->has_failure_description.load()) break;
-
-    if (!FinishSendingOutputsToEngine(outputs_blobseq)) break;
-  }
-
-  CentipedeEndExecutionBatch();
-
-  return state->has_failure_description.load() ? EXIT_FAILURE : EXIT_SUCCESS;
-}
-
-// Dumps seed inputs to `output_dir`. Also see `GetSeedsViaExternalBinary()`.
-static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
-  size_t seed_index = 0;
-  callbacks.GetSeeds([&](ByteSpan seed) {
-    // Cap seed index within 9 digits. If this was triggered, the dumping would
-    // take forever..
-    if (seed_index >= 1000000000) return;
-    char seed_path_buf[PATH_MAX];
-    const size_t num_path_chars =
-        snprintf(seed_path_buf, PATH_MAX, "%s/%09lu", output_dir, seed_index);
-    PrintErrorAndExitIf(num_path_chars >= PATH_MAX,
-                        "seed path reaches PATH_MAX");
-    FILE *output_file = fopen(seed_path_buf, "w");
-    const size_t num_bytes_written =
-        fwrite(seed.data(), 1, seed.size(), output_file);
-    PrintErrorAndExitIf(num_bytes_written != seed.size(),
-                        "wrong number of bytes written for cf table");
-    fclose(output_file);
-    ++seed_index;
-  });
-}
-
 // Dumps serialized target config to `output_file_path`. Also see
 // `GetSerializedTargetConfigViaExternalBinary()`.
 static void DumpSerializedTargetConfigToFile(RunnerCallbacks &callbacks,
@@ -565,73 +526,6 @@ static void DumpSerializedTargetConfigToFile(RunnerCallbacks &callbacks,
 // Returns a random seed. No need for a more sophisticated seed.
 // TODO(kcc): [as-needed] optionally pass an external seed.
 static unsigned GetRandomSeed() { return time(nullptr); }
-
-// Handles a Mutation Request, see RequestMutation().
-// Mutates inputs read from `inputs_blobseq`,
-// writes the mutants to `outputs_blobseq`
-// Returns EXIT_SUCCESS on success and EXIT_FAILURE on failure
-// so that main() can return its result.
-// If both `custom_mutator_cb` and `custom_crossover_cb` are nullptr,
-// returns EXIT_FAILURE.
-//
-// TODO(kcc): [impl] make use of custom_crossover_cb, if available.
-static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
-                                 BlobSequence &outputs_blobseq,
-                                 RunnerCallbacks &callbacks) {
-  // Read max_num_mutants.
-  size_t num_mutants = 0;
-  size_t num_inputs = 0;
-  if (!IsMutationRequest(inputs_blobseq.Read())) return EXIT_FAILURE;
-  if (!IsNumMutants(inputs_blobseq.Read(), num_mutants)) return EXIT_FAILURE;
-  if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return EXIT_FAILURE;
-
-  // Mutation input with ownership.
-  struct MutationInput {
-    ByteArray data;
-    ExecutionMetadata metadata;
-  };
-  // TODO(kcc): unclear if we can continue using std::vector (or other STL)
-  // in the runner. But for now use std::vector.
-  // Collect the inputs into a vector. We copy them instead of using pointers
-  // into shared memory so that the user code doesn't touch the shared memory.
-  std::vector<MutationInput> inputs;
-  inputs.reserve(num_inputs);
-  std::vector<MutationInputRef> input_refs;
-  input_refs.reserve(num_inputs);
-  for (size_t i = 0; i < num_inputs; ++i) {
-    // If inputs_blobseq have overflown in the engine, we still want to
-    // handle the first few inputs.
-    ExecutionMetadata metadata;
-    if (!IsExecutionMetadata(inputs_blobseq.Read(), metadata)) {
-      break;
-    }
-    auto blob = inputs_blobseq.Read();
-    if (!IsDataInput(blob)) break;
-    inputs.push_back(
-        MutationInput{/*data=*/ByteArray{blob.data, blob.data + blob.size},
-                      /*metadata=*/std::move(metadata)});
-    input_refs.push_back(
-        MutationInputRef{/*data=*/inputs.back().data,
-                         /*metadata=*/&inputs.back().metadata});
-  }
-
-  if (!inputs.empty()) {
-    state->byte_array_mutator->SetMetadata(inputs[0].metadata);
-  }
-
-  if (!MutationResult::WriteHasCustomMutator(callbacks.HasCustomMutator(),
-                                             outputs_blobseq)) {
-    return EXIT_FAILURE;
-  }
-  if (!callbacks.HasCustomMutator()) return EXIT_SUCCESS;
-
-  if (!callbacks.Mutate(input_refs, num_mutants, [&](MutantRef mutant) {
-        MutationResult::WriteMutant(mutant, outputs_blobseq);
-      })) {
-    return EXIT_FAILURE;
-  }
-  return EXIT_SUCCESS;
-}
 
 bool LegacyRunnerCallbacks::Mutate(
     absl::Span<const MutationInputRef> inputs, size_t num_mutants,
@@ -732,56 +626,9 @@ extern void ForkServerCallMeVeryEarly();
 [[maybe_unused]] auto fake_reference_for_fork_server =
     &ForkServerCallMeVeryEarly;
 
-void MaybeConnectToPersistentMode() {
-  if (state->persistent_mode_socket_path == nullptr) {
-    return;
-  }
-  state->persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (state->persistent_mode_socket < 0) {
-    fprintf(stderr, "Failed to create persistent mode socket\n");
-  }
-
-  struct sockaddr_un addr{};
-  addr.sun_family = AF_UNIX;
-  const size_t socket_path_len = strlen(state->persistent_mode_socket_path);
-  RunnerCheck(
-      socket_path_len < sizeof(addr.sun_path),
-      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
-  std::memcpy(addr.sun_path, state->persistent_mode_socket_path,
-              socket_path_len);
-
-  int connect_ret = 0;
-  do {
-    connect_ret = connect(state->persistent_mode_socket,
-                          (struct sockaddr*)&addr, sizeof(addr));
-  } while (connect_ret == -1 && errno == EINTR);
-  if (connect_ret == -1) {
-    fprintf(stderr, "Failed to connect the persistent mode socket to %s\n",
-            state->persistent_mode_socket_path);
-    (void)close(state->persistent_mode_socket);
-    state->persistent_mode_socket = -1;
-  }
-
-  int flags = fcntl(state->persistent_mode_socket, F_GETFD);
-  if (flags == -1) {
-    fprintf(stderr, "fcntl(F_GETFD) failed\n");
-    (void)close(state->persistent_mode_socket);
-    state->persistent_mode_socket = -1;
-  }
-  flags |= FD_CLOEXEC;
-  if (fcntl(state->persistent_mode_socket, F_SETFD, flags) == -1) {
-    fprintf(stderr, "fcntl(F_SETFD) failed\n");
-    (void)close(state->persistent_mode_socket);
-    state->persistent_mode_socket = -1;
-  }
-}
-
 GlobalRunnerState::GlobalRunnerState() {
   // Make sure fork server is started if needed.
   ForkServerCallMeVeryEarly();
-
-  // Connecting to the persistent mode socket should be immediately after.
-  MaybeConnectToPersistentMode();
 
   SancovRuntimeInitialize();
 
@@ -812,76 +659,6 @@ void GlobalRunnerState::OnTermination() {
   }
 }
 
-static int HandleSharedMemoryRequest(RunnerCallbacks& callbacks,
-                                     BlobSequence& inputs_blobseq,
-                                     BlobSequence& outputs_blobseq) {
-  state->has_failure_description = false;
-  // Read the first blob. It indicates what further actions to take.
-  auto request_type_blob = inputs_blobseq.Read();
-  if (IsMutationRequest(request_type_blob)) {
-    // Mutation request.
-    inputs_blobseq.Reset();
-    static auto mutator = new ByteArrayMutator(state->knobs, GetRandomSeed());
-    state->byte_array_mutator = mutator;
-    // Since we are mutating, no need to spend time collecting the coverage.
-    // We still pay for executing the coverage callbacks, but those will
-    // return immediately.
-    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
-    const int result =
-        MutateInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
-    CentipedeSetCurrentThreadTraced(old_traced);
-    return result;
-  }
-  if (IsExecutionRequest(request_type_blob)) {
-    // Execution request.
-    inputs_blobseq.Reset();
-    return ExecuteInputsFromShmem(inputs_blobseq, outputs_blobseq, callbacks);
-  }
-  return EXIT_FAILURE;
-}
-
-static int HandlePersistentMode(RunnerCallbacks& callbacks,
-                                BlobSequence& inputs_blobseq,
-                                BlobSequence& outputs_blobseq) {
-  bool first = true;
-  while (true) {
-    PersistentModeRequest req;
-    if (!ReadAll(state->persistent_mode_socket, reinterpret_cast<char*>(&req),
-                 1)) {
-      perror("Failed to read request from persistent mode socket");
-      return EXIT_FAILURE;
-    }
-    if (first) {
-      first = false;
-    } else {
-      // Reset stdout/stderr.
-      for (int fd = 1; fd <= 2; fd++) {
-        lseek(fd, 0, SEEK_SET);
-        // NOTE: Allow ftruncate() to fail by ignoring its return; that's okay
-        // to happen when the stdout/stderr are not redirected to a file.
-        (void)ftruncate(fd, 0);
-      }
-      fprintf(stderr, "Centipede fuzz target runner (%s); flags: %s\n",
-              req == PersistentModeRequest::kExit ? "exiting persistent mode"
-                                                  : "persistent mode batch",
-              state->flag_helper.flags);
-    }
-    if (req == PersistentModeRequest::kExit) break;
-    RunnerCheck(req == PersistentModeRequest::kRunBatch,
-                "Unknown persistent mode request");
-    const int result =
-        HandleSharedMemoryRequest(callbacks, inputs_blobseq, outputs_blobseq);
-    inputs_blobseq.Reset();
-    outputs_blobseq.Reset();
-    if (!WriteAll(state->persistent_mode_socket,
-                  reinterpret_cast<const char*>(&result), sizeof(result))) {
-      perror("Failed to write response to the persistent mode socket");
-      return EXIT_FAILURE;
-    }
-  }
-  return EXIT_SUCCESS;
-}
-
 // If HasFlag(:shmem:), state->arg1 and state->arg2 are the names
 //  of in/out shared memory locations.
 //  Read inputs and write outputs via shared memory.
@@ -901,30 +678,184 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
     return EXIT_SUCCESS;
   }
 
-  if (state->flag_helper.HasFlag(":dump_seed_inputs:")) {
-    // Seed request.
-    DumpSeedsToDir(callbacks, /*output_dir=*/sancov_state->arg1);
+  struct Input {
+    ByteArray content;
+    ExecutionMetadata metadata;
+  };
+  // TODO: move it to ctx.
+  static bool need_full_cleanup = true;
+  FuzzTestAdapterManager manager = {
+      /*ctx=*/reinterpret_cast<FuzzTestAdapterManagerCtx*>(&callbacks),
+      /*GetBinaryId=*/nullptr,
+      /*GetTestName=*/
+      [](FuzzTestAdapterManagerCtx* ctx, const FuzzTestBytesSink* sink) {
+        // Provide the test name exactly specified from the flag. This should be
+        // fine as the user of runner should call RunnerMain at most once.
+        static const char* test_name =
+            state->flag_helper.GetStringFlag(":test=");
+        if (test_name == nullptr) return;
+        static size_t len = strlen(test_name);
+        const auto bytes = FuzzTestBytesView{
+            reinterpret_cast<const uint8_t*>(test_name),
+            len,
+        };
+        sink->Emit(sink->ctx, &bytes);
+      },
+      /*ConstructAdapter=*/
+      [](FuzzTestAdapterManagerCtx* ctx,
+         const FuzzTestDiagnosticSink* diagnostic_sink,
+         FuzzTestAdapter* adapter_out) {
+        {
+          SpinlockGuard guard(state->diagnostic_sink_spinlock);
+          state->diagnostic_sink = diagnostic_sink;
+        }
+        adapter_out->ctx = reinterpret_cast<FuzzTestAdapterCtx*>(ctx);
+        adapter_out->SetUpCoverageDomains =
+            [](FuzzTestAdapterCtx* ctx,
+               const FuzzTestCoverageDomainRegistry* registry) {
+              SanCovRuntimeSetUpCoverageDomains(registry);
+            };
+        adapter_out->GetPresetSeedInputs = [](FuzzTestAdapterCtx* ctx,
+                                              const FuzzTestInputSink* sink) {
+          auto* callbacks = reinterpret_cast<RunnerCallbacks*>(ctx);
+          callbacks->GetPresetSeedInputs([&](ByteSpan input) {
+            sink->Emit(
+                sink->ctx,
+                reinterpret_cast<FuzzTestInputHandle>(new Input{
+                    /*content=*/{input.data(), input.data() + input.size()},
+                    /*metadata=*/{}}));
+          });
+        };
+        adapter_out->GetRandomSeedInput = [](FuzzTestAdapterCtx* ctx,
+                                             const FuzzTestInputSink* sink) {
+          auto* callbacks = reinterpret_cast<RunnerCallbacks*>(ctx);
+          callbacks->GetRandomSeedInput([&](ByteSpan input) {
+            sink->Emit(
+                sink->ctx,
+                reinterpret_cast<FuzzTestInputHandle>(new Input{
+                    /*content=*/{input.data(), input.data() + input.size()},
+                    /*metadata=*/{}}));
+          });
+        };
+        adapter_out->Mutate = [](FuzzTestAdapterCtx* ctx,
+                                 FuzzTestInputHandle origin_handle, int shrink,
+                                 const FuzzTestInputSink* sink) {
+          need_full_cleanup = true;
+          auto* callbacks = reinterpret_cast<RunnerCallbacks*>(ctx);
+          const auto* origin = reinterpret_cast<Input*>(origin_handle);
+          const auto mutation_input = MutationInputRef{
+              origin->content,
+              &origin->metadata,
+          };
+          callbacks->Mutate({&mutation_input, 1}, 1, [&](MutantRef mutant_ref) {
+            auto* mutant = new Input{
+                /*content=*/{mutant_ref.data.data(),
+                             mutant_ref.data.data() + mutant_ref.data.size()},
+                /*metadata=*/{},
+            };
+            sink->Emit(sink->ctx,
+                       reinterpret_cast<FuzzTestInputHandle>(mutant));
+          });
+        };
+        adapter_out->Execute = [](FuzzTestAdapterCtx* ctx,
+                                  FuzzTestInputHandle handle,
+                                  const FuzzTestFeedbackSink* sink) {
+          auto* callbacks = reinterpret_cast<RunnerCallbacks*>(ctx);
+          auto* input = reinterpret_cast<Input*>(handle);
+          if (need_full_cleanup) {
+            SanCovRuntimeClearCoverage(true);
+            need_full_cleanup = false;
+          }
+          const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
+          RunOneInput(input->content.data(), input->content.size(), *callbacks);
+          CentipedeSetCurrentThreadTraced(old_traced);
+          {
+            LockGuard lock(state->execution_result_override_mu);
+            bool has_overridden_execution_result = false;
+            if (state->execution_result_override != nullptr) {
+              RunnerCheck(
+                  state->execution_result_override->results().size() <= 1,
+                  "unexpected number of overridden execution results");
+              has_overridden_execution_result =
+                  state->execution_result_override->results().size() == 1;
+            }
+            if (has_overridden_execution_result) {
+              auto& result = state->execution_result_override->results()[0];
+              SanCovRuntimeConvertToEngineFeatures(
+                  result.mutable_features().data(),
+                  result.mutable_features().size());
+              const FuzzTestUint64sView features = {
+                  result.features().data(),
+                  result.features().size(),
+              };
+              sink->EmitCoverageFeatures(sink->ctx, &features);
+              input->metadata = result.metadata();
+              return;
+            }
+          }
+          SanCovRuntimeEmitFeatures(sink);
+          input->metadata = SanCovRuntimeGetExecutionMetadata();
+        };
+        adapter_out->DeserializeInputContent =
+            [](FuzzTestAdapterCtx* ctx, const FuzzTestBytesView* view,
+               const FuzzTestInputSink* sink) {
+              auto* input = new Input{
+                  /*content=*/{view->data, view->data + view->size},
+                  /*metadata=*/{},
+              };
+              sink->Emit(sink->ctx,
+                         reinterpret_cast<FuzzTestInputHandle>(input));
+            };
+        adapter_out->UpdateInputMetadata = [](FuzzTestAdapterCtx* ctx,
+                                              const FuzzTestBytesView* view,
+                                              FuzzTestInputHandle handle) {
+          auto* input = reinterpret_cast<Input*>(handle);
+          input->metadata.cmp_data = {view->data, view->data + view->size};
+        };
+        adapter_out->SerializeInputContent = [](FuzzTestAdapterCtx* ctx,
+                                                FuzzTestInputHandle handle,
+                                                const FuzzTestBytesSink* sink) {
+          auto* input = reinterpret_cast<Input*>(handle);
+          const auto input_bytes = FuzzTestBytesView{
+              reinterpret_cast<const uint8_t*>(input->content.data()),
+              input->content.size(),
+          };
+          sink->Emit(sink->ctx, &input_bytes);
+        };
+        adapter_out->SerializeInputMetadata =
+            [](FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
+               const FuzzTestBytesSink* sink) {
+              auto* input = reinterpret_cast<Input*>(handle);
+              const auto input_bytes = FuzzTestBytesView{
+                  reinterpret_cast<const uint8_t*>(
+                      input->metadata.cmp_data.data()),
+                  input->metadata.cmp_data.size(),
+              };
+              sink->Emit(sink->ctx, &input_bytes);
+            };
+        adapter_out->FreeInput = [](FuzzTestAdapterCtx* ctx,
+                                    FuzzTestInputHandle handle) {
+          delete reinterpret_cast<Input*>(handle);
+        };
+        adapter_out->FreeCtx = [](FuzzTestAdapterCtx* ctx) {
+          {
+            SpinlockGuard guard(state->diagnostic_sink_spinlock);
+            state->diagnostic_sink = nullptr;
+          }
+        };
+      },
+  };
+  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+  const auto s = FuzzTestWorkerMaybeRun(&manager);
+  CentipedeSetCurrentThreadTraced(old_traced);
+  if (s == kFuzzTestWorkerNotRequired) {
+    // By default, run every input file one-by-one.
+    for (int i = 1; i < argc; i++) {
+      ReadOneInputExecuteItAndDumpCoverage(argv[i], callbacks);
+    }
     return EXIT_SUCCESS;
   }
-
-  // Inputs / outputs from shmem.
-  if (state->flag_helper.HasFlag(":shmem:")) {
-    if (!sancov_state->arg1 || !sancov_state->arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(sancov_state->arg1);
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
-    // Persistent mode loop.
-    if (state->persistent_mode_socket > 0) {
-      return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);
-    }
-    return HandleSharedMemoryRequest(callbacks, inputs_blobseq,
-                                     outputs_blobseq);
-  }
-
-  // By default, run every input file one-by-one.
-  for (int i = 1; i < argc; i++) {
-    ReadOneInputExecuteItAndDumpCoverage(argv[i], callbacks);
-  }
-  return EXIT_SUCCESS;
+  return s == kFuzzTestWorkerSuccess ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 }  // namespace fuzztest::internal
@@ -1044,22 +975,52 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
 }
 
 extern "C" void CentipedeSetFailureDescription(const char *description) {
-  using fuzztest::internal::state;
-  if (state->failure_description_path == nullptr) return;
-  if (state->has_failure_description.exchange(true)) return;
-  FILE* f = fopen(state->failure_description_path, "w");
-  if (f == nullptr) {
-    perror("FAILURE: fopen()");
-    return;
-  }
-  const auto len = strlen(description);
-  if (fwrite(description, 1, len, f) != len) {
-    perror("FAILURE: fwrite()");
-  }
-  if (fflush(f) != 0) {
-    perror("FAILURE: fflush()");
-  }
-  if (fclose(f) != 0) {
-    perror("FAILURE: fclose()");
+  std::string_view desc_sv = description;
+  static constexpr std::string_view kInputFailurePrefix = "INPUT FAILURE:";
+  static constexpr std::string_view kIgnoredFailurePrefix = "IGNORED FAILURE:";
+  static constexpr std::string_view kSetupFailurePrefix = "SETUP FAILURE:";
+  static constexpr std::string_view kSkippedTestPrefix = "SKIPPED TEST:";
+  using ::fuzztest::internal::SpinlockGuard;
+  using ::fuzztest::internal::state;
+  if (desc_sv.substr(0, kIgnoredFailurePrefix.size()) ==
+          kIgnoredFailurePrefix ||
+      desc_sv.substr(0, kSkippedTestPrefix.size()) == kSkippedTestPrefix) {
+    // Nothing to do.
+  } else if (desc_sv.substr(0, kSetupFailurePrefix.size()) ==
+             kSetupFailurePrefix) {
+    const bool try_lock_result =
+        !state->diagnostic_sink_spinlock.exchange(true);
+    if (try_lock_result) {
+      SpinlockGuard guard(state->diagnostic_sink_spinlock, /*acquire=*/false);
+      const auto* diagnostic_sink = state->diagnostic_sink;
+      const FuzzTestBytesView error = {
+          reinterpret_cast<const uint8_t*>(desc_sv.data() +
+                                           kSetupFailurePrefix.size()),
+          desc_sv.size() - kSetupFailurePrefix.size(),
+      };
+      diagnostic_sink->EmitError(diagnostic_sink->ctx, &error);
+      return;
+    }
+    std::_Exit(EXIT_FAILURE);
+  } else {
+    if (desc_sv.substr(0, kInputFailurePrefix.size()) == kInputFailurePrefix) {
+      desc_sv = desc_sv.substr(kInputFailurePrefix.size());
+    }
+    const bool try_lock_result =
+        !state->diagnostic_sink_spinlock.exchange(true);
+    if (try_lock_result) {
+      SpinlockGuard guard(state->diagnostic_sink_spinlock, /*acquire=*/false);
+      const auto* diagnostic_sink = state->diagnostic_sink;
+      if (diagnostic_sink != nullptr) {
+        const FuzzTestBytesView finding_desc = {
+            reinterpret_cast<const uint8_t*>(desc_sv.data()),
+            desc_sv.size(),
+        };
+        diagnostic_sink->EmitFinding(diagnostic_sink->ctx, &finding_desc,
+                                     &finding_desc);
+        return;
+      }
+    }
+    std::_Exit(EXIT_FAILURE);
   }
 }

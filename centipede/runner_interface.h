@@ -141,9 +141,12 @@ class RunnerCallbacks {
   // Attempts to execute the test logic using `input`, and returns false if the
   // input should be ignored from the corpus, true otherwise.
   virtual bool Execute(ByteSpan input) = 0;
-  // Generates seed inputs by calling `seed_callback` for each input.
+  // Provide the preset seed inputs by calling `seed_callback` on each of them.
+  // The default implementation provides no inputs.
+  virtual void GetPresetSeedInputs(std::function<void(ByteSpan)> seed_callback);
+  // Generates a random seed input by calling `seed_callback` on it.
   // The default implementation generates a single-byte input {0}.
-  virtual void GetSeeds(std::function<void(ByteSpan)> seed_callback);
+  virtual void GetRandomSeedInput(std::function<void(ByteSpan)> seed_callback);
   // Returns the serialized configuration from the test target. The default
   // implementation returns the empty string.
   virtual std::string GetSerializedTargetConfig();

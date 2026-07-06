@@ -963,14 +963,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   std::vector<ByteArray> seeds;
-  EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
-                         {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
-  EXPECT_EQ(callbacks.GetSeeds(5, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(
-                         std::vector<ByteArray>{{0}, {1}, {2}, {3}, {4}}));
-  EXPECT_EQ(callbacks.GetSeeds(100, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
+  callbacks.GetSeeds(10, seeds);
+  EXPECT_THAT(seeds, testing::IsSupersetOf(std::vector<ByteArray>{
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
@@ -1400,8 +1394,9 @@ TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInWorkerMode) {
   env.test_name = "some_test";
   env.populate_binary_info = false;
   env.fork_server = false;
-  env.persistent_mode = false;
+  env.persistent_mode = true;
   env.exit_on_crash = true;
+  env.stop_at = absl::Now() + absl::Seconds(10);
   fuzztest::internal::DefaultCallbacksFactory<
       fuzztest::internal::CentipedeDefaultCallbacks>
       callbacks;

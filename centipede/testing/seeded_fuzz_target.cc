@@ -29,7 +29,8 @@ class SeededRunnerCallbacks : public fuzztest::internal::RunnerCallbacks {
     return true;
   }
 
-  void GetSeeds(std::function<void(ByteSpan)> seed_callback) override {
+  void GetPresetSeedInputs(
+      std::function<void(ByteSpan)> seed_callback) override {
     constexpr size_t kNumAvailSeeds = 10;
     for (size_t i = 0; i < kNumAvailSeeds; ++i)
       seed_callback({static_cast<uint8_t>(i)});
