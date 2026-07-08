@@ -48,6 +48,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
@@ -68,6 +69,7 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/environment.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
@@ -493,7 +495,10 @@ class CentipedeAdaptorRunnerCallbacks
         configuration_(*configuration),
         prng_(GetRandomSeed()) {}
 
-  bool Execute(fuzztest::internal::ByteSpan input) override {
+  bool Execute(void* input) override {
+    const auto* input_object =
+        reinterpret_cast<const FuzzTestFuzzerImpl::Input*>(input);
+
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
     const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
@@ -517,34 +522,28 @@ class CentipedeAdaptorRunnerCallbacks
     }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
-    auto parsed_input =
-        fuzzer_impl_.TryParse({(char*)input.data(), input.size()});
-    if (parsed_input.ok()) {
-      fuzzer_impl_.RunOneInput({*std::move(parsed_input)});
-      if (runtime_.external_failure_detected()) {
-        // This would take effect only if no previous description is set.
-        CentipedeSetFailureDescription(
-            "INPUT FAILURE: external failure detected.");
-      }
-      return true;
+    fuzzer_impl_.RunOneInput(*input_object);
+    if (runtime_.external_failure_detected()) {
+      // This would take effect only if no previous description is set.
+      CentipedeSetFailureDescription(
+          "INPUT FAILURE: external failure detected.");
     }
-    return false;
+    return true;
   }
 
-  void GetSeeds(std::function<void(fuzztest::internal::ByteSpan)> seed_callback)
-      override {
+  void GetPresetSeedInputs(std::function<void(void*)> seed_callback) override {
     std::vector<GenericDomainCorpusType> seeds =
         fuzzer_impl_.fixture_driver_->GetSeeds();
-    constexpr int kInitialValuesInSeeds = 32;
-    for (int i = 0; i < kInitialValuesInSeeds; ++i) {
-      seeds.push_back(fuzzer_impl_.params_domain_.Init(prng_));
-    }
-    absl::c_shuffle(seeds, prng_);
     for (const auto& seed : seeds) {
-      const auto seed_serialized =
-          SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(seed));
-      seed_callback(fuzztest::internal::AsByteSpan(seed_serialized));
+      auto* input = new FuzzTestFuzzerImpl::Input{std::move(seed)};
+      seed_callback(reinterpret_cast<void*>(input));
     }
+  }
+
+  void GetRandomSeedInput(std::function<void(void*)> seed_callback) override {
+    auto seed = fuzzer_impl_.params_domain_.Init(prng_);
+    auto* input = new FuzzTestFuzzerImpl::Input{std::move(seed)};
+    seed_callback(reinterpret_cast<void*>(input));
   }
 
   std::string GetSerializedTargetConfig() override {
@@ -553,48 +552,48 @@ class CentipedeAdaptorRunnerCallbacks
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(absl::Span<const MutationInputRef> inputs, size_t num_mutants,
-              std::function<void(MutantRef)> new_mutant_callback) override {
-    if (inputs.empty()) return false;
-    cmp_tables.resize(inputs.size());
-    absl::Cleanup cmp_tables_cleaner = [this]() { cmp_tables.clear(); };
-    for (size_t i = 0; i < num_mutants; ++i) {
-      const auto choice = absl::Uniform<double>(prng_, 0, 1);
-      size_t origin_index = Mutant::kOriginNone;
-      std::string mutant_data;
-      constexpr double kDomainInitRatio = 0.0001;
-      if (choice < kDomainInitRatio) {
-        mutant_data =
-            SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(
-                fuzzer_impl_.params_domain_.Init(prng_)));
-      } else {
-        origin_index = absl::Uniform<size_t>(prng_, 0, inputs.size());
-        const auto& origin = inputs[origin_index].data;
-        auto parsed_origin =
-            fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
-        if (!parsed_origin.ok()) {
-          parsed_origin = fuzzer_impl_.params_domain_.Init(prng_);
-        }
-        auto mutant = FuzzTestFuzzerImpl::Input{*std::move(parsed_origin)};
-        if (runtime_.run_mode() == RunMode::kFuzz &&
-            !cmp_tables[origin_index].has_value() &&
-            inputs[origin_index].metadata != nullptr) {
-          cmp_tables[origin_index].emplace(/*compact=*/true);
-          PopulateCmpEntries(*inputs[origin_index].metadata,
-                             *cmp_tables[origin_index]);
-        }
-        fuzzer_impl_.MutateValue(
-            mutant, prng_,
-            {cmp_tables[origin_index].has_value() ? &*cmp_tables[origin_index]
-                                                  : nullptr});
-        mutant_data = SerializeIRObject(
-            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args));
-      }
-      new_mutant_callback(
-          MutantRef{{(unsigned char*)mutant_data.data(), mutant_data.size()},
-                    origin_index});
+  void SerializeInput(void* input,
+                      std::function<void(ByteSpan)> bytes_sink) override {
+    auto* input_object = reinterpret_cast<FuzzTestFuzzerImpl::Input*>(input);
+    std::string serialized_input = SerializeIRObject(
+        fuzzer_impl_.params_domain_.SerializeCorpus(input_object->args));
+    bytes_sink({reinterpret_cast<const uint8_t*>(serialized_input.data()),
+                serialized_input.size()});
+  }
+
+  void* DeserializeInput(ByteSpan input_bytes) override {
+    auto parse_result = fuzzer_impl_.TryParse(
+        {(const char*)input_bytes.data(), input_bytes.size()});
+    if (parse_result.ok()) {
+      return reinterpret_cast<void*>(
+          new FuzzTestFuzzerImpl::Input{*std::move(parse_result)});
     }
-    return true;
+    return reinterpret_cast<void*>(
+        new FuzzTestFuzzerImpl::Input{fuzzer_impl_.params_domain_.Init(prng_)});
+  }
+
+  void FreeInput(void* input) override {
+    auto it = cmp_tables_.find(input);
+    if (it != cmp_tables_.end()) {
+      delete it->second;
+      cmp_tables_.erase(it);
+    }
+    delete reinterpret_cast<FuzzTestFuzzerImpl::Input*>(input);
+  }
+
+  void* Mutate(void* origin,
+               const ExecutionMetadata& origin_metadata) override {
+    const auto* origin_object =
+        reinterpret_cast<const FuzzTestFuzzerImpl::Input*>(origin);
+    auto* mutant = new FuzzTestFuzzerImpl::Input{*origin_object};
+    if (cmp_tables_.find(origin) == cmp_tables_.end()) {
+      auto* cmp_table =
+          new fuzztest::internal::TablesOfRecentCompares{/*compact=*/true};
+      PopulateCmpEntries(origin_metadata, *cmp_table);
+      cmp_tables_[origin] = cmp_table;
+    }
+    fuzzer_impl_.MutateValue(*mutant, prng_, {cmp_tables_[origin]});
+    return mutant;
   }
 
   ~CentipedeAdaptorRunnerCallbacks() override { runtime_.UnsetCurrentArgs(); }
@@ -604,8 +603,8 @@ class CentipedeAdaptorRunnerCallbacks
   FuzzTestFuzzerImpl& fuzzer_impl_;
   const Configuration& configuration_;
   absl::BitGen prng_;
-  std::vector<std::optional<fuzztest::internal::TablesOfRecentCompares>>
-      cmp_tables;
+  absl::node_hash_map<void*, fuzztest::internal::TablesOfRecentCompares*>
+      cmp_tables_;
 };
 
 namespace {

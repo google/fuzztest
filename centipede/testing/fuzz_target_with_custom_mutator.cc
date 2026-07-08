@@ -33,18 +33,32 @@ using fuzztest::internal::MutantRef;
 class CustomMutatorRunnerCallbacks
     : public fuzztest::internal::RunnerCallbacks {
  public:
-  bool Execute(ByteSpan input) override { return true; }
+  bool Execute(void* input) override { return true; }
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(absl::Span<const fuzztest::internal::MutationInputRef> inputs,
-              size_t num_mutants,
-              std::function<void(MutantRef)> new_mutant_callback) override {
-    for (size_t i = 0; i < inputs.size() && i < num_mutants; ++i) {
-      // Just return the original input as a mutant.
-      new_mutant_callback(MutantRef{inputs[i].data, i});
-    }
-    return true;
+  void* Mutate(void* input,
+               const fuzztest::internal::ExecutionMetadata& metadata) override {
+    const auto* ba =
+        reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+    return reinterpret_cast<void*>(new fuzztest::internal::ByteArray{*ba});
+  }
+
+  void* DeserializeInput(fuzztest::internal::ByteSpan input) override {
+    return reinterpret_cast<void*>(
+        new fuzztest::internal::ByteArray{input.begin(), input.end()});
+  }
+
+  void SerializeInput(
+      void* input,
+      std::function<void(fuzztest::internal::ByteSpan)> bytes_sink) override {
+    const auto* ba =
+        reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+    bytes_sink(*ba);
+  }
+
+  void FreeInput(void* input) override {
+    delete reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
   }
 };
 

@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -194,8 +195,11 @@ class CentipedeCallbacks::PersistentModeServer {
     int poll_ret = -1;
     do {
       poll_fd = {fd, static_cast<short>(event)};
-      const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
-          std::max(deadline - absl::Now(), kPollMinimalTimeout)));
+      const int poll_timeout_ms =
+          deadline == absl::InfiniteFuture()
+              ? -1
+              : static_cast<int>(std::ceil(absl::ToDoubleMilliseconds(
+                    std::max(deadline - absl::Now(), kPollMinimalTimeout))));
       poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
     } while (poll_ret < 0 && errno == EINTR);
     if (poll_ret == 1 && (poll_fd.revents & (event | POLLHUP)) == event) {
@@ -343,7 +347,6 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
   std::vector<std::string> flags = {
       "CENTIPEDE_RUNNER_FLAGS=",
       absl::StrCat("timeout_per_input=", env_.timeout_per_input),
-      absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
@@ -565,8 +568,12 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   // Run.
+  const auto batch_start_time = absl::Now();
   const int exit_code = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  const bool batch_timed_out =
+      env_.timeout_per_batch > 0 &&
+      absl::Now() - batch_start_time > absl::Seconds(env_.timeout_per_batch);
 
   // Get results.
   batch_result.exit_code() = exit_code;
@@ -590,6 +597,16 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   if (env_.print_runner_log) PrintExecutionLog();
+
+  if (batch_timed_out) {
+    FUZZTEST_LOG(INFO)
+        << "Batch timeout detected. Replacing the original exit code: "
+        << exit_code
+        << ", failure description: " << batch_result.failure_description();
+    batch_result.failure_description() = kExecutionFailurePerBatchTimeout;
+    batch_result.exit_code() = EXIT_FAILURE;
+    return EXIT_FAILURE;
+  }
 
   // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
   // the target exits via `std::_Exit(0)`.

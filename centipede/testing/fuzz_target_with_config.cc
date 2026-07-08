@@ -32,12 +32,24 @@ class FakeSerializedConfigRunnerCallbacks
  public:
   // Trivial implementations for the execution and mutation logic, even though
   // they should not be used in the tests that use this test binary.
-  bool Execute(ByteSpan input) override { return true; }
+  bool Execute(void* input) override { return true; }
   bool HasCustomMutator() const override { return false; }
 
   std::string GetSerializedTargetConfig() override {
     return "fake serialized config";
   }
+
+  void* DeserializeInput(fuzztest::internal::ByteSpan input) override {
+    return nullptr;
+  }
+
+  void SerializeInput(
+      void* input,
+      std::function<void(fuzztest::internal::ByteSpan)> bytes_sink) override {
+    bytes_sink({0});
+  }
+
+  void FreeInput(void* input) override {}
 };
 
 int main(int argc, char** absl_nonnull argv) {

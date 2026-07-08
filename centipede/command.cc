@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -146,8 +147,11 @@ struct Command::ForkServerProps {
           /*fd=*/pipe_[1],
           /*events=*/POLLIN,
       };
-      const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
-          std::max(deadline - absl::Now(), absl::Milliseconds(1))));
+      const int poll_timeout_ms =
+          deadline == absl::InfiniteFuture()
+              ? -1
+              : static_cast<int>(std::ceil(absl::ToDoubleMilliseconds(
+                    std::max(deadline - absl::Now(), absl::Milliseconds(1)))));
       poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
       // The `poll()` syscall can get interrupted: it sets errno==EINTR in that
       // case. We should tolerate that.
@@ -207,7 +211,7 @@ std::string Command::ToString() const {
   ss.reserve(/*env*/ 1 + options_.env_diff.size() + /*path*/ 1 +
              /*args*/ options_.args.size() + /*out/err*/ 2);
   // env.
-  ss.push_back("env");
+  ss.push_back("exec env");
   std::vector<std::string> env_to_set;
   env_to_set.reserve(options_.env_diff.size());
   // Arguments that unset environment variables must appear first.
@@ -287,7 +291,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   {
     CENTIPEDE_FORK_SERVER_FIFO0="%s" \
     CENTIPEDE_FORK_SERVER_FIFO1="%s" \
-    exec %s
+    %s
   } &
   printf "%%s" $! > "%s"
 )sh";

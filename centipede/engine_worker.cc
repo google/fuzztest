@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <fcntl.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -23,14 +27,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/random/bit_gen_ref.h"
-#include "absl/random/random.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_worker_abi.h"
 #include "./centipede/execution_metadata.h"
@@ -105,7 +108,7 @@ struct WorkerFlags {
 };
 
 // The first call of this function must be outside of signal handlers since it
-// allocates memory (enforced by `GetWorkerFlagsEarly`). After that it would be
+// allocates memory (enforced by `WorkerInitEarly`). After that it would be
 // signal-safe.
 //
 // The worker flags format is `:(NAME=VALUE|SWITCH:)+`. `GetWorkerFlags`
@@ -135,10 +138,6 @@ const WorkerFlags& GetWorkerFlags() {
     return WorkerFlags{true, len, str};
   }();
   return worker_flags;
-}
-
-__attribute__((constructor(200))) void GetWorkerFlagsEarly() {
-  (void)GetWorkerFlags();
 }
 
 // `header` should be in the form of `FLAG_NAME=`.
@@ -220,6 +219,7 @@ enum class WorkerAction {
   kTestGetSeeds,
   kTestMutate,
   kTestExecute,
+  kNoOp,
 };
 
 constexpr std::string_view kWorkerBinaryIdOutputFlagHeader =
@@ -237,6 +237,10 @@ constexpr std::string_view kWorkerInputsBlobSequencePathFlagHeader =
     "arg1=";  // TODO: Use better flag names when standardizing the protocol.
 constexpr std::string_view kWorkerOutputsBlobSequencePathFlagHeader =
     "arg2=";  // TODO: Use better flag names when standardizing the protocol.
+constexpr std::string_view kWorkerPersistentModeSocketPathFlagHeader =
+    "persistent_mode_socket=";  // TODO: Use better flag names when
+                                // standardizing the protocol.
+constexpr std::string_view kWorkerCrossOverLevel = "crossover_level=";
 
 struct WorkerState {
   std::atomic<bool> has_failure_output = false;
@@ -244,6 +248,11 @@ struct WorkerState {
   std::atomic<bool> in_adapter_execute = false;
   std::atomic<bool> has_finding = false;
   std::atomic<bool> saved_binary_id = false;
+
+  void ResetForPersistentMode() {
+    has_failure_output.store(false, std::memory_order_relaxed);
+    has_finding.store(false, std::memory_order_relaxed);
+  }
 };
 
 WorkerState& GetWorkerState() {
@@ -290,14 +299,26 @@ void WorkerEmitError(std::string_view message) {
   WorkerEmitFailureOutput("SETUP FAILURE: ", message);
 }
 
+static constexpr std::array<std::string_view, 3> kNonFindingPrefixes = {
+    "SETUP FAILURE:",
+    "IGNORED FAILURE:",
+    "SKIPPED TEST:",
+};
+
 void WorkerEmitFinding(std::string_view description,
                        std::string_view signature) {
   WorkerCheck(
       GetWorkerState().in_adapter_execute.load(std::memory_order_relaxed),
       "Must emit finding in adapter execute");
+  for (auto bad_prefix : kNonFindingPrefixes) {
+    if (description.substr(0, bad_prefix.size()) == bad_prefix) {
+      WorkerEmitError("Bad prefix in the error description");
+      return;
+    }
+  }
   const bool ignored = GetWorkerState().has_finding.exchange(true);
   if (!ignored) {
-    WorkerCheck(WorkerEmitFailureOutput("INPUT FAILURE: ", description),
+    WorkerCheck(WorkerEmitFailureOutput("", description),
                 "Failed to emit failure output for the finding");
     if (const char* finding_signature_path =
             GetWorkerFlag(kWorkerFailureSignaturePathFlagHeader);
@@ -321,6 +342,64 @@ inline std::string_view ToStringView(
 
 inline std::string_view ToStringView(const std::vector<uint8_t>& bytes) {
   return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+}
+
+// Zero initialized.
+static int persistent_mode_socket;
+
+__attribute__((constructor(200))) void WorkerInitEarly() {
+  const char* persistent_mode_socket_path =
+      GetWorkerFlag(kWorkerPersistentModeSocketPathFlagHeader);
+  if (persistent_mode_socket_path == nullptr) return;
+  persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (persistent_mode_socket < 0) {
+    WorkerLog(
+        "Failed to create persistent mode socket - not running persistent "
+        "mode.",
+        LogLnSync{});
+    return;
+  }
+
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  const size_t socket_path_len = strlen(persistent_mode_socket_path);
+  WorkerCheck(
+      socket_path_len < sizeof(addr.sun_path),
+      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
+  std::memcpy(addr.sun_path, persistent_mode_socket_path, socket_path_len);
+
+  int connect_ret = 0;
+  do {
+    connect_ret =
+        connect(persistent_mode_socket, (struct sockaddr*)&addr, sizeof(addr));
+  } while (connect_ret == -1 && errno == EINTR);
+  if (connect_ret == -1) {
+    WorkerLog("Failed to connect the persistent mode socket to ",
+              persistent_mode_socket_path, LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+
+  int flags = fcntl(persistent_mode_socket, F_GETFD);
+  if (flags == -1) {
+    WorkerLog(
+        "fcntl(F_GETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+  flags |= FD_CLOEXEC;
+  if (fcntl(persistent_mode_socket, F_SETFD, flags) == -1) {
+    WorkerLog(
+        "fcntl(F_SETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+  }
+  WorkerLog("Persistent mode: connected to ", persistent_mode_socket_path,
+            LogLnSync{});
 }
 
 BlobSequence* GetInputsBlobSequence() {
@@ -349,8 +428,25 @@ BlobSequence* GetOutputsBlobSequence() {
   return result;
 }
 
-WorkerAction GetWorkerAction() {
-  static WorkerAction worker_action = [] {
+int GetCrossOverLevel() {
+  static int result = []() {
+    const char* cross_over_level_str = GetWorkerFlag(kWorkerCrossOverLevel);
+    if (cross_over_level_str != nullptr) {
+      const int parsed =
+          atoi(cross_over_level_str);  // NOLINT: can't use strto64, etc.
+      if (0 <= parsed && parsed <= 100) return parsed;
+    }
+    // Default
+    return 50;
+  }();
+  return result;
+}
+
+std::optional<WorkerAction> GetWorkerAction() {
+  static auto worker_action = []() -> std::optional<WorkerAction> {
+    if (HasWorkerSwitchFlag("dump_configuration")) {
+      return WorkerAction::kNoOp;
+    }
     if (HasWorkerSwitchFlag("dump_binary_id")) {
       return WorkerAction::kGetBinaryId;
     }
@@ -361,7 +457,9 @@ WorkerAction GetWorkerAction() {
       return WorkerAction::kTestGetSeeds;
     }
     auto* inputs_blobseq = GetInputsBlobSequence();
-    WorkerCheck(inputs_blobseq != nullptr, "input blob sequence is not found");
+    if (inputs_blobseq == nullptr) {
+      return std::nullopt;
+    }
     auto request_type_blob = inputs_blobseq->Read();
     if (IsMutationRequest(request_type_blob)) {
       inputs_blobseq->Reset();
@@ -371,9 +469,7 @@ WorkerAction GetWorkerAction() {
       inputs_blobseq->Reset();
       return WorkerAction::kTestExecute;
     }
-    WorkerCheck(false, "unknown worker action from the flags");
-    // should not reach here.
-    std::abort();
+    return std::nullopt;
   }();
   return worker_action;
 }
@@ -457,14 +553,6 @@ void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
   }
 }
 
-absl::BitGenRef GetBitGen() {
-  static thread_local std::unique_ptr<absl::BitGen> bitgen;
-  if (bitgen == nullptr) {
-    bitgen = std::make_unique<absl::BitGen>();
-  }
-  return *bitgen;
-}
-
 void WorkerDoMutate(const FuzzTestAdapter& adapter) {
   auto* inputs_blobseq = GetInputsBlobSequence();
   auto* outputs_blobseq = GetOutputsBlobSequence();
@@ -516,15 +604,23 @@ void WorkerDoMutate(const FuzzTestAdapter& adapter) {
 
   std::vector<uint8_t> mutant_bytes;
   const auto mutant_bytes_sink = GetBytesSinkTo(mutant_bytes);
+  static unsigned int seed = 0;
   for (size_t i = 0; i < num_mutants; ++i) {
-    const auto origin =
-        absl::Uniform<size_t>(GetBitGen(), 0, origin_inputs.size());
+    // Assume RAND_MAX is large enough and not worry about fairness for now.
+    const auto origin = rand_r(&seed) % origin_inputs.size();
     emitted_inputs.clear();
-    adapter.Mutate(adapter.ctx, origin_inputs[origin], /*shrink=*/0,
-                   &input_sink);
+    if (adapter.CrossOver != nullptr &&
+        rand_r(&seed) % 100 < GetCrossOverLevel()) {
+      const auto other = rand_r(&seed) % origin_inputs.size();
+      adapter.CrossOver(adapter.ctx, origin_inputs[origin],
+                        origin_inputs[other], &input_sink);
+    } else {
+      adapter.Mutate(adapter.ctx, origin_inputs[origin], /*shrink=*/0,
+                     &input_sink);
+    }
     WORKER_CHECK_FOR_ERROR();
     WorkerCheck(emitted_inputs.size() == 1,
-                "Mutate must emit exactly one input");
+                "Mutate/CrossOver must emit exactly one input");
     mutant_bytes.clear();
     adapter.SerializeInputContent(adapter.ctx, emitted_inputs[0],
                                   &mutant_bytes_sink);
@@ -596,6 +692,32 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     return true;
   }();
 
+  // Utils to get execution stats.
+
+  size_t last_time_usec = 0;
+  auto UsecSinceLast = [&last_time_usec]() {
+    struct timeval tv = {};
+    constexpr size_t kUsecInSec = 1000000;
+    gettimeofday(&tv, nullptr);
+    uint64_t t = tv.tv_sec * kUsecInSec + tv.tv_usec;
+    uint64_t ret_val = t - last_time_usec;
+    last_time_usec = t;
+    return ret_val;
+  };
+
+  auto GetPeakRSSMb = []() -> size_t {
+    struct rusage usage = {};
+    if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
+#ifdef __APPLE__
+    // On MacOS, the unit seems to be byte according to experiment, while some
+    // documents mentioned KiB. This could depend on OS variants.
+    return usage.ru_maxrss >> 20;
+#else   // __APPLE__
+    // On Linux, ru_maxrss is in KiB
+    return usage.ru_maxrss >> 10;
+#endif  // __APPLE__
+  };
+
   // In-loop variables declared outside to save allocations.
   std::vector<uint64_t> features;
   std::vector<uint8_t> serialized_metadata;
@@ -603,6 +725,11 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
   const auto input_sink = GetInputSinkTo(emitted_inputs);
 
   for (size_t i = 0; i < num_inputs; i++) {
+    // NOTE: the values stored in stats here are slightly different than the
+    // definition of the original stats. Here the exec_time_usec will include
+    // the coverage processing.
+    ExecutionResult::Stats stats = {};
+    UsecSinceLast();
     auto blob = inputs_blobseq->Read();
     if (!blob.IsValid()) return;  // no more blobs to read.
     WorkerCheck(IsDataInput(blob), "Must read data input");
@@ -631,8 +758,10 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
         }};
 
     GetWorkerState().in_adapter_execute = true;
+    stats.prep_time_usec = UsecSinceLast();
     adapter.Execute(adapter.ctx, input, &feedback_sink);
     GetWorkerState().in_adapter_execute = false;
+    stats.exec_time_usec = UsecSinceLast();
     WORKER_CHECK_FOR_ERROR();
 
     serialized_metadata.clear();
@@ -681,6 +810,12 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
       WorkerLog("failed to write input metadata");
       break;
     }
+    stats.post_time_usec = UsecSinceLast();
+    stats.peak_rss_mb = GetPeakRSSMb();
+    if (!BatchResult::WriteStats(stats, *outputs_blobseq)) {
+      WorkerLog("failed to write stats");
+      break;
+    }
     if (!BatchResult::WriteInputEnd(*outputs_blobseq)) {
       WorkerLog("failed to write input end");
       break;
@@ -695,6 +830,72 @@ const char* FuzzTestWorkerGetTestName() {
   return test_name;
 }
 
+void HandlePersistentMode(const FuzzTestAdapter& adapter) {
+  auto* inputs_blobseq = GetInputsBlobSequence();
+  auto* outputs_blobseq = GetOutputsBlobSequence();
+  bool first = true;
+  while (true) {
+    PersistentModeRequest req;
+    if (!ReadAll(persistent_mode_socket, reinterpret_cast<char*>(&req), 1)) {
+      WorkerLog("Failed to read request from persistent mode socket: ",
+                LogErrNo{}, LogLnSync{});
+      return;
+    }
+    if (first) {
+      first = false;
+      WorkerLog("FuzzTest engine worker enter persistent mode", LogLnSync{});
+    } else {
+      // Reset stdout/stderr.
+      for (int fd = 1; fd <= 2; fd++) {
+        lseek(fd, 0, SEEK_SET);
+        // NOTE: Allow ftruncate() to fail by ignoring its return; that's okay
+        // to happen when the stdout/stderr are not redirected to a file.
+        (void)ftruncate(fd, 0);
+      }
+      WorkerLog(
+          "FuzzTest engine worker (",
+          req == PersistentModeRequest::kExit ? "exiting persistent mode"
+                                              : "persistent mode batch",
+          "); flags: ",
+          GetWorkerFlags().present
+              ? std::string_view{GetWorkerFlags().str, GetWorkerFlags().len}
+              : "",
+          LogLnSync{});
+    }
+    if (req == PersistentModeRequest::kExit) break;
+    WorkerCheck(req == PersistentModeRequest::kRunBatch,
+                "Unknown persistent mode request");
+
+    inputs_blobseq->Reset();
+    outputs_blobseq->Reset();
+
+    GetWorkerState().ResetForPersistentMode();
+
+    // Read the first blob. It indicates what further actions to take.
+    auto request_type_blob = inputs_blobseq->Read();
+    if (IsMutationRequest(request_type_blob)) {
+      inputs_blobseq->Reset();
+      WorkerDoMutate(adapter);
+    } else if (IsExecutionRequest(request_type_blob)) {
+      inputs_blobseq->Reset();
+      WorkerDoExecute(adapter);
+    } else {
+      WorkerCheck(false, "Unknown shmem request");
+    }
+
+    const int result =
+        GetWorkerState().has_finding.load(std::memory_order_relaxed)
+            ? EXIT_FAILURE
+            : EXIT_SUCCESS;
+    if (!WriteAll(persistent_mode_socket,
+                  reinterpret_cast<const char*>(&result), sizeof(result))) {
+      WorkerLog("Failed to write response to the persistent mode socket: ",
+                LogErrNo{}, LogLnSync{});
+      return;
+    }
+  }
+}
+
 FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   const auto& flags = GetWorkerFlags();
   WorkerCheck(flags.present, "worker flags must present");
@@ -704,6 +905,12 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   }
 
   const auto action = GetWorkerAction();
+  WorkerCheck(action.has_value(), "No worker action to run");
+
+  if (action == WorkerAction::kNoOp) {
+    return kFuzzTestWorkerSuccess;
+  }
+
   if (action == WorkerAction::kGetBinaryId) {
     WorkerDoGetBinaryId(manager);
     return kFuzzTestWorkerSuccess;
@@ -748,8 +955,8 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   WorkerCheck(manager.ConstructAdapter != nullptr,
               "ConstructAdapter is not defined");
   FuzzTestAdapter adapter = {};
-  manager.ConstructAdapter(manager.ctx, /*diagnostic_sink=*/&diagnostic_sink,
-                           &adapter);
+  manager.ConstructAdapter(manager.ctx,
+                           /*diagnostic_sink=*/&diagnostic_sink, &adapter);
   WORKER_CHECK_FOR_ERROR();
   WorkerCheck(adapter.SetUpCoverageDomains != nullptr,
               "SetUpCoverageDomains must be defined");
@@ -764,7 +971,9 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   WorkerCheck(adapter.FreeInput != nullptr, "FreeInput must be defined");
   WorkerCheck(adapter.FreeCtx != nullptr, "FreeCtx must be defined");
 
-  if (action == WorkerAction::kTestGetSeeds) {
+  if (persistent_mode_socket > 0) {
+    HandlePersistentMode(adapter);
+  } else if (action == WorkerAction::kTestGetSeeds) {
     WorkerDoGetSeeds(adapter);
   } else if (action == WorkerAction::kTestMutate) {
     WorkerDoMutate(adapter);
@@ -794,7 +1003,11 @@ using ::fuzztest::internal::WorkerRun;
 
 }  // namespace
 
-int FuzzTestWorkerIsRequired() { return GetWorkerFlags().present; }
+int FuzzTestWorkerIsRequired() {
+  static int result = GetWorkerFlags().present &&
+                      fuzztest::internal::GetWorkerAction().has_value();
+  return result;
+}
 
 FuzzTestWorkerStatus FuzzTestWorkerMaybeRun(
     const FuzzTestAdapterManager* manager) {

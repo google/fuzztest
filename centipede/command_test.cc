@@ -39,18 +39,18 @@ namespace {
 using ::testing::Optional;
 
 TEST(CommandTest, ToString) {
-  EXPECT_EQ(Command{"x"}.ToString(), "env \\\nx");
+  EXPECT_EQ(Command{"x"}.ToString(), "exec env \\\nx");
   {
     Command::Options cmd_options;
     cmd_options.args = {"arg1", "arg2"};
     EXPECT_EQ((Command{"path", std::move(cmd_options)}.ToString()),
-              "env \\\npath \\\narg1 \\\narg2");
+              "exec env \\\npath \\\narg1 \\\narg2");
   }
   {
     Command::Options cmd_options;
     cmd_options.env_diff = {"K1=V1", "K2=V2", "-K3"};
     EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
+              "exec env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
   }
 }
 
@@ -80,7 +80,7 @@ TEST(CommandTest, InputFileWildCard) {
   Command::Options cmd_options;
   cmd_options.temp_file_path = "TEMP_FILE";
   Command cmd{"foo bar @@ baz", std::move(cmd_options)};
-  EXPECT_EQ(cmd.ToString(), "env \\\nfoo bar TEMP_FILE baz");
+  EXPECT_EQ(cmd.ToString(), "exec env \\\nfoo bar TEMP_FILE baz");
 }
 
 TEST(CommandTest, ForkServer) {

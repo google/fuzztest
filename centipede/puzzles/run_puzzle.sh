@@ -94,7 +94,6 @@ function ExpectPerInputTimeout() {
 # Expects that Centipede found a per-batch timeout.
 function ExpectPerBatchTimeout() {
   echo "======= ${FUNCNAME[0]}"
-  fuzztest::internal::assert_regex_in_file "Per-batch timeout exceeded" "${log}"
   fuzztest::internal::assert_regex_in_file "Failure.*: per-batch-timeout-exceeded" "${log}"
   fuzztest::internal::assert_regex_in_file \
     "Failure applies to entire batch: not executing inputs one-by-one" "${log}"

@@ -124,16 +124,15 @@ static void WaitWatchdogThreadIdle() {
 static void CheckWatchdogLimits() {
   const uint64_t curr_time = time(nullptr);
   struct Resource {
-    const char *what;
-    const char *units;
+    const char* what;
+    const char* units;
     uint64_t value;
     uint64_t limit;
     bool ignore_report;
-    const char *failure;
+    const char* failure;
   };
   const uint64_t input_start_time = state->input_start_time;
-  const uint64_t batch_start_time = state->batch_start_time;
-  if (input_start_time == 0 || batch_start_time == 0) return;
+  if (input_start_time == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
@@ -145,15 +144,6 @@ static void CheckWatchdogLimits() {
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
       }},
       {Resource{
-          /*what=*/"Per-batch timeout",
-          /*units=*/"sec",
-          /*value=*/curr_time - batch_start_time,
-          /*limit=*/state->run_time_flags.timeout_per_batch,
-          /*ignore_report=*/
-          state->run_time_flags.ignore_timeout_reports != 0,
-          /*failure=*/kExecutionFailurePerBatchTimeout.data(),
-      }},
-      {Resource{
           /*what=*/"RSS limit",
           /*units=*/"MB",
           /*value=*/GetPeakRSSMb(),
@@ -162,7 +152,7 @@ static void CheckWatchdogLimits() {
           /*failure=*/kExecutionFailureRssLimitExceeded.data(),
       }},
   };
-  for (const auto &resource : resources) {
+  for (const auto& resource : resources) {
     if (resource.limit != 0 && resource.value > resource.limit) {
       if (!watchdog_failure_found.exchange(true)) {
         if (resource.ignore_report) {
@@ -198,7 +188,7 @@ static void CheckWatchdogLimits() {
 
 // Watchdog thread. Periodically checks if it's time to abort due to a
 // timeout/OOM.
-[[noreturn]] static void *WatchdogThread(void *unused) {
+[[noreturn]] static void* WatchdogThread(void* unused) {
   // Since the watchdog is internal and does not execute user code, disable
   // SanCov tracing and TLS traversal.
   tls.traced = false;
@@ -240,10 +230,10 @@ __attribute__((noinline)) void CheckStackLimit(size_t stack_usage,
 void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
-          " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
-          " MB; stack_limit_kb: %" PRIu64 " KB\n",
+          " sec; rss_limit_mb: %" PRIu64 " MB; stack_limit_kb: %" PRIu64
+          " KB\n",
           run_time_flags.timeout_per_input.load(),
-          run_time_flags.timeout_per_batch, run_time_flags.rss_limit_mb.load(),
+          run_time_flags.rss_limit_mb.load(),
           state->run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
@@ -257,17 +247,12 @@ void GlobalRunnerState::StartWatchdogThread() {
 void GlobalRunnerState::ResetTimers() {
   const auto curr_time = time(nullptr);
   state->input_start_time = curr_time;
-  // batch_start_time is set only once -- just before the first input of the
-  // batch is about to start running.
-  if (batch_start_time == 0) {
-    batch_start_time = curr_time;
-  }
 }
 
 // Byte array mutation fallback for a custom mutator, as defined here:
 // https://github.com/google/fuzzing/blob/master/docs/structure-aware-fuzzing.md
 extern "C" __attribute__((weak)) size_t
-CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size, size_t max_size) {
+CentipedeLLVMFuzzerMutateCallback(uint8_t* data, size_t size, size_t max_size) {
   // TODO(kcc): [as-needed] fix the interface mismatch.
   // LLVMFuzzerMutate is an array-based interface (for compatibility reasons)
   // while ByteArray has a vector-based interface.
@@ -290,7 +275,7 @@ CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size, size_t max_size) {
   return array.size();
 }
 
-extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
+extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
                                    size_t max_size) {
   return CentipedeLLVMFuzzerMutateCallback(data, size, max_size);
 }
@@ -298,7 +283,7 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t *data, size_t size,
 // An arbitrary large size for input data.
 static const size_t kMaxDataSize = 1 << 20;
 
-static void WriteFeaturesToFile(FILE *file, const feature_t *features,
+static void WriteFeaturesToFile(FILE* file, const feature_t* features,
                                 size_t size) {
   if (!size) return;
   auto bytes_written = fwrite(features, 1, sizeof(features[0]) * size, file);
@@ -322,19 +307,33 @@ static void PrepareCoverage(bool full_clear) {
   PrepareSancov(full_clear);
 }
 
-void RunnerCallbacks::GetSeeds(std::function<void(ByteSpan)> seed_callback) {
-  seed_callback({0});
+void RunnerCallbacks::GetPresetSeedInputs(
+    std::function<void(void*)> seed_callback) {}
+
+void RunnerCallbacks::GetRandomSeedInput(
+    std::function<void(void*)> seed_callback) {
+  seed_callback(DeserializeInput({0}));
 }
 
 std::string RunnerCallbacks::GetSerializedTargetConfig() { return ""; }
 
-bool RunnerCallbacks::Mutate(
-    absl::Span<const MutationInputRef> /*inputs*/, size_t /*num_mutants*/,
-    std::function<void(MutantRef)> /*new_mutant_callback*/) {
+void* RunnerCallbacks::Mutate(void* origin,
+                              const ExecutionMetadata& origin_metadata) {
+  RunnerCheck(HasCustomMutator(),
+              "RunnerCallbacks::Mutate called despite HasCustomMutator() "
+              "returning false. This is a runner bug!");
   RunnerCheck(!HasCustomMutator(),
               "Class deriving from RunnerCallbacks must implement Mutate() if "
               "HasCustomMutator() returns true.");
-  return true;
+  // Should be unreachable here.
+  return nullptr;
+}
+
+void* RunnerCallbacks::CrossOver(void* origin,
+                                 const ExecutionMetadata& origin_metadata,
+                                 void* other,
+                                 const ExecutionMetadata& other_metadata) {
+  return Mutate(origin, origin_metadata);
 }
 
 class LegacyRunnerCallbacks : public RunnerCallbacks {
@@ -346,10 +345,11 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
         custom_mutator_cb_(custom_mutator_cb),
         custom_crossover_cb_(custom_crossover_cb) {}
 
-  bool Execute(ByteSpan input) override {
+  bool Execute(void* input) override {
     PrintErrorAndExitIf(test_one_input_cb_ == nullptr,
                         "missing test_on_input_cb");
-    const int retval = test_one_input_cb_(input.data(), input.size());
+    const auto* input_ba = reinterpret_cast<const ByteArray*>(input);
+    const int retval = test_one_input_cb_(input_ba->data(), input_ba->size());
     PrintErrorAndExitIf(
         retval != -1 && retval != 0,
         "test_on_input_cb returns invalid value other than -1 and 0");
@@ -360,8 +360,15 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
     return custom_mutator_cb_ != nullptr;
   }
 
-  bool Mutate(absl::Span<const MutationInputRef> inputs, size_t num_mutants,
-              std::function<void(MutantRef)> new_mutant_callback) override;
+  void SerializeInput(void* input,
+                      std::function<void(ByteSpan)> bytes_sink) override;
+  void* DeserializeInput(ByteSpan input_bytes) override;
+  void FreeInput(void* input) override;
+
+  void* Mutate(void* origin, const ExecutionMetadata& origin_metadata) override;
+  void* CrossOver(void* origin, const ExecutionMetadata& origin_metadata,
+                  void* other,
+                  const ExecutionMetadata& other_metadata) override;
 
  private:
   FuzzerTestOneInputCallback test_one_input_cb_;
@@ -377,8 +384,7 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
       test_one_input_cb, custom_mutator_cb, custom_crossover_cb);
 }
 
-static void RunOneInput(const uint8_t *data, size_t size,
-                        RunnerCallbacks &callbacks) {
+static void RunOneInput(void* input, RunnerCallbacks& callbacks) {
   state->stats = {};
   size_t last_time_usec = 0;
   auto UsecSinceLast = [&last_time_usec]() {
@@ -391,7 +397,7 @@ static void RunOneInput(const uint8_t *data, size_t size,
   PrepareCoverage(/*full_clear=*/false);
   state->stats.prep_time_usec = UsecSinceLast();
   state->ResetTimers();
-  int target_return_value = callbacks.Execute({data, size}) ? 0 : -1;
+  int target_return_value = callbacks.Execute(input) ? 0 : -1;
   state->stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
   if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
@@ -405,18 +411,20 @@ static void RunOneInput(const uint8_t *data, size_t size,
 // Runs one input provided in file `input_path`.
 // Produces coverage data in file `input_path`-features.
 __attribute__((noinline))  // so that we see it in profile.
-static void ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
-                                                 RunnerCallbacks &callbacks) {
+static void ReadOneInputExecuteItAndDumpCoverage(const char* input_path,
+                                                 RunnerCallbacks& callbacks) {
   // Read the input.
   auto data = ReadBytesFromFilePath<uint8_t>(input_path);
 
-  RunOneInput(data.data(), data.size(), callbacks);
+  void* input = callbacks.DeserializeInput(data);
+  RunOneInput(input, callbacks);
+  callbacks.FreeInput(input);
 
   // Dump features to a file.
   char features_file_path[PATH_MAX];
   snprintf(features_file_path, sizeof(features_file_path), "%s-features",
            input_path);
-  FILE *features_file = fopen(features_file_path, "w");
+  FILE* features_file = fopen(features_file_path, "w");
   PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
 
   const SanCovRuntimeRawFeatureParts sancov_features =
@@ -428,13 +436,13 @@ static void ReadOneInputExecuteItAndDumpCoverage(const char *input_path,
 
 // Starts sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool StartSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
+static bool StartSendingOutputsToEngine(BlobSequence& outputs_blobseq) {
   return BatchResult::WriteInputBegin(outputs_blobseq);
 }
 
 // Copy all the sancov features to `data` with given `capacity` in bytes.
 // Returns the byte size of sancov features.
-static size_t CopyFeatures(uint8_t *data, size_t capacity) {
+static size_t CopyFeatures(uint8_t* data, size_t capacity) {
   const SanCovRuntimeRawFeatureParts sancov_features =
       SanCovRuntimeGetFeatures();
   const size_t features_len_in_bytes =
@@ -446,7 +454,7 @@ static size_t CopyFeatures(uint8_t *data, size_t capacity) {
 
 // Finishes sending the outputs (coverage, etc.) to `outputs_blobseq`.
 // Returns true on success.
-static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
+static bool FinishSendingOutputsToEngine(BlobSequence& outputs_blobseq) {
   {
     LockGuard lock(state->execution_result_override_mu);
     bool has_overridden_execution_result = false;
@@ -491,30 +499,31 @@ static bool FinishSendingOutputsToEngine(BlobSequence &outputs_blobseq) {
 // Handles an ExecutionRequest, see RequestExecution(). Reads inputs from
 // `inputs_blobseq`, runs them, saves coverage features to `outputs_blobseq`.
 // Returns EXIT_SUCCESS on success and EXIT_FAILURE otherwise.
-static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
-                                  BlobSequence &outputs_blobseq,
-                                  RunnerCallbacks &callbacks) {
+static int ExecuteInputsFromShmem(BlobSequence& inputs_blobseq,
+                                  BlobSequence& outputs_blobseq,
+                                  RunnerCallbacks& callbacks) {
   size_t num_inputs = 0;
   if (!IsExecutionRequest(inputs_blobseq.Read())) return EXIT_FAILURE;
   if (!IsNumInputs(inputs_blobseq.Read(), num_inputs)) return EXIT_FAILURE;
 
-  CentipedeBeginExecutionBatch();
-
+  std::vector<void*> inputs;
   for (size_t i = 0; i < num_inputs; i++) {
     auto blob = inputs_blobseq.Read();
     // TODO(kcc): distinguish bad input from end of stream.
-    if (!blob.IsValid()) return EXIT_SUCCESS;  // no more blobs to read.
+    if (!blob.IsValid()) break;  // no more blobs to read.
     if (!IsDataInput(blob)) return EXIT_FAILURE;
 
     // TODO(kcc): [impl] handle sizes larger than kMaxDataSize.
     size_t size = std::min(kMaxDataSize, blob.size);
-    // Copy from blob to data so that to not pass the shared memory further.
-    std::vector<uint8_t> data(blob.data, blob.data + size);
+    inputs.push_back(callbacks.DeserializeInput({blob.data, size}));
+  }
 
-    // Starting execution of one more input.
+  CentipedeBeginExecutionBatch();
+
+  for (void* input : inputs) {
     if (!StartSendingOutputsToEngine(outputs_blobseq)) break;
 
-    RunOneInput(data.data(), data.size(), callbacks);
+    RunOneInput(input, callbacks);
 
     if (state->has_failure_description.load()) break;
 
@@ -523,13 +532,24 @@ static int ExecuteInputsFromShmem(BlobSequence &inputs_blobseq,
 
   CentipedeEndExecutionBatch();
 
+  for (void* input : inputs) {
+    callbacks.FreeInput(input);
+  }
+
   return state->has_failure_description.load() ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 // Dumps seed inputs to `output_dir`. Also see `GetSeedsViaExternalBinary()`.
-static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
+static void DumpSeedsToDir(RunnerCallbacks& callbacks, const char* output_dir) {
   size_t seed_index = 0;
-  callbacks.GetSeeds([&](ByteSpan seed) {
+  // Declare it on the outer scope to save allocations.
+  ByteArray serialized;
+  auto dump_seed_callback = [&](void* seed) {
+    serialized.clear();
+    callbacks.SerializeInput(seed, [&](ByteSpan bytes) {
+      serialized.insert(serialized.end(), bytes.begin(), bytes.end());
+    });
+    callbacks.FreeInput(seed);
     // Cap seed index within 9 digits. If this was triggered, the dumping would
     // take forever..
     if (seed_index >= 1000000000) return;
@@ -538,22 +558,29 @@ static void DumpSeedsToDir(RunnerCallbacks &callbacks, const char *output_dir) {
         snprintf(seed_path_buf, PATH_MAX, "%s/%09lu", output_dir, seed_index);
     PrintErrorAndExitIf(num_path_chars >= PATH_MAX,
                         "seed path reaches PATH_MAX");
-    FILE *output_file = fopen(seed_path_buf, "w");
+    FILE* output_file = fopen(seed_path_buf, "w");
     const size_t num_bytes_written =
-        fwrite(seed.data(), 1, seed.size(), output_file);
-    PrintErrorAndExitIf(num_bytes_written != seed.size(),
+        fwrite(serialized.data(), 1, serialized.size(), output_file);
+    PrintErrorAndExitIf(num_bytes_written != serialized.size(),
                         "wrong number of bytes written for cf table");
     fclose(output_file);
     ++seed_index;
-  });
+  };
+  callbacks.GetPresetSeedInputs(dump_seed_callback);
+  while (seed_index < 32) {
+    const auto prev_index = seed_index;
+    callbacks.GetRandomSeedInput(dump_seed_callback);
+    RunnerCheck(seed_index == prev_index + 1,
+                "GetRandomSeedInput must provide at least one input");
+  }
 }
 
 // Dumps serialized target config to `output_file_path`. Also see
 // `GetSerializedTargetConfigViaExternalBinary()`.
-static void DumpSerializedTargetConfigToFile(RunnerCallbacks &callbacks,
-                                             const char *output_file_path) {
+static void DumpSerializedTargetConfigToFile(RunnerCallbacks& callbacks,
+                                             const char* output_file_path) {
   const std::string config = callbacks.GetSerializedTargetConfig();
-  FILE *output_file = fopen(output_file_path, "w");
+  FILE* output_file = fopen(output_file_path, "w");
   const size_t num_bytes_written =
       fwrite(config.data(), 1, config.size(), output_file);
   PrintErrorAndExitIf(
@@ -566,6 +593,51 @@ static void DumpSerializedTargetConfigToFile(RunnerCallbacks &callbacks,
 // TODO(kcc): [as-needed] optionally pass an external seed.
 static unsigned GetRandomSeed() { return time(nullptr); }
 
+void MutateInputs(RunnerCallbacks& callbacks,
+                  absl::Span<const MutationInputRef> inputs, size_t num_mutants,
+                  std::function<void(MutantRef)> new_mutant_callback) {
+  unsigned int seed = GetRandomSeed();
+  std::vector<void*> input_objects;
+  input_objects.resize(inputs.size(), nullptr);
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    input_objects[i] = callbacks.DeserializeInput(inputs[i].data);
+  }
+  ByteArray mutant_data;
+  ExecutionMetadata empty_metadata;
+  for (size_t i = 0; i < num_mutants; ++i) {
+    const size_t origin_index = rand_r(&seed) % inputs.size();
+    void* mutant = nullptr;
+    if (rand_r(&seed) % 100 < state->run_time_flags.crossover_level) {
+      // Perform crossover `crossover_level`% of the time.
+      const size_t other_index = rand_r(&seed) % inputs.size();
+      mutant = callbacks.CrossOver(input_objects[origin_index],
+                                   inputs[origin_index].metadata != nullptr
+                                       ? *inputs[origin_index].metadata
+                                       : empty_metadata,
+                                   input_objects[other_index],
+                                   inputs[other_index].metadata != nullptr
+                                       ? *inputs[other_index].metadata
+                                       : empty_metadata);
+    } else {
+      mutant = callbacks.Mutate(input_objects[origin_index],
+                                inputs[origin_index].metadata != nullptr
+                                    ? *inputs[origin_index].metadata
+                                    : empty_metadata);
+    }
+    mutant_data.clear();
+    callbacks.SerializeInput(mutant, [&mutant_data](ByteSpan bytes) {
+      mutant_data.insert(mutant_data.end(), bytes.begin(), bytes.end());
+    });
+    new_mutant_callback(
+        MutantRef{{(unsigned char*)mutant_data.data(), mutant_data.size()},
+                  origin_index});
+    callbacks.FreeInput(mutant);
+  }
+  for (void* input_object : input_objects) {
+    callbacks.FreeInput(input_object);
+  }
+}
+
 // Handles a Mutation Request, see RequestMutation().
 // Mutates inputs read from `inputs_blobseq`,
 // writes the mutants to `outputs_blobseq`
@@ -575,9 +647,9 @@ static unsigned GetRandomSeed() { return time(nullptr); }
 // returns EXIT_FAILURE.
 //
 // TODO(kcc): [impl] make use of custom_crossover_cb, if available.
-static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
-                                 BlobSequence &outputs_blobseq,
-                                 RunnerCallbacks &callbacks) {
+static int MutateInputsFromShmem(BlobSequence& inputs_blobseq,
+                                 BlobSequence& outputs_blobseq,
+                                 RunnerCallbacks& callbacks) {
   // Read max_num_mutants.
   size_t num_mutants = 0;
   size_t num_inputs = 0;
@@ -625,60 +697,96 @@ static int MutateInputsFromShmem(BlobSequence &inputs_blobseq,
   }
   if (!callbacks.HasCustomMutator()) return EXIT_SUCCESS;
 
-  if (!callbacks.Mutate(input_refs, num_mutants, [&](MutantRef mutant) {
-        MutationResult::WriteMutant(mutant, outputs_blobseq);
-      })) {
-    return EXIT_FAILURE;
+  {
+    bool succ = true;
+    MutateInputs(callbacks, input_refs, num_mutants, [&](MutantRef mutant) {
+      succ = succ && MutationResult::WriteMutant(mutant, outputs_blobseq);
+    });
+    if (!succ) return EXIT_FAILURE;
   }
+
   return EXIT_SUCCESS;
 }
 
-bool LegacyRunnerCallbacks::Mutate(
-    absl::Span<const MutationInputRef> inputs, size_t num_mutants,
-    std::function<void(MutantRef)> new_mutant_callback) {
-  if (custom_mutator_cb_ == nullptr) return false;
-  unsigned int seed = GetRandomSeed();
-  const size_t num_inputs = inputs.size();
-  const size_t max_mutant_size = state->run_time_flags.max_len;
-  constexpr size_t kAverageMutationAttempts = 2;
-  // Reused across iterations to save memory allocations.
-  Mutant mutant;
-  for (size_t attempt = 0, num_outputs = 0;
-       attempt < num_mutants * kAverageMutationAttempts &&
-       num_outputs < num_mutants;
-       ++attempt) {
-    mutant.origin = rand_r(&seed) % num_inputs;
-    const auto& input_data = inputs[mutant.origin].data;
+void LegacyRunnerCallbacks::SerializeInput(
+    void* input, std::function<void(ByteSpan)> bytes_sink) {
+  const auto* input_object = reinterpret_cast<const ByteArray*>(input);
+  bytes_sink(*input_object);
+}
 
-    size_t size = std::min(input_data.size(), max_mutant_size);
-    mutant.data.resize(max_mutant_size);
-    std::copy(input_data.cbegin(), input_data.cbegin() + size,
-              mutant.data.begin());
-    size_t new_size = 0;
-    if ((custom_crossover_cb_ != nullptr) &&
-        rand_r(&seed) % 100 < state->run_time_flags.crossover_level) {
-      // Perform crossover `crossover_level`% of the time.
-      const auto &other_data = inputs[rand_r(&seed) % num_inputs].data;
-      new_size = custom_crossover_cb_(input_data.data(), input_data.size(),
-                                      other_data.data(), other_data.size(),
-                                      mutant.data.data(), max_mutant_size,
-                                      rand_r(&seed));
-    } else {
-      new_size = custom_mutator_cb_(mutant.data.data(), size, max_mutant_size,
-                                    rand_r(&seed));
-    }
-    if (new_size == 0) continue;
-    if (new_size > max_mutant_size) new_size = max_mutant_size;
-    mutant.data.resize(new_size);
-    new_mutant_callback(MutantRef{mutant});
-    ++num_outputs;
+void* LegacyRunnerCallbacks::DeserializeInput(ByteSpan input_bytes) {
+  return reinterpret_cast<void*>(
+      new ByteArray{input_bytes.begin(), input_bytes.end()});
+}
+
+void LegacyRunnerCallbacks::FreeInput(void* input) {
+  delete reinterpret_cast<const ByteArray*>(input);
+}
+
+void* LegacyRunnerCallbacks::Mutate(void* origin,
+                                    const ExecutionMetadata& origin_metadata) {
+  const auto* origin_ba = reinterpret_cast<const ByteArray*>(origin);
+  state->byte_array_mutator->SetMetadata(origin_metadata);
+  const size_t max_mutant_size = state->run_time_flags.max_len;
+  const size_t size = std::min(max_mutant_size, origin_ba->size());
+  auto* mutant = new ByteArray();
+  mutant->resize(size);
+  std::copy(origin_ba->begin(), origin_ba->begin() + size, mutant->begin());
+  static unsigned int seed = GetRandomSeed();
+  size_t new_size = 0;
+  mutant->resize(max_mutant_size);
+  new_size =
+      custom_mutator_cb_(mutant->data(), size, max_mutant_size, rand_r(&seed));
+  if (new_size == 0) {
+    new_size = 1;
+    mutant->assign({0});
+  } else if (new_size == max_mutant_size) {
+    new_size = max_mutant_size;
+    mutant->resize(new_size);
+  } else {
+    mutant->resize(new_size);
   }
-  return true;
+  return reinterpret_cast<void*>(mutant);
+}
+
+void* LegacyRunnerCallbacks::CrossOver(
+    void* origin, const ExecutionMetadata& origin_metadata, void* other,
+    const ExecutionMetadata& other_metadata) {
+  const auto* origin_ba = reinterpret_cast<const ByteArray*>(origin);
+  const auto* other_ba = reinterpret_cast<const ByteArray*>(other);
+  // Do not use other_metadata.
+  state->byte_array_mutator->SetMetadata(origin_metadata);
+  const size_t max_mutant_size = state->run_time_flags.max_len;
+  const size_t size = std::min(max_mutant_size, origin_ba->size());
+  auto* mutant = new ByteArray();
+  mutant->resize(size);
+  std::copy(origin_ba->begin(), origin_ba->begin() + size, mutant->begin());
+  static unsigned int seed = GetRandomSeed();
+  size_t new_size = 0;
+  if (custom_crossover_cb_ != nullptr) {
+    mutant->resize(max_mutant_size);
+    new_size = custom_crossover_cb_(
+        origin_ba->data(), origin_ba->size(), other_ba->data(),
+        other_ba->size(), mutant->data(), max_mutant_size, rand_r(&seed));
+  } else {
+    state->byte_array_mutator->CrossOver(*mutant, *other_ba);
+    new_size = mutant->size();
+  }
+  if (new_size == 0) {
+    new_size = 1;
+    mutant->assign({0});
+  } else if (new_size == max_mutant_size) {
+    new_size = max_mutant_size;
+    mutant->resize(new_size);
+  } else {
+    mutant->resize(new_size);
+  }
+  return reinterpret_cast<void*>(mutant);
 }
 
 // Returns the current process VmSize, in bytes.
 static size_t GetVmSizeInBytes() {
-  FILE *f = fopen("/proc/self/statm", "r");  // man proc
+  FILE* f = fopen("/proc/self/statm", "r");  // man proc
   if (!f) return 0;
   size_t vm_size = 0;
   // NOTE: Ignore any (unlikely) failures to suppress a compiler warning.
@@ -889,7 +997,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
 //  Default: Execute ReadOneInputExecuteItAndDumpCoverage() for all inputs.//
 //
 //  Note: argc/argv are used for only ReadOneInputExecuteItAndDumpCoverage().
-int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
+int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
   state->centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
@@ -930,7 +1038,7 @@ int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks) {
 }  // namespace fuzztest::internal
 
 extern "C" int LLVMFuzzerRunDriver(
-    int *absl_nonnull argc, char ***absl_nonnull argv,
+    int* absl_nonnull argc, char*** absl_nonnull argv,
     FuzzerTestOneInputCallback test_one_input_cb) {
   if (LLVMFuzzerInitialize) LLVMFuzzerInitialize(argc, argv);
   return RunnerMain(*argc, *argv,
@@ -960,9 +1068,9 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
       timeout_per_input;
 }
 
-extern "C" __attribute__((weak)) const char *absl_nullable
+extern "C" __attribute__((weak)) const char* absl_nullable
 CentipedeGetRunnerFlags() {
-  if (const char *runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
+  if (const char* runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
     return strdup(runner_flags_env);
   return nullptr;
 }
@@ -994,7 +1102,6 @@ extern "C" void CentipedeEndExecutionBatch() {
   }
   in_execution_batch = false;
   fuzztest::internal::state->input_start_time = 0;
-  fuzztest::internal::state->batch_start_time = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {
@@ -1015,7 +1122,7 @@ extern "C" int CentipedeSetCurrentThreadTraced(int traced) {
   return old_traced;
 }
 
-extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
+extern "C" size_t CentipedeGetExecutionResult(uint8_t* data, size_t capacity) {
   fuzztest::internal::BlobSequence outputs_blobseq(data, capacity);
   if (!fuzztest::internal::StartSendingOutputsToEngine(outputs_blobseq))
     return 0;
@@ -1024,11 +1131,11 @@ extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity) {
   return outputs_blobseq.offset();
 }
 
-extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity) {
+extern "C" size_t CentipedeGetCoverageData(uint8_t* data, size_t capacity) {
   return fuzztest::internal::CopyFeatures(data, capacity);
 }
 
-extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
+extern "C" void CentipedeSetExecutionResult(const uint8_t* data, size_t size) {
   using fuzztest::internal::state;
   fuzztest::internal::LockGuard lock(state->execution_result_override_mu);
   if (!state->execution_result_override)
@@ -1036,14 +1143,14 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size) {
   state->execution_result_override->ClearAndResize(1);
   if (data == nullptr) return;
   // Removing const here should be fine as we don't write to `blobseq`.
-  fuzztest::internal::BlobSequence blobseq(const_cast<uint8_t *>(data), size);
+  fuzztest::internal::BlobSequence blobseq(const_cast<uint8_t*>(data), size);
   state->execution_result_override->Read(blobseq);
   fuzztest::internal::RunnerCheck(
       state->execution_result_override->num_outputs_read() == 1,
       "Failed to set execution result from CentipedeSetExecutionResult");
 }
 
-extern "C" void CentipedeSetFailureDescription(const char *description) {
+extern "C" void CentipedeSetFailureDescription(const char* description) {
   using fuzztest::internal::state;
   if (state->failure_description_path == nullptr) return;
   if (state->has_failure_description.exchange(true)) return;

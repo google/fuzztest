@@ -26,36 +26,37 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
+#include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 
 // Typedefs for the libFuzzer API, https://llvm.org/docs/LibFuzzer.html
-using FuzzerTestOneInputCallback = int (*)(const uint8_t *data, size_t size);
-using FuzzerInitializeCallback = int (*)(int *argc, char ***argv);
-using FuzzerCustomMutatorCallback = size_t (*)(uint8_t *data, size_t size,
+using FuzzerTestOneInputCallback = int (*)(const uint8_t* data, size_t size);
+using FuzzerInitializeCallback = int (*)(int* argc, char*** argv);
+using FuzzerCustomMutatorCallback = size_t (*)(uint8_t* data, size_t size,
                                                size_t max_size,
                                                unsigned int seed);
 using FuzzerCustomCrossOverCallback = size_t (*)(
-    const uint8_t *data1, size_t size1, const uint8_t *data2, size_t size2,
-    uint8_t *out, size_t max_out_size, unsigned int seed);
+    const uint8_t* data1, size_t size1, const uint8_t* data2, size_t size2,
+    uint8_t* out, size_t max_out_size, unsigned int seed);
 
 // This is the header-less interface of libFuzzer, see
 // https://llvm.org/docs/LibFuzzer.html.
 extern "C" {
-int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
-__attribute__((weak)) int LLVMFuzzerInitialize(int *absl_nonnull argc,
-                                               char ***absl_nonnull argv);
-__attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t *data, size_t size,
+int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
+__attribute__((weak)) int LLVMFuzzerInitialize(int* absl_nonnull argc,
+                                               char*** absl_nonnull argv);
+__attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size,
                                                      size_t max_size,
                                                      unsigned int seed);
 __attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
-    const uint8_t *data1, size_t size1, const uint8_t *data2, size_t size2,
-    uint8_t *out, size_t max_out_size, unsigned int seed);
+    const uint8_t* data1, size_t size1, const uint8_t* data2, size_t size2,
+    uint8_t* out, size_t max_out_size, unsigned int seed);
 }  // extern "C"
 
 // https://llvm.org/docs/LibFuzzer.html#using-libfuzzer-as-a-library
 extern "C" int LLVMFuzzerRunDriver(
-    int *absl_nonnull argc, char ***absl_nonnull argv,
+    int* absl_nonnull argc, char*** absl_nonnull argv,
     FuzzerTestOneInputCallback test_one_input_cb);
 
 // Reconfigures the RSS limit to `rss_limit_mb` - 0 indicates no limit.
@@ -73,10 +74,10 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input);
 //
 // It should return either a nullptr or a constant string that is valid
 // throughout the entire process life-time.
-extern "C" const char *absl_nullable CentipedeGetRunnerFlags();
+extern "C" const char* absl_nullable CentipedeGetRunnerFlags();
 
 // An overridable function to override `LLVMFuzzerMutate` behavior.
-extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t *data, size_t size,
+extern "C" size_t CentipedeLLVMFuzzerMutateCallback(uint8_t* data, size_t size,
                                                     size_t max_size);
 
 // Prepares to run a batch of test executions that ends with calling
@@ -109,26 +110,26 @@ extern "C" int CentipedeSetCurrentThreadTraced(int traced);
 // processing an input. This function saves the data to the provided buffer and
 // returns the size of the saved data. It may be called after
 // CentipedeFinalizeProcessing().
-extern "C" size_t CentipedeGetExecutionResult(uint8_t *data, size_t capacity);
+extern "C" size_t CentipedeGetExecutionResult(uint8_t* data, size_t capacity);
 
 // Retrieves the coverage data collected during the processing of an input.
 // This function saves the raw coverage data to the provided buffer and returns
 // the size of the saved data. It may be called after
 // CentipedeFinalizeProcessing().
-extern "C" size_t CentipedeGetCoverageData(uint8_t *data, size_t capacity);
+extern "C" size_t CentipedeGetCoverageData(uint8_t* data, size_t capacity);
 
 // Set the current execution result to the opaque memory `data` with `size`.
 // Such data is retrieved using `CentipedeGetExecutionResult`, possibly from
 // another process. When `data` is `nullptr`, will set the execution result to
 // "empty" with no features or metadata.
-extern "C" void CentipedeSetExecutionResult(const uint8_t *data, size_t size);
+extern "C" void CentipedeSetExecutionResult(const uint8_t* data, size_t size);
 
 // Set the failure description for the runner to propagate further. Only the
 // description from the first call will be used.
 //
 // If used during executing batch inputs, the rest of the inputs would be
 // skipped and the batch would be considered as failed.
-extern "C" void CentipedeSetFailureDescription(const char *description);
+extern "C" void CentipedeSetFailureDescription(const char* description);
 
 namespace fuzztest::internal {
 
@@ -140,23 +141,29 @@ class RunnerCallbacks {
  public:
   // Attempts to execute the test logic using `input`, and returns false if the
   // input should be ignored from the corpus, true otherwise.
-  virtual bool Execute(ByteSpan input) = 0;
-  // Generates seed inputs by calling `seed_callback` for each input.
+  virtual bool Execute(void* input) = 0;
+  // Provide the preset seed inputs by calling `seed_callback` on each of them.
+  // The default implementation provides no inputs.
+  virtual void GetPresetSeedInputs(std::function<void(void*)> seed_callback);
+  // Generates a random seed input by calling `seed_callback` on it.
   // The default implementation generates a single-byte input {0}.
-  virtual void GetSeeds(std::function<void(ByteSpan)> seed_callback);
+  virtual void GetRandomSeedInput(std::function<void(void*)> seed_callback);
   // Returns the serialized configuration from the test target. The default
   // implementation returns the empty string.
   virtual std::string GetSerializedTargetConfig();
   // Returns true if and only if the test target has a custom mutator.
   virtual bool HasCustomMutator() const = 0;
-  // Generates at most `num_mutants` mutants by calling `new_mutant_callback`
-  // for each mutant. Returns true on success, false otherwise.
-  //
-  // TODO(xinhaoyuan): Consider supporting only_shrink to speed up
-  // input shrinking.
-  virtual bool Mutate(absl::Span<const MutationInputRef> inputs,
-                      size_t num_mutants,
-                      std::function<void(MutantRef)> new_mutant_callback);
+  // Mutates `origin` with `origin_metadata`. Must be overridden if
+  // `HasCustomMutator()` returns true.
+  virtual void* Mutate(void* origin, const ExecutionMetadata& origin_metadata);
+  // Default is return Mutate(origin, origin_metadata)
+  virtual void* CrossOver(void* origin,
+                          const ExecutionMetadata& origin_metadata, void* other,
+                          const ExecutionMetadata& other_metadata);
+  virtual void SerializeInput(void* input,
+                              std::function<void(ByteSpan)> bytes_sink) = 0;
+  virtual void* DeserializeInput(ByteSpan input_bytes) = 0;
+  virtual void FreeInput(void* input) = 0;
   virtual ~RunnerCallbacks() = default;
 };
 
@@ -173,7 +180,7 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
 //
 // As an *experiment* we want to allow user code to call RunnerMain().
 // This is not a guaranteed public interface (yet) and may disappear w/o notice.
-int RunnerMain(int argc, char **argv, RunnerCallbacks &callbacks);
+int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks);
 
 }  // namespace fuzztest::internal
 

@@ -24,18 +24,36 @@ using fuzztest::internal::ByteSpan;
 
 class SeededRunnerCallbacks : public fuzztest::internal::RunnerCallbacks {
  public:
-  bool Execute(ByteSpan input) override {
+  bool Execute(void* input) override {
     // Should not be called in the test, but return true anyway.
     return true;
   }
 
-  void GetSeeds(std::function<void(ByteSpan)> seed_callback) override {
+  void GetPresetSeedInputs(std::function<void(void*)> seed_callback) override {
     constexpr size_t kNumAvailSeeds = 10;
     for (size_t i = 0; i < kNumAvailSeeds; ++i)
-      seed_callback({static_cast<uint8_t>(i)});
+      seed_callback(reinterpret_cast<void*>(
+          new fuzztest::internal::ByteArray{static_cast<uint8_t>(i)}));
   }
 
   bool HasCustomMutator() const override { return false; }
+
+  void* DeserializeInput(fuzztest::internal::ByteSpan input) override {
+    return reinterpret_cast<void*>(
+        new fuzztest::internal::ByteArray{input.begin(), input.end()});
+  }
+
+  void SerializeInput(
+      void* input,
+      std::function<void(fuzztest::internal::ByteSpan)> bytes_sink) override {
+    const auto* ba =
+        reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+    bytes_sink(*ba);
+  }
+
+  void FreeInput(void* input) override {
+    delete reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+  }
 };
 
 int main(int argc, char** absl_nonnull argv) {

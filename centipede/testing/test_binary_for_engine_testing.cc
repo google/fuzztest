@@ -202,10 +202,10 @@ int main(int argc, char** argv) {
     return worker_status == kFuzzTestWorkerSuccess ? EXIT_SUCCESS
                                                    : EXIT_FAILURE;
   }
-  return ControllerRun(&manager, {absl::StrCat("--binary=", argv[0]),
-                                  "--test_name=some_test",
-                                  "--populate_binary_info=0", "--fork_server=0",
-                                  "--persistent_mode=0", "--exit_on_crash"}) ==
+  return ControllerRun(&manager,
+                       {absl::StrCat("--binary=", argv[0]),
+                        "--test_name=some_test", "--populate_binary_info=0",
+                        "--fork_server=0", "--exit_on_crash"}) ==
                  kFuzzTestControllerSuccess
              ? EXIT_SUCCESS
              : EXIT_FAILURE;

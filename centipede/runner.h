@@ -33,7 +33,6 @@ namespace fuzztest::internal {
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
 struct RunTimeFlags {
   std::atomic<uint64_t> timeout_per_input;
-  uint64_t timeout_per_batch;
   std::atomic<uint64_t> rss_limit_mb;
   uint64_t crossover_level;
   uint64_t ignore_timeout_reports : 1;
@@ -67,7 +66,6 @@ struct GlobalRunnerState {
   // flags can change later (if wrapped with std::atomic).
   RunTimeFlags run_time_flags = {
       /*timeout_per_input=*/flag_helper.HasIntFlag(":timeout_per_input=", 0),
-      /*timeout_per_batch=*/flag_helper.HasIntFlag(":timeout_per_batch=", 0),
       /*rss_limit_mb=*/flag_helper.HasIntFlag(":rss_limit_mb=", 0),
       /*crossover_level=*/flag_helper.HasIntFlag(":crossover_level=", 50),
       /*ignore_timeout_reports=*/
@@ -111,10 +109,6 @@ struct GlobalRunnerState {
   // Per-input timer. Initially, zero. ResetInputTimer() sets it to the current
   // time.
   std::atomic<time_t> input_start_time;
-
-  // Per-batch timer. Initially, zero. ResetInputTimer() sets it to the current
-  // time before the first input and never resets it.
-  std::atomic<time_t> batch_start_time;
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;

@@ -991,8 +991,6 @@ cc_library(
         ":runner_result",
         ":shared_memory_blob_sequence",
         "@abseil-cpp//absl/base:nullability",
-        "@abseil-cpp//absl/random",
-        "@abseil-cpp//absl/random:bit_gen_ref",
         "@com_google_fuzztest//common:defs",
     ],
 )
@@ -1140,6 +1138,7 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     deps = [
         ":centipede_runner_no_main",
+        ":execution_metadata",
         ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/types:span",
@@ -1957,7 +1956,7 @@ cc_test(
     timeout = "long",
     srcs = ["centipede_test.cc"],
     data = [
-        "@com_google_fuzztest//centipede",
+        ":centipede",
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
         "@com_google_fuzztest//centipede/testing:async_failing_target",
         "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",

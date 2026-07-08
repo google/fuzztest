@@ -26,23 +26,33 @@ namespace {
 class AsyncFailingTargetRunnerCallbacks
     : public fuzztest::internal::RunnerCallbacks {
  public:
-  bool Execute(fuzztest::internal::ByteSpan input) override {
+  bool Execute(void* input) override {
     to_fail_in_mutation = true;
     return true;
   }
 
-  bool Mutate(absl::Span<const fuzztest::internal::MutationInputRef> inputs,
-              size_t num_mutants,
-              std::function<void(fuzztest::internal::MutantRef)>
-                  new_mutant_callback) override {
+  void* Mutate(void* inputs,
+               const fuzztest::internal::ExecutionMetadata& metadata) override {
     if (to_fail_in_mutation) {
       fprintf(stderr, "Fail in mutation\n");
       std::abort();
     }
-    return true;
+    return nullptr;
   }
 
   bool HasCustomMutator() const override { return true; }
+
+  void* DeserializeInput(fuzztest::internal::ByteSpan input) override {
+    return nullptr;
+  }
+
+  void SerializeInput(
+      void* input,
+      std::function<void(fuzztest::internal::ByteSpan)> bytes_sink) override {
+    bytes_sink({0});
+  }
+
+  void FreeInput(void* input) override {}
 
  private:
   bool to_fail_in_mutation = false;

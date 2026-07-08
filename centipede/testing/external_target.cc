@@ -52,7 +52,9 @@ void sendall(int sock, const uint8_t* data, size_t size) {
 class ExternalTargetRunnerCallbacks
     : public fuzztest::internal::RunnerCallbacks {
  public:
-  bool Execute(fuzztest::internal::ByteSpan input) override {
+  bool Execute(void* input_raw) override {
+    const auto* input =
+        reinterpret_cast<const fuzztest::internal::ByteArray*>(input_raw);
     const char* port_env = getenv("TARGET_PORT");
     int port = 0;
     CHECK(port_env && absl::SimpleAtoi(port_env, &port))
@@ -72,10 +74,10 @@ class ExternalTargetRunnerCallbacks
     const int enable_nodelay = 1;
     setsockopt(conn_sock, SOL_TCP, TCP_NODELAY, &enable_nodelay,
                sizeof(enable_nodelay));
-    const uint64_t input_size = input.size();
+    const uint64_t input_size = input->size();
     sendall(conn_sock, reinterpret_cast<const uint8_t*>(&input_size),
             sizeof(input_size));
-    sendall(conn_sock, input.data(), input_size);
+    sendall(conn_sock, input->data(), input_size);
     int match_result = 0;
     recvall(conn_sock, reinterpret_cast<uint8_t*>(&match_result),
             sizeof(match_result));
@@ -96,6 +98,23 @@ class ExternalTargetRunnerCallbacks
   }
 
   bool HasCustomMutator() const override { return false; }
+
+  void* DeserializeInput(fuzztest::internal::ByteSpan input) override {
+    return reinterpret_cast<void*>(
+        new fuzztest::internal::ByteArray{input.begin(), input.end()});
+  }
+
+  void SerializeInput(
+      void* input,
+      std::function<void(fuzztest::internal::ByteSpan)> bytes_sink) override {
+    const auto* ba =
+        reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+    bytes_sink(*ba);
+  }
+
+  void FreeInput(void* input) override {
+    delete reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
+  }
 };
 
 }  // namespace
