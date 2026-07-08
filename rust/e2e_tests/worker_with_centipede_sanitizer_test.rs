@@ -38,7 +38,10 @@ fn ensure_use_after_free_signature_with_asan(fixture: &EnvVars) {
 
     let stderr = test_utils::run_centipede_with_args_expect_termination(fixture, &args);
 
-    expect_that!(stderr, matchers::contains_regex("Signature[ \t]*: heap-use-after-free"));
+    expect_that!(
+        stderr,
+        matchers::contains_substring("Property function ran but address sanitizer caught a bug")
+    );
 }
 
 // TODO(yamilmorales): Enable this test on presubmit with --config=msan.
@@ -59,5 +62,8 @@ fn ensure_sanitizer_crash_signature_with_msan(fixture: &EnvVars) {
 
     let stderr = test_utils::run_centipede_with_args_expect_termination(fixture, &args);
 
-    expect_that!(stderr, matchers::contains_regex("Signature[ \t]*: Sanitizer crash"));
+    expect_that!(
+        stderr,
+        matchers::contains_substring("Property function ran but a sanitizer caught a bug")
+    );
 }

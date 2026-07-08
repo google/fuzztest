@@ -23,6 +23,7 @@
 #include <cstdint>
 
 #include "./centipede/byte_array_mutator.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
@@ -52,7 +53,7 @@ struct RunTimeFlags {
 // TODO(kcc): use a CTOR with absl::kConstInit (will require refactoring).
 struct GlobalRunnerState {
   // Used by LLVMFuzzerMutate and initialized in main().
-  ByteArrayMutator *byte_array_mutator = nullptr;
+  ByteArrayMutator* byte_array_mutator = nullptr;
   Knobs knobs;
 
   GlobalRunnerState();
@@ -92,7 +93,7 @@ struct GlobalRunnerState {
   // execution result of the current test input. The object is owned and cleaned
   // up by the state, protected by execution_result_override_mu, and set by
   // `CentipedeSetExecutionResult()`.
-  BatchResult *execution_result_override;
+  BatchResult* execution_result_override;
 
   // Execution stats for the currently executed input.
   ExecutionResult::Stats stats;
@@ -114,6 +115,10 @@ struct GlobalRunnerState {
 
   // The Watchdog thread sets this to true.
   std::atomic<bool> watchdog_thread_started;
+
+  // Engine diagnostic sink, protected by a spinlock.
+  std::atomic<bool> diagnostic_sink_spinlock;
+  const FuzzTestDiagnosticSink* diagnostic_sink;
 };
 
 extern ExplicitLifetime<GlobalRunnerState> state;
