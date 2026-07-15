@@ -186,7 +186,7 @@ TEST(Environment, DiesOnInconsistentStackLimitKbAndTargetConfigStackLimit) {
                "stack_limit in the target binary");
 }
 
-TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
+TEST(Environment, UpdatesFieldsFromTargetConfig) {
   Environment env;
   fuzztest::internal::Configuration config;
   config.corpus_database = "db";
@@ -198,6 +198,8 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   config.replay_coverage_inputs = true;
   config.time_limit = absl::Seconds(10);
   config.time_budget_type = TimeBudgetType::kPerTest;
+  config.fuzz_tests_in_current_shard = {"some_test"};
+  config.jobs = 6;
 
   env.UpdateWithTargetConfig(config);
 
@@ -205,19 +207,12 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   EXPECT_EQ(env.fuzztest_binary_identifier, "bin");
   EXPECT_EQ(env.fuzztest_stats_root, "stats");
   EXPECT_EQ(env.fuzztest_workdir_root, "workdir");
-  EXPECT_TRUE(env.fuzztest_only_replay);
   EXPECT_EQ(env.fuzztest_execution_id, "exec");
   EXPECT_TRUE(env.fuzztest_replay_coverage_inputs);
   EXPECT_EQ(env.fuzztest_time_limit_per_test, absl::Seconds(10));
-}
-
-TEST(Environment, UpdatesReplayOnlyConfiguration) {
-  Environment env;
-  fuzztest::internal::Configuration config;
-  config.only_replay = true;
-  env.UpdateWithTargetConfig(config);
   EXPECT_TRUE(env.load_shards_only);
-  EXPECT_FALSE(env.populate_binary_info);
+  EXPECT_EQ(env.test_name, "some_test");
+  EXPECT_EQ(env.j, 6);
 }
 
 }  // namespace fuzztest::internal

@@ -505,9 +505,6 @@ CENTIPEDE_FLAG(
 CENTIPEDE_FLAG(std::string, fuzztest_workdir_root, "",
                "The root directory for Centipede workdirs for working on the "
                "corpus database.")
-CENTIPEDE_FLAG(bool, fuzztest_only_replay, false,
-               "If set, further steps are skipped after replaying with the "
-               "corpus database.")
 CENTIPEDE_FLAG(
     std::string, fuzztest_execution_id, "",
     "If set, will be used when working on a corpus database to resume "

@@ -366,6 +366,7 @@ void UpdateCorpusDatabase(Environment env,
     return stamp;
   }();
 
+  const bool only_replay = env.load_shards_only;
   const bool is_workdir_specified = !env.workdir.empty();
   // When env.workdir is empty, the full workdir paths will be formed by
   // appending the fuzz test names to the base workdir path. We use different
@@ -373,10 +374,9 @@ void UpdateCorpusDatabase(Environment env,
   const auto base_workdir_path =
       is_workdir_specified
           ? std::filesystem::path{}  // Will not be used.
-          : workdir_root_path /
-                absl::StrFormat("workdir%s.%03d",
-                                env.fuzztest_only_replay ? "-replay" : "",
-                                test_shard_index);
+          : workdir_root_path / absl::StrFormat("workdir%s.%03d",
+                                                only_replay ? "-replay" : "",
+                                                test_shard_index);
   // There's no point in saving the binary info to the workdir, since the
   // workdir is deleted at the end.
   env.save_binary_info = false;
@@ -495,7 +495,7 @@ void UpdateCorpusDatabase(Environment env,
     return;
   }
 
-  FUZZTEST_LOG(INFO) << (env.fuzztest_only_replay ? "Replaying " : "Fuzzing ")
+  FUZZTEST_LOG(INFO) << (only_replay ? "Replaying " : "Fuzzing ")
                      << env.test_name << " for " << time_limit
                      << "\n\tTest binary: " << env.binary;
 
@@ -531,8 +531,7 @@ void UpdateCorpusDatabase(Environment env,
 
   // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
   // of checking whether workdir is specified or not.
-  const bool skip_corpus_db_update =
-      env.fuzztest_only_replay || is_workdir_specified;
+  const bool skip_corpus_db_update = only_replay || is_workdir_specified;
   if (skip_corpus_db_update && !env.report_crash_summary) return;
 
   // Deduplicate and optionally update the crashing inputs.
