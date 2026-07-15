@@ -979,8 +979,6 @@ cc_library(
     name = "engine_worker",
     srcs = [
         "engine_worker.cc",
-        "runner_utils.cc",
-        "runner_utils.h",
     ],
     hdrs = ["engine_worker_abi.h"],
     deps = [
@@ -989,6 +987,7 @@ cc_library(
         ":feature",
         ":runner_request",
         ":runner_result",
+        ":runner_utils",
         ":shared_memory_blob_sequence",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
@@ -1215,8 +1214,6 @@ cc_library(
         "reverse_pc_table.h",
         "runner_dl_info.cc",
         "runner_dl_info.h",
-        "runner_utils.cc",
-        "runner_utils.h",
         "sancov_callbacks.cc",
         "sancov_interceptors.cc",
         "sancov_object_array.cc",
@@ -1238,6 +1235,7 @@ cc_library(
         ":foreach_nonzero",
         ":int_utils",
         ":runner_cmp_trace",
+        ":runner_utils",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/numeric:bits",
@@ -1998,5 +1996,24 @@ sh_test(
     data = [
         ":centipede",
         ":test_util_sh",
+    ],
+)
+
+cc_library(
+    name = "runner_utils",
+    srcs = ["runner_utils.cc"],
+    hdrs = ["runner_utils.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+    ],
+)
+
+cc_static_library(
+    name = "centipede_engine_static",
+    deps = [
+        ":engine_controller_with_subprocess",
+        ":engine_worker",
+        ":sancov_runtime",
     ],
 )
