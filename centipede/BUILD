@@ -2034,3 +2034,13 @@ cc_library(
         "@abseil-cpp//absl/base:nullability",
     ],
 )
+
+cc_static_library(
+    name = "centipede_engine_static",
+    deps = [
+        ":engine_controller_with_subprocess",
+        ":engine_worker",
+        ":sancov_runtime",
+        ":weak_sancov_stubs",
+    ],
+)
