@@ -112,18 +112,23 @@ TEST(CmpDictionary, CmpDictionary) {
   CmpDictionary dict;
   ExecutionMetadata metadata{/*cmp_data=*/{
       2,               // size
+      0,               // is_integer
       1,  2,           // a
       3,  4,           // b
       3,               // size
+      0,               // is_integer
       5,  6,  7,       // a
       8,  9,  10,      // b
       4,               // size
+      0,               // is_integer
       11, 12, 13, 14,  // a
       15, 16, 17, 18,  // b
       3,               // size
+      0,               // is_integer
       20, 21, 22,      // a
       15, 16, 17,      // b
       3,               // size
+      0,               // is_integer
       15, 16, 20,      // a
       30, 40, 50,      // b
   }};
@@ -631,23 +636,23 @@ TEST(ByteArrayMutator, OverwriteFromDictionary) {
 }
 
 TEST(ByteArrayMutator, OverwriteFromCmpDictionary) {
-  TestMutatorFn(&ByteArrayMutator::OverwriteFromCmpDictionary,
-                {1, 2, 40, 50, 60},
-                /*expected_mutants=*/
-                {
-                    {3, 4, 40, 50, 60},
-                    {1, 2, 10, 20, 30},
-                },
-                /*unexpected_mutants=*/
-                {
-                    {3, 4, 10, 20, 30},
-                },
-                /*size_alignment=*/1,
-                /*max_len=*/std::numeric_limits<size_t>::max(),
-                /*dictionary=*/
-                {},
-                /*cmp_data=*/
-                {/*args1*/ 2, 1, 2, 3, 4, /*args2*/ 3, 10, 20, 30, 40, 50, 60});
+  TestMutatorFn(
+      &ByteArrayMutator::OverwriteFromCmpDictionary, {1, 2, 40, 50, 60},
+      /*expected_mutants=*/
+      {
+          {3, 4, 40, 50, 60},
+          {1, 2, 10, 20, 30},
+      },
+      /*unexpected_mutants=*/
+      {
+          {3, 4, 10, 20, 30},
+      },
+      /*size_alignment=*/1,
+      /*max_len=*/std::numeric_limits<size_t>::max(),
+      /*dictionary=*/
+      {},
+      /*cmp_data=*/
+      {/*args1*/ 2, 0, 1, 2, 3, 4, /*args2*/ 3, 0, 10, 20, 30, 40, 50, 60});
 }
 
 TEST(ByteArrayMutator, OverwriteFromCmpDictionaryAndSkipLongEntry) {
@@ -665,13 +670,13 @@ TEST(ByteArrayMutator, OverwriteFromCmpDictionaryAndSkipLongEntry) {
       /*dictionary=*/
       {},
       /*cmp_data=*/
-      {/*size*/ 20, /*lhs*/ 0, 1,   2,   3,   4,           5,
-       6,           7,         8,   9,   10,  11,          12,
-       13,          14,        15,  16,  17,  18,          19,
-       /*rhs*/ 100, 101,       102, 103, 104, 105,         106,
-       107,         108,       109, 110, 111, 112,         113,
-       114,         115,       116, 117, 118, 119,
-       /*size*/ 4,  /*lhs*/ 0, 1,   2,   3,   /*rhs*/ 100, 101,
+      {/*size*/ 20, 0,   /*lhs*/ 0, 1,   2,   3,   4,           5,
+       6,           7,   8,         9,   10,  11,  12,          13,
+       14,          15,  16,        17,  18,  19,
+       /*rhs*/ 100, 101, 102,       103, 104, 105, 106,         107,
+       108,         109, 110,       111, 112, 113, 114,         115,
+       116,         117, 118,       119,
+       /*size*/ 4,  0,   /*lhs*/ 0, 1,   2,   3,   /*rhs*/ 100, 101,
        102,         103});
 }
 

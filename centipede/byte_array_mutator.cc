@@ -33,7 +33,7 @@ namespace fuzztest::internal {
 //============= CmpDictionary ===============
 bool CmpDictionary::SetFromMetadata(const ExecutionMetadata &metadata) {
   dictionary_.clear();
-  if (!metadata.ForEachCmpEntry([&](ByteSpan a, ByteSpan b) {
+  if (!metadata.ForEachCmpEntry([&](ByteSpan a, ByteSpan b, bool) {
         auto size = a.size();
         if (size > DictEntry::kMaxEntrySize) return;
         if (size < kMinEntrySize) return;
