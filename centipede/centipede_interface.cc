@@ -74,10 +74,6 @@ namespace fuzztest::internal {
 
 namespace {
 
-// Sets signal handler for SIGINT.
-// TODO(b/378532202): Replace this with a more generic mechanism that allows
-// the called or `CentipedeMain()` to indicate when to stop.
-
 // Runs env.for_each_blob on every blob extracted from env.args.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
 void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
