@@ -44,3 +44,6 @@ build:macos --macos_minimum_os=10.15
 #  bazel run //bazel:setup_configs > fuzztest.bazelrc
 #
 try-import %workspace%/fuzztest.bazelrc
+
+# Configure rules_rust to use the nightly channel toolchain by default.
+build --@rules_rust//rust/toolchain/channel:channel=nightly
