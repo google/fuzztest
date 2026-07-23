@@ -1,0 +1,18 @@
+use fuzztest::domains::arbitrary::Arbitrary;
+use fuzztest::fuzztest;
+use std::sync::Once;
+
+#[fuzztest(_a = Arbitrary::<bool>::default())]
+fn bool_fuzz_test(_a: bool) {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        println!("bool_fuzz_test property function ran...");
+    });
+}
+
+#[fuzztest(
+    _a = Arbitrary::<i32>::default(),
+    _b = Arbitrary::<f32>::default(),
+    _c = Arbitrary::<bool>::default(),
+)]
+fn multi_arg_fuzz_test(_a: i32, _b: f32, _c: bool) {}
