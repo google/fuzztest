@@ -1,0 +1,37 @@
+[package]
+name = "fuzztest"
+version = "0.1.0"
+edition = "2024"
+
+[[test]]
+name = "trybuild"
+path = "tests/trybuild.rs"
+
+[dependencies]
+anyhow = "1.0.100"
+fuzztest-macro = { path = "fuzztest_macro" }
+inventory = "0.3.20"
+num-traits = "0.2"
+postcard = { version = "1.0.0", features = ["use-std"] }
+rand = { version = "0.10.1", features = ["std_rng"] }
+serde = { version = "1.0", features = ["derive"] }
+coverage = { path = "coverage" }
+engine = { path = "engine", package = "engine-ffi" }
+spin = "0.10.0"
+tempfile = "3.27.0"
+clap = { version = "4.6.1", features = ["derive", "env"] }
+humantime = "2.4.0"
+
+[dev-dependencies]
+googletest = "0.14.3"
+
+[dev-dependencies.trybuild]
+version = "1.0.103"
+features = ["diff"]
+
+[profile.fuzztest]
+inherits = 'release'
+panic = 'abort'
+opt-level = "s"
+debug = true
+split-debuginfo = "packed"
