@@ -1,0 +1,34 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+licenses(["notice"])
+
+rust_library(
+    name = "cargo_fuzztest",
+    srcs = ["src/lib.rs"],
+    edition = "2024",
+    visibility = ["@com_google_fuzztest//rust:__subpackages__"],
+    deps = [
+        "@crate_index//:anyhow",  # v1
+        "@crate_index//:clap",  # v4
+        "@crate_index//:serde",  # v1
+        "@crate_index//:serde_json",  # v1
+    ],
+)
+
+rust_binary(
+    name = "cargo_fuzztest_bin",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    visibility = ["@com_google_fuzztest//rust:__subpackages__"],
+    deps = [
+        ":cargo_fuzztest",
+        "@crate_index//:anyhow",  # v1
+        "@crate_index//:clap",  # v4
+    ],
+)
+
+rust_test(
+    name = "cargo_fuzztest_lib_test",
+    crate = ":cargo_fuzztest",
+    edition = "2024",
+)
