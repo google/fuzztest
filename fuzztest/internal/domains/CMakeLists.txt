@@ -52,7 +52,6 @@ fuzztest_cc_library(
     "serialization_helpers.h"
     "smart_pointer_of_impl.h"
     "special_values.h"
-    "traversal_context.h"
     "unique_elements_container_of_impl.h"
     "value_mutation_helpers.h"
     "variant_of_impl.h"
@@ -72,7 +71,6 @@ fuzztest_cc_library(
     absl::time
     absl::span
     fuzztest::common_logging
-    fuzztest::status_macros
     fuzztest::fuzzing_bit_gen
     fuzztest::any
     fuzztest::logging
@@ -112,7 +110,6 @@ fuzztest_cc_library(
     fuzztest::domain_core
     fuzztest::any
     fuzztest::common_logging
-    fuzztest::status_macros
     fuzztest::meta
     fuzztest::printer
     fuzztest::serialization
@@ -237,15 +234,4 @@ fuzztest_cc_library(
     fuzztest::common_logging
     fuzztest::meta
     fuzztest::serialization
-)
-
-fuzztest_cc_test(
-  NAME
-    traversal_context_test
-  SRCS
-    "traversal_context_test.cc"
-  DEPS
-    fuzztest::core_domains_impl
-    absl::status
-    GTest::gmock_main
 )

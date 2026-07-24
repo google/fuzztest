@@ -34,7 +34,6 @@
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
-#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest {
@@ -357,7 +356,8 @@ TEST(Container, ValidatesMemoryDictionaryMutationForInnerDomain) {
       * 1.0 / 4                   // to use cmp tables
       * 1.0 / 2                   // to pick the memcmp table
       * 1.0 / 2                   // to pick one of the entries
-      * 1.0 / 2;                  // to apply replacement
+      * 1.0 / 2                   // to apply replacement
+      ;
   for (int i = 0; i < 1 * IterationsToHitAll(/*num_cases=*/2, hit_probability);
        ++i) {
     std::vector<uint8_t> mutant = {10, 11, 12, 13};
@@ -367,107 +367,6 @@ TEST(Container, ValidatesMemoryDictionaryMutationForInnerDomain) {
 
   EXPECT_THAT(mutants, Contains(std::vector<uint8_t>{17, 31, 113, 71}));
   EXPECT_THAT(mutants, Not(Contains(std::vector<uint8_t>{129, 129, 129, 129})));
-}
-
-TEST(ContainerTest,
-     SequenceInitWithTraversalCtxDepthExhaustedWithMinSizeFails) {
-  auto domain = VectorOf(Arbitrary<int>()).WithMinSize(3);
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  state.depth_budget = 0;
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  EXPECT_FALSE(val.ok());
-  EXPECT_FALSE(state.status.ok());
-  EXPECT_THAT(state.status.message(),
-              testing::HasSubstr("Traversal budget exceeded"));
-}
-
-TEST(ContainerTest,
-     SequenceInitWithTraversalCtxDepthExhaustedNoMinSizeSucceeds) {
-  auto domain = VectorOf(Arbitrary<int>());
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  state.depth_budget = 0;
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  ASSERT_OK(val.status());
-  EXPECT_TRUE(val->user_value.empty());
-  EXPECT_TRUE(state.status.ok());
-}
-
-TEST(ContainerTest, SequenceInitWithTraversalCtxUpdatesInitBudget) {
-  auto domain = VectorOf(Arbitrary<int>()).WithSize(3);
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  state.init_budget = 10;
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  ASSERT_OK(val.status());
-  EXPECT_EQ(val->user_value.size(), 3);
-  // 1 (root) + 3 (elements) = 4 decrements
-  EXPECT_EQ(state.init_budget, 6);
-}
-
-TEST(ContainerTest,
-     SequenceInitWithTraversalCtxInitBudgetExhaustedWithMinSizeFails) {
-  auto domain = VectorOf(Arbitrary<int>()).WithMinSize(3);
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  state.init_budget = 0;  // Enter() will decrement to -1
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  EXPECT_FALSE(val.ok());
-  EXPECT_FALSE(state.status.ok());
-}
-
-TEST(ContainerTest,
-     SequenceInitWithTraversalCtxInitBudgetExhaustedNoMinSizeSucceeds) {
-  auto domain = VectorOf(Arbitrary<int>());
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  state.init_budget = 0;
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  ASSERT_OK(val.status());
-  EXPECT_TRUE(val->user_value.empty());
-  EXPECT_TRUE(state.status.ok());
-}
-
-TEST(ContainerTest,
-     SequenceInitWithTraversalCtxPropagatesFailureFromInnerExhaustion) {
-  // Both the parent and inner vectors must not be empty.
-  auto domain =
-      VectorOf(VectorOf(Arbitrary<int>()).WithMinSize(1)).WithMinSize(1);
-
-  absl::BitGen prng;
-  domain_implementor::TraversalState state;
-  // The parent init decrements to 0 and the inner init decrements to -1
-  // and fails due to the min size constraint.
-  state.depth_budget = 1;
-
-  const auto val =
-      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
-
-  EXPECT_FALSE(val.ok());
-  EXPECT_FALSE(state.status.ok());
-  EXPECT_THAT(state.status.message(),
-              testing::HasSubstr("Traversal budget exceeded"));
 }
 
 }  // namespace
