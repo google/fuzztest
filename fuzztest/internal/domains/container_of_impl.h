@@ -29,11 +29,14 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "./common/logging.h"
+#include "./common/status_macros.h"
 #include "./fuzztest/internal/domains/container_mutation_helpers.h"
 #include "./fuzztest/internal/domains/domain_base.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -579,6 +582,34 @@ class SequenceContainerOfImplBase
     corpus_type val;
     while (val.size() < size) {
       val.insert(val.end(), this->inner_.Init(prng));
+    }
+    return val;
+  }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<Derived> ctx) {
+    RETURN_IF_NOT_OK(ctx.status());
+    if (ctx.IsResourceExhausted()) {
+      if (this->min_size() > 0) {
+        ctx.FailWithBudgetExceeded();
+        return ctx.status();
+      }
+      return corpus_type{};
+    }
+
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *std::move(seed);
+    const size_t size = this->ChooseRandomInitialSize(prng);
+    corpus_type val;
+    while (val.size() < size) {
+      auto elem = this->inner_.InitWithTraversalCtx(prng, ctx);
+      if (!elem.ok()) {
+        if (val.size() >= this->min_size()) {
+          return val;
+        }
+        return std::move(elem).status();
+      }
+      val.insert(val.end(), *std::move(elem));
     }
     return val;
   }

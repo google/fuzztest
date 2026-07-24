@@ -62,6 +62,7 @@
 #include "./fuzztest/internal/domains/optional_of_impl.h"
 #include "./fuzztest/internal/domains/overlap_of_impl.h"
 #include "./fuzztest/internal/domains/smart_pointer_of_impl.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/domains/unique_elements_container_of_impl.h"
 #include "./fuzztest/internal/domains/utf.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
@@ -160,6 +161,14 @@ class DomainBuilder {
       return GetInnerDomain().Init(prng);
     }
 
+    absl::StatusOr<corpus_type> InitWithTraversalCtx(
+        absl::BitGenRef prng,
+        domain_implementor::InitTraversalContext<IndirectDomain> ctx) {
+      using InnerCtx = domain_implementor::InitTraversalContext<Domain<T>>;
+      return GetInnerDomain().InitWithTraversalCtx(prng,
+                                                   InnerCtx::Passthrough(ctx));
+    }
+
     void Mutate(corpus_type& val, absl::BitGenRef prng,
                 const domain_implementor::MutationMetadata& metadata,
                 bool only_shrink) {
@@ -217,6 +226,13 @@ class DomainBuilder {
         : inner_(inner), domain_lookup_table_(std::move(domain_lookup_table)) {}
 
     corpus_type Init(absl::BitGenRef prng) { return inner_.Init(prng); }
+
+    absl::StatusOr<corpus_type> InitWithTraversalCtx(
+        absl::BitGenRef prng,
+        domain_implementor::InitTraversalContext<OwningDomain> ctx) {
+      using InnerCtx = domain_implementor::InitTraversalContext<Domain<T>>;
+      return inner_.InitWithTraversalCtx(prng, InnerCtx::Passthrough(ctx));
+    }
 
     void Mutate(corpus_type& val, absl::BitGenRef prng,
                 const domain_implementor::MutationMetadata& metadata,

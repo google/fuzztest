@@ -30,6 +30,7 @@
 #include "absl/strings/string_view.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
@@ -164,6 +165,14 @@ class Domain {
   // different values (e.g., when growing a `std::set<T>` and adding new `T`
   // values).
   corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<Domain> ctx) {
+    return inner_->UntypedInitWithTraversalCtx(
+        prng, domain_implementor::InitTraversalContext<
+                  internal::UntypedDomainConcept>::Passthrough(ctx));
+  }
 
   // Mutate() makes a relatively small modification on `val` of `corpus_type`.
   //
@@ -332,6 +341,14 @@ class UntypedDomain {
       : inner_(domain.inner_->UntypedClone()) {}
 
   corpus_type Init(absl::BitGenRef prng) { return inner_->UntypedInit(prng); }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<UntypedDomain> ctx) {
+    return inner_->UntypedInitWithTraversalCtx(
+        prng, domain_implementor::InitTraversalContext<
+                  internal::UntypedDomainConcept>::Passthrough(ctx));
+  }
 
   void Mutate(corpus_type& corpus_value, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,

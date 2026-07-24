@@ -33,10 +33,13 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
+#include "./common/status_macros.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
@@ -81,12 +84,12 @@ struct Hash {
   template <typename T>
   size_t operator()(const T& v) const {
     if constexpr (internal::Requires<T>(
-                      [](auto v) -> decltype(v && v.get()) {})) {
+                      [](auto v) -> decltype(v&& v.get()) {})) {
       // Smart pointers.
       return v ? absl::HashOf(*v) : 0;
     } else if constexpr (internal::Requires<T>(
-                             [](auto v) -> decltype(std::isnan(
-                                            *std::optional(v))) {})) {
+                             [](auto v) -> decltype(std::isnan(*std::optional(
+                                            v))) {})) {
       auto o = std::optional(v);
       return !o || std::isnan(*o) ? 0 : absl::Hash<T>{}(*o);
     } else if constexpr (internal::Requires<T>(
@@ -108,12 +111,12 @@ struct Eq {
       differencer.set_field_comparator(&cmp);
       return differencer.Compare(a, b);
     } else if constexpr (internal::Requires<T>(
-                             [](auto v) -> decltype(v && v.get()) {})) {
+                             [](auto v) -> decltype(v&& v.get()) {})) {
       // Smart pointers.
       return a ? b && *a == *b : !b;
     } else if constexpr (internal::Requires<T>(
-                             [](auto v) -> decltype(std::isnan(
-                                            *std::optional(v))) {})) {
+                             [](auto v) -> decltype(std::isnan(*std::optional(
+                                            v))) {})) {
       auto oa = std::optional(a), ob = std::optional(b);
       return a == b || (oa && ob && std::isnan(*oa) && std::isnan(*ob));
     } else {
@@ -127,6 +130,7 @@ using Set = absl::flat_hash_set<T, Hash, Eq>;
 
 // The Value class keeps the corpus and value types together throughout tests to
 // simplify their access and mutation.
+// TODO(b/535145936): Update to a class and make the values private.
 template <typename Domain>
 struct Value {
   using T = internal::value_type_t<Domain>;
@@ -151,6 +155,17 @@ struct Value {
           return *corpus_value;
         }()),
         user_value(std::move(user_value)) {}
+
+  static absl::StatusOr<Value> BuildWithTraversalCtx(
+      Domain& domain, absl::BitGenRef prng,
+      domain_implementor::TraversalState& state) {
+    ASSIGN_OR_RETURN_IF_NOT_OK(
+        auto corpus,
+        domain.InitWithTraversalCtx(
+            prng, domain_implementor::InitTraversalContext<Domain>(state)));
+    auto user = domain.GetValue(corpus);
+    return Value{std::move(corpus), std::move(user)};
+  }
 
   void Mutate(Domain& domain, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,
@@ -222,6 +237,9 @@ struct Value {
   }
 
  private:
+  Value(internal::corpus_type_t<Domain> corpus, T user)
+      : corpus_value(std::move(corpus)), user_value(std::move(user)) {}
+
   // We don't test the printers here, just that we return one.
   // The printers themselves are tested in type_support_test.cc
   using Printer = decltype(std::declval<const Domain&>().GetPrinter());

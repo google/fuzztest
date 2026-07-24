@@ -8,10 +8,8 @@ fuzztest_cc_test(
     absl::flat_hash_set
     absl::random_bit_gen_ref
     absl::random_random
-    absl::optional
-    absl::span
     absl::status
-    absl::variant
+    fuzztest::core_domains_impl
     fuzztest::domain_core
     fuzztest::serialization
     fuzztest::type_support
@@ -122,6 +120,8 @@ fuzztest_cc_test(
     absl::flat_hash_map
     absl::flat_hash_set
     absl::random_random
+    absl::status
+    fuzztest::core_domains_impl
     fuzztest::domain_core
     fuzztest::table_of_recent_compares
     GTest::gmock_main
@@ -138,9 +138,11 @@ fuzztest_cc_library(
     absl::random_random
     absl::random_bit_gen_ref
     absl::status
+    absl::statusor
     absl::strings
     fuzztest::domain_core
     fuzztest::common_logging
+    fuzztest::status_macros
     fuzztest::meta
     fuzztest::serialization
     fuzztest::test_protobuf_cc_proto
@@ -188,6 +190,7 @@ fuzztest_cc_test(
     fuzztest::domain_testing
     absl::algorithm_container
     absl::random_random
+    fuzztest::core_domains_impl
     fuzztest::domain_core
     GTest::gmock_main
 )
@@ -247,6 +250,7 @@ fuzztest_cc_test(
   DEPS
     fuzztest::domain_testing
     absl::random_random
+    fuzztest::core_domains_impl
     fuzztest::domain_core
     GTest::gmock_main
 )
@@ -281,3 +285,5 @@ fuzztest_cc_test(
     fuzztest::table_of_recent_compares
     GTest::gmock_main
 )
+
+
