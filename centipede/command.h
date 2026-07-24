@@ -52,6 +52,8 @@ class Command final {
     // `Command` automatically unlinks any previous redirected files on
     // execution and destruction.
     std::string stderr_file_prefix;
+    // Redirect stdin from this file path if non-empty.
+    std::string stdin_file_path;
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -128,6 +130,9 @@ class Command final {
   struct ForkServerProps;
 
   int pid_ = -1;
+#if defined(_WIN32)
+  void* win_process_handle_ = nullptr;
+#endif
   bool is_executing_ = false;
 
   // Derived from Options::{stdout,stderr}_file_prefix, with the realized suffix

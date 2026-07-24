@@ -44,13 +44,19 @@ TEST(CommandTest, ToString) {
     Command::Options cmd_options;
     cmd_options.args = {"arg1", "arg2"};
     EXPECT_EQ((Command{"path", std::move(cmd_options)}.ToString()),
-              "exec env \\\npath \\\narg1 \\\narg2");
+              "exec env \\\npath \\\n'arg1' \\\n'arg2'");
   }
   {
     Command::Options cmd_options;
     cmd_options.env_diff = {"K1=V1", "K2=V2", "-K3"};
     EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
               "exec env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
+  }
+  {
+    Command::Options cmd_options;
+    cmd_options.stdin_file_path = "input.txt";
+    EXPECT_EQ((Command{"path", std::move(cmd_options)}.ToString()),
+              "exec env \\\npath \\\n< 'input.txt'");
   }
 }
 

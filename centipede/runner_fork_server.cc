@@ -51,6 +51,12 @@
 // We try to avoid any high-level code here, even most of libc because this code
 // works too early in the process. E.g. getenv() will not work yet.
 
+#if defined(_WIN32)
+namespace fuzztest::internal {
+void ForkServerCallMeVeryEarly() {}
+}  // namespace fuzztest::internal
+#else
+
 #include <fcntl.h>
 #ifdef __APPLE__
 #include <sys/sysctl.h>
@@ -422,3 +428,5 @@ __attribute__((section(".preinit_array"))) auto call_very_early =
 #endif  // __APPLE__
 
 }  // namespace fuzztest::internal
+
+#endif  // !defined(_WIN32)

@@ -292,7 +292,7 @@ void ByteArrayMutator::CrossOverOverwrite(ByteArray &data,
                                           const ByteArray &other) {
   // Overwrite data[pos:pos+size] with other[first:first+size].
   // Overwrite no more than half of data.
-  size_t max_size = std::max(1UL, data.size() / 2);
+  size_t max_size = std::max(size_t{1}, data.size() / 2);
   size_t first = rng_() % other.size();
   max_size = std::min(max_size, other.size() - first);
   size_t size = 1 + rng_() % max_size;

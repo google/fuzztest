@@ -18,7 +18,13 @@
 // Capturing arguments of CMP instructions, memcmp, and similar.
 // WARNING: this code needs to have minimal dependencies.
 
+#if !defined(_WIN32)
 #include <sys/time.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -63,12 +69,21 @@ class CmpTrace {
       to_clear = false;
       if (rand_seed_ == 0) {
         // Initialize the random seed (likely) once.
+#if defined(_WIN32)
+        FILETIME ft;
+        GetSystemTimeAsFileTime(&ft);
+        ULARGE_INTEGER uli;
+        uli.LowPart = ft.dwLowDateTime;
+        uli.HighPart = ft.dwHighDateTime;
+        rand_seed_ = static_cast<uint64_t>(uli.QuadPart / 10);
+#else
         struct timeval tv = {};
         constexpr size_t kUsecInSec = 1000000;
         // There is a chance that `gettimeofday()` triggers `Capture()`
         // recursively, but this should be fine as we unset `to_clear` before.
         gettimeofday(&tv, nullptr);
         rand_seed_ = tv.tv_sec * kUsecInSec + tv.tv_usec;
+#endif
       }
     }
     if (size > kNumBytesPerValue) size = kNumBytesPerValue;

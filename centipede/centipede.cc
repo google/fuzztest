@@ -138,13 +138,15 @@ Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
       coverage_logger_(coverage_logger),
       stats_(stats),
       input_filter_path_(std::filesystem::path(TemporaryLocalDirPath())
-                             .append("filter-input")),
+                             .append("filter-input")
+                             .string()),
       input_filter_cmd_{[&] {
         Command::Options cmd_options;
         cmd_options.args = {input_filter_path_};
         cmd_options.stdout_file_prefix =
             std::filesystem::path(TemporaryLocalDirPath())
-                .append("filter-input.log");
+                .append("filter-input.log")
+                .string();
         cmd_options.stderr_file_prefix = cmd_options.stdout_file_prefix;
         return Command{env_.input_filter, std::move(cmd_options)};
       }()},
@@ -243,7 +245,8 @@ absl::Status Centipede::CrashesToFiles(const Environment &env,
         std::vector<std::string> reproducer_paths,
         RemoteListFiles(reproducer_dir, /*recursively=*/false));
     for (const auto &reproducer_path : reproducer_paths) {
-      std::string id = std::filesystem::path{reproducer_path}.filename();
+      std::string id =
+          std::filesystem::path{reproducer_path}.filename().string();
       if (auto [_it, inserted] = crash_ids.insert(id); !inserted) {
         continue;
       }
@@ -1086,11 +1089,12 @@ void Centipede::ReportCrash(std::string_view binary,
       auto hash = Hash(one_input);
       auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
       FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
-      std::string input_file_path = std::filesystem::path(crash_dir) / hash;
+      std::string input_file_path =
+          (std::filesystem::path(crash_dir) / hash).string();
       auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
       FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
       std::string crash_metadata_path_prefix =
-          std::filesystem::path(crash_metadata_dir) / hash;
+          (std::filesystem::path(crash_metadata_dir) / hash).string();
       FUZZTEST_LOG(INFO)
           << log_prefix << "Detected crash-reproducing input:"
           << "\nInput index    : " << input_idx << "\nInput bytes    : "
@@ -1139,21 +1143,25 @@ void Centipede::ReportCrash(std::string_view binary,
   FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
   std::string crashing_batch_name =
       absl::StrCat("crashing_batch-", suspect_hash);
-  std::string save_dir = std::filesystem::path(crash_dir) / crashing_batch_name;
+  std::string save_dir =
+      (std::filesystem::path(crash_dir) / crashing_batch_name).string();
   FUZZTEST_CHECK_OK(RemoteMkdir(save_dir));
   FUZZTEST_LOG(INFO) << log_prefix
                      << "Saving used inputs from batch to: " << save_dir;
   for (int i = 0; i <= suspect_input_idx; ++i) {
     const auto &one_input = input_vec[i];
     auto hash = Hash(one_input);
-    std::string file_path = std::filesystem::path(save_dir).append(
-        absl::StrFormat("input-%010d-%s", i, hash));
+    std::string file_path =
+        std::filesystem::path(save_dir)
+            .append(absl::StrFormat("input-%010d-%s", i, hash))
+            .string();
     FUZZTEST_CHECK_OK(RemoteFileSetContents(file_path, one_input));
   }
   auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
   FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
   std::string crash_metadata_file_path =
-      std::filesystem::path(crash_metadata_dir) / crashing_batch_name;
+      (std::filesystem::path(crash_metadata_dir) / crashing_batch_name)
+          .string();
   FUZZTEST_LOG(INFO) << log_prefix << "Saving crash metadata to: "
                      << crash_metadata_file_path;
   FUZZTEST_CHECK_OK(RemoteFileSetContents(crash_metadata_file_path,

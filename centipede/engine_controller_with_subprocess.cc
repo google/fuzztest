@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if !defined(_WIN32)
 #include <sys/wait.h>
+#endif
 
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
+#include "./centipede/command.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_controller_abi.h"
-#include "./fuzztest/internal/escaping.h"
 
-using fuzztest::internal::ShellEscape;
+using fuzztest::internal::Command;
 
 FuzzTestControllerStatus FuzzTestControllerRun(
     const FuzzTestAdapterManager* manager, const FuzzTestBytesViews* flags) {
@@ -35,17 +37,19 @@ FuzzTestControllerStatus FuzzTestControllerRun(
   if (centipede_binary_path == nullptr) {
     return kFuzzTestControllerFailure;
   }
-  std::string command;
-  command.append(ShellEscape(centipede_binary_path));
+  Command::Options cmd_options;
   for (size_t flag_index = 0; flag_index < flags->count; ++flag_index) {
     const FuzzTestBytesView flag = flags->views[flag_index];
-    command.append(" ");
-    command.append(
-        ShellEscape({reinterpret_cast<const char*>(flag.data), flag.size}));
+    cmd_options.args.push_back(
+        {reinterpret_cast<const char*>(flag.data), flag.size});
   }
-  int ret = system(command.c_str());
-  if (ret == -1) return kFuzzTestControllerFailure;
+  Command cmd(centipede_binary_path, cmd_options);
+  int ret = cmd.Execute();
+#if defined(_WIN32)
+  return ret == 0 ? kFuzzTestControllerSuccess : kFuzzTestControllerFailure;
+#else
   return WIFEXITED(ret) && WEXITSTATUS(ret) == EXIT_SUCCESS
              ? kFuzzTestControllerSuccess
              : kFuzzTestControllerFailure;
+#endif
 }

@@ -15,7 +15,6 @@
 #ifndef THIRD_PARTY_CENTIPEDE_RUNNER_H_
 #define THIRD_PARTY_CENTIPEDE_RUNNER_H_
 
-#include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
 #include <time.h>
 
 #include <atomic>
@@ -27,6 +26,7 @@
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
+#include "./centipede/sancov_state.h"
 
 namespace fuzztest::internal {
 
@@ -84,7 +84,7 @@ struct GlobalRunnerState {
       flag_helper.GetStringFlag(":persistent_mode_socket=");
   int persistent_mode_socket = 0;
 
-  pthread_mutex_t execution_result_override_mu = PTHREAD_MUTEX_INITIALIZER;
+  MutexType execution_result_override_mu = MUTEX_INITIALIZER;
   // If not nullptr, it points to a batch result with either zero or one
   // execution. When an execution result present, it will be passed as the
   // execution result of the current test input. The object is owned and cleaned

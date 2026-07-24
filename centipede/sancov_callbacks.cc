@@ -15,7 +15,13 @@
 // Instrumentation callbacks for SanitizerCoverage (sancov).
 // https://clang.llvm.org/docs/SanitizerCoverage.html
 
+#if !defined(_WIN32)
 #include <pthread.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -278,9 +284,11 @@ static ENFORCE_INLINE void UpdateLowestStackAndCheckLimit(uintptr_t sp) {
                          sp >= tls.stack_region_low &&
                          tls.stack_region_low > 0)) {
     tls.lowest_sp = sp;
+#if !defined(_WIN32)
     if (fuzztest::internal::CheckStackLimit == nullptr) {
       return;
     }
+#endif
     fuzztest::internal::CheckStackLimit(tls.top_frame_sp - sp,
                                         /*is_current_stack=*/true);
   }
@@ -353,7 +361,6 @@ static void UpdatePcCounterSetSizeAligned(size_t size) {
 // __sanitizer_cov_trace_pc_guard() because
 // a) there is not use case for that currently and
 // b) it will slowdown the hot function.
-static pthread_once_t main_object_lazy_init_once = PTHREAD_ONCE_INIT;
 static void MainObjectLazyInitOnceCallback() {
   sancov_state->main_object = fuzztest::internal::GetDlInfo(
       sancov_state->flag_helper.GetStringFlag(":dl_path_suffix="));
@@ -362,9 +369,22 @@ static void MainObjectLazyInitOnceCallback() {
   UpdatePcCounterSetSizeAligned(sancov_state->reverse_pc_table.NumPcs());
 }
 
+#if defined(_WIN32)
+static INIT_ONCE main_object_lazy_init_once = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK MainObjectLazyInitOnceWin32(PINIT_ONCE, PVOID, PVOID*) {
+  MainObjectLazyInitOnceCallback();
+  return TRUE;
+}
+__attribute__((noinline)) static void MainObjectLazyInit() {
+  InitOnceExecuteOnce(&main_object_lazy_init_once, MainObjectLazyInitOnceWin32,
+                      nullptr, nullptr);
+}
+#else
+static pthread_once_t main_object_lazy_init_once = PTHREAD_ONCE_INIT;
 __attribute__((noinline)) static void MainObjectLazyInit() {
   pthread_once(&main_object_lazy_init_once, MainObjectLazyInitOnceCallback);
 }
+#endif
 
 // TODO(kcc): [impl] add proper testing for this callback.
 // TODO(kcc): make sure the pc_table in the engine understands the raw PCs.

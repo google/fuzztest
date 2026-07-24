@@ -99,7 +99,8 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
                                        std::string_view tmp_dir_path) {
   static std::atomic_size_t unique_id = 0;
   size_t unique_id_value = unique_id.fetch_add(1);
-  const std::string dso_basename = std::filesystem::path{dso_path}.filename();
+  const std::string dso_basename =
+      std::filesystem::path{dso_path}.filename().string();
   const ScopedFile pcs_file{
       tmp_dir_path, absl::StrCat(dso_basename, ".pcs.", unique_id_value)};
   const auto symbols_file_prefix = std::filesystem::path{tmp_dir_path} /
@@ -120,10 +121,9 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
       "--no-inlines",
       "-e",
       std::string(dso_path),
-      "<",
-      std::string(pcs_file.path()),
   };
-  cmd_options.stdout_file_prefix = symbols_file_prefix;
+  cmd_options.stdin_file_path = std::string(pcs_file.path());
+  cmd_options.stdout_file_prefix = symbols_file_prefix.string();
   Command cmd{symbolizer_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
@@ -172,7 +172,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
   {
     // Symbolization is quite IO-bound so we arbitrarily run 30 at once
     // even if we have few CPUs.
-    const size_t num_threads = std::min(dso_table.size(), 30UL);
+    const size_t num_threads = std::min(dso_table.size(), size_t{30});
     fuzztest::internal::ThreadPool thread_pool(num_threads);
     for (size_t dso_id = 0; dso_id < dso_table.size(); ++dso_id) {
       const auto &dso_info = dso_table[dso_id];

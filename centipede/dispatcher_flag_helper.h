@@ -20,6 +20,18 @@
 #include <cstdint>
 #include <cstring>
 
+#if defined(_WIN32)
+inline static char* strndup(const char* s, size_t n) {
+  size_t len = strnlen(s, n);
+  char* ret = static_cast<char*>(malloc(len + 1));
+  if (ret) {
+    memcpy(ret, s, len);
+    ret[len] = '\0';
+  }
+  return ret;
+}
+#endif
+
 #include "absl/base/nullability.h"
 
 namespace fuzztest::internal {
@@ -62,12 +74,39 @@ struct DispatcherFlagHelper {
   const char *absl_nullable GetStringFlag(const char *absl_nonnull flag) const {
     if (!flags) return nullptr;
     // Extract "value" from ":flag=value:" inside centipede_runner_flags.
-    const char *beg = strstr(flags, flag);
+    const size_t flag_len = strlen(flag);
+    const char* beg = flags;
+    while (true) {
+      beg = strstr(beg, flag);
+      if (beg == nullptr) return nullptr;
+      // Find the closest non-backslash before the candiate position.
+      const char* cur = beg - 1;
+      while (cur >= flags && *cur == '\\') --cur;
+      // There are even number of backslashes before the flag, meaning it's not
+      // escaped.
+      if (((beg - cur) & 1) == 1) break;
+      beg = beg + flag_len;
+    }
     if (!beg) return nullptr;
-    const char *value_beg = beg + strlen(flag);
-    const char *end = strstr(value_beg, ":");
-    if (!end) return nullptr;
-    return strndup(value_beg, end - value_beg);
+    const char* value_beg = beg + flag_len;
+    const char* end = value_beg;
+    while (*end) {
+      if (*end == '\\' && *(end + 1) != 0) {
+        end += 2;
+        continue;
+      }
+      if (*end == ':') break;
+      ++end;
+    }
+    if (!end || !*end) return nullptr;
+    char* r = strndup(value_beg, end - value_beg);
+    size_t d = 0;
+    for (const char* c = r; *c != 0; ++c) {
+      if (*c == '\\' && *(c + 1) != 0) ++c;
+      r[d++] = *c;
+    }
+    r[d] = 0;
+    return r;
   }
 };
 

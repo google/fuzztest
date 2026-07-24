@@ -13,12 +13,16 @@
 // limitations under the License.
 
 // Centipede puzzle: easy-to-reach per-batch timeout.
-// clang-format off
-// NOLINTNEXTLINE
-// RUN: Run --batch_size=10 --timeout_per_input=2 --timeout_per_batch=7 && ExpectPerBatchTimeout
-// clang-format on
+// CASE main: ARG: --batch_size=10
+// CASE main: ARG: --timeout_per_input=2
+// CASE main: ARG: --timeout_per_batch=7
+// CASE main: MATCH: Failure.*: per-batch-timeout-exceeded
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +31,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   // Within the --timeout_per_input, but we have no solution, so the runner
   // should keep running us until it exceeds --timeout_per_batch, then report a
   // failure back to the engine.
-  sleep(1);
+#if defined(_WIN32)
+  Sleep(1000);
+#else
+  sleep(1);  // NOLINT
+#endif
   return 0;
 }

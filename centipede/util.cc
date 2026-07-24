@@ -17,8 +17,16 @@
 
 #include "./centipede/util.h"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <process.h>
+#include <windows.h>
+#include <winsock2.h>
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -47,6 +55,7 @@
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -61,10 +70,24 @@
 
 namespace fuzztest::internal {
 
+void EnsureWinsockInitialized() {
+#if defined(_WIN32)
+  [[maybe_unused]] static bool init = []() {
+    WSADATA wsa_data;
+    return WSAStartup(MAKEWORD(2, 2), &wsa_data) == 0;
+  }();
+#endif
+}
+
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;
+#if defined(_WIN32)
+  return time(nullptr) + GetCurrentProcessId() +
+         std::hash<std::thread::id>{}(std::this_thread::get_id());
+#else
   return time(nullptr) + getpid() +
          std::hash<std::thread::id>{}(std::this_thread::get_id());
+#endif
 }
 
 std::string AsPrintableString(ByteSpan data, size_t max_len) {
@@ -83,7 +106,7 @@ std::string AsPrintableString(ByteSpan data, size_t max_len) {
 
 template <typename Container>
 void ReadFromLocalFile(std::string_view file_path, Container &data) {
-  std::ifstream f(std::string{file_path});
+  std::ifstream f(std::string{file_path}, std::ios::in | std::ios::binary);
   if (!f) return;
   f.seekg(0, std::ios_base::end);
   auto size = f.tellg();
@@ -112,12 +135,13 @@ void ReadFromLocalFile(std::string_view file_path,
 }
 
 void ClearLocalFileContents(std::string_view file_path) {
-  std::ofstream f(std::string{file_path}, std::ios::out | std::ios::trunc);
+  std::ofstream f(std::string{file_path},
+                  std::ios::out | std::ios::trunc | std::ios::binary);
   FUZZTEST_CHECK(f) << "Failed to clear the file: " << file_path;
 }
 
 void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
-  std::ofstream f(std::string{file_path});
+  std::ofstream f(std::string{file_path}, std::ios::out | std::ios::binary);
   FUZZTEST_CHECK(f) << "Failed to open local file: " << file_path;
   f.write(reinterpret_cast<const char *>(data.data()),
           static_cast<int64_t>(data.size()));
@@ -136,13 +160,15 @@ void WriteToLocalFile(std::string_view file_path, const FeatureVec &data) {
 
 void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
-  std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
+  std::string file_path =
+      std::filesystem::path(dir_path).append(Hash(data)).string();
   WriteToLocalFile(file_path, data);
 }
 
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
-  std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
+  std::string file_path =
+      std::filesystem::path(dir_path).append(Hash(data)).string();
   FUZZTEST_CHECK_OK(
       RemoteFileSetContents(file_path, std::string(data.begin(), data.end())));
 }
@@ -155,17 +181,24 @@ std::string HashOfFileContents(std::string_view file_path) {
 }
 
 std::string ProcessAndThreadUniqueID(std::string_view prefix) {
+#if defined(_WIN32)
+  return absl::StrCat(prefix, GetCurrentProcessId(), "-", GetCurrentThreadId());
+#else
   // operator << is the only way to serialize std::this_thread::get_id().
   std::ostringstream oss;
   oss << prefix << getpid() << "-" << std::this_thread::get_id();
   return oss.str();
+#endif
 }
 
 std::string TemporaryLocalDirPath() {
   const char *TMPDIR = getenv("TMPDIR");
+  if (!TMPDIR) TMPDIR = getenv("TEMP");
+  if (!TMPDIR) TMPDIR = getenv("TMP");
   std::string tmp = TMPDIR ? TMPDIR : "/tmp";
-  return std::filesystem::path(tmp).append(
-      ProcessAndThreadUniqueID("centipede-"));
+  return std::filesystem::path(tmp)
+      .append(ProcessAndThreadUniqueID("centipede-"))
+      .string();
 }
 
 // We need to maintain a global set of dirs that CreateLocalDirRemovedAtExit()
@@ -189,13 +222,15 @@ static void RemoveDirsAtExit() {
 
 void CreateLocalDirRemovedAtExit(std::string_view path) {
   // Safeguard against removing dirs not created by TemporaryLocalDirPath().
-  FUZZTEST_CHECK_NE(path.find("/centipede-"), std::string::npos);
+  FUZZTEST_CHECK(path.find("/centipede-") != std::string::npos ||
+                 path.find("\\centipede-") != std::string::npos);
   // Create the dir.
   std::error_code error;
-  std::filesystem::remove_all(path, error);
-  FUZZTEST_LOG_IF(ERROR, error)
-      << "Unable to clean up existing dir " << path << ": " << error.message();
-  std::filesystem::create_directories(path);
+  std::filesystem::path p(path);
+  if (std::filesystem::exists(p, error)) {
+    std::filesystem::remove_all(p, error);
+  }
+  std::filesystem::create_directories(p, error);
   // Add to dirs_to_delete_at_exit.
   absl::MutexLock lock(dirs_to_delete_at_exit_mutex);
   if (!dirs_to_delete_at_exit) {
@@ -206,7 +241,7 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
 }
 
 ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
-    : my_path_(std::filesystem::path(dir_path) / name) {}
+    : my_path_((std::filesystem::path(dir_path) / name).string()) {}
 
 ScopedFile::~ScopedFile() {
   std::error_code error;
@@ -359,16 +394,53 @@ std::vector<size_t> RandomWeightedSubset(absl::Span<const uint64_t> set,
   return res;
 }
 
+#if defined(_WIN32)
+static LONG CALLBACK
+AutoCommitPageFaultHandler(PEXCEPTION_POINTERS ExceptionInfo) {
+  if (ExceptionInfo->ExceptionRecord->ExceptionCode ==
+      EXCEPTION_ACCESS_VIOLATION) {
+    ULONG_PTR fault_addr =
+        ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
+    if (VirtualAlloc(reinterpret_cast<void*>(fault_addr), 1, MEM_COMMIT,
+                     PAGE_READWRITE) != nullptr) {
+      return EXCEPTION_CONTINUE_EXECUTION;
+    }
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 uint8_t *MmapNoReserve(size_t size) {
+#if defined(_WIN32)
+  static bool installed_veh = []() {
+    AddVectoredExceptionHandler(1, AutoCommitPageFaultHandler);
+    return true;
+  }();
+  (void)installed_veh;
+  auto result =
+      VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  if (result == nullptr) {
+    result = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+  }
+  FUZZTEST_CHECK(result != nullptr)
+      << "VirtualAlloc failed for size " << size << " err=" << GetLastError();
+  return reinterpret_cast<uint8_t*>(result);
+#else
   auto result = mmap(0, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
   FUZZTEST_CHECK(result != MAP_FAILED);
   return reinterpret_cast<uint8_t *>(result);
+#endif
 }
 
 void Munmap(uint8_t *ptr, size_t size) {
+#if defined(_WIN32)
+  BOOL result = VirtualFree(ptr, 0, MEM_RELEASE);
+  FUZZTEST_CHECK(result != 0);
+#else
   auto result = munmap(ptr, size);
   FUZZTEST_CHECK_EQ(result, 0);
+#endif
 }
 
 int PollTimeoutMs(absl::Duration timeout) {

@@ -12,17 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Centipede puzzle: easy-to-reach per-input timeout.
-// RUN: Run --timeout_per_input=2 && SolutionIs SLO && ExpectPerInputTimeout
+// CASE main: ARG: --timeout_per_input=2
+// CASE main: MATCH: Input bytes *: SLO
+// CASE main: MATCH: Failure.*: per-input-timeout-exceeded
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <cstddef>
 #include <cstdint>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if (size == 3 && data[0] == 'S' && data[1] == 'L' && data[2] == 'O') {
-    sleep(1000);  // Dies with timeout.
+    // Dies with timeout.
+#if defined(_WIN32)
+    Sleep(1000000);
+#else
+    sleep(1000);  // NOLINT
+#endif
   }
   return 0;
 }

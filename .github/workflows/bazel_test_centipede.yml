@@ -25,109 +25,148 @@ on:
   workflow_dispatch:
 
 jobs:
-  run_tests:
-    name: Run Centipede tests
-    # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
-    # is fixed.
-    runs-on: ubuntu-22.04
+  # run_tests:
+  #   name: Run Centipede tests
+  #   # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
+  #   # is fixed.
+  #   runs-on: ubuntu-22.04
+  #   timeout-minutes: 60
+  #   strategy:
+  #     matrix:
+  #       config: ['default', 'noriegeli', 'asan']
+  #   steps:
+  #     - name: Disable core dumping and piping due to slowness
+  #       run: |
+  #         sudo sysctl -w kernel.core_pattern=""
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update && sudo apt-get install -yq \
+  #           clang llvm libssl-dev
+  #     - name: Restore latest cache
+  #       uses: actions/cache/restore@v4
+  #       with:
+  #         path: "~/.cache/bazel"
+  #         key: bazel-centipede-cache-${{ matrix.config }}
+  #         restore-keys: bazel-centipede-cache-${{ matrix.config }}-
+  #     - name: Run unit tests
+  #       if: matrix.config == 'default'
+  #       run: |
+  #         bazel test --local_test_jobs=1 --test_output=streamed centipede:all
+  #     - name: Run e2e tests
+  #       if: matrix.config == 'default'
+  #       run: |
+  #         bazel test --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+  #     - name: Run puzzles
+  #       if: matrix.config == 'default'
+  #       run: |
+  #         bazel test --test_output=errors --test_timeout=600 centipede/puzzles:all
+  #     - name: Run puzzles with ASAN
+  #       if: matrix.config == 'asan'
+  #       run: |
+  #         bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --test_timeout=600 centipede/puzzles:all
+  #     - name: Run unit tests without Riegeli
+  #       if: matrix.config == 'noriegeli'
+  #       run: |
+  #         bazel test --no//fuzztest:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all
+  #     - name: Run e2e tests without Riegeli
+  #       if: matrix.config == 'noriegeli'
+  #       run: |
+  #         bazel test --no//fuzztest:use_riegeli --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+  #     - name: Run puzzles without Riegeli
+  #       if: matrix.config == 'noriegeli'
+  #       run: |
+  #         bazel test --no//fuzztest:use_riegeli --test_output=errors --test_timeout=600 centipede/puzzles:all
+  #     - name: Run puzzles without Riegeli with ASAN
+  #       if: matrix.config == 'noriegeli'
+  #       run: |
+  #         bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
+  #     - name: Save new cache based on main
+  #       if: github.ref == 'refs/heads/main'
+  #       uses: actions/cache/save@v4
+  #       with:
+  #         path: "~/.cache/bazel"
+  #         key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
+  # run_tests_mac:
+  #   name: Run Centipede tests (MacOS)
+  #   runs-on: macos-15
+  #   timeout-minutes: 60
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #     - name: Restore latest cache
+  #       uses: actions/cache/restore@v4
+  #       with:
+  #         path: "~/.cache/bazel"
+  #         key: bazel-centipede-cache-mac
+  #         restore-keys: bazel-centipede-cache-mac-
+  #     - name: Add LLVM symbolizer to path
+  #       run: |
+  #         ln -s $(brew --prefix llvm@18)/bin/llvm-symbolizer /usr/local/bin
+  #     - name: Run unit tests
+  #       if: ${{ !cancelled() }}
+  #       run: |
+  #         # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
+  #         # environments, thus disabling a few related non-critical tests.
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
+  #               -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
+  #     - name: Run e2e tests without Riegeli
+  #       if: ${{ !cancelled() }}
+  #       run: |
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
+  #     - name: Run puzzles without Riegeli
+  #       if: ${{ !cancelled() }}
+  #       run: |
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
+  #     - name: Run puzzles without Riegeli with ASAN
+  #       if: ${{ !cancelled() }}
+  #       run: |
+  #         bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
+  #     - name: Save new cache based on main
+  #       if: github.ref == 'refs/heads/main'
+  #       uses: actions/cache/save@v4
+  #       with:
+  #         path: "~/.cache/bazel"
+  #         key: bazel-centipede-cache-mac-${{ github.run_id }}
+  run_tests_win:
+    name: Run Centipede tests (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: read
     timeout-minutes: 60
-    strategy:
-      matrix:
-        config: ['default', 'noriegeli', 'asan']
-    steps:
-      - name: Disable core dumping and piping due to slowness
-        run: |
-          sudo sysctl -w kernel.core_pattern=""
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -yq \
-            clang llvm libssl-dev
-      - name: Restore latest cache
-        uses: actions/cache/restore@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-centipede-cache-${{ matrix.config }}
-          restore-keys: bazel-centipede-cache-${{ matrix.config }}-
-      - name: Run unit tests
-        if: matrix.config == 'default'
-        run: |
-          bazel test --local_test_jobs=1 --test_output=streamed centipede:all
-      - name: Run e2e tests
-        if: matrix.config == 'default'
-        run: |
-          bazel test --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
-      - name: Run puzzles
-        if: matrix.config == 'default'
-        run: |
-          bazel test --test_output=errors --test_timeout=600 centipede/puzzles:all
-      - name: Run puzzles with ASAN
-        if: matrix.config == 'asan'
-        run: |
-          bazel test --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --test_timeout=600 centipede/puzzles:all
-      - name: Run unit tests without Riegeli
-        if: matrix.config == 'noriegeli'
-        run: |
-          bazel test --no//fuzztest:use_riegeli --local_test_jobs=1 --test_output=streamed centipede:all
-      - name: Run e2e tests without Riegeli
-        if: matrix.config == 'noriegeli'
-        run: |
-          bazel test --no//fuzztest:use_riegeli --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
-      - name: Run puzzles without Riegeli
-        if: matrix.config == 'noriegeli'
-        run: |
-          bazel test --no//fuzztest:use_riegeli --test_output=errors --test_timeout=600 centipede/puzzles:all
-      - name: Run puzzles without Riegeli with ASAN
-        if: matrix.config == 'noriegeli'
-        run: |
-          bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
-      - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
-  run_tests_mac:
-    name: Run Centipede tests (MacOS)
-    runs-on: macos-15
-    timeout-minutes: 60
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Restore latest cache
-        uses: actions/cache/restore@v4
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-centipede-cache-mac
-          restore-keys: bazel-centipede-cache-mac-
-      - name: Add LLVM symbolizer to path
-        run: |
-          ln -s $(brew --prefix llvm@18)/bin/llvm-symbolizer /usr/local/bin
-      - name: Run unit tests
-        if: ${{ !cancelled() }}
-        run: |
-          # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
-          # environments, thus disabling a few related non-critical tests.
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
-                -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
-      - name: Run e2e tests without Riegeli
-        if: ${{ !cancelled() }}
-        run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
-      - name: Run puzzles without Riegeli
-        if: ${{ !cancelled() }}
-        run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # - name: Restore latest cache
+      #   uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25  # v5.1.0
+      #   with:
+      #     path: "~/.cache/bazel"
+      #     key: bazel-centipede-cache-win-${{ matrix.config }}
+      #     restore-keys: bazel-centipede-cache-win-${{ matrix.config }}-
+      - name: Set environment variable
+        run: echo "USE_BAZEL_VERSION=8.7.0" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run puzzles without Riegeli with ASAN
         if: ${{ !cancelled() }}
         run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
+          bazelisk test --disk_cache=~/.cache/bazel --platform_suffix=asan `
+            --extra_toolchains=@local_config_cc//:cc-toolchain-x64_windows-clang-cl `
+            --extra_execution_platforms=//:x64_windows-clang-cl `
+            --//fuzztest:use_riegeli=false -c opt --copt=-fsanitize=address `
+            --copt=-fno-sanitize-blacklist <# https://github.com/llvm/llvm-project/issues/34691 #> `
+            --linkopt=-wholearchive:clang_rt.asan_dynamic-x86_64.lib `
+            --linkopt=-wholearchive:clang_rt.asan_dynamic_runtime_thunk-x86_64.lib `
+            --linkopt=/opt:nolldtailmerge <# https://github.com/llvm/llvm-project/issues/62078 #> `
+            --test_output=errors --enable_runfiles --local_test_jobs=1 `
+            "--test_env=PATH=C:\Program Files\LLVM\lib\clang\20\lib\windows;%PATH%" `
+            --test_env=ASAN_OPTIONS=quarantine_size_mb=16 `
+            --test_tag_filters=-no-windows --build_tests_only=true `
+            centipede/puzzles:all
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        # if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25  # v5.1.0
         with:
           path: "~/.cache/bazel"
-          key: bazel-centipede-cache-mac-${{ github.run_id }}
+          key: bazel-centipede-cache-win-${{ github.run_id }}

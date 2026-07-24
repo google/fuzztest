@@ -14,7 +14,9 @@
 
 #include "./centipede/sancov_state.h"
 
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
@@ -122,6 +124,7 @@ void ThreadLocalSancovState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 }
 
 void ThreadLocalSancovState::OnThreadStart() {
+  if (tls.started) return;
   termination_detector.EnsureAlive();
   tls.started = true;
   // Always trace threads by default. Internal threads that do not want tracing
@@ -146,6 +149,7 @@ void ThreadLocalSancovState::OnThreadStart() {
 }
 
 void ThreadLocalSancovState::OnThreadStop() {
+  if (!tls.started) return;
   tls.traced = false;
   LockGuard lock(sancov_state->tls_list_mu);
   const size_t sancov_lowest_sp = *tls.sancov_lowest_sp;
@@ -469,9 +473,13 @@ void PostProcessSancov(bool reject_input) {
       }
     }
     const size_t sp_diff = tls.top_frame_sp - lowest_sp;
+#if !defined(_WIN32)
     if (CheckStackLimit != nullptr) {
       CheckStackLimit(sp_diff, /*is_current_stack=*/false);
     }
+#else
+    CheckStackLimit(sp_diff, /*is_current_stack=*/false);
+#endif
     if (sancov_state->flags.callstack_level != 0) {
       feature_handler(feature_domains::kCallStack.ConvertToMe(sp_diff));
     }

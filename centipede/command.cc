@@ -14,6 +14,14 @@
 
 #include "./centipede/command.h"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <io.h>
+#include <process.h>
+#include <windows.h>
+using pid_t = int;
+#else
 #include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
@@ -22,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #ifdef __APPLE__
 #include <inttypes.h>
@@ -35,6 +44,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <map>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
@@ -45,6 +55,7 @@
 #include "absl/base/const_init.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"  // NOLINT
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
@@ -58,6 +69,7 @@
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/escaping.h"
 
 #if !defined(_MSC_VER)
 // Needed to pass the current environment to posix_spawn, which needs an
@@ -73,7 +85,9 @@ constexpr std::string_view kCommandLineSeparator(" \\\n");
 constexpr std::string_view kNoForkServerRequestPrefix("%f");
 
 absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
-#ifdef __APPLE__
+#if defined(_WIN32)
+  return "0";
+#elif defined(__APPLE__)
   struct proc_bsdinfo info = {};
   if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, PROC_PIDTBSDINFO_SIZE) !=
       PROC_PIDTBSDINFO_SIZE) {
@@ -122,6 +136,11 @@ std::string GetUniqueSuffix() {
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
 //  this source as possible in this struct, and make it a class.
+#if defined(_WIN32)
+struct Command::ForkServerProps {
+  pid_t pid_ = -1;
+};
+#else
 struct Command::ForkServerProps {
   // The file paths of the comms pipes.
   std::string fifo_path_[2];
@@ -176,6 +195,7 @@ struct Command::ForkServerProps {
     }
   }
 };
+#endif
 
 // NOTE: Because std::unique_ptr<T> requires T to be a complete type wherever
 // the deleter is instantiated, the special member functions must be defined
@@ -201,6 +221,41 @@ Command::Command(std::string_view path, Options options)
 Command::Command(std::string_view path) : Command{path, {}} {}
 
 std::string Command::ToString() const {
+#if defined(_WIN32)
+  std::string path = path_;
+  if (absl::StartsWith(path, kNoForkServerRequestPrefix)) {
+    path = path.substr(kNoForkServerRequestPrefix.size());
+  }
+  constexpr std::string_view kTempFileWildCard = "@@";
+  if (absl::StrContains(path, kTempFileWildCard)) {
+    FUZZTEST_CHECK(!options_.temp_file_path.empty());
+    std::string temp_file = options_.temp_file_path;
+    path = absl::StrReplaceAll(path, {{kTempFileWildCard, temp_file}});
+  }
+  std::string binary_cmd = path;
+  auto Escape = [](std::string s) {
+    std::string r = "\"";
+    size_t num_bs = 0;
+    for (size_t i = 0; i < s.size(); ++i) {
+      if (s[i] == '"') {
+        r.append(std::string(num_bs + 1, '\\'));
+        num_bs = 0;
+      } else if (s[i] == '\\') {
+        ++num_bs;
+      } else {
+        num_bs = 0;
+      }
+      r += s[i];
+    }
+    r.append(num_bs, '\\');
+    r += '"';
+    return r;
+  };
+  for (const auto& arg : options_.args) {
+    absl::StrAppend(&binary_cmd, " ", Escape(arg));
+  }
+  return binary_cmd;
+#else
   std::vector<std::string> ss;
   ss.reserve(/*env*/ 1 + options_.env_diff.size() + /*path*/ 1 +
              /*args*/ options_.args.size() + /*out/err*/ 2);
@@ -235,9 +290,12 @@ std::string Command::ToString() const {
   ss.push_back(std::move(path));
   // args.
   for (const auto& arg : options_.args) {
-    ss.push_back(arg);
+    ss.push_back(ShellEscape(arg));
   }
-  // out/err.
+  // in/out/err.
+  if (!options_.stdin_file_path.empty()) {
+    ss.push_back(absl::StrCat("< ", ShellEscape(options_.stdin_file_path)));
+  }
   if (!stdout_file_.empty()) {
     ss.push_back(absl::StrCat("> ", stdout_file_));
   }
@@ -250,10 +308,14 @@ std::string Command::ToString() const {
   }
   // Trim trailing space and return.
   return absl::StrJoin(ss, kCommandLineSeparator);
+#endif
 }
 
 bool Command::StartForkServer(std::string_view temp_dir_path,
                               std::string_view prefix) {
+#if defined(_WIN32)
+  return false;
+#else
   if (absl::StartsWith(path_, kNoForkServerRequestPrefix)) {
     FUZZTEST_VLOG(2) << "Fork server disabled for " << path();
     return false;
@@ -340,6 +402,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   }
   fork_server_->creation_stamp = *std::move(creation_stamp);
   return true;
+#endif  // _WIN32
 }
 
 void Command::ResetRedirectionFiles(std::string_view new_suffix) {
@@ -364,6 +427,9 @@ void Command::ResetRedirectionFiles(std::string_view new_suffix) {
 }
 
 absl::Status Command::VerifyForkServerIsHealthy() {
+#if defined(_WIN32)
+  return absl::UnimplementedError("Fork server not supported on Windows");
+#else
   // Preconditions: the callers (`Execute()`) should call us only when the fork
   // server is presumed to be running (`fork_server_pid_` >= 0). If it is, the
   // comms pipes are guaranteed to be opened by `StartForkServer()`.
@@ -389,11 +455,144 @@ absl::Status Command::VerifyForkServerIsHealthy() {
         fork_server_->creation_stamp, ", but got ", *creation_stamp));
   }
   return absl::OkStatus();
+#endif
 }
 
 bool Command::ExecuteAsync() {
   FUZZTEST_CHECK(!is_executing());
 
+#if defined(_WIN32)
+  FUZZTEST_CHECK_EQ(pid_, -1);
+  ResetRedirectionFiles(GetUniqueSuffix());
+  command_line_ = ToString();
+
+  struct CaseInsensitiveLess {
+    bool operator()(std::string_view a, std::string_view b) const {
+      if (absl::EqualsIgnoreCase(a, b)) return false;
+      return absl::AsciiStrToLower(a) < absl::AsciiStrToLower(b);
+    }
+  };
+
+  std::map<std::string, std::string, CaseInsensitiveLess> env_map;
+
+  LPCH env_strings = GetEnvironmentStringsA();
+  if (env_strings != nullptr) {
+    const char* ptr = env_strings;
+    while (*ptr != '\0') {
+      std::string_view entry(ptr);
+      ptr += entry.size() + 1;
+      size_t eq_pos = entry.find('=', 1);
+      if (eq_pos != std::string_view::npos) {
+        env_map[std::string(entry.substr(0, eq_pos))] =
+            std::string(entry.substr(eq_pos + 1));
+      } else {
+        env_map[std::string(entry)] = "";
+      }
+    }
+    FreeEnvironmentStringsA(env_strings);
+  }
+
+  for (std::string_view env_var : options_.env_diff) {
+    if (absl::StartsWith(env_var, "-")) {
+      std::string_view key = env_var.substr(1);
+      if (absl::EndsWith(key, "=")) {
+        key = key.substr(0, key.size() - 1);
+      }
+      env_map.erase(std::string(key));
+    } else {
+      auto pos = env_var.find('=');
+      if (pos != std::string_view::npos) {
+        std::string key(env_var.substr(0, pos));
+        std::string val(env_var.substr(pos + 1));
+        env_map[key] = val;
+      }
+    }
+  }
+
+  std::vector<char> env_block;
+  for (const auto& [key, val] : env_map) {
+    std::string entry = absl::StrCat(key, "=", val);
+    env_block.insert(env_block.end(), entry.begin(), entry.end());
+    env_block.push_back('\0');
+  }
+  env_block.push_back('\0');
+
+  STARTUPINFOA si = {sizeof(si)};
+  PROCESS_INFORMATION pi = {};
+  si.dwFlags = STARTF_USESTDHANDLES;
+
+  SECURITY_ATTRIBUTES sa = {sizeof(sa), NULL, TRUE};
+  HANDLE hIn = INVALID_HANDLE_VALUE;
+  HANDLE hOut = INVALID_HANDLE_VALUE;
+  HANDLE hErr = INVALID_HANDLE_VALUE;
+
+  if (!options_.stdin_file_path.empty()) {
+    hIn = CreateFileA(options_.stdin_file_path.c_str(), FILE_READ_DATA,
+                      /*dwShareMode=*/0, &sa, OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hIn == INVALID_HANDLE_VALUE) {
+      FUZZTEST_LOG(ERROR) << "Failed to open stdin file: "
+                          << options_.stdin_file_path;
+      return false;
+    }
+    si.hStdInput = hIn;
+  } else {
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+  }
+
+  if (!stdout_file_.empty()) {
+    hOut = CreateFileA(stdout_file_.c_str(), FILE_WRITE_DATA, FILE_SHARE_READ,
+                       &sa, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hOut == INVALID_HANDLE_VALUE) {
+      FUZZTEST_LOG(ERROR) << "Failed to open stdout file: " << stdout_file_;
+      return false;
+    }
+    si.hStdOutput = hOut;
+  } else {
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  }
+
+  if (!stderr_file_.empty()) {
+    if (stderr_file_ == stdout_file_) {
+      si.hStdError = si.hStdOutput;
+    } else {
+      hErr = CreateFileA(stderr_file_.c_str(), FILE_WRITE_DATA, FILE_SHARE_READ,
+                         &sa, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+      if (hErr == INVALID_HANDLE_VALUE) {
+        FUZZTEST_LOG(ERROR) << "Failed to open stderr file: " << stderr_file_;
+        return false;
+      }
+      si.hStdError = hErr;
+    }
+  } else {
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+  }
+
+  std::string cmd = command_line_;
+  const BOOL cp_res = CreateProcessA(
+      NULL, cmd.data(), NULL, NULL, TRUE, 0,
+      env_block.empty() ? NULL : env_block.data(), NULL, &si, &pi);
+
+  if (!cp_res) {
+    DWORD err = GetLastError();
+    FUZZTEST_LOG(ERROR) << "CreateProcessA failed for '" << cmd
+                        << "': error=" << err;
+    if (hIn != INVALID_HANDLE_VALUE) CloseHandle(hIn);
+    if (hOut != INVALID_HANDLE_VALUE) CloseHandle(hOut);
+    if (hErr != INVALID_HANDLE_VALUE && hErr != hOut) CloseHandle(hErr);
+    return false;
+  }
+
+  if (hIn != INVALID_HANDLE_VALUE) CloseHandle(hIn);
+  if (hOut != INVALID_HANDLE_VALUE) CloseHandle(hOut);
+  if (hErr != INVALID_HANDLE_VALUE && hErr != hOut) CloseHandle(hErr);
+
+  win_process_handle_ = pi.hProcess;
+  CloseHandle(pi.hThread);
+  pid_ = static_cast<int>(pi.dwProcessId);
+  is_executing_ = true;
+  return true;
+#else
   if (fork_server_ != nullptr) {
     FUZZTEST_VLOG(1) << "Sending execution request to fork server";
 
@@ -430,11 +629,39 @@ bool Command::ExecuteAsync() {
 
   is_executing_ = true;
   return true;
+#endif
 }
 
 std::optional<int> Command::Wait(absl::Time deadline,
                                  StopCondition* stop_condition) {
   FUZZTEST_CHECK(is_executing());
+#if defined(_WIN32)
+  DWORD timeout_ms = INFINITE;
+  if (deadline != absl::InfiniteFuture()) {
+    auto dur = deadline - absl::Now();
+    if (dur <= absl::ZeroDuration()) {
+      timeout_ms = 0;
+    } else {
+      timeout_ms = static_cast<DWORD>(absl::ToInt64Milliseconds(dur));
+    }
+  }
+  DWORD res =
+      WaitForSingleObject(static_cast<HANDLE>(win_process_handle_), timeout_ms);
+  if (res == WAIT_TIMEOUT) {
+    VlogProblemInfo(
+        absl::StrCat("Timeout while waiting for command process: deadline is ",
+                     deadline),
+        /*vlog_level=*/1);
+    return std::nullopt;
+  }
+  DWORD exit_code = 0;
+  GetExitCodeProcess(static_cast<HANDLE>(win_process_handle_), &exit_code);
+  CloseHandle(static_cast<HANDLE>(win_process_handle_));
+  win_process_handle_ = nullptr;
+  pid_ = -1;
+  is_executing_ = false;
+  return static_cast<int>(exit_code);
+#else
   int exit_code = EXIT_SUCCESS;
 
   if (fork_server_ != nullptr) {
@@ -527,10 +754,16 @@ std::optional<int> Command::Wait(absl::Time deadline,
   }
 
   return exit_code;
+#endif
 }
 
 void Command::RequestStop(bool force) {
   FUZZTEST_CHECK(is_executing());
+#if defined(_WIN32)
+  if (win_process_handle_ != nullptr) {
+    TerminateProcess(static_cast<HANDLE>(win_process_handle_), 1);
+  }
+#else
   if (fork_server_) {
     FUZZTEST_CHECK_NE(fork_server_->pid_, -1);
     // Cannot send SIGKILL to the fork server as it kills only the parent
@@ -541,6 +774,7 @@ void Command::RequestStop(bool force) {
   }
   FUZZTEST_CHECK_NE(pid_, -1);
   kill(pid_, force ? SIGKILL : SIGTERM);
+#endif
 }
 
 std::string Command::ReadRedirectedStdout() const {

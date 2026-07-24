@@ -64,6 +64,7 @@ def _sancov_transition_impl(settings, attr):
 sancov_transition = transition(
     implementation = _sancov_transition_impl,
     inputs = [
+        "//command_line_option:platforms",
         "//command_line_option:copt",
         "//command_line_option:features",
         "//command_line_option:compiler",

@@ -14,15 +14,23 @@
 
 #include "./centipede/shared_memory_blob_sequence.h"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#else
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "absl/base/nullability.h"
 
@@ -104,6 +112,59 @@ void BlobSequence::Reset() {
   had_writes_after_reset_ = false;
 }
 
+#if defined(_WIN32)
+
+SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char* name,
+                                                   size_t size,
+                                                   bool use_posix_shmem) {
+  ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+  size_ = size;
+  strncpy(path_, name, PATH_MAX - 1);
+  path_[PATH_MAX - 1] = '\0';
+  path_is_owned_ = true;
+  HANDLE hMap =
+      CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+                         static_cast<DWORD>(size_ >> 32),
+                         static_cast<DWORD>(size_ & 0xFFFFFFFF), path_);
+  ErrorOnFailure(hMap == NULL, "CreateFileMappingA() failed");
+  mapping_handle_ = hMap;
+  data_ = static_cast<uint8_t*>(
+      MapViewOfFile(hMap, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, size_));
+  ErrorOnFailure(data_ == NULL, "MapViewOfFile() failed");
+}
+
+SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char* path) {
+  strncpy(path_, path, PATH_MAX - 1);
+  path_[PATH_MAX - 1] = '\0';
+  HANDLE hMap = OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, path_);
+  ErrorOnFailure(hMap == NULL, "OpenFileMappingA() failed");
+  mapping_handle_ = hMap;
+  data_ = static_cast<uint8_t*>(
+      MapViewOfFile(hMap, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0));
+  ErrorOnFailure(data_ == NULL, "MapViewOfFile() failed");
+  MEMORY_BASIC_INFORMATION mbi = {};
+  if (VirtualQuery(data_, &mbi, sizeof(mbi)) != 0) {
+    size_ = mbi.RegionSize;
+  }
+}
+
+void SharedMemoryBlobSequence::MmapData() {}
+
+SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
+  if (data_ != nullptr) {
+    UnmapViewOfFile(data_);
+  }
+  if (mapping_handle_ != nullptr) {
+    CloseHandle(static_cast<HANDLE>(mapping_handle_));
+  }
+}
+
+void SharedMemoryBlobSequence::ReleaseSharedMemory() {}
+
+size_t SharedMemoryBlobSequence::NumBytesUsed() const { return size_; }
+
+#else  // !_WIN32
+
 SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
                                                    size_t size,
                                                    bool use_posix_shmem) {
@@ -184,5 +245,7 @@ size_t SharedMemoryBlobSequence::NumBytesUsed() const {
   ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed)");
   return statbuf.st_blocks * S_BLKSIZE;
 }
+
+#endif  // _WIN32
 
 }  // namespace fuzztest::internal

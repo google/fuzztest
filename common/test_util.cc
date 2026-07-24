@@ -18,6 +18,17 @@
 #include <string_view>
 #include <system_error>  // NOLINT
 
+#if !defined(_WIN32)
+#include <unistd.h>
+#else
+#include <process.h>
+#include <windows.h>
+inline static int getpid() { return static_cast<int>(GetCurrentProcessId()); }
+inline static void setenv(const char* name, const char* value, int) {
+  _putenv_s(name, value);
+}
+#endif
+
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "./common/logging.h"
@@ -35,11 +46,12 @@ std::filesystem::path GetTestTempDir(std::string_view subdir) {
     FUZZTEST_CHECK(!error) << "Failed to create dir: " VV(dir)
                            << error.message();
   }
-  return std::filesystem::canonical(dir);
+  return std::filesystem::absolute(dir);
 }
 
 std::string GetTempFilePath(std::string_view subdir, size_t i) {
-  return GetTestTempDir(subdir) / absl::StrCat("tmp.", getpid(), ".", i);
+  return (GetTestTempDir(subdir) / absl::StrCat("tmp.", getpid(), ".", i))
+      .string();
 }
 
 std::filesystem::path GetTestRunfilesDir() {

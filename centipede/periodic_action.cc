@@ -23,6 +23,10 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+#if defined(_WIN32)
+#include <thread>  // NOLINT
+#else
+#endif
 
 namespace fuzztest::internal {
 

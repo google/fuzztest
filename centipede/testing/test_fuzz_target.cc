@@ -20,7 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
 #include <unistd.h>
+#else
+#include <windows.h>
+inline void sleep(unsigned int seconds) { Sleep(seconds * 1000); }
+#endif
 
 #include <utility>
 
@@ -112,6 +117,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     CallThisRecursively(100);
   }
 
+#if !defined(_WIN32)
   // Stack overflow that triggers an instrumented SIGABRT handler in the current
   // stack.
   if (size == 4 && data[0] == 's' && data[1] == 't' && data[2] == 'k' &&
@@ -169,6 +175,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     free(sigstk.ss_sp);
   }
+#endif
 
   // Call SingleEdgeFunc() if input is "func1".
   if (size == 5 && data[0] == 'f' && data[1] == 'u' && data[2] == 'n' &&

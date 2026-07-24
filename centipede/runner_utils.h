@@ -64,12 +64,12 @@ std::vector<Type> ReadBytesFromFilePath(const char* input_path) {
 // Reads `size` bytes to `data` from `fd` with retires (assuming `fd` is
 // blocking so there is no busy-spinning). Returns true if all bytes are
 // written, false otherwise due to errors.
-bool ReadAll(int fd, char* data, size_t size);
+bool ReadAll(intptr_t fd, char* data, size_t size);
 
 // Writes `size` bytes from `data` to `fd` with retires (assuming `fd` is
 // blocking so there is no busy-spinning). Returns true if all bytes are
 // written, false otherwise due to errors.
-bool WriteAll(int fd, const char* data, size_t size);
+bool WriteAll(intptr_t fd, const char* data, size_t size);
 
 // Leak sanitizer interface functions.
 extern "C" void __lsan_register_root_region(const void* p, size_t size);

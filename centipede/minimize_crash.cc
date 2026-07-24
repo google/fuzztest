@@ -68,7 +68,7 @@ struct MinimizerWorkQueue {
     // Write the crasher to disk.
     auto hash = Hash(crasher);
     auto dir = crash_dir_path_;
-    std::string file_path = dir.append(hash);
+    std::string file_path = dir.append(hash).string();
     WriteToLocalFile(file_path, crasher);
   }
 

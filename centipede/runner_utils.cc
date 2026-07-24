@@ -14,8 +14,17 @@
 
 #include "./centipede/runner_utils.h"
 
+#if !defined(_WIN32)
 #include <pthread.h>
 #include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <io.h>
+#include <process.h>
+#include <windows.h>
+#include <winsock2.h>
+#endif
 
 #include <cerrno>
 #include <cstdint>
@@ -39,7 +48,13 @@ void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error) {
 }
 
 uintptr_t GetCurrentThreadStackRegionLow() {
-#ifdef __APPLE__
+#if defined(_WIN32)
+  MEMORY_BASIC_INFORMATION mbi = {};
+  if (VirtualQuery(&mbi, &mbi, sizeof(mbi)) != 0) {
+    return reinterpret_cast<uintptr_t>(mbi.AllocationBase);
+  }
+  return 0;
+#elif defined(__APPLE__)
   pthread_t self = pthread_self();
   const auto stack_addr =
       reinterpret_cast<uintptr_t>(pthread_get_stackaddr_np(self));
@@ -63,34 +78,54 @@ uintptr_t GetCurrentThreadStackRegionLow() {
   RunnerCheck(stack_region_low != 0,
               "the current thread stack region starts from 0 - unexpected!");
   return stack_region_low;
-#endif  // __APPLE__
+#endif
 }
 
-bool ReadAll(int fd, char* data, size_t size) {
+bool ReadAll(intptr_t fd, char* data, size_t size) {
   while (size > 0) {
+#if defined(_WIN32)
+    int r = recv(static_cast<SOCKET>(fd), data, static_cast<int>(size), 0);
+    if (r <= 0 && WSAGetLastError() != 0) {
+      r = _read(static_cast<int>(fd), data, static_cast<unsigned int>(size));
+    }
+#else
     ssize_t r = read(fd, data, size);
+#endif
     if (r > 0) {
-      // read() guarantees r <= size
       data += r;
       size -= r;
       continue;
     }
+#if defined(_WIN32)
+    if (r == -1 && (WSAGetLastError() == WSAEINTR || errno == EINTR)) continue;
+#else
     if (r == -1 && errno == EINTR) continue;
+#endif
     return false;
   }
   return true;
 }
 
-bool WriteAll(int fd, const char* data, size_t size) {
+bool WriteAll(intptr_t fd, const char* data, size_t size) {
   while (size > 0) {
+#if defined(_WIN32)
+    int r = send(static_cast<SOCKET>(fd), data, static_cast<int>(size), 0);
+    if (r <= 0 && WSAGetLastError() != 0) {
+      r = _write(static_cast<int>(fd), data, static_cast<unsigned int>(size));
+    }
+#else
     ssize_t r = write(fd, data, size);
+#endif
     if (r > 0) {
-      // write() guarantees r <= size
       data += r;
       size -= r;
       continue;
     }
+#if defined(_WIN32)
+    if (r == -1 && (WSAGetLastError() == WSAEINTR || errno == EINTR)) continue;
+#else
     if (r == -1 && errno == EINTR) continue;
+#endif
     return false;
   }
   return true;
