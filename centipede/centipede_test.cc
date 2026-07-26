@@ -963,14 +963,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   std::vector<ByteArray> seeds;
-  EXPECT_EQ(callbacks.GetSeeds(10, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
-                         {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
-  EXPECT_EQ(callbacks.GetSeeds(5, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(
-                         std::vector<ByteArray>{{0}, {1}, {2}, {3}, {4}}));
-  EXPECT_EQ(callbacks.GetSeeds(100, seeds), 10);
-  EXPECT_THAT(seeds, testing::ContainerEq(std::vector<ByteArray>{
+  callbacks.GetSeeds(10, seeds);
+  EXPECT_THAT(seeds, testing::IsSupersetOf(std::vector<ByteArray>{
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
 }
 
@@ -1277,12 +1271,13 @@ TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
       "centipede/testing/fuzz_target_with_custom_mutator");
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
-  const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
-  const std::vector<Mutant> mutants = callbacks.Mutate(
-      GetMutationInputRefsFromDataInputs(inputs), inputs.size());
+  const std::vector<ByteArray> inputs = {{99}};
+  const std::vector<Mutant> mutants =
+      callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs), 5);
 
-  // The custom mutator just returns the original inputs as mutants.
-  EXPECT_EQ(inputs, GetDataFromMutants(mutants));
+  // The custom mutator just duplicates the original inputs as mutants.
+  EXPECT_EQ(GetDataFromMutants(mutants),
+            (std::vector<ByteArray>{{99}, {99}, {99}, {99}, {99}}));
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {

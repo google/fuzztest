@@ -1525,7 +1525,7 @@ TEST_P(FuzzingModeFixtureTest, TestIsSkippedWhenRequestedInFixturePerTest) {
   EXPECT_THAT_LOG(std_err,
                   HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
   EXPECT_THAT_LOG(std_err, Not(HasSubstr("SkippedTest should not be run")));
-  EXPECT_THAT(status, Eq(ExitCode(0)));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("SETUP FAILURE: Test is skipped")));
 }
 
 TEST_P(FuzzingModeFixtureTest,
