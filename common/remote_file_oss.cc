@@ -223,6 +223,7 @@ bool RemotePathIsDirectory(std::string_view path) {
 absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,
                                                          bool recursively) {
   if (!std::filesystem::exists(path)) return std::vector<std::string>();
+  if (!std::filesystem::is_directory(path)) return std::vector<std::string>();
   auto list_files = [](auto dir_iter) {
     std::vector<std::string> ret;
     for (const auto &entry : dir_iter) {

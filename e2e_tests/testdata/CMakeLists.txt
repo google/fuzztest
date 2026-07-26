@@ -43,6 +43,7 @@ target_link_libraries(
   fuzztest_flatbuffers
   fuzztest_googletest_fixture_adapter
   fuzztest_common_logging
+  fuzztest_env_util
   fuzztest_test_flatbuffers_headers
 )
 link_fuzztest(fuzz_tests_for_functional_testing.stripped)

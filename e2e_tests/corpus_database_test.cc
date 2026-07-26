@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -56,7 +57,7 @@ std::string GetCorpusDatabaseTestingBinaryPath() {
 
 absl::StatusOr<std::string> FindFile(absl::string_view root_path,
                                      absl::string_view file_name) {
-  for (const std::string &path : ListDirectoryRecursively(root_path)) {
+  for (const std::string& path : ListDirectoryRecursively(root_path)) {
     if (std::filesystem::path(path).filename() == file_name) return path;
   }
   return absl::NotFoundError(absl::StrCat("File ", file_name, " not found."));
@@ -91,12 +92,17 @@ class UpdateCorpusDatabaseTest
 
   static void RunUpdateCorpusDatabase() {
     if (run_map_->contains(GetParam())) return;
-    auto &run = (*run_map_)[GetParam()];
+    auto& run = (*run_map_)[GetParam()];
     run.workspace = std::make_unique<TempDir>();
     RunOptions run_options;
+    std::string fuzz_for = "30s";
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+    fuzz_for = "90s";
+#endif
     run_options.fuzztest_flags = {
         {"corpus_database", GetCorpusDatabasePath()},
-        {"fuzz_for", "30s"},
+        {"fuzz_for", fuzz_for},
         {"jobs", "2"},
     };
     auto [status_unused, std_out_unused, std_err] = RunBinaryMaybeWithCentipede(

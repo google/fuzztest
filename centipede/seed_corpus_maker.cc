@@ -26,7 +26,7 @@
 #include "./common/remote_file.h"
 
 int main(int argc, char** absl_nonnull argv) {
-  (void)fuzztest::internal::InitRuntime(argc, argv);
+  const auto runtime_state = fuzztest::internal::InitRuntime(argc, argv);
 
   const std::string config = absl::GetFlag(FLAGS_config);
   FUZZTEST_QCHECK(!config.empty());

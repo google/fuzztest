@@ -103,6 +103,7 @@ cc_library(
         "@com_google_fuzztest//centipede:stop",
         "@com_google_fuzztest//centipede:workdir",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:env_util",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
@@ -264,6 +265,7 @@ cc_library(
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
@@ -272,9 +274,7 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
-    ] + select({
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_test(
