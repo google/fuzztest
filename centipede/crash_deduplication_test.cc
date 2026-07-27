@@ -14,7 +14,6 @@
 
 #include "./centipede/crash_deduplication.h"
 
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
@@ -24,19 +23,19 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
+#include "absl/time/clock_interface.h"
+#include "absl/time/simulated_clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
+#include "./centipede/crash_deduplication_test_util.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
-#include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
-#include "./common/defs.h"
-#include "./common/hash.h"
 #include "./common/temp_dir.h"
 
 namespace fuzztest::internal {
@@ -44,10 +43,12 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::AnyOf;
+using ::testing::ContainsRegex;
 using ::testing::EndsWith;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::MatchesRegex;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
@@ -158,38 +159,6 @@ TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashDescriptionIfEnvVarSet) {
   unsetenv("FUZZTEST_FAIL_ON_EMPTY_CRASH_METADATA");
 }
 
-class FakeCentipedeCallbacks : public CentipedeCallbacks {
- public:
-  struct Crash {
-    std::string signature;
-    std::string description;
-  };
-
-  explicit FakeCentipedeCallbacks(
-      const Environment& env,
-      absl::flat_hash_map<std::string, Crash> crashing_inputs)
-      : CentipedeCallbacks(env, internal_stop_condition_),
-        crashing_inputs_(std::move(crashing_inputs)) {}
-
-  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
-               BatchResult& batch_result) override {
-    batch_result.ClearAndResize(inputs.size());
-    for (ByteSpan input : inputs) {
-      auto it = crashing_inputs_.find(AsStringView(input));
-      if (it == crashing_inputs_.end()) continue;
-      batch_result.exit_code() = EXIT_FAILURE;
-      batch_result.failure_signature() = it->second.signature;
-      batch_result.failure_description() = it->second.description;
-      return false;
-    }
-    return true;
-  }
-
- private:
-  absl::flat_hash_map<std::string, Crash> crashing_inputs_;
-  StopCondition internal_stop_condition_;
-};
-
 struct FileAndContents {
   std::string basename;
   std::string contents;
@@ -216,9 +185,11 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   OrganizeCrashingInputsTest()
       : crashing_dir_(test_dir_.path() / "crashing"),
         regression_dir_(test_dir_.path() / "regression"),
+        incubating_dir_(test_dir_.path() / "incubating"),
         new_crashes_dir_(test_dir_.path() / "new_crashes") {
     std::filesystem::create_directories(crashing_dir_);
     std::filesystem::create_directories(regression_dir_);
+    std::filesystem::create_directories(incubating_dir_);
     std::filesystem::create_directories(new_crashes_dir_);
   }
 
@@ -226,17 +197,35 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   const std::filesystem::path& regression_dir() const {
     return regression_dir_;
   }
+  const std::filesystem::path& incubating_dir() const {
+    return incubating_dir_;
+  }
   const std::filesystem::path& new_crashes_dir() const {
     return new_crashes_dir_;
   }
   const Environment& env() const { return env_; }
   CrashSummary& crash_summary() { return crash_summary_; }
-  StopCondition& stop_condition() { return stop_condition_; }
+
+  absl::Status OrganizeCrashingInputs(
+      const std::filesystem::path& regression_dir,
+      const std::filesystem::path& crashing_dir, const Environment& env,
+      CentipedeCallbacksFactory& callbacks_factory,
+      const absl::flat_hash_map<std::string, CrashDetails>&
+          new_crashes_by_signature,
+      CrashSummary& crash_summary,
+      absl::Duration regression_ttl = absl::Hours(24 * 7),
+      absl::Clock& clock = absl::Clock::GetRealClock()) {
+    return ::fuzztest::internal::OrganizeCrashingInputs(
+        regression_dir, crashing_dir, incubating_dir_, env, callbacks_factory,
+        new_crashes_by_signature, crash_summary, stop_condition_,
+        regression_ttl, clock);
+  }
 
  private:
   TempDir test_dir_;
   std::filesystem::path crashing_dir_;
   std::filesystem::path regression_dir_;
+  std::filesystem::path incubating_dir_;
   std::filesystem::path new_crashes_dir_;
   Environment env_;
   CrashSummary crash_summary_{"binary_id", "fuzz_test"};
@@ -250,9 +239,10 @@ TEST_F(OrganizeCrashingInputsTest, CreatesDirectoriesIfMissing) {
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir, crashing_dir, env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir, crashing_dir, env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
 
   const std::filesystem::directory_entry crashing_dir_entry{crashing_dir};
   const std::filesystem::directory_entry regression_dir_entry{regression_dir};
@@ -261,27 +251,23 @@ TEST_F(OrganizeCrashingInputsTest, CreatesDirectoriesIfMissing) {
       regression_dir_entry.exists() && regression_dir_entry.is_directory());
 }
 
-TEST_F(OrganizeCrashingInputsTest, RenamesOldStyleCrashFileToNewStyle) {
+TEST_F(OrganizeCrashingInputsTest, DeletesOldStyleCrashes) {
   SetContentsAndGetPath(crashing_dir(), "isig", "input");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input", {"csig", "desc"}},
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
-  EXPECT_THAT(ReadFiles(crashing_dir()),
-              UnorderedElementsAre(FieldsAre("isig-csig-isig", "input")));
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
   EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
-  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
-                                  HasSubstr("Crash ID   : isig-csig-isig"),
-                                  HasSubstr("Category   : desc"),
-                                  HasSubstr("Signature  : csig"),
-                                  HasSubstr("Description: desc")));
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
 }
 
 TEST_F(OrganizeCrashingInputsTest, KeepsNewStyleCrashFileIfSignatureUnchanged) {
@@ -291,15 +277,17 @@ TEST_F(OrganizeCrashingInputsTest, KeepsNewStyleCrashFileIfSignatureUnchanged) {
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
               UnorderedElementsAre(FieldsAre("bug-csig-isig", "input")));
   EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
   EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
                                   HasSubstr("Crash ID   : bug-csig-isig"),
                                   HasSubstr("Category   : desc"),
@@ -307,27 +295,32 @@ TEST_F(OrganizeCrashingInputsTest, KeepsNewStyleCrashFileIfSignatureUnchanged) {
                                   HasSubstr("Description: desc")));
 }
 
-TEST_F(OrganizeCrashingInputsTest, UpdatesCrashSignatureInFileNameIfChanged) {
+TEST_F(OrganizeCrashingInputsTest, AddsNewCrashIfCrashSignatureChanges) {
   SetContentsAndGetPath(crashing_dir(), "bug-csig_old-isig", "input");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input", {"csig_new", "desc"}},
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
-              UnorderedElementsAre(FieldsAre("bug-csig_new-isig", "input")));
+              UnorderedElementsAre(
+                  FieldsAre("bug-csig_old-isig", "input"),
+                  FieldsAre(MatchesRegex("[a-f0-9]+-csig_new-isig"), "input")));
   EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
-  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
-                                  HasSubstr("Crash ID   : bug-csig_new-isig"),
-                                  HasSubstr("Category   : desc"),
-                                  HasSubstr("Signature  : csig_new"),
-                                  HasSubstr("Description: desc")));
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(
+      crash_report,
+      AllOf(HasSubstr("Total crashes: 1"),
+            ContainsRegex("Crash ID   : [a-f0-9]+-csig_new-isig"),
+            HasSubstr("Category   : desc"), HasSubstr("Signature  : csig_new"),
+            HasSubstr("Description: desc")));
 }
 
 TEST_F(OrganizeCrashingInputsTest,
@@ -348,9 +341,10 @@ TEST_F(OrganizeCrashingInputsTest,
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
 
   EXPECT_GT(std::filesystem::last_write_time(reproducible_input_path),
             reproducible_mtime_before);
@@ -359,7 +353,7 @@ TEST_F(OrganizeCrashingInputsTest,
 }
 
 TEST_F(OrganizeCrashingInputsTest,
-       KeepsReproducibleCrashesWithSameCrashSignature) {
+       KeepsOldFilesWhenDeduplicatingToSameSignature) {
   SetContentsAndGetPath(crashing_dir(), "bug1-csig1-isig1", "input1");
   SetContentsAndGetPath(crashing_dir(), "bug2-csig2-isig2", "input2");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
@@ -368,22 +362,28 @@ TEST_F(OrganizeCrashingInputsTest,
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
-  EXPECT_THAT(ReadFiles(crashing_dir()),
-              UnorderedElementsAre(FieldsAre("bug1-csig-isig1", "input1"),
-                                   FieldsAre("bug2-csig-isig2", "input2")));
+  EXPECT_THAT(
+      ReadFiles(crashing_dir()),
+      AnyOf(UnorderedElementsAre(
+                FieldsAre("bug1-csig1-isig1", "input1"),
+                FieldsAre("bug2-csig2-isig2", "input2"),
+                FieldsAre(MatchesRegex("[a-f0-9]+-csig-isig1"), "input1")),
+            UnorderedElementsAre(
+                FieldsAre("bug1-csig1-isig1", "input1"),
+                FieldsAre("bug2-csig2-isig2", "input2"),
+                FieldsAre(MatchesRegex("[a-f0-9]+-csig-isig2"), "input2"))));
   EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
-  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 2"),
-                                  HasSubstr("Crash ID   : bug1-csig-isig1"),
-                                  HasSubstr("Crash ID   : bug2-csig-isig2"),
-                                  HasSubstr("Category   : desc"),
-                                  HasSubstr("Signature  : csig"),
-                                  HasSubstr("Description: desc")));
+  EXPECT_THAT(
+      crash_report,
+      AllOf(HasSubstr("Total crashes: 1"), HasSubstr("Category   : desc"),
+            HasSubstr("Signature  : csig"), HasSubstr("Description: desc")));
 }
 
 TEST_F(OrganizeCrashingInputsTest, KeepsFlakyCrashAndUpdatesModificationTime) {
@@ -401,9 +401,10 @@ TEST_F(OrganizeCrashingInputsTest, KeepsFlakyCrashAndUpdatesModificationTime) {
       SetContentsAndGetPath(new_crashes_dir(), "isig", "input");
   new_crashes_by_signature["csig"] = {"isig", "desc", new_input_path};
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -418,27 +419,49 @@ TEST_F(OrganizeCrashingInputsTest, KeepsFlakyCrashAndUpdatesModificationTime) {
   EXPECT_GT(std::filesystem::last_write_time(input_path), mtime_before);
 }
 
-TEST_F(OrganizeCrashingInputsTest,
-       KeepsIrreproducibleCrashAndCopiesToRegressionDir) {
+TEST_F(OrganizeCrashingInputsTest, KeepsIrreproducibleCrashIfTtlNotExpired) {
   SetContentsAndGetPath(crashing_dir(), "bug-csig-isig", "input");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
               UnorderedElementsAre(FieldsAre("bug-csig-isig", "input")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       MovesIrreproducibleCrashToRegressionIfTtlExpired) {
+  absl::SimulatedClock clock(absl::Now());
+  SetContentsAndGetPath(crashing_dir(), "bug-csig-isig", "input");
+  clock.AdvanceTime(absl::Hours(25));
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary(),
+                                     /*regression_ttl=*/absl::Hours(24), clock)
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
   EXPECT_THAT(ReadFiles(regression_dir()),
               UnorderedElementsAre(FieldsAre("isig", "input")));
   EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
 }
 
-TEST_F(OrganizeCrashingInputsTest,
-       KeepsSetupFailureCrashAndCopiesToRegressionDir) {
+TEST_F(OrganizeCrashingInputsTest, KeepsSetupFailureCrashIfTtlNotExpired) {
   SetContentsAndGetPath(crashing_dir(), "bug-csig-isig", "input");
   FakeCentipedeCallbacks callbacks(
       env(), /*crashing_inputs=*/{
@@ -446,34 +469,60 @@ TEST_F(OrganizeCrashingInputsTest,
       });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
               UnorderedElementsAre(FieldsAre("bug-csig-isig", "input")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       MovesSetupFailureCrashToRegressionIfTtlExpired) {
+  absl::SimulatedClock clock(absl::Now());
+  SetContentsAndGetPath(crashing_dir(), "bug-csig-isig", "input");
+  clock.AdvanceTime(absl::Hours(25));
+
+  FakeCentipedeCallbacks callbacks(
+      env(), /*crashing_inputs=*/{
+          {"input", {"csig", "SETUP FAILURE: desc"}},
+      });
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary(),
+                                     /*regression_ttl=*/absl::Hours(24), clock)
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
   EXPECT_THAT(ReadFiles(regression_dir()),
               UnorderedElementsAre(FieldsAre("isig", "input")));
   EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
 }
 
 TEST_F(OrganizeCrashingInputsTest,
-       MovesIrreproducibleCrashWithMalformedFileNameToRegressionDir) {
+       DeletesIrreproducibleCrashWithMalformedFileName) {
   SetContentsAndGetPath(crashing_dir(), "invalid-name", "input");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
-  EXPECT_THAT(ReadFiles(regression_dir()),
-              UnorderedElementsAre(FieldsAre(Hash("input"), "input")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
   EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
 }
 
@@ -488,15 +537,17 @@ TEST_F(OrganizeCrashingInputsTest,
       SetContentsAndGetPath(new_crashes_dir(), "isig2", "input2");
   new_crashes_by_signature["csig"] = {"isig2", "desc2", input2_path};
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
               UnorderedElementsAre(FieldsAre("bug-csig-isig2", "input2")));
-  EXPECT_THAT(ReadFiles(regression_dir()),
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()),
               UnorderedElementsAre(FieldsAre("isig1", "input1")));
   EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
                                   HasSubstr("Crash ID   : bug-csig-isig2"),
@@ -506,7 +557,7 @@ TEST_F(OrganizeCrashingInputsTest,
 }
 
 TEST_F(OrganizeCrashingInputsTest,
-       DoesNotReplaceIrreproducibleCrashIfReproducedByAnotherOldInput) {
+       ReplacesIrreproducibleCrashIfReproducedByAnotherOldInput) {
   SetContentsAndGetPath(crashing_dir(), "bug1-csig-isig1", "input1");
   SetContentsAndGetPath(crashing_dir(), "bug2-csig-isig2", "input2");
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
@@ -514,19 +565,20 @@ TEST_F(OrganizeCrashingInputsTest,
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
   EXPECT_THAT(ReadFiles(crashing_dir()),
               UnorderedElementsAre(FieldsAre("bug1-csig-isig1", "input1"),
-                                   FieldsAre("bug2-csig-isig2", "input2")));
-  EXPECT_THAT(ReadFiles(regression_dir()),
-              UnorderedElementsAre(FieldsAre("isig2", "input2")));
-  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
+                                   FieldsAre("bug2-csig-isig1", "input1")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 2"),
                                   HasSubstr("Crash ID   : bug1-csig-isig1"),
+                                  HasSubstr("Crash ID   : bug2-csig-isig1"),
                                   HasSubstr("Category   : desc1"),
                                   HasSubstr("Signature  : csig"),
                                   HasSubstr("Description: desc1")));
@@ -541,9 +593,10 @@ TEST_F(OrganizeCrashingInputsTest, StoresNewCrashWithUniqueCrashSignature) {
       SetContentsAndGetPath(new_crashes_dir(), "isig", "input");
   new_crashes_by_signature["csig"] = {"isig", "desc", input_path};
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -571,9 +624,10 @@ TEST_F(OrganizeCrashingInputsTest,
       SetContentsAndGetPath(new_crashes_dir(), "isig2", "input2");
   new_crashes_by_signature["csig"] = {"isig2", "desc2", input2_path};
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -593,9 +647,10 @@ TEST_F(OrganizeCrashingInputsTest, DoesNotProcessInputsInRegressionDir) {
       env(), /*crashing_inputs=*/{{"input", {"csig", "desc"}}});
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         /*new_crashes_by_signature=*/{}, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -633,9 +688,10 @@ TEST_F(OrganizeCrashingInputsTest, AddsNewCrashesUpToFileLimit) {
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -652,11 +708,7 @@ TEST_F(OrganizeCrashingInputsTest, AddsNewCrashesUpToFileLimit) {
                   FieldsAre("bug9-csig9-isig9", "irrepro9"),
                   AnyOf(FieldsAre(HasSubstr("-csig10-isig10"), "new10"),
                         FieldsAre(HasSubstr("-csig11-isig11"), "new11"))));
-  EXPECT_THAT(ReadFiles(regression_dir()),
-              UnorderedElementsAre(FieldsAre("isig6", "irrepro6"),
-                                   FieldsAre("isig7", "irrepro7"),
-                                   FieldsAre("isig8", "irrepro8"),
-                                   FieldsAre("isig9", "irrepro9")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
   EXPECT_THAT(crash_report, HasSubstr("Total crashes: 6"));
 }
 
@@ -690,9 +742,10 @@ TEST_F(OrganizeCrashingInputsTest, ReplacesIrreproducibleCrashAtFileLimit) {
                                    });
   NonOwningCallbacksFactory factory(callbacks);
 
-  OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(), factory,
-                         new_crashes_by_signature, crash_summary(),
-                         stop_condition());
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
   std::string crash_report;
   crash_summary().Report(&crash_report);
 
@@ -707,13 +760,148 @@ TEST_F(OrganizeCrashingInputsTest, ReplacesIrreproducibleCrashAtFileLimit) {
                                    FieldsAre("bug8-csig8-isig8", "repro8"),
                                    FieldsAre("bug9-csig9-isig9", "repro9"),
                                    FieldsAre("bug10-csig10-isig11", "new11")));
-  EXPECT_THAT(ReadFiles(regression_dir()),
-              UnorderedElementsAre(FieldsAre("isig10", "irrepro10")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
   EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 10"),
                                   HasSubstr("Crash ID   : bug10-csig10-isig11"),
                                   HasSubstr("Category   : desc11"),
                                   HasSubstr("Signature  : csig10"),
                                   HasSubstr("Description: desc11")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       MovesReproducingIncubatingCrashToCrashingDir) {
+  SetContentsAndGetPath(incubating_dir(), "isig1", "input1");
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
+                                       {"input1", {"csig", "desc"}},
+                                   });
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(crashing_dir()),
+              UnorderedElementsAre(
+                  FieldsAre(MatchesRegex("[a-f0-9]+-csig-isig1"), "input1")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(
+      crash_report,
+      AllOf(HasSubstr("Total crashes: 1"),
+            ContainsRegex("Crash ID   : [a-f0-9]+-csig-isig1"),
+            HasSubstr("Category   : desc"), HasSubstr("Signature  : csig"),
+            HasSubstr("Description: desc")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       KeepsIrreproducibleIncubatingCrashIfTtlNotExpired) {
+  SetContentsAndGetPath(incubating_dir(), "isig1", "input1");
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary(),
+                                     /*regression_ttl=*/absl::Hours(24))
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(incubating_dir()),
+              UnorderedElementsAre(FieldsAre("isig1", "input1")));
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest, MovesExpiredIncubatingCrashToRegressionDir) {
+  absl::SimulatedClock clock(absl::Now());
+  SetContentsAndGetPath(incubating_dir(), "isig1", "input1");
+  clock.AdvanceTime(absl::Hours(25));
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary(),
+                                     /*regression_ttl=*/absl::Hours(24), clock)
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(regression_dir()),
+              UnorderedElementsAre(FieldsAre("isig1", "input1")));
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       ReplacesCrashInputIfSignatureChangesButNewCrashWithOldSignatureExists) {
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig_old-isig1", "input1");
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
+                                       {"input1", {"csig_new", "desc_new"}},
+                                   });
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  const auto input2_path =
+      SetContentsAndGetPath(new_crashes_dir(), "isig2", "input2");
+  new_crashes_by_signature["csig_old"] = {"isig2", "desc_old", input2_path};
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(
+      ReadFiles(crashing_dir()),
+      UnorderedElementsAre(
+          FieldsAre("bug1-csig_old-isig2", "input2"),
+          FieldsAre(MatchesRegex("[a-f0-9]+-csig_new-isig1"), "input1")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(crash_report,
+              AllOf(HasSubstr("Total crashes: 2"),
+                    HasSubstr("Crash ID   : bug1-csig_old-isig2"),
+                    ContainsRegex("Crash ID   : [a-f0-9]+-csig_new-isig1"),
+                    HasSubstr("Signature  : csig_old"),
+                    HasSubstr("Signature  : csig_new")));
+}
+
+TEST_F(OrganizeCrashingInputsTest, ReplacesInputWithWinnerAlreadyOnDisk) {
+  // Setup two existing crashes for the same bug/signature.
+  SetContentsAndGetPath(crashing_dir(), "bug1-sig1-isig1", "input1");
+  SetContentsAndGetPath(crashing_dir(), "bug1-sig1-isig2", "input2");
+
+  // input1 reproduces with sig1 (winner).
+  // input2 does not reproduce.
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
+                                       {"input1", {"sig1", "desc1"}},
+                                   });
+  NonOwningCallbacksFactory factory(callbacks);
+
+  // This should not fail with "filesystem::copy() failed" (self-copy).
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // bug1-sig1-isig1 should be kept.
+  // bug1-sig1-isig2 should be demoted to incubating.
+  EXPECT_THAT(ReadFiles(crashing_dir()),
+              UnorderedElementsAre(FieldsAre("bug1-sig1-isig1", "input1")));
+  EXPECT_THAT(ReadFiles(incubating_dir()),
+              UnorderedElementsAre(FieldsAre("isig2", "input2")));
 }
 
 }  // namespace

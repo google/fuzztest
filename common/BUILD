@@ -133,6 +133,7 @@ cc_library(
                "@abseil-cpp//absl/status",
                "@abseil-cpp//absl/status:statusor",
                "@abseil-cpp//absl/strings",
+               "@abseil-cpp//absl/time",
            ] + select({
                "//conditions:default": [":remote_file_oss"],
            }) +
@@ -164,6 +165,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ] + select({
         "@com_google_fuzztest//fuzztest:disable_riegeli": [],
         "//conditions:default": [

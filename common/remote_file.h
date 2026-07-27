@@ -30,6 +30,7 @@
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "./common/defs.h"
 #ifndef CENTIPEDE_DISABLE_RIEGELI
 #include "riegeli/bytes/reader.h"
@@ -61,22 +62,22 @@ struct RemoteFile {};
 
 // Opens a (potentially remote) file 'file_path' and returns a handle to it.
 // Supported modes: "r", "a", "w", same as in C FILE API.
-absl::StatusOr<RemoteFile *> RemoteFileOpen(std::string_view file_path,
-                                            const char *mode);
+absl::StatusOr<RemoteFile*> RemoteFileOpen(std::string_view file_path,
+                                           const char* mode);
 
 // Closes the file previously opened by RemoteFileOpen.
-absl::Status RemoteFileClose(RemoteFile *absl_nonnull f);
+absl::Status RemoteFileClose(RemoteFile* absl_nonnull f);
 
 // Adjusts the buffered I/O capacity for a file opened for writing. By default,
 // the internal buffer of size `BUFSIZ` is used. May only be used after opening
 // a file, but before performing any other operations on it. Violating this
 // requirement in general can cause undefined behavior.
-absl::Status RemoteFileSetWriteBufferSize(RemoteFile *absl_nonnull f,
+absl::Status RemoteFileSetWriteBufferSize(RemoteFile* absl_nonnull f,
                                           size_t size);
 
 // Appends characters from 'contents' to 'f'.
-absl::Status RemoteFileAppend(RemoteFile *absl_nonnull f,
-                              const std::string &contents);
+absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f,
+                              const std::string& contents);
 
 // Appends bytes from 'contents' to 'f'.
 absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f, ByteSpan contents);
@@ -85,13 +86,13 @@ absl::Status RemoteFileAppend(RemoteFile* absl_nonnull f, ByteSpan contents);
 // pipeline are consumed by itself (e.g. shard cross-pollination) and can be
 // consumed by external processes (e.g. monitoring): for such files, call this
 // API after every write to ensure that they are in a valid state.
-absl::Status RemoteFileFlush(RemoteFile *absl_nonnull f);
+absl::Status RemoteFileFlush(RemoteFile* absl_nonnull f);
 
 // Reads all current contents of 'f' into 'ba'.
-absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, ByteArray &ba);
+absl::Status RemoteFileRead(RemoteFile* absl_nonnull f, ByteArray& ba);
 
 // Reads all current contents of 'f' into 'contents'.
-absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, std::string &contents);
+absl::Status RemoteFileRead(RemoteFile* absl_nonnull f, std::string& contents);
 
 // Creates a (potentially remote) directory 'dir_path', as well as any missing
 // parent directories. No-op if the directory already exists.
@@ -105,11 +106,11 @@ absl::Status RemoteFileSetContents(std::string_view path,
 absl::Status RemoteFileSetContents(std::string_view path, ByteSpan contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
-absl::Status RemoteFileGetContents(std::string_view path, ByteArray &contents);
+absl::Status RemoteFileGetContents(std::string_view path, ByteArray& contents);
 
 // Reads the contents of the file at 'path' into 'contents'.
 absl::Status RemoteFileGetContents(std::string_view path,
-                                   std::string &contents);
+                                   std::string& contents);
 
 // Returns true if `path` exists.
 bool RemotePathExists(std::string_view path);
@@ -119,6 +120,10 @@ bool RemotePathIsDirectory(std::string_view path);
 
 // Returns the size of the file at `path` in bytes. The file must exist.
 absl::StatusOr<int64_t> RemoteFileGetSize(std::string_view path);
+
+// Returns the last modification time of the file at `path`.
+// The file must exist.
+absl::StatusOr<absl::Time> RemoteFileGetMTime(std::string_view path);
 
 // Finds all files matching `glob` and appends them to `matches`.
 //
@@ -131,7 +136,7 @@ absl::StatusOr<int64_t> RemoteFileGetSize(std::string_view path);
 // filtering based on some criterion.
 [[deprecated("Do not use in new code.")]]
 absl::Status RemoteGlobMatch(std::string_view glob,
-                             std::vector<std::string> &matches);
+                             std::vector<std::string>& matches);
 
 // Lists all files within `path`, recursively expanding subdirectories if
 // `recursively` is true. Does not return any directories. Returns an empty

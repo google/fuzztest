@@ -31,6 +31,11 @@ package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
+exports_files([
+    "crash_deduplication.h",
+    "crash_deduplication.cc",
+])
+
 ################################################################################
 #                                  Binaries
 ################################################################################
@@ -907,12 +912,30 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/time:clock_interface",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:crashing_input_filename",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
+    ],
+)
+
+cc_library(
+    name = "crash_deduplication_test_util",
+    testonly = 1,
+    srcs = ["crash_deduplication_test_util.cc"],
+    hdrs = ["crash_deduplication_test_util.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":environment",
+        ":runner_result",
+        ":stop",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 
@@ -1921,18 +1944,18 @@ cc_test(
     deps = [
         ":centipede_callbacks",
         ":crash_deduplication",
+        ":crash_deduplication_test_util",
         ":crash_summary",
         ":environment",
-        ":runner_result",
         ":stop",
         ":util",
         ":workdir",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:defs",
-        "@com_google_fuzztest//common:hash",
+        "@abseil-cpp//absl/time:clock_interface",
+        "@abseil-cpp//absl/time:simulated_clock",
         "@com_google_fuzztest//common:temp_dir",
         "@googletest//:gtest_main",
     ],

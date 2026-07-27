@@ -124,6 +124,7 @@ fuzztest_cc_library(
     absl::status
     absl::statusor
     absl::strings
+    absl::time
 )
 
 fuzztest_cc_library(

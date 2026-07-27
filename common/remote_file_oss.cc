@@ -24,6 +24,9 @@
 #include <windows.h>
 #endif  // defined(_MSC_VER)
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -40,6 +43,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
@@ -359,6 +363,16 @@ absl::StatusOr<int64_t> RemoteFileGetSize(std::string_view path) {
   }
   std::fclose(f);
   return sz;
+}
+
+absl::StatusOr<absl::Time> RemoteFileGetMTime(std::string_view path) {
+  struct ::stat st;
+  if (::stat(std::string(path).c_str(), &st) != 0) {
+    return absl::UnknownError(
+        absl::StrCat("stat() failed, path: ", std::string(path),
+                     ", errno: ", std::strerror(errno)));
+  }
+  return absl::FromTimeT(st.st_mtime);
 }
 
 namespace {

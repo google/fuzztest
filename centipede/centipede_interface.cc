@@ -74,6 +74,8 @@ namespace fuzztest::internal {
 
 namespace {
 
+constexpr absl::Duration kDefaultRegressionTtl = absl::Hours(24 * 7);
+
 // Runs env.for_each_blob on every blob extracted from env.args.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
 void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
@@ -546,9 +548,13 @@ void UpdateCorpusDatabase(Environment env,
     crash_summary.Report(&std::cerr);
     return;
   }
-  OrganizeCrashingInputs(regression_dir, fuzztest_db_path / "crashing", env,
-                         callbacks_factory, crashes_by_signature, crash_summary,
-                         stop_condition);
+  const absl::Status status = OrganizeCrashingInputs(
+      regression_dir, fuzztest_db_path / "crashing",
+      fuzztest_db_path / "incubating", env, callbacks_factory,
+      crashes_by_signature, crash_summary, stop_condition,
+      kDefaultRegressionTtl);
+  FUZZTEST_LOG_IF(ERROR, !status.ok())
+      << "Failed to organize crashing inputs: " << status;
   if (env.report_crash_summary) crash_summary.Report(&std::cerr);
 
   // Distill and store the coverage corpus.

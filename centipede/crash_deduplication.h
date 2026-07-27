@@ -20,9 +20,12 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/time/clock_interface.h"
+#include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
+#include "./centipede/stop.h"
 #include "./centipede/workdir.h"
 
 namespace fuzztest::internal {
@@ -42,50 +45,50 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
 // them, and stores new crashes from `new_crashes_by_signature` that are not
 // duplicates of existing ones.
 //
-// The input files in `crashing_dir` are uniquely identified by `bug_id`s. The
-// file names are in the format `<bug_id>-<crash_signature>-<input_signature>`
-// or `<input_signature>` (legacy format, in which case `<input_signature>` is
-// also considered to be the `bug_id`, and the crash signature is considered to
-// be missing).
+// The inputs are stored in three directories:
+// crashing/: stores crashing inputs in files of the form
+//   <bug_id>-<crash.signature>-<input.signature>.
+// incubating/: stores inputs that have not crashed recently. Files are of the
+// form
+//   <input.signature>
+// regression/: stores inputs that have not crashed for the specified ttl. Files
+// are of the form
+//   <input.signature>
 //
-// 1. Inputs from `crashing_dir` are re-executed:
-//   - If an input is reproducible and causes an input failure (i.e., not a
-//     setup failure or other special cases):
-//     - It is kept in `crashing_dir` and reported to `crash_summary`.
-//     - If its crash signature has changed, it is renamed to reflect the new
-//       signature: `<bug_id>-<new_crash_signature>-<input_signature>`.
-//     - The file's modification time is updated.
-//   - If an input is not reproducible or doesn't cause an input failure:
-//     - If its parsed crash signature is found in `new_crashes_by_signature`,
-//       this signature hasn't been seen in a reproducible crash yet, and no
-//       other input has been processed for this signature in the current call:
-//       - The `bug_id` is reused for bug continuity: If the input from
-//         `new_crashes_by_signature` has the same input signature as the
-//         irreproducible input (flaky crash), the file is kept in
-//         `crashing_dir` and its modification time is updated. Otherwise, the
-//         irreproducible input is moved to `regression_dir`, and the input
-//         from `new_crashes_by_signature` is copied to `crashing_dir` using
-//         file name `<bug_id>-<crash_signature>-<new_input_signature>`.
-//       - The crash is reported to `crash_summary`.
-//     - Otherwise, if the input file has a valid name, it is copied to
-//       `regression_dir`.
-//     - If input file has an invalid name, it is moved to `regression_dir`.
+// Input organization works as follows:
 //
-// 2. New crashes from `new_crashes_by_signature` are stored:
-//   - If a new crash has a signature that was not observed among crashes
-//     from step 1, it is stored in `crashing_dir` with a newly generated
-//     `bug_id`: `<new_bug_id>-<crash_signature>-<input_signature>`, and
-//     reported to `crash_summary`.
-//   - If the total number of inputs in `crashing_dir` reaches a predefined
-//     limit, no more new crashes will be stored (unless they replace old
-//     irreproducible inputs as described in step 1).
-void OrganizeCrashingInputs(
+// 1) Replay: Replay the inputs in crashing/ and incubating/. Merge with
+// new_crashes_by_signature to obtain `active_crashes` - a mapping of
+// crash signatures to crashing inputs.
+//
+// 2) Update crashing/: For each crash in crashing/:
+//   > if crash.input reproduces with crash.signature: touch the file
+//   > if crash.input crashes with a different signature and crash.signature is
+//   in active_crashes: replace the file with
+//   <crash.bug>-<crash.signature>-<active_input.signature> where active_input =
+//   active_crashes[crash.signature].
+//   > if crash.input does not crash at all and crash.signature is in
+//   active_crashes: replace the file with
+//   <crash.bug>-<crash.signature>-<active_input.signature> where active_input =
+//   active_crashes[crash.signature] and move crash.input to
+//   incubating/<crash.input.signature>
+//
+// 3) Record new crashes: Find all crash signatures in active_crashes that do
+// not have an entry in crashing/. For each such crash_signature, generate a
+// new_bug_id and add crashing/<new_bug_id>-<crash.signature>-<input.signature>
+// where input = active_crashes[crash_signature].
+//
+// 4) Regression: Move expired files in crashing/ and incubating/ to regression/
+absl::Status OrganizeCrashingInputs(
     const std::filesystem::path& regression_dir,
-    const std::filesystem::path& crashing_dir, const Environment& env,
+    const std::filesystem::path& crashing_dir,
+    const std::filesystem::path& incubating_dir, const Environment& env,
     CentipedeCallbacksFactory& callbacks_factory,
     const absl::flat_hash_map<std::string, CrashDetails>&
         new_crashes_by_signature,
-    CrashSummary& crash_summary, StopCondition& stop_condition);
+    CrashSummary& crash_summary, StopCondition& stop_condition,
+    absl::Duration regression_ttl,
+    absl::Clock& clock = absl::Clock::GetRealClock());
 
 }  // namespace fuzztest::internal
 
