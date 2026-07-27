@@ -122,7 +122,7 @@ CENTIPEDE_FLAG(
     // https://bugs.chromium.org/p/chromium/issues/detail?id=853873#c2
     0
 #else
-    8192
+    10240
 #endif
     ,
     "If not zero, instructs the target to set setrlimit(RLIMIT_AS) to "
