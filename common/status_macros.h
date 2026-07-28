@@ -21,33 +21,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "./common/fuzztest_status_macros.h"
 #include "./common/logging.h"
 
-// If `status_expr` (an expression of type `absl::Status`) is not OK then return
-// it from the current function. Otherwise, do nothing.
-#define RETURN_IF_NOT_OK(status_expr)                \
-  do {                                               \
-    const absl::Status status_value = (status_expr); \
-    if (ABSL_PREDICT_FALSE(!status_value.ok())) {    \
-      return status_value;                           \
-    }                                                \
-  } while (false)
+#define RETURN_IF_NOT_OK(status_expr) FUZZTEST_RETURN_IF_NOT_OK(status_expr)
 
-// Assigns `dest` to the value contained within the `absl::StatusOr<T> src` if
-// `src.ok()`, otherwise, returns `src.status()` from the current function.
 #define ASSIGN_OR_RETURN_IF_NOT_OK(dest, src) \
-  ASSIGN_OR_RETURN_IF_NOT_OK_IMPL_(           \
-      CHECKS_INTERNAL_CONCAT_(value_or_, __LINE__), dest, src)
-#define ASSIGN_OR_RETURN_IF_NOT_OK_IMPL_(value_or, dest, src) \
-  auto value_or = (src);                                      \
-  if (ABSL_PREDICT_FALSE(!value_or.ok())) {                   \
-    return std::move(value_or).status();                      \
-  }                                                           \
-  dest = std::move(value_or).value()
-
-// Internal helper for concatenating macro values.
-#define CHECKS_INTERNAL_CONCAT_IMPL_(x, y) x##y
-#define CHECKS_INTERNAL_CONCAT_(x, y) CHECKS_INTERNAL_CONCAT_IMPL_(x, y)
+  FUZZTEST_ASSIGN_OR_RETURN_IF_NOT_OK(dest, src)
 
 namespace fuzztest::internal {
 template <typename T>

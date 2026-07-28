@@ -189,7 +189,10 @@ cc_library(
 
 cc_library(
     name = "status_macros",
-    hdrs = ["status_macros.h"],
+    hdrs = [
+        "fuzztest_status_macros.h",
+        "status_macros.h",
+    ],
     deps = [
         ":logging",
         "@abseil-cpp//absl/base:core_headers",
