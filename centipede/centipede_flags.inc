@@ -509,6 +509,12 @@ CENTIPEDE_FLAG(bool, fuzztest_only_replay, false,
                "If set, further steps are skipped after replaying with the "
                "corpus database.")
 CENTIPEDE_FLAG(
+    std::optional<bool>, fuzztest_update_corpus_database, std::nullopt,
+    "If true, update the corpus database. If false, do not update it. "
+    "If unspecified, it defaults to true in fuzzing mode and false "
+    "in replay mode. Note that in replay mode the coverage inputs are not "
+    "updated regardless of this flag's value.")
+CENTIPEDE_FLAG(
     std::string, fuzztest_execution_id, "",
     "If set, will be used when working on a corpus database to resume "
     "the progress in case the execution got interrupted.")

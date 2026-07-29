@@ -144,6 +144,13 @@ FUZZTEST_DEFINE_FLAG(
     "time budget.");
 
 FUZZTEST_DEFINE_FLAG(
+    std::optional<bool>, update_corpus_database, std::nullopt,
+    "If true, update the corpus database. If false, do not update it. "
+    "If unspecified, it defaults to true in fuzzing mode and false "
+    "in replay mode. Note that in replay mode the coverage inputs are not "
+    "updated regardless of this flag's value.");
+
+FUZZTEST_DEFINE_FLAG(
     std::optional<std::string>, execution_id, std::nullopt,
     "If set, will resume or skip running on the corpus database for tests that "
     "are previously run with the same execution ID.");
@@ -328,6 +335,13 @@ std::optional<absl::Duration> GetReplayCorpusTime() {
   return replay_corpus_time_limit;
 }
 
+bool GetDefaultUpdateCorpusDatabase() {
+  const std::string test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
+  const bool is_fuzzing =
+      test_to_fuzz != kUnspecified || GetFuzzingTime().has_value();
+  return is_fuzzing && !GetReplayCorpusTime().has_value();
+}
+
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
   const bool reproduce_findings_as_separate_tests =
@@ -339,6 +353,10 @@ internal::Configuration CreateConfigurationsFromFlags(
       absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
   const bool replay_coverage_inputs =
       fuzzing_time_limit.has_value() || replay_corpus_time_limit.has_value();
+  const bool update_corpus_database =
+      absl::GetFlag(FUZZTEST_FLAG(update_corpus_database))
+          .value_or(GetDefaultUpdateCorpusDatabase());
+
   const absl::Duration time_limit =
       override_fuzz_test.has_value()
           ? absl::GetFlag(FUZZTEST_FLAG(internal_override_total_time_limit))
@@ -385,6 +403,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       replay_coverage_inputs,
       /*only_replay=*/
       replay_corpus_time_limit.has_value(),
+      update_corpus_database,
       /*replay_in_single_process=*/false,
       absl::GetFlag(FUZZTEST_FLAG(execution_id)),
       absl::GetFlag(FUZZTEST_FLAG(print_subprocess_log)),

@@ -246,6 +246,7 @@ void Environment::UpdateWithTargetConfig(
   fuzztest_stats_root = config.stats_root;
   fuzztest_workdir_root = config.workdir_root;
   fuzztest_only_replay = config.only_replay;
+  fuzztest_update_corpus_database = config.update_corpus_database;
   fuzztest_execution_id = config.execution_id.value_or("");
   fuzztest_replay_coverage_inputs = config.replay_coverage_inputs;
   fuzztest_time_limit_per_test = config.GetTimeLimitPerTest();

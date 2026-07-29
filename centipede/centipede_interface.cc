@@ -335,10 +335,89 @@ PeriodicAction RecordFuzzingTime(std::string_view fuzzing_time_file,
           PeriodicAction::ZeroDelayConstInterval(absl::Seconds(15))};
 }
 
-void UpdateCorpusDatabase(Environment env,
+struct DatabasePaths {
+  std::filesystem::path fuzztest_db_path;
+  std::filesystem::path regression_dir;
+  std::filesystem::path coverage_dir;
+  std::filesystem::path crashing_dir;
+  std::filesystem::path incubating_dir;
+};
+
+DatabasePaths GetDatabasePaths(const Environment& env) {
+  const auto fuzztest_db_path =
+      std::filesystem::path(env.fuzztest_corpus_database) /
+      env.fuzztest_binary_identifier / env.test_name;
+  return {
+      fuzztest_db_path,
+      fuzztest_db_path / "regression",
+      fuzztest_db_path / "coverage",
+      fuzztest_db_path / "crashing",
+      fuzztest_db_path / "incubating",
+  };
+}
+
+void RecordFuzzingResults(const Environment& env, const DatabasePaths& db_paths,
                           CentipedeCallbacksFactory& callbacks_factory,
                           StopCondition& stop_condition) {
-  FUZZTEST_LOG(INFO) << "Starting the update of the corpus database for:"
+  const WorkDir workdir{env};
+
+  const bool update_crashing_db =
+      env.fuzztest_update_corpus_database.value_or(!env.fuzztest_only_replay);
+  const bool update_coverage_db =
+      update_crashing_db && !env.fuzztest_only_replay;
+  if (!update_crashing_db && !env.report_crash_summary) {
+    return;
+  }
+
+  // Deduplicate and optionally update the crashing inputs.
+  CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};
+  const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
+      GetCrashesFromWorkdir(workdir, env.total_shards);
+  if (update_crashing_db) {
+    const absl::Status status = OrganizeCrashingInputs(
+        db_paths.regression_dir, db_paths.crashing_dir, db_paths.incubating_dir,
+        env, callbacks_factory, crashes_by_signature, crash_summary,
+        stop_condition, kDefaultRegressionTtl);
+    FUZZTEST_LOG_IF(ERROR, !status.ok())
+        << "Failed to organize crashing inputs: " << status;
+    if (env.report_crash_summary) crash_summary.Report(&std::cerr);
+  } else if (env.report_crash_summary) {
+    // Just report the crashes.
+    for (const auto& [crash_signature, crash_details] : crashes_by_signature) {
+      crash_summary.AddCrash({/*id=*/crash_details.input_signature,
+                              /*category=*/crash_details.description,
+                              crash_signature, crash_details.description});
+    }
+    crash_summary.Report(&std::cerr);
+  }
+
+  if (update_coverage_db) {
+    // Distill and store the coverage corpus.
+    Distill(env);
+    if (RemotePathExists(db_paths.coverage_dir.c_str())) {
+      // In the future, we will store k latest coverage corpora for some k, but
+      // for now we only keep the latest one.
+      FUZZTEST_CHECK_OK(RemotePathDelete(db_paths.coverage_dir.c_str(),
+                                         /*recursively=*/true));
+    }
+    FUZZTEST_CHECK_OK(RemoteMkdir(db_paths.coverage_dir.c_str()));
+    std::vector<std::string> distilled_corpus_files;
+    FUZZTEST_CHECK_OK(
+        RemoteGlobMatch(workdir.DistilledCorpusFilePaths().AllShardsGlob(),
+                        distilled_corpus_files));
+    for (const std::string& corpus_file : distilled_corpus_files) {
+      const std::string file_name =
+          std::filesystem::path(corpus_file).filename();
+      FUZZTEST_CHECK_OK(RemoteFileRename(
+          corpus_file, (db_paths.coverage_dir / file_name).c_str()));
+    }
+  }
+}
+
+void RunBinaryAndRecordFuzzingResults(
+    Environment env, CentipedeCallbacksFactory& callbacks_factory,
+    StopCondition& stop_condition) {
+  FUZZTEST_LOG(INFO) << "Starting recording of fuzzing results for:"
                      << "\nFuzz test: " << env.test_name
                      << "\nBinary: " << env.binary
                      << "\nCorpus database: " << env.fuzztest_corpus_database;
@@ -455,18 +534,16 @@ void UpdateCorpusDatabase(Environment env,
     }
   };
 
-  const std::filesystem::path fuzztest_db_path =
-      corpus_database_path / env.test_name;
-  const std::filesystem::path regression_dir = fuzztest_db_path / "regression";
-  const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
+  const DatabasePaths db_paths = GetDatabasePaths(env);
 
   // Seed the fuzzing session with the latest coverage corpus and regression
   // inputs from the previous fuzzing session.
   if (!is_resuming) {
     FUZZTEST_CHECK_OK(GenerateSeedCorpusFromConfig(
-        GetSeedCorpusConfig(
-            env, regression_dir.c_str(),
-            env.fuzztest_replay_coverage_inputs ? coverage_dir.c_str() : ""),
+        GetSeedCorpusConfig(env, db_paths.regression_dir.c_str(),
+                            env.fuzztest_replay_coverage_inputs
+                                ? db_paths.coverage_dir.c_str()
+                                : ""),
         env.binary_name, env.binary_hash))
         << "while generating the seed corpus";
   }
@@ -519,62 +596,15 @@ void UpdateCorpusDatabase(Environment env,
       FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
                           << " with failure exit code " << exit_code;
     } else {
-      FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
+      FUZZTEST_LOG(INFO) << "Skip recording fuzzing results due to early stop "
                             "requested without failure.";
     }
     return;
   }
-  // The test time limit does not apply for the rest of the steps.
+
+  // The test time limit does not apply for recording fuzzing results.
   stop_condition.SetStopTime(absl::InfiniteFuture());
-
-  // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
-  // of checking whether workdir is specified or not.
-  const bool skip_corpus_db_update =
-      env.fuzztest_only_replay || is_workdir_specified;
-  if (skip_corpus_db_update && !env.report_crash_summary) return;
-
-  // Deduplicate and optionally update the crashing inputs.
-  CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};
-  const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
-      GetCrashesFromWorkdir(workdir, env.total_shards);
-  if (skip_corpus_db_update) {
-    // Just report the crashes.
-    FUZZTEST_CHECK(env.report_crash_summary);
-    for (const auto& [crash_signature, crash_details] : crashes_by_signature) {
-      crash_summary.AddCrash({/*id=*/crash_details.input_signature,
-                              /*category=*/crash_details.description,
-                              crash_signature, crash_details.description});
-    }
-    crash_summary.Report(&std::cerr);
-    return;
-  }
-  const absl::Status status = OrganizeCrashingInputs(
-      regression_dir, fuzztest_db_path / "crashing",
-      fuzztest_db_path / "incubating", env, callbacks_factory,
-      crashes_by_signature, crash_summary, stop_condition,
-      kDefaultRegressionTtl);
-  FUZZTEST_LOG_IF(ERROR, !status.ok())
-      << "Failed to organize crashing inputs: " << status;
-  if (env.report_crash_summary) crash_summary.Report(&std::cerr);
-
-  // Distill and store the coverage corpus.
-  Distill(env);
-  if (RemotePathExists(coverage_dir.c_str())) {
-    // In the future, we will store k latest coverage corpora for some k, but
-    // for now we only keep the latest one.
-    FUZZTEST_CHECK_OK(
-        RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true));
-  }
-  FUZZTEST_CHECK_OK(RemoteMkdir(coverage_dir.c_str()));
-  std::vector<std::string> distilled_corpus_files;
-  FUZZTEST_CHECK_OK(
-      RemoteGlobMatch(workdir.DistilledCorpusFilePaths().AllShardsGlob(),
-                      distilled_corpus_files));
-  for (const std::string& corpus_file : distilled_corpus_files) {
-    const std::string file_name = std::filesystem::path(corpus_file).filename();
-    FUZZTEST_CHECK_OK(
-        RemoteFileRename(corpus_file, (coverage_dir / file_name).c_str()));
-  }
+  RecordFuzzingResults(env, db_paths, callbacks_factory, stop_condition);
 }
 
 int ListCrashIds(const Environment& env) {
@@ -583,9 +613,7 @@ int ListCrashIds(const Environment& env) {
   FUZZTEST_CHECK(!env.test_name.empty());
   std::vector<std::string> crash_paths;
   // TODO: b/406003594 - move the path construction to a library.
-  const auto crash_dir = std::filesystem::path(env.fuzztest_corpus_database) /
-                         env.fuzztest_binary_identifier / env.test_name /
-                         "crashing";
+  const auto crash_dir = GetDatabasePaths(env).crashing_dir;
   if (RemotePathExists(crash_dir.string())) {
     FUZZTEST_CHECK(RemotePathIsDirectory(crash_dir.string()))
         << "Crash dir " << crash_dir << " in the corpus database "
@@ -800,7 +828,8 @@ int CentipedeMain(const Environment& env,
       FUZZTEST_CHECK(updated_env.fuzztest_time_limit_per_test >=
                      absl::Seconds(1))
           << "Time limit per fuzz test must be at least 1 second.";
-      UpdateCorpusDatabase(updated_env, callbacks_factory, *stop_condition);
+      RunBinaryAndRecordFuzzingResults(updated_env, callbacks_factory,
+                                       *stop_condition);
       return stop_condition->ExitCode();
     }
   }

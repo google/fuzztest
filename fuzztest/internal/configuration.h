@@ -76,6 +76,9 @@ struct Configuration {
   bool replay_coverage_inputs = false;
   // If set, further steps are skipped after replaying.
   bool only_replay = false;
+  // If set, update the corpus database. In replay mode, the coverage inputs are
+  // not updated regardless of this value.
+  bool update_corpus_database = false;
   // If set, replay without spawning subprocesses.
   bool replay_in_single_process = false;
   // If set, will be used when working on a corpus database to resume
