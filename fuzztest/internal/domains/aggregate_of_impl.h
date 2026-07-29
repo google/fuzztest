@@ -24,8 +24,12 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "./common/fuzztest_status_macros.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
@@ -62,6 +66,32 @@ class AggregateOfImpl
     return std::apply(
         [&](auto&... inner) { return corpus_type{inner.Init(prng)...}; },
         inner_);
+  }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<AggregateOfImpl> ctx) {
+    FUZZTEST_RETURN_IF_NOT_OK(ctx.status());
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *std::move(seed);
+    return ApplyIndex<sizeof...(Inner)>(
+        [&](auto... Is) -> absl::StatusOr<corpus_type> {
+          std::tuple<std::optional<corpus_type_t<Inner>>...> results;
+          absl::Status status = absl::OkStatus();
+          auto init_one = [&](auto I) {
+            auto res = std::get<I>(inner_).InitWithTraversalCtx(prng, ctx);
+            if (!res.ok()) {
+              status = std::move(res).status();
+              return false;
+            }
+            std::get<I>(results) = *std::move(res);
+            return true;
+          };
+          if (!(init_one(Is) && ...)) {
+            return status;
+          }
+
+          return corpus_type{*std::move(std::get<Is>(results))...};
+        });
   }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng,

@@ -32,10 +32,13 @@
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "./common/fuzztest_status_macros.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
@@ -58,6 +61,9 @@ class UntypedDomainConcept {
 
   virtual std::unique_ptr<UntypedDomainConcept> UntypedClone() const = 0;
   virtual GenericDomainCorpusType UntypedInit(absl::BitGenRef) = 0;
+  virtual absl::StatusOr<GenericDomainCorpusType> UntypedInitWithTraversalCtx(
+      absl::BitGenRef,
+      domain_implementor::InitTraversalContext<UntypedDomainConcept>) = 0;
   virtual void UntypedMutate(
       GenericDomainCorpusType& val, absl::BitGenRef prng,
       const domain_implementor::MutationMetadata& metadata,
@@ -138,6 +144,19 @@ class DomainModel final : public TypedDomainConcept<value_type_t<D>> {
   GenericDomainCorpusType UntypedInit(absl::BitGenRef prng) final {
     return GenericDomainCorpusType(std::in_place_type<CorpusType>,
                                    domain_.Init(prng));
+  }
+
+  absl::StatusOr<GenericDomainCorpusType> UntypedInitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<UntypedDomainConcept> ctx)
+      final {
+    FUZZTEST_ASSIGN_OR_RETURN_IF_NOT_OK(
+        auto res,
+        domain_.InitWithTraversalCtx(
+            prng,
+            domain_implementor::InitTraversalContext<D>::Passthrough(ctx)));
+    return GenericDomainCorpusType(std::in_place_type<CorpusType>,
+                                   std::move(res));
   }
 
   void UntypedMutate(GenericDomainCorpusType& val, absl::BitGenRef prng,

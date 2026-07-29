@@ -29,9 +29,12 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "./common/fuzztest_status_macros.h"
 #include "./fuzztest/internal/domains/domain_type_erasure.h"
 #include "./fuzztest/internal/domains/mutation_metadata.h"  // IWYU pragma: export
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
@@ -132,6 +135,12 @@ class DomainBase {
   // stability/reproducibility guarantees as `prng`.
   ValueType GetRandomValue(absl::BitGenRef prng) {
     return derived().GetValue(derived().GetRandomCorpusValue(prng));
+  }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng, InitTraversalContext<Derived> ctx) {
+    FUZZTEST_RETURN_IF_NOT_OK(ctx.status());
+    return derived().Init(prng);
   }
 
   // Default GetValue and FromValue functions for !has_custom_corpus_type

@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/type_support.h"
 
@@ -488,6 +489,64 @@ TEST(TupleOf, DomainWithCustomPairCorpusType) {
   std::tuple<std::pair<uint8_t, uint8_t>> value{{1, 2}};
   auto optional_corpus_tuple = domain.FromValue(value);
   EXPECT_TRUE(optional_corpus_tuple.has_value());
+}
+
+TEST(StructOf, InitWithTraversalCtxUpdatesInitBudget) {
+  struct Foo {
+    int a;
+    double b;
+  };
+  auto domain = StructOf<Foo>(Arbitrary<int>(), Arbitrary<double>());
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  state.init_budget = 10;
+
+  auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  ASSERT_OK(val.status());
+  // 1 (root) + 2 (fields: int, double) = 3 decrements
+  EXPECT_EQ(state.init_budget, 7);
+}
+
+TEST(StructOf, InitWithTraversalCtxPropagatesFailureFromInnerDomain) {
+  struct Foo {
+    int a;
+    std::vector<int> v;
+  };
+  // Inner container cannot be empty.
+  auto domain = StructOf<Foo>(Arbitrary<int>(),
+                              VectorOf(Arbitrary<int>()).WithMinSize(1));
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  // The parent init decrements to 0 and the inner vector init decrements to -1
+  // and fails due to the min size constraint.
+  state.depth_budget = 1;
+
+  const auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  EXPECT_FALSE(val.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.message(),
+              testing::HasSubstr("Traversal budget exceeded"));
+}
+
+TEST(StructOf, InitWithTraversalCtxHandlesPreExistingFailure) {
+  auto domain = StructOf<MyStruct>(Arbitrary<int>(), Arbitrary<std::string>());
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  state.status = absl::CancelledError("Pre-existing failure");
+
+  const auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  EXPECT_FALSE(val.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_EQ(state.status.message(), "Pre-existing failure");
 }
 
 }  // namespace

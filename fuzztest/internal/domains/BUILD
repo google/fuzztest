@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
 
@@ -52,6 +53,7 @@ cc_library(
         "serialization_helpers.h",
         "smart_pointer_of_impl.h",
         "special_values.h",
+        "traversal_context.h",
         "unique_elements_container_of_impl.h",
         "value_mutation_helpers.h",
         "variant_of_impl.h",
@@ -72,6 +74,7 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
         "@com_google_fuzztest//fuzztest/internal:any",
         "@com_google_fuzztest//fuzztest/internal:enum_reflection",
@@ -97,9 +100,11 @@ cc_library(
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:status_macros",
         "@com_google_fuzztest//fuzztest/internal:any",
         "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:meta",
@@ -245,5 +250,15 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:meta",
         "@com_google_fuzztest//fuzztest/internal:serialization",
+    ],
+)
+
+cc_test(
+    name = "traversal_context_test",
+    srcs = ["traversal_context_test.cc"],
+    deps = [
+        ":core_domains_impl",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
     ],
 )

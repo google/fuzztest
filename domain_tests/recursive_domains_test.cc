@@ -18,13 +18,19 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 
 namespace fuzztest {
 namespace {
+
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Not;
 
 struct Tree {
   int value;
@@ -103,6 +109,72 @@ TEST(DomainBuilder, DiesOnInvalidFinalize) {
   EXPECT_DEATH_IF_SUPPORTED(
       std::move(builder).Finalize<int>("typo"),
       "Finalize\\(\\) has been called with an unknown name: typo");
+}
+
+TEST(DomainBuilder, RecursiveDomainReachesDepthLimit) {
+  DomainBuilder builder;
+  builder.Set<Tree>(
+      "tree", StructOf<Tree>(InRange(0, 10), ContainerOf<std::vector<Tree>>(
+                                                 builder.Get<Tree>("tree"))
+                                                 .WithSize(2)));
+  Domain<Tree> domain = std::move(builder).Finalize<Tree>("tree");
+
+  absl::BitGen bitgen;
+  domain_implementor::TraversalState state;
+  state.depth_budget = 5;
+
+  const auto tree =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, bitgen, state);
+
+  EXPECT_FALSE(tree.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.message(), HasSubstr("Traversal budget exceeded"));
+  EXPECT_THAT(state.error_trace, Not(IsEmpty()));
+}
+
+TEST(DomainBuilder, RecursiveDomainReachesInitBudgetLimit) {
+  DomainBuilder builder;
+  builder.Set<Tree>(
+      "tree", StructOf<Tree>(InRange(0, 10), ContainerOf<std::vector<Tree>>(
+                                                 builder.Get<Tree>("tree"))
+                                                 .WithSize(2)));
+  Domain<Tree> domain = std::move(builder).Finalize<Tree>("tree");
+
+  absl::BitGen bitgen;
+  domain_implementor::TraversalState state;
+  state.depth_budget = 100;
+  state.init_budget = 5;
+
+  const auto tree =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, bitgen, state);
+
+  EXPECT_FALSE(tree.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.message(), HasSubstr("Traversal budget exceeded"));
+  EXPECT_THAT(state.error_trace, Not(IsEmpty()));
+}
+
+TEST(DomainBuilder, RecursiveDomainWithFilterReachesDepthLimit) {
+  DomainBuilder builder;
+  builder.Set<Tree>(
+      "tree",
+      Filter([](const Tree& t) { return t.value % 2 == 0; },
+             StructOf<Tree>(InRange(0, 10), ContainerOf<std::vector<Tree>>(
+                                                builder.Get<Tree>("tree"))
+                                                .WithSize(2))));
+  Domain<Tree> domain = std::move(builder).Finalize<Tree>("tree");
+
+  absl::BitGen bitgen;
+  domain_implementor::TraversalState state;
+  state.depth_budget = 5;
+
+  const auto tree =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, bitgen, state);
+
+  EXPECT_FALSE(tree.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.message(), HasSubstr("Traversal budget exceeded"));
+  EXPECT_THAT(state.error_trace, Not(IsEmpty()));
 }
 
 }  // namespace

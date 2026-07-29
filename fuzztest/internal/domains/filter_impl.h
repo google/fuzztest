@@ -21,11 +21,13 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "./common/fuzztest_status_macros.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/domains/domain.h"
 #include "./fuzztest/internal/domains/domain_base.h"
-#include "./fuzztest/internal/logging.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 #include "./fuzztest/internal/serialization.h"
 
 namespace fuzztest::internal {
@@ -46,6 +48,19 @@ class FilterImpl
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
     while (true) {
       auto v = inner_.Init(prng);
+      if (RunFilter(v)) return v;
+    }
+  }
+
+  absl::StatusOr<corpus_type> InitWithTraversalCtx(
+      absl::BitGenRef prng,
+      domain_implementor::InitTraversalContext<FilterImpl> ctx) {
+    FUZZTEST_RETURN_IF_NOT_OK(ctx.status());
+    if (auto seed = this->MaybeGetRandomSeed(prng)) return *std::move(seed);
+
+    while (true) {
+      FUZZTEST_ASSIGN_OR_RETURN_IF_NOT_OK(
+          auto v, inner_.InitWithTraversalCtx(prng, ctx));
       if (RunFilter(v)) return v;
     }
   }

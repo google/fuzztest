@@ -26,8 +26,10 @@
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
+#include "./fuzztest/internal/domains/traversal_context.h"
 
 namespace fuzztest {
 namespace {
@@ -406,6 +408,73 @@ TEST(Filter, ValidationRejectsInvalidValue) {
       wrapped_domain_b.ValidateCorpusValue(wrapped_value_a.corpus_value),
       IsInvalid(
           HasSubstr("Invalid corpus value for the inner domain in Filter()")));
+}
+
+TEST(Filter, InitWithTraversalCtxConsumesBudgetOnPredicateFailure) {
+  int attempts = 0;
+  // Fails 5 times, then succeeds.
+  auto domain =
+      Filter([&attempts](int i) { return ++attempts > 5; }, Arbitrary<int>());
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  state.depth_budget = 100;
+  state.init_budget = 10;
+
+  const auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  ASSERT_OK(val.status());
+  EXPECT_TRUE(state.status.ok());
+  // Start: 10
+  // Filter wrapper enter: -1 (9)
+  // 5 failed attempts of Arbitrary: 5 * -1 (4)
+  // 1 successful attempt of Arbitrary: -1 (3)
+  EXPECT_EQ(state.init_budget, 3);
+  EXPECT_EQ(state.depth_budget, 100);
+}
+
+TEST(Filter, InitWithTraversalCtxReturnsEarlyOnPreExistingFailure) {
+  auto domain = Filter(
+      [](int i) {
+        ADD_FAILURE() << "Predicate should not be called";
+        return false;
+      },
+      Arbitrary<int>());
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  state.status = absl::CancelledError("Pre-existing failure");
+
+  const auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  EXPECT_FALSE(val.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_EQ(state.status.message(), "Pre-existing failure");
+}
+
+TEST(Filter, InitWithTraversalCtxPropagatesFailureFromInnerDomain) {
+  auto domain = Filter(
+      [](const std::vector<int>& v) {
+        ADD_FAILURE() << "Predicate should not be called";
+        return false;
+      },
+      VectorOf(Arbitrary<int>()).WithMinSize(3));
+
+  absl::BitGen prng;
+  domain_implementor::TraversalState state;
+  // This causes the inner VectorOf initialization to fail due to budget
+  // exhaustion.
+  state.init_budget = 0;
+
+  const auto val =
+      Value<decltype(domain)>::BuildWithTraversalCtx(domain, prng, state);
+
+  EXPECT_FALSE(val.ok());
+  EXPECT_FALSE(state.status.ok());
+  EXPECT_THAT(state.status.message(),
+              testing::HasSubstr("Traversal budget exceeded"));
 }
 
 }  // namespace
