@@ -22,6 +22,7 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/reflection.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -352,6 +353,19 @@ internal::Configuration CreateConfigurationsFromFlags(
   FUZZTEST_CHECK(!jobs.has_value() || *jobs > 0)
       << "If specified, --" << FUZZTEST_FLAG(jobs).Name()
       << " must be positive.";
+  size_t num_jobs = jobs.value_or(0);
+  if (const char* max_jobs_env = std::getenv("FUZZTEST_MAX_JOBS")) {
+    if (size_t max_jobs;
+        absl::SimpleAtoi(max_jobs_env, &max_jobs) && max_jobs > 0) {
+      if (num_jobs > max_jobs) {
+        num_jobs = max_jobs;
+      }
+    } else {
+      absl::FPrintF(stderr,
+                    "[!] Failed to parse FUZZTEST_MAX_JOBS as a positive "
+                    "integer - will not limit jobs.\n");
+    }
+  }
   std::string corpus_database = absl::GetFlag(FUZZTEST_FLAG(corpus_database));
   if (!corpus_database.empty() && corpus_database[0] != '/' &&
       std::getenv("TEST_SRCDIR")) {
@@ -380,7 +394,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       absl::GetFlag(FUZZTEST_FLAG(time_limit_per_input)),
       time_limit,
       time_budget_type,
-      jobs.value_or(0),
+      num_jobs,
       absl::GetFlag(FUZZTEST_FLAG(internal_centipede_command)),
       absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce)),
   };

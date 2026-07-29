@@ -772,6 +772,12 @@ TEST_F(GenericCommandLineInterfaceTest,
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(GenericCommandLineInterfaceTest, IgnoresInvalidJobsLimitInEnvVar) {
+  auto [status, std_out, std_err] = RunWith(
+      /*flags=*/{{"jobs", "10"}}, /*env=*/{{"FUZZTEST_MAX_JOBS", "-1"}});
+  EXPECT_THAT_LOG(std_err, HasSubstr("will not limit jobs"));
+}
+
 // Tests for the FuzzTest command line interface in fuzzing mode, which can only
 // run with coverage instrumentation enabled.
 class FuzzingModeCommandLineInterfaceTest
@@ -845,6 +851,16 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {
                   // 100 fuzzing runs + 1 seed run.
                   HasSubstr("Total runs: 101"));
 #endif  // FUZZTEST_USE_CENTIPEDE
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsJobsWhenEnvVarIsSet) {
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"jobs", "10"}},
+      {{"FUZZTEST_MAX_JOBS", "2"}, {"FUZZTEST_MAX_FUZZING_RUNS", "10"}});
+#ifdef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT_LOG(std_err, HasSubstr("Shard: 0/2"));
+#endif  // FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
