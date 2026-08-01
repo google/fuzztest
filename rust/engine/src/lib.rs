@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![deny(clippy::absolute_paths)]
+#![deny(unused_imports)]
+
 pub mod engine_ffi;
 
 use std::marker::PhantomData;

@@ -33,7 +33,7 @@ pub trait FuzzTest {
     /// (will attempt to downcast to actual user values).
     ///
     /// Returns `true` if the property function holds, `false` if it crashes.
-    fn execute<'a>(&self, args: &'a GenericCorpusValue) -> bool;
+    fn execute(&self, args: &GenericCorpusValue) -> bool;
     fn print_finding_report(&self);
     fn domains(&self) -> &dyn GenericDomain;
 }
@@ -57,6 +57,7 @@ pub struct FuzzTestRegistration {
 
 inventory::collect!(FuzzTestRegistration);
 
+#[allow(clippy::type_complexity)]
 pub static FUZZ_TEST_NAME_TO_FACTORY: LazyLock<HashMap<&str, fn() -> BoxedFuzzTest>> =
     LazyLock::new(|| {
         inventory::iter

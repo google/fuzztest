@@ -16,15 +16,17 @@ use crate::internal::FuzzTestRegistration;
 use ::engine::engine_ffi;
 use anyhow::Context;
 use clap::Parser;
+use std::env;
 use std::ffi::CString;
 use std::ffi::OsString;
+use std::iter;
 use std::path::Path;
 use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ListCrashIdsOptions, ReplayCorpusOptions,
-    ReplayCrashOptions, TimeBudgetType,
+    ExecutionMode, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
+    RunDuration, TimeBudgetType,
 };
 
 /// Returns a lazily-initialized static reference to the global `FuzzTestOptions`.
@@ -34,7 +36,7 @@ pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
     // from environment variables (like `FUZZTEST_FUZZ_FOR` etc.). We (currently) do not envisage
     // support for passing flags on cli as the Rust's libtest harness does not support custom
     // flags.
-    OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(std::iter::empty::<OsString>()))
+    OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(iter::empty::<OsString>()))
 }
 
 trait ExecutionModeExt {
@@ -155,7 +157,7 @@ impl CentipedeArgs {
         // ==============================================================================
         // 1. Common Base Arguments (Required across all Centipede executions)
         // ==============================================================================
-        let argv0 = std::env::args().next().context("while attempting to get argv[0]")?;
+        let argv0 = env::args().next().context("while attempting to get argv[0]")?;
 
         add_arg(format!("--binary={argv0} {current_test_name} --exact --nocapture"))?;
         let normalized_test_name = current_test_name.replace("::", ".");
@@ -212,10 +214,10 @@ impl CentipedeArgs {
         match mode_opts {
             ExecutionMode::Fuzz(fuzz_opts) => {
                 match &fuzz_opts.fuzz_for {
-                    FuzzFor::Indefinitely => {
+                    RunDuration::Indefinitely => {
                         // not specifying `--stop_after` means to run indefinitely.
                     }
-                    FuzzFor::Duration(duration) => {
+                    RunDuration::Fixed(duration) => {
                         let duration_secs = duration.as_secs_f64();
                         if opt_corpusdb.is_some() {
                             add_arg(format!("--fuzztest_time_limit_per_test={duration_secs}s"))?;
@@ -240,22 +242,31 @@ impl CentipedeArgs {
                 add_arg(format!("--list_crash_ids_file={}", path.display()))?;
             }
             ExecutionMode::ReplayCorpus(replay_corpus_opts) => {
-                let time_limit = match replay_corpus_opts.time_budget_type {
-                    TimeBudgetType::PerTest => replay_corpus_opts.replay_corpus_for,
-                    TimeBudgetType::Total => {
-                        let num_tests = inventory::iter::<FuzzTestRegistration>().count();
-                        if num_tests == 0 {
-                            replay_corpus_opts.replay_corpus_for
-                        } else {
-                            (*replay_corpus_opts.replay_corpus_for.as_ref() / (num_tests as u32))
-                                .into()
-                        }
-                    }
-                };
                 add_arg("--fuzztest_only_replay=true".to_string())?;
                 add_arg("--fuzztest_replay_coverage_inputs=true".to_string())?;
                 add_arg("--load_shards_only=true".to_string())?;
-                add_arg(format!("--fuzztest_time_limit_per_test={time_limit}"))?;
+                match replay_corpus_opts.replay_corpus_for {
+                    RunDuration::Indefinitely => {
+                        // Not specifying `--fuzztest_time_limit_per_test` means to run indefinitely
+                    }
+                    RunDuration::Fixed(duration) => {
+                        let time_limit: humantime::Duration = match replay_corpus_opts
+                            .time_budget_type
+                        {
+                            TimeBudgetType::PerTest => duration,
+                            TimeBudgetType::Total => {
+                                let num_tests = inventory::iter::<FuzzTestRegistration>().count();
+                                if num_tests == 0 {
+                                    duration
+                                } else {
+                                    (*duration.as_ref() / (num_tests as u32)).into()
+                                }
+                            }
+                        };
+                        let time_limit_secs = time_limit.as_secs_f64();
+                        add_arg(format!("--fuzztest_time_limit_per_test={time_limit_secs}s"))?;
+                    }
+                }
                 if let Some(jobs) = &replay_corpus_opts.jobs {
                     add_arg(format!("--j={jobs}"))?;
                 }
@@ -395,12 +406,12 @@ mod tests {
 
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
-        expect_that!(options.fuzz_for, eq(Some(FuzzFor::Indefinitely)));
+        expect_that!(options.fuzz_for, eq(Some(RunDuration::Indefinitely)));
         let mode = ExecutionMode::from_fuzztest_options(&options);
         let ExecutionMode::Fuzz(fuzz_opts) = mode else {
             panic!("Expected ExecutionMode::Fuzz");
         };
-        expect_that!(fuzz_opts.fuzz_for, eq(FuzzFor::Indefinitely));
+        expect_that!(fuzz_opts.fuzz_for, eq(RunDuration::Indefinitely));
 
         // SAFETY: Cleaning up environment variables.
         unsafe {
@@ -411,7 +422,7 @@ mod tests {
     #[gtest]
     fn test_determine_execution_action_standalone_indefinite() {
         let options =
-            FuzzTestOptions { fuzz_for: Some(FuzzFor::Indefinitely), ..Default::default() };
+            FuzzTestOptions { fuzz_for: Some(RunDuration::Indefinitely), ..Default::default() };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
@@ -435,11 +446,8 @@ mod tests {
 
     #[gtest]
     fn test_determine_execution_action_standalone() {
-        let expected_duration = "10s".parse().unwrap();
-        let options = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(expected_duration)),
-            ..Default::default()
-        };
+        let expected_duration: RunDuration = "10s".parse().unwrap();
+        let options = FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
@@ -469,10 +477,7 @@ mod tests {
     #[gtest]
     fn test_centipede_args_binary_identifier() {
         let expected_duration = "1s".parse().unwrap();
-        let options = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(expected_duration)),
-            ..Default::default()
-        };
+        let options = FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
@@ -492,10 +497,8 @@ mod tests {
     #[gtest]
     fn test_centipede_args_jobs() {
         let expected_duration = "1s".parse().expect("failed to parse duration");
-        let options_no_jobs = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(expected_duration)),
-            ..Default::default()
-        };
+        let options_no_jobs =
+            FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
         let action_no_jobs =
             determine_execution_action_internal(&options_no_jobs, "my_mod::my_test");
         let ExecutionAction::Standalone(args_no_jobs) = action_no_jobs else {
@@ -506,7 +509,7 @@ mod tests {
         assert!(!args_str_no_jobs.iter().any(|s| s.starts_with("--j=")));
 
         let options_with_jobs = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(expected_duration)),
+            fuzz_for: Some(expected_duration),
             jobs: Some(4),
             ..Default::default()
         };
@@ -523,8 +526,7 @@ mod tests {
     #[gtest]
     fn test_default_env_diff_set() {
         let duration = "1s".parse().unwrap();
-        let options =
-            FuzzTestOptions { fuzz_for: Some(FuzzFor::Duration(duration)), ..Default::default() };
+        let options = FuzzTestOptions { fuzz_for: Some(duration), ..Default::default() };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -639,6 +641,31 @@ mod tests {
     }
 
     #[gtest]
+    fn test_determine_execution_action_replay_corpus_indefinite() {
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some(RunDuration::Indefinitely),
+            time_budget_type: TimeBudgetType::PerTest,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+
+        let args_str: Vec<&str> =
+            args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
+
+        assert!(args_str
+            .iter()
+            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+        assert!(args_str.contains(&"--fuzztest_only_replay=true"));
+        assert!(args_str.contains(&"--fuzztest_replay_coverage_inputs=true"));
+        assert!(args_str.contains(&"--load_shards_only=true"));
+        assert!(!args_str.iter().any(|s| s.starts_with("--fuzztest_time_limit_per_test=")));
+    }
+
+    #[gtest]
     fn test_determine_execution_action_replay_corpus_total_budget() {
         let expected_duration = "10s".parse().expect("failed to parse duration");
         let options = FuzzTestOptions {
@@ -656,14 +683,37 @@ mod tests {
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
         let num_tests = inventory::iter::<FuzzTestRegistration>().count();
+        let RunDuration::Fixed(fixed_duration) = expected_duration else {
+            panic!("expected Fixed duration");
+        };
         let expected_limit = if num_tests == 0 {
-            expected_duration
+            fixed_duration
         } else {
-            (*expected_duration.as_ref() / (num_tests as u32)).into()
+            (*fixed_duration.as_ref() / (num_tests as u32)).into()
         };
         let expected_limit_str = format!("--fuzztest_time_limit_per_test={}", expected_limit);
 
         assert!(args_str.contains(&expected_limit_str.as_str()));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_replay_corpus_indefinite_total_budget() {
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some(RunDuration::Indefinitely),
+            time_budget_type: TimeBudgetType::Total,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+
+        let args_str: Vec<&str> =
+            args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
+
+        assert!(args_str.contains(&"--fuzztest_only_replay=true"));
+        assert!(!args_str.iter().any(|s| s.starts_with("--fuzztest_time_limit_per_test=")));
     }
 
     #[gtest]
@@ -750,11 +800,8 @@ mod tests {
         // When corpus_db is not provided, fuzzing for a fixed duration should pass --stop_after
         // to Centipede so it stops fuzzing after the specified duration.
         let duration = "1s".parse().expect("fixed test string should parse as duration");
-        let options = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(duration)),
-            corpus_db: None,
-            ..Default::default()
-        };
+        let options =
+            FuzzTestOptions { fuzz_for: Some(duration), corpus_db: None, ..Default::default() };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
@@ -778,7 +825,7 @@ mod tests {
         // a corpus database.
         let duration = "1s".parse().expect("fixed test string should parse as duration");
         let options = FuzzTestOptions {
-            fuzz_for: Some(FuzzFor::Duration(duration)),
+            fuzz_for: Some(duration),
             corpus_db: Some("/tmp/corpus_db".to_string()),
             ..Default::default()
         };
