@@ -18,8 +18,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ListCrashIdsOptions, ReplayCorpusOptions,
-    ReplayCrashOptions, TimeBudgetType,
+    ExecutionMode, FuzzOptions, FuzzTestOptions, ListCrashIdsOptions, ReplayCorpusOptions,
+    ReplayCrashOptions, RunDuration, TimeBudgetType,
 };
 use std::env;
 use std::ffi::OsString;
@@ -95,7 +95,10 @@ impl CargoFuzzTestOptions {
                 if self.test_path.is_some() {
                     self.check_centipede_binary_path_is_set()?;
                     ExecutionMode::Fuzz(FuzzOptions {
-                        fuzz_for: self.fuzztest_options.fuzz_for.unwrap_or(FuzzFor::Indefinitely),
+                        fuzz_for: self
+                            .fuzztest_options
+                            .fuzz_for
+                            .unwrap_or(RunDuration::Indefinitely),
                         jobs: self.fuzztest_options.jobs,
                     })
                 } else {
@@ -246,14 +249,7 @@ impl FuzztestRunner {
 
             ExecutionMode::Fuzz(fuzz_options) => {
                 let FuzzOptions { fuzz_for, jobs } = fuzz_options;
-                match fuzz_for {
-                    FuzzFor::Indefinitely => {
-                        cmd.env("FUZZTEST_FUZZ_FOR", "inf");
-                    }
-                    FuzzFor::Duration(duration) => {
-                        cmd.env("FUZZTEST_FUZZ_FOR", duration.to_string());
-                    }
-                }
+                cmd.env("FUZZTEST_FUZZ_FOR", fuzz_for.to_string());
                 if let Some(jobs) = jobs {
                     cmd.env("FUZZTEST_JOBS", jobs.to_string());
                 }
@@ -610,7 +606,60 @@ mod tests {
         assert_eq!(
             mode,
             ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
-                replay_corpus_for: "10s".parse().unwrap(),
+                replay_corpus_for: "10s".parse().expect("valid duration string"),
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: None,
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_corpus_for_inf() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-corpus-for",
+            "inf",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid replay-corpus-for inf should parse successfully");
+
+        assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some(RunDuration::Indefinitely));
+        assert_eq!(parsed.fuzztest_options.time_budget_type, TimeBudgetType::PerTest);
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: RunDuration::Indefinitely,
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: None,
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_corpus_for_infinity() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-corpus-for",
+            "infinity",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid replay-corpus-for infinity should parse successfully");
+
+        assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some(RunDuration::Indefinitely));
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: RunDuration::Indefinitely,
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: None,
             })
@@ -786,6 +835,42 @@ mod tests {
             "FUZZTEST_LIST_CRASH_IDS_FILE".to_string(),
             Some("/tmp/crashes.txt".to_string())
         )));
+        assert!(
+            envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
+        );
+        assert!(envs.contains(&(
+            "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
+            Some("/custom/centipede".to_string())
+        )));
+    }
+
+    #[gtest]
+    fn test_build_run_command_replay_corpus_indefinite() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_corpus_for: Some(RunDuration::Indefinitely),
+                time_budget_type: TimeBudgetType::Total,
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(envs.contains(&("FUZZTEST_REPLAY_CORPUS_FOR".to_string(), Some("inf".to_string()))));
+        assert!(
+            envs.contains(&("FUZZTEST_TIME_BUDGET_TYPE".to_string(), Some("total".to_string())))
+        );
         assert!(
             envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
         );

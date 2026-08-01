@@ -16,6 +16,9 @@ use super::utility::choose_value;
 use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::Domain;
+use std::char;
+use std::fmt;
+use std::marker::PhantomData;
 
 use anyhow;
 use rand::RngExt;
@@ -39,19 +42,18 @@ use rand::RngExt;
 /// let sample = arbitrary_i32.init(&mut rng);
 /// assert!(sample.is_ok());
 /// ```
-
 pub struct Arbitrary<T> {
-    _phantom: std::marker::PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl<T> Clone for Arbitrary<T> {
     fn clone(&self) -> Self {
-        Self { _phantom: std::marker::PhantomData }
+        Self { _phantom: PhantomData }
     }
 }
 
-impl<T> std::fmt::Debug for Arbitrary<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> fmt::Debug for Arbitrary<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Arbitrary").field("_phantom", &self._phantom).finish()
     }
 }
@@ -59,14 +61,14 @@ impl<T> std::fmt::Debug for Arbitrary<T> {
 // We cannot just use `#[derive(Default)]` because `T` might not be `Default`.
 impl<T> Default for Arbitrary<T> {
     fn default() -> Self {
-        Self { _phantom: std::marker::PhantomData }
+        Self { _phantom: PhantomData }
     }
 }
 
 impl<T> Arbitrary<T> {
     /// Creates a new `Arbitrary` domain for the given type `T`.
     pub fn new() -> Self {
-        Self { _phantom: std::marker::PhantomData }
+        Self { _phantom: PhantomData }
     }
 }
 
@@ -254,7 +256,7 @@ fn map_int_to_char(u: u32) -> char {
         NUM_VALID_CODEPOINTS
     );
     let val = if u >= SURROGATE_START { u + (SURROGATE_END - SURROGATE_START + 1) } else { u };
-    std::char::from_u32(val).unwrap()
+    char::from_u32(val).unwrap()
 }
 
 impl Domain for Arbitrary<char> {
@@ -745,19 +747,13 @@ mod tests {
         assert_eq!(map_int_to_char(0), '\u{0000}');
 
         let before_surrogate = SURROGATE_START - 1;
-        assert_eq!(
-            map_char_to_int(std::char::from_u32(before_surrogate).unwrap()),
-            before_surrogate
-        );
-        assert_eq!(
-            map_int_to_char(before_surrogate),
-            std::char::from_u32(before_surrogate).unwrap()
-        );
+        assert_eq!(map_char_to_int(char::from_u32(before_surrogate).unwrap()), before_surrogate);
+        assert_eq!(map_int_to_char(before_surrogate), char::from_u32(before_surrogate).unwrap());
 
         let after_surrogate = SURROGATE_END + 1;
-        let mapped_after_surrogate = map_char_to_int(std::char::from_u32(after_surrogate).unwrap());
+        let mapped_after_surrogate = map_char_to_int(char::from_u32(after_surrogate).unwrap());
         assert_eq!(mapped_after_surrogate, SURROGATE_START);
-        assert_eq!(map_int_to_char(SURROGATE_START), std::char::from_u32(after_surrogate).unwrap());
+        assert_eq!(map_int_to_char(SURROGATE_START), char::from_u32(after_surrogate).unwrap());
 
         assert_eq!(map_char_to_int('\u{10FFFF}'), NUM_VALID_CODEPOINTS - 1);
         assert_eq!(map_int_to_char(NUM_VALID_CODEPOINTS - 1), '\u{10FFFF}');
@@ -776,7 +772,7 @@ mod tests {
             while value != '\0' && iterations < MAX_ITERATIONS {
                 domain.mutate(&mut value, &mut rng, true).unwrap();
                 // Ensure that the value is always a valid char after mutation.
-                assert!(std::char::from_u32(value as u32).is_some());
+                assert!(char::from_u32(value as u32).is_some());
                 iterations += 1;
             }
             assert_eq!(

@@ -1,4 +1,5 @@
 use rand::RngExt;
+use std::fmt;
 
 use super::Domain;
 
@@ -99,8 +100,8 @@ impl<T: Clone> Clone for VecOf<T> {
     }
 }
 
-impl<T: std::fmt::Debug> std::fmt::Debug for VecOf<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T: fmt::Debug> fmt::Debug for VecOf<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VecOf")
             .field("inner", &self.inner)
             .field("min_len", &self.min_len)
@@ -201,7 +202,7 @@ impl<T> ContainerDomain for VecOf<T> {
 
     fn with_min_len(self, min_len: usize) -> Self {
         assert!(
-            self.max_len.map_or(true, |max| min_len <= max),
+            self.max_len.is_none_or(|max| min_len <= max),
             "Minimum length {} cannot be greater than the maximum length {}",
             min_len,
             self.max_len.unwrap()

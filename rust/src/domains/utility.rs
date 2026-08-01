@@ -18,6 +18,7 @@ use num_traits::PrimInt;
 use rand::distr::uniform::SampleUniform;
 use rand::distr::{Distribution, StandardUniform};
 use rand::RngExt;
+use std::fmt::Display;
 
 /// Shrinks a `val` towards a `target` value.
 ///
@@ -32,7 +33,7 @@ use rand::RngExt;
 /// * `target`: The value to shrink towards.
 pub fn shrink_towards<T, R: rand::Rng + ?Sized>(rng: &mut R, val: T, target: T) -> T
 where
-    T: SampleUniform + PartialOrd + Copy + std::fmt::Display,
+    T: SampleUniform + PartialOrd + Copy + Display,
 {
     match val.partial_cmp(&target) {
         Some(Ordering::Equal) => val,
@@ -81,7 +82,7 @@ pub fn mutate_integer<T, R: rand::Rng + ?Sized>(
     max_value: Option<T>,
 ) -> T
 where
-    T: PrimInt + SampleUniform + std::fmt::Display,
+    T: PrimInt + SampleUniform + Display,
 {
     assert!(range > T::zero(), "mutate_integer: range value cannot be <= 0: {range}");
 
@@ -106,7 +107,7 @@ where
         }
         1 => {
             // 1/3 chance: Flip a random bit
-            let num_bits = std::mem::size_of::<T>() * 8;
+            let num_bits = size_of::<T>() * 8;
             let bit_index = rng.random_range(0..num_bits);
             let mask = T::one() << bit_index;
             let result = val ^ mask;
@@ -194,7 +195,7 @@ impl SpecialValues for char {
 ///
 /// # Type Parameters
 /// * `T`: The type of the value to choose. Must implement `SpecialValues` and
-///        `StandardUniform` must be able to generate values of type `T`.
+///   `StandardUniform` must be able to generate values of type `T`.
 pub fn choose_value<T, R: rand::Rng + ?Sized>(rng: &mut R) -> T
 where
     T: SpecialValues + 'static,
@@ -217,7 +218,7 @@ pub fn mutate_float<T, R: rand::Rng + ?Sized>(
     _range: Option<(T, T)>, // TODO: Implement range support for floats.
 ) -> anyhow::Result<()>
 where
-    T: num_traits::Float + SampleUniform + std::fmt::Display + Copy + SpecialValues + 'static,
+    T: num_traits::Float + SampleUniform + Display + Copy + SpecialValues + 'static,
     StandardUniform: Distribution<T>,
 {
     if only_shrink {
@@ -259,6 +260,7 @@ mod tests {
         rngs::{SmallRng, SysRng},
         SeedableRng,
     };
+    use std::fmt::Debug;
 
     fn get_rng() -> SmallRng {
         SmallRng::try_from_rng(&mut SysRng).unwrap()
@@ -266,7 +268,7 @@ mod tests {
 
     fn check_shrink_towards<T>(smaller: T, larger: T)
     where
-        T: SampleUniform + PartialOrd + Copy + std::fmt::Display + std::fmt::Debug + PartialEq,
+        T: SampleUniform + PartialOrd + Copy + Display + Debug + PartialEq,
     {
         let mut rng = get_rng();
 
@@ -317,7 +319,7 @@ mod tests {
 
     fn check_mutate_integer<T>()
     where
-        T: PrimInt + SampleUniform + std::fmt::Display + std::fmt::Debug + SpecialValues + 'static,
+        T: PrimInt + SampleUniform + Display + Debug + SpecialValues + 'static,
         StandardUniform: Distribution<T>,
     {
         let mut rng = get_rng();
@@ -369,13 +371,7 @@ mod tests {
 
     fn check_mutate_float<T>()
     where
-        T: num_traits::Float
-            + SampleUniform
-            + std::fmt::Display
-            + std::fmt::Debug
-            + Copy
-            + SpecialValues
-            + 'static,
+        T: num_traits::Float + SampleUniform + Display + Debug + Copy + SpecialValues + 'static,
         StandardUniform: Distribution<T>,
     {
         let mut rng = get_rng();

@@ -17,6 +17,8 @@ pub mod containers;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
+use ::serde::de::DeserializeOwned;
+use ::serde::Serialize;
 
 use anyhow;
 use anyhow::Context;
@@ -118,7 +120,7 @@ pub trait Domain {
     /// the CorpusValue could the owned data structured that the `&str` points to (eg: String).
     /// The CorpusValue type should implement `serde::Serialize`, `serde::de::DeserializeOwned` and
     /// `Clone`.
-    type CorpusValue: ::serde::Serialize + ::serde::de::DeserializeOwned + Clone;
+    type CorpusValue: Serialize + DeserializeOwned + Clone;
 
     /// Initializes a new value drawn from the domain.
     fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;

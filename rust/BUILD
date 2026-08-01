@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_clippy", "rust_library", "rust_test")
 
 licenses(["notice"])
 
@@ -55,5 +55,12 @@ rust_test(
     rustc_flags = ["-Zallow-features=cfg_sanitize"],
     deps = [
         "@crate_index//:googletest",
+    ],
+)
+
+rust_clippy(
+    name = "fuzztest_clippy",
+    deps = [
+        ":fuzztest",
     ],
 )

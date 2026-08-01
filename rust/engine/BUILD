@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_rust//rust:defs.bzl", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_clippy", "rust_library")
 
 licenses(["notice"])
 
@@ -28,5 +28,12 @@ rust_library(
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
         "@com_google_fuzztest//centipede:engine_worker",
+    ],
+)
+
+rust_clippy(
+    name = "engine_clippy",
+    deps = [
+        ":engine",
     ],
 )

@@ -185,10 +185,7 @@ impl FuzzTestUint64sView {
         if self.data.is_null() {
             &[]
         } else {
-            ptr::slice_from_raw_parts(
-                self.data as *const u8,
-                self.size * core::mem::size_of::<u64>(),
-            )
+            ptr::slice_from_raw_parts(self.data as *const u8, self.size * size_of::<u64>())
         }
     }
 }
