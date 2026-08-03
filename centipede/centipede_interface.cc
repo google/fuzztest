@@ -770,7 +770,9 @@ int CentipedeMain(const Environment& env,
                 *serialized_target_config);
         FUZZTEST_CHECK_OK(target_config.status())
             << "Failed to deserialize target configuration";
-        updated_env.UpdateWithTargetConfig(*target_config);
+        if (!target_config->corpus_database.empty()) {
+          updated_env.UpdateWithTargetConfig(*target_config);
+        }
       }
     }
     if (!updated_env.fuzztest_corpus_database.empty()) {
