@@ -212,11 +212,17 @@ cc_library(
 
 # Various utilities.
 cc_library(
+    name = "windows_includes",
+    hdrs = ["windows_includes.h"],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
     deps = [
         ":feature",
+        ":windows_includes",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/strings",
@@ -1385,7 +1391,12 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
-    copts = ["-fno-signed-char"],
+    copts = select({
+        "@platforms//os:windows": [
+            "/J",  # Make unsigned char the default
+        ],
+        "//conditions:default": ["-fno-signed-char"],
+    }),
     deps = [
         ":feature",
         ":thread_pool",
