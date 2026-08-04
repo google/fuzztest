@@ -15,7 +15,13 @@
 #ifndef FUZZTEST_CENTIPEDE_SANCOV_STATE_H_
 #define FUZZTEST_CENTIPEDE_SANCOV_STATE_H_
 
+#if !defined(_WIN32)
 #include <pthread.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#endif
 
 #include <algorithm>
 #include <cstddef>
@@ -49,14 +55,26 @@ namespace fuzztest::internal {
 // An arbitrarily large size.
 constexpr size_t kCmpFeatureSetSize = 1 << 18;
 
-// Like std::lock_guard, but for pthread_mutex_t.
+#if defined(_WIN32)
+using MutexType = SRWLOCK;
+#define MUTEX_INITIALIZER SRWLOCK_INIT
+inline void MutexLock(MutexType* mu) { AcquireSRWLockExclusive(mu); }
+inline void MutexUnlock(MutexType* mu) { ReleaseSRWLockExclusive(mu); }
+#else
+using MutexType = pthread_mutex_t;
+#define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+inline void MutexLock(MutexType* mu) { pthread_mutex_lock(mu); }
+inline void MutexUnlock(MutexType* mu) { pthread_mutex_unlock(mu); }
+#endif
+
+// Like std::lock_guard, but for MutexType.
 class LockGuard {
  public:
-  explicit LockGuard(pthread_mutex_t &mu) : mu_(mu) { pthread_mutex_lock(&mu); }
-  ~LockGuard() { pthread_mutex_unlock(&mu_); }
+  explicit LockGuard(MutexType& mu) : mu_(mu) { MutexLock(&mu_); }
+  ~LockGuard() { MutexUnlock(&mu_); }
 
  private:
-  pthread_mutex_t &mu_;
+  MutexType& mu_;
 };
 
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
@@ -192,7 +210,7 @@ struct SancovState {
   // Doubly linked list of detached TLSs.
   ThreadLocalSancovState *detached_tls_list;
   // Guards `tls_list` and `detached_tls_list`.
-  pthread_mutex_t tls_list_mu = PTHREAD_MUTEX_INITIALIZER;
+  MutexType tls_list_mu = MUTEX_INITIALIZER;
   // Iterates all TLS objects under tls_list_mu, except those with `ignore` set.
   // Calls `callback()` on every TLS.
   template <typename Callback>
@@ -319,8 +337,12 @@ void SanCovRuntimeConvertToEngineFeatures(feature_t* start, size_t size);
 
 // Check for stack limit for `stack_usage`, with `is_current_stack` set if it
 // is for the current calling stack.
+#if !defined(_WIN32)
 __attribute__((weak)) void CheckStackLimit(size_t stack_usage,
                                            bool is_current_stack);
+#else
+void CheckStackLimit(size_t stack_usage, bool is_current_stack);
+#endif
 
 extern ExplicitLifetime<SancovState> sancov_state;
 extern __thread ThreadLocalSancovState tls;

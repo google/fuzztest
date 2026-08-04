@@ -127,7 +127,7 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
     absl::flat_hash_set<std::string> current_corpus_shard_fnames;
     if (!source.shard_rel_glob.empty()) {
       std::vector<std::string> matched_fnames;
-      const std::string glob = fs::path{dir} / source.shard_rel_glob;
+      const std::string glob = (fs::path{dir} / source.shard_rel_glob).string();
       const auto match_status = RemoteGlobMatch(glob, matched_fnames);
       if (!match_status.ok() && !absl::IsNotFound(match_status)) {
         FUZZTEST_LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
@@ -144,7 +144,8 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
     }
     if (!source.individual_input_rel_glob.empty()) {
       std::vector<std::string> matched_fnames;
-      const std::string glob = fs::path{dir} / source.individual_input_rel_glob;
+      const std::string glob =
+          (fs::path{dir} / source.individual_input_rel_glob).string();
       const auto match_status = RemoteGlobMatch(glob, matched_fnames);
       if (!match_status.ok() && !absl::IsNotFound(match_status)) {
         FUZZTEST_LOG(ERROR) << "Got error when glob-matching in " << dir << ": "
@@ -426,7 +427,7 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         const std::string corpus_rel_fname =
             absl::StrReplaceAll(destination.shard_rel_glob, {{"*", shard_idx}});
         const std::string corpus_fname =
-            fs::path{destination.dir_path} / corpus_rel_fname;
+            (fs::path{destination.dir_path} / corpus_rel_fname).string();
 
         const auto work_dir = WorkDir::FromCorpusShardPath(  //
             corpus_fname, coverage_binary_name, coverage_binary_hash);

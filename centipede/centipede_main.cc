@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if !defined(_WIN32)
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 
 #include <csignal>
 #include <cstdlib>
@@ -29,6 +33,11 @@ namespace {
 fuzztest::internal::StopCondition global_stop_condition;
 
 void SetSignalHandlers() {
+#if defined(_WIN32)
+  std::signal(SIGINT, [](int received_signum) {
+    global_stop_condition.RequestEarlyStop(EXIT_FAILURE);
+  });
+#else
   struct sigaction sigact = {};
   sigact.sa_flags = SA_ONSTACK;
   sigact.sa_handler = [](int received_signum) {
@@ -39,6 +48,7 @@ void SetSignalHandlers() {
     global_stop_condition.RequestEarlyStop(EXIT_FAILURE);
   };
   sigaction(SIGINT, &sigact, nullptr);
+#endif
 }
 }  // namespace
 

@@ -175,6 +175,10 @@ class SharedMemoryBlobSequence : public BlobSequence {
   const char *absl_nonnull path() const { return path_; }
 
  private:
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
   // mmaps `size_` bytes from `fd_`, assigns to `data_`. Crashes if mmap failed.
   void MmapData();
 
@@ -182,6 +186,9 @@ class SharedMemoryBlobSequence : public BlobSequence {
   // passed in.
   char path_[PATH_MAX] = {0};
   int fd_ = -1;  // file descriptor used to mmap the shared memory region.
+#if defined(_WIN32)
+  void* mapping_handle_ = nullptr;
+#endif
   // Whether the file pointed to by path_ is owned by this and needs to be
   // deallocated on destruction.
   bool path_is_owned_ = false;

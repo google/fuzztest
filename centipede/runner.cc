@@ -23,12 +23,39 @@
 #include "./centipede/runner.h"
 
 #include <fcntl.h>
+#if !defined(_WIN32)
 #include <pthread.h>  // NOLINT: use pthread to avoid extra dependencies.
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+// clang-format off
+// Must be before <afunix.h>
+#include <ws2tcpip.h>
+// clang-format on
+#include <afunix.h>
+#include <io.h>
+#include <process.h>
+#include <psapi.h>
+#include <windows.h>
+#include <winsock2.h>
+
+#include <thread>  // NOLINT
+inline static void EnsureWinsockInitialized() {
+  static WSADATA wsa_data;
+  [[maybe_unused]] static int init = WSAStartup(MAKEWORD(2, 2), &wsa_data);
+}
+inline static int rand_r(unsigned int* seed) {
+  *seed = *seed * 1103515245 + 12345;
+  return static_cast<int>((*seed / 65536) % 32768);
+}
+inline static void sleep(unsigned int seconds) { Sleep(seconds * 1000); }
+inline static int ftruncate(int fd, size_t size) { return _chsize(fd, size); }
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -81,6 +108,14 @@ GlobalRunnerStateManager state_manager __attribute__((init_priority(200)));
 }  // namespace
 
 static size_t GetPeakRSSMb() {
+#if defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc = {};
+  pmc.cb = sizeof(pmc);
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+    return pmc.PeakWorkingSetSize >> 20;
+  }
+  return 0;
+#else
   struct rusage usage = {};
   if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
 #ifdef __APPLE__
@@ -91,14 +126,24 @@ static size_t GetPeakRSSMb() {
   // On Linux, ru_maxrss is in KiB
   return usage.ru_maxrss >> 10;
 #endif  // __APPLE__
+#endif
 }
 
 // Returns the current time in microseconds.
 static uint64_t TimeInUsec() {
+#if defined(_WIN32)
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+  ULARGE_INTEGER uli;
+  uli.LowPart = ft.dwLowDateTime;
+  uli.HighPart = ft.dwHighDateTime;
+  return static_cast<uint64_t>(uli.QuadPart / 10);
+#else
   struct timeval tv = {};
   constexpr size_t kUsecInSec = 1000000;
   gettimeofday(&tv, nullptr);
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
+#endif
 }
 
 // Atomic flags to make sure that (a) watchdog failure is reported only for
@@ -195,7 +240,11 @@ static void CheckWatchdogLimits() {
   tls.ignore = true;
   state->watchdog_thread_started = true;
   while (true) {
+#if defined(_WIN32)
+    Sleep(1000);
+#else
     sleep(1);
+#endif
 
     // No calls to ResetInputTimer() yet: input execution hasn't started.
     if (state->input_start_time == 0) continue;
@@ -235,12 +284,20 @@ void GlobalRunnerState::StartWatchdogThread() {
           run_time_flags.timeout_per_input.load(),
           run_time_flags.rss_limit_mb.load(),
           state->run_time_flags.stack_limit_kb.load());
+#if defined(_WIN32)
+  std::thread(WatchdogThread, nullptr).detach();
+#else
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
   pthread_detach(watchdog_thread);
+#endif
   // Wait until the watchdog actually starts and initializes itself.
   while (!state->watchdog_thread_started) {
+#if defined(_WIN32)
+    Sleep(0);
+#else
     sleep(0);
+#endif
   }
 }
 
@@ -559,7 +616,7 @@ static void DumpSeedsToDir(RunnerCallbacks& callbacks, const char* output_dir) {
     if (seed_index >= 1000000000) return;
     char seed_path_buf[PATH_MAX];
     const size_t num_path_chars =
-        snprintf(seed_path_buf, PATH_MAX, "%s/%09lu", output_dir, seed_index);
+        snprintf(seed_path_buf, PATH_MAX, "%s/%09zu", output_dir, seed_index);
     PrintErrorAndExitIf(num_path_chars >= PATH_MAX,
                         "seed path reaches PATH_MAX");
     FILE* output_file = fopen(seed_path_buf, "w");
@@ -787,6 +844,9 @@ void* LegacyRunnerCallbacks::CrossOver(
 
 // Returns the current process VmSize, in bytes.
 static size_t GetVmSizeInBytes() {
+#if defined(_WIN32)
+  return 0;
+#else
   FILE* f = fopen("/proc/self/statm", "r");  // man proc
   if (!f) return 0;
   size_t vm_size = 0;
@@ -794,10 +854,12 @@ static size_t GetVmSizeInBytes() {
   (void)fscanf(f, "%zd", &vm_size);
   fclose(f);
   return vm_size * getpagesize();  // proc gives VmSize in pages.
+#endif
 }
 
 // Sets RLIMIT_CORE, RLIMIT_AS
 static void SetLimits() {
+#if !defined(_WIN32)
   // Disable core dumping.
   struct rlimit core_limits;
   getrlimit(RLIMIT_CORE, &core_limits);
@@ -826,6 +888,7 @@ static void SetLimits() {
             "VmSize is %zdGb, suspecting ASAN/MSAN/TSAN\n",
             vm_size_in_bytes >> 30);
   }
+#endif
 }
 
 // Create a fake reference to ForkServerCallMeVeryEarly() here so that the
@@ -845,9 +908,13 @@ void MaybeConnectToPersistentMode() {
   if (state->persistent_mode_socket_path == nullptr) {
     return;
   }
+#if defined(_WIN32)
+  EnsureWinsockInitialized();
+#endif
   state->persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (state->persistent_mode_socket < 0) {
     fprintf(stderr, "Failed to create persistent mode socket\n");
+    return;
   }
 
   struct sockaddr_un addr{};
@@ -863,26 +930,44 @@ void MaybeConnectToPersistentMode() {
   do {
     connect_ret = connect(state->persistent_mode_socket,
                           (struct sockaddr*)&addr, sizeof(addr));
-  } while (connect_ret == -1 && errno == EINTR);
+  } while (connect_ret == -1 &&
+#if defined(_WIN32)
+           WSAGetLastError() == WSAEINTR
+#else
+           errno == EINTR
+#endif
+  );
   if (connect_ret == -1) {
     fprintf(stderr, "Failed to connect the persistent mode socket to %s\n",
             state->persistent_mode_socket_path);
+#if defined(_WIN32)
+    (void)closesocket(state->persistent_mode_socket);
+#else
     (void)close(state->persistent_mode_socket);
+#endif
     state->persistent_mode_socket = -1;
+    return;
   }
 
+#if defined(_WIN32)
+  SetHandleInformation(reinterpret_cast<HANDLE>(state->persistent_mode_socket),
+                       HANDLE_FLAG_INHERIT, 0);
+#else
   int flags = fcntl(state->persistent_mode_socket, F_GETFD);
   if (flags == -1) {
     fprintf(stderr, "fcntl(F_GETFD) failed\n");
     (void)close(state->persistent_mode_socket);
     state->persistent_mode_socket = -1;
+    return;
   }
   flags |= FD_CLOEXEC;
   if (fcntl(state->persistent_mode_socket, F_SETFD, flags) == -1) {
     fprintf(stderr, "fcntl(F_SETFD) failed\n");
     (void)close(state->persistent_mode_socket);
     state->persistent_mode_socket = -1;
+    return;
   }
+#endif
 }
 
 GlobalRunnerState::GlobalRunnerState() {

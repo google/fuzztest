@@ -215,6 +215,10 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
+    linkopts = select({
+        "@platforms//os:windows": ["-DEFAULTLIB:ws2_32.lib"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":feature",
         "@abseil-cpp//absl/base:core_headers",
@@ -246,10 +250,12 @@ cc_library(
     srcs = ["config_init.cc"],
     hdrs = ["config_init.h"],
     deps = [
+        ":centipede_flags",
         ":config_util",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:log_severity",
         "@abseil-cpp//absl/flags:config",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:globals",
         "@abseil-cpp//absl/log:initialize",
@@ -340,7 +346,11 @@ cc_library(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+        ],
+    }),
 )
 
 cc_library(
@@ -349,6 +359,7 @@ cc_library(
     hdrs = ["stats.h"],
     linkopts = select({
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "-latomic",  # for std::atomic::load()/store().
         ],
@@ -417,6 +428,7 @@ cc_library(
     copts = DISABLE_SANCOV_COPTS,
     linkopts = select({
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "-lrt",  # for shm_open
         ],
@@ -605,6 +617,7 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -629,6 +642,10 @@ cc_library(
     name = "centipede_callbacks",
     srcs = ["centipede_callbacks.cc"],
     hdrs = ["centipede_callbacks.h"],
+    linkopts = select({
+        "@platforms//os:windows": ["-DEFAULTLIB:ws2_32.lib"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":binary_info",
         ":byte_array_mutator",
@@ -683,6 +700,7 @@ cc_library(
     hdrs = ["stop.h"],
     linkopts = select({
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "-latomic",  # for std::atomic::load()/store().
         ],
@@ -1007,6 +1025,10 @@ cc_library(
         "runner_utils.h",
     ],
     hdrs = ["engine_worker_abi.h"],
+    linkopts = select({
+        "@platforms//os:windows": ["-DEFAULTLIB:ws2_32.lib"],
+        "//conditions:default": [],
+    }),
     deps = [
         ":engine_abi",
         ":execution_metadata",
@@ -1014,6 +1036,7 @@ cc_library(
         ":runner_request",
         ":runner_result",
         ":shared_memory_blob_sequence",
+        ":util",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
     ],
@@ -1024,6 +1047,7 @@ cc_library(
     srcs = ["engine_controller_with_subprocess.cc"],
     hdrs = ["engine_controller_abi.h"],
     deps = [
+        ":command",
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
@@ -1065,22 +1089,29 @@ RUNNER_SOURCES_NO_MAIN = [
 # Need to allow MSAN to avoid false positives when interacting with dependencies.
 RUNNER_COPTS = [
     "-fsanitize-coverage=0",
-    "-fno-sanitize=address,hwaddress,thread,undefined",
-]
+] + select({
+    "@platforms//os:windows": [],
+    "//conditions:default": ["-fno-sanitize=address,hwaddress,thread,undefined"],
+})
 
 RUNNER_SANITIZED_COPTS = [
     "-fsanitize-coverage=0",
 ]
 
-RUNNER_LINKOPTS = [
-    "-ldl",  # for dlsym
-    "-lpthread",  # for pthread_once
-] + select({
+RUNNER_LINKOPTS = select({
+    "@platforms//os:windows": [
+        "-DEFAULTLIB:psapi.lib",
+        "-DEFAULTLIB:ws2_32.lib",
+    ],
     "@platforms//os:macos": [
+        "-ldl",  # for dlsym
+        "-lpthread",  # for pthread_once
         # For compatible behavior on weak symbols.
         "-Wl,-undefined,dynamic_lookup",
     ],
     "//conditions:default": [
+        "-ldl",  # for dlsym
+        "-lpthread",  # for pthread_once
         "-lrt",  # for shm_open
     ],
 })
@@ -1997,6 +2028,7 @@ cc_test(
         ":centipede_callbacks",
         ":centipede_default_callbacks",
         ":centipede_interface",
+        ":command",
         ":environment",
         ":feature",
         ":mutation_data",

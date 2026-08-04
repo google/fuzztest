@@ -79,7 +79,7 @@ class TempDir {
   const std::filesystem::path& path() const { return path_; }
 
   std::string GetFilePath(std::string_view file_name) const {
-    return path_ / file_name;
+    return (path_ / file_name).string();
   }
 
   std::string CreateSubdir(std::string_view name) const {

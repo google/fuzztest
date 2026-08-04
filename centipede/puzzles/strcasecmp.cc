@@ -15,9 +15,10 @@
 // Centipede puzzle: one 3-byte strncasecmp and one 3-byte strcasecmp. Check
 // the output in the log. Disable use_auto_dictionary so that we test other
 // functionality.
-// RUN: Run --use_auto_dictionary=false && SolutionIs 123456
-// RUN: ExpectInLog "TEXT IN STDOUT"
-// RUN: ExpectInLog "TEXT IN STDERR"
+// CASE main: ARG: --use_auto_dictionary=false
+// CASE main: MATCH: Input bytes *: 123456
+// CASE main: MATCH: TEXT IN STDOUT
+// CASE main: MATCH: TEXT IN STDERR
 
 #include <strings.h>
 

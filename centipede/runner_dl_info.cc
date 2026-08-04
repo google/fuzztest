@@ -17,11 +17,19 @@
 #ifdef __APPLE__
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+// clang-format off
+// Must be after <windows.h>
+#include <psapi.h>
+// clang-format on
 #else  // __APPLE__
 #include <elf.h>
 #include <link.h>  // dl_iterate_phdr
-#endif             // __APPLE__
 #include <unistd.h>
+#endif  // __APPLE__
 
 #include <cinttypes>
 #include <cstddef>
@@ -182,6 +190,46 @@ DlInfo GetDlInfo(uintptr_t pc) {
     });
     return matched;
   });
+}
+
+#elif defined(_WIN32)
+
+namespace {
+
+DlInfo GetDlInfoFromModule(HMODULE hModule) {
+  DlInfo result;
+  result.Clear();
+  if (hModule == nullptr) return result;
+
+  MODULEINFO modInfo = {};
+  if (GetModuleInformation(GetCurrentProcess(), hModule, &modInfo,
+                           sizeof(modInfo))) {
+    result.start_address = reinterpret_cast<uintptr_t>(modInfo.lpBaseOfDll);
+    result.size = modInfo.SizeOfImage;
+    result.link_offset = result.start_address;
+    GetModuleFileNameA(hModule, result.path, sizeof(result.path));
+  }
+  return result;
+}
+
+}  // namespace
+
+DlInfo GetDlInfo(const char* absl_nullable dl_path_suffix) {
+  HMODULE hModule = nullptr;
+  if (dl_path_suffix == nullptr) {
+    hModule = GetModuleHandleA(nullptr);
+  } else {
+    hModule = GetModuleHandleA(dl_path_suffix);
+  }
+  return GetDlInfoFromModule(hModule);
+}
+
+DlInfo GetDlInfo(uintptr_t pc) {
+  HMODULE hModule = nullptr;
+  GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                     reinterpret_cast<LPCSTR>(pc), &hModule);
+  return GetDlInfoFromModule(hModule);
 }
 
 #else  // __APPLE__

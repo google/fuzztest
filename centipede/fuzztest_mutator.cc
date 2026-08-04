@@ -115,11 +115,11 @@ class FuzzTestMutator::MutatorDomain : public MutatorDomainBase {
   ~MutatorDomain() {}
 };
 
-FuzzTestMutator::FuzzTestMutator(const Knobs &knobs, uint64_t seed)
+FuzzTestMutator::FuzzTestMutator(const Knobs& knobs, uint64_t seed)
     : knobs_(knobs),
       prng_(seed),
-      mutation_metadata_(std::make_unique<MutationMetadata>()),
-      domain_(std::make_unique<MutatorDomain>()) {
+      mutation_metadata_(std::make_unique<MutationMetadata>()) {
+  domain_ = std::make_unique<MutatorDomain>();
   domain_->WithMinSize(1).WithMaxSize(max_len_);
 }
 
@@ -139,7 +139,7 @@ void FuzzTestMutator::CrossOverOverwrite(ByteArray &data,
                                          const ByteArray &other) {
   // Overwrite data[pos:pos+size] with other[first:first+size].
   // Overwrite no more than half of data.
-  size_t max_size = std::max(1UL, data.size() / 2);
+  size_t max_size = std::max(size_t{1}, data.size() / 2);
   const auto first = absl::Uniform<size_t>(prng_, 0, other.size());
   max_size = std::min(max_size, other.size() - first);
   const auto size = absl::Uniform<size_t>(prng_, 1, max_size + 1);

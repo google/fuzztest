@@ -13,11 +13,11 @@
 // limitations under the License.
 
 // Centipede puzzle: use callstack features to reach deep recursion
-// clang-format off
-// RUN: Run --callstack_level=10 --use_cmp_features=0 --max_len=10 --num_runs=10000000 # NOLINT
-// RUN: SolutionIs ABCDEF
-// clang-format on
-#include <sys/resource.h>
+// CASE main: ARG: --callstack_level=10
+// CASE main: ARG: --use_cmp_features=0
+// CASE main: ARG: --max_len=10
+// CASE main: ARG: --num_runs=10000000
+// CASE main: MATCH: Input bytes *: ABCDEF
 
 #include <cstddef>
 #include <cstdint>

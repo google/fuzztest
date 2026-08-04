@@ -14,14 +14,15 @@
 
 """BUILD rule for Centipede puzzles"""
 
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@com_google_fuzztest//centipede/testing:build_defs.bzl", "centipede_fuzz_target")
 
-def puzzle(name):
+def puzzle(name, tags = []):
     """Generates a cc_fuzz_target target instrumented with sancov and a sh script to run it.
 
     Args:
       name: A unique name for this target
+      tags: Tags for this target
     """
 
     centipede_fuzz_target(
@@ -36,13 +37,24 @@ def puzzle(name):
     # repeatability. Each sh_test performs a single run with a single seed, so
     # that the log is minimal.
     for seed in ["1", "2"]:
-        sh_test(
+        cc_test(
             name = "run_" + seed + "_" + name,
-            srcs = ["run_puzzle.sh"],
+            srcs = ["run_puzzle.cc"],
+            args = ["--seed=" + seed, "--puzzle=" + name],
             data = [
                 ":" + name,
                 name + ".cc",
                 "@com_google_fuzztest//centipede:centipede_uninstrumented",
-                "@com_google_fuzztest//centipede:test_util_sh",
             ],
+            deps = [
+                "@googletest//:gtest",
+                "@abseil-cpp//absl/flags:flag",
+                "@abseil-cpp//absl/flags:parse",
+                "@abseil-cpp//absl/strings",
+                "@abseil-cpp//absl/time",
+                "@com_google_fuzztest//centipede:command",
+                "@com_google_fuzztest//common:logging",
+                "@com_google_fuzztest//common:test_util",
+            ],
+            tags = tags,
         )

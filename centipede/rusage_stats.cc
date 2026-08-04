@@ -14,14 +14,20 @@
 
 #include "./centipede/rusage_stats.h"
 
-#ifdef __APPLE__
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <process.h>
+#include <windows.h>
+#elif defined(__APPLE__)
 #include <libproc.h>
 #include <sys/proc.h>
 #include <sys/sysctl.h>
-#endif  // __APPLE__
+#else
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #include <array>
 #include <cinttypes>
@@ -52,28 +58,52 @@ namespace fuzztest::internal {
 //------------------------------------------------------------------------------
 
 ProcessTimer::ProcessTimer() : start_time_{absl::Now()}, start_rusage_{} {
+#if !defined(_WIN32)
   getrusage(RUSAGE_SELF, &start_rusage_);
+#endif
 }
 
 void ProcessTimer::Get(double& user, double& sys, double& wall) const {
+#if !defined(_WIN32)
   struct rusage curr_rusage = {};
   getrusage(RUSAGE_SELF, &curr_rusage);
-  // clang-format off
   user = absl::ToDoubleSeconds(
       absl::DurationFromTimeval(curr_rusage.ru_utime) -
       absl::DurationFromTimeval(start_rusage_.ru_utime));
   sys = absl::ToDoubleSeconds(
       absl::DurationFromTimeval(curr_rusage.ru_stime) -
       absl::DurationFromTimeval(start_rusage_.ru_stime));
+#else
+  user = 0;
+  sys = 0;
+#endif
   wall = absl::ToDoubleSeconds(absl::Now() - start_time_);
-  // clang-format on
 }
 
 //------------------------------------------------------------------------------
 //                               RUsageScope
 //------------------------------------------------------------------------------
 
-#ifdef __APPLE__
+#if defined(_WIN32)
+class RUsageScope::PlatformInfo {
+ public:
+  enum ProcFile : size_t {
+    kSched = 0,
+    kStatm = 1,
+    kStatus = 2,
+    kNumDoNotUseDirectly = 3
+  };
+  PlatformInfo(pid_t pid) : pid_(pid) {}
+  pid_t pid() const { return pid_; }
+  const std::string& GetProcFilePath(ProcFile file) const {
+    static const std::string empty;
+    return empty;
+  }
+
+ private:
+  pid_t pid_;
+};
+#elif defined(__APPLE__)
 class RUsageScope::PlatformInfo {
  public:
   PlatformInfo(pid_t pid) : pid_(pid) {}
@@ -112,7 +142,11 @@ class RUsageScope::PlatformInfo {
 #endif
 
 RUsageScope RUsageScope::ThisProcess() {  //
+#if defined(_WIN32)
+  return RUsageScope{static_cast<int>(GetCurrentProcessId())};
+#else
   return RUsageScope{getpid()};
+#endif
 }
 
 RUsageScope RUsageScope::Process(pid_t pid) {  //
@@ -517,7 +551,9 @@ RUsageMemory RUsageMemory::Max() {
 RUsageMemory RUsageMemory::Snapshot(const RUsageScope& scope) {
   [[maybe_unused]] MemSize vsize = 0, rss = 0, shared = 0, code = 0, unused = 0,
                            data = 0, vpeak = 0;
-#ifdef __APPLE__
+#if defined(_WIN32)
+  // Win32 stub
+#elif defined(__APPLE__)
   if (scope.info().pid() != getpid()) return {};
   struct proc_taskinfo pti = {};
   FUZZTEST_CHECK(proc_pidinfo(scope.info().pid(), PROC_PIDTASKINFO, 0, &pti,

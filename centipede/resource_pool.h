@@ -15,9 +15,15 @@
 #ifndef FUZZTEST_CENTIPEDE_RESOURCE_RESOURCE_POOL_H_
 #define FUZZTEST_CENTIPEDE_RESOURCE_RESOURCE_POOL_H_
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#else
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #include <ostream>
 #include <string>

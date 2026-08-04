@@ -12,11 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <fcntl.h>
+
+#if !defined(_WIN32)
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+// clang-format off
+// Must be before <afunix.h>
+#include <ws2tcpip.h>
+// clang-format on
+#include <afunix.h>
+#include <io.h>
+#include <process.h>
+#include <psapi.h>
+#include <windows.h>
+#include <winsock2.h>
+#endif
+
+#if defined(_WIN32)
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+inline static int rand_r(unsigned int* seed) {
+  *seed = *seed * 1103515245 + 12345;
+  return static_cast<int>((*seed / 65536) % 32768);
+}
+#endif
 
 #include <algorithm>
 #include <array>
@@ -63,6 +89,12 @@ void WorkerLog(const T& first, const Rest&... rest) {
     char err_buf[80];
     const auto err_str = [&]() -> std::string_view {
       static constexpr std::string_view kFallbackMsg = "[strerror_r failed]";
+#if defined(_WIN32)
+      if (strerror_s(err_buf, sizeof(err_buf), first.saved_errno) != 0) {
+        return kFallbackMsg;
+      }
+      return err_buf;
+#else
       auto result = strerror_r(first.saved_errno, err_buf, sizeof(err_buf));
       constexpr bool xsi_strerror_r = std::is_same_v<decltype(result), int>;
       constexpr bool gnu_strerror_r = std::is_same_v<decltype(result), char*>;
@@ -75,15 +107,25 @@ void WorkerLog(const T& first, const Rest&... rest) {
         if (result == nullptr) return kFallbackMsg;
         return result;
       }
+#endif
     }();
     WorkerLog(err_str);
   } else if constexpr (std::is_same_v<LogLnSync, T>) {
+#if defined(_WIN32)
+    _write(2, "\n", 1);
+    _commit(2);
+#else
     write(STDERR_FILENO, "\n", 1);
     fsync(STDERR_FILENO);
+#endif
   } else {
     std::string_view sv = first;
     while (!sv.empty()) {
+#if defined(_WIN32)
+      const int r = _write(2, sv.data(), static_cast<unsigned int>(sv.size()));
+#else
       const int r = write(STDERR_FILENO, sv.data(), sv.size());
+#endif
       if (r <= 0) break;
       sv = sv.substr(r);
     }
@@ -111,7 +153,7 @@ struct WorkerFlags {
 // allocates memory (enforced by `WorkerInitEarly`). After that it would be
 // signal-safe.
 //
-// The worker flags format is `:(NAME=VALUE|SWITCH:)+`. `GetWorkerFlags`
+// The worker flags format is `:(NAME=VALUE:|SWITCH:)+`. `GetWorkerFlags`
 // replaces `:` with '\0' so that we can get null-terminated strings of VALUE
 // without copying them, which is important for signal-safety.
 const WorkerFlags& GetWorkerFlags() {
@@ -127,15 +169,23 @@ const WorkerFlags& GetWorkerFlags() {
       WorkerLog("Cannot allocate the worker flags", LogLnSync{});
       std::_Exit(1);
     }
-    memcpy(str, env_flags, len);
-    str[len] = 0;
-    WorkerLog("Got worker flags ", std::string_view{str, len}, LogLnSync{});
-    // Post-processing to make '\0' as the separator, making each item as a
-    // null-terminating string to be used without copying it.
-    for (size_t i = 0; i < len; ++i) {
-      if (str[i] == ':') str[i] = 0;
+    size_t src = 0;
+    size_t dst = 0;
+    while (src < len) {
+      if (env_flags[src] == ':') {
+        str[dst] = '\0';
+      } else {
+        if (env_flags[src] == '\\' && src + 1 < len) {
+          ++src;
+        }
+        str[dst] = env_flags[src];
+      }
+      ++src;
+      ++dst;
     }
-    return WorkerFlags{true, len, str};
+    str[dst] = 0;
+    WorkerLog("Got worker flags ", std::string_view{str, dst}, LogLnSync{});
+    return WorkerFlags{true, dst, str};
   }();
   return worker_flags;
 }
@@ -181,8 +231,14 @@ template <typename... C>
 void TrySetFileContents(const char* absl_nonnull path, bool append,
                         C... contents) {
   // Needs to be signal-safe.
+#if defined(_WIN32)
+  int f = _open(
+      path, _O_CREAT | _O_WRONLY | _O_BINARY | (append ? _O_APPEND : _O_TRUNC),
+      _S_IREAD | _S_IWRITE);
+#else
   int f = open(path, O_CREAT | O_WRONLY | (append ? O_APPEND : O_TRUNC),
                /*mode=*/0660);
+#endif
   if (f == -1) {
     WorkerLog("cannot open path ", path, ": ", LogErrNo{}, LogLnSync{});
     return;
@@ -190,7 +246,11 @@ void TrySetFileContents(const char* absl_nonnull path, bool append,
   ([&] {
     std::string_view sv = contents;
     while (!sv.empty()) {
+#if defined(_WIN32)
+      const int r = _write(f, sv.data(), static_cast<unsigned int>(sv.size()));
+#else
       const int r = write(f, sv.data(), sv.size());
+#endif
       if (r < 0) {
         WorkerLog("write() failed on ", path, ": ", LogErrNo{}, LogLnSync{});
         return false;
@@ -205,12 +265,21 @@ void TrySetFileContents(const char* absl_nonnull path, bool append,
     return true;
   }() &&
    ...);  // NOLINT - stop fighting with auto-fomatting.
+#if defined(_WIN32)
+  if (_commit(f) != 0) {
+    WorkerLog("_commit() failed on ", path, ": ", LogErrNo{}, LogLnSync{});
+  }
+  if (_close(f) != 0) {
+    WorkerLog("_close() failed on ", path, ": ", LogErrNo{}, LogLnSync{});
+  }
+#else
   if (fsync(f) != 0) {
     WorkerLog("fsync() failed on ", path, ": ", LogErrNo{}, LogLnSync{});
   }
   if (close(f) != 0) {
     WorkerLog("close() failed on ", path, ": ", LogErrNo{}, LogLnSync{});
   }
+#endif
 }
 
 enum class WorkerAction {
@@ -346,15 +415,45 @@ inline std::string_view ToStringView(const std::vector<uint8_t>& bytes) {
   return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
 }
 
-// Zero initialized.
-static int persistent_mode_socket;
+#if defined(_WIN32)
+using worker_socket_t = SOCKET;
+constexpr worker_socket_t kInvalidWorkerSocket = INVALID_SOCKET;
+inline static void CloseWorkerSocket(worker_socket_t s) { closesocket(s); }
+#else
+using worker_socket_t = int;
+constexpr worker_socket_t kInvalidWorkerSocket = -1;
+inline static void CloseWorkerSocket(worker_socket_t s) { close(s); }
+#endif
 
+static worker_socket_t persistent_mode_socket = kInvalidWorkerSocket;
+
+#if defined(_WIN32)
+void WorkerInitEarly();
+static int init_worker_early_fn() {
+  WorkerInitEarly();
+  return 0;
+}
+#pragma section(".CRT$XCU", read)
+extern "C" __declspec(allocate(".CRT$XCU")) int (*p_init_worker_early)() =
+    init_worker_early_fn;
+#pragma comment(linker, "/include:p_init_worker_early")
+void WorkerInitEarly() {
+#else
 __attribute__((constructor(200))) void WorkerInitEarly() {
+#endif
   const char* persistent_mode_socket_path =
       GetWorkerFlag(kWorkerPersistentModeSocketPathFlagHeader);
   if (persistent_mode_socket_path == nullptr) return;
+
+#if defined(_WIN32)
+  [[maybe_unused]] static bool init_wsa = []() {
+    WSADATA wsa_data;
+    return WSAStartup(MAKEWORD(2, 2), &wsa_data) == 0;
+  }();
+#endif
+
   persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (persistent_mode_socket < 0) {
+  if (persistent_mode_socket == kInvalidWorkerSocket) {
     WorkerLog(
         "Failed to create persistent mode socket - not running persistent "
         "mode.",
@@ -370,27 +469,42 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
       "persistent mode socket path string must be fit in sockaddr_un.sun_path");
   std::memcpy(addr.sun_path, persistent_mode_socket_path, socket_path_len);
 
-  int connect_ret = 0;
-  do {
+  int connect_ret = -1;
+  for (int retry = 0; retry < 200; ++retry) {
     connect_ret =
         connect(persistent_mode_socket, (struct sockaddr*)&addr, sizeof(addr));
-  } while (connect_ret == -1 && errno == EINTR);
+    if (connect_ret == 0) break;
+#if defined(_WIN32)
+    int err = WSAGetLastError();
+    if (err == WSAEINTR || err == WSAEWOULDBLOCK || err == WSAECONNREFUSED) {
+      Sleep(10);
+      continue;
+    }
+#else
+    if (errno == EINTR) continue;
+#endif
+    break;
+  }
   if (connect_ret == -1) {
     WorkerLog("Failed to connect the persistent mode socket to ",
               persistent_mode_socket_path, LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
+    CloseWorkerSocket(persistent_mode_socket);
+    persistent_mode_socket = kInvalidWorkerSocket;
     return;
   }
 
+#if defined(_WIN32)
+  SetHandleInformation(reinterpret_cast<HANDLE>(persistent_mode_socket),
+                       HANDLE_FLAG_INHERIT, 0);
+#else
   int flags = fcntl(persistent_mode_socket, F_GETFD);
   if (flags == -1) {
     WorkerLog(
         "fcntl(F_GETFD) failed on the persistent mode socket - exiting "
         "persistent mode",
         LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
+    CloseWorkerSocket(persistent_mode_socket);
+    persistent_mode_socket = kInvalidWorkerSocket;
     return;
   }
   flags |= FD_CLOEXEC;
@@ -399,10 +513,11 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
         "fcntl(F_SETFD) failed on the persistent mode socket - exiting "
         "persistent mode",
         LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
+    CloseWorkerSocket(persistent_mode_socket);
+    persistent_mode_socket = kInvalidWorkerSocket;
     return;
   }
+#endif
   WorkerLog("Persistent mode: connected to ", persistent_mode_socket_path,
             LogLnSync{});
 }
@@ -542,7 +657,7 @@ void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
   for (size_t i = 0; i < seed_handles.size(); ++i) {
     char seed_path_buf[PATH_MAX];
     const size_t num_path_chars =
-        snprintf(seed_path_buf, PATH_MAX, "%s/%09lu", output_dir, i);
+        snprintf(seed_path_buf, PATH_MAX, "%s/%09zu", output_dir, i);
     WorkerCheck(num_path_chars < PATH_MAX, "seed path reaches PATH_MAX");
     std::vector<uint8_t> serialized_input;
     const auto sink = GetBytesSinkTo(serialized_input);
@@ -560,10 +675,19 @@ void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
 
 // Returns the current time in microseconds.
 uint64_t TimeInUsec() {
+  [[maybe_unused]] constexpr size_t kUsecInSec = 1000000;
+#if defined(_WIN32)
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+  ULARGE_INTEGER uli;
+  uli.LowPart = ft.dwLowDateTime;
+  uli.HighPart = ft.dwHighDateTime;
+  return static_cast<uint64_t>(uli.QuadPart / 10);
+#else
   struct timeval tv = {};
-  constexpr size_t kUsecInSec = 1000000;
   gettimeofday(&tv, nullptr);
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
+#endif
 }
 
 void WorkerDoMutate(const FuzzTestAdapter& adapter) {
@@ -723,6 +847,14 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
   } timer;
 
   auto GetPeakRSSMb = []() -> size_t {
+#if defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS pmc = {};
+    pmc.cb = sizeof(pmc);
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+      return pmc.PeakWorkingSetSize >> 20;
+    }
+    return 0;
+#else
     struct rusage usage = {};
     if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
 #ifdef __APPLE__
@@ -733,6 +865,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     // On Linux, ru_maxrss is in KiB
     return usage.ru_maxrss >> 10;
 #endif  // __APPLE__
+#endif
   };
 
   // In-loop variables declared outside to save allocations.
@@ -869,10 +1002,13 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
     } else {
       // Reset stdout/stderr.
       for (int fd = 1; fd <= 2; fd++) {
+#if defined(_WIN32)
+        _lseek(fd, 0, SEEK_SET);
+        (void)_chsize(fd, 0);
+#else
         lseek(fd, 0, SEEK_SET);
-        // NOTE: Allow ftruncate() to fail by ignoring its return; that's okay
-        // to happen when the stdout/stderr are not redirected to a file.
         (void)ftruncate(fd, 0);
+#endif
       }
       WorkerLog(
           "FuzzTest engine worker (",
@@ -993,7 +1129,7 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   WorkerCheck(adapter.FreeInput != nullptr, "FreeInput must be defined");
   WorkerCheck(adapter.FreeCtx != nullptr, "FreeCtx must be defined");
 
-  if (persistent_mode_socket > 0) {
+  if (persistent_mode_socket != kInvalidWorkerSocket) {
     HandlePersistentMode(adapter);
   } else if (action == WorkerAction::kTestGetSeeds) {
     WorkerDoGetSeeds(adapter);

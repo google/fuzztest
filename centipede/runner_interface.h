@@ -45,16 +45,23 @@ using FuzzerCustomCrossOverCallback = size_t (*)(
     const uint8_t* data1, size_t size1, const uint8_t* data2, size_t size2,
     uint8_t* out, size_t max_out_size, unsigned int seed);
 
+#if !defined(_WIN32)
+#define CENTIPEDE_WEAK_ATTRIBUTE __attribute__((weak))
+#else
+#define CENTIPEDE_WEAK_ATTRIBUTE __attribute__((weak_import))
+#endif
+
 // This is the header-less interface of libFuzzer, see
 // https://llvm.org/docs/LibFuzzer.html.
 extern "C" {
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
-__attribute__((weak)) int LLVMFuzzerInitialize(int* absl_nonnull argc,
-                                               char*** absl_nonnull argv);
-__attribute__((weak)) size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size,
-                                                     size_t max_size,
-                                                     unsigned int seed);
-__attribute__((weak)) size_t LLVMFuzzerCustomCrossOver(
+CENTIPEDE_WEAK_ATTRIBUTE int LLVMFuzzerInitialize(int* absl_nonnull argc,
+                                                  char*** absl_nonnull argv);
+CENTIPEDE_WEAK_ATTRIBUTE size_t LLVMFuzzerCustomMutator(uint8_t* data,
+                                                        size_t size,
+                                                        size_t max_size,
+                                                        unsigned int seed);
+CENTIPEDE_WEAK_ATTRIBUTE size_t LLVMFuzzerCustomCrossOver(
     const uint8_t* data1, size_t size1, const uint8_t* data2, size_t size2,
     uint8_t* out, size_t max_out_size, unsigned int seed);
 }  // extern "C"

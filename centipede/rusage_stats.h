@@ -21,7 +21,23 @@
 #ifndef THIRD_PARTY_CENTIPEDE_RUSAGE_STATS_H_
 #define THIRD_PARTY_CENTIPEDE_RUSAGE_STATS_H_
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#include <winsock2.h>
+using pid_t = int;
+struct rusage {
+  struct timeval ru_utime;
+  struct timeval ru_stime;
+  size_t ru_maxrss;
+};
+#ifndef RUSAGE_SELF
+#define RUSAGE_SELF 0
+#endif
+#else
 #include <sys/resource.h>
+#endif
 
 #include <array>
 #include <cstddef>

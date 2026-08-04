@@ -31,6 +31,9 @@
 
 namespace fuzztest::internal {
 
+// Ensures WSAStartup is called on Windows before any socket operations.
+void EnsureWinsockInitialized();
+
 // Returns the hash of the contents of the file `file_path`. Supports the file
 // being remote. Returns an empty string if the `file_path` is empty.
 std::string HashOfFileContents(std::string_view file_path);

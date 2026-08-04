@@ -14,9 +14,11 @@
 
 // Centipede puzzle: one 4-byte cmp.
 // We should be able to solve it w/o cmp features *or* w/o auto dictionary.
-// RUN: Run && SolutionIs Fuzz
-// RUN: Run --use_cmp_features=0 && SolutionIs Fuzz
-// RUN: Run --use_auto_dictionary=0 && SolutionIs Fuzz
+// CASE main: MATCH: Input bytes *: Fuzz
+// CASE no_cmp: ARG: --use_cmp_features=0
+// CASE no_cmp: MATCH: Input bytes *: Fuzz
+// CASE no_autodict: ARG: --use_auto_dictionary=0
+// CASE no_autodict: MATCH: Input bytes *: Fuzz
 
 #include <cstdint>
 #include <cstdlib>

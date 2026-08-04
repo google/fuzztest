@@ -14,6 +14,93 @@
 
 // Function interceptors for Centipede.
 
+#if defined(_WIN32)
+#include "./centipede/runner_utils.h"
+#include "./centipede/sancov_state.h"
+
+namespace fuzztest::internal {
+void SancovInterceptor() {}
+}  // namespace fuzztest::internal
+
+using fuzztest::internal::tls;
+
+extern "C" {
+FUZZTEST_NO_SANITIZE
+void __sanitizer_weak_hook_strcasecmp(void*, const char* s1, const char* s2,
+                                      int result) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  if (s1 == nullptr || s2 == nullptr) return;
+  size_t len = 0;
+  while (s1[len] && s2[len]) ++len;
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
+}
+
+FUZZTEST_NO_SANITIZE
+void __sanitizer_weak_hook_memcmp(void*, const void* s1, const void* s2,
+                                  size_t n, int result) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  if (s1 == nullptr || s2 == nullptr) return;
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), n, result == 0);
+}
+
+FUZZTEST_NO_SANITIZE
+void __sanitizer_weak_hook_strncmp(void*, const char* s1, const char* s2,
+                                   size_t n, int result) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  if (s1 == nullptr || s2 == nullptr) return;
+  size_t len = 0;
+  while (len < n && s1[len] && s2[len]) ++len;
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
+}
+
+FUZZTEST_NO_SANITIZE
+void __sanitizer_weak_hook_strcmp(void*, const char* s1, const char* s2,
+                                  int result) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  if (s1 == nullptr || s2 == nullptr) return;
+  size_t len = 0;
+  while (s1[len] && s2[len]) ++len;
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
+}
+
+FUZZTEST_NO_SANITIZE
+void __sanitizer_weak_hook_strncasecmp(void* caller_pc, const char* s1,
+                                       const char* s2, size_t n, int result) {
+  if (ABSL_PREDICT_FALSE(!tls.traced)) return;
+  if (s1 == nullptr || s2 == nullptr) return;
+  size_t len = 0;
+  while (len < n && s1[len] && s2[len]) ++len;
+  tls.TraceMemCmp(reinterpret_cast<uintptr_t>(__builtin_return_address(0)),
+                  reinterpret_cast<const uint8_t*>(s1),
+                  reinterpret_cast<const uint8_t*>(s2), len, result == 0);
+}
+}
+
+namespace {
+
+void NTAPI tls_callback(PVOID, DWORD, PVOID) {
+  // May be calling multiple times, but it's fine as `OnThreadStart` is
+  // idempotent.
+  tls.OnThreadStart();
+}
+
+}  // namespace
+
+#pragma data_seg(".CRT$XLB")
+// Must be globally visible.
+PIMAGE_TLS_CALLBACK centipede_sancov_thread_callback = tls_callback;
+#pragma data_seg()
+
+#else
+
 #include <dlfcn.h>  // for dlsym()
 #include <pthread.h>
 
@@ -290,3 +377,5 @@ extern "C" int pthread_create(
   // Run the actual pthread_create.
   return REAL(pthread_create)(thread, attr, MyThreadStart, wrapped_args);
 }
+
+#endif  // !defined(_WIN32)

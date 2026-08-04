@@ -14,7 +14,14 @@
 
 #include "./centipede/shared_memory_blob_sequence.h"
 
+#if !defined(_WIN32)
 #include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <process.h>
+#include <windows.h>
+#endif
 
 #include <cstdint>
 #include <cstdlib>
@@ -30,7 +37,12 @@ namespace fuzztest::internal {
 
 std::string ShmemName() {
   std::ostringstream oss;
+#if defined(_WIN32)
+  oss << "/shm_test-" << GetCurrentProcessId() << "-"
+      << std::this_thread::get_id();
+#else
   oss << "/shm_test-" << getpid() << "-" << std::this_thread::get_id();
+#endif
   return oss.str();
 }
 
@@ -237,8 +249,8 @@ TEST_P(SharedMemoryBlobSequenceTest, WriteAfterReset) {
   EXPECT_FALSE(blob2.IsValid());
 }
 
-// MacOS does not support releasing the shm memory.
-#ifndef __APPLE__
+// MacOS and Windows do not support releasing the shm memory.
+#if !defined(__APPLE__) && !defined(_WIN32)
 // Test ReleaseSharedMemory and NumBytesUsed.
 TEST_P(SharedMemoryBlobSequenceTest, ReleaseSharedMemory) {
   // Allocate a blob sequence with 1M bytes of storage.

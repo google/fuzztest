@@ -94,7 +94,7 @@ absl::StatusOr<std::vector<ExistingCrash>> ReadExistingCrashes(
   std::vector<ExistingCrash> existing_crashes;
   ASSIGN_OR_RETURN_IF_NOT_OK(
       const std::vector<std::string> input_files,
-      RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
+      RemoteListFiles(crashing_dir.string(), /*recursively=*/false));
 
   existing_crashes.reserve(input_files.size());
   for (const std::string& input_file : input_files) {
@@ -121,14 +121,14 @@ absl::StatusOr<std::vector<IncubatingCrash>> ReadIncubatingCrashes(
   std::vector<IncubatingCrash> incubating_crashes;
   ASSIGN_OR_RETURN_IF_NOT_OK(
       const std::vector<std::string> input_files,
-      RemoteListFiles(incubating_dir.c_str(), /*recursively=*/false));
+      RemoteListFiles(incubating_dir.string(), /*recursively=*/false));
 
   incubating_crashes.reserve(input_files.size());
   for (const std::string& input_file : input_files) {
     IncubatingCrash incubating;
     incubating.details.input_path = input_file;
     incubating.details.input_signature =
-        std::filesystem::path(input_file).filename().c_str();
+        std::filesystem::path(input_file).filename().string();
     incubating_crashes.push_back(std::move(incubating));
   }
   return incubating_crashes;
@@ -274,9 +274,9 @@ absl::Status WriteCrashToFile(const std::filesystem::path& crashing_dir,
       GetInputFileName(bug_id, crash_signature, details.input_signature);
   std::filesystem::path new_input_path = crashing_dir / new_input_file_name;
 
-  if (details.input_path != new_input_path.c_str()) {
+  if (details.input_path != new_input_path.string()) {
     RETURN_IF_NOT_OK(
-        RemoteFileCopy(details.input_path, new_input_path.c_str()));
+        RemoteFileCopy(details.input_path, new_input_path.string()));
   }
 
   crash_summary.AddCrash({/*id=*/new_input_file_name,
@@ -321,7 +321,7 @@ absl::Status TouchCrash(const ExistingCrash& existing,
   crash_summary.AddCrash({
       /*id=*/std::filesystem::path(existing.crash_report.details.input_path)
           .filename()
-          .c_str(),
+          .string(),
       /*category=*/description,
       existing.crash_report.signature,
       description,
@@ -375,7 +375,7 @@ absl::Status ExecuteExistingCrashDestructiveActions(
         std::filesystem::path dest_path =
             incubating_dir / existing.crash_report.details.input_signature;
         RETURN_IF_NOT_OK(RemoteFileRename(
-            existing.crash_report.details.input_path, dest_path.c_str()));
+            existing.crash_report.details.input_path, dest_path.string()));
         break;
       }
 
@@ -424,12 +424,12 @@ absl::Status MoveExpiredCrashesToRegression(
     const std::filesystem::path& source_dir,
     const std::filesystem::path& regression_dir, absl::Duration ttl,
     absl::Clock& clock) {
-  if (!RemotePathExists(source_dir.c_str())) {
+  if (!RemotePathExists(source_dir.string())) {
     return absl::OkStatus();
   }
   ASSIGN_OR_RETURN_IF_NOT_OK(
       const std::vector<std::string> active_crash_files,
-      RemoteListFiles(source_dir.c_str(), /*recursively=*/false));
+      RemoteListFiles(source_dir.string(), /*recursively=*/false));
 
   absl::Time now = clock.TimeNow();
 
@@ -442,11 +442,11 @@ absl::Status MoveExpiredCrashesToRegression(
       if (input_file_components.ok()) {
         dest_filename = input_file_components->input_signature;
       } else {
-        dest_filename = std::filesystem::path(file_path).filename().c_str();
+        dest_filename = std::filesystem::path(file_path).filename().string();
       }
 
       std::filesystem::path dest_path = regression_dir / dest_filename;
-      RETURN_IF_NOT_OK(RemoteFileRename(file_path, dest_path.c_str()));
+      RETURN_IF_NOT_OK(RemoteFileRename(file_path, dest_path.string()));
     }
   }
   return absl::OkStatus();
@@ -472,9 +472,10 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
 
     for (std::string& crashing_input_path : crashing_input_paths) {
       std::string crashing_input_file_name =
-          std::filesystem::path(crashing_input_path).filename();
+          std::filesystem::path(crashing_input_path).filename().string();
       const std::string crash_signature_path =
-          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".sig");
+          (crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".sig"))
+              .string();
       std::string crash_signature;
       const absl::Status status =
           RemoteFileGetContents(crash_signature_path, crash_signature);
@@ -496,7 +497,8 @@ absl::flat_hash_map<std::string, CrashDetails> GetCrashesFromWorkdir(
       if (crashes.contains(crash_signature)) continue;
 
       const std::string crash_description_path =
-          crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".desc");
+          (crash_metadata_dir / absl::StrCat(crashing_input_file_name, ".desc"))
+              .string();
       std::string crash_description;
       const absl::Status description_status =
           RemoteFileGetContents(crash_description_path, crash_description);
@@ -537,9 +539,9 @@ absl::Status OrganizeCrashingInputs(
         new_crashes_by_signature,
     CrashSummary& crash_summary, StopCondition& stop_condition,
     absl::Duration regression_ttl, absl::Clock& clock) {
-  RETURN_IF_NOT_OK(RemoteMkdir(crashing_dir.c_str()));
-  RETURN_IF_NOT_OK(RemoteMkdir(regression_dir.c_str()));
-  RETURN_IF_NOT_OK(RemoteMkdir(incubating_dir.c_str()));
+  RETURN_IF_NOT_OK(RemoteMkdir(crashing_dir.string()));
+  RETURN_IF_NOT_OK(RemoteMkdir(regression_dir.string()));
+  RETURN_IF_NOT_OK(RemoteMkdir(incubating_dir.string()));
 
   ASSIGN_OR_RETURN_IF_NOT_OK(auto existing_crashes,
                              ReadExistingCrashes(crashing_dir));

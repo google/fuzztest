@@ -62,7 +62,13 @@ class LocalRemoteFile : public RemoteFile {
  public:
   static absl::StatusOr<LocalRemoteFile *> Create(std::string path,
                                                   std::string_view mode) {
-    FILE *file = std::fopen(path.c_str(), mode.data());
+    std::string mode_str(mode);
+#if defined(_WIN32)
+    if (mode_str.find('b') == std::string::npos) {
+      mode_str += "b";
+    }
+#endif
+    FILE* file = std::fopen(path.c_str(), mode_str.c_str());
     if (file == nullptr) {
       return absl::UnknownError(absl::StrCat(
           "fopen() failed, path: ", path, ", errno: ", std::strerror(errno)));
@@ -344,7 +350,7 @@ absl::Status RemoteFileRead(RemoteFile *absl_nonnull f, ByteArray &ba) {
 }
 
 absl::StatusOr<int64_t> RemoteFileGetSize(std::string_view path) {
-  FILE *f = std::fopen(path.data(), "r");
+  FILE* f = std::fopen(path.data(), "rb");
   if (f == nullptr) {
     return absl::UnknownError(
         absl::StrCat("fopen() failed, path: ", std::string(path),

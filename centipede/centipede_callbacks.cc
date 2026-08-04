@@ -14,12 +14,26 @@
 
 #include "./centipede/centipede_callbacks.h"
 
+#if !defined(_WIN32)
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+// clang-format off
+// Must be before <afunix.h>
+#include <ws2tcpip.h>
+// clang-format on
+#include <afunix.h>
+#include <io.h>
+#include <windows.h>
+#include <winsock2.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -41,6 +55,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
@@ -52,6 +67,7 @@
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
+#include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
@@ -62,14 +78,36 @@
 
 namespace fuzztest::internal {
 
+namespace {
+
+#if defined(_WIN32)
+using socket_t = SOCKET;
+constexpr socket_t kInvalidSocket = INVALID_SOCKET;
+#else
+using socket_t = int;
+constexpr socket_t kInvalidSocket = -1;
+#endif
+
+std::string RunnerFlagEscape(std::string_view value) {
+  return absl::StrReplaceAll(value, {
+                                        {":", "\\:"},
+                                        {"\\", "\\\\"},
+                                    });
+}
+
+}  // namespace
+
 class CentipedeCallbacks::PersistentModeServer {
  public:
   explicit PersistentModeServer(std::string server_path)
       : server_path_(std::move(server_path)) {
     FUZZTEST_CHECK(!server_path_.empty());
+#if defined(_WIN32)
+    EnsureWinsockInitialized();
+#endif
 
     server_socket_ = socket(AF_UNIX, SOCK_STREAM, 0);
-    FUZZTEST_PCHECK(server_socket_ != -1);
+    FUZZTEST_PCHECK(server_socket_ != kInvalidSocket);
 
     SetCloseOnExec(server_socket_);
     SetNonBlocking(server_socket_);
@@ -84,13 +122,23 @@ class CentipedeCallbacks::PersistentModeServer {
           << " is too long. Truncating it to " << new_server_path;
       server_path_ = std::move(new_server_path);
     }
-    server_path_.copy(server_addr.sun_path, sizeof(server_addr.sun_path));
+    std::string win_sock_path = server_path_;
+    std::memset(server_addr.sun_path, 0, sizeof(server_addr.sun_path));
+    std::strncpy(server_addr.sun_path, win_sock_path.c_str(),
+                 sizeof(server_addr.sun_path) - 1);
 
+#if !defined(_WIN32)
     static constexpr int kEnable = 1;
     FUZZTEST_PCHECK(setsockopt(server_socket_, SOL_SOCKET, SO_REUSEADDR,
-                               &kEnable, sizeof(kEnable)) != -1);
-    FUZZTEST_PCHECK(bind(server_socket_, (struct sockaddr*)&server_addr,
-                         sizeof(server_addr)) != -1);
+                               reinterpret_cast<const char*>(&kEnable),
+                               sizeof(kEnable)) != -1);
+#endif
+    std::error_code ec;
+    std::filesystem::remove(server_path_, ec);
+    std::filesystem::remove(win_sock_path, ec);
+    int bind_ret = bind(server_socket_, (struct sockaddr*)&server_addr,
+                        sizeof(server_addr));
+    FUZZTEST_PCHECK(bind_ret != -1);
 
     // Expect one child process to connect to the server.
     static constexpr int kBacklog = 1;
@@ -105,7 +153,7 @@ class CentipedeCallbacks::PersistentModeServer {
     if (!EnsureConnection(deadline)) {
       return false;
     }
-    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(conn_socket_ != kInvalidSocket);
     FUZZTEST_CHECK(!in_batch_);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kRunBatch)) {
       FUZZTEST_LOG(ERROR)
@@ -123,7 +171,7 @@ class CentipedeCallbacks::PersistentModeServer {
   // code if running without persistent mode, hence the name). Returns false
   // otherwise.
   bool WaitBatch(absl::Time deadline, int& exit_code) {
-    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(conn_socket_ != kInvalidSocket);
     FUZZTEST_CHECK(in_batch_);
     if (!ReadFd(conn_socket_, deadline, exit_code)) {
       FUZZTEST_LOG(ERROR)
@@ -139,7 +187,7 @@ class CentipedeCallbacks::PersistentModeServer {
 
   void RequestExit(absl::Time deadline) {
     if (!EnsureConnection(deadline)) return;
-    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(conn_socket_ != kInvalidSocket);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kExit)) {
       FUZZTEST_LOG(ERROR)
           << "Failed to request the persistent mode client to exit - "
@@ -149,13 +197,17 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   ~PersistentModeServer() {
-    if (conn_socket_ != -1) {
+    if (conn_socket_ != kInvalidSocket) {
       Disconnect();
     }
 
-    FUZZTEST_CHECK_NE(server_socket_, -1);
+    FUZZTEST_CHECK(server_socket_ != kInvalidSocket);
+#if defined(_WIN32)
+    closesocket(server_socket_);
+#else
     FUZZTEST_PCHECK(close(server_socket_) != -1);
-    server_socket_ = -1;
+#endif
+    server_socket_ = kInvalidSocket;
 
     std::error_code ec;
     FUZZTEST_CHECK(!server_path_.empty());
@@ -167,27 +219,51 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
  private:
-  static void SetCloseOnExec(int fd) {
+  static void SetCloseOnExec(socket_t fd) {
+#if defined(_WIN32)
+    SetHandleInformation(reinterpret_cast<HANDLE>(fd), HANDLE_FLAG_INHERIT, 0);
+#else
     int flags = fcntl(fd, F_GETFD);
     FUZZTEST_PCHECK(flags != -1);
     flags |= FD_CLOEXEC;
     FUZZTEST_PCHECK(fcntl(fd, F_SETFD, flags) != -1);
+#endif
   }
 
-  static void SetNonBlocking(int fd) {
+  static void SetNonBlocking(socket_t fd) {
+#if defined(_WIN32)
+    u_long mode = 1;
+    ioctlsocket(fd, FIONBIO, &mode);
+#else
     int flags = fcntl(fd, F_GETFL);
     FUZZTEST_PCHECK(flags != -1);
     flags |= O_NONBLOCK;
     FUZZTEST_PCHECK(fcntl(fd, F_SETFL, flags) != -1);
+#endif
   }
 
-  std::string_view FdName(int fd) {
+  std::string_view FdName(socket_t fd) {
     return fd == server_socket_ ? "server" : "connection";
   }
 
-  bool PollFd(int fd, int event, absl::Time deadline) {
+  bool PollFd(socket_t fd, int event, absl::Time deadline) {
     FUZZTEST_CHECK(event == POLLIN || event == POLLOUT)
         << "`event` must be POLLIN or POLLOUT";
+#if defined(_WIN32)
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    timeval tv{};
+    int timeout_ms = PollTimeoutMs(deadline - absl::Now());
+    if (timeout_ms >= 0) {
+      tv.tv_sec = timeout_ms / 1000;
+      tv.tv_usec = (timeout_ms % 1000) * 1000;
+    }
+    int select_ret =
+        select(0, event == POLLIN ? &fds : NULL, event == POLLOUT ? &fds : NULL,
+               NULL, timeout_ms >= 0 ? &tv : NULL);
+    return select_ret > 0;
+#else
     struct pollfd poll_fd{};
     int poll_ret = -1;
     do {
@@ -196,18 +272,13 @@ class CentipedeCallbacks::PersistentModeServer {
     } while (poll_ret < 0 && errno == EINTR);
     if (poll_ret == 1 && (poll_fd.revents & (event | POLLHUP)) == event) {
       return true;
-    } else if (poll_ret < 0) {
-      FUZZTEST_PLOG(ERROR) << "Persistent mode: poll() failed on "
-                           << FdName(fd);
-    } else if (poll_ret == 0) {
-      FUZZTEST_LOG(ERROR) << "Persistent mode: poll() timed out on "
-                          << FdName(fd);
     }
+#endif
     return false;
   }
 
   template <typename T>
-  bool ReadFd(int fd, absl::Time deadline, T& data) {
+  bool ReadFd(socket_t fd, absl::Time deadline, T& data) {
     static_assert(
         std::is_trivial_v<T> && std::is_standard_layout_v<T>,
         "ReadFd() must be used on a trivial type with standard layout");
@@ -217,7 +288,11 @@ class CentipedeCallbacks::PersistentModeServer {
       if (!PollFd(fd, POLLIN, deadline)) {
         return false;
       }
+#if defined(_WIN32)
+      auto r = recv(fd, cursor, static_cast<int>(end - cursor), 0);
+#else
       ssize_t r = read(fd, cursor, end - cursor);
+#endif
       if (r > 0) {
         cursor += r;
         FUZZTEST_CHECK(cursor <= end)
@@ -228,7 +303,12 @@ class CentipedeCallbacks::PersistentModeServer {
         FUZZTEST_LOG(ERROR) << "read() returned 0 early on " << FdName(fd);
         return false;
       }
+#if defined(_WIN32)
+      if (WSAGetLastError() == WSAEWOULDBLOCK || WSAGetLastError() == WSAEINTR)
+        continue;
+#else
       if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+#endif
       FUZZTEST_PLOG(ERROR) << "read() fails on " << FdName(fd);
       return false;
     }
@@ -236,7 +316,7 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   template <typename T>
-  bool WriteFd(int fd, absl::Time deadline, const T& data) {
+  bool WriteFd(socket_t fd, absl::Time deadline, const T& data) {
     static_assert(
         std::is_trivial_v<T> && std::is_standard_layout_v<T>,
         "WriteFd() must be used on a trivial type with standard layout");
@@ -246,7 +326,11 @@ class CentipedeCallbacks::PersistentModeServer {
       if (!PollFd(fd, POLLOUT, deadline)) {
         return false;
       }
+#if defined(_WIN32)
+      auto r = send(fd, cursor, static_cast<int>(end - cursor), 0);
+#else
       ssize_t r = write(fd, cursor, end - cursor);
+#endif
       if (r > 0) {
         cursor += r;
         FUZZTEST_CHECK(cursor <= end)
@@ -257,7 +341,12 @@ class CentipedeCallbacks::PersistentModeServer {
         FUZZTEST_LOG(ERROR) << "write() returned 0 early on " << FdName(fd);
         return false;
       }
+#if defined(_WIN32)
+      if (WSAGetLastError() == WSAEWOULDBLOCK || WSAGetLastError() == WSAEINTR)
+        continue;
+#else
       if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+#endif
       FUZZTEST_PLOG(ERROR) << "write() fails on " << FdName(fd);
       return false;
     }
@@ -265,22 +354,27 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   bool EnsureConnection(absl::Time deadline) {
-    if (conn_socket_ != -1) return true;
+    if (conn_socket_ != kInvalidSocket) return true;
     // Since the runner always tries to connect to the persistent mode
     // socket at the beginning of the execution, waiting for the connection
     // should be fast if the the runner is able to connect at all. But we
     // need to give enough time for the binary to load and reach the runner
     // logic (120s should be enough).
     deadline = std::min(deadline, absl::Now() + absl::Seconds(120));
-    FUZZTEST_CHECK_NE(server_socket_, -1);
+    FUZZTEST_CHECK(server_socket_ != kInvalidSocket);
     do {
       if (!PollFd(server_socket_, POLLIN, deadline)) {
         return false;
       }
       conn_socket_ = accept(server_socket_, nullptr, 0);
-    } while (conn_socket_ == -1 &&
-             (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
-    FUZZTEST_PCHECK(conn_socket_ != -1);
+    } while (
+        conn_socket_ == kInvalidSocket &&
+#if defined(_WIN32)
+        (WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK));
+#else
+        (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK));
+#endif
+    FUZZTEST_CHECK(conn_socket_ != kInvalidSocket);
 
     SetCloseOnExec(conn_socket_);
     SetNonBlocking(conn_socket_);
@@ -288,14 +382,18 @@ class CentipedeCallbacks::PersistentModeServer {
   }
 
   void Disconnect() {
-    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(conn_socket_ != kInvalidSocket);
+#if defined(_WIN32)
+    closesocket(conn_socket_);
+#else
     FUZZTEST_PCHECK(close(conn_socket_) != -1);
-    conn_socket_ = -1;
+#endif
+    conn_socket_ = kInvalidSocket;
   }
 
   std::string server_path_;
-  int server_socket_ = -1;
-  int conn_socket_ = -1;
+  socket_t server_socket_ = kInvalidSocket;
+  socket_t conn_socket_ = kInvalidSocket;
   bool in_batch_ = false;
 };
 
@@ -334,6 +432,25 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
   }
 }
 
+CentipedeCallbacks::CentipedeCallbacks(const Environment& env,
+                                       StopCondition& stop_condition)
+    : env_(env),
+      stop_condition_(stop_condition),
+      byte_array_mutator_(env.knobs, GetRandomSeed(env.seed)),
+      fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)) {
+  inputs_blobseq_ = std::make_unique<SharedMemoryBlobSequence>(
+      shmem_name1_.c_str(), env.shmem_size_mb << 20, env.use_posix_shmem);
+  outputs_blobseq_ = std::make_unique<SharedMemoryBlobSequence>(
+      shmem_name2_.c_str(), env.shmem_size_mb << 20, env.use_posix_shmem);
+  if (env.use_legacy_default_mutator) {
+    bool r = byte_array_mutator_.set_max_len(env.max_len);
+    FUZZTEST_CHECK(r);
+  } else {
+    bool r = fuzztest_mutator_.set_max_len(env.max_len);
+    FUZZTEST_CHECK(r);
+  }
+}
+
 std::string CentipedeCallbacks::ConstructRunnerFlags(
     std::string_view extra_flags, bool disable_coverage) {
   std::vector<std::string> flags = {
@@ -358,11 +475,12 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
     if (env_.use_dataflow_features) flags.emplace_back("use_dataflow_features");
   }
   if (!env_.runner_dl_path_suffix.empty()) {
-    flags.emplace_back(
-        absl::StrCat("dl_path_suffix=", env_.runner_dl_path_suffix));
+    flags.emplace_back(absl::StrCat(
+        "dl_path_suffix=", RunnerFlagEscape(env_.runner_dl_path_suffix)));
   }
   if (!env_.pcs_file_path.empty())
-    flags.emplace_back(absl::StrCat("pcs_file_path=", env_.pcs_file_path));
+    flags.emplace_back(
+        absl::StrCat("pcs_file_path=", RunnerFlagEscape(env_.pcs_file_path)));
   if (!extra_flags.empty()) flags.emplace_back(extra_flags);
   flags.emplace_back("");
   return absl::StrJoin(flags, ":");
@@ -388,24 +506,36 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
     // The current construction seems to be fine (usually below 100 bytes) for
     // the Linux limit (108 bytes), but we put the descriptive part to the end
     // make it still likely meaningful when truncated.
+#if defined(_WIN32)
+    char tmp_prefix_buf[MAX_PATH + 1];
+    const auto prefix_len =
+        GetTempPathA(sizeof(tmp_prefix_buf), &tmp_prefix_buf[0]);
+    std::string_view tmp_prefix = {tmp_prefix_buf, prefix_len};
+#else
+    std::string_view tmp_prefix = "/tmp/";
+#endif
     std::string server_path =
-        absl::StrCat(ProcessAndThreadUniqueID("/tmp/centipede-"), "-",
-                     Hash(binary), "-persistent-mode");
+        absl::StrCat(ProcessAndThreadUniqueID(tmp_prefix), "-", Hash(binary),
+                     "-centipede-pm.sock");
     persistent_mode_server =
         std::make_unique<CentipedeCallbacks::PersistentModeServer>(
             std::move(server_path));
   }
   std::vector<std::string> env_diff = env_.env_diff_for_binaries;
   env_diff.push_back(ConstructRunnerFlags(
-      absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
-                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
-                   ":failure_description_path=", failure_description_path_,
-                   ":failure_signature_path=", failure_signature_path_,
-                   persistent_mode_server == nullptr
-                       ? ""
-                       : absl::StrCat(":persistent_mode_socket=",
-                                      persistent_mode_server->server_path()),
-                   ":"),
+      absl::StrCat(
+          ":shmem:test=", RunnerFlagEscape(env_.test_name),
+          ":arg1=", RunnerFlagEscape(inputs_blobseq_->path()),
+          ":arg2=", RunnerFlagEscape(outputs_blobseq_->path()),
+          ":failure_description_path=",
+          RunnerFlagEscape(failure_description_path_),
+          ":failure_signature_path=", RunnerFlagEscape(failure_signature_path_),
+          persistent_mode_server == nullptr
+              ? ""
+              : absl::StrCat(
+                    ":persistent_mode_socket=",
+                    RunnerFlagEscape(persistent_mode_server->server_path())),
+          ":"),
       disable_coverage));
 
   if (env_.clang_coverage_binary == binary) {
@@ -539,8 +669,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   batch_result.ClearAndResize(inputs.size());
 
   // Reset the blobseqs.
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written = 0;
 
@@ -550,7 +680,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     num_inputs_written = 1;
   } else {
     // Feed the inputs to inputs_blobseq_.
-    num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
+    num_inputs_written = RequestExecution(inputs, *inputs_blobseq_);
   }
 
   if (num_inputs_written != inputs.size()) {
@@ -562,16 +692,16 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // Run.
   const auto batch_start_time = absl::Now();
   const int exit_code = RunBatchForBinary(binary);
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
   const bool batch_timed_out =
       env_.timeout_per_batch > 0 &&
       absl::Now() - batch_start_time > absl::Seconds(env_.timeout_per_batch);
 
   // Get results.
   batch_result.exit_code() = exit_code;
-  const bool read_success = batch_result.Read(outputs_blobseq_);
+  const bool read_success = batch_result.Read(*outputs_blobseq_);
   FUZZTEST_LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
   // * some inputs were not written (i.e. num_inputs_written < inputs.size).
@@ -602,7 +732,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
   // the target exits via `std::_Exit(0)`.
-  if (exit_code != EXIT_SUCCESS) {
+  if (exit_code != EXIT_SUCCESS ||
+      std::filesystem::exists(failure_description_path_)) {
     ReadFromLocalFile(last_execute_log_path_, batch_result.log());
 
     if (std::filesystem::exists(failure_description_path_)) {
@@ -649,7 +780,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
 
   std::string centipede_runner_flags = absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
-      ":arg1=", output_dir.string(), ":");
+      ":arg1=", RunnerFlagEscape(output_dir.string()), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
@@ -687,7 +818,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
 
   std::vector<std::string> seed_input_filenames;
   for (const auto& dir_ent : std::filesystem::directory_iterator(output_dir)) {
-    seed_input_filenames.push_back(dir_ent.path().filename());
+    seed_input_filenames.push_back(dir_ent.path().filename().string());
   }
   std::sort(seed_input_filenames.begin(), seed_input_filenames.end());
   num_avail_seeds = seed_input_filenames.size();
@@ -711,14 +842,13 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
 // See also: `DumpSerializedTargetConfigToFile()`.
 bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
     std::string_view binary, std::string& serialized_config) {
-  const auto config_file_path =
-      std::filesystem::path{temp_dir_} / "configuration";
+  const std::string config_file_path = temp_dir_ + "/configuration";
   std::string centipede_runner_flags =
       absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
-                   config_file_path.string(), ":");
+                   RunnerFlagEscape(config_file_path), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
-    absl::StrAppend(&centipede_runner_flags,
-                    "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
+    absl::StrAppend(&centipede_runner_flags, "dl_path_suffix=",
+                    RunnerFlagEscape(env_.runner_dl_path_suffix), ":");
   }
   Command::Options cmd_options;
   cmd_options.env_diff = env_.env_diff_for_binaries;
@@ -732,7 +862,7 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
 
   if (is_success) {
     if (std::filesystem::exists(config_file_path)) {
-      ReadFromLocalFile(config_file_path.string(), serialized_config);
+      ReadFromLocalFile(config_file_path, serialized_config);
     } else {
       serialized_config = "";
     }
@@ -740,9 +870,11 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   if (env_.print_runner_log || !is_success) {
     PrintExecutionLog();
   }
-  std::error_code error;
-  std::filesystem::remove(config_file_path, error);
-  FUZZTEST_CHECK(!error);
+  if (std::filesystem::exists(config_file_path)) {
+    std::error_code error;
+    std::filesystem::remove(config_file_path, error);
+    FUZZTEST_CHECK(!error);
+  }
 
   return is_success;
 }
@@ -755,17 +887,17 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << "Standalone binary does not support custom mutator";
 
   auto start_time = absl::Now();
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written =
-      RequestMutation(num_mutants, inputs, inputs_blobseq_);
+      RequestMutation(num_mutants, inputs, *inputs_blobseq_);
   FUZZTEST_LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
   const int exit_code = RunBatchForBinary(binary);
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (exit_code != EXIT_SUCCESS) {
     FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: "
@@ -777,8 +909,8 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
 
   MutationResult result;
   result.exit_code() = exit_code;
-  result.Read(num_mutants, outputs_blobseq_);
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  result.Read(num_mutants, *outputs_blobseq_);
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
 
   FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return result;
@@ -834,7 +966,7 @@ void CentipedeCallbacks::PrintExecutionLog() const {
   absl::MutexLock lock(GetExecutionLoggingMutex());
   for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
-    FUZZTEST_LOG(INFO).NoPrefix() << "LOG: " << log_line;
+    FUZZTEST_LOG(INFO).NoPrefix() << "LOG: " << log_line << "\n";
   }
 }
 

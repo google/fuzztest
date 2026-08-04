@@ -26,7 +26,6 @@ licenses(["notice"])
 
 package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpackages__"])
 
-# The puzzles use a simple configuration language, see run_puzzle.sh.
 [puzzle(name = n) for n in [
     "byte_cmp_4",
     "callstack",
@@ -35,7 +34,6 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "memcmp_4_may_inline",
     "memcmp_3",
     "strcmp",
-    "strcasecmp",
     "strncmp",
     "switch",
     "uint32_cmp_1",
@@ -46,5 +44,12 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "autodictionary_stress",
     "paths",
     "thread_uint32_cmp_1",
+]]
+
+[puzzle(
+    name = n,
+    tags = ["no-windows"],
+) for n in [
+    "strcasecmp",
     "pthread_exit_uint32_cmp_1",
 ]]

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Centipede puzzle: sequence of 4 1-byte comparisons.
-// RUN: Run && SolutionIs fuzZ
+// CASE main: MATCH: Input bytes *: fuzZ
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
