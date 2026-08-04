@@ -14,7 +14,9 @@
 
 // Centipede puzzle: one 4-byte memcmp.
 // Disable use_auto_dictionary so that we test other functionality.
-// RUN: Run --use_auto_dictionary=false --max_len=10 && SolutionIs fuZz
+// CASE main: ARG: --use_auto_dictionary=false
+// CASE main: ARG: --max_len=10
+// CASE main: MATCH: Input bytes *: fuZz
 
 #include <cstdint>
 #include <cstdlib>

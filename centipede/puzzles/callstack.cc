@@ -18,10 +18,10 @@
 // All functions but F0 also modify `g_result`.
 // The puzzle can be solved if the call sequence is FA->FB->FC->FD->FE.
 
-// clang-format off
-// RUN: Run --callstack_level=10 --use_cmp_features=0 --use_dataflow_features=0 // NOLINT
-// RUN: SolutionIs ABCDE
-// clang-format on
+// CASE main: ARG: --callstack_level=10
+// CASE main: ARG: --use_cmp_features=0
+// CASE main: ARG: --use_dataflow_features=0
+// CASE main: MATCH: Input bytes *: ABCDE
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
