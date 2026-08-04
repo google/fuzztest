@@ -65,6 +65,13 @@ std::string GetObjDumpPath();
 // Resets the PATH envvar to "`dir`:$PATH".
 void PrependDirToPathEnvvar(std::string_view dir);
 
+// Sets the envvar `name` to `value`, overwriting any existing value.
+// FUZZTEST_CHECK-fails on error.
+void SetEnv(const char* name, const char* value);
+
+// Removes the envvar `name`. FUZZTEST_CHECK-fails on error.
+void UnsetEnv(const char* name);
+
 // Creates or clears a tmp dir in CTOR. The dir will end with `leaf` subdir.
 //
 // TODO(b/393384208): Merge this with TempDir in temp_dir.h.
@@ -79,7 +86,7 @@ class TempDir {
   const std::filesystem::path& path() const { return path_; }
 
   std::string GetFilePath(std::string_view file_name) const {
-    return path_ / file_name;
+    return (path_ / file_name).string();
   }
 
   std::string CreateSubdir(std::string_view name) const {

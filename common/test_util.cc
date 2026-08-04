@@ -12,11 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "./common/test_util.h"
+
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
+
+#ifdef _WIN32
+#include "./common/windows_includes.h"
+#else
+#include <unistd.h>
+#endif
 
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
@@ -35,11 +43,18 @@ std::filesystem::path GetTestTempDir(std::string_view subdir) {
     FUZZTEST_CHECK(!error) << "Failed to create dir: " VV(dir)
                            << error.message();
   }
-  return std::filesystem::canonical(dir);
+  return std::filesystem::absolute(dir);
 }
 
 std::string GetTempFilePath(std::string_view subdir, size_t i) {
-  return GetTestTempDir(subdir) / absl::StrCat("tmp.", getpid(), ".", i);
+  return (GetTestTempDir(subdir) / absl::StrCat("tmp.",
+#ifdef _WIN32
+                                                GetCurrentProcessId(),
+#else
+                                                getpid(),
+#endif
+                                                ".", i))
+      .string();
 }
 
 std::filesystem::path GetTestRunfilesDir() {
@@ -59,8 +74,15 @@ std::filesystem::path GetDataDependencyFilepath(std::string_view rel_path) {
   const auto runfiles_dir = GetTestRunfilesDir();
   auto path = runfiles_dir;
   path.append(rel_path);
-  FUZZTEST_CHECK(std::filesystem::exists(path))  //
-      << "No such path: " << VV(path) << VV(runfiles_dir) << VV(rel_path);
+  std::error_code ec;
+#ifdef _WIN32
+  auto win_path = path;
+  win_path += ".exe";
+  if (std::filesystem::exists(win_path, ec)) return win_path;
+#endif
+  FUZZTEST_CHECK(std::filesystem::exists(path, ec))  //
+      << "No such path: " << VV(path) << VV(runfiles_dir) << VV(rel_path)
+      << VV(ec);
   return path;
 }
 
@@ -78,8 +100,28 @@ std::string GetObjDumpPath() {
 
 void PrependDirToPathEnvvar(std::string_view dir) {
   const std::string new_path_envvar = absl::StrCat(dir, ":", getenv("PATH"));
-  setenv("PATH", new_path_envvar.c_str(), /*replace*/ 1);
+  SetEnv("PATH", new_path_envvar.c_str());
   FUZZTEST_LOG(INFO) << "New PATH: " << new_path_envvar;
+}
+
+void SetEnv(const char* name, const char* value) {
+#ifdef _WIN32
+  FUZZTEST_CHECK_EQ(_putenv_s(name, value), 0)
+      << "Failed to set envvar " << name;
+#else
+  FUZZTEST_CHECK_EQ(setenv(name, value, /*overwrite=*/1), 0)
+      << "Failed to set envvar " << name;
+#endif
+}
+
+void UnsetEnv(const char* name) {
+#ifdef _WIN32
+  // Setting an empty value removes the envvar on Windows.
+  FUZZTEST_CHECK_EQ(_putenv_s(name, ""), 0)
+      << "Failed to unset envvar " << name;
+#else
+  FUZZTEST_CHECK_EQ(unsetenv(name), 0) << "Failed to unset envvar " << name;
+#endif
 }
 
 }  // namespace fuzztest::internal

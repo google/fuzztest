@@ -208,6 +208,7 @@ cc_library(
         ":blob_file",
         ":defs",
         ":logging",
+        ":windows_includes",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",

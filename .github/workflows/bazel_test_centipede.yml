@@ -196,7 +196,8 @@ jobs:
           <# Only supported libraries are tested here. #> `
           bazelisk test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli `
           --extra_toolchains=@local_config_cc//:cc-toolchain-x64_windows-clang-cl `
-          --extra_execution_platforms=//:x64_windows-clang-cl -- centipede:util_test
+          --extra_execution_platforms=//:x64_windows-clang-cl --enable_runfiles `
+          -- centipede:util_test centipede:command_test
       - name: Save new cache based on main
         # Save a new cache on nightly scheduled runs (or manual dispatch on
         # main), or on a push to main when no previous cache exists for this

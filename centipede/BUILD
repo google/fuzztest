@@ -599,6 +599,8 @@ cc_library(
         ":stop",
         ":util",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -606,6 +608,8 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:windows_includes",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -1437,6 +1441,7 @@ cc_test(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:test_util",
         "@googletest//:gtest_main",
     ],
 )
@@ -1777,10 +1782,14 @@ cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
     deps = [
-        ":runner_fork_server",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-    ],
+        "@com_google_fuzztest//common:windows_includes",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":runner_fork_server"],
+    }),
 )
 
 cc_test(
