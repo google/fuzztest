@@ -13,10 +13,10 @@
 // limitations under the License.
 
 // Centipede puzzle: easy-to-reach per-batch timeout.
-// clang-format off
-// NOLINTNEXTLINE
-// RUN: Run --batch_size=10 --timeout_per_input=2 --timeout_per_batch=7 && ExpectPerBatchTimeout
-// clang-format on
+// CASE main: ARG: --batch_size=10
+// CASE main: ARG: --timeout_per_input=2
+// CASE main: ARG: --timeout_per_batch=7
+// CASE main: MATCH: Failure.*: per-batch-timeout-exceeded
 
 #include <unistd.h>
 

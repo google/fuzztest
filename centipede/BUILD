@@ -1413,7 +1413,12 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
-    copts = ["-fno-signed-char"],
+    copts = select({
+        "@platforms//os:windows": [
+            "/J",
+        ],
+        "//conditions:default": ["-fno-signed-char"],
+    }),
     deps = [
         ":feature",
         ":thread_pool",
