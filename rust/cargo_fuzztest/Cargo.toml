@@ -1,0 +1,26 @@
+[package]
+name = "cargo-fuzztest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+fuzztest-options = { path = "../options" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+googletest.workspace = true
+fuzztest = { path = ".." }
+tempfile = "3.27.0"
+
+# Compiled as a [[test]] target so Cargo builds it with the test harness enabled
+# (`rustc --test`) and exposes `CARGO_BIN_EXE_dummy_fuzz_test_bin` to `runner_test`.
+[[test]]
+name = "dummy_fuzz_test_bin"
+path = "test_crates/dummy_fuzz_crate/src/lib.rs"
+
+[[test]]
+name = "runner_test"
+path = "tests/runner_test.rs"
