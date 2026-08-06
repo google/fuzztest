@@ -53,6 +53,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -394,14 +395,14 @@ class Runtime::Watchdog {
   }
 
   ~Watchdog() {
-    stop_requested_ = true;
+    stop_.Notify();
     watchdog_thread_.join();
   }
 
  private:
   void WatchdogLoop() {
     watchdog_thread_started_ = true;
-    while (!stop_requested_) {
+    while (!stop_.HasBeenNotified()) {
       runtime_.CheckWatchdogLimits();
       runtime_.watchdog_spinlock_.Lock();
       if (runtime_.watchdog_limit_exceeded_) {
@@ -409,12 +410,13 @@ class Runtime::Watchdog {
         break;
       }
       runtime_.watchdog_spinlock_.Unlock();
-      absl::SleepFor(absl::Seconds(1));
+      // Wake on teardown via Notify(); the timeout keeps limit checks periodic.
+      stop_.WaitForNotificationWithTimeout(absl::Seconds(1));
     }
   }
 
   std::atomic<bool> watchdog_thread_started_ = false;
-  std::atomic<bool> stop_requested_ = false;
+  absl::Notification stop_;
   std::thread watchdog_thread_;
   Runtime& runtime_;
 };
