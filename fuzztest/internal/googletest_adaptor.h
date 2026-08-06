@@ -85,16 +85,21 @@ class GTest_TestAdaptor : public ::testing::Test {
         EXPECT_TRUE(false) << "Death test is not supported.";
 #endif
       } else {
-        EXPECT_TRUE(test->RunInUnitTestMode(configuration_))
+        EXPECT_TRUE(test->RunInUnitTestMode(configuration_) ||
+                    Runtime::instance().skipping_requested())
             << "Failure(s) found in the unit-test mode - please see the test "
                "log for more details.";
       }
     } else {
       // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
       // tolerate crashes in fuzzing mode.
-      EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_))
+      EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_) ||
+                  Runtime::instance().skipping_requested())
           << "Failure(s) found in the fuzzing mode - please see the test log "
              "for more details.";
+    }
+    if (Runtime::instance().skipping_requested()) {
+      GTEST_SKIP() << "Test was skipped";
     }
   }
 
