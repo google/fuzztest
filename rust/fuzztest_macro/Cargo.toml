@@ -1,0 +1,18 @@
+[package]
+name = "fuzztest-macro"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+convert_case.workspace = true
+proc-macro2.workspace = true
+proc-macro-crate.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+
+[dev-dependencies]
+googletest = "0.14.3"
