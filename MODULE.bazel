@@ -28,6 +28,31 @@ bazel_dep(
     version = "0.6.1",
 )
 bazel_dep(
+    name = "rules_rust",
+    version = "0.71.3",
+)
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["nightly/2026-07-01"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "crate_index",
+    cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
+    manifests = [
+        "//:Cargo.toml",
+    ],
+)
+use_repo(crate, "crate_index")
+
+bazel_dep(
     name = "abseil-cpp",
     version = "20260526.0",
 )
