@@ -38,7 +38,7 @@ ${MAYBE_SUDO} apt update
 # Add Bazel distribution URI as a package source following:
 # https://docs.bazel.build/versions/main/install-ubuntu.html
 ${MAYBE_SUDO} apt install -y curl gnupg apt-transport-https
-curl -fsSL https://bazel.build/bazel-release.pub.gpg \
+curl -fsSL https://releases.bazel.build/bazel-release.pub.gpg \
   | gpg --dearmor | ${MAYBE_SUDO} tee /etc/apt/trusted.gpg.d/bazel.gpg >/dev/null
 echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" \
   | ${MAYBE_SUDO} tee /etc/apt/sources.list.d/bazel.list >/dev/null
