@@ -13,7 +13,9 @@
 // limitations under the License.
 
 // Centipede puzzle: easy-to-reach OOM.
-// RUN: Run --rss_limit_mb=1000 && SolutionIs OOM && ExpectOOM
+// CASE main: ARG: --rss_limit_mb=1000
+// CASE main: MATCH: Input bytes *: OOM
+// CASE main: MATCH: Failure.*: rss-limit-exceeded
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>

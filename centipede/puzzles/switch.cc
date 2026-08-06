@@ -13,7 +13,9 @@
 // limitations under the License.
 
 // Centipede puzzle: one 4-byte switch.
-// RUN: Run --max_len=10 --use_cmp_features=0 && ExpectInLog "deadbeef found!"
+// CASE main: ARG: --max_len=10
+// CASE main: ARG: --use_cmp_features=0
+// CASE main: MATCH: deadbeef found!
 
 #include <cstdint>
 #include <cstdio>

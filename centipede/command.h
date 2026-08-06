@@ -15,6 +15,12 @@
 #ifndef THIRD_PARTY_CENTIPEDE_COMMAND_H_
 #define THIRD_PARTY_CENTIPEDE_COMMAND_H_
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <windows.h>
+#endif
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -52,6 +58,8 @@ class Command final {
     // `Command` automatically unlinks any previous redirected files on
     // execution and destruction.
     std::string stderr_file_prefix;
+    // Redirect stdin from this file path if non-empty.
+    std::string stdin_file_path;
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -127,7 +135,11 @@ class Command final {
  private:
   struct ForkServerProps;
 
+#if defined(_WIN32)
+  HANDLE win_process_handle_ = INVALID_HANDLE_VALUE;
+#else
   int pid_ = -1;
+#endif
   bool is_executing_ = false;
 
   // Derived from Options::{stdout,stderr}_file_prefix, with the realized suffix
