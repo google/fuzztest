@@ -59,9 +59,11 @@ void BinaryInfo::InitializeFromSanCovBinary(
       std::filesystem::path{tmp_dir_path} / "binary_info_log_tmp";
   FUZZTEST_LOG(INFO) << __func__ << ": tmp_dir: " << tmp_dir;
 
-  env_diff.push_back(absl::StrCat(
-      "CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=", pc_table_path.path(),
-      ":arg2=", cf_table_path.path(), ":arg3=", dso_table_path.path(), ":"));
+  env_diff.push_back(
+      absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_binary_info:arg1=",
+                   EngineFlagEscape(pc_table_path.path()),
+                   ":arg2=", EngineFlagEscape(cf_table_path.path()),
+                   ":arg3=", EngineFlagEscape(dso_table_path.path()), ":"));
   Command::Options cmd_options;
   cmd_options.env_diff = std::move(env_diff);
   cmd_options.stdout_file_prefix = log_prefix;

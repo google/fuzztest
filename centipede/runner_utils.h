@@ -17,9 +17,13 @@
 
 #include <sys/stat.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <new>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -123,6 +127,80 @@ class ExplicitLifetime {
 
  private:
   alignas(T) unsigned char space_[sizeof(T)];
+};
+
+// Unescape the `flags` buffer in-place, which comes with the format of
+// :(NAME=VALUE:|NAME:)+, where NAME and VALUE can contain escaped chars with
+// backslash (\). It drops any chars before the first colon or after the last
+// unescaped colon, replace any unescaped colons with '\0'. Returns the number
+// of chars in the unescaped result.
+//
+// Returns 0 if no proper flags are found in the `flags` buffer.
+size_t UnescapeEngineFlags(char* flags, size_t size);
+
+// Helper class for processing and reading the engine flags.
+class EngineFlagHelper {
+ public:
+  // Constructs the helper for a C-string `flags` with the format of :(ENTRY:)+.
+  explicit EngineFlagHelper(const char* absl_nullable flags)
+      : flags_(nullptr), size_(0), has_allocation_failure_(false) {
+    if (flags == nullptr) return;
+    flags_ = strdup(flags);
+    if (flags_ == nullptr) {
+      has_allocation_failure_ = true;
+      return;
+    }
+    size_ = UnescapeEngineFlags(flags_, strlen(flags_));
+  }
+
+  EngineFlagHelper(const EngineFlagHelper&) = delete;
+  EngineFlagHelper& operator=(const EngineFlagHelper&) = delete;
+
+  ~EngineFlagHelper() {
+    if (flags_) {
+      free(flags_);
+    }
+  }
+
+  bool HasAllocationFailure() const { return has_allocation_failure_; }
+
+  bool HasSwitchFlag(std::string_view flag) const {
+    return FindEntry(flag, /*match_whole=*/true) != nullptr;
+  }
+
+  uint64_t GetIntFlag(std::string_view header, uint64_t default_value) const {
+    const char* absl_nullable flag = GetStringFlag(header);
+    if (flag == nullptr) return default_value;
+    return atoll(flag);  // NOLINT: can't use strto64, etc.
+  }
+
+  const char* absl_nullable GetStringFlag(std::string_view header) const {
+    const char* absl_nullable entry = FindEntry(header);
+    if (entry == nullptr) return nullptr;
+    return entry + header.size();
+  }
+
+ private:
+  // Returns an entry in the flags for `flag`. If `match_whole` is set, match
+  // `flag` as the whole entry, otherwise match it as a prefix.
+  const char* absl_nullable FindEntry(std::string_view flag,
+                                      bool match_whole = false) const {
+    if (flags_ == nullptr || flag.empty()) return nullptr;
+    auto flags = std::string_view{flags_, size_};
+    while (true) {
+      auto match = flags.find(flag);
+      if (match == flags.npos) return nullptr;
+      if ((match > 0 && flags[match - 1] == 0) &&
+          (!match_whole || flags[match + flag.size()] == 0)) {
+        return flags.data() + match;
+      }
+      flags = flags.substr(match + flag.size());
+    }
+  }
+
+  char* absl_nullable flags_;
+  size_t size_;
+  bool has_allocation_failure_;
 };
 
 }  // namespace fuzztest::internal

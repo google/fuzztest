@@ -96,4 +96,26 @@ bool WriteAll(int fd, const char* data, size_t size) {
   return true;
 }
 
+size_t UnescapeEngineFlags(char* flags, size_t size) {
+  size_t r = 0;
+  size_t w = 0;
+  size_t cur_flag_beg = 0;
+  for (r = 0; r < size; ++r) {
+    if (flags[r] == ':') {
+      flags[w] = 0;
+      cur_flag_beg = ++w;
+      continue;
+    }
+    // Skip copying if no flag beg was scanned before.
+    if (cur_flag_beg == 0) continue;
+    if (flags[r] == '\\' && r + 1 < size) {
+      ++r;
+    }
+    flags[w] = flags[r];
+    ++w;
+  }
+  if (cur_flag_beg < 2) return 0;
+  return cur_flag_beg;
+}
+
 }  // namespace fuzztest::internal
