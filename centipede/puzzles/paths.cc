@@ -16,8 +16,10 @@
 // We disable use_dataflow_features because on this puzzle
 // it is also effective.
 
-// RUN: Run --use_dataflow_features=0 --use_cmp_features=0 --path_level=10
-// RUN: ExpectInLog "Input bytes.*: .x1.x2.x3"
+// CASE main: ARG: --use_dataflow_features=0
+// CASE main: ARG: --use_cmp_features=0
+// CASE main: ARG: --path_level=10
+// CASE main: MATCH: Input bytes.*: .x1.x2.x3
 
 // This puzzle aborts on input "\x1\x2\x3"
 // The code here has very little control flow, but an exponential number of

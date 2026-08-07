@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Centipede puzzle: 4 independent compares setting a mask.
-// RUN: Run && SolutionIs FUZZ
+// CASE main: MATCH: Input bytes *: FUZZ
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
