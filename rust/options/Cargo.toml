@@ -1,0 +1,12 @@
+[package]
+name = "fuzztest-options"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap.workspace = true
+humantime.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+googletest.workspace = true

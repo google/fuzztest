@@ -1,0 +1,9 @@
+# This file is used to configure the Rust toolchain for FuzzTest.
+#
+# The channel is set to nightly as the fuzztest crate makes use of the compiler
+# sanitizers, which are not yet part of the stable Rust toolchain.
+# See https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html
+#
+# See https://rust-lang.github.io/rustup/concepts/toolchains.html
+[toolchain]
+channel = "nightly"
