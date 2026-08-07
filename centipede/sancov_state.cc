@@ -379,10 +379,11 @@ static void AddPcIndxedAndCounterToFeatures(
 // "noinline" so that we see it in a profile, if it becomes hot.
 template <typename CmpTrace>
 __attribute__((noinline)) void AppendCmpEntries(CmpTrace& cmp_trace,
-                                                ExecutionMetadata& metadata) {
+                                                ExecutionMetadata& metadata,
+                                                bool is_integer) {
   cmp_trace.ForEachNonZero(
       [&](uint8_t size, const uint8_t* v0, const uint8_t* v1) {
-        (void)metadata.AppendCmpEntry({v0, size}, {v1, size});
+        (void)metadata.AppendCmpEntry({v0, size}, {v1, size}, is_integer);
       });
 }
 
@@ -392,10 +393,14 @@ void PostProcessSancov(bool reject_input) {
 
   if (sancov_state->flags.use_auto_dictionary && !reject_input) {
     sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
-      AppendCmpEntries(tls.cmp_trace2, sancov_state->metadata);
-      AppendCmpEntries(tls.cmp_trace4, sancov_state->metadata);
-      AppendCmpEntries(tls.cmp_trace8, sancov_state->metadata);
-      AppendCmpEntries(tls.cmp_traceN, sancov_state->metadata);
+      AppendCmpEntries(tls.cmp_trace2, sancov_state->metadata,
+                       /*is_integer=*/true);
+      AppendCmpEntries(tls.cmp_trace4, sancov_state->metadata,
+                       /*is_integer=*/true);
+      AppendCmpEntries(tls.cmp_trace8, sancov_state->metadata,
+                       /*is_integer=*/true);
+      AppendCmpEntries(tls.cmp_traceN, sancov_state->metadata,
+                       /*is_integer=*/false);
     });
   }
 
