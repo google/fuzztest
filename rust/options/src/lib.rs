@@ -1,0 +1,351 @@
+//! This module provides the core command-line flag and environment variable options
+//! structure (`FuzzTestOptions`) and domain execution modes (`ExecutionMode`).
+//! Both the test harness runtime and host tools (e.g. `cargo-fuzztest`) can share option parsing
+//! logic.
+
+#![deny(clippy::absolute_paths)]
+#![deny(unused_imports)]
+
+use clap::{Parser, ValueEnum};
+use humantime::Duration;
+
+/// Time budget calculation type for replay corpus mode.
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimeBudgetType {
+    #[default]
+    PerTest,
+    Total,
+}
+
+/// Parses a fuzzing duration string from `FUZZTEST_FUZZ_FOR`.
+///
+/// Matches `"inf"` or `"infinite"` to [`FuzzFor::Indefinitely`]. All other values
+/// are parsed as standard human-readable durations (for example, `"5s"` or `"10m"`).
+fn parse_fuzz_for(s: &str) -> anyhow::Result<FuzzFor> {
+    let s_lower = s.trim().to_lowercase();
+    if s_lower == "inf" || s_lower == "infinite" {
+        Ok(FuzzFor::Indefinitely)
+    } else {
+        let duration = s.parse()?;
+        Ok(FuzzFor::Duration(duration))
+    }
+}
+
+/// Command-line and environment variable options parsed for the FuzzTest harness.
+#[derive(Parser, Debug, Clone, Default)]
+pub struct FuzzTestOptions {
+    /// The working root directory.
+    #[arg(env = "FUZZTEST_WORKDIR_ROOT", long)]
+    pub workdir_root: Option<String>,
+
+    /// The duration for which each test should be fuzzed.
+    ///
+    /// Accepts a human-readable duration (e.g., `5s`, `10m`, `1h`) or `inf` / `infinite`
+    /// to fuzz indefinitely until a crash is found or it is stopped manually.
+    #[arg(env = "FUZZTEST_FUZZ_FOR", long, value_parser = parse_fuzz_for)]
+    pub fuzz_for: Option<FuzzFor>,
+
+    /// If true, subprocess logs are printed after every batch. Note that crash logs are always
+    /// printed regardless of this flag's value.
+    #[arg(env = "FUZZTEST_PRINT_SUBPROCESS_LOG", long)]
+    pub print_subprocess_log: bool,
+
+    /// Number of parallel jobs to run.
+    #[arg(env = "FUZZTEST_JOBS", long)]
+    pub jobs: Option<usize>,
+
+    /// The crash ID to be replayed from the corpus database.
+    ///
+    /// If set, `corpus_db` must also be specified. This mode retrieves the crashing input
+    /// associated with the given ID from the database and executes the property function.
+    #[arg(env = "FUZZTEST_REPLAY_ID", long, requires = "corpus_db")]
+    pub replay_id: Option<String>,
+
+    /// Replay all crashing inputs from the corpus database.
+    #[arg(env = "FUZZTEST_REPLAY_FINDINGS", long, requires = "corpus_db")]
+    pub replay_findings: bool,
+
+    /// Replay the corpus for a specified duration.
+    #[arg(env = "FUZZTEST_REPLAY_CORPUS_FOR", long, requires = "corpus_db")]
+    pub replay_corpus_for: Option<Duration>,
+
+    /// Time budget calculation type for replay corpus mode.
+    #[arg(env = "FUZZTEST_TIME_BUDGET_TYPE", long, value_enum, default_value_t = TimeBudgetType::PerTest)]
+    pub time_budget_type: TimeBudgetType,
+
+    /// The path to the corpus database.
+    ///
+    /// If set to non-empty, updates/queries the corpus database that contains coverage,
+    /// regression, and crashing inputs for each test binary and fuzz test.
+    #[arg(env = "FUZZTEST_CORPUS_DB", long)]
+    pub corpus_db: Option<String>,
+}
+
+/// Strongly-typed domain execution mode for test runs.
+///
+/// This enum represents the parsed high-level user intent derived from `FuzzTestOptions`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutionMode {
+    /// Smoke test execution (regular unit test fallback).
+    SmokeTest,
+
+    /// Fuzzing mode.
+    Fuzz(FuzzOptions),
+
+    /// Replay a specific crash ID from the corpus database.
+    ReplayCrash(ReplayCrashOptions),
+
+    /// Replay all crashing inputs stored in the corpus database.
+    ReplayAllCrashes,
+
+    /// Replay corpus inputs for a specified duration.
+    ReplayCorpus(ReplayCorpusOptions),
+
+    /// List all discovered fuzz tests without running them.
+    /// Currently only supported via `cargo-fuzztest`.
+    ListFuzzTests,
+}
+
+impl ExecutionMode {
+    /// Evaluates the raw options and maps them to a strongly-typed domain `ExecutionMode`.
+    ///
+    /// This decouples raw environment/CLI option parsing from execution mode validation.
+    pub fn from_fuzztest_options(options: &FuzzTestOptions) -> ExecutionMode {
+        if let Some(replay_corpus_for) = options.replay_corpus_for {
+            return ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for,
+                time_budget_type: options.time_budget_type,
+            });
+        }
+
+        if options.replay_findings {
+            return ExecutionMode::ReplayAllCrashes;
+        }
+
+        if let Some(replay_id) = &options.replay_id {
+            return ExecutionMode::ReplayCrash(ReplayCrashOptions { replay_id: replay_id.clone() });
+        }
+
+        // Continuous fuzzing mode is selected if either an explicit duration/budget (`fuzz_for`)
+        // or a parallel job worker count (`jobs`) is specified. If `jobs` is set without
+        // `fuzz_for`, we default to fuzzing indefinitely until stopped or a crash is found.
+        if options.fuzz_for.is_some() || options.jobs.is_some() {
+            let fuzz_for = options.fuzz_for.unwrap_or(FuzzFor::Indefinitely);
+            return ExecutionMode::Fuzz(FuzzOptions { fuzz_for, jobs: options.jobs });
+        }
+
+        ExecutionMode::SmokeTest
+    }
+}
+
+/// Mode-specific options for continuous fuzzing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FuzzOptions {
+    pub fuzz_for: FuzzFor,
+
+    /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
+    /// will use its own default value.
+    pub jobs: Option<usize>,
+}
+
+/// The duration or limit for fuzzing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FuzzFor {
+    /// Fuzz indefinitely until it is manually stopped or a crash is found.
+    Indefinitely,
+
+    /// Fuzz for a specific duration.
+    Duration(Duration),
+}
+
+/// Mode-specific options for replaying a specific database crash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayCrashOptions {
+    pub replay_id: String,
+}
+
+/// Mode-specific options for replaying corpus for a duration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayCorpusOptions {
+    pub replay_corpus_for: Duration,
+    pub time_budget_type: TimeBudgetType,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+    use std::ffi::OsString;
+
+    #[gtest]
+    fn test_replay_id_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_ID");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_replay_id_with_corpus_db_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_ID");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options =
+            result.expect("parsing should succeed when both replay_id and corpus_db are present");
+        expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_jobs_options_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_JOBS", "4");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+
+        expect_that!(options.jobs, eq(Some(4)));
+        match ExecutionMode::from_fuzztest_options(&options) {
+            ExecutionMode::Fuzz(fuzz_opts) => {
+                expect_that!(fuzz_opts.jobs, eq(Some(4)));
+                expect_that!(fuzz_opts.fuzz_for, eq(FuzzFor::Indefinitely));
+            }
+            other => panic!("Expected ExecutionMode::Fuzz, got {:?}", other),
+        }
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_JOBS");
+        }
+    }
+
+    #[gtest]
+    fn test_replay_findings_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_replay_findings_with_corpus_db_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result
+            .expect("parsing should succeed when both replay_findings and corpus_db are present");
+        expect_that!(options.replay_findings, eq(true));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_with_corpus_db_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result
+            .expect("parsing should succeed when both replay_corpus_for and corpus_db are present");
+        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.time_budget_type, eq(TimeBudgetType::PerTest));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_with_total_time_budget() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_TIME_BUDGET_TYPE", "total");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_TIME_BUDGET_TYPE");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect("parsing should succeed with total time budget type");
+        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
+    }
+}
