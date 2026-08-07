@@ -210,6 +210,7 @@ std::string Configuration::Serialize() const {
              SpaceFor(continue_after_crash) +
              SpaceFor(reproduce_findings_as_separate_tests) +
              SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
+             SpaceFor(update_corpus_database) +
              SpaceFor(replay_in_single_process) + SpaceFor(execution_id) +
              SpaceFor(print_subprocess_log) +
              SpaceFor(subprocess_cleanup_timeout_str) + SpaceFor(stack_limit) +
@@ -229,6 +230,7 @@ std::string Configuration::Serialize() const {
   offset = WriteIntegral(out, offset, reproduce_findings_as_separate_tests);
   offset = WriteIntegral(out, offset, replay_coverage_inputs);
   offset = WriteIntegral(out, offset, only_replay);
+  offset = WriteIntegral(out, offset, update_corpus_database);
   offset = WriteIntegral(out, offset, replay_in_single_process);
   offset = WriteOptionalString(out, offset, execution_id);
   offset = WriteIntegral(out, offset, print_subprocess_log);
@@ -261,6 +263,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                      Consume<bool>(serialized));
     ASSIGN_OR_RETURN(replay_coverage_inputs, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(only_replay, Consume<bool>(serialized));
+    ASSIGN_OR_RETURN(update_corpus_database, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(replay_in_single_process, Consume<bool>(serialized));
     ASSIGN_OR_RETURN(execution_id, ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(print_subprocess_log, Consume<bool>(serialized));
@@ -297,6 +300,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *reproduce_findings_as_separate_tests,
                          *replay_coverage_inputs,
                          *only_replay,
+                         *update_corpus_database,
                          *replay_in_single_process,
                          *std::move(execution_id),
                          *print_subprocess_log,
