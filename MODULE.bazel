@@ -28,6 +28,105 @@ bazel_dep(
     version = "0.6.1",
 )
 bazel_dep(
+    name = "rules_rust",
+    version = "0.71.3",
+)
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["nightly/2025-01-15"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.spec(
+    package = "anyhow",
+    version = "1.0.100",
+)
+crate.spec(
+    features = [
+        "derive",
+        "env",
+    ],
+    package = "clap",
+    version = "4.6.1",
+)
+crate.spec(
+    package = "convert_case",
+    version = "0.6.0",
+)
+crate.spec(
+    package = "googletest",
+    version = "0.14.3",
+)
+crate.spec(
+    package = "humantime",
+    version = "2.4.0",
+)
+crate.spec(
+    package = "inventory",
+    version = "0.3.20",
+)
+crate.spec(
+    package = "num-traits",
+    version = "0.2.19",
+)
+crate.spec(
+    features = ["use-std"],
+    package = "postcard",
+    version = "1.0.0",
+)
+crate.spec(
+    package = "proc-macro2",
+    version = "1.0.106",
+)
+crate.spec(
+    package = "proc-macro-crate",
+    version = "3.4.0",
+)
+crate.spec(
+    package = "quote",
+    version = "1.0.45",
+)
+crate.spec(
+    package = "rand",
+    version = "0.10.1",
+)
+crate.spec(
+    features = ["derive"],
+    package = "serde",
+    version = "1.0.219",
+)
+crate.spec(
+    package = "serde_json",
+    version = "1.0.150",
+)
+crate.spec(
+    package = "spin",
+    version = "0.10.0",
+)
+crate.spec(
+    features = [
+        "extra-traits",
+        "full",
+        "parsing",
+        "printing",
+        "visit-mut",
+    ],
+    package = "syn",
+    version = "2.0.117",
+)
+crate.spec(
+    package = "tempfile",
+    version = "3.27.0",
+)
+crate.from_specs(name = "crate_index")
+use_repo(crate, "crate_index")
+
+bazel_dep(
     name = "abseil-cpp",
     version = "20260526.0",
 )
