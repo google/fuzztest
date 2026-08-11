@@ -1,0 +1,18 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+licenses(["notice"])
+
+rust_library(
+    name = "engine",
+    srcs = [
+        "src/engine_ffi.rs",
+        "src/lib.rs",
+    ],
+    edition = "2024",
+    visibility = ["@com_google_fuzztest//rust:__subpackages__"],
+    deps = [
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
+        "@com_google_fuzztest//centipede:engine_worker",
+    ],
+)
