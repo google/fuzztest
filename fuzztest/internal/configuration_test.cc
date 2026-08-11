@@ -25,6 +25,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->reproduce_findings_as_separate_tests &&
          config.replay_coverage_inputs == other->replay_coverage_inputs &&
          config.only_replay == other->only_replay &&
+         config.update_corpus_database == other->update_corpus_database &&
          config.replay_in_single_process == other->replay_in_single_process &&
          config.execution_id == other->execution_id &&
          config.print_subprocess_log == other->print_subprocess_log &&
@@ -55,6 +56,7 @@ TEST(ConfigurationTest,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
+                              /*update_corpus_database=*/true,
                               /*replay_in_single_process=*/true,
                               "execution_id",
                               /*print_subprocess_log=*/true,
@@ -85,6 +87,7 @@ TEST(ConfigurationTest,
                               /*reproduce_findings_as_separate_tests=*/true,
                               /*replay_coverage_inputs=*/true,
                               /*only_replay=*/true,
+                              /*update_corpus_database=*/true,
                               /*replay_in_single_process=*/true,
                               "execution_id",
                               /*print_subprocess_log=*/true,

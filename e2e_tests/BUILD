@@ -155,6 +155,7 @@ cc_test(
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//centipede:weak_sancov_stubs",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
         "@com_google_fuzztest//fuzztest/internal:escaping",
         "@com_google_fuzztest//fuzztest/internal:io",

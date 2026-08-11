@@ -27,8 +27,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./common/logging.h"
+#include "./common/remote_file.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/escaping.h"
@@ -392,6 +394,101 @@ TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
                   AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
                         HasSubstr("Not enough time for running the fuzz "
                                   "test FuzzTest.FailsWithStackOverflow")));
+}
+
+TEST_P(UpdateCorpusDatabaseTest, ReplayDoesNotUpdateDatabaseByDefault) {
+  const std::string db_path = UpdateCorpusDatabaseAndGetPath();
+
+  std::vector<std::string> crash_files;
+  for (const std::string& path : ListDirectoryRecursively(db_path)) {
+    std::filesystem::path fs_path(path);
+    if (fs_path.parent_path().filename() == "crashing" &&
+        fs_path.parent_path().parent_path().filename() ==
+            "FuzzTest.FailsInTwoWays") {
+      crash_files.push_back(path);
+    }
+  }
+  ASSERT_FALSE(crash_files.empty());
+  const std::string target_crash = crash_files[0];
+
+  const auto initial_mtime = RemoteFileGetMTime(target_crash);
+  ASSERT_TRUE(initial_mtime.ok());
+  const absl::Time initial_mod_time = *initial_mtime;
+
+  absl::SleepFor(absl::Seconds(2));
+
+  RunOptions run_options;
+  run_options.fuzztest_flags = {
+      {"corpus_database", db_path},
+      {"replay_corpus", "FuzzTest.FailsInTwoWays"},
+      {"replay_corpus_for", "10s"},
+  };
+
+  auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+      GetCorpusDatabaseTestingBinaryPath(), run_options);
+
+  const auto final_mtime = RemoteFileGetMTime(target_crash);
+  ASSERT_TRUE(final_mtime.ok());
+  EXPECT_EQ(*final_mtime, initial_mod_time);
+}
+
+TEST_P(UpdateCorpusDatabaseTest, ReplayUpdatesDatabaseWithFlag) {
+  const std::string db_path = UpdateCorpusDatabaseAndGetPath();
+
+  std::vector<std::string> crash_files;
+  for (const std::string& path : ListDirectoryRecursively(db_path)) {
+    std::filesystem::path fs_path(path);
+    if (fs_path.parent_path().filename() == "crashing" &&
+        fs_path.parent_path().parent_path().filename() ==
+            "FuzzTest.FailsInTwoWays") {
+      crash_files.push_back(path);
+    }
+  }
+  ASSERT_FALSE(crash_files.empty());
+  const std::string target_crash = crash_files[0];
+
+  const auto initial_mtime = RemoteFileGetMTime(target_crash);
+  ASSERT_TRUE(initial_mtime.ok());
+  const absl::Time initial_mod_time = *initial_mtime;
+
+  absl::SleepFor(absl::Seconds(2));
+
+  RunOptions run_options;
+  run_options.fuzztest_flags = {
+      {"corpus_database", db_path},
+      {"replay_corpus", "FuzzTest.FailsInTwoWays"},
+      {"replay_corpus_for", "10s"},
+      {"update_corpus_database", "true"},
+  };
+
+  auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+      GetCorpusDatabaseTestingBinaryPath(), run_options);
+
+  const auto final_mtime = RemoteFileGetMTime(target_crash);
+  ASSERT_TRUE(final_mtime.ok());
+  EXPECT_GT(*final_mtime, initial_mod_time)
+      << "target_crash: " << target_crash << "\nstd_err:\n"
+      << std_err << "\nstd_out:\n"
+      << std_out;
+}
+
+TEST_P(UpdateCorpusDatabaseTest, FuzzingDoesNotUpdateDatabaseWithFlag) {
+  TempDir corpus_database;
+
+  RunOptions run_options;
+  run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.path()},
+      {"fuzz_for", "10s"},
+      {"update_corpus_database", "false"},
+  };
+  run_options.timeout = absl::Seconds(10);
+  auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
+      GetCorpusDatabaseTestingBinaryPath(), run_options);
+
+  // The database should not be updated, so fuzzing_time should not exist.
+  const absl::StatusOr<std::string> fuzzing_time_file =
+      FindFile(corpus_database.path().c_str(), "fuzzing_time");
+  EXPECT_FALSE(fuzzing_time_file.ok()) << *fuzzing_time_file;
 }
 
 INSTANTIATE_TEST_SUITE_P(
