@@ -704,13 +704,9 @@ static int MutateInputsFromShmem(BlobSequence& inputs_blobseq,
   }
   if (!callbacks.HasCustomMutator()) return EXIT_SUCCESS;
 
-  {
-    bool succ = true;
-    MutateInputs(callbacks, input_refs, num_mutants, [&](MutantRef mutant) {
-      succ = succ && MutationResult::WriteMutant(mutant, outputs_blobseq);
-    });
-    if (!succ) return EXIT_FAILURE;
-  }
+  MutateInputs(callbacks, input_refs, num_mutants, [&](MutantRef mutant) {
+    (void)MutationResult::WriteMutant(mutant, outputs_blobseq);
+  });
 
   return EXIT_SUCCESS;
 }

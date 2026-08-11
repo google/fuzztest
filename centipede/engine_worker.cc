@@ -639,12 +639,10 @@ void WorkerDoMutate(const FuzzTestAdapter& adapter) {
     mutant_bytes.clear();
     adapter.SerializeInputContent(adapter.ctx, emitted_inputs[0],
                                   &mutant_bytes_sink);
-    WORKER_CHECK_FOR_ERROR();
-    WorkerCheck(MutationResult::WriteMutant(MutantRef{mutant_bytes, origin},
-                                            *outputs_blobseq),
-                "failed to write mutant");
     adapter.FreeInput(adapter.ctx, emitted_inputs[0]);
     WORKER_CHECK_FOR_ERROR();
+    (void)MutationResult::WriteMutant(MutantRef{mutant_bytes, origin},
+                                      *outputs_blobseq);
   }
 
   for (auto input : origin_inputs) {
