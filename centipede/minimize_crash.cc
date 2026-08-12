@@ -143,6 +143,7 @@ void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
   auto callbacks = scoped_callback.callbacks();
 
   FUZZTEST_LOG(INFO) << "MinimizeCrash: trying the original crashy input";
+  CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
 
   BatchResult batch_result;
   ByteArray original_crashy_input(crashy_input.begin(), crashy_input.end());
@@ -163,6 +164,7 @@ void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
     ThreadPool threads{static_cast<int>(env.num_threads)};
     for (size_t i = 0; i < env.num_threads; ++i) {
       threads.Schedule([&env, &callbacks_factory, &queue, &stop_condition]() {
+        CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
         MinimizeCrash(env, callbacks_factory, queue, stop_condition);
       });
     }

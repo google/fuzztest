@@ -399,8 +399,9 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
   }
   std::vector<std::string> env_diff = env_.env_diff_for_binaries;
   env_diff.push_back(ConstructRunnerFlags(
-      absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
-                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
+      absl::StrCat(":shmem_size_mb=", env_.shmem_size_mb,
+                   ":test=", env_.test_name, ":arg1=", inputs_blobseq_.path(),
+                   ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
                    ":failure_signature_path=", failure_signature_path_,
                    persistent_mode_server == nullptr
