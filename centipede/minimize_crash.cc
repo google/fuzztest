@@ -148,7 +148,8 @@ void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
   ByteArray original_crashy_input(crashy_input.begin(), crashy_input.end());
   if (callbacks->Execute(env.binary, {original_crashy_input}, batch_result)) {
     FUZZTEST_LOG(INFO) << "The original crashy input did not crash; exiting";
-    stop_condition.RequestEarlyStop(EXIT_FAILURE);
+    stop_condition.RequestStop(EXIT_FAILURE,
+                               "The original crashy input did not crash");
     return;
   }
 
@@ -167,9 +168,9 @@ void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
     }
   }  // The threads join here.
 
-  if (stop_condition.EarlyStopRequested()) return;
+  if (stop_condition.StopRequested()) return;
   if (!queue.SmallerCrashesFound()) {
-    stop_condition.RequestEarlyStop(EXIT_FAILURE);
+    stop_condition.RequestStop(EXIT_FAILURE, "Smaller crashes not found");
   }
 }
 

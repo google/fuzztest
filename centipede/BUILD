@@ -1451,6 +1451,17 @@ cc_test(
 )
 
 cc_test(
+    name = "stop_test",
+    srcs = ["stop_test.cc"],
+    deps = [
+        ":stop",
+        ":thread_pool",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "rusage_stats_test",
     size = "medium",
     timeout = "long",

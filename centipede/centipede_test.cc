@@ -1294,8 +1294,9 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
   EXPECT_THAT(callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
                                inputs.size()),
               IsEmpty());
-  EXPECT_TRUE(stop_condition.EarlyStopRequested());
-  EXPECT_EQ(stop_condition.ExitCode(), EXIT_FAILURE);
+  StopCondition::StopRequest stop_request;
+  EXPECT_TRUE(stop_condition.StopRequested(&stop_request));
+  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir,
@@ -1384,6 +1385,27 @@ TEST_F(CentipedeWithTemporaryLocalDir, ToleratesAsyncFailureInMutation) {
       AllOf(HasSubstr("Test binary failed to mutate inputs - cleaning up and "
                       "trying again."),
             HasSubstr("Mutate() succeeded")));
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, CentipedeMainWritesStopReason) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path() / "workdir";
+  env.binary =
+      absl::StrCat(GetDataDependencyFilepath(
+                       "centipede/testing/fuzz_target_with_custom_mutator")
+                       .c_str(),
+                   " --simulate_failure");
+  env.stop_reason_file = tmp_dir.path() / "stop_reason";
+  env.populate_binary_info = false;
+  fuzztest::internal::DefaultCallbacksFactory<
+      fuzztest::internal::CentipedeDefaultCallbacks>
+      callbacks;
+  const int ret = CentipedeMain(env, callbacks);
+  EXPECT_EQ(ret, EXIT_FAILURE);
+  std::string stop_reason_file_content;
+  ReadFromLocalFile(env.stop_reason_file, stop_reason_file_content);
+  EXPECT_THAT(stop_reason_file_content, HasSubstr("failed to mutate"));
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInWorkerMode) {

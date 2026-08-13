@@ -306,9 +306,11 @@ void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
   // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
-      FUZZTEST_LOG(ERROR) << "Could not get PC table; exiting (override with "
-                             "--require_pc_table=false)";
-      exit(EXIT_FAILURE);
+      FUZZTEST_LOG(ERROR)
+          << "Could not get PC table; requesting to stop (override with "
+             "--require_pc_table=false)";
+      stop_condition_.RequestStop(EXIT_FAILURE, "Could not get PC table");
+      return;
     }
     FUZZTEST_LOG(WARNING)
         << "Could not get PC table; CF table and debug symbols will "

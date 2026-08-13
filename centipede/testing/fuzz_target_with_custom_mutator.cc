@@ -24,8 +24,8 @@
 #include "./common/defs.h"
 
 ABSL_FLAG(bool, simulate_failure, false,
-          "If true, the binary will return EXIT_FAILURE to simulate a "
-          "failure.");
+          "If true, the binary will exit with EXIT_FAILURE in the custom "
+          "mutator to simulate a failure.");
 
 using fuzztest::internal::ByteSpan;
 using fuzztest::internal::MutantRef;
@@ -39,6 +39,10 @@ class CustomMutatorRunnerCallbacks
 
   void* Mutate(void* input,
                const fuzztest::internal::ExecutionMetadata& metadata) override {
+    if (absl::GetFlag(FLAGS_simulate_failure)) {
+      std::exit(EXIT_FAILURE);
+    }
+
     const auto* ba =
         reinterpret_cast<const fuzztest::internal::ByteArray*>(input);
     return reinterpret_cast<void*>(new fuzztest::internal::ByteArray{*ba});
@@ -64,9 +68,6 @@ class CustomMutatorRunnerCallbacks
 
 int main(int argc, char** absl_nonnull argv) {
   absl::ParseCommandLine(argc, argv);
-  if (absl::GetFlag(FLAGS_simulate_failure)) {
-    return EXIT_FAILURE;
-  }
   CustomMutatorRunnerCallbacks runner_callbacks;
   return fuzztest::internal::RunnerMain(argc, argv, runner_callbacks);
 }

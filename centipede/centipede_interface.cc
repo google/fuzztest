@@ -88,8 +88,10 @@ void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
     auto blob_reader = DefaultBlobFileReaderFactory();
     absl::Status open_status = blob_reader->Open(arg);
     if (!open_status.ok()) {
-      FUZZTEST_LOG(INFO) << "Failed to open " << arg << ": " << open_status;
-      stop_condition.RequestEarlyStop(EXIT_FAILURE);
+      const std::string stop_reason =
+          absl::StrCat("Failed to open ", arg, ": ", open_status);
+      FUZZTEST_LOG(WARNING) << stop_reason;
+      stop_condition.RequestStop(EXIT_FAILURE, stop_reason);
       return;
     }
     ByteSpan blob;
@@ -145,6 +147,9 @@ BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
                                               stop_condition);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
+    if (stop_condition.ShouldStop()) {
+      return binary_info;
+    }
   }
   if (env.save_binary_info) {
     const std::string binary_info_dir = WorkDir{env}.BinaryInfoDirPath();
@@ -460,9 +465,12 @@ void UpdateCorpusDatabase(Environment env,
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
       env, callbacks_factory, pcs_file_path, stop_condition);
+  if (stop_condition.StopRequested()) return;
 
   FUZZTEST_LOG(INFO) << "Test shard index: " << test_shard_index
                      << " Total test shards: " << total_test_shards;
+
+  StopCondition::StopRequest stop_request;
 
   // Step 2: Run the fuzz test.
 
@@ -529,7 +537,7 @@ void UpdateCorpusDatabase(Environment env,
 
   absl::Cleanup clean_up_workdir = [is_workdir_specified, &env,
                                     &stop_condition] {
-    if (!is_workdir_specified && !stop_condition.EarlyStopRequested()) {
+    if (!is_workdir_specified && !stop_condition.StopRequested()) {
       FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
     }
   };
@@ -558,11 +566,11 @@ void UpdateCorpusDatabase(Environment env,
   }
   is_resuming = false;
 
-  if (stop_condition.EarlyStopRequested()) {
-    if (const auto exit_code = stop_condition.ExitCode();
-        exit_code != EXIT_SUCCESS) {
+  if (stop_condition.StopRequested(&stop_request)) {
+    if (stop_request.exit_code != EXIT_SUCCESS) {
       FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
-                          << " with failure exit code " << exit_code;
+                          << " with failure exit code "
+                          << stop_request.exit_code;
     } else {
       FUZZTEST_LOG(INFO) << "Skipping test " << env.test_name
                          << " due to early stop requested without failure.";
@@ -590,11 +598,11 @@ void UpdateCorpusDatabase(Environment env,
         (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp)).c_str()));
   }
 
-  if (stop_condition.EarlyStopRequested()) {
-    if (const auto exit_code = stop_condition.ExitCode();
-        exit_code != EXIT_SUCCESS) {
+  if (stop_condition.StopRequested(&stop_request)) {
+    if (stop_request.exit_code != EXIT_SUCCESS) {
       FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
-                          << " with failure exit code " << exit_code;
+                          << " with failure exit code "
+                          << stop_request.exit_code;
     } else {
       FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
                             "requested without failure.";
@@ -717,6 +725,16 @@ int CentipedeMain(const Environment& env,
   }
   stop_condition->SetStopTime(env.stop_at);
 
+  auto SaveStopReasonAndGetExitCode = [&]() -> int {
+    StopCondition::StopRequest stop_request;
+    const bool stop_requested = stop_condition->StopRequested(&stop_request);
+    if (!stop_requested) return EXIT_SUCCESS;
+    if (!env.stop_reason_file.empty()) {
+      WriteToLocalFile(env.stop_reason_file, stop_request.reason);
+    }
+    return stop_request.exit_code;
+  };
+
   if (!env.corpus_to_files.empty()) {
     Centipede::CorpusToFiles(env, env.corpus_to_files);
     return EXIT_SUCCESS;
@@ -732,14 +750,14 @@ int CentipedeMain(const Environment& env,
 
   if (!env.for_each_blob.empty()) {
     ForEachBlob(env, *stop_condition);
-    return stop_condition->ExitCode();
+    return SaveStopReasonAndGetExitCode();
   }
 
   if (!env.minimize_crash_file_path.empty()) {
     ByteArray crashy_input;
     ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
     MinimizeCrash(crashy_input, env, callbacks_factory, *stop_condition);
-    return stop_condition->ExitCode();
+    return SaveStopReasonAndGetExitCode();
   }
 
   // Just export the corpus from a local dir and exit.
@@ -815,7 +833,7 @@ int CentipedeMain(const Environment& env,
       }
       if (env.replay_crash) {
         ReplayCrash(updated_env, callbacks_factory, *stop_condition);
-        return stop_condition->ExitCode();
+        return SaveStopReasonAndGetExitCode();
       }
       if (env.export_crash) {
         return ExportCrash(updated_env);
@@ -829,7 +847,7 @@ int CentipedeMain(const Environment& env,
                      absl::Seconds(1))
           << "Time limit per fuzz test must be at least 1 second.";
       UpdateCorpusDatabase(updated_env, callbacks_factory, *stop_condition);
-      return stop_condition->ExitCode();
+      return SaveStopReasonAndGetExitCode();
     }
   }
 
@@ -842,11 +860,14 @@ int CentipedeMain(const Environment& env,
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
       env, callbacks_factory, pcs_file_path, *stop_condition);
+  if (stop_condition->StopRequested()) {
+    return SaveStopReasonAndGetExitCode();
+  }
 
   if (env.analyze) return Analyze(env);
 
   Fuzz(env, binary_info, pcs_file_path, callbacks_factory, *stop_condition);
-  return stop_condition->ExitCode();
+  return SaveStopReasonAndGetExitCode();
 
   // TODO: fniksic - Report the crash summary here if requested. What are the
   // binary identifier and the fuzz test name here?

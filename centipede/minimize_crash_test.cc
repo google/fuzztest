@@ -89,25 +89,32 @@ TEST(MinimizeTest, MinimizeTest) {
   const WorkDir wd{env};
   MinimizerMockFactory factory;
   StopCondition stop_condition;
+  StopCondition::StopRequest stop_request;
 
   // Test with a non-crashy input.
+  stop_request = {};
   MinimizeCrash({1, 2, 3}, env, factory, stop_condition);
-  EXPECT_EQ(stop_condition.ExitCode(), EXIT_FAILURE);
+  (void)stop_condition.StopRequested(&stop_request);
+  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
 
   ByteArray expected_minimized = {'f', 'u', 'z'};
 
   // Test with a crashy input that can't be minimized further.
-  stop_condition.ClearEarlyStopRequest();
+  stop_condition.ClearStopRequest();
+  stop_request = {};
   MinimizeCrash(expected_minimized, env, factory, stop_condition);
-  EXPECT_EQ(stop_condition.ExitCode(), EXIT_FAILURE);
+  (void)stop_condition.StopRequested(&stop_request);
+  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
 
   // Test the actual minimization.
   ByteArray original_crasher = {'f', '.', '.', '.', '.', '.', '.', '.',
                                 '.', '.', '.', 'u', '.', '.', '.', '.',
                                 '.', '.', '.', '.', '.', '.', 'z'};
-  stop_condition.ClearEarlyStopRequest();
+  stop_condition.ClearStopRequest();
+  stop_request = {};
   MinimizeCrash(original_crasher, env, factory, stop_condition);
-  EXPECT_EQ(stop_condition.ExitCode(), EXIT_SUCCESS);
+  (void)stop_condition.StopRequested(&stop_request);
+  EXPECT_EQ(stop_request.exit_code, EXIT_SUCCESS);
   // Collect the new crashers from the crasher dir.
   std::vector<ByteArray> crashers;
   for (auto const &dir_entry : std::filesystem::directory_iterator{

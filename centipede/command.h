@@ -91,7 +91,7 @@ class Command final {
 
   // Waits for the command execution and returns the exit status if the
   // execution finishes within `deadline`. Must be called only when the command
-  // is executing. If interrupted, may call `stop_condition->RequestEarlyStop()`
+  // is executing. If interrupted, may call `stop_condition->RequestStop()`
   // (see stop.h).
   std::optional<int> Wait(absl::Time deadline,
                           StopCondition* stop_condition = nullptr);
