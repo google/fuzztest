@@ -57,3 +57,31 @@ rust_clippy(
         ":cargo_fuzztest_bin",
     ],
 )
+
+rust_test(
+    name = "dummy_fuzz_test_bin",
+    srcs = ["test_crates/dummy_fuzz_crate/src/lib.rs"],
+    edition = "2024",
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "@com_google_fuzztest//rust:fuzztest",
+        "@crate_index//:googletest",
+    ],
+)
+
+rust_test(
+    name = "runner_test",
+    srcs = ["tests/runner_test.rs"],
+    data = [
+        ":dummy_fuzz_test_bin",
+    ],
+    edition = "2024",
+    deps = [
+        ":cargo_fuzztest",
+        "@crate_index//:anyhow",  # v1
+        "@crate_index//:googletest",
+    ],
+)

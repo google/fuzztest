@@ -100,6 +100,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "fuzztest",
  "fuzztest-options",
  "googletest",
  "serde",
