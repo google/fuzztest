@@ -244,6 +244,7 @@ dependencies = [
  "coverage",
  "engine-ffi",
  "fuzztest-macro",
+ "fuzztest-options",
  "googletest",
  "humantime",
  "inventory",
@@ -266,6 +267,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "fuzztest-options"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "googletest",
+ "humantime",
 ]
 
 [[package]]

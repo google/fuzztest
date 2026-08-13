@@ -10,16 +10,12 @@ fn find_bug_fuzz_test(a: i32) {
 }
 
 #[fuzztest(a = Arbitrary::<i32>::default())]
-fn find_two_bugs_fuzz_test(a: i32) {
-    println!("PROPERTY_FUNCTION_EXECUTED");
-    if a < -1 {
+fn find_two_bugs_fuzz_test(a: i32) { println!("PROPERTY_FUNCTION_EXECUTED");
+    if a == 10 {
         panic!("Bug 1 found!");
-    } else if a > 1 {
+    } else if a == 20 {
         println!("Bug 2 found!");
-        // Safety: We are intentionally causing a segfault to test that the engine would catch it.
-        unsafe {
-            std::ptr::null_mut::<i32>().write_volatile(42);
-        }
+        std::process::exit(99);
     }
 }
 

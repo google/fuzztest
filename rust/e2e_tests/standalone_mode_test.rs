@@ -130,8 +130,14 @@ fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
     let target_binary_path =
         fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
 
-    let corpus_db = fixture.tmp_dir_path.join("corpus_db_per_test");
-    let workdir_root = fixture.tmp_dir_path.join("workdir_root_per_test");
+    let corpus_db = fixture
+        .tmp_dir_path
+        .join("standalone_mode_replay_corpus_per_test_budget")
+        .join("corpus_db_per_test");
+    let workdir_root = fixture
+        .tmp_dir_path
+        .join("standalone_mode_replay_corpus_per_test_budget")
+        .join("workdir_root_per_test");
 
     // Centipede appends the binary identifier (relative path) to the corpus database path.
     let identifier = target_binary_path.to_str().unwrap();
@@ -215,8 +221,14 @@ fn standalone_mode_replay_corpus_total_budget(fixture: &EnvVars) {
     let target_binary_path =
         fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
 
-    let corpus_db = fixture.tmp_dir_path.join("corpus_db_total");
-    let workdir_root = fixture.tmp_dir_path.join("workdir_root_total");
+    let corpus_db = fixture
+        .tmp_dir_path
+        .join("standalone_mode_replay_corpus_per_test_budget")
+        .join("corpus_db_total");
+    let workdir_root = fixture
+        .tmp_dir_path
+        .join("standalone_mode_replay_corpus_per_test_budget")
+        .join("workdir_root_total");
 
     // Centipede appends the binary identifier (relative path) to the corpus database path.
     let identifier = target_binary_path.to_str().unwrap();

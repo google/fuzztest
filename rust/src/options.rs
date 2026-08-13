@@ -1,113 +1,17 @@
 use crate::internal::FuzzTestRegistration;
 use ::engine::engine_ffi;
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
-use humantime::Duration;
+use clap::Parser;
 use std::ffi::CString;
 use std::ffi::OsString;
 use std::path::Path;
 use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
 
-/// Time budget calculation type for replay corpus mode.
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TimeBudgetType {
-    #[default]
-    PerTest,
-    Total,
-}
-
-/// Parses a fuzzing duration string from `FUZZTEST_FUZZ_FOR`.
-///
-/// Matches `"inf"` or `"infinity"` to [`FuzzFor::Indefinitely`]. All other values
-/// are parsed as standard human-readable durations (for example, `"5s"` or `"10m"`).
-fn parse_fuzz_for(s: &str) -> anyhow::Result<FuzzFor> {
-    let s_lower = s.trim().to_lowercase();
-    if s_lower == "inf" || s_lower == "infinity" {
-        Ok(FuzzFor::Indefinitely)
-    } else {
-        let duration = s.parse()?;
-        Ok(FuzzFor::Duration(duration))
-    }
-}
-
-/// Command-line and environment variable options parsed for the FuzzTest harness.
-#[derive(Parser, Debug, Clone, Default)]
-pub struct FuzzTestOptions {
-    /// The working root directory.
-    #[arg(env = "FUZZTEST_WORKDIR_ROOT", long)]
-    pub workdir_root: Option<String>,
-
-    /// The duration for which each test should be fuzzed.
-    ///
-    /// Accepts a human-readable duration (e.g., `5s`, `10m`, `1h`) or `inf` / `infinite`
-    /// to fuzz indefinitely until a crash is found or it is stopped manually.
-    #[arg(env = "FUZZTEST_FUZZ_FOR", long, value_parser = parse_fuzz_for)]
-    pub fuzz_for: Option<FuzzFor>,
-
-    /// If true, subprocess logs are printed after every batch. Note that crash logs are always printed
-    /// regardless of this flag's value.
-    #[arg(env = "FUZZTEST_PRINT_SUBPROCESS_LOG", long)]
-    pub print_subprocess_log: bool,
-
-    /// Number of parallel jobs to run.
-    #[arg(env = "FUZZTEST_JOBS", long)]
-    pub jobs: Option<usize>,
-
-    /// The crash ID to be replayed from the corpus database.
-    ///
-    /// If set, `corpus_db` must also be specified. This mode retrieves the crashing input
-    /// associated with the given ID from the database and executes the property function.
-    #[arg(env = "FUZZTEST_REPLAY_ID", long, requires = "corpus_db")]
-    pub replay_id: Option<String>,
-
-    /// Replay all crashing inputs from the corpus database.
-    #[arg(env = "FUZZTEST_REPLAY_FINDINGS", long)]
-    pub replay_findings: bool,
-
-    /// Replay the corpus for a specified duration.
-    #[arg(env = "FUZZTEST_REPLAY_CORPUS_FOR", long)]
-    pub replay_corpus_for: Option<Duration>,
-
-    /// Time budget calculation type for replay corpus mode.
-    #[arg(env = "FUZZTEST_TIME_BUDGET_TYPE", long, value_enum, default_value_t = TimeBudgetType::PerTest)]
-    pub time_budget_type: TimeBudgetType,
-
-    /// The path to the corpus database.
-    ///
-    /// If set to non-empty, updates/queries the corpus database that contains coverage,
-    /// regression, and crashing inputs for each test binary and fuzz test.
-    #[arg(env = "FUZZTEST_CORPUS_DB", long)]
-    pub corpus_db: Option<String>,
-}
-
-impl FuzzTestOptions {
-    /// Evaluates the raw options and maps them to a strongly-typed domain `ExecutionMode`.
-    ///
-    /// This decouples raw environment/CLI option parsing from execution mode validation.
-    pub fn execution_mode(&self) -> ExecutionMode {
-        if let Some(replay_corpus_for) = self.replay_corpus_for {
-            return ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
-                replay_corpus_for,
-                time_budget_type: self.time_budget_type,
-            });
-        }
-
-        if self.replay_findings {
-            return ExecutionMode::ReplayAllCrashes;
-        }
-
-        if let Some(replay_id) = &self.replay_id {
-            return ExecutionMode::ReplayCrash(ReplayCrashOptions { replay_id: replay_id.clone() });
-        }
-
-        if let Some(fuzz_for) = self.fuzz_for {
-            return ExecutionMode::Fuzz(FuzzOptions { fuzz_for, jobs: self.jobs.clone() });
-        }
-
-        ExecutionMode::SmokeTest
-    }
-}
+pub use fuzztest_options::{
+    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
+    TimeBudgetType,
+};
 
 /// Returns a lazily-initialized static reference to the global `FuzzTestOptions`.
 pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
@@ -119,64 +23,20 @@ pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
     OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(std::iter::empty::<OsString>()))
 }
 
-/// Strongly-typed domain execution mode for test runs.
-///
-/// This enum represents the parsed high-level user intent derived from `FuzzTestOptions`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExecutionMode {
-    /// Smoke test execution (regular unit test fallback).
-    SmokeTest,
-
-    /// Fuzzing mode.
-    Fuzz(FuzzOptions),
-
-    /// Replay a specific crash ID from the corpus database.
-    ReplayCrash(ReplayCrashOptions),
-
-    /// Replay all crashing inputs stored in the corpus database.
-    ReplayAllCrashes,
-
-    /// Replay corpus inputs for a specified duration.
-    ReplayCorpus(ReplayCorpusOptions),
-}
-
-/// Mode-specific options for continuous fuzzing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FuzzOptions {
-    pub fuzz_for: FuzzFor,
-
-    /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
-    /// will use its own default value.
-    pub jobs: Option<usize>,
-}
-
-/// The duration or limit for fuzzing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FuzzFor {
-    /// Fuzz indefinitely until it is manually stopped or a crash is found.
-    Indefinitely,
-
-    /// Fuzz for a specific duration.
-    Duration(Duration),
-}
-
-/// Mode-specific options for replaying a specific crashing input from the corpus database.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplayCrashOptions {
-    pub replay_id: String,
-}
-
-/// Mode-specific options for replaying corpus for a duration.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplayCorpusOptions {
-    pub replay_corpus_for: Duration,
-    pub time_budget_type: TimeBudgetType,
-}
-
-impl ExecutionMode {
+trait ExecutionModeExt {
     /// Prepares the concrete `ExecutionAction` payload for execution by building any required
     /// `CentipedeArgs` or temporary runtime assets.
-    pub fn prepare_action(
+    fn prepare_action(
+        &self,
+        options: &FuzzTestOptions,
+        current_test_name: &str,
+    ) -> anyhow::Result<ExecutionAction>;
+}
+
+impl ExecutionModeExt for ExecutionMode {
+    /// Prepares the concrete `ExecutionAction` payload for execution by building any required
+    /// `CentipedeArgs` or temporary runtime assets.
+    fn prepare_action(
         &self,
         options: &FuzzTestOptions,
         current_test_name: &str,
@@ -288,6 +148,9 @@ impl CentipedeArgs {
         add_arg(format!("--fuzztest_binary_identifier={binary_id}"))?;
 
         add_arg("--populate_binary_info=false".to_string())?;
+        // TODO(the-shank): provide a way to override this.
+        // allow more crashes to be reported when running with FuzzTest (default is 5)
+        add_arg("--max_num_crash_reports=20".to_string())?;
         add_arg("--fork_server=false".to_string())?;
 
         add_arg(format!("--print_runner_log={}", options.print_subprocess_log))?;
@@ -426,8 +289,7 @@ fn determine_execution_action_internal(
     options: &FuzzTestOptions,
     current_test_name: &str,
 ) -> ExecutionAction {
-    options
-        .execution_mode()
+    ExecutionMode::from_fuzztest_options(options)
         .prepare_action(options, current_test_name)
         .expect("failed to prepare execution action from fuzztest options")
 }
@@ -486,7 +348,10 @@ mod tests {
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
         expect_true!(options.fuzz_for.is_some());
-        expect_that!(options.execution_mode(), matches_pattern!(ExecutionMode::Fuzz(_)));
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            matches_pattern!(ExecutionMode::Fuzz(_))
+        );
 
         // SAFETY: Cleaning up environment variables.
         unsafe {
@@ -504,7 +369,7 @@ mod tests {
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
         expect_that!(options.fuzz_for, eq(Some(FuzzFor::Indefinitely)));
-        let mode = options.execution_mode();
+        let mode = ExecutionMode::from_fuzztest_options(&options);
         let ExecutionMode::Fuzz(fuzz_opts) = mode else {
             panic!("Expected ExecutionMode::Fuzz");
         };

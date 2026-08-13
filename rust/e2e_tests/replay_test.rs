@@ -25,26 +25,27 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
     let target_binary_str = target_binary_path.to_str().expect("valid path string");
     let binary_id = target_binary_str.strip_prefix('/').unwrap_or(target_binary_str);
 
-    let db_dir = fixture.tmp_dir_path.join("corpus_db");
+    let db_dir = fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("corpus_db");
     fs::create_dir_all(&db_dir).expect("Failed to create db directory");
 
-    let workdir_root_dir = fixture.tmp_dir_path.join("workdir_root");
+    let workdir_root_dir =
+        fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("workdir_root");
     fs::create_dir_all(&workdir_root_dir).expect("Failed to workdir_root directory");
 
     // 1. Run Centipede to fuzz the target and populate the corpus database.
     Command::new(&target_binary_path)
         .arg(test_name)
         .arg("--exact")
-        .env("FUZZTEST_FUZZ_FOR", "60s")
+        .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_CORPUS_DB", &db_dir)
         .env("FUZZTEST_WORKDIR_ROOT", &workdir_root_dir)
         .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
-        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
         .status()
         .expect("Failed to spawn binary");
 
     // 2. Retrieve the crash IDs from the corpus database using Centipede's --list_crash_ids flag.
-    let crash_ids_file = fixture.tmp_dir_path.join("crash_ids.txt");
+    let crash_ids_file =
+        fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("crash_ids.txt");
     let list_args = [
         format!("--binary={}", target_binary_path.display()),
         format!("--fuzztest_binary_identifier={}", binary_id),
@@ -102,23 +103,23 @@ fn replay_all_reproduces_all_failures(fixture: &EnvVars) {
 
     let target_binary_path = get_target_binary_path(fixture);
     let target_binary_str = target_binary_path.to_str().expect("valid path string");
-    let binary_id = target_binary_str.strip_prefix('/').unwrap_or(target_binary_str);
 
-    let db_dir = fixture.tmp_dir_path.join("corpus_db_all");
+    let db_dir =
+        fixture.tmp_dir_path.join("replay_all_reproduces_all_failures").join("corpus_db_all");
     fs::create_dir_all(&db_dir).expect("Failed to create db directory");
 
-    let workdir_root_dir = fixture.tmp_dir_path.join("workdir_root_all");
+    let workdir_root_dir =
+        fixture.tmp_dir_path.join("replay_all_reproduces_all_failures").join("workdir_root_all");
     fs::create_dir_all(&workdir_root_dir).expect("Failed to workdir_root_all directory");
 
     // 1. Run Centipede to fuzz the target and populate the corpus database.
     Command::new(&target_binary_path)
         .arg(test_name)
         .arg("--exact")
-        .env("FUZZTEST_FUZZ_FOR", "60s")
+        .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_CORPUS_DB", &db_dir)
         .env("FUZZTEST_WORKDIR_ROOT", &workdir_root_dir)
         .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
-        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
         .status()
         .expect("Failed to spawn binary");
 

@@ -18,6 +18,7 @@ rust_library(
     deps = [
         "@com_google_fuzztest//rust/coverage",
         "@com_google_fuzztest//rust/engine",
+        "@com_google_fuzztest//rust/options:fuzztest_options",
         "@crate_index//:anyhow",  # v1
         "@crate_index//:clap",  # v4
         "@crate_index//:humantime",  # v2
