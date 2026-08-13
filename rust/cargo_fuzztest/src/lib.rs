@@ -22,14 +22,37 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-#[derive(Parser, Debug, Clone, Default)]
-pub struct CargoFuzzTestOptions {}
-
 fn get_cargo_bin() -> String {
     env::var("CARGO").unwrap_or_else(|_| "cargo".to_string())
 }
 
-/// Queries Cargo via `cargo -vV` to discover the default host target triple (e.g. `x86_64-unknown-linux-gnu`).
+#[derive(Parser, Debug, Clone, Default)]
+pub struct CargoFuzzTestOptions {
+    /// List all fuzz tests in the crate without running them.
+    #[arg(long)]
+    pub list: bool,
+}
+
+impl CargoFuzzTestOptions {
+    /// Returns the active domain `ExecutionMode` derived from CLI options.
+    pub fn execution_mode(&self) -> ExecutionMode {
+        if self.list {
+            return ExecutionMode::ListFuzzTests;
+        }
+        ExecutionMode::SmokeTest
+    }
+}
+
+/// Domain execution mode for `cargo-fuzztest`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutionMode {
+    /// List all discovered fuzz tests without running them.
+    ListFuzzTests,
+
+    SmokeTest,
+}
+
+/// Queries cargo via `cargo -vV` to discover the default host target triple (e.g. `x86_64-unknown-linux-gnu`).
 pub fn get_host_target_triple() -> anyhow::Result<String> {
     let cargo_bin = get_cargo_bin();
     let output = Command::new(&cargo_bin)
@@ -42,7 +65,7 @@ pub fn get_host_target_triple() -> anyhow::Result<String> {
     }
 
     let stdout_str = String::from_utf8(output.stdout)
-        .context("while attempting to parse stdout of cargo -vV as UTF-8")?;
+        .context("while attempting to parse stdout of `cargo -vV` as UTF-8")?;
     parse_host_triple(&stdout_str)
 }
 
@@ -146,13 +169,23 @@ impl FuzztestRunner {
     pub fn build_run_command(&self, test_binary: &Path) -> Command {
         let mut cmd = Command::new(test_binary);
         cmd.arg("__fuzztest_mod__");
-        cmd.arg("--test-threads=1");
+
+        let mode = self.options.execution_mode();
+        match mode {
+            ExecutionMode::ListFuzzTests => {
+                cmd.arg("--list");
+            }
+            ExecutionMode::SmokeTest => {
+                // nothing to be done
+            }
+        }
+
         cmd
     }
 
     /// Runs the tool in two steps:
     /// 1. build the test binary
-    /// 2. run the test binary
+    /// 2. execute the target mode command on the compiled test binary
     pub fn run(&self) -> Result<i32> {
         // 1. build the test binary
         let compile_output = self
@@ -173,7 +206,7 @@ impl FuzztestRunner {
             .context("while attempting to parse compilation JSON output as UTF-8")?;
         let test_binary = Self::parse_compiler_messages(&json_stdout)?;
 
-        // 2. run the test binary
+        // 2. execute command according to the selected execution mode
         let mut run_cmd = self.build_run_command(&test_binary);
         let status =
             run_cmd.status().context("while attempting to execute compiled test binary")?;
@@ -207,5 +240,51 @@ mod tests {
         let result = parse_host_triple(stdout);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Failed to find 'host: '"));
+    }
+
+    #[gtest]
+    fn test_build_run_command_default() {
+        let options = CargoFuzzTestOptions::default();
+        let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
+        let cmd = runner.build_run_command(Path::new("/tmp/test_bin"));
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        assert_eq!(args, &["__fuzztest_mod__"]);
+    }
+
+    #[gtest]
+    fn test_build_run_command_list() {
+        let options = CargoFuzzTestOptions { list: true };
+        let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
+        let cmd = runner.build_run_command(Path::new("/tmp/test_bin"));
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
+        assert_eq!(args, &["__fuzztest_mod__", "--list"]);
+    }
+
+    #[gtest]
+    fn test_execution_mode_smoke_test() {
+        let options = CargoFuzzTestOptions { list: false };
+        assert_eq!(options.execution_mode(), ExecutionMode::SmokeTest);
+    }
+
+    #[gtest]
+    fn test_execution_mode_list_fuzz_tests() {
+        let options = CargoFuzzTestOptions { list: true };
+        assert_eq!(options.execution_mode(), ExecutionMode::ListFuzzTests);
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_list_flag() {
+        let parsed = CargoFuzzTestOptions::try_parse_from(["cargo-fuzztest", "--list"])
+            .expect("--list argument should be valid CLI option");
+        assert!(parsed.list);
+        assert_eq!(parsed.execution_mode(), ExecutionMode::ListFuzzTests);
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_default() {
+        let parsed = CargoFuzzTestOptions::try_parse_from(["cargo-fuzztest"])
+            .expect("empty CLI arguments should be valid");
+        assert!(!parsed.list);
+        assert_eq!(parsed.execution_mode(), ExecutionMode::SmokeTest);
     }
 }
