@@ -44,6 +44,18 @@ pub struct Arbitrary<T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
+impl<T> Clone for Arbitrary<T> {
+    fn clone(&self) -> Self {
+        Self { _phantom: std::marker::PhantomData }
+    }
+}
+
+impl<T> std::fmt::Debug for Arbitrary<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Arbitrary").field("_phantom", &self._phantom).finish()
+    }
+}
+
 // We cannot just use `#[derive(Default)]` because `T` might not be `Default`.
 impl<T> Default for Arbitrary<T> {
     fn default() -> Self {

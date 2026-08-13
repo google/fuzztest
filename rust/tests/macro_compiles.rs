@@ -13,6 +13,8 @@
 // limitations under the License.
 
 use fuzztest::domains::arbitrary::Arbitrary;
+use fuzztest::domains::containers::ContainerDomain;
+use fuzztest::domains::containers::VecOf;
 use fuzztest::fuzztest;
 
 #[fuzztest(_a = Arbitrary::<i32>::default())]
@@ -20,5 +22,8 @@ fn fuzztest_macro_compiles(_a: i32) {}
 
 #[fuzztest(_a = Arbitrary::<i32>::default(), _b = Arbitrary::<i32>::default())]
 fn fuzztest_macro_compiles_with_two_args(_a: i32, _b: i32) {}
+
+#[fuzztest(_a = VecOf::new(Arbitrary::<i32>::default()).with_max_len(10))]
+fn fuzztest_macro_compiles_with_vec(_a: Vec<i32>) {}
 
 fn main() {}

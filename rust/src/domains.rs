@@ -13,6 +13,7 @@
 // limitations under the License.
 
 pub mod arbitrary;
+pub mod containers;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
