@@ -1,5 +1,5 @@
 {
-  "checksum": "7fe8e06bf5d789f55dfeac6f39f71119f0acdbe34a8356c5c3d64f9ffb0e9d1e",
+  "checksum": "5b55260ef0981505928ed761a9e3b4b8e936cc7c394b7949e825dd69b4aca89e",
   "crates": {
     "aho-corasick 1.1.4": {
       "name": "aho-corasick",
@@ -624,6 +624,58 @@
         "Unlicense"
       ],
       "license_file": "LICENSE-MIT"
+    },
+    "cargo-fuzztest 0.1.0": {
+      "name": "cargo-fuzztest",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "cargo_fuzztest",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "cargo_fuzztest",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "anyhow 1.0.104",
+              "target": "anyhow"
+            },
+            {
+              "id": "clap 4.6.4",
+              "target": "clap"
+            },
+            {
+              "id": "serde 1.0.229",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.151",
+              "target": "serde_json"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2024",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
     },
     "cfg-if 1.0.4": {
       "name": "cfg-if",
@@ -1413,8 +1465,7 @@
         ],
         "data_glob": [
           "**"
-        ],
-        "links": "centipede_engine_static"
+        ]
       },
       "license": null,
       "license_ids": [],
@@ -1714,6 +1765,63 @@
             {
               "id": "syn 2.0.119",
               "target": "syn"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "googletest 0.14.3",
+              "target": "googletest"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2024",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "fuzztest-options 0.1.0": {
+      "name": "fuzztest-options",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "fuzztest_options",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "fuzztest_options",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "anyhow 1.0.104",
+              "target": "anyhow"
+            },
+            {
+              "id": "clap 4.6.4",
+              "target": "clap"
+            },
+            {
+              "id": "humantime 2.4.0",
+              "target": "humantime"
             }
           ],
           "selects": {}
@@ -5769,10 +5877,12 @@
   },
   "binary_crates": [],
   "workspace_members": {
+    "cargo-fuzztest 0.1.0": "rust/cargo_fuzztest",
     "coverage 0.1.0": "rust/coverage",
     "engine-ffi 0.1.0": "rust/engine",
     "fuzztest 0.1.0": "rust",
-    "fuzztest-macro 0.1.0": "rust/fuzztest_macro"
+    "fuzztest-macro 0.1.0": "rust/fuzztest_macro",
+    "fuzztest-options 0.1.0": "rust/options"
   },
   "conditions": {
     "aarch64-apple-darwin": [
@@ -5883,6 +5993,7 @@
     "quote 1.0.47",
     "rand 0.10.2",
     "serde 1.0.229",
+    "serde_json 1.0.151",
     "spin 0.10.1",
     "syn 2.0.119",
     "tempfile 3.27.0"

@@ -1,3 +1,17 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use googletest::matchers;
 use googletest::prelude::*;
 use std::fs;
@@ -102,7 +116,6 @@ fn replay_all_reproduces_all_failures(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_two_bugs_fuzz_test::find_two_bugs_fuzz_test";
 
     let target_binary_path = get_target_binary_path(fixture);
-    let target_binary_str = target_binary_path.to_str().expect("valid path string");
 
     let db_dir =
         fixture.tmp_dir_path.join("replay_all_reproduces_all_failures").join("corpus_db_all");

@@ -12,33 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_clippy", "rust_library", "rust_test")
 
 licenses(["notice"])
 
-exports_files(["BUILD"])
-
 rust_library(
-    name = "fuzztest_options",
-    srcs = glob([
-        "src/**/*.rs",
-    ]),
+    name = "cargo_fuzztest",
+    srcs = ["src/lib.rs"],
     edition = "2024",
     visibility = ["@com_google_fuzztest//rust:__subpackages__"],
     deps = [
         "@crate_index//:anyhow",  # v1
         "@crate_index//:clap",  # v4
-        "@crate_index//:humantime",  # v2
+        "@crate_index//:serde",  # v1
+        "@crate_index//:serde_json",  # v1
+    ],
+)
+
+rust_binary(
+    name = "cargo_fuzztest_bin",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    visibility = ["@com_google_fuzztest//rust:__subpackages__"],
+    deps = [
+        ":cargo_fuzztest",
+        "@crate_index//:anyhow",  # v1
+        "@crate_index//:clap",  # v4
     ],
 )
 
 rust_test(
-    name = "fuzztest_options_test",
-    # Avoid interference when setting/resetting environment variables in tests.
-    args = ["--test-threads=1"],
-    crate = ":fuzztest_options",
+    name = "cargo_fuzztest_lib_test",
+    crate = ":cargo_fuzztest",
     edition = "2024",
     deps = [
         "@crate_index//:googletest",
+    ],
+)
+
+rust_clippy(
+    name = "cargo_fuzztest_clippy",
+    deps = [
+        ":cargo_fuzztest",
+        ":cargo_fuzztest_bin",
     ],
 )
