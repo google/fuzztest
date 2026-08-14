@@ -48,8 +48,6 @@ rust_library(
 
 rust_test(
     name = "fuzztest_test",
-    # Avoid interference when setting/resetting environment variables in tests.
-    args = ["--test-threads=1"],
     crate = ":fuzztest",
     edition = "2024",
     rustc_flags = ["-Zallow-features=cfg_sanitize"],

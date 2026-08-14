@@ -17,6 +17,9 @@
 
 use clap::{Parser, ValueEnum};
 use humantime::Duration;
+use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
+use std::sync::{Mutex, MutexGuard};
 
 /// Time budget calculation type for replay corpus mode.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -172,6 +175,80 @@ pub struct ReplayCorpusOptions {
     pub time_budget_type: TimeBudgetType,
 }
 
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+/// Builder for safely setting and unsetting environment variables under a global lock in tests.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EnvVars {
+    modifications: HashMap<OsString, Option<OsString>>,
+}
+
+impl EnvVars {
+    /// Creates a new empty `EnvVars` builder.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Specifies an environment variable to set. Overwrites any previous modification for `key`.
+    pub fn set(mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>) -> Self {
+        self.modifications.insert(key.as_ref().to_os_string(), Some(val.as_ref().to_os_string()));
+        self
+    }
+
+    /// Specifies an environment variable to unset. Overwrites any previous modification for `key`.
+    pub fn unset(mut self, key: impl AsRef<OsStr>) -> Self {
+        self.modifications.insert(key.as_ref().to_os_string(), None);
+        self
+    }
+
+    /// Locks the global environment mutex, records the original values of all modified variables,
+    /// applies the requested modifications, and returns an `EnvVarGuard` that restores original values
+    /// and unlocks the mutex when dropped.
+    pub fn lock(self) -> EnvVarGuard<'static> {
+        let guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        self.lock_with(guard)
+    }
+
+    /// Applies environment variable modifications using an already acquired mutex guard.
+    pub fn lock_with<'a>(self, guard: MutexGuard<'a, ()>) -> EnvVarGuard<'a> {
+        let mut original_values = Vec::new();
+
+        for (key, target_state) in self.modifications {
+            original_values.push((key.clone(), std::env::var_os(&key)));
+            // SAFETY: Access to environment variables is serialized by holding the global mutex guard.
+            unsafe {
+                match target_state {
+                    Some(val) => std::env::set_var(&key, val),
+                    None => std::env::remove_var(&key),
+                }
+            }
+        }
+
+        EnvVarGuard { _guard: guard, original_values }
+    }
+}
+
+/// Guard managing modified environment variables. Restores original values when dropped.
+#[must_use]
+pub struct EnvVarGuard<'a> {
+    _guard: MutexGuard<'a, ()>,
+    original_values: Vec<(OsString, Option<OsString>)>,
+}
+
+impl<'a> Drop for EnvVarGuard<'a> {
+    fn drop(&mut self) {
+        for (key, orig) in &self.original_values {
+            // SAFETY: Access to environment variables is serialized by the global mutex held in self._guard.
+            unsafe {
+                match orig {
+                    Some(val) => std::env::set_var(key, val),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,18 +257,12 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
+        let _guard = EnvVars::new()
+            .set("FUZZTEST_REPLAY_ID", "my_crash_123")
+            .unset("FUZZTEST_CORPUS_DB")
+            .lock();
 
         let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-        }
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -199,23 +270,77 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_with_corpus_db_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-        }
+        let _guard = EnvVars::new()
+            .set("FUZZTEST_REPLAY_ID", "my_crash_123")
+            .set("FUZZTEST_CORPUS_DB", "/tmp/corpus_db")
+            .lock();
 
         let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
 
         let options =
             result.expect("parsing should succeed when both replay_id and corpus_db are present");
         expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_modify_env_vars_restores_original_state() {
+        const PREEXISTING_KEY: &str = "FUZZTEST_TEST_VAR_PREEXISTING";
+        const NEW_KEY: &str = "FUZZTEST_TEST_VAR_NEW";
+        const UNSET_KEY: &str = "FUZZTEST_TEST_VAR_UNSET";
+
+        // Acquire global lock for the whole test duration so setup and cleanup are thread-safe.
+        let lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Setup pre-existing state under lock
+        unsafe {
+            std::env::set_var(PREEXISTING_KEY, "initial_value");
+            std::env::set_var(UNSET_KEY, "value_to_be_unset");
+            std::env::remove_var(NEW_KEY);
+        }
+
+        {
+            let _guard = EnvVars::new()
+                .set(PREEXISTING_KEY, "modified_value")
+                .set(NEW_KEY, "created_value")
+                .unset(UNSET_KEY)
+                .lock_with(lock);
+
+            expect_that!(std::env::var(PREEXISTING_KEY), ok(eq("modified_value")));
+            expect_that!(std::env::var(NEW_KEY), ok(eq("created_value")));
+            expect_true!(std::env::var(UNSET_KEY).is_err());
+        }
+
+        // After guard drop, original state should be restored
+        expect_that!(std::env::var(PREEXISTING_KEY), ok(eq("initial_value")));
+        expect_true!(std::env::var(NEW_KEY).is_err());
+        expect_that!(std::env::var(UNSET_KEY), ok(eq("value_to_be_unset")));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var(PREEXISTING_KEY);
+            std::env::remove_var(UNSET_KEY);
+        }
+    }
+
+    #[gtest]
+    fn test_env_vars_conflicting_modifications() {
+        const KEY: &str = "FUZZTEST_TEST_VAR_CONFLICT";
+
+        // Last modification wins: .set("val1").set("val2").unset() -> variable is unset
+        {
+            let _guard = EnvVars::new().set(KEY, "val1").set(KEY, "val2").unset(KEY).lock();
+
+            expect_true!(std::env::var(KEY).is_err());
+        }
+
+        // Last modification wins: .unset().set("final_val") -> variable is "final_val"
+        {
+            let _guard = EnvVars::new().unset(KEY).set(KEY, "final_val").lock();
+
+            expect_that!(std::env::var(KEY), ok(eq("final_val")));
+        }
+
+        expect_true!(std::env::var(KEY).is_err());
     }
 }
