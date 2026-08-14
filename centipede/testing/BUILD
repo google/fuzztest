@@ -364,6 +364,9 @@ sh_test(
         "@com_google_fuzztest//centipede:test_fuzzing_util_sh",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -375,6 +378,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -384,6 +390,9 @@ sh_test(
         ":empty_fuzz_target",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -393,6 +402,9 @@ sh_test(
         ":multi_dso_target",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -403,6 +415,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -413,6 +428,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -423,6 +441,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -433,6 +454,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -443,6 +467,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -453,6 +480,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -463,6 +493,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -473,6 +506,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 # Runs Centipede and check its output format.
@@ -485,6 +521,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 sh_test(
@@ -496,6 +535,9 @@ sh_test(
         "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede:test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+    },
 )
 
 cc_binary(

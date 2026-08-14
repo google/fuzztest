@@ -25,7 +25,11 @@ set -eu -o pipefail
 
 ls -la "$(dirname "$0")"
 
-source "$(dirname "$0")/../test_util.sh"
+if ! [[ -e "${TEST_UTIL_SH:=$(dirname "$0")/../test_util.sh}" ]]; then
+  echo "TEST_UTIL_SH must be set to the location of :test_util_sh" >&2
+  exit 1
+fi
+source "${TEST_UTIL_SH}"
 
 readonly centipede_dir="$(fuzztest::internal::get_centipede_test_srcdir)"
 fuzztest::internal::maybe_set_var_to_executable_path centipede "${centipede_dir}/centipede_uninstrumented"

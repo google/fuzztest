@@ -120,10 +120,9 @@ void SymbolTable::GetSymbolsFromOneDso(absl::Span<const PCInfo> pc_infos,
       "--no-inlines",
       "-e",
       std::string(dso_path),
-      "<",
-      std::string(pcs_file.path()),
   };
-  cmd_options.stdout_file_prefix = symbols_file_prefix;
+  cmd_options.stdin_file_path = std::string(pcs_file.path());
+  cmd_options.stdout_file_prefix = symbols_file_prefix.string();
   Command cmd{symbolizer_path, std::move(cmd_options)};
   int exit_code = cmd.Execute();
   if (exit_code != EXIT_SUCCESS) {
