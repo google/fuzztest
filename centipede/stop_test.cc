@@ -105,8 +105,8 @@ TEST(StopConditionTest, SetStopTime) {
 
 TEST(StopConditionTest, ConcurrentStopRequests) {
   StopCondition stop_condition;
-  ThreadPool requesters(2);
   std::atomic<bool> stop_testing = false;
+  ThreadPool requesters(2);
   requesters.Schedule([&] {
     while (!stop_testing) {
       stop_condition.RequestStop(/*exit_code=*/1234,
