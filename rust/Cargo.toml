@@ -44,9 +44,6 @@ googletest.workspace = true
 version = "1.0.103"
 features = ["diff"]
 
-[dev-dependencies.googletest]
-version = "0.14.2"
-
 [profile.fuzztest]
 inherits = 'release'
 panic = 'abort'

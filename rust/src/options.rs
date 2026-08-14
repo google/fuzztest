@@ -269,7 +269,7 @@ impl CentipedeArgs {
     /// write to restricted output files, or trigger other harness-specific behavior that
     /// interferes with fuzzing.
     fn default_env_diff() -> Vec<String> {
-        let mut env_diff = vec![
+            let env_diff = vec![
             "-TEST_DIAGNOSTICS_OUTPUT_DIR".to_string(),
             "-TEST_INFRASTRUCTURE_FAILURE_FILE".to_string(),
             "-TEST_LOGSPLITTER_OUTPUT_FILE".to_string(),
