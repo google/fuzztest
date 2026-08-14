@@ -27,12 +27,13 @@ serde_json.workspace = true
 [dev-dependencies]
 googletest.workspace = true
 fuzztest = { path = ".." }
+tempfile = "3.27.0"
 
 # Compiled as a [[test]] target so Cargo builds it with the test harness enabled
-# (`rustc --test`) and exposes `CARGO_BIN_EXE_dummy_fuzz_test_bin` to `runner_test`.
+# (`rustc --test`) and exposes `CARGO_BIN_EXE_sample_fuzz_test_bin` to `runner_test`.
 [[test]]
-name = "dummy_fuzz_test_bin"
-path = "test_crates/dummy_fuzz_crate/src/lib.rs"
+name = "sample_fuzz_test_bin"
+path = "test_crates/sample_fuzz_crate/src/lib.rs"
 
 [[test]]
 name = "runner_test"

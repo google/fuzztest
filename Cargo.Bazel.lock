@@ -1,5 +1,5 @@
 {
-  "checksum": "5b55260ef0981505928ed761a9e3b4b8e936cc7c394b7949e825dd69b4aca89e",
+  "checksum": "92b03b2ac4b04427097d8cce6516c64ee505f842b06a265f5c16dedd6f83ae5e",
   "crates": {
     "aho-corasick 1.1.4": {
       "name": "aho-corasick",
@@ -666,6 +666,19 @@
             {
               "id": "serde_json 1.0.151",
               "target": "serde_json"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "googletest 0.14.3",
+              "target": "googletest"
+            },
+            {
+              "id": "tempfile 3.27.0",
+              "target": "tempfile"
             }
           ],
           "selects": {}

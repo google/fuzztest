@@ -5,9 +5,9 @@ use std::path::PathBuf;
 
 #[gtest]
 fn test_runner_execution() {
-    let binary_path = get_dummy_fuzz_test_bin_path();
+    let binary_path = get_sample_fuzz_test_bin_path();
 
-    assert!(binary_path.exists(), "Dummy fuzz binary does not exist at {}", binary_path.display());
+    assert!(binary_path.exists(), "Sample fuzz binary does not exist at {}", binary_path.display());
 
     let options = CargoFuzzTestOptions::default();
 
@@ -22,9 +22,9 @@ fn test_runner_execution() {
 
 #[gtest]
 fn test_runner_list_command() {
-    let binary_path = get_dummy_fuzz_test_bin_path();
+    let binary_path = get_sample_fuzz_test_bin_path();
 
-    assert!(binary_path.exists(), "Dummy fuzz binary does not exist at {}", binary_path.display());
+    assert!(binary_path.exists(), "Sample fuzz binary does not exist at {}", binary_path.display());
 
     let options = CargoFuzzTestOptions { list: true };
 
@@ -36,9 +36,9 @@ fn test_runner_list_command() {
     expect_eq!(args, &["__fuzztest_mod__", "--list"]);
 }
 
-fn get_dummy_fuzz_test_bin_path() -> PathBuf {
+fn get_sample_fuzz_test_bin_path() -> PathBuf {
     // 1. Cargo test: Check if CARGO_BIN_EXE_<name> is set
-    if let Ok(cargo_bin) = env::var("CARGO_BIN_EXE_dummy_fuzz_test_bin") {
+    if let Ok(cargo_bin) = env::var("CARGO_BIN_EXE_sample_fuzz_test_bin") {
         return PathBuf::from(cargo_bin);
     }
 
@@ -49,7 +49,7 @@ fn get_dummy_fuzz_test_bin_path() -> PathBuf {
         });
 
         const RELATIVE_BINARY_PATH: &str =
-        "rust/cargo_fuzztest/dummy_fuzz_test_bin";
+        "rust/cargo_fuzztest/sample_fuzz_test_bin";
 
         let blaze_path = PathBuf::from(src_dir).join(test_workspace).join(RELATIVE_BINARY_PATH);
         if blaze_path.exists() {
@@ -61,7 +61,7 @@ fn get_dummy_fuzz_test_bin_path() -> PathBuf {
     if env::var("CARGO_MANIFEST_DIR").is_ok() {
         let cargo_bin = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
         let output = std::process::Command::new(cargo_bin)
-            .args(["test", "--no-run", "--message-format=json", "--test", "dummy_fuzz_test_bin"])
+            .args(["test", "--no-run", "--message-format=json", "--test", "sample_fuzz_test_bin"])
             .output()
             .expect("Failed to execute `cargo test --no-run --message-format=json` to locate test binary");
 
@@ -73,5 +73,5 @@ fn get_dummy_fuzz_test_bin_path() -> PathBuf {
         }
     }
 
-    panic!("Could not locate dummy_fuzz_test_bin via CARGO_BIN_EXE, TEST_SRCDIR, or Cargo compiler messages");
+    panic!("Could not locate sample_fuzz_test_bin via CARGO_BIN_EXE, TEST_SRCDIR, or Cargo compiler messages");
 }
