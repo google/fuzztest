@@ -212,10 +212,11 @@ impl CentipedeArgs {
                         // not specifying `--stop_after` means to run indefinitely.
                     }
                     FuzzFor::Duration(duration) => {
+                        let duration_secs = duration.as_secs_f64();
                         if opt_corpusdb.is_some() {
-                            add_arg(format!("--fuzztest_time_limit_per_test={duration}"))?;
+                            add_arg(format!("--fuzztest_time_limit_per_test={duration_secs}s"))?;
                         } else {
-                            add_arg(format!("--stop_after={duration}"))?;
+                            add_arg(format!("--stop_after={duration_secs}s"))?;
                         }
                     }
                 }
