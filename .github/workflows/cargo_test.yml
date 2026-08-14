@@ -69,7 +69,7 @@ jobs:
       - name: Run Cargo workspace tests
         env:
           FUZZTEST_LIB_PATH: ${{ github.workspace }}/bazel-bin/centipede
-          CENTIPEDE_BINARY_PATH: ${{ github.workspace }}/bazel-bin/centipede/centipede
+          FUZZTEST_CENTIPEDE_BINARY_PATH: ${{ github.workspace }}/bazel-bin/centipede/centipede
         run: |
           cargo test --locked --workspace --no-fail-fast -- --test-threads=1
 

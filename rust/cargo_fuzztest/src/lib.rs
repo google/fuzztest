@@ -17,7 +17,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-pub use fuzztest_options::{ExecutionMode, FuzzTestOptions};
+pub use fuzztest_options::{ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions};
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -35,17 +35,61 @@ pub struct CargoFuzzTestOptions {
     /// List all fuzz tests in the crate without running them.
     #[arg(long)]
     pub list: bool,
+
+    /// Optional target test path to run (for example, `__fuzztest_mod__my_test::my_test`).
+    ///
+    /// If omitted, all generated fuzz tests in the binary are run.
+    #[arg()]
+    pub test_path: Option<String>,
+
+    /// Optional path to the Centipede binary executable.
+    ///
+    /// When specified via CLI `--centipede-binary-path <path>`, this is forwarded to
+    /// the compiled test executable via the `FUZZTEST_CENTIPEDE_BINARY_PATH` environment variable.
+    #[arg(env = "FUZZTEST_CENTIPEDE_BINARY_PATH", long)]
+    pub centipede_binary_path: Option<String>,
 }
 
 impl CargoFuzzTestOptions {
+    fn check_centipede_binary_path_is_set(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.centipede_binary_path.is_some(),
+            "fuzzing mode requires `--centipede-binary-path` to be specified"
+        );
+        Ok(())
+    }
+
     /// Returns the `ExecutionMode` derived from CLI options.
-    pub fn execution_mode(&self) -> ExecutionMode {
+    pub fn execution_mode(&self) -> Result<ExecutionMode> {
         if self.list {
-            return ExecutionMode::ListFuzzTests;
+            return Ok(ExecutionMode::ListFuzzTests);
         }
 
-        // TODO(the-shank): add support for other modes.
-        ExecutionMode::SmokeTest
+        let mode = ExecutionMode::from_fuzztest_options(&self.fuzztest_options);
+
+        let mode = match &mode {
+            ExecutionMode::Fuzz(_) => {
+                self.check_centipede_binary_path_is_set()?;
+                mode
+            }
+            ExecutionMode::SmokeTest => {
+                if self.test_path.is_some() {
+                    self.check_centipede_binary_path_is_set()?;
+                    return Ok(ExecutionMode::Fuzz(FuzzOptions {
+                        fuzz_for: FuzzFor::Indefinitely,
+                        // TODO(the-shank): support parallel jobs
+                        jobs: None,
+                    }));
+                } else {
+                    mode
+                }
+            }
+            _ => {
+                anyhow::bail!("mode not yet supported");
+            }
+        };
+
+        Ok(mode)
     }
 }
 
@@ -166,15 +210,35 @@ impl FuzztestRunner {
     }
 
     /// Construct the direct binary invocation command.
-    pub fn build_run_command(&self, test_binary: &Path) -> Command {
+    pub fn build_run_command(&self, test_binary: &Path) -> Result<Command> {
         let mut cmd = Command::new(test_binary);
-        cmd.arg("__fuzztest_mod__");
 
-        let mode = self.options.execution_mode();
+        if let Some(test_path) = &self.options.test_path {
+            cmd.arg(test_path);
+            cmd.arg("--exact");
+        } else {
+            cmd.arg("__fuzztest_mod__");
+        }
+
+        let mode = self.options.execution_mode()?;
         match mode {
             ExecutionMode::ListFuzzTests => {
                 cmd.arg("--list");
             }
+
+            ExecutionMode::Fuzz(fuzz_options) => {
+                let FuzzOptions { fuzz_for, jobs: _ } = fuzz_options;
+                match fuzz_for {
+                    FuzzFor::Indefinitely => {
+                        cmd.env("FUZZTEST_FUZZ_FOR", "inf");
+                    }
+                    FuzzFor::Duration(duration) => {
+                        cmd.env("FUZZTEST_FUZZ_FOR", duration.to_string());
+                    }
+                }
+                // TODO(the-shank): support parallel jobs
+            }
+
             ExecutionMode::SmokeTest => {
                 // nothing to be done
             }
@@ -183,7 +247,14 @@ impl FuzztestRunner {
             }
         }
 
-        cmd
+        // If `--centipede-binary-path` was passed to `cargo-fuzztest`, forward it to the
+        // child test executable via `FUZZTEST_CENTIPEDE_BINARY_PATH` environment variable so the
+        // fuzzer runtime can locate and run Centipede during continuous fuzzing.
+        if let Some(centipede_binary_path) = &self.options.centipede_binary_path {
+            cmd.env("FUZZTEST_CENTIPEDE_BINARY_PATH", centipede_binary_path);
+        }
+
+        Ok(cmd)
     }
 
     /// Runs the tool in two steps:
@@ -209,8 +280,10 @@ impl FuzztestRunner {
             .context("while attempting to parse compilation JSON output as UTF-8")?;
         let test_binary = Self::parse_compiler_messages(&json_stdout)?;
 
-        // 2. execute command according to the selected execution mode
-        let mut run_cmd = self.build_run_command(&test_binary);
+        // 2. run the test binary
+        let mut run_cmd = self
+            .build_run_command(&test_binary)
+            .context("while attempting to construct test binary run command")?;
         let status =
             run_cmd.status().context("while attempting to execute compiled test binary")?;
 
@@ -249,7 +322,8 @@ mod tests {
     fn test_build_run_command_default() {
         let options = CargoFuzzTestOptions::default();
         let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
-        let cmd = runner.build_run_command(Path::new("/tmp/test_bin"));
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
         let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
         assert_eq!(args, &["__fuzztest_mod__"]);
     }
@@ -258,7 +332,8 @@ mod tests {
     fn test_build_run_command_list() {
         let options = CargoFuzzTestOptions { list: true, ..Default::default() };
         let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
-        let cmd = runner.build_run_command(Path::new("/tmp/test_bin"));
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
         let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
         assert_eq!(args, &["__fuzztest_mod__", "--list"]);
     }
@@ -266,13 +341,19 @@ mod tests {
     #[gtest]
     fn test_execution_mode_smoke_test() {
         let options = CargoFuzzTestOptions { list: false, ..Default::default() };
-        assert_eq!(options.execution_mode(), ExecutionMode::SmokeTest);
+        assert_eq!(
+            options.execution_mode().expect("valid execution mode"),
+            ExecutionMode::SmokeTest
+        );
     }
 
     #[gtest]
     fn test_execution_mode_list_fuzz_tests() {
         let options = CargoFuzzTestOptions { list: true, ..Default::default() };
-        assert_eq!(options.execution_mode(), ExecutionMode::ListFuzzTests);
+        assert_eq!(
+            options.execution_mode().expect("valid execution mode"),
+            ExecutionMode::ListFuzzTests
+        );
     }
 
     #[gtest]
@@ -280,7 +361,10 @@ mod tests {
         let parsed = CargoFuzzTestOptions::try_parse_from(["cargo-fuzztest", "--list"])
             .expect("--list argument should be valid CLI option");
         assert!(parsed.list);
-        assert_eq!(parsed.execution_mode(), ExecutionMode::ListFuzzTests);
+        assert_eq!(
+            parsed.execution_mode().expect("valid execution mode"),
+            ExecutionMode::ListFuzzTests
+        );
     }
 
     #[gtest]
@@ -288,6 +372,9 @@ mod tests {
         let parsed = CargoFuzzTestOptions::try_parse_from(["cargo-fuzztest"])
             .expect("empty CLI arguments should be valid");
         assert!(!parsed.list);
-        assert_eq!(parsed.execution_mode(), ExecutionMode::SmokeTest);
+        assert_eq!(
+            parsed.execution_mode().expect("valid execution mode"),
+            ExecutionMode::SmokeTest
+        );
     }
 }

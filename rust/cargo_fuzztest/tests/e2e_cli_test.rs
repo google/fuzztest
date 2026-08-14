@@ -54,9 +54,9 @@ fn test_cargo_fuzztest_e2e_list() {
     // Resolve the absolute path of the sample crate
     let sample_crate_path = get_sample_crate_path("sample_fuzz_crate");
 
-    // Create a temporary directory for Cargo build outputs to avoid polluting workspace
     let temp_target_dir = TempDir::new().expect("Failed to create temporary target directory");
 
+    // Invoke: `cargo-fuzztest --list` inside the sample crate directory
     let output = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path())
         .arg("--list")
         .output()
@@ -73,4 +73,32 @@ fn test_cargo_fuzztest_e2e_list() {
     expect_true!(stdout_str.contains(
         "__fuzztest_mod__another_sample_fuzztest_target::another_sample_fuzztest_target"
     ));
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    expect_true!(stdout_str.contains("sample_fuzztest_target"));
+    expect_true!(stdout_str.contains("another_sample_fuzztest_target"));
+}
+
+#[gtest]
+fn test_cargo_fuzztest_e2e_specific_target() {
+    // Resolve the absolute path of the sample crate
+    let sample_crate_path = get_sample_crate_path("sample_fuzz_crate");
+
+    let temp_target_dir = TempDir::new().expect("Failed to create temporary target directory");
+
+    let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
+
+    let centipede_bin = env::var("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .expect("FUZZTEST_CENTIPEDE_BINARY_PATH needs to be set for the test");
+
+    cmd.arg("__fuzztest_mod__sample_fuzztest_target::sample_fuzztest_target")
+        .arg("--fuzz-for=2s")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .arg("--centipede-binary-path")
+        .arg(centipede_bin);
+
+    let output = cmd.output().expect("Failed to run cargo-fuzztest command");
+
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    expect_true!(stdout_str.contains("sample_fuzztest_target"));
+    expect_false!(stdout_str.contains("another_sample_fuzztest_target"));
 }
