@@ -79,6 +79,9 @@ impl ExecutionModeExt for ExecutionMode {
                 .context("while attempting to build CentipedeArgs for replay all crashes mode")?;
                 Ok(ExecutionAction::ReplayAllCrashes { args: centipede_args, list_file })
             }
+            ExecutionMode::ListFuzzTests => {
+                anyhow::bail!("ListFuzzTest mode is supported only in cargo-fuzztest");
+            }
         }
     }
 }
@@ -254,6 +257,7 @@ impl CentipedeArgs {
                 add_arg(format!("--fuzztest_time_limit_per_test={time_limit}"))?;
             }
             ExecutionMode::SmokeTest => unreachable!(),
+            ExecutionMode::ListFuzzTests => unreachable!(),
         }
 
         Ok(Some(Self::new(args, opt_workdir)))

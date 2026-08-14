@@ -109,6 +109,10 @@ pub enum ExecutionMode {
 
     /// Replay corpus inputs for a specified duration.
     ReplayCorpus(ReplayCorpusOptions),
+
+    /// List all discovered fuzz tests without running them.
+    /// Currently only supported via `cargo-fuzztest`.
+    ListFuzzTests,
 }
 
 impl ExecutionMode {

@@ -17,6 +17,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
+pub use fuzztest_options::{ExecutionMode, FuzzTestOptions};
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -28,31 +29,27 @@ fn get_cargo_bin() -> String {
 
 #[derive(Parser, Debug, Clone, Default)]
 pub struct CargoFuzzTestOptions {
+    #[command(flatten)]
+    pub fuzztest_options: FuzzTestOptions,
+
     /// List all fuzz tests in the crate without running them.
     #[arg(long)]
     pub list: bool,
 }
 
 impl CargoFuzzTestOptions {
-    /// Returns the active domain `ExecutionMode` derived from CLI options.
+    /// Returns the `ExecutionMode` derived from CLI options.
     pub fn execution_mode(&self) -> ExecutionMode {
         if self.list {
             return ExecutionMode::ListFuzzTests;
         }
+
+        // TODO(the-shank): add support for other modes.
         ExecutionMode::SmokeTest
     }
 }
 
-/// Domain execution mode for `cargo-fuzztest`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExecutionMode {
-    /// List all discovered fuzz tests without running them.
-    ListFuzzTests,
-
-    SmokeTest,
-}
-
-/// Queries cargo via `cargo -vV` to discover the default host target triple (e.g. `x86_64-unknown-linux-gnu`).
+/// Queries Cargo via `cargo -vV` to discover the default host target triple (e.g. `x86_64-unknown-linux-gnu`).
 pub fn get_host_target_triple() -> anyhow::Result<String> {
     let cargo_bin = get_cargo_bin();
     let output = Command::new(&cargo_bin)
@@ -141,8 +138,11 @@ impl FuzztestRunner {
                 continue;
             }
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                let is_compiler_artifact = val["reason"] == "compiler-artifact";
-                let is_test_profile = val["profile"]["test"].as_bool().unwrap_or(false);
+                let is_compiler_artifact =
+                    val.get("reason").and_then(|r| r.as_str()) == Some("compiler-artifact");
+                let is_test_profile =
+                    val.get("profile").and_then(|p| p.get("test")).and_then(|t| t.as_bool())
+                        == Some(true);
 
                 if is_compiler_artifact
                     && is_test_profile
@@ -177,6 +177,9 @@ impl FuzztestRunner {
             }
             ExecutionMode::SmokeTest => {
                 // nothing to be done
+            }
+            _ => {
+                // TODO(the-shank): add support for other modes.
             }
         }
 
@@ -253,7 +256,7 @@ mod tests {
 
     #[gtest]
     fn test_build_run_command_list() {
-        let options = CargoFuzzTestOptions { list: true };
+        let options = CargoFuzzTestOptions { list: true, ..Default::default() };
         let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
         let cmd = runner.build_run_command(Path::new("/tmp/test_bin"));
         let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().to_string()).collect();
@@ -262,13 +265,13 @@ mod tests {
 
     #[gtest]
     fn test_execution_mode_smoke_test() {
-        let options = CargoFuzzTestOptions { list: false };
+        let options = CargoFuzzTestOptions { list: false, ..Default::default() };
         assert_eq!(options.execution_mode(), ExecutionMode::SmokeTest);
     }
 
     #[gtest]
     fn test_execution_mode_list_fuzz_tests() {
-        let options = CargoFuzzTestOptions { list: true };
+        let options = CargoFuzzTestOptions { list: true, ..Default::default() };
         assert_eq!(options.execution_mode(), ExecutionMode::ListFuzzTests);
     }
 

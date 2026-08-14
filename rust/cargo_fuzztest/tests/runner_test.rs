@@ -10,7 +10,6 @@ fn test_runner_execution() {
     assert!(binary_path.exists(), "Sample fuzz binary does not exist at {}", binary_path.display());
 
     let options = CargoFuzzTestOptions::default();
-
     let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
 
     let mut cmd = runner.build_run_command(&binary_path);
@@ -26,7 +25,7 @@ fn test_runner_list_command() {
 
     assert!(binary_path.exists(), "Sample fuzz binary does not exist at {}", binary_path.display());
 
-    let options = CargoFuzzTestOptions { list: true };
+    let options = CargoFuzzTestOptions { list: true, ..Default::default() };
 
     let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
 
