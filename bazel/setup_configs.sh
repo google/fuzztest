@@ -42,11 +42,6 @@ cat <<EOF
 build:asan --linkopt=-fsanitize=address
 build:asan --copt=-fsanitize=address
 
-# We rely on the following flag instead of the compiler provided
-# __has_feature(address_sanitizer) to know that we have an ASAN build even in
-# the uninstrumented runtime.
-build:asan --copt=-DADDRESS_SANITIZER
-
 EOF
 
 cat <<EOF

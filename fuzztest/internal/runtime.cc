@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/config.h"
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
 #include "absl/random/bit_gen_ref.h"
@@ -71,7 +72,7 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || defined(ABSL_HAVE_MEMORY_SANITIZER)
 #define FUZZTEST_HAS_SANITIZER
 #include <sanitizer/common_interface_defs.h>
 
