@@ -82,7 +82,7 @@ impl CargoFuzzTestOptions {
                 self.check_centipede_binary_path_is_set()?;
                 mode
             }
-            ExecutionMode::ReplayCrash(_) => {
+            ExecutionMode::ReplayAllCrashes | ExecutionMode::ReplayCrash(_) => {
                 self.check_centipede_binary_path_is_set()?;
                 self.check_corpus_db_is_set()?;
                 mode
@@ -259,6 +259,10 @@ impl FuzztestRunner {
                 cmd.env("FUZZTEST_REPLAY_ID", replay_options.replay_id);
             }
 
+            ExecutionMode::ReplayAllCrashes => {
+                cmd.env("FUZZTEST_REPLAY_FINDINGS", "true");
+            }
+
             ExecutionMode::SmokeTest => {
                 // nothing to be done
             }
@@ -328,6 +332,7 @@ impl FuzztestRunner {
 mod tests {
     use super::*;
     use googletest::prelude::*;
+    use std::collections::HashMap;
 
     #[gtest]
     fn test_parse_host_triple_valid() {
@@ -478,20 +483,88 @@ mod tests {
         let cmd =
             runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
 
-        let envs: Vec<(String, Option<String>)> = cmd
+        let envs: HashMap<String, Option<String>> = cmd
             .get_envs()
             .map(|(k, v)| {
                 (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
             })
             .collect();
 
-        assert!(envs.contains(&("FUZZTEST_REPLAY_ID".to_string(), Some("crash_12345".to_string()))));
-        assert!(
-            envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
+        expect_eq!(envs.get("FUZZTEST_REPLAY_ID").and_then(|v| v.as_deref()), Some("crash_12345"));
+        expect_eq!(
+            envs.get("FUZZTEST_CORPUS_DB").and_then(|v| v.as_deref()),
+            Some("/tmp/corpus_db")
         );
-        assert!(envs.contains(&(
-            "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
-            Some("/custom/centipede".to_string())
-        )));
+        expect_eq!(
+            envs.get("FUZZTEST_CENTIPEDE_BINARY_PATH").and_then(|v| v.as_deref()),
+            Some("/custom/centipede")
+        );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_findings_success() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-findings",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid replay-findings options should parse successfully");
+
+        assert!(parsed.fuzztest_options.replay_findings);
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(mode, ExecutionMode::ReplayAllCrashes);
+    }
+
+    #[gtest]
+    fn test_execution_mode_replay_findings_missing_centipede_binary_path_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_findings: true,
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let err =
+            options.execution_mode().expect_err("missing centipede-binary-path should cause error");
+        assert!(err.to_string().contains("`--centipede-binary-path` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_build_run_command_replay_all_crashes() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_findings: true,
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: HashMap<String, Option<String>> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        expect_eq!(envs.get("FUZZTEST_REPLAY_FINDINGS").and_then(|v| v.as_deref()), Some("true"));
+        expect_eq!(
+            envs.get("FUZZTEST_CORPUS_DB").and_then(|v| v.as_deref()),
+            Some("/tmp/corpus_db")
+        );
+        expect_eq!(
+            envs.get("FUZZTEST_CENTIPEDE_BINARY_PATH").and_then(|v| v.as_deref()),
+            Some("/custom/centipede")
+        );
     }
 }

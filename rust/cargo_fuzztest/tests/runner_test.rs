@@ -207,6 +207,51 @@ fn test_execution_mode_replay_id_missing_centipede_binary_path_errors() {
 }
 
 #[gtest]
+fn test_runner_build_run_command_with_replay_findings() {
+    let binary_path = get_sample_test_bin_path("sample_fuzz_crate");
+    let fuzztest_options = FuzzTestOptions {
+        replay_findings: true,
+        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        ..Default::default()
+    };
+    let options = CargoFuzzTestOptions {
+        fuzztest_options,
+        centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
+        ..Default::default()
+    };
+    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let cmd = runner.build_run_command(&binary_path).expect("valid run command");
+
+    let envs: Vec<(String, Option<String>)> = cmd
+        .get_envs()
+        .map(|(k, v)| (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string())))
+        .collect();
+    expect_true!(envs.contains(&("FUZZTEST_REPLAY_FINDINGS".to_string(), Some("true".to_string()))));
+    expect_true!(envs.contains(&(
+        "FUZZTEST_CORPUS_DB".to_string(),
+        Some("/custom/path/to/corpus_db".to_string())
+    )));
+    expect_true!(envs.contains(&(
+        "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
+        Some("/custom/path/to/centipede".to_string())
+    )));
+}
+
+#[gtest]
+fn test_execution_mode_replay_findings_missing_centipede_binary_path_errors() {
+    let fuzztest_options = FuzzTestOptions {
+        replay_findings: true,
+        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        ..Default::default()
+    };
+    let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };
+    let result = options.execution_mode();
+    expect_true!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    expect_true!(err_msg.contains("`--centipede-binary-path` needs to be specified"));
+}
+
+#[gtest]
 fn test_runner_list_command() {
     let binary_path = get_sample_test_bin_path("sample_fuzz_crate");
 

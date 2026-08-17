@@ -186,7 +186,7 @@ fn test_cargo_fuzztest_e2e_replay_by_id() {
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg(test_target)
         .arg("--fuzz-for=5s")
-        .env_remove("CENTIPEDE_BINARY_PATH")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
         .arg("--centipede-binary-path")
         .arg(&centipede_bin)
         .arg("--corpus-db")
@@ -241,6 +241,58 @@ fn test_cargo_fuzztest_e2e_replay_by_id() {
         stderr_str.contains("FuzzTest controller reported failure")
             || stderr_str.contains("Crashing bug found!")
             || stdout_str.contains("FuzzTest controller reported failure")
+    );
+}
+
+#[gtest]
+fn test_cargo_fuzztest_e2e_replay_all_crashes() {
+    let centipede_bin = env::var("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .expect("FUZZTEST_CENTIPEDE_BINARY_PATH needs to be provided");
+
+    let sample_crate_path = get_sample_crate_path("another_sample_fuzz_crate");
+
+    let temp_target_dir = TempDir::new().expect("Failed to create temporary target directory");
+    fs::create_dir_all(&temp_target_dir).expect("Failed to create target directory");
+
+    let temp_db_dir = TempDir::new().expect("Failed to create temporary corpus db directory");
+    fs::create_dir_all(&temp_db_dir).expect("Failed to create corpus db directory");
+
+    let workdir_root_dir =
+        TempDir::new().expect("Failed to create temporary workdir_root directory");
+    fs::create_dir_all(&workdir_root_dir).expect("Failed to create workdir_root directory");
+
+    let test_target = "__fuzztest_mod__crashing_fuzztest_target::crashing_fuzztest_target";
+
+    // 1. Run Centipede via cargo-fuzztest to fuzz the target and populate the corpus database.
+    let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
+    cmd.arg(test_target)
+        .arg("--fuzz-for=5s")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .arg("--centipede-binary-path")
+        .arg(&centipede_bin)
+        .arg("--corpus-db")
+        .arg(temp_db_dir.path())
+        .arg("--workdir-root")
+        .arg(workdir_root_dir.path());
+    let output = cmd.output().expect("Failed to run cargo-fuzztest to fuzz target");
+    assert!(output.status.success());
+
+    // 2. Run cargo-fuzztest CLI with --replay-findings to verify it replays all crashes from corpus db.
+    let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
+    cmd.arg(test_target)
+        .arg("--replay-findings")
+        .arg("--corpus-db")
+        .arg(temp_db_dir.path())
+        .arg("--centipede-binary-path")
+        .arg(&centipede_bin);
+
+    let output = cmd.output().expect("Failed to run cargo-fuzztest in replay-findings mode");
+
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    expect_true!(output.status.success());
+    expect_true!(
+        stderr_str.contains("Crashing bug found!") || stdout_str.contains("Crashing bug found!")
     );
 }
 

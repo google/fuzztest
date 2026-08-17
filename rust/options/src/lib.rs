@@ -71,7 +71,7 @@ pub struct FuzzTestOptions {
     pub replay_id: Option<String>,
 
     /// Replay all crashing inputs from the corpus database.
-    #[arg(env = "FUZZTEST_REPLAY_FINDINGS", long)]
+    #[arg(env = "FUZZTEST_REPLAY_FINDINGS", long, requires = "corpus_db")]
     pub replay_findings: bool,
 
     /// Replay the corpus for a specified duration.
@@ -303,5 +303,46 @@ mod tests {
             std::env::remove_var("FUZZTEST_JOBS");
             std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
         }
+    }
+
+    #[gtest]
+    fn test_replay_findings_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_replay_findings_with_corpus_db_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result
+            .expect("parsing should succeed when both replay_findings and corpus_db are present");
+        expect_that!(options.replay_findings, eq(true));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
     }
 }
