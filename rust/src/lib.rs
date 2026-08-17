@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![deny(clippy::absolute_paths)]
+#![deny(unused_imports)]
 #![feature(cfg_sanitize)]
 
 mod crash_handler;
