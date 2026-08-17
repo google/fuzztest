@@ -102,3 +102,41 @@ fn test_cargo_fuzztest_e2e_specific_target() {
     expect_true!(stdout_str.contains("sample_fuzztest_target"));
     expect_false!(stdout_str.contains("another_sample_fuzztest_target"));
 }
+
+#[gtest]
+fn test_cargo_fuzztest_e2e_parallel_jobs() {
+    let sample_crate_path = get_sample_crate_path("sample_fuzz_crate");
+
+    let temp_target_dir = TempDir::new().expect("Failed to create temporary target directory");
+
+    let centipede_bin = env::var("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .expect("FUZZTEST_CENTIPEDE_BINARY_PATH needs to be set for the test");
+
+    let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
+    cmd.arg("__fuzztest_mod__jobs_test::jobs_test")
+        .arg("--jobs")
+        .arg("4")
+        .arg("--fuzz-for")
+        .arg("5s")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .arg("--centipede-binary-path")
+        .arg(centipede_bin)
+        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true");
+
+    let output = cmd.output().expect("running local cargo-fuzztest sub-process should complete");
+
+    expect_true!(output.status.success());
+
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+    use std::collections::HashSet;
+    let mut pids = HashSet::new();
+    for line in stderr_str.lines() {
+        if let Some(pos) = line.find("LOG: JOBS_TEST_PID: ") {
+            let pid_str = &line[pos + "LOG: JOBS_TEST_PID: ".len()..];
+            if let Ok(pid) = pid_str.parse::<u32>() {
+                pids.insert(pid);
+            }
+        }
+    }
+    expect_that!(pids.len(), eq(4));
+}

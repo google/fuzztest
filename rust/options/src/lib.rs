@@ -124,6 +124,7 @@ impl ExecutionMode {
             return ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
                 replay_corpus_for,
                 time_budget_type: options.time_budget_type,
+                jobs: options.jobs.clone(),
             });
         }
 
@@ -135,8 +136,12 @@ impl ExecutionMode {
             return ExecutionMode::ReplayCrash(ReplayCrashOptions { replay_id: replay_id.clone() });
         }
 
-        if let Some(fuzz_for) = options.fuzz_for {
-            return ExecutionMode::Fuzz(FuzzOptions { fuzz_for, jobs: options.jobs.clone() });
+        // Continuous fuzzing mode is selected if an explicit duration/budget (`fuzz_for`) is specified.
+        if let Some(fuzz_for) = &options.fuzz_for {
+            return ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: *fuzz_for,
+                jobs: options.jobs.clone(),
+            });
         }
 
         ExecutionMode::SmokeTest
@@ -174,6 +179,9 @@ pub struct ReplayCrashOptions {
 pub struct ReplayCorpusOptions {
     pub replay_corpus_for: Duration,
     pub time_budget_type: TimeBudgetType,
+    /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
+    /// will use its own default value.
+    pub jobs: Option<usize>,
 }
 
 #[cfg(test)]
@@ -221,5 +229,79 @@ mod tests {
             result.expect("parsing should succeed when both replay_id and corpus_db are present");
         expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_jobs_options_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_JOBS", "4");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+
+        expect_that!(options.jobs, eq(Some(4)));
+        // Setting jobs alone should not enter fuzzing mode; it defaults to smoke test mode.
+        expect_that!(ExecutionMode::from_fuzztest_options(&options), eq(&ExecutionMode::SmokeTest));
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_JOBS");
+        }
+    }
+
+    #[gtest]
+    fn test_jobs_with_fuzz_for_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_JOBS", "4");
+            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+
+        expect_that!(options.jobs, eq(Some(4)));
+        let expected_duration = "5s".parse().expect("valid duration");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: FuzzFor::Duration(expected_duration),
+                jobs: Some(4),
+            }))
+        );
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_JOBS");
+            std::env::remove_var("FUZZTEST_FUZZ_FOR");
+        }
+    }
+
+    #[gtest]
+    fn test_jobs_with_replay_corpus_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_JOBS", "4");
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+
+        expect_that!(options.jobs, eq(Some(4)));
+        let expected_duration = "10s".parse().expect("valid duration");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: expected_duration,
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: Some(4),
+            }))
+        );
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_JOBS");
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+        }
     }
 }

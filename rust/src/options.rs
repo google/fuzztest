@@ -255,6 +255,9 @@ impl CentipedeArgs {
                 add_arg("--fuzztest_replay_coverage_inputs=true".to_string())?;
                 add_arg("--load_shards_only=true".to_string())?;
                 add_arg(format!("--fuzztest_time_limit_per_test={time_limit}"))?;
+                if let Some(jobs) = &replay_corpus_opts.jobs {
+                    add_arg(format!("--j={jobs}"))?;
+                }
             }
             ExecutionMode::SmokeTest => unreachable!(),
             ExecutionMode::ListFuzzTests => unreachable!(),
@@ -602,6 +605,30 @@ mod tests {
         assert!(args_str
             .iter()
             .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+        assert!(args_str.contains(&"--fuzztest_only_replay=true"));
+        assert!(args_str.contains(&"--fuzztest_time_limit_per_test=10s"));
+        assert!(!args_str.iter().any(|s| s.starts_with("--j=")));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_replay_corpus_with_jobs() {
+        let expected_duration = "10s".parse().expect("failed to parse duration");
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some(expected_duration),
+            jobs: Some(4),
+            time_budget_type: TimeBudgetType::PerTest,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+
+        let args_str: Vec<&str> =
+            args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
+
+        assert!(args_str.contains(&"--j=4"));
         assert!(args_str.contains(&"--fuzztest_only_replay=true"));
         assert!(args_str.contains(&"--fuzztest_time_limit_per_test=10s"));
     }

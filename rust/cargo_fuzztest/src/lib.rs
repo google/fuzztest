@@ -227,7 +227,7 @@ impl FuzztestRunner {
             }
 
             ExecutionMode::Fuzz(fuzz_options) => {
-                let FuzzOptions { fuzz_for, jobs: _ } = fuzz_options;
+                let FuzzOptions { fuzz_for, jobs } = fuzz_options;
                 match fuzz_for {
                     FuzzFor::Indefinitely => {
                         cmd.env("FUZZTEST_FUZZ_FOR", "inf");
@@ -236,7 +236,9 @@ impl FuzztestRunner {
                         cmd.env("FUZZTEST_FUZZ_FOR", duration.to_string());
                     }
                 }
-                // TODO(the-shank): support parallel jobs
+                if let Some(jobs) = jobs {
+                    cmd.env("FUZZTEST_JOBS", jobs.to_string());
+                }
             }
 
             ExecutionMode::SmokeTest => {
