@@ -23,8 +23,8 @@ use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
-    TimeBudgetType,
+    EnvVarGuard, EnvVars, ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions,
+    ReplayCorpusOptions, ReplayCrashOptions, TimeBudgetType,
 };
 
 /// Returns a lazily-initialized static reference to the global `FuzzTestOptions`.
@@ -359,10 +359,7 @@ mod tests {
 
     #[gtest]
     fn test_fuzz_options_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
-        }
+        let _guard = EnvVars::new().set("FUZZTEST_FUZZ_FOR", "5s").lock();
 
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
@@ -371,19 +368,11 @@ mod tests {
             ExecutionMode::from_fuzztest_options(&options),
             matches_pattern!(ExecutionMode::Fuzz(_))
         );
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_FUZZ_FOR");
-        }
     }
 
     #[gtest]
     fn test_fuzz_options_parsing_indefinite_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_FUZZ_FOR", "inf");
-        }
+        let _guard = EnvVars::new().set("FUZZTEST_FUZZ_FOR", "inf").lock();
 
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
@@ -393,11 +382,6 @@ mod tests {
             panic!("Expected ExecutionMode::Fuzz");
         };
         expect_that!(fuzz_opts.fuzz_for, eq(FuzzFor::Indefinitely));
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_FUZZ_FOR");
-        }
     }
 
     #[gtest]
@@ -674,18 +658,12 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
+        let _guard = EnvVars::new()
+            .set("FUZZTEST_REPLAY_ID", "my_crash_123")
+            .unset("FUZZTEST_CORPUS_DB")
+            .lock();
 
         let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-        }
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -693,19 +671,12 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_with_corpus_db_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-        }
+        let _guard = EnvVars::new()
+            .set("FUZZTEST_REPLAY_ID", "my_crash_123")
+            .set("FUZZTEST_CORPUS_DB", "/tmp/corpus_db")
+            .lock();
 
         let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
 
         let options =
             result.expect("parsing should succeed when both replay_id and corpus_db are present");
