@@ -24,7 +24,13 @@ def _strip_instrumentation_transition_impl(settings, _):
         "//command_line_option:features": [
             feature
             for feature in settings["//command_line_option:features"]
-            if feature not in ["asan", "tsan", "msan"]
+            if feature not in [
+                "asan",
+                "hwasan",
+                "msan",
+                "tsan",
+                "ubsan",
+            ]
         ],
         "//command_line_option:linkopt": [],
         "//command_line_option:per_file_copt": [],
