@@ -41,7 +41,8 @@
 #include <optional>
 #include <random>
 #include <string>
-#include <thread>  // NOLINT: For thread::get_id() only.
+#include <system_error>  // NOLINT
+#include <thread>        // NOLINT: For thread::get_id() only.
 #include <utility>
 #include <vector>
 
@@ -512,14 +513,19 @@ class CentipedeAdaptorRunnerCallbacks
       absl::FPrintF(GetStderr(),
                     "[.] Skipping %s per request from the test setup.\n",
                     fuzzer_impl_.test_.full_name());
-      CentipedeSetFailureDescription("SKIPPED TEST: Requested from setup");
-      return true;
+      if (const char* indicator =
+              std::getenv("FUZZTEST_SKIPPED_TEST_INDICATOR_FILE");
+          indicator != nullptr) {
+        absl::FPrintF(GetStderr(), "[.] Touching the indicator file %s\n",
+                      indicator);
+        WriteFile(indicator, "");
+      }
+      CentipedeSetFailureDescription("SETUP FAILURE: Test is skipped");
+      return false;
     }
     if (runtime_.termination_requested()) {
       absl::FPrintF(GetStderr(),
-                    "[.] Termination requested - exiting without executing "
-                    "further inputs.\n");
-      CentipedeSetFailureDescription("IGNORED FAILURE: Termination requested");
+                    "[.] Termination requested - not executing input.\n");
       return false;
     }
     // We should avoid doing anything other than executing the input here so
@@ -965,17 +971,28 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   }
   // Run as the fuzzing engine.
   int result = EXIT_FAILURE;
+  TempDir temp_dir;
+  const std::string skipped_test_indicator_file =
+      temp_dir.path() / "skipped_test_indicator";
+  std::error_code ec;
+  runtime_.SetShouldTerminateOnNonFatalFailure(false);
+
   [&] {
-    runtime_.SetShouldTerminateOnNonFatalFailure(false);
-    std::unique_ptr<TempDir> workdir;
-    if (configuration.corpus_database.empty() ||
-        (!configuration.update_corpus_database &&
-         configuration.workdir_root.empty())) {
-      workdir = std::make_unique<TempDir>("fuzztest_workdir");
-    }
-    const std::string workdir_path = workdir ? workdir->path() : "";
-    const auto env = CreateCentipedeEnvironmentFromConfiguration(
-        configuration, workdir_path, test_.full_name(), mode);
+    const auto env = [&] {
+      std::string workdir_path;
+      if (configuration.corpus_database.empty() ||
+          (!configuration.update_corpus_database &&
+           configuration.workdir_root.empty())) {
+        workdir_path = temp_dir.path() / "workdir";
+      }
+      auto env = CreateCentipedeEnvironmentFromConfiguration(
+          configuration, workdir_path, test_.full_name(), mode);
+      env.env_diff_for_binaries.push_back(
+          absl::StrCat("FUZZTEST_SKIPPED_TEST_INDICATOR_FILE=",
+                       skipped_test_indicator_file));
+      return env;
+    }();
+
     if (const char* minimize_dir_chars =
             std::getenv("FUZZTEST_MINIMIZE_TESTSUITE_DIR")) {
       const std::string minimize_dir = minimize_dir_chars;
@@ -997,17 +1014,25 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       replay_env.corpus_dir = {"", minimize_dir};
       replay_env.load_shards_only = true;
       replay_env.report_crash_summary = false;
-      FUZZTEST_CHECK(
-          RunCentipede(replay_env, configuration.centipede_command) == 0)
-          << "Failed to replaying the testsuite for minimization";
+      result = RunCentipede(replay_env, configuration.centipede_command);
+      if (std::filesystem::exists(skipped_test_indicator_file, ec)) {
+        return;
+      }
+      if (result != 0) {
+        absl::FPrintF(GetStderr(),
+                      "[!] Failed to replaying the corpus for minimization");
+        return;
+      }
       absl::FPrintF(GetStderr(), "[.] Imported the corpus from %s.\n",
                     minimize_dir);
       // 2. Run Centipede distillation on the shard.
       auto distill_env = env;
       distill_env.distill = true;
-      FUZZTEST_CHECK(
-          RunCentipede(distill_env, configuration.centipede_command) == 0)
-          << "Failed to minimize the testsuite";
+      result = RunCentipede(distill_env, configuration.centipede_command);
+      if (result != 0) {
+        absl::FPrintF(GetStderr(), "[!] Failed to minimize the testsuite");
+        return;
+      }
       absl::FPrintF(GetStderr(),
                     "[.] Minimized the corpus using Centipede distillation.\n");
       // 3. Replace the shard corpus data with the distillation result.
@@ -1020,9 +1045,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       // 4. Export the corpus of the shard.
       auto export_env = env;
       export_env.corpus_to_files = corpus_out_dir;
-      FUZZTEST_CHECK(
-          RunCentipede(export_env, configuration.centipede_command) == 0)
-          << "Failed to export the corpus to FUZZTEST_MINIMIZE_TESTSUITE_DIR";
+      result = RunCentipede(export_env, configuration.centipede_command);
+      if (result != 0) {
+        absl::FPrintF(
+            GetStderr(),
+            "Failed to export the corpus to FUZZTEST_MINIMIZE_TESTSUITE_DIR");
+        return;
+      }
       absl::FPrintF(GetStderr(),
                     "[.] Exported the minimized the corpus to %s.\n",
                     corpus_out_dir);
@@ -1030,6 +1059,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       return;
     }
     result = RunCentipede(env, configuration.centipede_command);
+    if (std::filesystem::exists(skipped_test_indicator_file, ec)) {
+      return;
+    }
     if (!env.workdir.empty()) {
       if (runtime_.termination_requested()) {
         absl::FPrintF(
@@ -1048,6 +1080,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       }
     }
   }();
+  if (std::filesystem::exists(skipped_test_indicator_file, ec)) {
+    absl::FPrintF(
+        GetStderr(),
+        "[.] Indicator file for skipped test found - ignoring any failures.\n");
+    runtime_.SetSkippingRequested(true);
+    return true;
+  }
   return result == 0;
 }
 
