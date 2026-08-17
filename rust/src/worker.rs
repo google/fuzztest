@@ -20,10 +20,16 @@ use ::engine::{
     BytesSink, CoverageDomainRegistry, DiagnosticSink, ExecuteContext, FeedbackSink, InputSink,
 };
 use spin::Mutex;
+use std::env;
+use std::ffi::c_int;
 use std::ffi::CString;
+use std::fs;
 use std::path::Path;
+use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::time::Duration;
+use std::time::Instant;
 
 /// The DiagnosticSink provided by the engine while creating the adapter.
 ///
@@ -59,7 +65,9 @@ pub(crate) fn clear_diagnostic_sink() {
 /// This function blocks till it can get the lock on the global DiagnosticSink and is not
 /// signal-safe.
 pub(crate) fn emit_error(message: &str) {
-    DIAGNOSTIC_SINK.lock().as_ref().map(|sink| sink.emit_error(message));
+    if let Some(sink) = DIAGNOSTIC_SINK.lock().as_ref() {
+        sink.emit_error(message)
+    }
 }
 
 /// Emits a finding into the DiagnosticSink if the DiagnosticSink is set.
@@ -99,7 +107,7 @@ pub(crate) fn try_emit_finding(description: &str, signature: &str) -> bool {
         return false;
     };
     sink.emit_finding(token, description, signature);
-    return true;
+    true
 }
 
 // We double-box the input because `GenericCorpusValue` is a fat pointer (`Box<dyn Any>`),
@@ -252,7 +260,7 @@ impl RustFuzzTestAdapterManager {
     pub fn get_binary_id(&self, sink: &mut BytesSink) {
         static ARGV0: LazyLock<CString> = LazyLock::new(|| {
             CString::new(
-                Path::new(&std::env::args().nth(0).unwrap())
+                Path::new(&env::args().next().unwrap())
                     .file_name()
                     .and_then(|f| f.to_str())
                     .unwrap_or(""),
@@ -428,7 +436,7 @@ pub unsafe extern "C" fn get_random_seed_input_callback(
 pub unsafe extern "C" fn mutate_callback(
     ctx: *mut engine_ffi::FuzzTestAdapterCtx,
     origin: engine_ffi::FuzzTestInputHandle,
-    shrink: std::ffi::c_int,
+    shrink: c_int,
     sink: *const engine_ffi::FuzzTestInputSink,
 ) {
     // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
@@ -620,10 +628,10 @@ pub unsafe extern "C" fn free_ctx_callback(ctx: *mut engine_ffi::FuzzTestAdapter
 }
 
 pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
-    let start_time = std::time::Instant::now();
+    let start_time = Instant::now();
 
     // TODO(the-shank): these should be configurable externally.
-    let smoke_test_duration = std::time::Duration::from_secs(1);
+    let smoke_test_duration = Duration::from_secs(1);
     let only_shrink = false;
 
     // TODO(the-shank): the rng seed should be configurable
@@ -681,7 +689,7 @@ pub fn process(manager: RustFuzzTestAdapterManager) {
                 return;
             }
             WorkerStatus::Failure => {
-                std::process::exit(1);
+                process::exit(1);
             }
         }
     }
@@ -701,7 +709,7 @@ pub fn process(manager: RustFuzzTestAdapterManager) {
             }
 
             // Now read the file and replay each crash
-            if let Ok(contents) = std::fs::read_to_string(list_file.path()) {
+            if let Ok(contents) = fs::read_to_string(list_file.path()) {
                 let options = options::get_fuzztest_options();
                 for crash_id in contents.lines() {
                     let crash_id = crash_id.trim();

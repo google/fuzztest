@@ -16,8 +16,10 @@ use crate::internal::FuzzTestRegistration;
 use ::engine::engine_ffi;
 use anyhow::Context;
 use clap::Parser;
+use std::env;
 use std::ffi::CString;
 use std::ffi::OsString;
+use std::iter;
 use std::path::Path;
 use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
@@ -34,7 +36,7 @@ pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
     // from environment variables (like `FUZZTEST_FUZZ_FOR` etc.). We (currently) do not envisage
     // support for passing flags on cli as the Rust's libtest harness does not support custom
     // flags.
-    OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(std::iter::empty::<OsString>()))
+    OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(iter::empty::<OsString>()))
 }
 
 trait ExecutionModeExt {
@@ -155,7 +157,7 @@ impl CentipedeArgs {
         // ==============================================================================
         // 1. Common Base Arguments (Required across all Centipede executions)
         // ==============================================================================
-        let argv0 = std::env::args().next().context("while attempting to get argv[0]")?;
+        let argv0 = env::args().next().context("while attempting to get argv[0]")?;
 
         add_arg(format!("--binary={argv0} {current_test_name} --exact --nocapture"))?;
         let normalized_test_name = current_test_name.replace("::", ".");

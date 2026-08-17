@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This module provides the core command-line flag and environment variable options
-// structure (`FuzzTestOptions`) and domain execution modes (`ExecutionMode`).
+//! This module provides the core command-line flag and environment variable options
+//! structure (`FuzzTestOptions`) and domain execution modes (`ExecutionMode`).
+
+#![deny(clippy::absolute_paths)]
+#![deny(unused_imports)]
 
 use clap::{Parser, ValueEnum};
 use humantime::Duration;
