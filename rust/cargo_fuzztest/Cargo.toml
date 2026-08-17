@@ -30,11 +30,24 @@ fuzztest = { path = ".." }
 tempfile = "3.27.0"
 
 # Compiled as a [[test]] target so Cargo builds it with the test harness enabled
-# (`rustc --test`) and exposes `CARGO_BIN_EXE_sample_fuzz_test_bin` to `runner_test`.
+# (`rustc --test`) and exposes `CARGO_BIN_EXE_sample_fuzz_crate_bin` to `runner_test`.
 [[test]]
-name = "sample_fuzz_test_bin"
+name = "sample_fuzz_crate_bin"
 path = "test_crates/sample_fuzz_crate/src/lib.rs"
+test = false
+
+# Compiled as a [[test]] target so Cargo builds it with the test harness enabled
+# (`rustc --test`) and exposes `CARGO_BIN_EXE_another_sample_fuzz_crate_bin` to `runner_test`.
+[[test]]
+name = "another_sample_fuzz_crate_bin"
+path = "test_crates/another_sample_fuzz_crate/src/lib.rs"
+test = false
 
 [[test]]
 name = "runner_test"
 path = "tests/runner_test.rs"
+
+[[test]]
+name = "e2e_cli_test"
+path = "tests/e2e_cli_test.rs"
+

@@ -17,7 +17,9 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-pub use fuzztest_options::{ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions};
+pub use fuzztest_options::{
+    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCrashOptions,
+};
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -54,7 +56,15 @@ impl CargoFuzzTestOptions {
     fn check_centipede_binary_path_is_set(&self) -> Result<()> {
         anyhow::ensure!(
             self.centipede_binary_path.is_some(),
-            "fuzzing mode requires `--centipede-binary-path` to be specified"
+            "`--centipede-binary-path` needs to be specified"
+        );
+        Ok(())
+    }
+
+    fn check_corpus_db_is_set(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.fuzztest_options.corpus_db.is_some(),
+            "`--corpus-db` needs to be specified"
         );
         Ok(())
     }
@@ -72,14 +82,18 @@ impl CargoFuzzTestOptions {
                 self.check_centipede_binary_path_is_set()?;
                 mode
             }
+            ExecutionMode::ReplayCrash(_) => {
+                self.check_centipede_binary_path_is_set()?;
+                self.check_corpus_db_is_set()?;
+                mode
+            }
             ExecutionMode::SmokeTest => {
                 if self.test_path.is_some() {
                     self.check_centipede_binary_path_is_set()?;
-                    return Ok(ExecutionMode::Fuzz(FuzzOptions {
-                        fuzz_for: FuzzFor::Indefinitely,
-                        // TODO(the-shank): support parallel jobs
-                        jobs: None,
-                    }));
+                    ExecutionMode::Fuzz(FuzzOptions {
+                        fuzz_for: self.fuzztest_options.fuzz_for.unwrap_or(FuzzFor::Indefinitely),
+                        jobs: self.fuzztest_options.jobs,
+                    })
                 } else {
                     mode
                 }
@@ -241,6 +255,10 @@ impl FuzztestRunner {
                 }
             }
 
+            ExecutionMode::ReplayCrash(replay_options) => {
+                cmd.env("FUZZTEST_REPLAY_ID", replay_options.replay_id);
+            }
+
             ExecutionMode::SmokeTest => {
                 // nothing to be done
             }
@@ -249,11 +267,24 @@ impl FuzztestRunner {
             }
         }
 
+        if let Some(corpus_db) = &self.options.fuzztest_options.corpus_db {
+            cmd.env("FUZZTEST_CORPUS_DB", corpus_db);
+        }
+
+        if let Some(workdir_root) = &self.options.fuzztest_options.workdir_root {
+            cmd.env("FUZZTEST_WORKDIR_ROOT", workdir_root);
+        }
+
         // If `--centipede-binary-path` was passed to `cargo-fuzztest`, forward it to the
         // child test executable via `FUZZTEST_CENTIPEDE_BINARY_PATH` environment variable so the
         // fuzzer runtime can locate and run Centipede during continuous fuzzing.
         if let Some(centipede_binary_path) = &self.options.centipede_binary_path {
             cmd.env("FUZZTEST_CENTIPEDE_BINARY_PATH", centipede_binary_path);
+        }
+
+        if self.options.fuzztest_options.print_subprocess_log {
+            cmd.env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true");
+            cmd.arg("--nocapture");
         }
 
         Ok(cmd)
@@ -378,5 +409,89 @@ mod tests {
             parsed.execution_mode().expect("valid execution mode"),
             ExecutionMode::SmokeTest
         );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_id_success() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-id",
+            "crash_12345",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid replay options should parse successfully");
+
+        assert_eq!(parsed.fuzztest_options.replay_id.as_deref(), Some("crash_12345"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ReplayCrash(ReplayCrashOptions { replay_id: "crash_12345".to_string() })
+        );
+    }
+
+    #[gtest]
+    fn test_execution_mode_replay_id_missing_corpus_db_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_id: Some("crash_12345".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let err = options.execution_mode().expect_err("missing corpus-db should cause error");
+        assert!(err.to_string().contains("`--corpus-db` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_execution_mode_replay_id_missing_centipede_binary_path_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_id: Some("crash_12345".to_string()),
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let err =
+            options.execution_mode().expect_err("missing centipede-binary-path should cause error");
+        assert!(err.to_string().contains("`--centipede-binary-path` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_build_run_command_replay_crash() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_id: Some("crash_12345".to_string()),
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(envs.contains(&("FUZZTEST_REPLAY_ID".to_string(), Some("crash_12345".to_string()))));
+        assert!(
+            envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
+        );
+        assert!(envs.contains(&(
+            "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
+            Some("/custom/centipede".to_string())
+        )));
     }
 }

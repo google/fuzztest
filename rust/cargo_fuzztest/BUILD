@@ -62,7 +62,7 @@ rust_clippy(
 )
 
 rust_test(
-    name = "sample_fuzz_test_bin",
+    name = "sample_fuzz_crate_bin",
     srcs = ["test_crates/sample_fuzz_crate/src/lib.rs"],
     edition = "2024",
     tags = [
@@ -77,9 +77,12 @@ rust_test(
 
 rust_test(
     name = "runner_test",
-    srcs = ["tests/runner_test.rs"],
+    srcs = [
+        "tests/common/mod.rs",
+        "tests/runner_test.rs",
+    ],
     data = [
-        ":sample_fuzz_test_bin",
+        ":sample_fuzz_crate_bin",
     ],
     edition = "2024",
     deps = [
