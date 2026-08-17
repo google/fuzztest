@@ -121,6 +121,7 @@ void ThreadLocalSancovState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 }
 
 void ThreadLocalSancovState::OnThreadStart() {
+  if (tls.started) return;
   termination_detector.EnsureAlive();
   tls.started = true;
   // Always trace threads by default. Internal threads that do not want tracing
@@ -145,6 +146,11 @@ void ThreadLocalSancovState::OnThreadStart() {
 }
 
 void ThreadLocalSancovState::OnThreadStop() {
+  if (tls.sancov_lowest_sp == nullptr) {
+    // This can happen only before OnTheadStart() or after OnThreadStop() -
+    // nothing to do if that's the case.
+    return;
+  }
   tls.traced = false;
   LockGuard lock(sancov_state->tls_list_mu);
   const size_t sancov_lowest_sp = *tls.sancov_lowest_sp;
