@@ -18,8 +18,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
-    TimeBudgetType,
+    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ListCrashIdsOptions, ReplayCorpusOptions,
+    ReplayCrashOptions, TimeBudgetType,
 };
 use std::env;
 use std::ffi::OsString;
@@ -85,7 +85,8 @@ impl CargoFuzzTestOptions {
             }
             ExecutionMode::ReplayCorpus(_)
             | ExecutionMode::ReplayAllCrashes
-            | ExecutionMode::ReplayCrash(_) => {
+            | ExecutionMode::ReplayCrash(_)
+            | ExecutionMode::ListCrashIds(_) => {
                 self.check_centipede_binary_path_is_set()?;
                 self.check_corpus_db_is_set()?;
                 mode
@@ -276,6 +277,14 @@ impl FuzztestRunner {
                     TimeBudgetType::Total => "total",
                 };
                 cmd.env("FUZZTEST_TIME_BUDGET_TYPE", time_budget_str);
+            }
+
+            ExecutionMode::ListCrashIds(list_crash_ids_options) => {
+                cmd.env("FUZZTEST_LIST_CRASH_IDS", "true");
+                cmd.env(
+                    "FUZZTEST_LIST_CRASH_IDS_FILE",
+                    &list_crash_ids_options.list_crash_ids_file,
+                );
             }
 
             ExecutionMode::SmokeTest => {
@@ -679,6 +688,104 @@ mod tests {
         assert!(
             envs.contains(&("FUZZTEST_TIME_BUDGET_TYPE".to_string(), Some("total".to_string())))
         );
+        assert!(
+            envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
+        );
+        assert!(envs.contains(&(
+            "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
+            Some("/custom/centipede".to_string())
+        )));
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_list_crash_ids_success() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--list-crash-ids",
+            "--list-crash-ids-file",
+            "/tmp/crashes.txt",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid list-crash-ids options should parse successfully");
+
+        assert!(parsed.fuzztest_options.list_crash_ids);
+        assert_eq!(
+            parsed.fuzztest_options.list_crash_ids_file.as_deref(),
+            Some("/tmp/crashes.txt")
+        );
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ListCrashIds(ListCrashIdsOptions {
+                list_crash_ids_file: "/tmp/crashes.txt".to_string(),
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_execution_mode_list_crash_ids_missing_corpus_db_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                list_crash_ids: true,
+                list_crash_ids_file: Some("/tmp/crashes.txt".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let err = options.execution_mode().expect_err("missing corpus-db should cause error");
+        assert!(err.to_string().contains("`--corpus-db` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_execution_mode_list_crash_ids_missing_centipede_binary_path_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                list_crash_ids: true,
+                list_crash_ids_file: Some("/tmp/crashes.txt".to_string()),
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let err =
+            options.execution_mode().expect_err("missing centipede-binary-path should cause error");
+        assert!(err.to_string().contains("`--centipede-binary-path` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_build_run_command_list_crash_ids() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                list_crash_ids: true,
+                list_crash_ids_file: Some("/tmp/crashes.txt".to_string()),
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(envs.contains(&("FUZZTEST_LIST_CRASH_IDS".to_string(), Some("true".to_string()))));
+        assert!(envs.contains(&(
+            "FUZZTEST_LIST_CRASH_IDS_FILE".to_string(),
+            Some("/tmp/crashes.txt".to_string())
+        )));
         assert!(
             envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
         );

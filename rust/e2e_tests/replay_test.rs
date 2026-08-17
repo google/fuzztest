@@ -33,11 +33,8 @@ fn get_target_binary_path(fixture: &EnvVars) -> PathBuf {
 #[gtest]
 fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_two_bugs_fuzz_test::find_two_bugs_fuzz_test";
-    let normalized_test_name = test_name.replace("::", ".");
 
     let target_binary_path = get_target_binary_path(fixture);
-    let target_binary_str = target_binary_path.to_str().expect("valid path string");
-    let binary_id = target_binary_str.strip_prefix('/').unwrap_or(target_binary_str);
 
     let db_dir = fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("corpus_db");
     fs::create_dir_all(&db_dir).expect("Failed to create db directory");
@@ -57,19 +54,19 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
         .status()
         .expect("Failed to spawn binary");
 
-    // 2. Retrieve the crash IDs from the corpus database using Centipede's --list_crash_ids flag.
+    // 2. Retrieve the crash IDs from the corpus database using FUZZTEST_LIST_CRASH_IDS.
     let crash_ids_file =
         fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("crash_ids.txt");
-    let list_args = [
-        format!("--binary={}", target_binary_path.display()),
-        format!("--fuzztest_binary_identifier={}", binary_id),
-        format!("--test_name={}", normalized_test_name),
-        format!("--fuzztest_corpus_database={}", db_dir.display()),
-        "--list_crash_ids=1".to_string(),
-        format!("--list_crash_ids_file={}", crash_ids_file.display()),
-    ];
-    let list_args_refs: Vec<&str> = list_args.iter().map(|s| s.as_str()).collect();
-    test_utils::run_centipede_with_args_expect_termination(fixture, &list_args_refs);
+    let status = Command::new(&target_binary_path)
+        .arg(test_name)
+        .arg("--exact")
+        .env("FUZZTEST_LIST_CRASH_IDS", "true")
+        .env("FUZZTEST_LIST_CRASH_IDS_FILE", &crash_ids_file)
+        .env("FUZZTEST_CORPUS_DB", &db_dir)
+        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
+        .status()
+        .expect("Failed to execute target binary to list crash IDs");
+    expect_true!(status.success());
 
     let crash_ids_contents =
         fs::read_to_string(&crash_ids_file).expect("Failed to read crash IDs file");

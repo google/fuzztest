@@ -63,6 +63,24 @@ pub struct FuzzTestOptions {
     #[arg(env = "FUZZTEST_JOBS", long)]
     pub jobs: Option<usize>,
 
+    /// List all crash IDs stored in the corpus database.
+    #[arg(
+        env = "FUZZTEST_LIST_CRASH_IDS",
+        long,
+        requires = "corpus_db",
+        requires = "list_crash_ids_file"
+    )]
+    pub list_crash_ids: bool,
+
+    /// The output file path where listed crash IDs will be written.
+    #[arg(
+        env = "FUZZTEST_LIST_CRASH_IDS_FILE",
+        long,
+        requires = "corpus_db",
+        requires = "list_crash_ids"
+    )]
+    pub list_crash_ids_file: Option<String>,
+
     /// The crash ID to be replayed from the corpus database.
     ///
     /// If set, `corpus_db` must also be specified. This mode retrieves the crashing input
@@ -110,6 +128,9 @@ pub enum ExecutionMode {
     /// Replay corpus inputs for a specified duration.
     ReplayCorpus(ReplayCorpusOptions),
 
+    /// List crash IDs stored in the corpus database.
+    ListCrashIds(ListCrashIdsOptions),
+
     /// List all discovered fuzz tests without running them.
     /// Currently only supported via `cargo-fuzztest`.
     ListFuzzTests,
@@ -120,6 +141,16 @@ impl ExecutionMode {
     ///
     /// This decouples raw environment/CLI option parsing from execution mode validation.
     pub fn from_fuzztest_options(options: &FuzzTestOptions) -> ExecutionMode {
+        if options.list_crash_ids {
+            return ExecutionMode::ListCrashIds(ListCrashIdsOptions {
+                // TODO(the-shank): If a crash-ids file is not provided, write to stdout.
+                list_crash_ids_file: options
+                    .list_crash_ids_file
+                    .clone()
+                    .expect("list_crash_ids_file should be set when list_crash_ids"),
+            });
+        }
+
         if let Some(replay_corpus_for) = options.replay_corpus_for {
             return ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
                 replay_corpus_for,
@@ -182,6 +213,12 @@ pub struct ReplayCorpusOptions {
     /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
     /// will use its own default value.
     pub jobs: Option<usize>,
+}
+
+/// Mode-specific options for listing crash IDs from the database.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListCrashIdsOptions {
+    pub list_crash_ids_file: String,
 }
 
 #[cfg(test)]
@@ -412,5 +449,102 @@ mod tests {
         expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
+    }
+
+    #[gtest]
+    fn test_list_crash_ids_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_list_crash_ids_requires_list_crash_ids_file() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let err = result.expect_err("parsing should fail when list_crash_ids_file is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_list_crash_ids_file_requires_list_crash_ids() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let err = result.expect_err("parsing should fail when list_crash_ids is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_list_crash_ids_with_corpus_db_and_file_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
+            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
+            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect(
+            "parsing should succeed when list_crash_ids, list_crash_ids_file, and corpus_db are present",
+        );
+        expect_that!(options.list_crash_ids, eq(true));
+        expect_that!(options.list_crash_ids_file.as_deref(), eq(Some("/tmp/crashes.txt")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+
+        let mode = ExecutionMode::from_fuzztest_options(&options);
+        expect_that!(
+            mode,
+            eq(&ExecutionMode::ListCrashIds(ListCrashIdsOptions {
+                list_crash_ids_file: "/tmp/crashes.txt".to_string()
+            }))
+        );
     }
 }

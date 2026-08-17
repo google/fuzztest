@@ -23,8 +23,8 @@ use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
-    TimeBudgetType,
+    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ListCrashIdsOptions, ReplayCorpusOptions,
+    ReplayCrashOptions, TimeBudgetType,
 };
 
 /// Returns a lazily-initialized static reference to the global `FuzzTestOptions`.
@@ -59,7 +59,8 @@ impl ExecutionModeExt for ExecutionMode {
             ExecutionMode::SmokeTest => Ok(ExecutionAction::SmokeTest),
             ExecutionMode::Fuzz(_)
             | ExecutionMode::ReplayCrash(_)
-            | ExecutionMode::ReplayCorpus(_) => {
+            | ExecutionMode::ReplayCorpus(_)
+            | ExecutionMode::ListCrashIds(_) => {
                 let centipede_args =
                     CentipedeArgs::from_execution_mode(self, options, current_test_name, None)?
                         .context(
@@ -258,6 +259,10 @@ impl CentipedeArgs {
                 if let Some(jobs) = &replay_corpus_opts.jobs {
                     add_arg(format!("--j={jobs}"))?;
                 }
+            }
+            ExecutionMode::ListCrashIds(list_opts) => {
+                add_arg("--list_crash_ids=true".to_string())?;
+                add_arg(format!("--list_crash_ids_file={}", list_opts.list_crash_ids_file))?;
             }
             ExecutionMode::SmokeTest => unreachable!(),
             ExecutionMode::ListFuzzTests => unreachable!(),
@@ -792,5 +797,29 @@ mod tests {
         expect_true!(args_str.contains(&"--fuzztest_time_limit_per_test=1s"));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
         expect_false!(args_str.iter().any(|s| s.starts_with("--stop_after=")));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_list_crash_ids() {
+        let options = FuzzTestOptions {
+            list_crash_ids: true,
+            list_crash_ids_file: Some("/tmp/custom_crashes.txt".to_string()),
+            corpus_db: Some("/tmp/corpus_db".to_string()),
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action for ListCrashIds");
+        };
+
+        let args_str: Vec<&str> =
+            args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
+
+        expect_true!(args_str.contains(&"--list_crash_ids=true"));
+        expect_true!(args_str.contains(&"--list_crash_ids_file=/tmp/custom_crashes.txt"));
+        expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
+        expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
+        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
     }
 }
