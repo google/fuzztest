@@ -383,8 +383,11 @@ BlobSequence* GetInputsBlobSequence() {
     }
     const char* input_path =
         GetWorkerFlags().GetStringFlag(kWorkerInputsBlobSequencePathFlagHeader);
-    WorkerCheck(input_path != nullptr, "inputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(input_path, shmem_size);
+    if (input_path == nullptr) {
+      WorkerCheck(false, "inputs blob sequence is missing");
+      __builtin_unreachable();
+    }
+    return OpenSharedMemoryBlobSequence(input_path, shmem_size).release();
   }();
   return result;
 }
@@ -397,8 +400,11 @@ BlobSequence* GetOutputsBlobSequence() {
     }
     const char* output_path = GetWorkerFlags().GetStringFlag(
         kWorkerOutputsBlobSequencePathFlagHeader);
-    WorkerCheck(output_path != nullptr, "outputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(output_path, shmem_size);
+    if (output_path == nullptr) {
+      WorkerCheck(false, "outputs blob sequence is missing");
+      __builtin_unreachable();
+    }
+    return OpenSharedMemoryBlobSequence(output_path, shmem_size).release();
   }();
   return result;
 }

@@ -904,10 +904,10 @@ void GlobalRunnerState::OnTermination() {
   if (!state->centipede_runner_main_executed &&
       state->run_time_flags.shmem_size_mb != 0) {
     PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
-    SharedMemoryBlobSequence outputs_blobseq(
+    auto outputs_blobseq = OpenSharedMemoryBlobSequence(
         sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
-    StartSendingOutputsToEngine(outputs_blobseq);
-    FinishSendingOutputsToEngine(outputs_blobseq);
+    StartSendingOutputsToEngine(*outputs_blobseq);
+    FinishSendingOutputsToEngine(*outputs_blobseq);
   }
   {
     LockGuard lock(state->execution_result_override_mu);
@@ -1018,16 +1018,16 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
   // Inputs / outputs from shmem.
   if (state->run_time_flags.shmem_size_mb != 0) {
     if (!sancov_state->arg1 || !sancov_state->arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(
+    auto inputs_blobseq = OpenSharedMemoryBlobSequence(
         sancov_state->arg1, state->run_time_flags.shmem_size_mb << 20);
-    SharedMemoryBlobSequence outputs_blobseq(
+    auto outputs_blobseq = OpenSharedMemoryBlobSequence(
         sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
     // Persistent mode loop.
     if (state->persistent_mode_socket > 0) {
-      return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);
+      return HandlePersistentMode(callbacks, *inputs_blobseq, *outputs_blobseq);
     }
-    return HandleSharedMemoryRequest(callbacks, inputs_blobseq,
-                                     outputs_blobseq);
+    return HandleSharedMemoryRequest(callbacks, *inputs_blobseq,
+                                     *outputs_blobseq);
   }
 
   // By default, run every input file one-by-one.
