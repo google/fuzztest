@@ -105,18 +105,35 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
   // `source.num_recent_dirs()` most recent ones.
 
   std::vector<std::string> src_dirs;
-  if (const auto match_status = RemoteGlobMatch(source.dir_glob, src_dirs);
-      !match_status.ok() && !absl::IsNotFound(match_status)) {
-    return match_status;
+  if (!source.dir_glob.empty()) {
+    if (const auto match_status = RemoteGlobMatch(source.dir_glob, src_dirs);
+        !match_status.ok() && !absl::IsNotFound(match_status)) {
+      return match_status;
+    }
+    FUZZTEST_LOG(INFO) << "Found " << src_dirs.size()
+                       << " corpus dir(s) candidates matching "
+                       << source.dir_glob;
   }
-  FUZZTEST_LOG(INFO) << "Found " << src_dirs.size()
-                     << " corpus dir(s) matching " << source.dir_glob;
+  src_dirs.insert(src_dirs.end(), source.src_dirs.begin(),
+                  source.src_dirs.end());
   // Sort in the ascending lexicographical order. We expect that dir names
   // contain timestamps and therefore will be sorted from oldest to newest.
   std::sort(src_dirs.begin(), src_dirs.end(), std::less<std::string>());
+  src_dirs.erase(std::unique(src_dirs.begin(), src_dirs.end()), src_dirs.end());
+  src_dirs.erase(std::remove_if(src_dirs.begin(), src_dirs.end(),
+                                [](const auto& path) {
+                                  return !RemotePathIsDirectory(path);
+                                }),
+                 src_dirs.end());
   if (source.num_recent_dirs < src_dirs.size()) {
     src_dirs.erase(src_dirs.begin(), src_dirs.end() - source.num_recent_dirs);
     FUZZTEST_LOG(INFO) << "Selected " << src_dirs.size() << " corpus dir(s)";
+  }
+
+  FUZZTEST_LOG(INFO)
+      << "Reading/sampling seed corpus elements from source dir(s): ";
+  for (const auto& src_dir : src_dirs) {
+    FUZZTEST_LOG(INFO) << "  " << src_dir;
   }
 
   // Find all the corpus shard and individual input files in the found dirs.
@@ -125,6 +142,38 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
   std::vector<std::string> individual_input_fnames;
   for (const auto& dir : src_dirs) {
     absl::flat_hash_set<std::string> current_corpus_shard_fnames;
+    if (source.shard_rel_prefix.has_value()) {
+      if (!source.shard_rel_glob.empty()) {
+        return absl::InvalidArgumentError(
+            "Must not specify both shard_rel_prefix and shard_rel_glob");
+      }
+      const auto shard_prefix =
+          std::filesystem::path{fs::path{dir} / *source.shard_rel_prefix};
+      const auto candidates =
+          RemoteListFiles(shard_prefix.parent_path().string(),
+                          /*recursively=*/false);
+      if (candidates.ok()) {
+        const auto shard_prefix_filename = shard_prefix.filename().string();
+        size_t num_added_shards = 0;
+        for (const auto& candidate : *candidates) {
+          if (!absl::StartsWith(
+                  std::filesystem::path{candidate}.filename().string(),
+                  shard_prefix_filename)) {
+            continue;
+          }
+          ++num_added_shards;
+          corpus_shard_fnames.push_back(candidate);
+          current_corpus_shard_fnames.insert(candidate);
+        }
+        FUZZTEST_LOG(INFO) << "Found " << num_added_shards
+                           << " shard(s) matching prefix ["
+                           << *source.shard_rel_prefix << "]";
+      } else {
+        FUZZTEST_LOG(ERROR)
+            << "Got error when listing with " << VV(*source.shard_rel_prefix)
+            << ": " << candidates.status();
+      }
+    }
     if (!source.shard_rel_glob.empty()) {
       std::vector<std::string> matched_fnames;
       const std::string glob = fs::path{dir} / source.shard_rel_glob;
@@ -140,6 +189,43 @@ absl::Status SampleSeedCorpusElementsFromSource(  //
                                    matched_fnames.end());
         FUZZTEST_LOG(INFO) << "Found " << matched_fnames.size()
                            << " shard(s) matching " << glob;
+      }
+    }
+    if (source.individual_input_rel_prefix.has_value()) {
+      if (!source.individual_input_rel_glob.empty()) {
+        return absl::InvalidArgumentError(
+            "Must not specify both individual_input_rel_prefix and "
+            "individual_input_rel_glob");
+      }
+      const auto individual_input_prefix = std::filesystem::path{
+          fs::path{dir} / *source.individual_input_rel_prefix};
+      const auto candidates =
+          RemoteListFiles(individual_input_prefix.parent_path().string(),
+                          /*recursively=*/false);
+      if (candidates.ok()) {
+        const auto individual_input_prefix_filename =
+            individual_input_prefix.filename().string();
+        size_t num_added_individual_inputs = 0;
+        for (const auto& candidate : *candidates) {
+          if (RemotePathIsDirectory(candidate)) {
+            continue;
+          }
+          if (!absl::StartsWith(
+                  std::filesystem::path{candidate}.filename().string(),
+                  individual_input_prefix_filename)) {
+            continue;
+          }
+          if (current_corpus_shard_fnames.contains(candidate)) continue;
+          ++num_added_individual_inputs;
+          individual_input_fnames.push_back(candidate);
+        }
+        FUZZTEST_LOG(INFO) << "Found " << num_added_individual_inputs
+                           << " individual input(s) with prefix: ["
+                           << *source.individual_input_rel_prefix << "]";
+      } else {
+        FUZZTEST_LOG(ERROR) << "Got error when listing with "
+                            << VV(*source.individual_input_rel_prefix) << ": "
+                            << candidates.status();
       }
     }
     if (!source.individual_input_rel_glob.empty()) {
@@ -378,10 +464,19 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
     return absl::InvalidArgumentError(
         "Requested number of destination shards must be > 0");
   }
-  if (!absl::StrContains(destination.shard_rel_glob, "*")) {
+  if (!destination.shard_rel_glob.empty()) {
+    if (!absl::StrContains(destination.shard_rel_glob, "*")) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Destination shard pattern must contain '*', got ",
+                       destination.shard_rel_glob));
+    }
+    if (destination.shard_rel_prefix.has_value()) {
+      return absl::InvalidArgumentError(
+          "Cannot have both shard_rel_glob and shard_rel_prefix");
+    }
+  } else if (!destination.shard_rel_prefix.has_value()) {
     return absl::InvalidArgumentError(
-        absl::StrCat("Destination shard pattern must contain '*', got ",
-                     destination.shard_rel_glob));
+        "Missing shard_rel_glob and shard_rel_prefix");
   }
 
   // Compute shard sizes. If the elements can't be evenly divided between the
@@ -424,7 +519,10 @@ absl::Status WriteSeedCorpusElementsToDestination(  //
         const std::string shard_idx =
             absl::StrFormat("%0*d", destination.shard_index_digits, shard);
         const std::string corpus_rel_fname =
-            absl::StrReplaceAll(destination.shard_rel_glob, {{"*", shard_idx}});
+            !destination.shard_rel_glob.empty()
+                ? absl::StrReplaceAll(destination.shard_rel_glob,
+                                      {{"*", shard_idx}})
+                : absl::StrCat(*destination.shard_rel_prefix, shard_idx);
         const std::string corpus_fname =
             fs::path{destination.dir_path} / corpus_rel_fname;
 
