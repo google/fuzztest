@@ -365,7 +365,7 @@ fn test_cargo_fuzztest_e2e_replay_corpus_total_budget() {
     // 2. Run cargo-fuzztest CLI with --replay-corpus-for and --time-budget-type total.
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg("__fuzztest_mod__sample_fuzztest_target::sample_fuzztest_target")
-        .arg("--replay-corpus-for=3s")
+        .arg("--replay-corpus-for=4.5s")
         .arg("--time-budget-type=total")
         .arg("--corpus-db")
         .arg(temp_db_dir.path())
@@ -376,12 +376,15 @@ fn test_cargo_fuzztest_e2e_replay_corpus_total_budget() {
     let stderr_str = String::from_utf8_lossy(&output.stderr);
     let stdout_str = String::from_utf8_lossy(&output.stdout);
 
+    eprintln!("tmp:: stderr:\n{stderr_str}");
+    eprintln!("tmp:: stdout:\n{stdout_str}");
+
     expect_true!(output.status.success());
     expect_true!(
         stderr_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1s"
+            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
         ) || stdout_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1s"
+            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
         )
     );
 }
@@ -409,7 +412,7 @@ fn test_cargo_fuzztest_e2e_list_crash_ids() {
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg(test_target)
         .arg("--fuzz-for=5s")
-        .env_remove("CENTIPEDE_BINARY_PATH")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
         .arg("--centipede-binary-path")
         .arg(&centipede_bin)
         .arg("--corpus-db")

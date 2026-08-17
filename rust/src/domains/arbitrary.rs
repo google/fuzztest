@@ -17,6 +17,7 @@ use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::Domain;
 use std::char;
+use std::fmt;
 use std::marker::PhantomData;
 
 use anyhow;
@@ -47,12 +48,12 @@ pub struct Arbitrary<T> {
 
 impl<T> Clone for Arbitrary<T> {
     fn clone(&self) -> Self {
-        Self { _phantom: std::marker::PhantomData }
+        Self { _phantom: PhantomData }
     }
 }
 
-impl<T> std::fmt::Debug for Arbitrary<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> fmt::Debug for Arbitrary<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Arbitrary").field("_phantom", &self._phantom).finish()
     }
 }

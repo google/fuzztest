@@ -18,8 +18,12 @@
 #![deny(clippy::absolute_paths)]
 #![deny(unused_imports)]
 
+use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use humantime::Duration;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::str::FromStr;
 
 /// Time budget calculation type for replay corpus mode.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -27,20 +31,6 @@ pub enum TimeBudgetType {
     #[default]
     PerTest,
     Total,
-}
-
-/// Parses a fuzzing duration string from `FUZZTEST_FUZZ_FOR`.
-///
-/// Matches `"inf"` or `"infinity"` to [`FuzzFor::Indefinitely`]. All other values
-/// are parsed as standard human-readable durations (for example, `"5s"` or `"10m"`).
-fn parse_fuzz_for(s: &str) -> anyhow::Result<FuzzFor> {
-    let s_lower = s.trim().to_lowercase();
-    if s_lower == "inf" || s_lower == "infinity" {
-        Ok(FuzzFor::Indefinitely)
-    } else {
-        let duration = s.parse()?;
-        Ok(FuzzFor::Duration(duration))
-    }
 }
 
 /// Command-line and environment variable options parsed for the FuzzTest harness.
@@ -54,8 +44,8 @@ pub struct FuzzTestOptions {
     ///
     /// Accepts a human-readable duration (e.g., `5s`, `10m`, `1h`) or `inf` / `infinity`
     /// to fuzz indefinitely until a crash is found or it is stopped manually.
-    #[arg(env = "FUZZTEST_FUZZ_FOR", long, value_parser = parse_fuzz_for)]
-    pub fuzz_for: Option<FuzzFor>,
+    #[arg(env = "FUZZTEST_FUZZ_FOR", long)]
+    pub fuzz_for: Option<RunDuration>,
 
     /// If true, subprocess logs are printed after every batch. Note that crash logs are always
     /// printed regardless of this flag's value.
@@ -96,8 +86,11 @@ pub struct FuzzTestOptions {
     pub replay_findings: bool,
 
     /// Replay the corpus for a specified duration.
+    ///
+    /// Accepts a human-readable duration (e.g., `5s`, `10m`, `1h`) or `inf` / `infinity`
+    /// to replay indefinitely until stopped manually.
     #[arg(env = "FUZZTEST_REPLAY_CORPUS_FOR", long, requires = "corpus_db")]
-    pub replay_corpus_for: Option<Duration>,
+    pub replay_corpus_for: Option<RunDuration>,
 
     /// Time budget calculation type for replay corpus mode.
     #[arg(env = "FUZZTEST_TIME_BUDGET_TYPE", long, value_enum, default_value_t = TimeBudgetType::PerTest)]
@@ -158,7 +151,7 @@ impl ExecutionMode {
             return ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
                 replay_corpus_for,
                 time_budget_type: options.time_budget_type,
-                jobs: options.jobs.clone(),
+                jobs: options.jobs,
             });
         }
 
@@ -172,10 +165,7 @@ impl ExecutionMode {
 
         // Continuous fuzzing mode is selected if an explicit duration/budget (`fuzz_for`) is specified.
         if let Some(fuzz_for) = &options.fuzz_for {
-            return ExecutionMode::Fuzz(FuzzOptions {
-                fuzz_for: *fuzz_for,
-                jobs: options.jobs.clone(),
-            });
+            return ExecutionMode::Fuzz(FuzzOptions { fuzz_for: *fuzz_for, jobs: options.jobs });
         }
 
         ExecutionMode::SmokeTest
@@ -185,21 +175,46 @@ impl ExecutionMode {
 /// Mode-specific options for continuous fuzzing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FuzzOptions {
-    pub fuzz_for: FuzzFor,
+    pub fuzz_for: RunDuration,
 
     /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
     /// will use its own default value.
     pub jobs: Option<usize>,
 }
 
-/// The duration or limit for fuzzing.
+/// The duration or limit for fuzzing or replaying corpus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FuzzFor {
-    /// Fuzz indefinitely until it is manually stopped or a crash is found.
+pub enum RunDuration {
+    /// Run indefinitely until manually stopped or a crash is found.
     Indefinitely,
 
-    /// Fuzz for a specific duration.
-    Duration(Duration),
+    /// Run for a specific fixed duration.
+    Fixed(humantime::Duration),
+}
+
+impl FromStr for RunDuration {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> anyhow::Result<Self> {
+        let s_lower = s.trim().to_lowercase();
+        if s_lower == "inf" || s_lower == "infinity" {
+            Ok(RunDuration::Indefinitely)
+        } else {
+            let duration: humantime::Duration = s
+                .parse()
+                .with_context(|| format!("while attempting to parse duration string '{s}'"))?;
+            Ok(RunDuration::Fixed(duration))
+        }
+    }
+}
+
+impl Display for RunDuration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RunDuration::Indefinitely => write!(f, "inf"),
+            RunDuration::Fixed(duration) => write!(f, "{duration}"),
+        }
+    }
 }
 
 /// Mode-specific options for replaying a specific crashing input from the corpus database.
@@ -211,7 +226,7 @@ pub struct ReplayCrashOptions {
 /// Mode-specific options for replaying corpus for a duration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplayCorpusOptions {
-    pub replay_corpus_for: Duration,
+    pub replay_corpus_for: RunDuration,
     pub time_budget_type: TimeBudgetType,
     /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
     /// will use its own default value.
@@ -229,6 +244,39 @@ mod tests {
     use super::*;
     use googletest::prelude::*;
     use std::ffi::OsString;
+
+    #[gtest]
+    fn test_duration_from_str_inf() {
+        let duration: RunDuration = "inf".parse().expect("failed to parse 'inf'");
+        expect_that!(duration, eq(RunDuration::Indefinitely));
+    }
+
+    #[gtest]
+    fn test_duration_from_str_infinity() {
+        let duration: RunDuration = "infinity".parse().expect("failed to parse 'infinity'");
+        expect_that!(duration, eq(RunDuration::Indefinitely));
+    }
+
+    #[gtest]
+    fn test_duration_from_str_fixed() {
+        let duration: RunDuration = "10s".parse().expect("failed to parse '10s'");
+        let expected_fixed = humantime::Duration::from(std::time::Duration::from_secs(10));
+        expect_that!(duration, eq(RunDuration::Fixed(expected_fixed)));
+    }
+
+    #[gtest]
+    fn test_duration_from_str_invalid() {
+        let result: Result<RunDuration, _> = "invalid_duration".parse();
+        expect_true!(result.is_err());
+    }
+
+    #[gtest]
+    fn test_duration_display() {
+        expect_that!(RunDuration::Indefinitely.to_string(), eq("inf"));
+        let fixed =
+            RunDuration::Fixed(humantime::Duration::from(std::time::Duration::from_secs(10)));
+        expect_that!(fixed.to_string(), eq("10s"));
+    }
 
     #[gtest]
     fn test_replay_id_requires_corpus_db() {
@@ -281,6 +329,7 @@ mod tests {
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
         expect_that!(options.jobs, eq(Some(4)));
+
         // Setting jobs alone should not enter fuzzing mode; it defaults to smoke test mode.
         expect_that!(ExecutionMode::from_fuzztest_options(&options), eq(&ExecutionMode::SmokeTest));
 
@@ -305,7 +354,7 @@ mod tests {
         expect_that!(
             ExecutionMode::from_fuzztest_options(&options),
             eq(&ExecutionMode::Fuzz(FuzzOptions {
-                fuzz_for: FuzzFor::Duration(expected_duration),
+                fuzz_for: RunDuration::Fixed(expected_duration),
                 jobs: Some(4),
             }))
         );
@@ -425,9 +474,58 @@ mod tests {
 
         let options = result
             .expect("parsing should succeed when both replay_corpus_for and corpus_db are present");
-        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(
+            options.replay_corpus_for,
+            eq(Some("10s".parse().expect("valid duration string")))
+        );
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::PerTest));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_inf_env_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "inf");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect(
+            "parsing should succeed when replay_corpus_for is inf and corpus_db is present",
+        );
+        expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_infinity_env_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "infinity");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect(
+            "parsing should succeed when replay_corpus_for is infinity and corpus_db is present",
+        );
+        expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
     }
 
     #[gtest]
@@ -449,7 +547,34 @@ mod tests {
         }
 
         let options = result.expect("parsing should succeed with total time budget type");
-        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(
+            options.replay_corpus_for,
+            eq(Some("10s".parse().expect("valid duration string")))
+        );
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_inf_with_total_time_budget() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "inf");
+            std::env::set_var("FUZZTEST_TIME_BUDGET_TYPE", "total");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_TIME_BUDGET_TYPE");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect("parsing should succeed with total time budget type and inf");
+        expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
     }
