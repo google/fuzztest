@@ -75,7 +75,7 @@ pub struct FuzzTestOptions {
     pub replay_findings: bool,
 
     /// Replay the corpus for a specified duration.
-    #[arg(env = "FUZZTEST_REPLAY_CORPUS_FOR", long)]
+    #[arg(env = "FUZZTEST_REPLAY_CORPUS_FOR", long, requires = "corpus_db")]
     pub replay_corpus_for: Option<Duration>,
 
     /// Time budget calculation type for replay corpus mode.
@@ -283,12 +283,13 @@ mod tests {
         unsafe {
             std::env::set_var("FUZZTEST_JOBS", "4");
             std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
         }
 
         let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
 
         expect_that!(options.jobs, eq(Some(4)));
-        let expected_duration = "10s".parse().expect("valid duration");
+        let expected_duration = "10s".parse().expect("valid duration string");
         expect_that!(
             ExecutionMode::from_fuzztest_options(&options),
             eq(&ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
@@ -302,6 +303,7 @@ mod tests {
         unsafe {
             std::env::remove_var("FUZZTEST_JOBS");
             std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
         }
     }
 
@@ -344,5 +346,71 @@ mod tests {
             .expect("parsing should succeed when both replay_findings and corpus_db are present");
         expect_that!(options.replay_findings, eq(true));
         expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+        }
+
+        let err = result.expect_err("parsing should fail when corpus_db is missing");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_with_corpus_db_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result
+            .expect("parsing should succeed when both replay_corpus_for and corpus_db are present");
+        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.time_budget_type, eq(TimeBudgetType::PerTest));
+    }
+
+    #[gtest]
+    fn test_replay_corpus_for_with_total_time_budget() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_TIME_BUDGET_TYPE", "total");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_TIME_BUDGET_TYPE");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let options = result.expect("parsing should succeed with total time budget type");
+        expect_that!(options.replay_corpus_for, eq(Some("10s".parse().unwrap())));
+        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
     }
 }

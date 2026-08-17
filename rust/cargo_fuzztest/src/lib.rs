@@ -18,7 +18,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 pub use fuzztest_options::{
-    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCrashOptions,
+    ExecutionMode, FuzzFor, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
+    TimeBudgetType,
 };
 use std::env;
 use std::ffi::OsString;
@@ -82,7 +83,9 @@ impl CargoFuzzTestOptions {
                 self.check_centipede_binary_path_is_set()?;
                 mode
             }
-            ExecutionMode::ReplayAllCrashes | ExecutionMode::ReplayCrash(_) => {
+            ExecutionMode::ReplayCorpus(_)
+            | ExecutionMode::ReplayAllCrashes
+            | ExecutionMode::ReplayCrash(_) => {
                 self.check_centipede_binary_path_is_set()?;
                 self.check_corpus_db_is_set()?;
                 mode
@@ -263,11 +266,20 @@ impl FuzztestRunner {
                 cmd.env("FUZZTEST_REPLAY_FINDINGS", "true");
             }
 
+            ExecutionMode::ReplayCorpus(replay_corpus_options) => {
+                cmd.env(
+                    "FUZZTEST_REPLAY_CORPUS_FOR",
+                    replay_corpus_options.replay_corpus_for.to_string(),
+                );
+                let time_budget_str = match replay_corpus_options.time_budget_type {
+                    TimeBudgetType::PerTest => "per-test",
+                    TimeBudgetType::Total => "total",
+                };
+                cmd.env("FUZZTEST_TIME_BUDGET_TYPE", time_budget_str);
+            }
+
             ExecutionMode::SmokeTest => {
                 // nothing to be done
-            }
-            _ => {
-                // TODO(the-shank): add support for other modes.
             }
         }
 
@@ -566,5 +578,113 @@ mod tests {
             envs.get("FUZZTEST_CENTIPEDE_BINARY_PATH").and_then(|v| v.as_deref()),
             Some("/custom/centipede")
         );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_corpus_for_success() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-corpus-for",
+            "10s",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid replay-corpus-for options should parse successfully");
+
+        assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some("10s".parse().unwrap()));
+        assert_eq!(parsed.fuzztest_options.time_budget_type, TimeBudgetType::PerTest);
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: "10s".parse().unwrap(),
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: None,
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_replay_corpus_for_with_time_budget_type() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--replay-corpus-for",
+            "10s",
+            "--time-budget-type",
+            "total",
+            "--corpus-db",
+            "/tmp/corpus_db",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .expect("valid options with time-budget-type should parse successfully");
+
+        assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some("10s".parse().unwrap()));
+        assert_eq!(parsed.fuzztest_options.time_budget_type, TimeBudgetType::Total);
+
+        let mode = parsed.execution_mode().expect("valid execution mode");
+        assert_eq!(
+            mode,
+            ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: "10s".parse().unwrap(),
+                time_budget_type: TimeBudgetType::Total,
+                jobs: None,
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_execution_mode_replay_corpus_missing_centipede_binary_path_errors() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_corpus_for: Some("10s".parse().unwrap()),
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let err =
+            options.execution_mode().expect_err("missing centipede-binary-path should cause error");
+        assert!(err.to_string().contains("`--centipede-binary-path` needs to be specified"));
+    }
+
+    #[gtest]
+    fn test_build_run_command_replay_corpus() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_corpus_for: Some("10s".parse().unwrap()),
+                time_budget_type: TimeBudgetType::Total,
+                corpus_db: Some("/tmp/corpus_db".to_string()),
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(envs.contains(&("FUZZTEST_REPLAY_CORPUS_FOR".to_string(), Some("10s".to_string()))));
+        assert!(
+            envs.contains(&("FUZZTEST_TIME_BUDGET_TYPE".to_string(), Some("total".to_string())))
+        );
+        assert!(
+            envs.contains(&("FUZZTEST_CORPUS_DB".to_string(), Some("/tmp/corpus_db".to_string())))
+        );
+        assert!(envs.contains(&(
+            "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
+            Some("/custom/centipede".to_string())
+        )));
     }
 }
