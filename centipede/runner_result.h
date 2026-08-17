@@ -122,17 +122,6 @@ class BatchResult {
   // When executing N inputs, the runner will call this at most N times.
   static bool WriteOneFeatureVec(const feature_t* vec, size_t size,
                                  BlobSequence& blobseq);
-  // Writes a buffer of 32-bit `features` to `blobseq`.
-  //
-  // This is a temporary API to work with the dispatcher prototype.
-  //
-  // For each 32-bit feature, the bit [31] is ignored; the 4 bits [30-27]
-  // indicate the domain, which are mapped to the Centipede user-defined domain
-  // 0-15; the remaining 27 bits [26-0] represent the actual 27-bit feature ID
-  // in the domain.
-  static bool WriteDispatcher32BitFeatures(const uint32_t* features,
-                                           size_t num_features,
-                                           BlobSequence& blobseq);
   // Writes a special Begin marker before executing an input.
   static bool WriteInputBegin(BlobSequence& blobseq);
   // Writes a special End marker after executing an input.

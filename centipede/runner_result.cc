@@ -37,7 +37,6 @@ enum Tags : Blob::SizeAndTagT {
 
   // Execution result tags.
   kTagFeatures,
-  kTagDispatcher32BitFeatures,
   kTagInputBegin,
   kTagInputEnd,
   kTagStats,
@@ -55,14 +54,6 @@ bool BatchResult::WriteOneFeatureVec(const feature_t *vec, size_t size,
                                      BlobSequence &blobseq) {
   return blobseq.Write({kTagFeatures, size * sizeof(vec[0]),
                         reinterpret_cast<const uint8_t *>(vec)});
-}
-
-bool BatchResult::WriteDispatcher32BitFeatures(const uint32_t *features,
-                                               size_t num_features,
-                                               BlobSequence &blobseq) {
-  return blobseq.Write({kTagDispatcher32BitFeatures,
-                        num_features * sizeof(features[0]),
-                        reinterpret_cast<const uint8_t *>(features)});
 }
 
 bool BatchResult::WriteInputBegin(BlobSequence &blobseq) {
@@ -134,19 +125,6 @@ bool BatchResult::Read(BlobSequence &blobseq) {
       features.resize(features_size);
       std::memcpy(features.data(), blob.data,
                   features_size * sizeof(feature_t));
-    }
-    if (blob.tag == kTagDispatcher32BitFeatures) {
-      if (current_execution_result == nullptr) return false;
-      const size_t size = blob.size / sizeof(uint32_t);
-      std::vector<uint32_t> copied_features;
-      copied_features.resize(size);
-      std::memcpy(copied_features.data(), blob.data, size * sizeof(uint32_t));
-      auto &features = current_execution_result->mutable_features();
-      features.reserve(features.size() + size);
-      for (uint32_t feature : copied_features) {
-        features.push_back((feature & 0x7fffffff) +
-                           feature_domains::kUserDomains[0].begin());
-      }
     }
   }
   num_outputs_read_ = num_ends;

@@ -76,7 +76,7 @@ extern "C" void __lsan_register_root_region(const void* p, size_t size);
 extern "C" void __lsan_unregister_root_region(const void* p, size_t size);
 
 // Wraps an object of `T` stored as a plain byte array with explicit
-// construction/destruction. Needed for runner/dispatcher related global states
+// construction/destruction. Needed for runner related global states
 // that need extended lifetime. (Alternatively we could using dynamic pointers
 // for them, but that would introduce extra pointer check/dereference on every
 // use.)

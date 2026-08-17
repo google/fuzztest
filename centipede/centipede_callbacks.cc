@@ -614,9 +614,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
         ReadFromLocalFile(failure_signature_path_,
                           batch_result.failure_signature());
       } else {
-        // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch
-        // can be removed. Crash deduplication assumes that the failure
-        // signature contains no dashes and that it can be used as a file name.
+        // Crash deduplication assumes that the failure signature contains no
+        // dashes and that it can be used as a file name.
         batch_result.failure_signature() =
             Hash(batch_result.failure_description());
       }

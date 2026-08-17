@@ -66,8 +66,7 @@ inline bool operator==(const Mutant& mutant, const Mutant& other) {
 }
 
 // A reference counterpart of `Mutant`. Needed because it can be constructed
-// from std::string and/or by the C-only dispatcher without copying the
-// underlying data.
+// from std::string without copying the underlying data.
 struct MutantRef {
   MutantRef() = default;
 

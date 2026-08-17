@@ -985,21 +985,6 @@ cc_library(
 )
 
 cc_library(
-    name = "dispatcher",
-    srcs = ["dispatcher.cc"],
-    hdrs = ["dispatcher.h"],
-    deps = [
-        ":execution_metadata",
-        ":mutation_data",
-        ":runner_request",
-        ":runner_result",
-        ":shared_memory_blob_sequence",
-        "@abseil-cpp//absl/base:nullability",
-        "@com_google_fuzztest//common:defs",
-    ],
-)
-
-cc_library(
     name = "engine_worker",
     srcs = [
         "engine_worker.cc",
