@@ -21,8 +21,6 @@
 #ifndef THIRD_PARTY_CENTIPEDE_RUSAGE_STATS_H_
 #define THIRD_PARTY_CENTIPEDE_RUSAGE_STATS_H_
 
-#include <sys/resource.h>
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -49,6 +47,13 @@ using CpuHyperCores = double;
 // scheduler's accounting logic.
 using CpuUtilization = long double;
 
+// Platform dependent process ID type without including platform headers.
+#if defined(_WIN32)
+using ProcessId = unsigned int;
+#else
+using ProcessId = int;
+#endif
+
 //------------------------------------------------------------------------------
 //                               RUsageScope
 //
@@ -59,7 +64,7 @@ class RUsageScope {
   // Static ctors for supported use cases. If the same scope is used repeatedly,
   // callers should prefer caching it, as construction may involve syscalls.
   static RUsageScope ThisProcess();
-  static RUsageScope Process(pid_t pid);
+  static RUsageScope Process(ProcessId pid);
 
   // Copyable and movable.
   RUsageScope(const RUsageScope&) = default;
@@ -83,7 +88,7 @@ class RUsageScope {
   }
 
  private:
-  explicit RUsageScope(pid_t pid);
+  explicit RUsageScope(ProcessId pid);
 
   std::string description_;
   // Use shared_ptr to make the class copyable (without actually copying the
@@ -108,7 +113,8 @@ class ProcessTimer {
 
  private:
   absl::Time start_time_;
-  struct rusage start_rusage_;
+  double usage_user_;
+  double usage_sys_;
 };
 
 //------------------------------------------------------------------------------
