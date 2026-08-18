@@ -24,6 +24,7 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "./fuzztest/internal/domains/domain_base.h"
 #include "./fuzztest/internal/domains/serialization_helpers.h"
@@ -44,10 +45,20 @@ template <typename FlatMapper, typename... InputDomain>
 using FlatMapOutputDomain = std::decay_t<
     std::invoke_result_t<FlatMapper, value_type_t<InputDomain>...>>;
 
-template <typename FlatMapper, typename... InputDomain>
-class FlatMapImpl
+// Base class for FlatMapImpl and ReversibleFlatMapImpl.
+// Meant to be used as:
+// ```c++
+// template <typename FlatMapper, typename... InputDomain>
+// class ConcreteFlatMapImpl
+//     : public FlatMapImplBase<ConcreteFlatMapImpl<FlatMapper, InputDomain...>,
+//                              FlatMapper, InputDomain...> {
+//   ...
+// };
+// ```
+template <typename Derived, typename FlatMapper, typename... InputDomain>
+class FlatMapImplBase
     : public domain_implementor::DomainBase<
-          FlatMapImpl<FlatMapper, InputDomain...>,
+          Derived,
           // The user value is the user value of the output domain.
           value_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
           // The corpus value is a tuple where the first element is the corpus
@@ -57,11 +68,11 @@ class FlatMapImpl
               corpus_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
               corpus_type_t<InputDomain>...>> {
  public:
-  using typename FlatMapImpl::DomainBase::corpus_type;
-  using typename FlatMapImpl::DomainBase::value_type;
+  using typename FlatMapImplBase::DomainBase::corpus_type;
+  using typename FlatMapImplBase::DomainBase::value_type;
 
-  FlatMapImpl() = default;
-  explicit FlatMapImpl(FlatMapper flat_mapper, InputDomain... input_domains)
+  FlatMapImplBase() = default;
+  explicit FlatMapImplBase(FlatMapper flat_mapper, InputDomain... input_domains)
       : flat_mapper_(std::move(flat_mapper)),
         input_domains_(std::move(input_domains)...) {}
 
@@ -108,12 +119,6 @@ class FlatMapImpl
     return GetOutputDomain(v).GetValue(std::get<0>(v));
   }
 
-  std::optional<corpus_type> FromValue(const value_type&) const {
-    // We cannot infer the input corpus from the output value, or even determine
-    // from which output domain the output value came.
-    return std::nullopt;
-  }
-
   auto GetPrinter() const {
     return FlatMappedPrinter<FlatMapper, InputDomain...>{flat_mapper_,
                                                          input_domains_};
@@ -153,7 +158,12 @@ class FlatMapImpl
         .ValidateCorpusValue(std::get<0>(corpus_value));
   }
 
- private:
+ protected:
+  const std::tuple<InputDomain...>& input_domains() const {
+    return input_domains_;
+  }
+  static constexpr size_t kNumInputValues = sizeof...(InputDomain);
+
   // Returns the output domain for a `tuple` with or without the output value
   // as the leading element, and with the input values as the last
   // `kNumInputValues` elements.
@@ -189,16 +199,108 @@ class FlatMapImpl
                 std::get<I>(input_domains_)
                     .ValidateCorpusValue(std::get<kOffset + I>(tuple));
             input_values_validity =
-                Prefix(s, "Invalid value for FlatMap()-ed domain");
+                Prefix(s, absl::StrCat("Invalid value for ", Derived::GetName(),
+                                       "()-ed domain"));
           }(),
           ...);
       return input_values_validity;
     });
   }
 
-  static constexpr size_t kNumInputValues = sizeof...(InputDomain);
+ private:
   FlatMapper flat_mapper_;
   std::tuple<InputDomain...> input_domains_;
+};
+
+template <typename FlatMapper, typename... InputDomain>
+class FlatMapImpl
+    : public FlatMapImplBase<FlatMapImpl<FlatMapper, InputDomain...>,
+                             FlatMapper, InputDomain...> {
+ public:
+  using typename FlatMapImpl::FlatMapImplBase::corpus_type;
+  using typename FlatMapImpl::FlatMapImplBase::value_type;
+
+  using FlatMapImpl::FlatMapImplBase::FlatMapImplBase;
+
+  static constexpr absl::string_view GetName() { return "FlatMap"; }
+
+  std::optional<corpus_type> FromValue(const value_type&) const {
+    // We cannot infer the input corpus from the output value, or even determine
+    // from which output domain the output value came.
+    return std::nullopt;
+  }
+};
+
+// -----------------------------------------------------------------------------
+// ReversibleFlatMap Implementation
+// -----------------------------------------------------------------------------
+
+template <typename FlatMapper, typename InvMapper, typename... InputDomain>
+class ReversibleFlatMapImpl
+    : public FlatMapImplBase<
+          ReversibleFlatMapImpl<FlatMapper, InvMapper, InputDomain...>,
+          FlatMapper, InputDomain...> {
+ public:
+  using typename ReversibleFlatMapImpl::FlatMapImplBase::corpus_type;
+  using typename ReversibleFlatMapImpl::FlatMapImplBase::value_type;
+
+  static_assert(
+      std::is_invocable_v<InvMapper, const value_type&> &&
+          std::is_same_v<
+              std::invoke_result_t<InvMapper, const value_type&>,
+              std::optional<std::tuple<value_type_t<InputDomain>...>>>,
+      "ReversibleFlatMap must have an inverse mapper that takes the output "
+      "value and returns an optional of a tuple of the input values.");
+
+  ReversibleFlatMapImpl() = default;
+  explicit ReversibleFlatMapImpl(FlatMapper flat_mapper, InvMapper inv_mapper,
+                                 InputDomain... input_domains)
+      : ReversibleFlatMapImpl::FlatMapImplBase(std::move(flat_mapper),
+                                               std::move(input_domains)...),
+        inv_mapper_(std::move(inv_mapper)) {}
+
+  static constexpr absl::string_view GetName() { return "ReversibleFlatMap"; }
+
+  std::optional<corpus_type> FromValue(const value_type& v) const {
+    // 1. Recover the input values using the user-provided inverse mapper.
+    auto input_values_opt = std::invoke(inv_mapper_, v);
+    if (!input_values_opt.has_value()) return std::nullopt;
+
+    // 2. Map input values into input corpus values.
+    auto input_corpus_opt =
+        ApplyIndex<ReversibleFlatMapImpl::FlatMapImplBase::kNumInputValues>(
+            [&](auto... I)
+                -> std::optional<std::tuple<corpus_type_t<InputDomain>...>> {
+              auto inner_corpus_vals =
+                  std::tuple{std::get<I>(this->input_domains())
+                                 .FromValue(std::get<I>(*input_values_opt))...};
+              bool has_nullopt =
+                  (!std::get<I>(inner_corpus_vals).has_value() || ...);
+              if (has_nullopt) return std::nullopt;
+              return std::tuple{*std::move(std::get<I>(inner_corpus_vals))...};
+            });
+    if (!input_corpus_opt.has_value()) return std::nullopt;
+
+    if (!this->ValidateInputValues(*input_corpus_opt).ok()) return std::nullopt;
+
+    // 3. Re-instantiate the dynamically generated output domain.
+    auto output_domain = this->GetOutputDomain(*input_corpus_opt);
+
+    // 4. Map the output value into the output corpus value.
+    auto output_corpus_opt = output_domain.FromValue(v);
+    if (!output_corpus_opt.has_value()) return std::nullopt;
+
+    if (!output_domain.ValidateCorpusValue(*output_corpus_opt).ok()) {
+      return std::nullopt;
+    }
+    // 5. Assemble the final corpus tuple (output corpus followed by input
+    // corpus).
+    return std::tuple_cat(std::make_tuple(*std::move(output_corpus_opt)),
+                          *std::move(input_corpus_opt));
+  }
+
+ private:
+  InvMapper inv_mapper_;
 };
 
 }  // namespace fuzztest::internal

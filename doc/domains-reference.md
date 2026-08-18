@@ -674,7 +674,7 @@ return so that `f(g(std::pair{a, b})) == std::pair{a, b}`.
 Note: The [note for `Map`](#map) about aggregate types with nested C-style
 arrays also applies to `ReversibleMap`.
 
-### FlatMap
+### FlatMap {#flat-map}
 
 Sometimes we need to fuzz parameters that are dependent on each other. Think of
 a property function that takes a string, and valid index into that string. This
@@ -722,10 +722,53 @@ Domain<pair<int,int>> AnyPairOfOrderedNumbers() {
 Note: Domains defined using `FlatMap()` don't support
 [initial seeds](fuzz-test-macro.md#initial-seeds). If you need a
 [seeded domain](#seeded-domains)—a domain skewed toward certain values—consider
-seeding the input domains passed to `FlatMap()`.
+seeding the input domains passed to `FlatMap()`. Otherwise, if you need full
+support for seeds, consider using [`ReversibleFlatMap()`](#reversible-flat-map).
 
 Note: The [note for `Map`](#map) about aggregate types with nested C-style
 arrays also applies to `FlatMap`.
+
+### ReversibleFlatMap {#reversible-flat-map}
+
+The `ReversibleFlatMap()` domain combinator is similar to
+[`FlatMap()`](#flat-map) but is able to support
+[initial seeds](fuzz-test-macro.md#initial-seeds). It is strongly suggested that
+readers read the documentation of [`FlatMap()`](#flat-map) first. In the same
+way as `FlatMap()`, `ReversibleFlatMap()` takes as input a domain *factory*
+function, but it takes as second argument a function that would pick any value
+that was generated from that domain and map it back to the original value.
+
+We can revisit the `FlatMap()` example for a vector of *equal sized strings*:
+
+```c++
+auto AnyVectorOfFixedLengthStrings(int size) {
+  return VectorOf(Arbitrary<std::string>().WithSize(size));
+}
+std::optional<std::tuple<int>> SizeOfStringsIfIdentical(
+    const std::vector<std::string>& input) {
+  if (input.empty()) {
+    // Note that we are returning 0, but any value in the original (0, 10) range
+    // would work!
+    return std::tuple<int>(0);
+  }
+  const int size = input[0].size();
+  for (const std::string& s : input) {
+    if (s.size() != size) return std::nullopt;
+  }
+  return std::tuple<int>(size);
+}
+auto AnyVectorOfEqualSizedStrings() {
+  return ReversibleFlatMap(
+          AnyVectorOfFixedLengthStrings,
+          SizeOfStringsIfIdentical,
+          /*size=*/InRange(0, 10));
+}
+```
+
+IMPORTANT: The mapping function `f` and the inverse mapping function `g` must
+satisfy the following property: If `g` maps a value `y` to a tuple of inner
+values `x` (i.e., `g(y)` is not `std::nullopt`), then `y` must be a valid value
+from the domain `f(x)`. That is, `y` is in `f(g(y))`.
 
 ### Filter
 

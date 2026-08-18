@@ -477,5 +477,154 @@ TEST(Filter, InitWithTraversalCtxPropagatesFailureFromInnerDomain) {
               testing::HasSubstr("Traversal budget exceeded"));
 }
 
+TEST(ReversibleFlatMap, WorksWithSameCorpusType) {
+  auto domain = ReversibleFlatMap(
+      [](int a) { return Just(~a); },
+      [](int a) { return std::optional(std::tuple(~a)); }, Arbitrary<int>());
+  absl::BitGen bitgen;
+  Value value(domain, bitgen);
+  // Corpus value is a tuple: (output_corpus, input_corpus...)
+  EXPECT_EQ(value.user_value, ~std::get<1>(value.corpus_value));
+}
+
+TEST(ReversibleFlatMap, AcceptsMultipleInnerDomains) {
+  auto domain = ReversibleFlatMap(
+      [](int len, char c) { return StringOf(Just(c)).WithSize(len); },
+      [](const std::string& s) -> std::optional<std::tuple<int, char>> {
+        if (s.empty()) return std::nullopt;
+        return std::tuple(s.size(), s[0]);
+      },
+      InRange(2, 4), ElementOf({'A', 'B'}));
+
+  absl::BitGen bitgen;
+  Set<std::string> values;
+  while (values.size() < 6) {
+    values.insert(Value(domain, bitgen).user_value);
+  }
+  EXPECT_THAT(values,
+              UnorderedElementsAre("AA", "AAA", "AAAA", "BB", "BBB", "BBBB"));
+}
+
+TEST(ReversibleFlatMap, WorksWithSeeds) {
+  // This is the core feature that standard FlatMap lacks.
+  auto domain =
+      ReversibleFlatMap([](int len) { return AsciiString().WithSize(len); },
+                        [](const std::string& s) {
+                          return std::optional(std::tuple<int>(s.size()));
+                        },
+                        InRange(2, 5))
+          .WithSeeds({"ABC", "WXYZ"});
+
+  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains("ABC"));
+  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains("WXYZ"));
+}
+
+TEST(ReversibleFlatMap, FromValueReturnsNulloptWhenInverseOrConstraintsFail) {
+  auto domain = ReversibleFlatMap(
+      [](int len) { return StringOf(ElementOf({'A', 'B'})).WithSize(len); },
+      [](const std::string& s) -> std::optional<std::tuple<int>> {
+        if (s.empty()) return std::nullopt;
+        return std::tuple(s.size());
+      },
+      InRange(2, 4));
+
+  // inv_mapper itself returns nullopt
+  EXPECT_EQ(domain.FromValue(""), std::nullopt);
+  // inv_mapper succeeds, but `int` 1 is rejected by `InRange(2, 4)`
+  EXPECT_EQ(domain.FromValue("A"), std::nullopt);
+  // inv_mapper succeeds, length is valid, but 'C' is rejected by
+  // `ElementOf({'A', 'B'})`
+  EXPECT_EQ(domain.FromValue("CCC"), std::nullopt);
+}
+
+TEST(ReversibleFlatMap, SerializationRoundTrip) {
+  auto domain =
+      ReversibleFlatMap([](int len) { return AsciiString().WithSize(len); },
+                        [](const std::string& s) {
+                          return std::optional(std::tuple<int>(s.size()));
+                        },
+                        InRange(0, 10));
+  absl::BitGen bitgen;
+  Value value(domain, bitgen);
+  auto serialized = domain.SerializeCorpus(value.corpus_value);
+  EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
+}
+
+TEST(ReversibleFlatMap, ParseCorpusRejectsInvalidInputValues) {
+  absl::BitGen bitgen;
+
+  auto domain_a = ReversibleFlatMap(
+      [](int a) { return Just(a); },
+      [](int a) { return std::optional(std::tuple(a)); }, InRange(0, 9));
+  auto domain_b = ReversibleFlatMap(
+      [](int a) { return Just(a); },
+      [](int a) { return std::optional(std::tuple(a)); }, InRange(10, 19));
+
+  Value value(domain_a, bitgen);
+  auto serialized = domain_a.SerializeCorpus(value.corpus_value);
+
+  // domain_b should fail to parse domain_a's serialized corpus because the
+  // input corpus value (0-9) is out of bounds for domain_b (10-19).
+  EXPECT_EQ(domain_b.ParseCorpus(serialized), std::nullopt);
+}
+
+TEST(ReversibleFlatMap, ValidationRejectsInvalidValue) {
+  absl::BitGen bitgen;
+
+  auto domain_a = ReversibleFlatMap(
+      [](int a) { return Just(~a); },
+      [](int a) { return std::optional(std::tuple(~a)); }, InRange(0, 9));
+  auto domain_b = ReversibleFlatMap(
+      [](int a) { return Just(~a); },
+      [](int a) { return std::optional(std::tuple(~a)); }, InRange(10, 19));
+
+  Value value_a(domain_a, bitgen);
+  Value value_b(domain_b, bitgen);
+
+  ASSERT_OK(domain_a.ValidateCorpusValue(value_a.corpus_value));
+  ASSERT_OK(domain_b.ValidateCorpusValue(value_b.corpus_value));
+
+  EXPECT_THAT(
+      domain_a.ValidateCorpusValue(value_b.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for ReversibleFlatMap\(\)-ed domain >> The value .+ is not InRange\(0, 9\))")));
+  EXPECT_THAT(
+      domain_b.ValidateCorpusValue(value_a.corpus_value),
+      IsInvalid(testing::MatchesRegex(
+          R"(Invalid value for ReversibleFlatMap\(\)-ed domain >> The value .+ is not InRange\(10, 19\))")));
+}
+
+TEST(ReversibleFlatMap, FlatMapperWorksWithMoveOnlyTypes) {
+  auto domain = ReversibleFlatMap(
+      [](std::unique_ptr<int> n) -> Domain<int> {
+        return n == nullptr ? Just(0) : Just(*n);
+      },
+      [](int n) -> std::optional<std::tuple<std::unique_ptr<int>>> {
+        return std::tuple(std::make_unique<int>(n));
+      },
+      UniquePtrOf(Just(1)));
+  EXPECT_THAT(MutateUntilFoundN(domain, /*n=*/2), UnorderedElementsAre(0, 1));
+}
+
+TEST(ReversibleFlatMap, MutationAcceptsShrinkingOutputDomains) {
+  auto domain =
+      ReversibleFlatMap([](int len) { return AsciiString().WithMaxSize(len); },
+                        [](const std::string& s) {
+                          return std::optional(std::tuple<int>(s.size()));
+                        },
+                        InRange(0, 10));
+  absl::BitGen bitgen;
+  std::optional<Value<decltype(domain)>> value;
+  // Generate something shrinkable
+  while (!value.has_value() || value->user_value.empty()) {
+    value = Value(domain, bitgen);
+  }
+  auto mutated = value->corpus_value;
+  while (!domain.GetValue(mutated).empty()) {
+    domain.Mutate(mutated, bitgen, {}, /*only_shrink=*/true);
+  }
+  EXPECT_THAT(domain.GetValue(mutated), IsEmpty());
+}
+
 }  // namespace
 }  // namespace fuzztest

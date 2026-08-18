@@ -832,6 +832,39 @@ auto FlatMap(FlatMapper flat_mapper, Inner... inner) {
                                                      std::move(inner)...);
 }
 
+// ReversibleFlatMap(flat_mapper, inv_mapper, inner...) combinator creates a
+// domain that dynamically generates an output domain based on values from
+// `inner...`, while supporting `.WithSeeds()` via an inverse mapper.
+// Importantly, if `inv_mapper` maps `y` to some tuple `x` (i.e.,
+// `inv_mapper(y)` is not `std::nullopt`), then `y` must be a valid value from
+// the domain `flat_mapper(x)`. That is, `y` is in `flat_mapper(inv_mapper(y))`.
+
+//
+// To ensure this property, `inv_mapper` may need to return `std::nullopt`.
+//
+// Example:
+//   // Generate domain of two equal-sized strings.
+//   ReversibleFlatMap(
+//     [](int size) {
+//       return PairOf(Arbitrary<std::string>().WithSize(size),
+//                     Arbitrary<std::string>().WithSize(size)); },
+//     [](std::pair<std::string, std::string> pair) {
+//       const auto& [s1, s2] = pair;
+//       if (s1.size() != s2.size()) return std::nullopt;
+//       return std::optional(std::tuple<int>(s1.size()));
+//     },
+//     InRange(0, 10));
+//
+// The return type of `inv_mapper` should be `std::optional<std::tuple<T...>>`,
+// where `T...` are the input types of `flat_mapper`.
+template <int&... ExplicitArgumentBarrier, typename FlatMapper,
+          typename InvMapper, typename... Inner>
+auto ReversibleFlatMap(FlatMapper flat_mapper, InvMapper inv_mapper,
+                       Inner... inner) {
+  return internal::ReversibleFlatMapImpl<FlatMapper, InvMapper, Inner...>(
+      std::move(flat_mapper), std::move(inv_mapper), std::move(inner)...);
+}
+
 // VectorOf(inner) combinator creates a `std::vector` domain with elements of
 // the `inner` domain.
 //
