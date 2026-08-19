@@ -135,7 +135,10 @@ SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
   MmapData();
 }
 
-SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *path) {
+SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char* path,
+                                                   size_t size) {
+  ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+  size_ = size;
   // This is a quick way to tell shm-allocated paths from memfd paths without
   // requiring the caller to specify.
   if (strncmp(path, "/proc/", 6) == 0) {
@@ -146,9 +149,6 @@ SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *path) {
   ErrorOnFailure(fd_ < 0, "open() failed");
   strncpy(path_, path, PATH_MAX);
   ErrorOnFailure(path_[PATH_MAX - 1] != 0, "path length exceeds PATH_MAX.");
-  struct stat statbuf = {};
-  ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed");
-  size_ = statbuf.st_size;
   MmapData();
 }
 
