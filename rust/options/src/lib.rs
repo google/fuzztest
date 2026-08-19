@@ -122,6 +122,19 @@ pub struct FuzzTestOptions {
     /// regression, and crashing inputs for each test binary and fuzz test.
     #[arg(env = "FUZZTEST_CORPUS_DB", long, value_parser = parse_corpus_db_path)]
     pub corpus_db: Option<PathBuf>,
+
+    /// Controls the fuzzing and corpus replaying behavior when a crashing input is found.
+    ///
+    /// If set to false (default), the test execution stops upon finding the first crashing input,
+    /// and the test fails. If set to true, the execution logs any crash inputs found and continues
+    /// until reaching the time limit or manually stopped.
+    ///
+    /// Note that this does not affect crash replaying:
+    /// - Replaying a single crash (`--replay-id`) always stops immediately when a crash occurs.
+    /// - Replaying all crashes (`--replay-findings`) always continues replaying all remaining
+    ///   crashing inputs regardless of this flag.
+    #[arg(env = "FUZZTEST_CONTINUE_AFTER_CRASH", long)]
+    pub continue_after_crash: bool,
 }
 
 /// Strongly-typed domain execution mode for test runs.
@@ -172,6 +185,7 @@ impl ExecutionMode {
                 replay_corpus_for,
                 time_budget_type: options.time_budget_type,
                 jobs: options.jobs,
+                continue_after_crash: options.continue_after_crash,
             });
         }
 
@@ -185,7 +199,11 @@ impl ExecutionMode {
 
         // Continuous fuzzing mode is selected if an explicit duration/budget (`fuzz_for`) is specified.
         if let Some(fuzz_for) = &options.fuzz_for {
-            return ExecutionMode::Fuzz(FuzzOptions { fuzz_for: *fuzz_for, jobs: options.jobs });
+            return ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: *fuzz_for,
+                jobs: options.jobs,
+                continue_after_crash: options.continue_after_crash,
+            });
         }
 
         ExecutionMode::SmokeTest
@@ -200,6 +218,8 @@ pub struct FuzzOptions {
     /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
     /// will use its own default value.
     pub jobs: Option<usize>,
+
+    pub continue_after_crash: bool,
 }
 
 /// The duration or limit for fuzzing or replaying corpus.
@@ -251,6 +271,7 @@ pub struct ReplayCorpusOptions {
     /// If `jobs` is `None`, we won't specify the number of jobs while invoking Centipede and it
     /// will use its own default value.
     pub jobs: Option<usize>,
+    pub continue_after_crash: bool,
 }
 
 /// Mode-specific options for listing crash IDs from the database.
@@ -376,6 +397,7 @@ mod tests {
             eq(&ExecutionMode::Fuzz(FuzzOptions {
                 fuzz_for: RunDuration::Fixed(expected_duration),
                 jobs: Some(4),
+                continue_after_crash: false,
             }))
         );
 
@@ -405,6 +427,7 @@ mod tests {
                 replay_corpus_for: expected_duration,
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: Some(4),
+                continue_after_crash: false,
             }))
         );
 
@@ -413,6 +436,63 @@ mod tests {
             std::env::remove_var("FUZZTEST_JOBS");
             std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
             std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+    }
+
+    #[gtest]
+    fn test_continue_after_crash_with_fuzz_for_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
+            std::env::set_var("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+        expect_true!(options.continue_after_crash);
+        let expected_duration = "5s".parse().expect("valid duration");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: RunDuration::Fixed(expected_duration),
+                jobs: None,
+                continue_after_crash: true,
+            }))
+        );
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_FUZZ_FOR");
+            std::env::remove_var("FUZZTEST_CONTINUE_AFTER_CRASH");
+        }
+    }
+
+    #[gtest]
+    fn test_continue_after_crash_with_replay_corpus_parsing_env() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            std::env::set_var("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
+        }
+
+        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+        expect_true!(options.continue_after_crash);
+        let expected_duration = "10s".parse().expect("valid duration string");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: expected_duration,
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: None,
+                continue_after_crash: true,
+            }))
+        );
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+            std::env::remove_var("FUZZTEST_CONTINUE_AFTER_CRASH");
         }
     }
 

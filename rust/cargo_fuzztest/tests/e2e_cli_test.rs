@@ -165,6 +165,7 @@ fn test_cargo_fuzztest_e2e_replay_by_id() {
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg(test_target)
         .arg("--fuzz-for=5s")
+        .arg("--continue-after-crash")
         .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
         .arg("--centipede-binary-path")
         .arg(&centipede_bin)
@@ -248,6 +249,7 @@ fn test_cargo_fuzztest_e2e_replay_all_crashes() {
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg(test_target)
         .arg("--fuzz-for=5s")
+        .arg("--continue-after-crash")
         .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
         .arg("--centipede-binary-path")
         .arg(&centipede_bin)
@@ -412,6 +414,7 @@ fn test_cargo_fuzztest_e2e_list_crash_ids() {
     let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
     cmd.arg(test_target)
         .arg("--fuzz-for=5s")
+        .arg("--continue-after-crash")
         .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
         .arg("--centipede-binary-path")
         .arg(&centipede_bin)
@@ -447,4 +450,30 @@ fn test_cargo_fuzztest_e2e_list_crash_ids() {
     // DISCUSS: We probably should be checking for something more specific, but what would be a
     // good check here?
     expect_true!(!crash_ids.is_empty());
+}
+
+#[gtest]
+fn test_cargo_fuzztest_e2e_continue_after_crash() {
+    let sample_crate_path = get_sample_crate_path("another_sample_fuzz_crate");
+    let test_target = "__fuzztest_mod__crashing_fuzztest_target::crashing_fuzztest_target";
+
+    let temp_target_dir = TempDir::new().expect("Failed to create temporary target directory");
+    let centipede_bin = env::var("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .expect("FUZZTEST_CENTIPEDE_BINARY_PATH needs to be set for the test");
+
+    let mut cmd = setup_cargo_fuzztest_command(&sample_crate_path, temp_target_dir.path());
+    cmd.arg(test_target)
+        .arg("--fuzz-for=3s")
+        .arg("--continue-after-crash")
+        .env_remove("FUZZTEST_CENTIPEDE_BINARY_PATH")
+        .arg("--centipede-binary-path")
+        .arg(&centipede_bin)
+        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true");
+
+    let output = cmd.output().expect("Failed to run cargo-fuzztest with continue-after-crash");
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+
+    expect_true!(output.status.success());
+    expect_true!(stderr_str.contains("Property function ran but crashed."));
+    expect_true!(stderr_str.contains("Crashing bug found!"));
 }

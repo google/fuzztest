@@ -100,6 +100,7 @@ impl CargoFuzzTestOptions {
                             .fuzz_for
                             .unwrap_or(RunDuration::Indefinitely),
                         jobs: self.fuzztest_options.jobs,
+                        continue_after_crash: self.fuzztest_options.continue_after_crash,
                     })
                 } else {
                     mode
@@ -248,10 +249,13 @@ impl FuzztestRunner {
             }
 
             ExecutionMode::Fuzz(fuzz_options) => {
-                let FuzzOptions { fuzz_for, jobs } = fuzz_options;
+                let FuzzOptions { fuzz_for, jobs, continue_after_crash } = fuzz_options;
                 cmd.env("FUZZTEST_FUZZ_FOR", fuzz_for.to_string());
                 if let Some(jobs) = jobs {
                     cmd.env("FUZZTEST_JOBS", jobs.to_string());
+                }
+                if continue_after_crash {
+                    cmd.env("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
                 }
             }
 
@@ -273,6 +277,9 @@ impl FuzztestRunner {
                     TimeBudgetType::Total => "total",
                 };
                 cmd.env("FUZZTEST_TIME_BUDGET_TYPE", time_budget_str);
+                if replay_corpus_options.continue_after_crash {
+                    cmd.env("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
+                }
             }
 
             ExecutionMode::ListCrashIds(list_crash_ids_options) => {
@@ -609,6 +616,7 @@ mod tests {
                 replay_corpus_for: "10s".parse().expect("valid duration string"),
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: None,
+                continue_after_crash: false,
             })
         );
     }
@@ -637,6 +645,7 @@ mod tests {
                 replay_corpus_for: RunDuration::Indefinitely,
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: None,
+                continue_after_crash: false,
             })
         );
     }
@@ -662,6 +671,7 @@ mod tests {
                 replay_corpus_for: RunDuration::Indefinitely,
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: None,
+                continue_after_crash: false,
             })
         );
     }
@@ -691,6 +701,7 @@ mod tests {
                 replay_corpus_for: "10s".parse().unwrap(),
                 time_budget_type: TimeBudgetType::Total,
                 jobs: None,
+                continue_after_crash: false,
             })
         );
     }
@@ -878,5 +889,87 @@ mod tests {
             "FUZZTEST_CENTIPEDE_BINARY_PATH".to_string(),
             Some("/custom/centipede".to_string())
         )));
+    }
+
+    #[gtest]
+    fn test_cli_option_parsing_continue_after_crash_flag() {
+        let parsed = CargoFuzzTestOptions::try_parse_from([
+            "cargo-fuzztest",
+            "--fuzz-for",
+            "5s",
+            "--continue-after-crash",
+            "--centipede-binary-path",
+            "/custom/centipede",
+        ])
+        .unwrap();
+
+        assert!(parsed.fuzztest_options.continue_after_crash);
+        let mode = parsed.execution_mode().unwrap();
+        let expected_duration = "5s".parse().unwrap();
+        assert_eq!(
+            mode,
+            ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: RunDuration::Fixed(expected_duration),
+                jobs: None,
+                continue_after_crash: true,
+            })
+        );
+    }
+
+    #[gtest]
+    fn test_build_run_command_fuzz_with_continue_after_crash() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                fuzz_for: Some("5s".parse().unwrap()),
+                continue_after_crash: true,
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(
+            envs.contains(&("FUZZTEST_CONTINUE_AFTER_CRASH".to_string(), Some("true".to_string())))
+        );
+        assert!(envs.contains(&("FUZZTEST_FUZZ_FOR".to_string(), Some("5s".to_string()))));
+    }
+
+    #[gtest]
+    fn test_build_run_command_replay_corpus_with_continue_after_crash() {
+        let options = CargoFuzzTestOptions {
+            fuzztest_options: FuzzTestOptions {
+                replay_corpus_for: Some("10s".parse().expect("valid duration")),
+                corpus_db: Some("/tmp/corpus_db".into()),
+                continue_after_crash: true,
+                ..Default::default()
+            },
+            centipede_binary_path: Some("/custom/centipede".to_string()),
+            ..Default::default()
+        };
+        let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+        let cmd =
+            runner.build_run_command(Path::new("/tmp/test_bin")).expect("should build run command");
+
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| {
+                (k.to_string_lossy().to_string(), v.map(|s| s.to_string_lossy().to_string()))
+            })
+            .collect();
+
+        assert!(
+            envs.contains(&("FUZZTEST_CONTINUE_AFTER_CRASH".to_string(), Some("true".to_string())))
+        );
+        assert!(envs.contains(&("FUZZTEST_REPLAY_CORPUS_FOR".to_string(), Some("10s".to_string()))));
     }
 }

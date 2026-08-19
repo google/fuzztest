@@ -95,9 +95,36 @@ fn standalone_mode_handles_worker_crash(fixture: &EnvVars) {
     let output = process.wait_with_output().expect("Should terminate");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
+    // By default continue_after_crash is false, so finding a crash causes test failure.
+    expect_false!(output.status.success());
     expect_that!(stderr, matchers::contains_substring("Property function ran but crashed."));
     expect_that!(stderr, matchers::contains_regex("Signature[ \t]*: Unwinding panic"));
     // Centipede prefixes logs from the crashing worker with "CRASH LOG: ".
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
+}
+
+#[gtest]
+fn standalone_mode_continues_after_crash_when_enabled(fixture: &EnvVars) {
+    let test_name = "__fuzztest_mod__find_bug_fuzz_test::find_bug_fuzz_test";
+
+    let process = Command::new(&fixture.target_binary_path)
+        .arg(test_name)
+        .env("FUZZTEST_FUZZ_FOR", "15s")
+        .env("FUZZTEST_CONTINUE_AFTER_CRASH", "true")
+        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
+        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
+        .env("RUST_TEST_NOCAPTURE", "1")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn binary");
+
+    let output = process.wait_with_output().expect("Should terminate");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // With continue_after_crash=true, the fuzz test runs for the full time limit and exits cleanly.
+    expect_true!(output.status.success());
+    expect_that!(stderr, matchers::contains_substring("Property function ran but crashed."));
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
 }
 

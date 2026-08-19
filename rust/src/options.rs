@@ -229,6 +229,9 @@ impl CentipedeArgs {
                 if let Some(jobs) = &fuzz_opts.jobs {
                     add_arg(format!("--j={jobs}"))?;
                 }
+                if !fuzz_opts.continue_after_crash {
+                    add_arg("--exit_on_crash".to_string())?;
+                }
             }
             ExecutionMode::ReplayCrash(replay_opts) => {
                 add_arg("--replay_crash".to_string())?;
@@ -269,6 +272,9 @@ impl CentipedeArgs {
                 }
                 if let Some(jobs) = &replay_corpus_opts.jobs {
                     add_arg(format!("--j={jobs}"))?;
+                }
+                if !replay_corpus_opts.continue_after_crash {
+                    add_arg("--exit_on_crash".to_string())?;
                 }
             }
             ExecutionMode::ListCrashIds(list_opts) => {
@@ -875,5 +881,67 @@ mod tests {
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
         expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_fuzz_continue_after_crash_false() {
+        let options = FuzzTestOptions {
+            fuzz_for: Some("5s".parse().unwrap()),
+            continue_after_crash: false,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_true!(args_str.contains(&"--exit_on_crash"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_fuzz_continue_after_crash_true() {
+        let options = FuzzTestOptions {
+            fuzz_for: Some("5s".parse().unwrap()),
+            continue_after_crash: true,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_false!(args_str.contains(&"--exit_on_crash"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_replay_corpus_continue_after_crash_false() {
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some("5s".parse().unwrap()),
+            continue_after_crash: false,
+            corpus_db: Some("/tmp/corpus_db".into()),
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_true!(args_str.contains(&"--exit_on_crash"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_replay_corpus_continue_after_crash_true() {
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some("5s".parse().unwrap()),
+            continue_after_crash: true,
+            corpus_db: Some("/tmp/corpus_db".into()),
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_false!(args_str.contains(&"--exit_on_crash"));
     }
 }

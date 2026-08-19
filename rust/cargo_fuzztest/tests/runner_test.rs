@@ -33,7 +33,7 @@ fn test_runner_build_run_command_with_target() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let args: Vec<String> = cmd.get_args().map(|s| s.to_string_lossy().to_string()).collect();
@@ -52,7 +52,7 @@ fn test_runner_build_run_command_with_duration() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -72,7 +72,7 @@ fn test_runner_build_run_command_with_indefinitely() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -89,7 +89,7 @@ fn test_runner_build_run_command_with_centipede_binary_path() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -115,7 +115,7 @@ fn test_runner_build_run_command_with_jobs() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -131,7 +131,7 @@ fn test_runner_build_run_command_with_jobs_only() {
     let binary_path = get_sample_test_bin_path("sample_fuzz_crate");
     let fuzztest_options = FuzzTestOptions { jobs: Some(4), ..Default::default() };
     let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -155,7 +155,7 @@ fn test_runner_build_run_command_with_replay_id() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -217,7 +217,7 @@ fn test_runner_build_run_command_with_replay_findings() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -263,7 +263,7 @@ fn test_runner_build_run_command_with_replay_corpus() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -300,7 +300,7 @@ fn test_runner_build_run_command_with_replay_corpus_indefinitely() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
@@ -367,7 +367,7 @@ fn test_runner_build_run_command_with_list_crash_ids() {
         centipede_binary_path: Some("/custom/path/to/centipede".to_string()),
         ..Default::default()
     };
-    let runner = FuzztestRunner::new("x86_64-unknown-linux-gnu".to_string(), options);
+    let runner = FuzztestRunner::new("sample-host-triple".to_string(), options);
     let cmd = runner.build_run_command(&binary_path).expect("valid run command");
 
     let envs: Vec<(String, Option<String>)> = cmd
