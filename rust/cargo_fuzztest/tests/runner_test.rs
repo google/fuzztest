@@ -147,7 +147,7 @@ fn test_runner_build_run_command_with_replay_id() {
     let binary_path = get_sample_test_bin_path("sample_fuzz_crate");
     let fuzztest_options = FuzzTestOptions {
         replay_id: Some("crash_12345".to_string()),
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions {
@@ -194,7 +194,7 @@ fn test_execution_mode_replay_id_missing_corpus_db_errors() {
 fn test_execution_mode_replay_id_missing_centipede_binary_path_errors() {
     let fuzztest_options = FuzzTestOptions {
         replay_id: Some("crash_12345".to_string()),
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };
@@ -209,7 +209,7 @@ fn test_runner_build_run_command_with_replay_findings() {
     let binary_path = get_sample_test_bin_path("sample_fuzz_crate");
     let fuzztest_options = FuzzTestOptions {
         replay_findings: true,
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions {
@@ -239,7 +239,7 @@ fn test_runner_build_run_command_with_replay_findings() {
 fn test_execution_mode_replay_findings_missing_centipede_binary_path_errors() {
     let fuzztest_options = FuzzTestOptions {
         replay_findings: true,
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };
@@ -255,7 +255,7 @@ fn test_runner_build_run_command_with_replay_corpus() {
     let fuzztest_options = FuzzTestOptions {
         replay_corpus_for: Some("10s".parse().expect("valid duration")),
         time_budget_type: TimeBudgetType::Total,
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions {
@@ -292,7 +292,7 @@ fn test_runner_build_run_command_with_replay_corpus_indefinitely() {
     let fuzztest_options = FuzzTestOptions {
         replay_corpus_for: Some(RunDuration::Indefinitely),
         time_budget_type: TimeBudgetType::Total,
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions {
@@ -327,7 +327,7 @@ fn test_runner_build_run_command_with_replay_corpus_indefinitely() {
 fn test_execution_mode_replay_corpus_missing_centipede_binary_path_errors() {
     let fuzztest_options = FuzzTestOptions {
         replay_corpus_for: Some("10s".parse().expect("valid duration")),
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };
@@ -359,7 +359,7 @@ fn test_runner_build_run_command_with_list_crash_ids() {
     let fuzztest_options = FuzzTestOptions {
         list_crash_ids: true,
         list_crash_ids_file: Some("/custom/path/to/crash_ids.txt".to_string()),
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions {
@@ -412,7 +412,7 @@ fn test_execution_mode_list_crash_ids_missing_centipede_binary_path_errors() {
     let fuzztest_options = FuzzTestOptions {
         list_crash_ids: true,
         list_crash_ids_file: Some("/custom/path/to/crash_ids.txt".to_string()),
-        corpus_db: Some("/custom/path/to/corpus_db".to_string()),
+        corpus_db: Some("/custom/path/to/corpus_db".into()),
         ..Default::default()
     };
     let options = CargoFuzzTestOptions { fuzztest_options, ..Default::default() };

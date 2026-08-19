@@ -447,7 +447,7 @@ mod tests {
         .expect("valid replay options should parse successfully");
 
         assert_eq!(parsed.fuzztest_options.replay_id.as_deref(), Some("crash_12345"));
-        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some(Path::new("/tmp/corpus_db")));
 
         let mode = parsed.execution_mode().expect("valid execution mode");
         assert_eq!(
@@ -475,7 +475,7 @@ mod tests {
         let options = CargoFuzzTestOptions {
             fuzztest_options: FuzzTestOptions {
                 replay_id: Some("crash_12345".to_string()),
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             ..Default::default()
@@ -490,7 +490,7 @@ mod tests {
         let options = CargoFuzzTestOptions {
             fuzztest_options: FuzzTestOptions {
                 replay_id: Some("crash_12345".to_string()),
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             centipede_binary_path: Some("/custom/centipede".to_string()),
@@ -531,7 +531,7 @@ mod tests {
         .expect("valid replay-findings options should parse successfully");
 
         assert!(parsed.fuzztest_options.replay_findings);
-        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some(Path::new("/tmp/corpus_db")));
 
         let mode = parsed.execution_mode().expect("valid execution mode");
         assert_eq!(mode, ExecutionMode::ReplayAllCrashes);
@@ -542,7 +542,7 @@ mod tests {
         let options = CargoFuzzTestOptions {
             fuzztest_options: FuzzTestOptions {
                 replay_findings: true,
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             ..Default::default()
@@ -557,7 +557,7 @@ mod tests {
         let options = CargoFuzzTestOptions {
             fuzztest_options: FuzzTestOptions {
                 replay_findings: true,
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             centipede_binary_path: Some("/custom/centipede".to_string()),
@@ -600,7 +600,7 @@ mod tests {
 
         assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some("10s".parse().unwrap()));
         assert_eq!(parsed.fuzztest_options.time_budget_type, TimeBudgetType::PerTest);
-        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some(Path::new("/tmp/corpus_db")));
 
         let mode = parsed.execution_mode().expect("valid execution mode");
         assert_eq!(
@@ -628,7 +628,7 @@ mod tests {
 
         assert_eq!(parsed.fuzztest_options.replay_corpus_for, Some(RunDuration::Indefinitely));
         assert_eq!(parsed.fuzztest_options.time_budget_type, TimeBudgetType::PerTest);
-        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some(Path::new("/tmp/corpus_db")));
 
         let mode = parsed.execution_mode().expect("valid execution mode");
         assert_eq!(
@@ -700,7 +700,7 @@ mod tests {
         let options = CargoFuzzTestOptions {
             fuzztest_options: FuzzTestOptions {
                 replay_corpus_for: Some("10s".parse().unwrap()),
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             ..Default::default()
@@ -716,7 +716,7 @@ mod tests {
             fuzztest_options: FuzzTestOptions {
                 replay_corpus_for: Some("10s".parse().unwrap()),
                 time_budget_type: TimeBudgetType::Total,
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             centipede_binary_path: Some("/custom/centipede".to_string()),
@@ -765,7 +765,7 @@ mod tests {
             parsed.fuzztest_options.list_crash_ids_file.as_deref(),
             Some("/tmp/crashes.txt")
         );
-        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some("/tmp/corpus_db"));
+        assert_eq!(parsed.fuzztest_options.corpus_db.as_deref(), Some(Path::new("/tmp/corpus_db")));
 
         let mode = parsed.execution_mode().expect("valid execution mode");
         assert_eq!(
@@ -797,7 +797,7 @@ mod tests {
             fuzztest_options: FuzzTestOptions {
                 list_crash_ids: true,
                 list_crash_ids_file: Some("/tmp/crashes.txt".to_string()),
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             ..Default::default()
@@ -813,7 +813,7 @@ mod tests {
             fuzztest_options: FuzzTestOptions {
                 list_crash_ids: true,
                 list_crash_ids_file: Some("/tmp/crashes.txt".to_string()),
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             centipede_binary_path: Some("/custom/centipede".to_string()),
@@ -850,7 +850,7 @@ mod tests {
             fuzztest_options: FuzzTestOptions {
                 replay_corpus_for: Some(RunDuration::Indefinitely),
                 time_budget_type: TimeBudgetType::Total,
-                corpus_db: Some("/tmp/corpus_db".to_string()),
+                corpus_db: Some("/tmp/corpus_db".into()),
                 ..Default::default()
             },
             centipede_binary_path: Some("/custom/centipede".to_string()),

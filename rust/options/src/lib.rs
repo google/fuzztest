@@ -20,10 +20,30 @@
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
+use std::env;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+/// If a relative path is provided while executing inside a Bazel/Blaze test sandbox
+/// (detected via the `TEST_SRCDIR` environment variable), the path is automatically
+/// resolved relative to the runfiles root directory.
+fn parse_corpus_db_path(raw: &str) -> Result<PathBuf, String> {
+    if raw.is_empty() {
+        return Err("corpus_db path cannot be empty".to_string());
+    }
+
+    let path = PathBuf::from(raw);
+    if path.is_absolute() {
+        Ok(path)
+    } else if let Ok(test_src_dir) = env::var("TEST_SRCDIR") {
+        Ok(Path::new(&test_src_dir).join(path))
+    } else {
+        Ok(path)
+    }
+}
 
 /// Time budget calculation type for replay corpus mode.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -100,8 +120,8 @@ pub struct FuzzTestOptions {
     ///
     /// If set to non-empty, updates/queries the corpus database that contains coverage,
     /// regression, and crashing inputs for each test binary and fuzz test.
-    #[arg(env = "FUZZTEST_CORPUS_DB", long)]
-    pub corpus_db: Option<String>,
+    #[arg(env = "FUZZTEST_CORPUS_DB", long, value_parser = parse_corpus_db_path)]
+    pub corpus_db: Option<PathBuf>,
 }
 
 /// Strongly-typed domain execution mode for test runs.
@@ -316,7 +336,7 @@ mod tests {
         let options =
             result.expect("parsing should succeed when both replay_id and corpus_db are present");
         expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
@@ -419,8 +439,8 @@ mod tests {
     fn test_replay_findings_with_corpus_db_succeeds() {
         // SAFETY: Testing environment parsing in single-threaded context.
         unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
+            env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
         }
 
         let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
@@ -434,7 +454,7 @@ mod tests {
         let options = result
             .expect("parsing should succeed when both replay_findings and corpus_db are present");
         expect_that!(options.replay_findings, eq(true));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
@@ -478,7 +498,7 @@ mod tests {
             options.replay_corpus_for,
             eq(Some("10s".parse().expect("valid duration string")))
         );
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::PerTest));
     }
 
@@ -502,7 +522,7 @@ mod tests {
             "parsing should succeed when replay_corpus_for is inf and corpus_db is present",
         );
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
@@ -525,7 +545,7 @@ mod tests {
             "parsing should succeed when replay_corpus_for is infinity and corpus_db is present",
         );
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
@@ -551,7 +571,7 @@ mod tests {
             options.replay_corpus_for,
             eq(Some("10s".parse().expect("valid duration string")))
         );
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
     }
 
@@ -575,7 +595,7 @@ mod tests {
 
         let options = result.expect("parsing should succeed with total time budget type and inf");
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
     }
 
@@ -665,7 +685,7 @@ mod tests {
         );
         expect_that!(options.list_crash_ids, eq(true));
         expect_that!(options.list_crash_ids_file.as_deref(), eq(Some("/tmp/crashes.txt")));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
 
         let mode = ExecutionMode::from_fuzztest_options(&options);
         expect_that!(

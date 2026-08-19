@@ -340,11 +340,19 @@ fn get_corpusdb_and_workdir_root_and_workdir(
 
     if let Some(corpus_db) = corpus_db {
         if let Some(workdir_root) = workdir_root {
-            Ok((Some(corpus_db), Some(workdir_root), None))
+            Ok((
+                Some(corpus_db.to_str().context("converting corpus_db to str")?),
+                Some(workdir_root),
+                None,
+            ))
         } else {
             let temp_dir =
                 TempDir::new().context("while attempting to create temporary working directory")?;
-            Ok((Some(corpus_db), None, Some(temp_dir)))
+            Ok((
+                Some(corpus_db.to_str().context("converting corpus_db to str")?),
+                None,
+                Some(temp_dir),
+            ))
         }
     } else {
         if workdir_root.is_some() {
@@ -549,7 +557,7 @@ mod tests {
     fn test_determine_execution_action_replay_crash_id() {
         let options = FuzzTestOptions {
             replay_id: Some("my_crash_123".to_string()),
-            corpus_db: Some("/tmp/corpus_db".to_string()),
+            corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
@@ -572,7 +580,7 @@ mod tests {
     fn test_determine_execution_action_replay_findings() {
         let options = FuzzTestOptions {
             replay_findings: true,
-            corpus_db: Some("/tmp/corpus_db".to_string()),
+            corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
@@ -730,7 +738,7 @@ mod tests {
     #[gtest]
     fn test_get_corpusdb_and_workdir_succeeds_with_corpusdb_and_workdir_root() -> Result<()> {
         let options = FuzzTestOptions {
-            corpus_db: Some("/tmp/db".to_string()),
+            corpus_db: Some("/tmp/db".into()),
             workdir_root: Some("/tmp/root".to_string()),
             ..Default::default()
         };
@@ -744,8 +752,7 @@ mod tests {
 
     #[gtest]
     fn test_get_corpusdb_and_workdir_succeeds_with_corpusdb_only() -> Result<()> {
-        let options =
-            FuzzTestOptions { corpus_db: Some("/tmp/db".to_string()), ..Default::default() };
+        let options = FuzzTestOptions { corpus_db: Some("/tmp/db".into()), ..Default::default() };
         let (corpus_db, workdir_root, workdir) =
             get_corpusdb_and_workdir_root_and_workdir(&options).or_fail()?;
         expect_that!(corpus_db, eq(Some("/tmp/db")));
@@ -792,7 +799,7 @@ mod tests {
         let options =
             result.expect("parsing should succeed when both replay_id and corpus_db are present");
         expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
-        expect_that!(options.corpus_db.as_deref(), eq(Some("/tmp/corpus_db")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
@@ -826,7 +833,7 @@ mod tests {
         let duration = "1s".parse().expect("fixed test string should parse as duration");
         let options = FuzzTestOptions {
             fuzz_for: Some(duration),
-            corpus_db: Some("/tmp/corpus_db".to_string()),
+            corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
@@ -851,7 +858,7 @@ mod tests {
         let options = FuzzTestOptions {
             list_crash_ids: true,
             list_crash_ids_file: Some("/tmp/custom_crashes.txt".to_string()),
-            corpus_db: Some("/tmp/corpus_db".to_string()),
+            corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
