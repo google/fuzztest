@@ -232,6 +232,9 @@ impl CentipedeArgs {
                 if !fuzz_opts.continue_after_crash {
                     add_arg("--exit_on_crash".to_string())?;
                 }
+                if let Some(execution_id) = &fuzz_opts.execution_id {
+                    add_arg(format!("--fuzztest_execution_id={execution_id}"))?;
+                }
             }
             ExecutionMode::ReplayCrash(replay_opts) => {
                 add_arg("--replay_crash".to_string())?;
@@ -275,6 +278,9 @@ impl CentipedeArgs {
                 }
                 if !replay_corpus_opts.continue_after_crash {
                     add_arg("--exit_on_crash".to_string())?;
+                }
+                if let Some(execution_id) = &replay_corpus_opts.execution_id {
+                    add_arg(format!("--fuzztest_execution_id={execution_id}"))?;
                 }
             }
             ExecutionMode::ListCrashIds(list_opts) => {
@@ -943,5 +949,53 @@ mod tests {
         };
         let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
         expect_false!(args_str.contains(&"--exit_on_crash"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_fuzz_with_execution_id() {
+        let options = FuzzTestOptions {
+            fuzz_for: Some("5s".parse().unwrap()),
+            corpus_db: Some("/tmp/corpus_db".into()),
+            execution_id: Some("my_exec_123".to_string()),
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_true!(args_str.contains(&"--fuzztest_execution_id=my_exec_123"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_replay_corpus_with_execution_id() {
+        let options = FuzzTestOptions {
+            replay_corpus_for: Some("5s".parse().unwrap()),
+            corpus_db: Some("/tmp/corpus_db".into()),
+            execution_id: Some("my_exec_456".to_string()),
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_true!(args_str.contains(&"--fuzztest_execution_id=my_exec_456"));
+    }
+
+    #[gtest]
+    fn test_determine_execution_action_fuzz_without_execution_id() {
+        let options = FuzzTestOptions {
+            fuzz_for: Some("5s".parse().unwrap()),
+            corpus_db: Some("/tmp/corpus_db".into()),
+            execution_id: None,
+            ..Default::default()
+        };
+        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+        let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
+        expect_false!(args_str.iter().any(|s| s.starts_with("--fuzztest_execution_id=")));
     }
 }

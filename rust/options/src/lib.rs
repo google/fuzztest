@@ -135,6 +135,13 @@ pub struct FuzzTestOptions {
     ///   crashing inputs regardless of this flag.
     #[arg(env = "FUZZTEST_CONTINUE_AFTER_CRASH", long)]
     pub continue_after_crash: bool,
+
+    /// The execution identifier for the fuzz test run.
+    ///
+    /// When specified with `corpus_db`, allows resuming interrupted fuzzing or corpus replay
+    /// sessions, or skipping tests that already finished with the same execution ID.
+    #[arg(env = "FUZZTEST_EXECUTION_ID", long, requires = "corpus_db")]
+    pub execution_id: Option<String>,
 }
 
 /// Strongly-typed domain execution mode for test runs.
@@ -186,6 +193,7 @@ impl ExecutionMode {
                 time_budget_type: options.time_budget_type,
                 jobs: options.jobs,
                 continue_after_crash: options.continue_after_crash,
+                execution_id: options.execution_id.clone(),
             });
         }
 
@@ -203,6 +211,7 @@ impl ExecutionMode {
                 fuzz_for: *fuzz_for,
                 jobs: options.jobs,
                 continue_after_crash: options.continue_after_crash,
+                execution_id: options.execution_id.clone(),
             });
         }
 
@@ -220,6 +229,8 @@ pub struct FuzzOptions {
     pub jobs: Option<usize>,
 
     pub continue_after_crash: bool,
+
+    pub execution_id: Option<String>,
 }
 
 /// The duration or limit for fuzzing or replaying corpus.
@@ -272,6 +283,7 @@ pub struct ReplayCorpusOptions {
     /// will use its own default value.
     pub jobs: Option<usize>,
     pub continue_after_crash: bool,
+    pub execution_id: Option<String>,
 }
 
 /// Mode-specific options for listing crash IDs from the database.
@@ -398,6 +410,7 @@ mod tests {
                 fuzz_for: RunDuration::Fixed(expected_duration),
                 jobs: Some(4),
                 continue_after_crash: false,
+                execution_id: None,
             }))
         );
 
@@ -428,6 +441,7 @@ mod tests {
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: Some(4),
                 continue_after_crash: false,
+                execution_id: None,
             }))
         );
 
@@ -456,6 +470,7 @@ mod tests {
                 fuzz_for: RunDuration::Fixed(expected_duration),
                 jobs: None,
                 continue_after_crash: true,
+                execution_id: None,
             }))
         );
 
@@ -485,6 +500,7 @@ mod tests {
                 time_budget_type: TimeBudgetType::PerTest,
                 jobs: None,
                 continue_after_crash: true,
+                execution_id: None,
             }))
         );
 
@@ -772,6 +788,99 @@ mod tests {
             mode,
             eq(&ExecutionMode::ListCrashIds(ListCrashIdsOptions {
                 list_crash_ids_file: "/tmp/crashes.txt".to_string()
+            }))
+        );
+    }
+
+    #[gtest]
+    fn test_execution_id_requires_corpus_db() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_EXECUTION_ID");
+        }
+
+        let err =
+            result.expect_err("parsing should fail when corpus_db is missing for execution_id");
+        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
+    }
+
+    #[gtest]
+    fn test_execution_id_with_corpus_db_and_fuzz_for_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_EXECUTION_ID");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+            std::env::remove_var("FUZZTEST_FUZZ_FOR");
+        }
+
+        let options = result.expect(
+            "parsing should succeed when execution_id, corpus_db, and fuzz_for are present",
+        );
+        expect_that!(options.execution_id.as_deref(), eq(Some("exec_123")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
+
+        let expected_duration = "5s".parse().expect("valid duration");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::Fuzz(FuzzOptions {
+                fuzz_for: RunDuration::Fixed(expected_duration),
+                jobs: None,
+                continue_after_crash: false,
+                execution_id: Some("exec_123".to_string()),
+            }))
+        );
+    }
+
+    #[gtest]
+    fn test_execution_id_with_corpus_db_and_replay_corpus_succeeds() {
+        // SAFETY: Testing environment parsing in single-threaded context.
+        unsafe {
+            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
+            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+        }
+
+        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
+
+        // SAFETY: Cleaning up environment variables.
+        unsafe {
+            std::env::remove_var("FUZZTEST_EXECUTION_ID");
+            std::env::remove_var("FUZZTEST_CORPUS_DB");
+            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
+        }
+
+        let options = result.expect(
+            "parsing should succeed when execution_id, corpus_db, and replay_corpus_for are present",
+        );
+        expect_that!(options.execution_id.as_deref(), eq(Some("exec_123")));
+        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
+
+        let expected_duration = "10s".parse().expect("valid duration string");
+        expect_that!(
+            ExecutionMode::from_fuzztest_options(&options),
+            eq(&ExecutionMode::ReplayCorpus(ReplayCorpusOptions {
+                replay_corpus_for: expected_duration,
+                time_budget_type: TimeBudgetType::PerTest,
+                jobs: None,
+                continue_after_crash: false,
+                execution_id: Some("exec_123".to_string()),
             }))
         );
     }
