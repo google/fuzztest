@@ -1085,16 +1085,19 @@ class CentipedeCallbacksForRunnerFlagsExtraction
 }  // namespace
 
 extern "C" const char* CentipedeGetRunnerFlags() {
-  if (const char* runner_flags_env = std::getenv("CENTIPEDE_RUNNER_FLAGS")) {
-    // Runner mode. Use the existing flags.
-    return strdup(runner_flags_env);
-  }
+  static const char* flags = []() -> const char* {
+    if (const char* runner_flags_env = std::getenv("CENTIPEDE_RUNNER_FLAGS")) {
+      // Runner mode. Use the existing flags.
+      return strdup(runner_flags_env);
+    }
 
-  // Set the runner flags according to the FuzzTest default environment.
-  const auto env = fuzztest::internal::CreateDefaultCentipedeEnvironment();
-  CentipedeCallbacksForRunnerFlagsExtraction callbacks(
-      env, fuzztest::internal::global_stop_condition);
-  const std::string runner_flags = callbacks.GetRunnerFlagsContent();
-  ABSL_VLOG(1) << "[.] Centipede runner flags: " << runner_flags;
-  return strdup(runner_flags.c_str());
+    // Set the runner flags according to the FuzzTest default environment.
+    const auto env = fuzztest::internal::CreateDefaultCentipedeEnvironment();
+    CentipedeCallbacksForRunnerFlagsExtraction callbacks(
+        env, fuzztest::internal::global_stop_condition);
+    const char* flags = strdup(callbacks.GetRunnerFlagsContent().c_str());
+    FUZZTEST_VLOG(1) << "[.] Centipede runner flags: " << flags;
+    return flags;
+  }();
+  return flags;
 }

@@ -80,7 +80,8 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input);
 // gets the flags from CENTIPEDE_RUNNER_FLAGS env var.
 //
 // It should return either a nullptr or a constant string that is valid
-// throughout the entire process life-time.
+// throughout the entire process life-time. Multiple calls should always return
+// the same value.
 extern "C" const char* absl_nullable CentipedeGetRunnerFlags();
 
 // An overridable function to override `LLVMFuzzerMutate` behavior.

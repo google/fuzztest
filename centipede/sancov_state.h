@@ -31,7 +31,6 @@
 #include "./centipede/callstack.h"
 #include "./centipede/concurrent_bitset.h"
 #include "./centipede/concurrent_byteset.h"
-#include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/hashed_ring_buffer.h"
@@ -42,7 +41,7 @@
 #include "./centipede/sancov_object_array.h"
 #include "./centipede/sancov_runtime.h"
 
-extern "C" const char *absl_nullable GetSancovFlags();
+extern "C" const char* absl_nullable GetSancovFlags();
 
 namespace fuzztest::internal {
 
@@ -150,27 +149,27 @@ struct SancovState {
   SancovState();
   ~SancovState();
 
-  DispatcherFlagHelper flag_helper = DispatcherFlagHelper(GetSancovFlags());
+  EngineFlagHelper flag_helper = EngineFlagHelper(GetSancovFlags());
 
   // TODO(xinhaoyuan): Change to use meaningful flag names instead of the
   // generic names arg1/2/3.
-  const char *arg1 = flag_helper.GetStringFlag(":arg1=");
-  const char *arg2 = flag_helper.GetStringFlag(":arg2=");
-  const char *arg3 = flag_helper.GetStringFlag(":arg3=");
+  const char* arg1 = flag_helper.GetStringFlag("arg1=");
+  const char* arg2 = flag_helper.GetStringFlag("arg2=");
+  const char* arg3 = flag_helper.GetStringFlag("arg3=");
 
   SancovFlags flags = {
       /*path_level=*/std::min(ThreadLocalSancovState::kBoundedPathLength,
-                              flag_helper.HasIntFlag(":path_level=", 0)),
-      /*use_pc_features=*/flag_helper.HasFlag(":use_pc_features:"),
+                              flag_helper.GetIntFlag("path_level=", 0)),
+      /*use_pc_features=*/flag_helper.HasSwitchFlag("use_pc_features"),
       /*use_dataflow_features=*/
-      flag_helper.HasFlag(":use_dataflow_features:"),
-      /*use_cmp_features=*/flag_helper.HasFlag(":use_cmp_features:"),
-      /*callstack_level=*/flag_helper.HasIntFlag(":callstack_level=", 0),
+      flag_helper.HasSwitchFlag("use_dataflow_features"),
+      /*use_cmp_features=*/flag_helper.HasSwitchFlag("use_cmp_features"),
+      /*callstack_level=*/flag_helper.GetIntFlag("callstack_level=", 0),
       /*use_counter_features=*/
-      flag_helper.HasFlag(":use_counter_features:"),
+      flag_helper.HasSwitchFlag("use_counter_features"),
       /*use_auto_dictionary=*/
-      flag_helper.HasFlag(":use_auto_dictionary:"),
-      /*skip_seen_features=*/flag_helper.HasFlag(":skip_seen_features:"),
+      flag_helper.HasSwitchFlag("use_auto_dictionary"),
+      /*skip_seen_features=*/flag_helper.HasSwitchFlag("skip_seen_features"),
   };
 
   // Computed by DlInfo().
