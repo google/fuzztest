@@ -23,7 +23,6 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/feature.h"
 #include "./centipede/int_utils.h"
 #include "./centipede/pc_info.h"
@@ -356,7 +355,7 @@ static void UpdatePcCounterSetSizeAligned(size_t size) {
 static pthread_once_t main_object_lazy_init_once = PTHREAD_ONCE_INIT;
 static void MainObjectLazyInitOnceCallback() {
   sancov_state->main_object = fuzztest::internal::GetDlInfo(
-      sancov_state->flag_helper.GetStringFlag(":dl_path_suffix="));
+      sancov_state->flag_helper.GetStringFlag("dl_path_suffix="));
   fprintf(stderr, "MainObjectLazyInitOnceCallback %zx\n",
           sancov_state->main_object.start_address);
   UpdatePcCounterSetSizeAligned(sancov_state->reverse_pc_table.NumPcs());

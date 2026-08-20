@@ -1074,7 +1074,6 @@ RUNNER_LINKOPTS = [
 RUNNER_DEPS = [
     ":byte_array_mutator",
     ":callstack",
-    ":dispatcher_flag_helper",
     ":execution_metadata",
     ":feature",
     ":foreach_nonzero",
@@ -1209,15 +1208,6 @@ cc_library(
 )
 
 cc_library(
-    name = "dispatcher_flag_helper",
-    hdrs = ["dispatcher_flag_helper.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        "@abseil-cpp//absl/base:nullability",
-    ],
-)
-
-cc_library(
     name = "sancov_runtime",
     srcs = [
         "pc_info.h",
@@ -1238,7 +1228,6 @@ cc_library(
     copts = DISABLE_SANCOV_COPTS,
     deps = [
         ":callstack",
-        ":dispatcher_flag_helper",
         ":engine_abi",
         ":execution_metadata",
         ":feature",
@@ -1726,6 +1715,15 @@ cc_test(
         ":util",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "runner_utils_test",
+    srcs = ["runner_utils_test.cc"],
+    deps = [
+        ":runner_utils",
         "@googletest//:gtest_main",
     ],
 )

@@ -19,10 +19,10 @@
 #include <time.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
@@ -38,6 +38,7 @@ struct RunTimeFlags {
   uint64_t ignore_timeout_reports : 1;
   uint64_t max_len;
   std::atomic<uint64_t> stack_limit_kb;
+  size_t shmem_size_mb;
 };
 
 // One global object of this type is created by the runner at start up.
@@ -59,29 +60,30 @@ struct GlobalRunnerState {
   // Performs necessary cleanup on process termination.
   void OnTermination();
 
-  DispatcherFlagHelper flag_helper =
-      DispatcherFlagHelper(CentipedeGetRunnerFlags());
+  EngineFlagHelper flag_helper = EngineFlagHelper(CentipedeGetRunnerFlags());
 
   // Note that this field reflects the initial runner flags. But some
   // flags can change later (if wrapped with std::atomic).
   RunTimeFlags run_time_flags = {
-      /*timeout_per_input=*/flag_helper.HasIntFlag(":timeout_per_input=", 0),
-      /*rss_limit_mb=*/flag_helper.HasIntFlag(":rss_limit_mb=", 0),
-      /*crossover_level=*/flag_helper.HasIntFlag(":crossover_level=", 50),
+      /*timeout_per_input=*/flag_helper.GetIntFlag("timeout_per_input=", 0),
+      /*rss_limit_mb=*/flag_helper.GetIntFlag("rss_limit_mb=", 0),
+      /*crossover_level=*/flag_helper.GetIntFlag("crossover_level=", 50),
       /*ignore_timeout_reports=*/
-      flag_helper.HasFlag(":ignore_timeout_reports:"),
-      /*max_len=*/flag_helper.HasIntFlag(":max_len=", 4000),
-      /*stack_limit_kb=*/flag_helper.HasIntFlag(":stack_limit_kb=", 0),
+      flag_helper.HasSwitchFlag("ignore_timeout_reports"),
+      /*max_len=*/flag_helper.GetIntFlag("max_len=", 4000),
+      /*stack_limit_kb=*/flag_helper.GetIntFlag("stack_limit_kb=", 0),
+      /*shmem_size_mb=*/
+      static_cast<size_t>(flag_helper.GetIntFlag("shmem_size_mb=", 0)),
   };
 
   // The path to a file where the runner may write the description of failure.
-  const char *failure_description_path =
-      flag_helper.GetStringFlag(":failure_description_path=");
+  const char* failure_description_path =
+      flag_helper.GetStringFlag("failure_description_path=");
 
   std::atomic<bool> has_failure_description;
 
   const char* persistent_mode_socket_path =
-      flag_helper.GetStringFlag(":persistent_mode_socket=");
+      flag_helper.GetStringFlag("persistent_mode_socket=");
   int persistent_mode_socket = 0;
 
   pthread_mutex_t execution_result_override_mu = PTHREAD_MUTEX_INITIALIZER;
