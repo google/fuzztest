@@ -360,11 +360,12 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
     if (env_.use_dataflow_features) flags.emplace_back("use_dataflow_features");
   }
   if (!env_.runner_dl_path_suffix.empty()) {
-    flags.emplace_back(
-        absl::StrCat("dl_path_suffix=", env_.runner_dl_path_suffix));
+    flags.emplace_back(absl::StrCat(
+        "dl_path_suffix=", EngineFlagEscape(env_.runner_dl_path_suffix)));
   }
   if (!env_.pcs_file_path.empty())
-    flags.emplace_back(absl::StrCat("pcs_file_path=", env_.pcs_file_path));
+    flags.emplace_back(
+        absl::StrCat("pcs_file_path=", EngineFlagEscape(env_.pcs_file_path)));
   if (!extra_flags.empty()) flags.emplace_back(extra_flags);
   flags.emplace_back("");
   return absl::StrJoin(flags, ":");
@@ -399,15 +400,20 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
   }
   std::vector<std::string> env_diff = env_.env_diff_for_binaries;
   env_diff.push_back(ConstructRunnerFlags(
-      absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
-                   inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
-                   ":failure_description_path=", failure_description_path_,
-                   ":failure_signature_path=", failure_signature_path_,
-                   persistent_mode_server == nullptr
-                       ? ""
-                       : absl::StrCat(":persistent_mode_socket=",
-                                      persistent_mode_server->server_path()),
-                   ":"),
+      absl::StrCat(
+          ":shmem_size_mb=", env_.shmem_size_mb,
+          ":test=", EngineFlagEscape(env_.test_name),
+          ":arg1=", EngineFlagEscape(inputs_blobseq_.path()),
+          ":arg2=", EngineFlagEscape(outputs_blobseq_.path()),
+          ":failure_description_path=",
+          EngineFlagEscape(failure_description_path_),
+          ":failure_signature_path=", EngineFlagEscape(failure_signature_path_),
+          persistent_mode_server == nullptr
+              ? ""
+              : absl::StrCat(
+                    ":persistent_mode_socket=",
+                    EngineFlagEscape(persistent_mode_server->server_path())),
+          ":"),
       disable_coverage));
 
   if (env_.clang_coverage_binary == binary) {
@@ -648,9 +654,10 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   FUZZTEST_CHECK(!error) << "Failed to create seed inputs directory "
                          << output_dir << ": " << error.message();
 
-  std::string centipede_runner_flags = absl::StrCat(
-      "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
-      ":arg1=", output_dir.string(), ":");
+  std::string centipede_runner_flags =
+      absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=",
+                   EngineFlagEscape(env_.test_name),
+                   ":arg1=", EngineFlagEscape(output_dir.string()), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
     absl::StrAppend(&centipede_runner_flags,
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
@@ -716,10 +723,10 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
       std::filesystem::path{temp_dir_} / "configuration";
   std::string centipede_runner_flags =
       absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_configuration:arg1=",
-                   config_file_path.string(), ":");
+                   EngineFlagEscape(config_file_path.string()), ":");
   if (!env_.runner_dl_path_suffix.empty()) {
-    absl::StrAppend(&centipede_runner_flags,
-                    "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
+    absl::StrAppend(&centipede_runner_flags, "dl_path_suffix=",
+                    EngineFlagEscape(env_.runner_dl_path_suffix), ":");
   }
   Command::Options cmd_options;
   cmd_options.env_diff = env_.env_diff_for_binaries;

@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
@@ -197,7 +196,7 @@ void SancovState::CleanUpDetachedTls() {
 
 static void MaybePopulateReversePcTable() {
   const char* pcs_file_path =
-      sancov_state->flag_helper.GetStringFlag(":pcs_file_path=");
+      sancov_state->flag_helper.GetStringFlag("pcs_file_path=");
   if (!pcs_file_path) return;
   const auto pc_table = ReadBytesFromFilePath<PCInfo>(pcs_file_path);
   sancov_state->reverse_pc_table.SetFromPCs(pc_table);
@@ -253,8 +252,8 @@ static void DumpDsoTable(const char *absl_nonnull output_path) {
 SancovState::SancovState() {
   tls.OnThreadStart();
   // Compute main_object.
-  main_object = GetDlInfo(flag_helper.GetStringFlag(":dl_path_suffix="));
-  if (!sancov_state->main_object.IsSet()) {
+  main_object = GetDlInfo(flag_helper.GetStringFlag("dl_path_suffix="));
+  if (!main_object.IsSet()) {
     fprintf(
         stderr,
         "Failed to compute main_object. This may happen"
@@ -262,7 +261,7 @@ SancovState::SancovState() {
   }
 
   // Dump the binary info tables.
-  if (flag_helper.HasFlag(":dump_binary_info:")) {
+  if (flag_helper.HasSwitchFlag("dump_binary_info")) {
     RunnerCheck(arg1 && arg2 && arg3, "dump_binary_info requires 3 arguments");
     if (!arg1 || !arg2 || !arg3) _exit(EXIT_FAILURE);
     DumpPcTable(arg1);
@@ -561,10 +560,14 @@ const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata() {
 }  // namespace fuzztest::internal
 
 // Can be overridden to not depend explicitly on CENTIPEDE_RUNNER_FLAGS.
-extern "C" __attribute__((weak)) const char *absl_nullable GetSancovFlags() {
-  if (const char *sancov_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
-    return strdup(sancov_flags_env);
-  return nullptr;
+extern "C" __attribute__((weak)) const char* absl_nullable GetSancovFlags() {
+  static const char* flags = []() -> const char* {
+    if (const char* sancov_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS")) {
+      return strdup(sancov_flags_env);
+    }
+    return nullptr;
+  }();
+  return flags;
 }
 
 void SanCovRuntimeClearCoverage(bool full_clear) {

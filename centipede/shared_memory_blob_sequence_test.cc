@@ -112,7 +112,7 @@ TEST_P(SharedMemoryBlobSequenceTest, ParentChild) {
   EXPECT_TRUE(parent.Write(BlobFromVec(kTestData2, 456)));
 
   // Child created.
-  SharedMemoryBlobSequence child(parent.path());
+  SharedMemoryBlobSequence child(parent.path(), 1000);
   // Child reads data.
   auto blob1 = child.Read();
   EXPECT_EQ(kTestData1, Vec(blob1));
@@ -141,14 +141,14 @@ TEST_P(SharedMemoryBlobSequenceTest, CheckForResourceLeaks) {
   for (int iter = 0; iter < kNumIters; iter++) {
     SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
     parent.Write(BlobFromVec({1, 2, 3}));
-    SharedMemoryBlobSequence child(parent.path());
+    SharedMemoryBlobSequence child(parent.path(), kBlobSize);
     EXPECT_EQ(child.Read().size, 3);
   }
   // Create a parent blob, then create and destroy lots of child blobs.
   SharedMemoryBlobSequence parent(ShmemName().c_str(), kBlobSize, GetParam());
   parent.Write(BlobFromVec({1, 2, 3, 4}));
   for (int iter = 0; iter < kNumIters; iter++) {
-    SharedMemoryBlobSequence child(parent.path());
+    SharedMemoryBlobSequence child(parent.path(), kBlobSize);
     EXPECT_EQ(child.Read().size, 4);
   }
 }

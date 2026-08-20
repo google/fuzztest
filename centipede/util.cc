@@ -383,4 +383,11 @@ int PollTimeoutMs(absl::Duration timeout) {
   return static_cast<int>(ms);
 }
 
+std::string EngineFlagEscape(std::string_view value) {
+  return absl::StrReplaceAll(value, {
+                                        {":", "\\:"},
+                                        {"\\", "\\\\"},
+                                    });
+}
+
 }  // namespace fuzztest::internal

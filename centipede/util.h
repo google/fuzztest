@@ -196,6 +196,9 @@ class MmapNoReserveArray {
 // Converts `timeout` to an integer value of milliseconds suitable for `poll()`.
 int PollTimeoutMs(absl::Duration timeout);
 
+// Returns properly escaped `value` to be part of an engine flag.
+std::string EngineFlagEscape(std::string_view value);
+
 }  // namespace fuzztest::internal
 
 #endif  // THIRD_PARTY_CENTIPEDE_UTIL_H_

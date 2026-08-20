@@ -134,7 +134,7 @@ class BlobSequence {
 //
 //  void Child() {
 //    // Open an existing blob sequence.
-//    SharedMemoryBlobSequence child("/foo");
+//    SharedMemoryBlobSequence child("/foo", 1000);
 //
 //    // Read the data written by parent.
 //    while (true) {
@@ -155,9 +155,9 @@ class SharedMemoryBlobSequence : public BlobSequence {
   // memfd_create(2).
   SharedMemoryBlobSequence(const char *name, size_t size, bool use_posix_shmem);
 
-  // Opens an existing shared blob sequence with the file `path`.
+  // Opens an existing shared blob sequence with the file `path` and `size`.
   // Aborts on any failure.
-  explicit SharedMemoryBlobSequence(const char *path);
+  SharedMemoryBlobSequence(const char* path, size_t size);
 
   // Releases all resources.
   ~SharedMemoryBlobSequence();

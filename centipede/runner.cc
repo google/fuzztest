@@ -51,7 +51,6 @@
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/dispatcher_flag_helper.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
@@ -810,7 +809,7 @@ static void SetLimits() {
   // No-op under ASAN/TSAN/MSAN - those may still rely on rss_limit_mb.
   if (vm_size_in_bytes < one_tb) {
     size_t address_space_limit_mb =
-        state->flag_helper.HasIntFlag(":address_space_limit_mb=", 0);
+        state->flag_helper.GetIntFlag("address_space_limit_mb=", 0);
     if (address_space_limit_mb > 0) {
       size_t limit_in_bytes = address_space_limit_mb << 20;
       struct rlimit rlimit_as = {limit_in_bytes, limit_in_bytes};
@@ -902,9 +901,10 @@ void GlobalRunnerState::OnTermination() {
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
   if (!state->centipede_runner_main_executed &&
-      flag_helper.HasFlag(":shmem:")) {
+      state->run_time_flags.shmem_size_mb != 0) {
     PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
+    SharedMemoryBlobSequence outputs_blobseq(
+        sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -969,7 +969,7 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
       fprintf(stderr, "Centipede fuzz target runner (%s); flags: %s\n",
               req == PersistentModeRequest::kExit ? "exiting persistent mode"
                                                   : "persistent mode batch",
-              state->flag_helper.flags);
+              CentipedeGetRunnerFlags());
     }
     if (req == PersistentModeRequest::kExit) break;
     RunnerCheck(req == PersistentModeRequest::kRunBatch,
@@ -987,9 +987,9 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
   return EXIT_SUCCESS;
 }
 
-// If HasFlag(:shmem:), state->arg1 and state->arg2 are the names
-//  of in/out shared memory locations.
-//  Read inputs and write outputs via shared memory.
+// If state->run_time_flags.shmem_size_mb is non-zero, state->arg1 and
+// state->arg2 are the names of in/out shared memory locations. Read inputs and
+// write outputs via shared memory.
 //
 //  Default: Execute ReadOneInputExecuteItAndDumpCoverage() for all inputs.//
 //
@@ -998,25 +998,27 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
   state->centipede_runner_main_executed = true;
 
   fprintf(stderr, "Centipede fuzz target runner; argv[0]: %s flags: %s\n",
-          argv[0], state->flag_helper.flags);
+          argv[0], CentipedeGetRunnerFlags());
 
-  if (state->flag_helper.HasFlag(":dump_configuration:")) {
+  if (state->flag_helper.HasSwitchFlag("dump_configuration")) {
     DumpSerializedTargetConfigToFile(callbacks,
                                      /*output_file_path=*/sancov_state->arg1);
     return EXIT_SUCCESS;
   }
 
-  if (state->flag_helper.HasFlag(":dump_seed_inputs:")) {
+  if (state->flag_helper.HasSwitchFlag("dump_seed_inputs")) {
     // Seed request.
     DumpSeedsToDir(callbacks, /*output_dir=*/sancov_state->arg1);
     return EXIT_SUCCESS;
   }
 
   // Inputs / outputs from shmem.
-  if (state->flag_helper.HasFlag(":shmem:")) {
+  if (state->run_time_flags.shmem_size_mb != 0) {
     if (!sancov_state->arg1 || !sancov_state->arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(sancov_state->arg1);
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
+    SharedMemoryBlobSequence inputs_blobseq(
+        sancov_state->arg1, state->run_time_flags.shmem_size_mb << 20);
+    SharedMemoryBlobSequence outputs_blobseq(
+        sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
     // Persistent mode loop.
     if (state->persistent_mode_socket > 0) {
       return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);
@@ -1067,9 +1069,13 @@ extern "C" void CentipedeSetTimeoutPerInput(uint64_t timeout_per_input) {
 
 extern "C" __attribute__((weak)) const char* absl_nullable
 CentipedeGetRunnerFlags() {
-  if (const char* runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS"))
-    return strdup(runner_flags_env);
-  return nullptr;
+  static const char* flags = []() -> const char* {
+    if (const char* runner_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS")) {
+      return strdup(runner_flags_env);
+    }
+    return nullptr;
+  }();
+  return flags;
 }
 
 // TODO: xinhaoyuan - write test for this.
