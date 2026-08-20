@@ -28,7 +28,9 @@ rust_library(
         "@com_google_fuzztest//rust/fuzztest_macro:fuzztest_macro",
     ],
     rustc_flags = ["-Zallow-features=cfg_sanitize"],
-    visibility = ["@com_google_fuzztest//rust:__subpackages__"],
+    visibility = [
+        "@com_google_fuzztest//rust:__subpackages__",
+    ],
     deps = [
         "@com_google_fuzztest//rust/coverage",
         "@com_google_fuzztest//rust/engine",
