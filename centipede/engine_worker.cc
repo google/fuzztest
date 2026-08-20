@@ -241,6 +241,7 @@ constexpr std::string_view kWorkerPersistentModeSocketPathFlagHeader =
     "persistent_mode_socket=";  // TODO: Use better flag names when
                                 // standardizing the protocol.
 constexpr std::string_view kWorkerCrossOverLevel = "crossover_level=";
+constexpr std::string_view kWorkerShmemSizeMbFlagHeader = "shmem_size_mb=";
 
 struct WorkerState {
   std::atomic<bool> has_failure_output = false;
@@ -407,28 +408,44 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
             LogLnSync{});
 }
 
+size_t GetShmemSize() {
+  static auto result = []() -> size_t {
+    const char* shmem_size_mb_str = GetWorkerFlag(kWorkerShmemSizeMbFlagHeader);
+    if (shmem_size_mb_str != nullptr) {
+      const int parsed =
+          atoi(shmem_size_mb_str);  // NOLINT: can't use strto64, etc.
+      if (parsed < 0) return 0;
+      return static_cast<size_t>(parsed) << 20;
+    }
+    return 0;
+  }();
+  return result;
+}
+
 BlobSequence* GetInputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!HasWorkerSwitchFlag("shmem")) {
+    const size_t shmem_size = GetShmemSize();
+    if (shmem_size == 0) {
       return nullptr;
     }
     const char* input_path =
         GetWorkerFlag(kWorkerInputsBlobSequencePathFlagHeader);
     WorkerCheck(input_path != nullptr, "inputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(input_path);
+    return new SharedMemoryBlobSequence(input_path, shmem_size);
   }();
   return result;
 }
 
 BlobSequence* GetOutputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!HasWorkerSwitchFlag("shmem")) {
+    const size_t shmem_size = GetShmemSize();
+    if (shmem_size == 0) {
       return nullptr;
     }
     const char* output_path =
         GetWorkerFlag(kWorkerOutputsBlobSequencePathFlagHeader);
     WorkerCheck(output_path != nullptr, "outputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(output_path);
+    return new SharedMemoryBlobSequence(output_path, shmem_size);
   }();
   return result;
 }
