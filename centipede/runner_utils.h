@@ -17,9 +17,13 @@
 
 #include <sys/stat.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <new>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -123,6 +127,75 @@ class ExplicitLifetime {
 
  private:
   alignas(T) unsigned char space_[sizeof(T)];
+};
+
+// Helper class for processing and reading the engine flags.
+class EngineFlagHelper {
+ public:
+  // Constructs the helper for a C-string `flags` with the format of :(ENTRY:)+.
+  explicit EngineFlagHelper(const char* absl_nullable flags)
+      : flags_(nullptr), size_(0), has_allocation_failure_(false) {
+    if (flags == nullptr) return;
+    flags_ = strdup(flags);
+    if (flags_ == nullptr) {
+      has_allocation_failure_ = true;
+      return;
+    }
+    size_ = strlen(flags_);
+    // Post-processing to make '\0' as the separator, making each item as a
+    // null-terminating string to be used without copying it.
+    for (size_t i = 0; i < size_; ++i) {
+      if (flags_[i] == ':') flags_[i] = 0;
+    }
+  }
+
+  ~EngineFlagHelper() {
+    if (flags_) {
+      free(flags_);
+    }
+  }
+
+  bool HasAllocationFailure() const { return has_allocation_failure_; }
+
+  bool HasSwitchFlag(std::string_view name) const {
+    if (name.empty() || flags_ == nullptr) return false;
+    const auto flags = std::string_view{flags_, size_};
+    size_t pos = 0;
+    while (pos = flags.find(name, pos),
+           pos != flags.npos && pos + name.size() < flags.size()) {
+      if (pos > 0 && flags[pos - 1] == '\0' &&
+          flags[pos + name.size()] == '\0') {
+        return true;
+      }
+      pos += name.size();
+    }
+    return false;
+  }
+
+  uint64_t HasIntFlag(std::string_view header, uint64_t default_value) const {
+    const char* absl_nullable flag = GetStringFlag(header);
+    if (flag == nullptr) return default_value;
+    return atoll(flag);  // NOLINT: can't use strto64, etc.
+  }
+
+  const char* absl_nullable GetStringFlag(std::string_view header) const {
+    if (header.empty() || flags_ == nullptr) return nullptr;
+    const auto flags = std::string_view{flags_, size_};
+    size_t pos = 0;
+    while (pos = flags.find(header, pos),
+           pos != flags.npos && pos + header.size() < flags.size()) {
+      if (pos > 0 && flags[pos - 1] == '\0') {
+        return flags.data() + pos + header.size();
+      }
+      pos += header.size();
+    }
+    return nullptr;
+  }
+
+ private:
+  char* absl_nullable flags_;
+  size_t size_;
+  bool has_allocation_failure_;
 };
 
 }  // namespace fuzztest::internal
