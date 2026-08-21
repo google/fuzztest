@@ -53,7 +53,18 @@ class CmpTrace {
   void Clear() { to_clear = true; }
 
   // Captures one CMP argument pair, as two byte arrays, `size` bytes each.
-  void Capture(uint8_t size, const uint8_t *value0, const uint8_t *value1) {
+  void Capture(uint8_t size, const uint8_t* value0, const uint8_t* value1) {
+#if defined(THREAD_SANITIZER)
+    // There are benign data races between `Capture()` and `ForEachNonZero()`.
+    // __attribute__((no_sanitize("thread"))) does not help because
+    // `ForEachNonZero` passes the racy addresses to the callback, which may not
+    // have the attribute. Thus we completely disable trace capturing under
+    // TSan.
+    //
+    // Note that __has_feature(thread_sanitizer) does not work either due to
+    // this file being included for libraries with -fno-sanitize=thread.
+    return;
+#endif
     if (ABSL_PREDICT_FALSE(to_clear)) {
       for (size_t i = 0; i < kNumItems; ++i) {
         if (sizes_[i] == 0) break;
