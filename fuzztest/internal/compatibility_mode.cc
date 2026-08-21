@@ -39,8 +39,9 @@ ExternalEngineCallback* GetExternalEngineCallback() {
 }
 
 // libFuzzer-style custom mutator interface for external engine.
-extern "C" size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size,
-                                          size_t max_size, unsigned int seed);
+extern "C" __attribute__((visibility("default"), used)) size_t
+LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
+                        unsigned int seed);
 
 size_t LLVMFuzzerCustomMutator(uint8_t* data, size_t size, size_t max_size,
                                unsigned int seed) {
