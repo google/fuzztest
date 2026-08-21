@@ -70,6 +70,182 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForMSan) {
   EXPECT_EQ(*crash_type, "use-of-uninitialized-value");
 }
 
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanDataRaceOnVptr) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: data race on vptr (ctor/dtor vs virtual "
+          "call) some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "data-race");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDataRace) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: data race "
+          "some/file.cc:33:37 in operator()");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "data-race");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanDestroyLocked) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: destroy of a locked mutex "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "destroy-locked-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanDoubleLock) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: double lock of a mutex some/file.cc:12:34 "
+          "in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "double-lock-of-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDeadlock) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: lock-order-inversion (potential "
+          "deadlock) some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "lock-order-inversion");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanMutexHeldWrongContext) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: mutex held in the wrong context "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "mutex-held-in-wrong-context");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanExternalRace) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: race on external object "
+          "some/file.cc:12:34 "
+          "in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "data-race");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanBadReadLock) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: read lock of a write locked mutex "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "read-lock-of-write-locked-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanBadReadUnlock) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: read unlock of a write locked mutex "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "read-unlock-of-write-locked-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanErrnoInSignal) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: signal handler spoils errno "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "signal-handler-spoils-errno");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanSignalUnsafe) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: signal-unsafe call inside of a signal "
+          "some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "signal-unsafe-call-inside-of-a-signal");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanSwiftAccessRace) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: Swift access race some/file.cc:12:34 in "
+          "Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "data-race");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanThreadLeak) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: thread leak some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "thread-leak");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanBadUnlock) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: unlock of an unlocked mutex (or by a "
+          "wrong thread) some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "unlock-unlocked-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanInvalidMutex) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: use of an invalid mutex (e.g. "
+          "uninitialized or destroyed) some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "use-invalid-mutex");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanHeapUseAfterFree) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: heap-use-after-free some/file.cc:12:34 "
+          "in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "heap-use-after-free");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest,
+     ExtractsCrashTypeForTSanFallbackSingleToken) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: ThreadSanitizer: unknown-crash-type some/file.cc:12:34 "
+          "in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "unknown-crash-type");
+}
+
+TEST(ParseCrashTypeFromSanitizerSummaryTest, IgnoresTsanCrashTypeForNonTSan) {
+  const absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(
+          "SUMMARY: AddressSanitizer: data race some/file.cc:12:34 in Foo");
+  ASSERT_TRUE(crash_type.ok());
+  EXPECT_EQ(*crash_type, "data");
+}
+
 TEST(ParseCrashTypeFromSanitizerSummaryTest, FailsOnMissingSummaryPrefix) {
   const absl::StatusOr<std::string> crash_type =
       ParseCrashTypeFromSanitizerSummary("Missing SUMMARY prefix");

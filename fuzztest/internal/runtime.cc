@@ -71,7 +71,8 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
 #define FUZZTEST_HAS_SANITIZER
 #include <sanitizer/common_interface_defs.h>
 
