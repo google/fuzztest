@@ -20,6 +20,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/time/clock_interface.h"
 #include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
