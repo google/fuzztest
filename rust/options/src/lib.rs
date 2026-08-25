@@ -292,8 +292,12 @@ pub struct ListCrashIdsOptions {
     pub list_crash_ids_file: String,
 }
 
+#[doc(hidden)]
+pub mod env_vars;
+
 #[cfg(test)]
 mod tests {
+    use super::env_vars::*;
     use super::*;
     use googletest::prelude::*;
     use std::ffi::OsString;
@@ -333,18 +337,14 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [("FUZZTEST_REPLAY_ID", Some("my_crash_123")), ("FUZZTEST_CORPUS_DB", None)],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -352,55 +352,47 @@ mod tests {
 
     #[gtest]
     fn test_replay_id_with_corpus_db_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_ID", "my_crash_123");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_ID", Some("my_crash_123")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed when both replay_id and corpus_db are present");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_ID");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options =
-            result.expect("parsing should succeed when both replay_id and corpus_db are present");
         expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
     fn test_jobs_options_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_JOBS", "4");
-        }
-
-        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_var("FUZZTEST_JOBS", "4", || {
+                FuzzTestOptions::parse_from(std::iter::empty::<OsString>())
+            })
+        };
 
         expect_that!(options.jobs, eq(Some(4)));
-
         // Setting jobs alone should not enter fuzzing mode; it defaults to smoke test mode.
         expect_that!(ExecutionMode::from_fuzztest_options(&options), eq(&ExecutionMode::SmokeTest));
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_JOBS");
-        }
     }
 
     #[gtest]
     fn test_jobs_with_fuzz_for_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_JOBS", "4");
-            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
-        }
-
-        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars([("FUZZTEST_JOBS", Some("4")), ("FUZZTEST_FUZZ_FOR", Some("5s"))], || {
+                FuzzTestOptions::parse_from(std::iter::empty::<OsString>())
+            })
+        };
 
         expect_that!(options.jobs, eq(Some(4)));
         let expected_duration = "5s".parse().expect("valid duration");
@@ -413,24 +405,22 @@ mod tests {
                 execution_id: None,
             }))
         );
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_JOBS");
-            std::env::remove_var("FUZZTEST_FUZZ_FOR");
-        }
     }
 
     #[gtest]
     fn test_jobs_with_replay_corpus_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_JOBS", "4");
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-        }
-
-        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_JOBS", Some("4")),
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         expect_that!(options.jobs, eq(Some(4)));
         let expected_duration = "10s".parse().expect("valid duration string");
@@ -444,24 +434,22 @@ mod tests {
                 execution_id: None,
             }))
         );
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_JOBS");
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
     }
 
     #[gtest]
     fn test_continue_after_crash_with_fuzz_for_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
-            std::env::set_var("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_FUZZ_FOR", Some("5s")),
+                    ("FUZZTEST_CONTINUE_AFTER_CRASH", Some("true")),
+                ],
+                || FuzzTestOptions::parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
-        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
         expect_true!(options.continue_after_crash);
         let expected_duration = "5s".parse().expect("valid duration");
         expect_that!(
@@ -473,24 +461,23 @@ mod tests {
                 execution_id: None,
             }))
         );
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_FUZZ_FOR");
-            std::env::remove_var("FUZZTEST_CONTINUE_AFTER_CRASH");
-        }
     }
 
     #[gtest]
     fn test_continue_after_crash_with_replay_corpus_parsing_env() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-            std::env::set_var("FUZZTEST_CONTINUE_AFTER_CRASH", "true");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                    ("FUZZTEST_CONTINUE_AFTER_CRASH", Some("true")),
+                ],
+                || FuzzTestOptions::parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
-        let options = FuzzTestOptions::parse_from(std::iter::empty::<OsString>());
         expect_true!(options.continue_after_crash);
         let expected_duration = "10s".parse().expect("valid duration string");
         expect_that!(
@@ -503,29 +490,18 @@ mod tests {
                 execution_id: None,
             }))
         );
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-            std::env::remove_var("FUZZTEST_CONTINUE_AFTER_CRASH");
-        }
     }
 
     #[gtest]
     fn test_replay_findings_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [("FUZZTEST_REPLAY_FINDINGS", Some("true")), ("FUZZTEST_CORPUS_DB", None)],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -533,40 +509,33 @@ mod tests {
 
     #[gtest]
     fn test_replay_findings_with_corpus_db_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            env::set_var("FUZZTEST_REPLAY_FINDINGS", "true");
-            env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_FINDINGS", Some("true")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed when both replay_findings and corpus_db are present");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_FINDINGS");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result
-            .expect("parsing should succeed when both replay_findings and corpus_db are present");
         expect_that!(options.replay_findings, eq(true));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
     fn test_replay_corpus_for_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")), ("FUZZTEST_CORPUS_DB", None)],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -574,22 +543,19 @@ mod tests {
 
     #[gtest]
     fn test_replay_corpus_for_with_corpus_db_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed when both replay_corpus_for and corpus_db are present");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result
-            .expect("parsing should succeed when both replay_corpus_for and corpus_db are present");
         expect_that!(
             options.replay_corpus_for,
             eq(Some("10s".parse().expect("valid duration string")))
@@ -600,69 +566,60 @@ mod tests {
 
     #[gtest]
     fn test_replay_corpus_for_inf_env_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "inf");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("inf")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed when replay_corpus_for is inf and corpus_db is present");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result.expect(
-            "parsing should succeed when replay_corpus_for is inf and corpus_db is present",
-        );
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
     fn test_replay_corpus_for_infinity_env_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "infinity");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("infinity")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result.expect(
+        .expect(
             "parsing should succeed when replay_corpus_for is infinity and corpus_db is present",
         );
+
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
     }
 
     #[gtest]
     fn test_replay_corpus_for_with_total_time_budget() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
-            std::env::set_var("FUZZTEST_TIME_BUDGET_TYPE", "total");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")),
+                    ("FUZZTEST_TIME_BUDGET_TYPE", Some("total")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed with total time budget type");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_TIME_BUDGET_TYPE");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result.expect("parsing should succeed with total time budget type");
         expect_that!(
             options.replay_corpus_for,
             eq(Some("10s".parse().expect("valid duration string")))
@@ -673,23 +630,20 @@ mod tests {
 
     #[gtest]
     fn test_replay_corpus_for_inf_with_total_time_budget() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "inf");
-            std::env::set_var("FUZZTEST_TIME_BUDGET_TYPE", "total");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("inf")),
+                    ("FUZZTEST_TIME_BUDGET_TYPE", Some("total")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed with total time budget type and inf");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-            std::env::remove_var("FUZZTEST_TIME_BUDGET_TYPE");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result.expect("parsing should succeed with total time budget type and inf");
         expect_that!(options.replay_corpus_for, eq(Some(RunDuration::Indefinitely)));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
         expect_that!(options.time_budget_type, eq(TimeBudgetType::Total));
@@ -697,20 +651,18 @@ mod tests {
 
     #[gtest]
     fn test_list_crash_ids_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_LIST_CRASH_IDS", Some("true")),
+                    ("FUZZTEST_LIST_CRASH_IDS_FILE", Some("/tmp/crashes.txt")),
+                    ("FUZZTEST_CORPUS_DB", None),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when corpus_db is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -718,20 +670,18 @@ mod tests {
 
     #[gtest]
     fn test_list_crash_ids_requires_list_crash_ids_file() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_LIST_CRASH_IDS", Some("true")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                    ("FUZZTEST_LIST_CRASH_IDS_FILE", None),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when list_crash_ids_file is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -739,20 +689,18 @@ mod tests {
 
     #[gtest]
     fn test_list_crash_ids_file_requires_list_crash_ids() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_LIST_CRASH_IDS_FILE", Some("/tmp/crashes.txt")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                    ("FUZZTEST_LIST_CRASH_IDS", None),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err = result.expect_err("parsing should fail when list_crash_ids is missing");
         expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
@@ -760,25 +708,23 @@ mod tests {
 
     #[gtest]
     fn test_list_crash_ids_with_corpus_db_and_file_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS", "true");
-            std::env::set_var("FUZZTEST_LIST_CRASH_IDS_FILE", "/tmp/crashes.txt");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_LIST_CRASH_IDS", Some("true")),
+                    ("FUZZTEST_LIST_CRASH_IDS_FILE", Some("/tmp/crashes.txt")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS");
-            std::env::remove_var("FUZZTEST_LIST_CRASH_IDS_FILE");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let options = result.expect(
-            "parsing should succeed when list_crash_ids, list_crash_ids_file, and corpus_db are present",
+        .expect(
+            "parsing should succeed when list_crash_ids, list_crash_ids_file, and corpus_db are \
+             present",
         );
+
         expect_that!(options.list_crash_ids, eq(true));
         expect_that!(options.list_crash_ids_file.as_deref(), eq(Some("/tmp/crashes.txt")));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
@@ -794,18 +740,14 @@ mod tests {
 
     #[gtest]
     fn test_execution_id_requires_corpus_db() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-        }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_EXECUTION_ID");
-        }
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let result = unsafe {
+            with_env_vars(
+                [("FUZZTEST_EXECUTION_ID", Some("exec_123")), ("FUZZTEST_CORPUS_DB", None)],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
+        };
 
         let err =
             result.expect_err("parsing should fail when corpus_db is missing for execution_id");
@@ -814,25 +756,20 @@ mod tests {
 
     #[gtest]
     fn test_execution_id_with_corpus_db_and_fuzz_for_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-            std::env::set_var("FUZZTEST_FUZZ_FOR", "5s");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_EXECUTION_ID", Some("exec_123")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                    ("FUZZTEST_FUZZ_FOR", Some("5s")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
+        .expect("parsing should succeed when execution_id, corpus_db, and fuzz_for are present");
 
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_EXECUTION_ID");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-            std::env::remove_var("FUZZTEST_FUZZ_FOR");
-        }
-
-        let options = result.expect(
-            "parsing should succeed when execution_id, corpus_db, and fuzz_for are present",
-        );
         expect_that!(options.execution_id.as_deref(), eq(Some("exec_123")));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
 
@@ -850,25 +787,23 @@ mod tests {
 
     #[gtest]
     fn test_execution_id_with_corpus_db_and_replay_corpus_succeeds() {
-        // SAFETY: Testing environment parsing in single-threaded context.
-        unsafe {
-            std::env::set_var("FUZZTEST_EXECUTION_ID", "exec_123");
-            std::env::set_var("FUZZTEST_CORPUS_DB", "/tmp/corpus_db");
-            std::env::set_var("FUZZTEST_REPLAY_CORPUS_FOR", "10s");
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_vars(
+                [
+                    ("FUZZTEST_EXECUTION_ID", Some("exec_123")),
+                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
+                    ("FUZZTEST_REPLAY_CORPUS_FOR", Some("10s")),
+                ],
+                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
+            )
         }
-
-        let result = FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>());
-
-        // SAFETY: Cleaning up environment variables.
-        unsafe {
-            std::env::remove_var("FUZZTEST_EXECUTION_ID");
-            std::env::remove_var("FUZZTEST_CORPUS_DB");
-            std::env::remove_var("FUZZTEST_REPLAY_CORPUS_FOR");
-        }
-
-        let options = result.expect(
-            "parsing should succeed when execution_id, corpus_db, and replay_corpus_for are present",
+        .expect(
+            "parsing should succeed when execution_id, corpus_db, and replay_corpus_for are \
+             present",
         );
+
         expect_that!(options.execution_id.as_deref(), eq(Some("exec_123")));
         expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
 
