@@ -114,6 +114,9 @@ class Domain {
             static_cast<Inner&&>(inner))) {}
 
   Domain(const Domain& other) { *this = other; }
+  Domain(Domain&& other) = default;
+  Domain& operator=(Domain&& other) = default;
+
   Domain& operator=(const Domain& other) {
     inner_ = other.inner_->TypedClone();
     return *this;
