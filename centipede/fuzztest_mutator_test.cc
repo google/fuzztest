@@ -240,9 +240,11 @@ INSTANTIATE_TEST_SUITE_P(OverwriteFromCmpDictionary, MutationStepTest,
                                {1, 2, 10, 20, 30},
                            };
                            params.cmp_data = {2,            // size
+                                              0,            // is_integer
                                               1,  2,        // lhs
                                               3,  4,        // rhs
                                               3,            // size
+                                              0,            // is_integer
                                               10, 20, 30,   // lhs
                                               40, 50, 60};  // rhs
                            return params;
@@ -274,9 +276,11 @@ INSTANTIATE_TEST_SUITE_P(InsertFromCmpDictionary, MutationStepTest, Values([] {
                                {1, 6, 7, 8, 2, 3}, {6, 7, 8, 1, 2, 3},
                            };
                            params.cmp_data = {2,         // size
+                                              0,         // is_integer
                                               4, 5,      // lhs
                                               4, 5,      // rhs
                                               3,         // size
+                                              0,         // is_integer
                                               6, 7, 8,   // lhs
                                               6, 7, 8};  // rhs
                            return params;
@@ -300,6 +304,7 @@ INSTANTIATE_TEST_SUITE_P(SkipsLongCmpEntry, MutationStepTest, Values([] {
                                long_entry,
                            };
                            params.cmp_data.push_back(short_entry.size());
+                           params.cmp_data.push_back(0);  // is_integer
                            params.cmp_data.insert(params.cmp_data.end(),
                                                   short_entry.begin(),
                                                   short_entry.end());  // lhs
@@ -307,6 +312,7 @@ INSTANTIATE_TEST_SUITE_P(SkipsLongCmpEntry, MutationStepTest, Values([] {
                                                   short_entry.begin(),
                                                   short_entry.end());  // rhs
                            params.cmp_data.push_back(long_entry.size());
+                           params.cmp_data.push_back(0);  // is_integer
                            params.cmp_data.insert(params.cmp_data.end(),
                                                   long_entry.begin(),
                                                   long_entry.end());  // lhs
