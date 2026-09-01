@@ -304,4 +304,12 @@ TEST(UtilTest, PollTimeoutMsWorks) {
   EXPECT_GT(PollTimeoutMs(long_finite_duration), 0);
 }
 
+TEST(UtilTest, EscapeEngineFlagWorks) {
+  EXPECT_EQ(EscapeEngineFlag(""), "");
+  EXPECT_EQ(EscapeEngineFlag("foo"), "foo");
+  EXPECT_EQ(EscapeEngineFlag("foo:bar"), "foo\\:bar");
+  EXPECT_EQ(EscapeEngineFlag("foo\\bar"), "foo\\\\bar");
+  EXPECT_EQ(EscapeEngineFlag("C:\\path:1\\2"), "C\\:\\\\path\\:1\\\\2");
+}
+
 }  // namespace fuzztest::internal
