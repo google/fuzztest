@@ -198,6 +198,7 @@ constexpr std::string_view kWorkerPersistentModeSocketPathFlagHeader =
     "persistent_mode_socket=";  // TODO: Use better flag names when
                                 // standardizing the protocol.
 constexpr std::string_view kWorkerCrossOverLevel = "crossover_level=";
+constexpr std::string_view kWorkerMinSeeds = "min_seeds=";
 
 struct WorkerState {
   std::atomic<bool> has_failure_output = false;
@@ -481,8 +482,8 @@ void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
     WORKER_CHECK_FOR_ERROR();
   }
 
-  // TODO(xinhaoyuan): Make 32 adjustable.
-  while (seed_handles.size() < 32) {
+  const size_t min_seeds = GetWorkerFlags().GetIntFlag(kWorkerMinSeeds, 32);
+  while (seed_handles.size() < min_seeds) {
     const size_t prev_size = seed_handles.size();
     adapter.GetRandomSeedInput(adapter.ctx, &sink);
     WorkerCheck(seed_handles.size() == prev_size + 1,

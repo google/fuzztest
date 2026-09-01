@@ -570,7 +570,8 @@ static void DumpSeedsToDir(RunnerCallbacks& callbacks, const char* output_dir) {
     ++seed_index;
   };
   callbacks.GetPresetSeedInputs(dump_seed_callback);
-  while (seed_index < 32) {
+  const size_t min_seeds = state->flag_helper.GetIntFlag("min_seeds=", 32);
+  while (seed_index < min_seeds) {
     dump_seed_callback(callbacks.GetRandomSeedInput());
   }
 }
