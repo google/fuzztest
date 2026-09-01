@@ -1730,6 +1730,15 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "runner_utils_test",
+    srcs = ["runner_utils_test.cc"],
+    deps = [
+        ":runner_utils",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],

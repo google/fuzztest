@@ -99,82 +99,39 @@ inline void WorkerCheck(bool condition, std::string_view error) {
     std::_Exit(1);
   }
 }
-
-struct WorkerFlags {
-  bool present;
-  // length of the flags string, excluding the ending '\0'.
-  size_t len;
-  const char* str;
-};
+const char* absl_nullable GetWorkerFlagsEnv() {
+  static const char* flags = []() -> const char* {
+    // TODO(xinhaoyuan): Rename the env name to FUZZTEST_WORKER_FLAGS.
+    if (const char* env = std::getenv("CENTIPEDE_RUNNER_FLAGS")) {
+      WorkerLog("Worker flags: ", env);
+      char* env_copy = strdup(env);
+      if (env_copy == nullptr) {
+        // This should rarely happen.
+        WorkerLog("Failed to copy the flags env due to allocation failure");
+        std::_Exit(1);
+      }
+      return env_copy;
+    }
+    return nullptr;
+  }();
+  return flags;
+}
 
 // The first call of this function must be outside of signal handlers since it
 // allocates memory (enforced by `WorkerInitEarly`). After that it would be
 // signal-safe.
-//
-// The worker flags format is `:(NAME=VALUE|SWITCH:)+`. `GetWorkerFlags`
-// replaces `:` with '\0' so that we can get null-terminated strings of VALUE
-// without copying them, which is important for signal-safety.
-const WorkerFlags& GetWorkerFlags() {
-  static auto worker_flags = []() -> WorkerFlags {
-    // TODO(xinhaoyuan): Rename the env name to FUZZTEST_WORKER_FLAGS.
-    const char* env_flags = std::getenv("CENTIPEDE_RUNNER_FLAGS");
-    if (env_flags == nullptr) {
-      return {};
-    }
-    const size_t len = strlen(env_flags);
-    char* str = reinterpret_cast<char*>(malloc(len + 1));
-    if (str == nullptr) {
-      WorkerLog("Cannot allocate the worker flags", LogLnSync{});
+const EngineFlagHelper& GetWorkerFlags() {
+  static ExplicitLifetime<EngineFlagHelper> worker_flags;
+  [[maybe_unused]] static bool construct_once = [] {
+    worker_flags.Construct(GetWorkerFlagsEnv());
+    if (worker_flags->HasAllocationFailure()) {
+      // This should rarely happen.
+      WorkerLog("Failed to process the flags due to allocation failure.");
       std::_Exit(1);
     }
-    memcpy(str, env_flags, len);
-    str[len] = 0;
-    WorkerLog("Got worker flags ", std::string_view{str, len}, LogLnSync{});
-    // Post-processing to make '\0' as the separator, making each item as a
-    // null-terminating string to be used without copying it.
-    for (size_t i = 0; i < len; ++i) {
-      if (str[i] == ':') str[i] = 0;
-    }
-    return WorkerFlags{true, len, str};
+    return true;
   }();
-  return worker_flags;
-}
-
-// `header` should be in the form of `FLAG_NAME=`.
-//
-// Extracts "value" as a null-terminated string from "\0FLAG_NAME=value\0" in
-// the flags. Returns nullptr if it is not found.
-const char* GetWorkerFlag(std::string_view header) {
-  if (header.empty()) return nullptr;
-  const auto& worker_flags = GetWorkerFlags();
-  if (!worker_flags.present) return nullptr;
-  const auto flags = std::string_view{worker_flags.str, worker_flags.len};
-  size_t pos = 0;
-  while (pos = flags.find(header, pos),
-         pos != flags.npos && pos + header.size() < flags.size()) {
-    if (pos > 0 && flags[pos - 1] == '\0') {
-      return worker_flags.str + pos + header.size();
-    }
-    pos += header.size();
-  }
-  return nullptr;
-}
-
-// Checks whether "\0{name}\0" exists in the flags.
-bool HasWorkerSwitchFlag(std::string_view name) {
-  if (name.empty()) return false;
-  const auto& worker_flags = GetWorkerFlags();
-  if (!worker_flags.present) return false;
-  const auto flags = std::string_view{worker_flags.str, worker_flags.len};
-  size_t pos = 0;
-  while (pos = flags.find(name, pos),
-         pos != flags.npos && pos + name.size() < flags.size()) {
-    if (pos > 0 && flags[pos - 1] == '\0' && flags[pos + name.size()] == '\0') {
-      return true;
-    }
-    pos += name.size();
-  }
-  return false;
+  return *worker_flags;
 }
 
 template <typename... C>
@@ -277,8 +234,8 @@ bool WorkerEmitFailureOutput(std::string_view prefix,
                              std::string_view message) {
   bool ignored = GetWorkerState().has_failure_output.exchange(true);
   if (!ignored) {
-    if (const char* failure_description_path =
-            GetWorkerFlag(kWorkerFailureDescriptionPathFlagHeader);
+    if (const char* failure_description_path = GetWorkerFlags().GetStringFlag(
+            kWorkerFailureDescriptionPathFlagHeader);
         failure_description_path != nullptr) {
       TrySetFileContents(failure_description_path,
                          /*append=*/false, prefix, message);
@@ -322,8 +279,8 @@ void WorkerEmitFinding(std::string_view description,
   if (!ignored) {
     WorkerCheck(WorkerEmitFailureOutput(/*prefix=*/"", description),
                 "Failed to emit failure output for the finding");
-    if (const char* finding_signature_path =
-            GetWorkerFlag(kWorkerFailureSignaturePathFlagHeader);
+    if (const char* finding_signature_path = GetWorkerFlags().GetStringFlag(
+            kWorkerFailureSignaturePathFlagHeader);
         finding_signature_path != nullptr) {
       TrySetFileContents(finding_signature_path,
                          /*append=*/false, signature);
@@ -351,7 +308,7 @@ static int persistent_mode_socket;
 
 __attribute__((constructor(200))) void WorkerInitEarly() {
   const char* persistent_mode_socket_path =
-      GetWorkerFlag(kWorkerPersistentModeSocketPathFlagHeader);
+      GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
   if (persistent_mode_socket_path == nullptr) return;
   persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (persistent_mode_socket < 0) {
@@ -409,11 +366,11 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
 
 BlobSequence* GetInputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!HasWorkerSwitchFlag("shmem")) {
+    if (!GetWorkerFlags().HasSwitchFlag("shmem")) {
       return nullptr;
     }
     const char* input_path =
-        GetWorkerFlag(kWorkerInputsBlobSequencePathFlagHeader);
+        GetWorkerFlags().GetStringFlag(kWorkerInputsBlobSequencePathFlagHeader);
     WorkerCheck(input_path != nullptr, "inputs blob sequence is missing");
     return new SharedMemoryBlobSequence(input_path);
   }();
@@ -422,11 +379,11 @@ BlobSequence* GetInputsBlobSequence() {
 
 BlobSequence* GetOutputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!HasWorkerSwitchFlag("shmem")) {
+    if (!GetWorkerFlags().HasSwitchFlag("shmem")) {
       return nullptr;
     }
-    const char* output_path =
-        GetWorkerFlag(kWorkerOutputsBlobSequencePathFlagHeader);
+    const char* output_path = GetWorkerFlags().GetStringFlag(
+        kWorkerOutputsBlobSequencePathFlagHeader);
     WorkerCheck(output_path != nullptr, "outputs blob sequence is missing");
     return new SharedMemoryBlobSequence(output_path);
   }();
@@ -435,12 +392,9 @@ BlobSequence* GetOutputsBlobSequence() {
 
 int GetCrossOverLevel() {
   static int result = []() {
-    const char* cross_over_level_str = GetWorkerFlag(kWorkerCrossOverLevel);
-    if (cross_over_level_str != nullptr) {
-      const int parsed =
-          atoi(cross_over_level_str);  // NOLINT: can't use strto64, etc.
-      if (0 <= parsed && parsed <= 100) return parsed;
-    }
+    const uint64_t cross_over_level =
+        GetWorkerFlags().GetIntFlag(kWorkerCrossOverLevel, 50);
+    if (cross_over_level <= 100) return static_cast<int>(cross_over_level);
     // Default
     return 50;
   }();
@@ -449,16 +403,16 @@ int GetCrossOverLevel() {
 
 std::optional<WorkerAction> GetWorkerAction() {
   static auto worker_action = []() -> std::optional<WorkerAction> {
-    if (HasWorkerSwitchFlag("dump_configuration")) {
+    if (GetWorkerFlags().HasSwitchFlag("dump_configuration")) {
       return WorkerAction::kNoOp;
     }
-    if (HasWorkerSwitchFlag("dump_binary_id")) {
+    if (GetWorkerFlags().HasSwitchFlag("dump_binary_id")) {
       return WorkerAction::kGetBinaryId;
     }
-    if (HasWorkerSwitchFlag("list_tests")) {
+    if (GetWorkerFlags().HasSwitchFlag("list_tests")) {
       return WorkerAction::kListTests;
     }
-    if (HasWorkerSwitchFlag("dump_seed_inputs")) {
+    if (GetWorkerFlags().HasSwitchFlag("dump_seed_inputs")) {
       return WorkerAction::kTestGetSeeds;
     }
     auto* inputs_blobseq = GetInputsBlobSequence();
@@ -499,7 +453,7 @@ FuzzTestInputSink GetInputSinkTo(std::vector<FuzzTestInputHandle>& inputs) {
 void WorkerDoGetBinaryId(const FuzzTestAdapterManager& manager) {
   if (GetWorkerState().saved_binary_id.exchange(true)) return;
   const char* binary_id_output_path =
-      GetWorkerFlag(kWorkerBinaryIdOutputFlagHeader);
+      GetWorkerFlags().GetStringFlag(kWorkerBinaryIdOutputFlagHeader);
   WorkerCheck(binary_id_output_path != nullptr,
               "binary ID output path is not set");
   std::vector<uint8_t> binary_id;
@@ -512,7 +466,7 @@ void WorkerDoGetBinaryId(const FuzzTestAdapterManager& manager) {
 
 void WorkerDoListCurrentTest(std::string_view test_name) {
   const char* test_listing_output_path =
-      GetWorkerFlag(kWorkerTestListingOutputFlagHeader);
+      GetWorkerFlags().GetStringFlag(kWorkerTestListingOutputFlagHeader);
   WorkerCheck(test_listing_output_path != nullptr,
               "binary ID output path is not set");
   TrySetFileContents(test_listing_output_path,
@@ -536,7 +490,7 @@ void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
   }
 
   static const char* output_dir =
-      GetWorkerFlag(kWorkerTestGetSeedsOutputDirFlagHeader);
+      GetWorkerFlags().GetStringFlag(kWorkerTestGetSeedsOutputDirFlagHeader);
   WorkerCheck(output_dir != nullptr, "seeds output path must be specified");
 
   for (size_t i = 0; i < seed_handles.size(); ++i) {
@@ -845,7 +799,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
 
 const char* FuzzTestWorkerGetTestName() {
   static auto test_name = []() -> const char* {
-    return GetWorkerFlag(kWorkerTestNameFlagHeader);
+    return GetWorkerFlags().GetStringFlag(kWorkerTestNameFlagHeader);
   }();
   return test_name;
 }
@@ -872,15 +826,12 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
         // to happen when the stdout/stderr are not redirected to a file.
         (void)ftruncate(fd, 0);
       }
-      WorkerLog(
-          "FuzzTest engine worker (",
-          req == PersistentModeRequest::kExit ? "exiting persistent mode"
-                                              : "persistent mode batch",
-          "); flags: ",
-          GetWorkerFlags().present
-              ? std::string_view{GetWorkerFlags().str, GetWorkerFlags().len}
-              : "",
-          LogLnSync{});
+      WorkerLog("FuzzTest engine worker (",
+                req == PersistentModeRequest::kExit ? "exiting persistent mode"
+                                                    : "persistent mode batch",
+                "); flags: ",
+                GetWorkerFlagsEnv() != nullptr ? GetWorkerFlagsEnv() : "",
+                LogLnSync{});
     }
     if (req == PersistentModeRequest::kExit) break;
     WorkerCheck(req == PersistentModeRequest::kRunBatch,
@@ -917,10 +868,9 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
 }
 
 FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
-  const auto& flags = GetWorkerFlags();
-  WorkerCheck(flags.present, "worker flags must present");
+  WorkerCheck(GetWorkerFlagsEnv() != nullptr, "worker flags must present");
 
-  if (HasWorkerSwitchFlag("dump_configuration")) {
+  if (GetWorkerFlags().HasSwitchFlag("dump_configuration")) {
     return kFuzzTestWorkerSuccess;
   }
 
@@ -1018,13 +968,14 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
 namespace {
 
 using ::fuzztest::internal::GetWorkerFlags;
+using ::fuzztest::internal::GetWorkerFlagsEnv;
 using ::fuzztest::internal::WorkerCheck;
 using ::fuzztest::internal::WorkerRun;
 
 }  // namespace
 
 int FuzzTestWorkerIsRequired() {
-  static int result = GetWorkerFlags().present &&
+  static int result = GetWorkerFlagsEnv() != nullptr &&
                       fuzztest::internal::GetWorkerAction().has_value();
   return result;
 }
