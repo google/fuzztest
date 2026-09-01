@@ -27,7 +27,6 @@ rust_library(
     proc_macro_deps = [
         "@com_google_fuzztest//rust/fuzztest_macro:fuzztest_macro",
     ],
-    rustc_flags = ["-Zallow-features=cfg_sanitize"],
     visibility = [
         "@com_google_fuzztest//rust:__subpackages__",
     ],
@@ -54,7 +53,6 @@ rust_test(
     args = ["--test-threads=1"],
     crate = ":fuzztest",
     edition = "2024",
-    rustc_flags = ["-Zallow-features=cfg_sanitize"],
     deps = [
         "@crate_index//:googletest",
     ],
