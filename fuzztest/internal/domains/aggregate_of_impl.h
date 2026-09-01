@@ -83,7 +83,7 @@ class AggregateOfImpl
               status = std::move(res).status();
               return false;
             }
-            std::get<I>(results) = *std::move(res);
+            std::get<I>(results).emplace(*std::move(res));
             return true;
           };
           if (!(init_one(Is) && ...)) {

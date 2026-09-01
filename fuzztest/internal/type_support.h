@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <new>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -51,6 +53,15 @@ const EnumDescriptor* GetEnumDescriptor();
 }  // namespace google::protobuf
 
 namespace fuzztest::internal {
+
+// Destroys `target` and constructs a new object of type `T` in place with
+// `args`. This is useful for re-constructing objects in place when `T` is not
+// assignable (e.g. tuples or variants containing non-assignable types).
+template <typename T, typename... Args>
+void ReconstructInPlace(T& target, Args&&... args) {
+  std::destroy_at(&target);
+  ::new (static_cast<void*>(&target)) T(std::forward<Args>(args)...);
+}
 
 // Return a best effort printer for type `T`.
 // This is useful for cases where the domain can't figure out how to print the
@@ -522,27 +533,6 @@ struct MappedPrinter {
         ApplyIndex<sizeof...(Inner)>([&](auto... Is) { (print_one(Is), ...); });
         absl::Format(out, ")");
     }
-  }
-};
-
-template <typename FlatMapper, typename... Inner>
-struct FlatMappedPrinter {
-  const FlatMapper& mapper;
-  const std::tuple<Inner...>& inner;
-
-  template <typename CorpusT>
-  void PrintCorpusValue(const CorpusT& corpus_value,
-                        domain_implementor::RawSink out,
-                        domain_implementor::PrintMode mode) const {
-    auto output_domain = ApplyIndex<sizeof...(Inner)>([&](auto... I) {
-      return mapper(
-          // the first field of `corpus_value` is the output value, so skip it
-          std::get<I>(inner).GetValue(std::get<I + 1>(corpus_value))...);
-    });
-
-    // Delegate to the output domain's printer.
-    domain_implementor::PrintValue(output_domain, std::get<0>(corpus_value),
-                                   out, mode);
   }
 };
 

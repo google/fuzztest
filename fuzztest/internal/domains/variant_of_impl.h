@@ -64,7 +64,7 @@ class VariantOfImpl : public domain_implementor::DomainBase<
     // mutating case in order to explore more on a given type before we start
     // from scratch again.
     if (absl::Bernoulli(prng, 0.2)) {
-      val = Init(prng);
+      ReconstructInPlace(val, Init(prng));
     } else {
       Switch<sizeof...(Inner)>(val.index(), [&](auto I) {
         std::get<I>(inner_).Mutate(std::get<I>(val), prng, metadata,

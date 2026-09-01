@@ -30,6 +30,7 @@
 #include "./fuzztest/internal/domains/serialization_helpers.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/meta.h"
+#include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 #include "./fuzztest/internal/type_support.h"
@@ -61,15 +62,20 @@ class FlatMapImplBase
           Derived,
           // The user value is the user value of the output domain.
           value_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
-          // The corpus value is a tuple where the first element is the corpus
-          // value of the output domain, and the rest is the corpus value of the
-          // input domains.
+          // The corpus value is a tuple where the first element is the output
+          // domain itself, the second element is the corpus value of the output
+          // domain, and the rest are the corpus values of the input domains.
           std::tuple<
+              FlatMapOutputDomain<FlatMapper, InputDomain...>,
               corpus_type_t<FlatMapOutputDomain<FlatMapper, InputDomain...>>,
               corpus_type_t<InputDomain>...>> {
  public:
   using typename FlatMapImplBase::DomainBase::corpus_type;
   using typename FlatMapImplBase::DomainBase::value_type;
+
+  static constexpr size_t kOutputDomainIdx = 0;
+  static constexpr size_t kOutputCorpusValIdx = 1;
+  static constexpr size_t kInputCorpusValsOffset = 2;
 
   FlatMapImplBase() = default;
   explicit FlatMapImplBase(FlatMapper flat_mapper, InputDomain... input_domains)
@@ -78,14 +84,19 @@ class FlatMapImplBase
 
   corpus_type Init(absl::BitGenRef prng) {
     if (auto seed = this->MaybeGetRandomSeed(prng)) return *seed;
-    auto input_corpus = std::apply(
+    auto input_corpus_vals = std::apply(
         [&](auto&... input_domains) {
+          // Use `std::make_tuple` instead of CTAD (`std::tuple{...}`) to avoid
+          // calling the copy constructor when there is a single input domain
+          // whose corpus type is already a `std::tuple`.
           return std::make_tuple(input_domains.Init(prng)...);
         },
         input_domains_);
-    auto output_domain = GetOutputDomain(input_corpus);
-    return std::tuple_cat(std::make_tuple(output_domain.Init(prng)),
-                          input_corpus);
+    auto output_domain = GetOutputDomain(input_corpus_vals);
+    auto output_corpus_val = output_domain.Init(prng);
+    return std::tuple_cat(
+        std::tuple{std::move(output_domain), std::move(output_corpus_val)},
+        std::move(input_corpus_vals));
   }
 
   void Mutate(corpus_type& val, absl::BitGenRef prng,
@@ -99,54 +110,77 @@ class FlatMapImplBase
     bool mutate_inputs = !only_shrink && absl::Bernoulli(prng, 0.1);
     if (mutate_inputs) {
       ApplyIndex<kNumInputValues>([&](auto... I) {
-        // The first field of `val` is the output corpus value, so skip it.
+        // The first two fields of `val` are the output domain and the output
+        // corpus value, so skip them.
         (std::get<I>(input_domains_)
-             .Mutate(std::get<I + 1>(val), prng, metadata, only_shrink),
+             .Mutate(std::get<I + kInputCorpusValsOffset>(val), prng, metadata,
+                     only_shrink),
          ...);
       });
-      std::get<0>(val) = GetOutputDomain(val).Init(prng);
+      // Generate a new output domain and output corpus value.
+      // We can't write `std::get<...>(val) = ...` because there are domains
+      // and corpus types that don't support assignment. So we manually destroy
+      // the old objects and construct new ones in place.
+      // We must compute both before reconstructing either to ensure `val`
+      // is not left in an invalid state if `GetOutputDomain` or `Init` throws.
+      auto output_domain = GetOutputDomain(val);
+      auto output_corpus_val = output_domain.Init(prng);
+      ReconstructInPlace(std::get<kOutputDomainIdx>(val),
+                         std::move(output_domain));
+      ReconstructInPlace(std::get<kOutputCorpusValIdx>(val),
+                         std::move(output_corpus_val));
       return;
     }
-    // For simplicity, we create a new output domain each call to `Mutate`. This
-    // means that stateful domains don't work, but this is currently a matter of
-    // convenience, not correctness. For example, `Filter` won't automatically
-    // find when something is too restrictive.
-    // TODO(b/246423623): Support stateful domains.
-    GetOutputDomain(val).Mutate(std::get<0>(val), prng, metadata, only_shrink);
+    std::get<kOutputDomainIdx>(val).Mutate(std::get<kOutputCorpusValIdx>(val),
+                                           prng, metadata, only_shrink);
   }
 
   value_type GetValue(const corpus_type& v) const {
-    return GetOutputDomain(v).GetValue(std::get<0>(v));
+    return std::get<kOutputDomainIdx>(v).GetValue(
+        std::get<kOutputCorpusValIdx>(v));
   }
 
-  auto GetPrinter() const {
-    return FlatMappedPrinter<FlatMapper, InputDomain...>{flat_mapper_,
-                                                         input_domains_};
-  }
+  auto GetPrinter() const { return Printer{}; }
 
   std::optional<corpus_type> ParseCorpus(const IRObject& obj) const {
-    auto input_corpus = ParseWithDomainTuple(input_domains_, obj, /*skip=*/1);
-    if (!input_corpus.has_value()) {
+    auto input_corpus_vals =
+        ParseWithDomainTuple(input_domains_, obj, /*skip=*/1);
+    if (!input_corpus_vals.has_value()) {
       return std::nullopt;
     }
-    absl::Status input_values_validity = ValidateInputValues(*input_corpus);
+    absl::Status input_values_validity =
+        ValidateInputValues(*input_corpus_vals);
     if (!input_values_validity.ok()) {
       absl::FPrintF(GetStderr(), "[!] %s", input_values_validity.message());
       return std::nullopt;
     }
-    auto output_domain = GetOutputDomain(*input_corpus);
+    auto output_domain = GetOutputDomain(*input_corpus_vals);
     // We know obj.Subs()[0] exists because ParseWithDomainTuple succeeded.
-    auto output_corpus = output_domain.ParseCorpus((*obj.Subs())[0]);
-    if (!output_corpus.has_value()) {
+    auto output_corpus_val = output_domain.ParseCorpus((*obj.Subs())[0]);
+    if (!output_corpus_val.has_value()) {
       return std::nullopt;
     }
-    return std::tuple_cat(std::make_tuple(*output_corpus), *input_corpus);
+    return std::tuple_cat(
+        std::tuple{std::move(output_domain), *std::move(output_corpus_val)},
+        *std::move(input_corpus_vals));
   }
 
   IRObject SerializeCorpus(const corpus_type& v) const {
-    auto domain =
-        std::tuple_cat(std::make_tuple(GetOutputDomain(v)), input_domains_);
-    return SerializeWithDomainTuple(domain, v);
+    IRObject obj;
+    auto& subs = obj.MutableSubs();
+
+    // 1. Serialize the output corpus value.
+    subs.push_back(std::get<kOutputDomainIdx>(v).SerializeCorpus(
+        std::get<kOutputCorpusValIdx>(v)));
+
+    // 2. Serialize the input corpus values.
+    ApplyIndex<kNumInputValues>([&](auto... I) {
+      (subs.push_back(
+           std::get<I>(input_domains_)
+               .SerializeCorpus(std::get<I + kInputCorpusValsOffset>(v))),
+       ...);
+    });
+    return obj;
   }
 
   absl::Status ValidateCorpusValue(const corpus_type& corpus_value) const {
@@ -154,8 +188,8 @@ class FlatMapImplBase
     absl::Status input_values_validity = ValidateInputValues(corpus_value);
     if (!input_values_validity.ok()) return input_values_validity;
     // Check the output value.
-    return GetOutputDomain(corpus_value)
-        .ValidateCorpusValue(std::get<0>(corpus_value));
+    return std::get<kOutputDomainIdx>(corpus_value)
+        .ValidateCorpusValue(std::get<kOutputCorpusValIdx>(corpus_value));
   }
 
  protected:
@@ -164,8 +198,8 @@ class FlatMapImplBase
   }
   static constexpr size_t kNumInputValues = sizeof...(InputDomain);
 
-  // Returns the output domain for a `tuple` with or without the output value
-  // as the leading element, and with the input values as the last
+  // Returns the output domain for a `tuple` with or without the output domain
+  // and value as the leading elements, and with the input values as the last
   // `kNumInputValues` elements.
   template <typename Tuple>
   FlatMapOutputDomain<FlatMapper, InputDomain...> GetOutputDomain(
@@ -181,8 +215,8 @@ class FlatMapImplBase
     });
   }
 
-  // Validates the input values for a `tuple` with or without the output value
-  // as the leading element, and with the input values as the last
+  // Validates the input values for a `tuple` with or without the output domain
+  // and value as the leading elements, and with the input values as the last
   // `kNumInputValues` elements.
   template <typename Tuple>
   absl::Status ValidateInputValues(const Tuple& tuple) const {
@@ -208,6 +242,18 @@ class FlatMapImplBase
   }
 
  private:
+  struct Printer {
+    void PrintCorpusValue(const corpus_type& corpus_value,
+                          domain_implementor::RawSink out,
+                          domain_implementor::PrintMode mode) const {
+      // There is no useful way to print the input values, so we just print the
+      // output value by delegating to the output domain.
+      domain_implementor::PrintValue(
+          std::get<kOutputDomainIdx>(corpus_value),
+          std::get<kOutputCorpusValIdx>(corpus_value), out, mode);
+    }
+  };
+
   FlatMapper flat_mapper_;
   std::tuple<InputDomain...> input_domains_;
 };
@@ -263,40 +309,46 @@ class ReversibleFlatMapImpl
 
   std::optional<corpus_type> FromValue(const value_type& v) const {
     // 1. Recover the input values using the user-provided inverse mapper.
-    auto input_values_opt = std::invoke(inv_mapper_, v);
-    if (!input_values_opt.has_value()) return std::nullopt;
+    auto input_user_vals = std::invoke(inv_mapper_, v);
+    if (!input_user_vals.has_value()) return std::nullopt;
 
-    // 2. Map input values into input corpus values.
-    auto input_corpus_opt =
+    // 2. Map input user values into input corpus values.
+    auto input_corpus_vals =
         ApplyIndex<ReversibleFlatMapImpl::FlatMapImplBase::kNumInputValues>(
             [&](auto... I)
                 -> std::optional<std::tuple<corpus_type_t<InputDomain>...>> {
-              auto inner_corpus_vals =
-                  std::tuple{std::get<I>(this->input_domains())
-                                 .FromValue(std::get<I>(*input_values_opt))...};
+              // Use `std::make_tuple` instead of CTAD (`std::tuple{...}`) to
+              // avoid calling the copy constructor when there is a single input
+              // domain whose corpus type is already a `std::tuple`.
+              auto inner_corpus_vals = std::make_tuple(
+                  std::get<I>(this->input_domains())
+                      .FromValue(std::get<I>(*input_user_vals))...);
               bool has_nullopt =
                   (!std::get<I>(inner_corpus_vals).has_value() || ...);
               if (has_nullopt) return std::nullopt;
-              return std::tuple{*std::move(std::get<I>(inner_corpus_vals))...};
+              return std::make_tuple(
+                  *std::move(std::get<I>(inner_corpus_vals))...);
             });
-    if (!input_corpus_opt.has_value()) return std::nullopt;
+    if (!input_corpus_vals.has_value()) return std::nullopt;
 
-    if (!this->ValidateInputValues(*input_corpus_opt).ok()) return std::nullopt;
+    if (!this->ValidateInputValues(*input_corpus_vals).ok())
+      return std::nullopt;
 
     // 3. Re-instantiate the dynamically generated output domain.
-    auto output_domain = this->GetOutputDomain(*input_corpus_opt);
+    auto output_domain = this->GetOutputDomain(*input_corpus_vals);
 
-    // 4. Map the output value into the output corpus value.
-    auto output_corpus_opt = output_domain.FromValue(v);
-    if (!output_corpus_opt.has_value()) return std::nullopt;
+    // 4. Map the output user value into the output corpus value.
+    auto output_corpus_val = output_domain.FromValue(v);
+    if (!output_corpus_val.has_value()) return std::nullopt;
 
-    if (!output_domain.ValidateCorpusValue(*output_corpus_opt).ok()) {
+    if (!output_domain.ValidateCorpusValue(*output_corpus_val).ok()) {
       return std::nullopt;
     }
-    // 5. Assemble the final corpus tuple (output corpus followed by input
-    // corpus).
-    return std::tuple_cat(std::make_tuple(*std::move(output_corpus_opt)),
-                          *std::move(input_corpus_opt));
+
+    // 5. Assemble the final corpus tuple.
+    return std::tuple_cat(
+        std::tuple{std::move(output_domain), *std::move(output_corpus_val)},
+        *std::move(input_corpus_vals));
   }
 
  private:

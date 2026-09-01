@@ -482,36 +482,49 @@ TEST(FlatMapTest, DelegatesToOutputDomainPrinter) {
   };
   auto input_domain = InRange(1, 3);
   auto flat_map_domain = FlatMap(optional_sized_strings, input_domain);
+  using FlatMapDomain = decltype(flat_map_domain);
 
-  corpus_type_t<decltype(flat_map_domain)> abc_corpus_val = {
+  corpus_type_t<FlatMapDomain> abc_corpus_val = {
+      // Output domain
+      optional_sized_strings(3),
       // String of size
       GenericDomainCorpusType(std::in_place_type<std::string>, "ABC"),
       // Size
       3};
+
   // Sanity checks that the components of `abc_corpus_val` are in the respective
   // domains.
   ASSERT_TRUE(
-      input_domain.ValidateCorpusValue(std::get<1>(abc_corpus_val)).ok());
+      input_domain
+          .ValidateCorpusValue(
+              std::get<FlatMapDomain::kInputCorpusValsOffset>(abc_corpus_val))
+          .ok());
   ASSERT_TRUE(
-      optional_sized_strings(input_domain.GetValue(std::get<1>(abc_corpus_val)))
-          .ValidateCorpusValue(std::get<0>(abc_corpus_val))
+      std::get<FlatMapDomain::kOutputDomainIdx>(abc_corpus_val)
+          .ValidateCorpusValue(
+              std::get<FlatMapDomain::kOutputCorpusValIdx>(abc_corpus_val))
           .ok());
   EXPECT_THAT(TestPrintValue(abc_corpus_val, flat_map_domain),
               ElementsAre("(\"ABC\")", "\"ABC\""));
 
-  corpus_type_t<decltype(flat_map_domain)> nullopt_corpus_val = {
-      // Corpus value of nullopt
-      std::monostate{},
-      // Size (here irrelevant)
-      2};
+  corpus_type_t<FlatMapDomain> nullopt_corpus_val = {// Output domain
+                                                     optional_sized_strings(2),
+                                                     // Corpus value of nullopt
+                                                     std::monostate{},
+                                                     // Size (here irrelevant)
+                                                     2};
   // Sanity checks that the components of `nullopt_corpus_val` are in the
   // respective domains.
   ASSERT_TRUE(
-      input_domain.ValidateCorpusValue(std::get<1>(nullopt_corpus_val)).ok());
-  ASSERT_TRUE(optional_sized_strings(
-                  input_domain.GetValue(std::get<1>(nullopt_corpus_val)))
-                  .ValidateCorpusValue(std::get<0>(nullopt_corpus_val))
-                  .ok());
+      input_domain
+          .ValidateCorpusValue(std::get<FlatMapDomain::kInputCorpusValsOffset>(
+              nullopt_corpus_val))
+          .ok());
+  ASSERT_TRUE(
+      std::get<FlatMapDomain::kOutputDomainIdx>(nullopt_corpus_val)
+          .ValidateCorpusValue(
+              std::get<FlatMapDomain::kOutputCorpusValIdx>(nullopt_corpus_val))
+          .ok());
   EXPECT_THAT(TestPrintValue(nullopt_corpus_val, flat_map_domain),
               Each("std::nullopt"));
 }

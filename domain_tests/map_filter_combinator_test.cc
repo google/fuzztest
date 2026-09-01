@@ -191,7 +191,9 @@ TEST(FlatMap, WorksWithSameCorpusType) {
   auto domain = FlatMap([](int a) { return Just(~a); }, Arbitrary<int>());
   absl::BitGen bitgen;
   Value value(domain, bitgen);
-  EXPECT_EQ(value.user_value, ~std::get<1>(value.corpus_value));
+  EXPECT_EQ(
+      value.user_value,
+      ~std::get<decltype(domain)::kInputCorpusValsOffset>(value.corpus_value));
 }
 
 TEST(FlatMap, WorksWithDifferentCorpusType) {
@@ -205,8 +207,9 @@ TEST(FlatMap, WorksWithDifferentCorpusType) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   // `0` is the index in the ElementOf
-  EXPECT_EQ(typename decltype(colors)::corpus_type{0},
-            std::get<1>(value.corpus_value));
+  EXPECT_EQ(
+      typename decltype(colors)::corpus_type{0},
+      std::get<decltype(domain)::kInputCorpusValsOffset>(value.corpus_value));
   EXPECT_EQ("Blue", value.user_value);
 }
 
@@ -226,10 +229,20 @@ TEST(FlatMap, AcceptsMultipleInnerDomains) {
 TEST(FlatMap, SerializationRoundTrip) {
   auto domain = FlatMap([](int len) { return AsciiString().WithSize(len); },
                         InRange(0, 10));
+  using FlatMapDomain = decltype(domain);
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   auto serialized = domain.SerializeCorpus(value.corpus_value);
-  EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
+  auto parsed = domain.ParseCorpus(serialized);
+  ASSERT_TRUE(parsed.has_value());
+  // Corpus value is a tuple:
+  //   (output_domain, output_corpus_val, input_corpus_val...)
+  // We ignore the output domain itself since it doesn't have equality defined.
+  EXPECT_EQ(std::get<FlatMapDomain::kOutputCorpusValIdx>(*parsed),
+            std::get<FlatMapDomain::kOutputCorpusValIdx>(value.corpus_value));
+  EXPECT_EQ(
+      std::get<FlatMapDomain::kInputCorpusValsOffset>(*parsed),
+      std::get<FlatMapDomain::kInputCorpusValsOffset>(value.corpus_value));
 }
 
 TEST(FlatMap, ValidationRejectsInvalidValue) {
@@ -257,16 +270,19 @@ TEST(FlatMap, ValidationRejectsInvalidValue) {
 TEST(FlatMap, MutationAcceptsChangingDomains) {
   auto domain = FlatMap([](int len) { return AsciiString().WithSize(len); },
                         InRange(0, 10));
+  using FlatMapDomain = decltype(domain);
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   auto mutated = value.corpus_value;
-  while (std::get<1>(value.corpus_value) == std::get<1>(mutated)) {
+  while (std::get<FlatMapDomain::kInputCorpusValsOffset>(value.corpus_value) ==
+         std::get<FlatMapDomain::kInputCorpusValsOffset>(mutated)) {
     // We demand that our output domain has size `len` above. This will check
     // fail in ContainerOfImpl if we try to generate a string of the wrong
     // length.
     domain.Mutate(mutated, bitgen, {}, false);
   }
-  EXPECT_EQ(domain.GetValue(mutated).size(), std::get<1>(mutated));
+  EXPECT_EQ(domain.GetValue(mutated).size(),
+            std::get<FlatMapDomain::kInputCorpusValsOffset>(mutated));
 }
 
 TEST(FlatMap, MutationAcceptsShrinkingOutputDomains) {
@@ -484,7 +500,9 @@ TEST(ReversibleFlatMap, WorksWithSameCorpusType) {
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   // Corpus value is a tuple: (output_corpus, input_corpus...)
-  EXPECT_EQ(value.user_value, ~std::get<1>(value.corpus_value));
+  EXPECT_EQ(
+      value.user_value,
+      ~std::get<decltype(domain)::kInputCorpusValsOffset>(value.corpus_value));
 }
 
 TEST(ReversibleFlatMap, AcceptsMultipleInnerDomains) {
@@ -544,10 +562,21 @@ TEST(ReversibleFlatMap, SerializationRoundTrip) {
                           return std::optional(std::tuple<int>(s.size()));
                         },
                         InRange(0, 10));
+  using ReversibleFlatMapDomain = decltype(domain);
   absl::BitGen bitgen;
   Value value(domain, bitgen);
   auto serialized = domain.SerializeCorpus(value.corpus_value);
-  EXPECT_EQ(domain.ParseCorpus(serialized), value.corpus_value);
+  auto parsed = domain.ParseCorpus(serialized);
+  ASSERT_TRUE(parsed.has_value());
+  // Corpus value is a tuple:
+  //   (output_domain, output_corpus_val, input_corpus_val...)
+  // We ignore the output domain itself since it doesn't have equality defined.
+  EXPECT_EQ(std::get<ReversibleFlatMapDomain::kOutputCorpusValIdx>(*parsed),
+            std::get<ReversibleFlatMapDomain::kOutputCorpusValIdx>(
+                value.corpus_value));
+  EXPECT_EQ(std::get<ReversibleFlatMapDomain::kInputCorpusValsOffset>(*parsed),
+            std::get<ReversibleFlatMapDomain::kInputCorpusValsOffset>(
+                value.corpus_value));
 }
 
 TEST(ReversibleFlatMap, ParseCorpusRejectsInvalidInputValues) {
