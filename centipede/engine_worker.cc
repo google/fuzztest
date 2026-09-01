@@ -826,12 +826,12 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
         // to happen when the stdout/stderr are not redirected to a file.
         (void)ftruncate(fd, 0);
       }
-      WorkerLog("FuzzTest engine worker (",
-                req == PersistentModeRequest::kExit ? "exiting persistent mode"
-                                                    : "persistent mode batch",
-                "); flags: ",
-                GetWorkerFlagsEnv() != nullptr ? GetWorkerFlagsEnv() : "",
-                LogLnSync{});
+      WorkerLog(
+          "FuzzTest engine worker (",
+          req == PersistentModeRequest::kExit ? "exiting persistent mode"
+                                              : "persistent mode batch",
+          "); flags: ", GetWorkerFlagsEnv() ? GetWorkerFlagsEnv() : "(unset)",
+          LogLnSync{});
     }
     if (req == PersistentModeRequest::kExit) break;
     WorkerCheck(req == PersistentModeRequest::kRunBatch,
