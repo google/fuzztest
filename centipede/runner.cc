@@ -279,9 +279,6 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   return CentipedeLLVMFuzzerMutateCallback(data, size, max_size);
 }
 
-// An arbitrary large size for input data.
-static const size_t kMaxDataSize = 1 << 20;
-
 static void WriteFeaturesToFile(FILE* file, const feature_t* features,
                                 size_t size) {
   if (!size) return;
@@ -510,9 +507,7 @@ static int ExecuteInputsFromShmem(BlobSequence& inputs_blobseq,
     if (!blob.IsValid()) break;  // no more blobs to read.
     if (!IsDataInput(blob)) return EXIT_FAILURE;
 
-    // TODO(kcc): [impl] handle sizes larger than kMaxDataSize.
-    size_t size = std::min(kMaxDataSize, blob.size);
-    inputs.push_back(callbacks.DeserializeInput({blob.data, size}));
+    inputs.push_back(callbacks.DeserializeInput({blob.data, blob.size}));
   }
 
   CentipedeBeginExecutionBatch();
@@ -717,8 +712,11 @@ void LegacyRunnerCallbacks::SerializeInput(
 }
 
 void* LegacyRunnerCallbacks::DeserializeInput(ByteSpan input_bytes) {
+  // An arbitrary large size for input data.
+  static const size_t kMaxDataSize = 1 << 20;
+  const size_t size = std::min(input_bytes.size(), kMaxDataSize);
   return reinterpret_cast<void*>(
-      new ByteArray{input_bytes.begin(), input_bytes.end()});
+      new ByteArray{input_bytes.data(), input_bytes.data() + size});
 }
 
 void LegacyRunnerCallbacks::FreeInput(void* input) {
