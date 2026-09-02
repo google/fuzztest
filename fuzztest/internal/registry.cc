@@ -57,8 +57,11 @@ void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 
+__attribute__((weak)) void RegisterFuzzTestAsGoogleTest(FuzzTest& test) {}
+
 void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
   Regs().emplace_back(std::move(test_info), std::move(factory));
+  RegisterFuzzTestAsGoogleTest(Regs().back());
 }
 
 void RegisterSetUpTearDownTestSuiteFunctions(

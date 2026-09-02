@@ -163,6 +163,21 @@ class Runtime {
   void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
   RunMode run_mode() const { return run_mode_; }
 
+  void SetInitFuzzTestCalled(bool v) { init_fuzztest_called_ = v; }
+  bool init_fuzztest_called() const { return init_fuzztest_called_; }
+
+  void SetArgs(int* argc, char*** argv) {
+    argc_ = argc;
+    argv_ = argv;
+  }
+  int* argc() const { return argc_; }
+  char*** argv() const { return argv_; }
+
+  void SetConfiguration(Configuration configuration) {
+    configuration_ = std::move(configuration);
+  }
+  const Configuration& configuration() const { return configuration_; }
+
   // Enables the crash reporter.
   // REQUIRES: `SetCurrentTest()` has been called with non-null arguments.
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
@@ -264,6 +279,11 @@ class Runtime {
   const Configuration* current_configuration_;
   const RuntimeStats* stats_ = nullptr;
   absl::Time (*clock_fn_)() = nullptr;
+
+  bool init_fuzztest_called_ = false;
+  int* argc_ = nullptr;
+  char*** argv_ = nullptr;
+  Configuration configuration_;
 
   // We use a simple custom spinlock instead of absl::Mutex to reduce
   // dependencies and avoid potential issues with code instrumentation.
