@@ -116,3 +116,19 @@ set_target_properties(
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${CMAKE_BINARY_DIR}/_main/e2e_tests/testdata"
 )
+
+add_executable(
+  fuzz_test_without_init_fuzztest.stripped
+  fuzz_test_without_init_fuzztest.cc
+)
+target_link_libraries(
+  fuzz_test_without_init_fuzztest.stripped
+  PRIVATE
+  fuzztest::fuzztest
+  GTest::gtest
+)
+set_target_properties(
+  fuzz_test_without_init_fuzztest.stripped
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${CMAKE_BINARY_DIR}/_main/e2e_tests/testdata"
+)
