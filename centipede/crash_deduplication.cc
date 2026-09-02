@@ -73,6 +73,22 @@ enum class ActionType {
   kDelete
 };
 
+std::string_view ActionTypeToString(ActionType action_type) {
+  switch (action_type) {
+    case ActionType::kTouch:
+      return "Touch";
+    case ActionType::kKeep:
+      return "Keep";
+    case ActionType::kReplaceInput:
+      return "ReplaceInput";
+    case ActionType::kIncubateAndReplaceInput:
+      return "IncubateAndReplaceInput";
+    case ActionType::kDelete:
+      return "Delete";
+  }
+  return "Unknown";
+}
+
 struct ExistingCrash {
   CrashReport crash_report;
   std::string new_signature;
@@ -87,6 +103,7 @@ struct ExistingCrashAction {
   const ExistingCrash& existing_crash;
   ActionType action_type;
   std::optional<CrashDetails> new_details;
+  std::string reason;
 };
 
 absl::StatusOr<std::vector<ExistingCrash>> ReadExistingCrashes(
@@ -218,11 +235,13 @@ ExistingCrashAction ComputeExistingCrashAction(
 
   // If the crash was malformed (no signature), we delete it immediately.
   if (sig.empty()) {
-    return {existing, ActionType::kDelete, std::nullopt};
+    return {existing, ActionType::kDelete, std::nullopt,
+            "Crash was malformed (empty signature)"};
   }
 
   if (sig == sig_new) {
-    return {existing, ActionType::kTouch, std::nullopt};
+    return {existing, ActionType::kTouch, std::nullopt,
+            absl::StrCat("Crash reproduced with the same signature: ", sig)};
   }
 
   // The signature changed or it no longer reproduces.
@@ -230,7 +249,17 @@ ExistingCrashAction ComputeExistingCrashAction(
   if (it == new_crashes.end()) {
     // No input reproduces this signature anymore. Keep it on disk (subject to
     // TTL).
-    return {existing, ActionType::kKeep, std::nullopt};
+    std::string reason =
+        sig_new.empty()
+            ? absl::StrCat(
+                  "Crash did not reproduce during replay, and no "
+                  "active input reproduces signature '",
+                  sig, "'; keeping on disk subject to TTL")
+            : absl::StrCat("Crash reproduced with a different signature ('",
+                           sig_new, "' != '", sig,
+                           "'), and no active input reproduces signature '",
+                           sig, "'; keeping on disk subject to TTL");
+    return {existing, ActionType::kKeep, std::nullopt, std::move(reason)};
   }
 
   // We have an input for this crash signature.
@@ -239,15 +268,33 @@ ExistingCrashAction ComputeExistingCrashAction(
         existing.crash_report.details.input_signature) {
       // The crashing input is the same which means that this input is flakey.
       // Just touch it.
-      return {existing, ActionType::kTouch, it->second};
+      return {existing, ActionType::kTouch, it->second,
+              absl::StrCat("Crash did not reproduce during replay, but active "
+                           "input for signature '",
+                           sig, "' is identical, indicating a flaky crash")};
     }
     // The old crash did not reproduce at all. Move it to incubating and
     // replace.
-    return {existing, ActionType::kIncubateAndReplaceInput, it->second};
+    return {existing, ActionType::kIncubateAndReplaceInput, it->second,
+            absl::StrCat("Crash did not reproduce during replay; moving old "
+                         "input to incubating and replacing with new input for "
+                         "signature '",
+                         sig, "'")};
   }
 
   // The old crash reproduced with a different signature. Replace it.
-  return {existing, ActionType::kReplaceInput, it->second};
+  return {
+      existing, ActionType::kReplaceInput, it->second,
+      absl::StrCat("Crash reproduced with a different signature ('", sig_new,
+                   "' != '", sig,
+                   "'); replacing with new input for signature '", sig, "'")};
+}
+
+void LogExistingCrashAction(const ExistingCrashAction& action) {
+  FUZZTEST_LOG(INFO) << "Action: " << ActionTypeToString(action.action_type)
+                     << " for existing crash '"
+                     << action.existing_crash.crash_report.details.input_path
+                     << "'. Reason: " << action.reason << ".";
 }
 
 std::vector<ExistingCrashAction> ComputeExistingCrashActions(
@@ -257,6 +304,7 @@ std::vector<ExistingCrashAction> ComputeExistingCrashActions(
   actions.reserve(existing_crashes.size());
   for (const auto& existing : existing_crashes) {
     actions.push_back(ComputeExistingCrashAction(existing, new_crashes));
+    LogExistingCrashAction(actions.back());
   }
   return actions;
 }
@@ -394,6 +442,11 @@ absl::Status WriteNewCrashes(
   size_t new_signatures_written = 0;
   for (const auto& [signature, report] : new_crash_reports) {
     if (new_signatures_written < num_new_allowed) {
+      FUZZTEST_LOG(INFO) << "Action: StoreNewCrash for signature '" << signature
+                         << "' (input: " << report.details.input_signature
+                         << ", bug_id: " << report.bug_id << ") to '"
+                         << crashing_dir.c_str()
+                         << "'. Reason: New crash signature discovered.";
       RETURN_IF_NOT_OK(WriteCrashToFile(crashing_dir, report.bug_id,
                                         report.signature, report.details,
                                         crash_summary));
@@ -413,6 +466,11 @@ absl::Status CleanUpIncubating(
     absl::Span<const IncubatingCrash> incubating_crashes) {
   for (const auto& incubating : incubating_crashes) {
     if (!incubating.new_signature.empty()) {
+      FUZZTEST_LOG(INFO) << "Action: CleanUpIncubating for '"
+                         << incubating.details.input_path
+                         << "'. Reason: Input reproduced with signature '"
+                         << incubating.new_signature
+                         << "' and graduated from incubation.";
       RETURN_IF_NOT_OK(RemotePathDelete(incubating.details.input_path,
                                         /*recursively=*/false));
     }
@@ -446,6 +504,10 @@ absl::Status MoveExpiredCrashesToRegression(
       }
 
       std::filesystem::path dest_path = regression_dir / dest_filename;
+      FUZZTEST_LOG(INFO) << "Action: MoveToRegression for '" << file_path
+                         << "' -> '" << dest_path.c_str()
+                         << "'. Reason: Crash expired (not reproduced for "
+                         << (now - mtime) << " > TTL " << ttl << ").";
       RETURN_IF_NOT_OK(RemoteFileRename(file_path, dest_path.c_str()));
     }
   }
