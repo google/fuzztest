@@ -55,10 +55,12 @@ config_setting(
 
 cc_library(
     name = "fuzztest",
+    testonly = True,
     hdrs = ["fuzztest.h"],
     deps = [
         ":domain",
         ":fuzztest_macros",
+        ":init_fuzztest",
     ],
 )
 

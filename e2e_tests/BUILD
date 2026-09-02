@@ -48,6 +48,8 @@ cc_test(
         "@com_google_fuzztest//centipede:centipede_uninstrumented",
         "@com_google_fuzztest//e2e_tests/testdata:data",
         "@com_google_fuzztest//e2e_tests/testdata:dynamically_registered_fuzz_tests.stripped",
+        "@com_google_fuzztest//e2e_tests/testdata:fuzz_test_with_custom_main.stripped",
+        "@com_google_fuzztest//e2e_tests/testdata:fuzz_test_without_init_fuzztest.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_for_functional_testing.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:fuzz_tests_with_invalid_seeds.stripped",
         "@com_google_fuzztest//e2e_tests/testdata:llvm_fuzzer_with_custom_mutator.stripped",

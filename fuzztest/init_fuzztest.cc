@@ -435,6 +435,8 @@ void RunSpecifiedFuzzTest(std::string_view name, std::string_view binary_id) {
 
 void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   auto& runtime = internal::Runtime::instance();
+  runtime.SetInitFuzzTestCalled(true);
+  runtime.SetArgs(argc, argv);
   const bool is_listing = absl::GetFlag(FUZZTEST_FLAG(list_fuzz_tests));
   if (is_listing) {
     for (const auto& name : ListRegisteredTests()) {
@@ -482,7 +484,8 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   internal::Configuration configuration =
       CreateConfigurationsFromFlags(derived_binary_id);
   configuration.reproduction_command_template = reproduction_command_template;
-  internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
+  runtime.SetConfiguration(configuration);
+  internal::RegisterSeparateRegressionTestsForEachCrashingInput(configuration);
 
   const bool is_fuzzing_or_replaying =
       (fuzzing_time_limit || replay_corpus_time_limit);

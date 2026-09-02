@@ -36,6 +36,8 @@ namespace internal {
 
 void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
 
+void RegisterFuzzTestAsGoogleTest(FuzzTest& test);
+
 void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func);
 
 using SetUpTearDownTestSuiteFunction = void (*)();
