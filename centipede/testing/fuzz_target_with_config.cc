@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdlib>
+#include <functional>
 #include <string>
 
 #include "absl/base/nullability.h"
