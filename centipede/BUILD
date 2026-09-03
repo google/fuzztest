@@ -212,11 +212,17 @@ cc_library(
 
 # Various utilities.
 cc_library(
+    name = "windows_includes",
+    hdrs = ["windows_includes.h"],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
     deps = [
         ":feature",
+        ":windows_includes",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/strings",
@@ -597,7 +603,10 @@ cc_library(
     deps = [
         ":stop",
         ":util",
+        ":windows_includes",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -605,6 +614,7 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -1385,7 +1395,12 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
-    copts = ["-fno-signed-char"],
+    copts = select({
+        "@platforms//os:windows": [
+            "/J",  # Make unsigned char the default
+        ],
+        "//conditions:default": ["-fno-signed-char"],
+    }),
     deps = [
         ":feature",
         ":thread_pool",
@@ -1732,10 +1747,14 @@ cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
     deps = [
-        ":runner_fork_server",
+        ":windows_includes",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":runner_fork_server"],
+    }),
 )
 
 cc_test(

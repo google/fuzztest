@@ -17,8 +17,12 @@
 
 #include "./centipede/util.h"
 
+#if defined(_WIN32)
+#include "./centipede/windows_includes.h"
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -47,6 +51,7 @@
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -63,8 +68,13 @@ namespace fuzztest::internal {
 
 size_t GetRandomSeed(size_t seed) {
   if (seed != 0) return seed;
+#if defined(_WIN32)
+  return time(nullptr) + GetCurrentProcessId() +
+         std::hash<std::thread::id>{}(std::this_thread::get_id());
+#else
   return time(nullptr) + getpid() +
          std::hash<std::thread::id>{}(std::this_thread::get_id());
+#endif
 }
 
 std::string AsPrintableString(ByteSpan data, size_t max_len) {
@@ -83,7 +93,7 @@ std::string AsPrintableString(ByteSpan data, size_t max_len) {
 
 template <typename Container>
 void ReadFromLocalFile(std::string_view file_path, Container &data) {
-  std::ifstream f(std::string{file_path});
+  std::ifstream f(std::string{file_path}, std::ios::in | std::ios::binary);
   if (!f) return;
   f.seekg(0, std::ios_base::end);
   auto size = f.tellg();
@@ -112,12 +122,13 @@ void ReadFromLocalFile(std::string_view file_path,
 }
 
 void ClearLocalFileContents(std::string_view file_path) {
-  std::ofstream f(std::string{file_path}, std::ios::out | std::ios::trunc);
+  std::ofstream f(std::string{file_path},
+                  std::ios::out | std::ios::trunc | std::ios::binary);
   FUZZTEST_CHECK(f) << "Failed to clear the file: " << file_path;
 }
 
 void WriteToLocalFile(std::string_view file_path, ByteSpan data) {
-  std::ofstream f(std::string{file_path});
+  std::ofstream f(std::string{file_path}, std::ios::out | std::ios::binary);
   FUZZTEST_CHECK(f) << "Failed to open local file: " << file_path;
   f.write(reinterpret_cast<const char *>(data.data()),
           static_cast<int64_t>(data.size()));
@@ -136,13 +147,15 @@ void WriteToLocalFile(std::string_view file_path, const FeatureVec &data) {
 
 void WriteToLocalHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
-  std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
+  std::string file_path =
+      std::filesystem::path(dir_path).append(Hash(data)).string();
   WriteToLocalFile(file_path, data);
 }
 
 void WriteToRemoteHashedFileInDir(std::string_view dir_path, ByteSpan data) {
   if (dir_path.empty()) return;
-  std::string file_path = std::filesystem::path(dir_path).append(Hash(data));
+  std::string file_path =
+      std::filesystem::path(dir_path).append(Hash(data)).string();
   FUZZTEST_CHECK_OK(
       RemoteFileSetContents(file_path, std::string(data.begin(), data.end())));
 }
@@ -155,17 +168,24 @@ std::string HashOfFileContents(std::string_view file_path) {
 }
 
 std::string ProcessAndThreadUniqueID(std::string_view prefix) {
-  // operator << is the only way to serialize std::this_thread::get_id().
   std::ostringstream oss;
+#if defined(_WIN32)
+  oss << prefix << GetCurrentProcessId() << "-" << GetCurrentThreadId();
+#else
+  // operator << is the only way to serialize std::this_thread::get_id().
   oss << prefix << getpid() << "-" << std::this_thread::get_id();
+#endif
   return oss.str();
 }
 
 std::string TemporaryLocalDirPath() {
   const char *TMPDIR = getenv("TMPDIR");
+  if (!TMPDIR) TMPDIR = getenv("TEMP");
+  if (!TMPDIR) TMPDIR = getenv("TMP");
   std::string tmp = TMPDIR ? TMPDIR : "/tmp";
-  return std::filesystem::path(tmp).append(
-      ProcessAndThreadUniqueID("centipede-"));
+  return std::filesystem::path(tmp)
+      .append(ProcessAndThreadUniqueID("centipede-"))
+      .string();
 }
 
 // We need to maintain a global set of dirs that CreateLocalDirRemovedAtExit()
@@ -189,13 +209,19 @@ static void RemoveDirsAtExit() {
 
 void CreateLocalDirRemovedAtExit(std::string_view path) {
   // Safeguard against removing dirs not created by TemporaryLocalDirPath().
-  FUZZTEST_CHECK_NE(path.find("/centipede-"), std::string::npos);
+  FUZZTEST_CHECK(absl::StrContains(path, "/centipede-") ||
+                 absl::StrContains(path, "\\centipede-"));
   // Create the dir.
   std::error_code error;
-  std::filesystem::remove_all(path, error);
-  FUZZTEST_LOG_IF(ERROR, error)
-      << "Unable to clean up existing dir " << path << ": " << error.message();
-  std::filesystem::create_directories(path);
+  std::filesystem::path p(path);
+  if (std::filesystem::exists(p, error)) {
+    std::filesystem::remove_all(p, error);
+    FUZZTEST_LOG_IF(ERROR, error)
+        << "Unable to clean up existing dir " << p << ": " << error.message();
+  }
+  std::filesystem::create_directories(p, error);
+  FUZZTEST_CHECK(!error) << "Failed to create local dir " << p << ": "
+                         << error.message();
   // Add to dirs_to_delete_at_exit.
   absl::MutexLock lock(dirs_to_delete_at_exit_mutex);
   if (!dirs_to_delete_at_exit) {
@@ -206,7 +232,7 @@ void CreateLocalDirRemovedAtExit(std::string_view path) {
 }
 
 ScopedFile::ScopedFile(std::string_view dir_path, std::string_view name)
-    : my_path_(std::filesystem::path(dir_path) / name) {}
+    : my_path_((std::filesystem::path(dir_path) / name).string()) {}
 
 ScopedFile::~ScopedFile() {
   std::error_code error;
@@ -359,16 +385,85 @@ std::vector<size_t> RandomWeightedSubset(absl::Span<const uint64_t> set,
   return res;
 }
 
+#if defined(_WIN32)
+// On Windows, we use the first page for the magic cookies of mmapped regions so
+// that our VEH can handle it properly.
+static constexpr std::string_view kMmapMagicCookie = "CENTIPED";
+
+static const auto page_size = []() {
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return static_cast<size_t>(si.dwPageSize);
+}();
+
+static LONG CALLBACK
+AutoCommitPageFaultHandler(PEXCEPTION_POINTERS ExceptionInfo) {
+  auto record = ExceptionInfo->ExceptionRecord;
+  if (record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION ||
+      record->NumberParameters < 2) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  auto fault_addr = reinterpret_cast<LPVOID>(record->ExceptionInformation[1]);
+  MEMORY_BASIC_INFORMATION mbi;
+  if (VirtualQuery(fault_addr, &mbi, sizeof(mbi)) != sizeof(mbi)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  if (mbi.State != MEM_RESERVE) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  auto cookie_addr = reinterpret_cast<const uint8_t*>(mbi.AllocationBase);
+  if (VirtualQuery(cookie_addr, &mbi, sizeof(mbi)) != sizeof(mbi)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  if (mbi.State != MEM_COMMIT) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  if (std::memcmp(cookie_addr, kMmapMagicCookie.data(),
+                  kMmapMagicCookie.size()) != 0) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  if (VirtualAlloc(fault_addr, 1, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  return EXCEPTION_CONTINUE_EXECUTION;
+}
+#endif
+
 uint8_t *MmapNoReserve(size_t size) {
+#if defined(_WIN32)
+  // Set up page fault handler to commit page on demand.
+  [[maybe_unused]] static bool installed_veh = []() {
+    // Must use `First=0` as it could otherwise conflict with e.g. sanitizers.
+    AddVectoredExceptionHandler(/*First=*/0, AutoCommitPageFaultHandler);
+    return true;
+  }();
+  // MEM_RESERVE has different semantics and does not contradict with
+  // MAP_NORESERVE for mmap.
+  auto result = reinterpret_cast<uint8_t*>(
+      VirtualAlloc(nullptr, size + page_size, MEM_RESERVE, PAGE_READWRITE));
+  FUZZTEST_CHECK(result != nullptr)
+      << "VirtualAlloc failed for size " << size << " err=" << GetLastError();
+  FUZZTEST_CHECK(VirtualAlloc(result, kMmapMagicCookie.size(), MEM_COMMIT,
+                              PAGE_READWRITE) != nullptr)
+      << "VirtualAlloc failed to commit the memory region cookie";
+  std::memcpy(result, kMmapMagicCookie.data(), kMmapMagicCookie.size());
+  return result + page_size;
+#else
   auto result = mmap(0, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
   FUZZTEST_CHECK(result != MAP_FAILED);
   return reinterpret_cast<uint8_t *>(result);
+#endif
 }
 
 void Munmap(uint8_t *ptr, size_t size) {
+#if defined(_WIN32)
+  BOOL result = VirtualFree(ptr - page_size, 0, MEM_RELEASE);
+  FUZZTEST_CHECK(result != 0);
+#else
   auto result = munmap(ptr, size);
   FUZZTEST_CHECK_EQ(result, 0);
+#endif
 }
 
 int PollTimeoutMs(absl::Duration timeout) {

@@ -18,9 +18,22 @@
 #include <string_view>
 #include <system_error>  // NOLINT
 
+#if !defined(_WIN32)
+#include <unistd.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#include <process.h>
+#include <windows.h>
+#endif
+
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "./common/logging.h"
+
+#if defined(_WIN32)
+#define setenv(n, v, _r) _putenv_s(n, v)
+#endif
 
 namespace fuzztest::internal {
 
@@ -35,11 +48,18 @@ std::filesystem::path GetTestTempDir(std::string_view subdir) {
     FUZZTEST_CHECK(!error) << "Failed to create dir: " VV(dir)
                            << error.message();
   }
-  return std::filesystem::canonical(dir);
+  return std::filesystem::absolute(dir);
 }
 
 std::string GetTempFilePath(std::string_view subdir, size_t i) {
-  return GetTestTempDir(subdir) / absl::StrCat("tmp.", getpid(), ".", i);
+  return (GetTestTempDir(subdir) / absl::StrCat("tmp.",
+#if defined(_WIN32)
+                                                GetCurrentProcessId(),
+#else
+                                                getpid(),
+#endif
+                                                ".", i))
+      .string();
 }
 
 std::filesystem::path GetTestRunfilesDir() {
@@ -59,6 +79,13 @@ std::filesystem::path GetDataDependencyFilepath(std::string_view rel_path) {
   const auto runfiles_dir = GetTestRunfilesDir();
   auto path = runfiles_dir;
   path.append(rel_path);
+  std::error_code ec;
+  if (std::filesystem::exists(path, ec)) return path;
+#if defined(_WIN32)
+  auto win_path = path;
+  win_path += ".exe";
+  if (std::filesystem::exists(win_path, ec)) return win_path;
+#endif
   FUZZTEST_CHECK(std::filesystem::exists(path))  //
       << "No such path: " << VV(path) << VV(runfiles_dir) << VV(rel_path);
   return path;
