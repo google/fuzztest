@@ -104,7 +104,6 @@ rust_test(
     name = "fuzz_tests_as_gtests",
     srcs = ["fuzz_tests_as_gtests.rs"],
     edition = "2024",
-    rustc_flags = ["-Zallow-features=cfg_sanitize"],
     tags = [
         "manual",
         "notap",

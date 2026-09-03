@@ -67,7 +67,6 @@ rust_test(
         "@com_google_fuzztest//rust/e2e_tests/testdata:fuzztest_main",
     ],
     edition = "2024",
-    rustc_flags = ["-Zallow-features=cfg_sanitize"],
     deps = [
         ":test_utils",
         "@crate_index//:googletest",
