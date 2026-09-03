@@ -902,9 +902,10 @@ void GlobalRunnerState::OnTermination() {
   // This means, the binary is standalone with its own main(), and we need to
   // report the coverage now.
   if (!state->centipede_runner_main_executed &&
-      flag_helper.HasSwitchFlag("shmem")) {
+      state->run_time_flags.shmem_size_mb != 0) {
     PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
+    SharedMemoryBlobSequence outputs_blobseq(
+        sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -988,9 +989,9 @@ static int HandlePersistentMode(RunnerCallbacks& callbacks,
   return EXIT_SUCCESS;
 }
 
-// If HasSwitchFlag(:shmem:), state->arg1 and state->arg2 are the names
-//  of in/out shared memory locations.
-//  Read inputs and write outputs via shared memory.
+// If state->run_time_flags.shmem_size_mb is non-zero, state->arg1 and
+// state->arg2 are the names of in/out shared memory locations. Read inputs and
+// write outputs via shared memory.
 //
 //  Default: Execute ReadOneInputExecuteItAndDumpCoverage() for all inputs.//
 //
@@ -1015,10 +1016,12 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
   }
 
   // Inputs / outputs from shmem.
-  if (state->flag_helper.HasSwitchFlag("shmem")) {
+  if (state->run_time_flags.shmem_size_mb != 0) {
     if (!sancov_state->arg1 || !sancov_state->arg2) return EXIT_FAILURE;
-    SharedMemoryBlobSequence inputs_blobseq(sancov_state->arg1);
-    SharedMemoryBlobSequence outputs_blobseq(sancov_state->arg2);
+    SharedMemoryBlobSequence inputs_blobseq(
+        sancov_state->arg1, state->run_time_flags.shmem_size_mb << 20);
+    SharedMemoryBlobSequence outputs_blobseq(
+        sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
     // Persistent mode loop.
     if (state->persistent_mode_socket > 0) {
       return HandlePersistentMode(callbacks, inputs_blobseq, outputs_blobseq);

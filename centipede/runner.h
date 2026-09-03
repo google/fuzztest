@@ -19,6 +19,7 @@
 #include <time.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include "./centipede/byte_array_mutator.h"
@@ -37,6 +38,7 @@ struct RunTimeFlags {
   uint64_t ignore_timeout_reports : 1;
   uint64_t max_len;
   std::atomic<uint64_t> stack_limit_kb;
+  size_t shmem_size_mb;
 };
 
 // One global object of this type is created by the runner at start up.
@@ -70,6 +72,8 @@ struct GlobalRunnerState {
       flag_helper.HasSwitchFlag("ignore_timeout_reports"),
       /*max_len=*/flag_helper.GetIntFlag("max_len=", 4000),
       /*stack_limit_kb=*/flag_helper.GetIntFlag("stack_limit_kb=", 0),
+      /*shmem_size_mb=*/
+      static_cast<size_t>(flag_helper.GetIntFlag("shmem_size_mb=", 0)),
   };
 
   // The path to a file where the runner may write the description of failure.

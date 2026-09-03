@@ -199,6 +199,7 @@ constexpr std::string_view kWorkerPersistentModeSocketPathFlagHeader =
                                 // standardizing the protocol.
 constexpr std::string_view kWorkerCrossOverLevel = "crossover_level=";
 constexpr std::string_view kWorkerMinSeeds = "min_seeds=";
+constexpr std::string_view kWorkerShmemSizeMbFlagHeader = "shmem_size_mb=";
 
 struct WorkerState {
   std::atomic<bool> has_failure_output = false;
@@ -365,28 +366,39 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
             LogLnSync{});
 }
 
+size_t GetShmemSize() {
+  static auto result = []() -> size_t {
+    const uint64_t shmem_size_mb =
+        GetWorkerFlags().GetIntFlag(kWorkerShmemSizeMbFlagHeader, 0);
+    return static_cast<size_t>(shmem_size_mb) << 20;
+  }();
+  return result;
+}
+
 BlobSequence* GetInputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!GetWorkerFlags().HasSwitchFlag("shmem")) {
+    const size_t shmem_size = GetShmemSize();
+    if (shmem_size == 0) {
       return nullptr;
     }
     const char* input_path =
         GetWorkerFlags().GetStringFlag(kWorkerInputsBlobSequencePathFlagHeader);
     WorkerCheck(input_path != nullptr, "inputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(input_path);
+    return new SharedMemoryBlobSequence(input_path, shmem_size);
   }();
   return result;
 }
 
 BlobSequence* GetOutputsBlobSequence() {
   static auto result = []() -> BlobSequence* {
-    if (!GetWorkerFlags().HasSwitchFlag("shmem")) {
+    const size_t shmem_size = GetShmemSize();
+    if (shmem_size == 0) {
       return nullptr;
     }
     const char* output_path = GetWorkerFlags().GetStringFlag(
         kWorkerOutputsBlobSequencePathFlagHeader);
     WorkerCheck(output_path != nullptr, "outputs blob sequence is missing");
-    return new SharedMemoryBlobSequence(output_path);
+    return new SharedMemoryBlobSequence(output_path, shmem_size);
   }();
   return result;
 }
