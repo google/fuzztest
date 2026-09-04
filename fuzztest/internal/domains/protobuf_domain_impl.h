@@ -364,31 +364,45 @@ class ProtoPolicy {
     return caches_->SetFields(descriptor, GetProtobufFields(descriptor));
   }
 
-  static const std::vector<const FieldDescriptor*>& GetProtobufFields(
+  static std::vector<const FieldDescriptor*> GetProtobufFields(
       const ProtoDescriptor* descriptor) {
-    ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
-    static absl::NoDestructor<absl::flat_hash_map<
-        const ProtoDescriptor*,
-        std::unique_ptr<std::vector<const FieldDescriptor*>>>>
-        descriptor_to_fields ABSL_GUARDED_BY(mutex);
-    {
+    const auto* pool = descriptor->file()->pool();
+    const bool is_generated_pool = (pool == pool->generated_pool());
+    if (is_generated_pool) {
+      ABSL_CONST_INIT static absl::Mutex mutex(absl::kConstInit);
+      static absl::NoDestructor<absl::flat_hash_map<
+          const ProtoDescriptor*,
+          std::unique_ptr<std::vector<const FieldDescriptor*>>>>
+          descriptor_to_fields ABSL_GUARDED_BY(mutex);
+      {
+        absl::MutexLock l(mutex);
+        auto it = descriptor_to_fields->find(descriptor);
+        if (it != descriptor_to_fields->end()) return *(it->second);
+      }
+      std::vector<const FieldDescriptor*> fields;
+      fields.reserve(descriptor->field_count());
+      for (int i = 0; i < descriptor->field_count(); ++i) {
+        fields.push_back(descriptor->field(i));
+      }
       absl::MutexLock l(mutex);
-      auto it = descriptor_to_fields->find(descriptor);
-      if (it != descriptor_to_fields->end()) return *(it->second);
+      if (ShouldEnumerateExtensions(descriptor)) {
+        pool->FindAllExtensions(descriptor, &fields);
+      }
+      auto [it, _] = descriptor_to_fields->insert(
+          {descriptor, std::make_unique<std::vector<const FieldDescriptor*>>(
+                           std::move(fields))});
+      return *(it->second);
     }
+
     std::vector<const FieldDescriptor*> fields;
     fields.reserve(descriptor->field_count());
     for (int i = 0; i < descriptor->field_count(); ++i) {
       fields.push_back(descriptor->field(i));
     }
-    absl::MutexLock l(mutex);
     if (ShouldEnumerateExtensions(descriptor)) {
-      descriptor->file()->pool()->FindAllExtensions(descriptor, &fields);
+      pool->FindAllExtensions(descriptor, &fields);
     }
-    auto [it, _] = descriptor_to_fields->insert(
-        {descriptor, std::make_unique<std::vector<const FieldDescriptor*>>(
-                         std::move(fields))});
-    return *(it->second);
+    return fields;
   }
 
  private:

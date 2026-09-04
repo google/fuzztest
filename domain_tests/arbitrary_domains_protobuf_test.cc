@@ -38,8 +38,10 @@
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/message_lite.h"
+#include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/util/message_differencer.h"
 
 namespace fuzztest {
@@ -851,6 +853,34 @@ TEST(ProtobufDomainTest, LastMaxSizeSettingWins) {
   auto corpus2 = domain2.FromValue(message);
   ASSERT_TRUE(corpus2.has_value());
   EXPECT_TRUE(domain2.ValidateCorpusValue(*corpus2).ok());
+}
+
+TEST(ProtobufDomainTest, EnsureNoUseAfterFreeAcrossDynamicPoolDestructions) {
+  google::protobuf::FileDescriptorProto file_proto;
+  file_proto.set_name("dynamic_test.proto");
+  auto* message_proto = file_proto.add_message_type();
+  message_proto->set_name("DynamicTestMessage");
+  auto* field = message_proto->add_field();
+  field->set_name("dynamic_field");
+  field->set_number(1);
+  field->set_type(google::protobuf::FieldDescriptorProto::TYPE_INT32);
+
+  for (int i = 0; i < 10; ++i) {
+    google::protobuf::DescriptorPool pool;
+    const google::protobuf::FileDescriptor* file_desc = pool.BuildFile(file_proto);
+    ASSERT_NE(file_desc, nullptr);
+    const google::protobuf::Descriptor* message_desc =
+        file_desc->FindMessageTypeByName("DynamicTestMessage");
+    ASSERT_NE(message_desc, nullptr);
+
+    google::protobuf::DynamicMessageFactory factory(&pool);
+    const google::protobuf::Message* prototype = factory.GetPrototype(message_desc);
+    ASSERT_NE(prototype, nullptr);
+
+    auto domain = ProtobufOf([prototype] { return prototype; });
+    auto values = GenerateInitialValues(domain, 10);
+    EXPECT_FALSE(values.empty());
+  }
 }
 
 }  // namespace
