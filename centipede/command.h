@@ -52,6 +52,8 @@ class Command final {
     // `Command` automatically unlinks any previous redirected files on
     // execution and destruction.
     std::string stderr_file_prefix;
+    // Redirect stdin from this file path if non-empty.
+    std::string stdin_file_path;
     // "@@" in the command will be replaced with `temp_file_path`.
     std::string temp_file_path;
   };
@@ -125,9 +127,8 @@ class Command final {
   const std::string& stderr_file() const { return stderr_file_; }
 
  private:
-  struct ForkServerProps;
+  struct PlatformContext;
 
-  int pid_ = -1;
   bool is_executing_ = false;
 
   // Derived from Options::{stdout,stderr}_file_prefix, with the realized suffix
@@ -163,7 +164,7 @@ class Command final {
   const Options options_;
   std::string command_line_;
 
-  std::unique_ptr<ForkServerProps> fork_server_;
+  std::unique_ptr<PlatformContext> platform_context_;
 };
 
 // Get the shared mutex for execution logging for preventing confusing
