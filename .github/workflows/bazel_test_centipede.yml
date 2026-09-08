@@ -57,7 +57,7 @@ jobs:
       - name: Run e2e tests
         if: matrix.config == 'default'
         run: |
-          bazel test --test_output=errors centipede/testing:instrumentation_test centipede/testing:runner_test
+          bazel test --test_output=errors centipede/testing:all
       - name: Run puzzles
         if: matrix.config == 'default'
         run: |
