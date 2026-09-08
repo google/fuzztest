@@ -384,7 +384,18 @@ void Runtime::PrintReport(RawSink out) const {
   absl::Format(out, "%s", GetSeparator());
 }
 
-#ifndef FUZZTEST_USE_CENTIPEDE
+#if defined(FUZZTEST_USE_CENTIPEDE) ||                                        \
+    ((defined(__EMSCRIPTEN__) || defined(__wasm__) || defined(__wasm32__)) && \
+     !defined(__EMSCRIPTEN_PTHREADS__))
+
+// Centipede runner has its own watchdog. Single-threaded WebAssembly (without
+// __EMSCRIPTEN_PTHREADS__) does not support threads.
+class Runtime::Watchdog {
+ public:
+  explicit Watchdog(Runtime&) {}
+};
+
+#else
 
 class Runtime::Watchdog {
  public:
@@ -420,15 +431,7 @@ class Runtime::Watchdog {
   Runtime& runtime_;
 };
 
-#else  // FUZZTEST_USE_CENTIPEDE
-
-// Centipede runner has its own watchdog.
-class Runtime::Watchdog {
- public:
-  explicit Watchdog(Runtime&) {}
-};
-
-#endif  // FUZZTEST_USE_CENTIPEDE
+#endif  // FUZZTEST_USE_CENTIPEDE || __EMSCRIPTEN__ || __wasm__ || __wasm32__
 
 Runtime::Watchdog Runtime::CreateWatchdog() { return Watchdog{*this}; }
 
