@@ -15,7 +15,7 @@
 #ifndef FUZZTEST_CENTIPEDE_ENGINE_ABI_H_
 #define FUZZTEST_CENTIPEDE_ENGINE_ABI_H_
 
-// FuzzTest engine ABI.
+// FuzzTest engine ABI. (dummy change for presubmit test)
 //
 // This header needs to be C-compatible.
 
