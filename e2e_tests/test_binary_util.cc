@@ -48,8 +48,7 @@ std::string GetFullPath(const std::filesystem::path& relative_path) {
 
 std::string CreateFuzzTestFlag(absl::string_view flag_name,
                                absl::string_view flag_value) {
-  return absl::StrCat("--", FUZZTEST_FLAG_PREFIX, flag_name,
-                      (flag_value.empty() ? "" : "="), flag_value);
+  return absl::StrCat("--", FUZZTEST_FLAG_PREFIX, flag_name, "=", flag_value);
 }
 
 std::string BinaryPath(const absl::string_view relative_path) {

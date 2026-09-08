@@ -741,6 +741,7 @@ class GenericCommandLineInterfaceTest : public ::testing::Test {
       const absl::flat_hash_map<std::string, std::string>& non_fuzztest_flags =
           {}) {
     flags["print_subprocess_log"] = "true";
+    (void)flags.try_emplace("corpus_database", "");
     return RunBinary(BinaryPath(binary),
                      RunOptions{/*flags=*/non_fuzztest_flags,
                                 /*fuzztest_flags=*/flags,
@@ -1422,7 +1423,8 @@ class FuzzingModeFixtureTest
       case ExecutionModelParam::kTestBinary: {
         RunOptions run_options;
         run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
-                                      {"print_subprocess_log", "true"}};
+                                      {"print_subprocess_log", "true"},
+                                      {"corpus_database", ""}};
         run_options.env = {
             {"FUZZTEST_MAX_FUZZING_RUNS", absl::StrCat(iterations)}};
         run_options.timeout = absl::InfiniteDuration();
@@ -1432,6 +1434,7 @@ class FuzzingModeFixtureTest
         RunOptions run_options;
         run_options.fuzztest_flags = {
             {"fuzz", std::string(test_name)},
+            {"corpus_database", ""},
             {"print_subprocess_log", "true"},
             {"internal_centipede_command", ShellEscape(CentipedePath())}};
         run_options.env = {
@@ -1449,7 +1452,8 @@ class FuzzingModeFixtureTest
             {"populate_binary_info", "false"},
             {"workdir", workdir.path()},
             {"binary", absl::StrCat(BinaryPath(kDefaultTargetBinary), " ",
-                                    CreateFuzzTestFlag("fuzz", test_name))},
+                                    CreateFuzzTestFlag("fuzz", test_name), " ",
+                                    CreateFuzzTestFlag("corpus_database", ""))},
             {"num_runs", absl::StrCat(iterations)}};
         run_options.timeout = absl::InfiniteDuration();
         return RunBinary(CentipedePath(), run_options);
@@ -1601,14 +1605,16 @@ class FuzzingModeCrashFindingTest
           {"stop_at", absl::StrCat(absl::Now() + timeout)},
           {"workdir", workdir.path()},
           {"binary", absl::StrCat(BinaryPath(target_binary), " ",
-                                  CreateFuzzTestFlag("fuzz", test_name))}};
+                                  CreateFuzzTestFlag("fuzz", test_name), " ",
+                                  CreateFuzzTestFlag("corpus_database", ""))}};
       run_options.env = std::move(env);
       run_options.timeout = timeout + absl::Seconds(10);
       return RunBinary(CentipedePath(), run_options);
     }
     RunOptions run_options;
     run_options.fuzztest_flags = {{"fuzz", std::string(test_name)},
-                                  {"fuzz_for", absl::StrCat(timeout)}};
+                                  {"fuzz_for", absl::StrCat(timeout)},
+                                  {"corpus_database", ""}};
     run_options.env = std::move(env);
     run_options.timeout = timeout + absl::Seconds(10);
     if (GetParam() == ExecutionModelParam::kTestBinaryInvokingCentipedeBinary) {
