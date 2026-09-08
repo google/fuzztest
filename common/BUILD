@@ -225,6 +225,11 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "windows_includes",
+    hdrs = ["windows_includes.h"],
+)
+
 ### Tests
 
 cc_test(
