@@ -18,11 +18,15 @@
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
+#include <utility>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
@@ -38,57 +42,53 @@
 
 namespace fuzztest::internal {
 
-// Work queue for the minimizer.
+namespace {
+
+// The minimizer state shared by all worker threads.
 // Thread-safe.
-struct MinimizerWorkQueue {
+class MinimizerState {
  public:
-  // Creates the queue.
-  // `crash_dir_path` is the directory path where new crashers are written.
-  // `crasher` is the initial crashy input.
-  MinimizerWorkQueue(const std::string_view crash_dir_path,
-                     const ByteArray crasher)
-      : crash_dir_path_(crash_dir_path), crashers_{ByteArray(crasher)} {
-    std::filesystem::create_directory(crash_dir_path_);
+  MinimizerState(size_t capacity, ByteSpan initial_crasher)
+      : capacity_(capacity),
+        crashers_{{initial_crasher.begin(), initial_crasher.end()}} {}
+
+  std::vector<ByteArray> GetCurrentCrashers() {
+    absl::MutexLock lock(mutex_);
+    return {crashers_.begin(), crashers_.end()};
   }
 
-  // Returns up to `max_num_crashers` most recently added crashers.
-  std::vector<ByteArray> GetRecentCrashers(size_t max_num_crashers) {
+  void AddCrasher(ByteArray crasher, std::string description) {
     absl::MutexLock lock(mutex_);
-    size_t num_crashers_to_return =
-        std::min(crashers_.size(), max_num_crashers);
-    return {crashers_.end() - num_crashers_to_return, crashers_.end()};
+    if (!minimize_result_.has_value() ||
+        crasher.size() < minimize_result_->input.size()) {
+      minimize_result_ = {crasher, std::move(description)};
+    }
+    crashers_.insert(std::move(crasher));
+    while (crashers_.size() > capacity_) {
+      crashers_.erase(std::max_element(
+          crashers_.begin(), crashers_.end(),
+          [](const auto& a, const auto& b) { return a.size() < b.size(); }));
+    }
   }
 
-  // Adds `crasher` to the queue, writes it to `crash_dir_path_/Hash(crasher)`.
-  // The crasher must be smaller than the original one.
-  void AddCrasher(ByteArray crasher) {
+  std::optional<MinimizeCrashResult> GetMinimizeResult() {
     absl::MutexLock lock(mutex_);
-    FUZZTEST_CHECK_LT(crasher.size(), crashers_.front().size());
-    crashers_.emplace_back(crasher);
-    // Write the crasher to disk.
-    auto hash = Hash(crasher);
-    auto dir = crash_dir_path_;
-    std::string file_path = dir.append(hash);
-    WriteToLocalFile(file_path, crasher);
-  }
-
-  // Returns true if new smaller crashes were found.
-  bool SmallerCrashesFound() const {
-    absl::MutexLock lock(mutex_);
-    return crashers_.size() > 1;
+    return minimize_result_;
   }
 
  private:
   mutable absl::Mutex mutex_;
-  const std::filesystem::path crash_dir_path_;
-  std::vector<ByteArray> crashers_ ABSL_GUARDED_BY(mutex_);
+  size_t capacity_ ABSL_GUARDED_BY(mutex_);
+  // Keep at most `capacity_` crashers to avoid being stuck in local minimum.
+  absl::flat_hash_set<ByteArray> crashers_ ABSL_GUARDED_BY(mutex_);
+  std::optional<MinimizeCrashResult> minimize_result_ ABSL_GUARDED_BY(mutex_);
 };
 
-// Performs a minimization loop in one thread.
-static void MinimizeCrash(const Environment& env,
-                          CentipedeCallbacksFactory& callbacks_factory,
-                          MinimizerWorkQueue& queue,
-                          StopCondition& stop_condition) {
+void MinimizeCrashInOneThread(const Environment& env,
+                              CentipedeCallbacksFactory& callbacks_factory,
+                              std::string_view crash_signature,
+                              MinimizerState& state,
+                              StopCondition& stop_condition) {
   ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env,
                                            stop_condition);
   auto callbacks = scoped_callback.callbacks();
@@ -96,84 +96,86 @@ static void MinimizeCrash(const Environment& env,
 
   size_t num_batches = env.num_runs / env.batch_size;
   for (size_t i = 0; i < num_batches; ++i) {
+    if (stop_condition.ShouldStop()) break;
     FUZZTEST_LOG_EVERY_POW_2(INFO)
         << "[" << i << "] Minimizing... Interrupt to stop";
-    if (stop_condition.ShouldStop()) break;
-    // Get up to kMaxNumCrashersToGet most recent crashers. We don't want just
-    // the most recent crasher to avoid being stuck in local minimum.
-    constexpr size_t kMaxNumCrashersToGet = 20;
-    const auto recent_crashers = queue.GetRecentCrashers(kMaxNumCrashersToGet);
-    FUZZTEST_CHECK(!recent_crashers.empty());
+
+    const auto crashers = state.GetCurrentCrashers();
+    FUZZTEST_CHECK(!crashers.empty());
     // Compute the minimal known crasher size.
-    size_t min_known_size = recent_crashers.front().size();
-    for (const auto &crasher : recent_crashers) {
+    size_t min_known_size = crashers.front().size();
+    for (const auto& crasher : crashers) {
       min_known_size = std::min(min_known_size, crasher.size());
     }
 
+    std::vector<ByteSpan> smaller_mutants;
     // Create several mutants that are smaller than the current smallest one.
     //
     // Currently, we do this by calling the vanilla mutator and
     // discarding all inputs that are too large.
-    // TODO(kcc): modify the Mutate() interface such that max_len can be passed.
     //
+    // TODO(xinhaoyuan): modify the Mutate() interface such that size hint can
+    // be passed.
     const std::vector<Mutant> mutants = callbacks->Mutate(
-        GetMutationInputRefsFromDataInputs(recent_crashers), env.batch_size);
-    std::vector<ByteSpan> smaller_mutants;
-    for (const auto &m : mutants) {
-      if (m.data.size() < min_known_size) smaller_mutants.push_back(m.data);
+        GetMutationInputRefsFromDataInputs(crashers), env.batch_size);
+    for (const auto& m : mutants) {
+      if (m.data.size() < min_known_size) {
+        smaller_mutants.push_back(m.data);
+      }
     }
 
-    // Execute all mutants. If a new crasher is found, add it to `queue`.
-    if (!callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
-      size_t crash_inputs_idx = batch_result.num_outputs_read();
-      FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
-      const auto new_crasher = smaller_mutants[crash_inputs_idx];
-      FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
-                         << AsPrintableString(new_crasher, /*max_len=*/40);
-      queue.AddCrasher({new_crasher.begin(), new_crasher.end()});
+    if (smaller_mutants.empty()) {
+      continue;
     }
+
+    // Try smaller mutants first to minimize the size of the new crasher.
+    std::sort(smaller_mutants.begin(), smaller_mutants.end(),
+              [](const auto& a, const auto& b) { return a.size() < b.size(); });
+
+    // Execute all mutants. If a new crasher is found, add it to `state`.
+    if (callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
+      continue;
+    }
+
+    if (batch_result.failure_signature() != crash_signature) {
+      continue;
+    }
+
+    size_t crash_inputs_idx = batch_result.num_outputs_read();
+    FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
+    const auto& new_crasher = smaller_mutants[crash_inputs_idx];
+    FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
+                       << AsPrintableString(new_crasher, /*max_len=*/40);
+    state.AddCrasher({new_crasher.begin(), new_crasher.end()},
+                     std::move(batch_result.failure_description()));
   }
 }
 
-void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
-                   CentipedeCallbacksFactory& callbacks_factory,
-                   StopCondition& stop_condition) {
-  ScopedCentipedeCallbacks scoped_callback(callbacks_factory, env,
-                                           stop_condition);
-  auto callbacks = scoped_callback.callbacks();
+}  // namespace
 
-  FUZZTEST_LOG(INFO) << "MinimizeCrash: trying the original crashy input";
-  CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-
-  BatchResult batch_result;
-  ByteArray original_crashy_input(crashy_input.begin(), crashy_input.end());
-  if (callbacks->Execute(env.binary, {original_crashy_input}, batch_result)) {
-    FUZZTEST_LOG(INFO) << "The original crashy input did not crash; exiting";
-    stop_condition.RequestStop(EXIT_FAILURE,
-                               "The original crashy input did not crash");
-    return;
-  }
-
+std::optional<MinimizeCrashResult> MinimizeCrash(
+    ByteSpan crashy_input, const Environment& env,
+    CentipedeCallbacksFactory& callbacks_factory,
+    std::string_view crash_signature, StopCondition& stop_condition) {
   FUZZTEST_LOG(INFO) << "Starting the crash minimization loop in "
-                     << env.num_threads << "threads";
+                     << env.num_threads << " threads";
 
-  MinimizerWorkQueue queue(WorkDir{env}.CrashReproducerDirPaths().MyShard(),
-                           original_crashy_input);
+  // Minimize with 20 intermediate crashers empirically - may be adjusted later.
+  MinimizerState state(/*capacity=*/20, crashy_input);
 
   {
     ThreadPool threads{static_cast<int>(env.num_threads)};
     for (size_t i = 0; i < env.num_threads; ++i) {
-      threads.Schedule([&env, &callbacks_factory, &queue, &stop_condition]() {
+      threads.Schedule([&env, &callbacks_factory, &state, &stop_condition,
+                        crash_signature]() {
         CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-        MinimizeCrash(env, callbacks_factory, queue, stop_condition);
+        MinimizeCrashInOneThread(env, callbacks_factory, crash_signature, state,
+                                 stop_condition);
       });
     }
   }  // The threads join here.
 
-  if (stop_condition.StopRequested()) return;
-  if (!queue.SmallerCrashesFound()) {
-    stop_condition.RequestStop(EXIT_FAILURE, "Smaller crashes not found");
-  }
+  return state.GetMinimizeResult();
 }
 
 }  // namespace fuzztest::internal
