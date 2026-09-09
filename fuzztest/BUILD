@@ -55,10 +55,14 @@ config_setting(
 
 cc_library(
     name = "fuzztest",
-    hdrs = ["fuzztest.h"],
+    testonly = True,
+    hdrs = [
+        "fuzztest.h",
+    ],
     deps = [
         ":domain",
         ":fuzztest_macros",
+        ":init_fuzztest_checker",
     ],
 )
 
@@ -140,6 +144,18 @@ cc_library(
         "@googletest//:gtest",
     ],
     alwayslink = True,
+)
+
+cc_library(
+    name = "init_fuzztest_checker",
+    testonly = True,
+    hdrs = ["init_fuzztest_checker.h"],
+    deps = [
+        "@abseil-cpp//absl/strings:string_view",
+        "@com_google_fuzztest//fuzztest/internal:registry",
+        "@com_google_fuzztest//fuzztest/internal:runtime",
+        "@googletest//:gtest",
+    ],
 )
 
 # TODO(hadi88): Add an e2e test for llvm_fuzzer_wrapper.
