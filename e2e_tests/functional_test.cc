@@ -151,6 +151,19 @@ TEST_F(UnitTestModeTest, PassingTestPassesInUnitTestingMode) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(UnitTestModeTest, FailsLoudlyWhenInitFuzzTestIsNotCalled) {
+  auto [status, std_out, std_err] =
+      Run(/*test_filter=*/"*",
+          /*target_binary=*/"testdata/fuzz_test_without_init_fuzztest");
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  const std::string output = absl::StrCat(std_out, std_err);
+  EXPECT_THAT_LOG(output, HasSubstr("FuzzTest was not initialized!"));
+  EXPECT_THAT_LOG(output,
+                  HasSubstr("FUZZ_TEST was registered, but InitFuzzTest was "
+                            "never called in main()."));
+  EXPECT_THAT_LOG(output, HasSubstr("InitFuzzTest"));
+}
+
 TEST_F(UnitTestModeTest, InvalidSeedsAreSkippedAndReported) {
   auto [status, std_out, std_err] =
       Run(/*test_filter=*/"*",

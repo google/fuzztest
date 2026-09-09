@@ -187,6 +187,45 @@ inline std::vector<uint8_t> ToByteArray(std::string_view str) {
 // to restrict input generation if possible.
 void SkipTestsOrCurrentInput();
 
+#if defined(GTEST_API_)
+namespace internal {
+
+bool CheckFuzzTestInitializationNeeded();
+
+inline void CheckFuzzTestInitialization() {
+  if (CheckFuzzTestInitializationNeeded()) {
+    ADD_FAILURE() << "FuzzTest was not initialized! "
+                     "FUZZ_TEST was registered, but InitFuzzTest was never "
+                     "called in main(). "
+                     "If you are using a custom main(), please call "
+                     "fuzztest::InitFuzzTest(&argc, &argv)"
+                     " before RUN_ALL_TESTS().";
+  }
+}
+
+class FuzzTestInitVerificationListener
+    : public ::testing::EmptyTestEventListener {
+ public:
+  void OnTestIterationStart(const ::testing::UnitTest&, int) override {
+    CheckFuzzTestInitialization();
+  }
+};
+
+inline bool RegisterFuzzTestInitVerification() {
+  static bool registered = [] {
+    ::testing::UnitTest::GetInstance()->listeners().Append(
+        new FuzzTestInitVerificationListener);
+    return true;
+  }();
+  return registered;
+}
+
+[[maybe_unused]] inline const bool g_fuzztest_init_checker_registered =
+    RegisterFuzzTestInitVerification();
+
+}  // namespace internal
+#endif
+
 }  // namespace fuzztest
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_MACROS_H_
