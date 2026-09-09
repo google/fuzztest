@@ -92,6 +92,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::domain
     fuzztest::fuzztest_macros
+    fuzztest::init_fuzztest
 )
 
 fuzztest_cc_library(
