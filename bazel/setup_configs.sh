@@ -52,15 +52,27 @@ EOF
 cat <<EOF
 ### FuzzTest build configuration.
 #
-# Use with: --config=fuzztest
-#
-# Note that this configuration includes the ASan configuration.
+# Use with: --config=fuzztest       (with asan)
+#       or  --config=fuzztest-nosan (without asan)
 
-build:fuzztest --config=asan
-build:fuzztest --config=fuzztest-common
+build:fuzztest-nosan --config=fuzztest-common
+build:fuzztest-nosan --@com_google_fuzztest//fuzztest:centipede_integration
+
+# Generate line tables for debugging.
+build:fuzztest-nosan --copt=-gline-tables-only
+build:fuzztest-nosan --strip=never
+
+# Prevent memcmp & co from being inlined.
+build:fuzztest-nosan --copt=-fno-builtin
+
+# Disable heap checking.
+build:fuzztest-nosan --copt=-DHEAPCHECK_DISABLE
 
 # Link statically.
-build:fuzztest --dynamic_mode=off
+build:fuzztest-nosan --dynamic_mode=off
+
+build:fuzztest --config=fuzztest-nosan
+build:fuzztest --config=asan
 
 EOF
 
@@ -79,43 +91,31 @@ fi
 cat <<EOF
 # We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-build:fuzztest --copt=-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table
+# TODO(b/374840534): Add -fsanitize-coverage=control-flow once we start building
+# with clang 16+.
+build:fuzztest --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
 build:fuzztest --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
 
 EOF
 
 cat <<EOF
-### Experimental FuzzTest build configuration.
+### Legacy FuzzTest build configuration.
 #
-# Use with: --config=fuzztest-experimental
+# Use with: --config=fuzztest-legacy
 #
 # Use this instead of --config=fuzztest when building test binaries to run with
-# Centipede. Eventually, this will be consolidated with --config=fuzztest.
-# Note that this configuration doesn't include the ASan configuration. If you
-# want to use both, you can use --config=fuzztest-experimental --config=asan.
+# the legacy fuzz engine.
 
-build:fuzztest-experimental --config=fuzztest-common
-build:fuzztest-experimental --@com_google_fuzztest//fuzztest:centipede_integration
-
-# Generate line tables for debugging.
-build:fuzztest-experimental --copt=-gline-tables-only
-build:fuzztest-experimental --strip=never
-
-# Prevent memcmp & co from being inlined.
-build:fuzztest-experimental --copt=-fno-builtin
-
-# Disable heap checking.
-build:fuzztest-experimental --copt=-DHEAPCHECK_DISABLE
+build:fuzztest-legacy --config=asan
+build:fuzztest-legacy --config=fuzztest-common
 
 # Link statically.
-build:fuzztest-experimental --dynamic_mode=off
+build:fuzztest-legacy --dynamic_mode=off
 
 # We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-# TODO(b/374840534): Add -fsanitize-coverage=control-flow once we start building
-# with clang 16+.
-build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
-build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+build:fuzztest-legacy --copt=-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table
+build:fuzztest-legacy --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
 
 EOF
 
