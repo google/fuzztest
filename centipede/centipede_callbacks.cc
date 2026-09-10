@@ -617,8 +617,9 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
       ReadFromLocalFile(failure_description_path_,
                         batch_result.failure_description());
       if (std::filesystem::exists(failure_signature_path_)) {
-        ReadFromLocalFile(failure_signature_path_,
-                          batch_result.failure_signature());
+        std::string plain_signature;
+        ReadFromLocalFile(failure_signature_path_, plain_signature);
+        batch_result.failure_signature() = Hash(plain_signature);
       } else {
         // Crash deduplication assumes that the failure signature contains no
         // dashes and that it can be used as a file name.
