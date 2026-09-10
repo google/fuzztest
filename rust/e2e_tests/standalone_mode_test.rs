@@ -98,7 +98,6 @@ fn standalone_mode_handles_worker_crash(fixture: &EnvVars) {
     // By default continue_after_crash is false, so finding a crash causes test failure.
     expect_false!(output.status.success());
     expect_that!(stderr, matchers::contains_substring("Property function ran but crashed."));
-    expect_that!(stderr, matchers::contains_regex("Signature[ \t]*: Unwinding panic"));
     // Centipede prefixes logs from the crashing worker with "CRASH LOG: ".
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
 }

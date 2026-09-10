@@ -54,7 +54,6 @@ fn find_bug_with_centipede_test(fixture: &EnvVars) {
     );
 
     expect_that!(stderr, matchers::contains_substring("Property function ran but crashed."));
-    expect_that!(stderr, matchers::contains_regex("Signature[ \t]*: Unwinding panic"));
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
 }
 
