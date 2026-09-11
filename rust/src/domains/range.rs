@@ -17,29 +17,30 @@ use super::Domain;
 use anyhow;
 use rand::distr::uniform::SampleUniform;
 use rand::distr::uniform::UniformSampler;
+use std::fmt;
 
 /// Generates values of type `T` in a given range.
-///
-/// For example, `InRange::new(0, 100)` generates integer
-/// values from the inclusive range `[0, 100]`.
-///
-/// Example usage:
-/// ```
-/// # use fuzztest::domains::Domain;
-/// # use fuzztest::domains::range::InRange;
-/// # use rand::prelude::*;
-///
-/// let range_i32 = InRange::new(21i32, 73);
-/// let sample = range_i32.init(&mut rand::rng());
-///
-/// assert!(sample.is_ok());
-/// let sample = sample.unwrap();
-/// assert!(sample >= 21);
-/// assert!(sample <= 73);
-/// ```
 pub struct InRange<T> {
     lower: T,
     upper: T,
+}
+
+impl<T: Clone> Clone for InRange<T> {
+    fn clone(&self) -> Self {
+        Self {
+            lower: self.lower.clone(),
+            upper: self.upper.clone(),
+        }
+    }
+}
+
+impl<T: fmt::Debug + Clone> fmt::Debug for InRange<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InRange")
+            .field("lower", &self.lower)
+            .field("upper", &self.upper)
+            .finish()
+    }
 }
 
 impl InRange<i32> {
@@ -57,12 +58,12 @@ impl Domain for InRange<i32> {
     type UserValue<'user> = i32;
     type CorpusValue = i32;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         Ok(self.get_in_range(rng))
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -80,6 +81,20 @@ impl Domain for InRange<i32> {
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*corpus_value)
+    }
+
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        if *corpus_value < self.lower || *corpus_value > self.upper {
+            anyhow::bail!(
+                "Value {} is out of range [{}, {}]",
+                corpus_value, self.lower, self.upper
+            );
+        }
+        Ok(())
     }
 }
 
