@@ -18,7 +18,11 @@
 
 set -eu
 
-source "$(dirname "$0")/test_util.sh"
+if ! [[ -e "${TEST_UTIL_SH:=$(dirname "$0")/test_util.sh}" ]]; then
+  echo "TEST_UTIL_SH must be set to the location of :test_util_sh" >&2
+  exit 1
+fi
+source "${TEST_UTIL_SH}"
 
 centipede_test_srcdir="$(fuzztest::internal::get_centipede_test_srcdir)"
 centipede_binary="${centipede_test_srcdir}/centipede"

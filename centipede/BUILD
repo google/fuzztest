@@ -228,6 +228,7 @@ cc_library(
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:windows_includes",
     ],
 )
 
@@ -598,6 +599,9 @@ cc_library(
         ":stop",
         ":util",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -605,6 +609,8 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:windows_includes",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -1297,8 +1303,15 @@ sh_library(
 )
 
 sh_library(
-    name = "test_util_sh",
+    name = "test_util_sh_lib",
     srcs = ["test_util.sh"],
+)
+
+# Rule that has the .sh file as the single output, so sh_test can find it with $(rootpath :test_util_sh).
+filegroup(
+    name = "test_util_sh",
+    srcs = [":test_util.sh"],
+    data = [":test_util_sh_lib"],
 )
 
 ################################################################################
@@ -1385,7 +1398,12 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
-    copts = ["-fno-signed-char"],
+    copts = select({
+        "@platforms//os:windows": [
+            "/J",  # Make unsigned char the default
+        ],
+        "//conditions:default": ["-fno-signed-char"],
+    }),
     deps = [
         ":feature",
         ":thread_pool",
@@ -1732,10 +1750,14 @@ cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
     deps = [
-        ":runner_fork_server",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-    ],
+        "@com_google_fuzztest//common:windows_includes",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":runner_fork_server"],
+    }),
 )
 
 cc_test(
@@ -2021,6 +2043,9 @@ sh_test(
         ":centipede",
         ":test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath :test_util_sh)",
+    },
 )
 
 cc_library(

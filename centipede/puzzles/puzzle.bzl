@@ -45,4 +45,7 @@ def puzzle(name):
                 "@com_google_fuzztest//centipede:centipede_uninstrumented",
                 "@com_google_fuzztest//centipede:test_util_sh",
             ],
+            env = {
+                "TEST_UTIL_SH": "$(rootpath @com_google_fuzztest//centipede:test_util_sh)",
+            },
         )
