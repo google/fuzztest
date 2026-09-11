@@ -156,3 +156,13 @@ cc_binary(
         "@com_google_fuzztest//fuzztest:llvm_fuzzer_wrapper",
     ],
 )
+
+cc_binary(
+    name = "fuzz_test_without_init_fuzztest",
+    testonly = 1,
+    srcs = ["fuzz_test_without_init_fuzztest.cc"],
+    deps = [
+        "@com_google_fuzztest//fuzztest",
+        "@googletest//:gtest",
+    ],
+)

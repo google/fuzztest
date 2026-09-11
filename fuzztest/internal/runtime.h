@@ -214,6 +214,9 @@ class Runtime {
   // and aborts the process. Otherwise, does nothing.
   void HandleUnexpectedExit();
 
+  bool init_fuzztest_called() const { return init_fuzztest_called_; }
+  void SetInitFuzzTestCalled(bool b) { init_fuzztest_called_ = b; }
+
   class Watchdog;
   // Returns a watchdog that periodically checks the time and memory limits in a
   // separate thread. The watchdog handles the logic of starting and joining the
@@ -289,6 +292,8 @@ class Runtime {
   std::vector<CrashMetadataListener> crash_metadata_listeners_;
   // In case of a crash, contains the crash type.
   std::optional<std::string> crash_type_;
+
+  bool init_fuzztest_called_ = false;
 };
 
 struct ReproducerOutputLocation {

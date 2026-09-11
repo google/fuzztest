@@ -31,6 +31,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
 namespace fuzztest {
@@ -161,5 +162,17 @@ std::vector<std::string> ReadDictionaryFromFile(
 void SkipTestsOrCurrentInput() {
   internal::Runtime::instance().SetSkippingRequested(true);
 }
+
+namespace internal {
+
+bool CheckFuzzTestInitializationNeeded() {
+  static bool checked = false;
+  if (checked) return false;
+  checked = true;
+  return HasRegisteredFuzzTests() &&
+         !Runtime::instance().init_fuzztest_called();
+}
+
+}  // namespace internal
 
 }  // namespace fuzztest
