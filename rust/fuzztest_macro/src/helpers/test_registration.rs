@@ -109,9 +109,11 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
 
         let fuzz_test_struct_instance_tokens = quote!(
           #fuzz_test_struct_name {
-              domain: #domain_struct_name {
+              domain: std::sync::Arc::new(std::sync::Mutex::new(
+                #domain_struct_name {
                   #(#fuzz_test_domain_field_names: #domain_ctors),*
-              },
+                }
+              )),
               test_fn: #prop_fn_ident
           }
         );
@@ -212,7 +214,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
         {
             where_clauses.predicates.push(
           parse_quote! {
-            for <#user_value_lifetime_generic> #domain_gen: #crate_name::domains::Domain<UserValue<#user_value_lifetime_generic> = #ty >
+            for <#user_value_lifetime_generic> #domain_gen: #crate_name::domains::Domain<UserValue<#user_value_lifetime_generic> = #ty > + 'static
         });
             where_clauses.predicates.push(parse_quote! { #corpus_gen: 'static });
         }
@@ -227,7 +229,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
           #fuzz_test_domain_definition
 
           struct #fuzz_test_struct_name #generics {
-            domain: #domain_struct_name #generics,
+            domain: std::sync::Arc<std::sync::Mutex<#domain_struct_name #generics>>,
             test_fn: #test_fn_type
           }
 
@@ -248,7 +250,10 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
                                 .downcast_ref::<#domain_struct_name<#(#corpus_generics),*>>()
                                 .expect("Attempt to recover user value before testing failed.");
 
-                  let user_value = self.domain.get_user_value(wrapper).expect("Failed to get user value from corpus value");
+                  let user_value = self.domain.lock()
+                  .expect("Failed to acquire domain lock")
+                  .get_user_value(wrapper)
+                  .expect("Failed to get user value from corpus value");
 
                   let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.test_fn)(#(user_value.#fuzz_test_domain_field_names),* ) ));
 
@@ -257,8 +262,8 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
               fn print_finding_report(&self) {
                   todo!("Not implemented!")
               }
-              fn domains(&self) -> &dyn #crate_name::domains::GenericDomain {
-                &self.domain
+              fn domains(&self) -> std::sync::Arc<std::sync::Mutex<dyn #crate_name::domains::GenericDomain>> {
+                std::sync::Arc::clone(&self.domain) as std::sync::Arc<std::sync::Mutex<dyn #crate_name::domains::GenericDomain>>
               }
           }
 
@@ -299,14 +304,14 @@ mod tests {
         expect_that!(
           fuzztest_object_tokenstream.to_string(), ends_with( quote! {
               struct __FuzzTestTestFuzz<T0, T1> {
-                domain: __FuzzTestTestFuzzStateWrapper<T0, T1>,
+                domain: std::sync::Arc<std::sync::Mutex<__FuzzTestTestFuzzStateWrapper<T0, T1> >>,
                 test_fn: fn(i32, std::string::String)
               }
 
               impl<T0, T1> ::fuzztest::internal::FuzzTest for __FuzzTestTestFuzz<T0, T1>
-              where for <'user> T0: ::fuzztest::domains::Domain<UserValue<'user> = i32>,
+              where for <'user> T0: ::fuzztest::domains::Domain<UserValue<'user> = i32> + 'static,
                     T0::CorpusValue: 'static,
-                    for <'user> T1: ::fuzztest::domains::Domain<UserValue<'user> = std::string::String>,
+                    for <'user> T1: ::fuzztest::domains::Domain<UserValue<'user> = std::string::String> + 'static,
                     T1::CorpusValue: 'static {
                   fn name(&self) -> &'static str {
                     "test_fuzz"
@@ -324,7 +329,10 @@ mod tests {
                             .downcast_ref::<__FuzzTestTestFuzzStateWrapper<T0::CorpusValue, T1::CorpusValue>>()
                             .expect("Attempt to recover user value before testing failed.");
 
-                    let user_value = self.domain.get_user_value(wrapper).expect("Failed to get user value from corpus value");
+                    let user_value = self.domain.lock()
+                        .expect("Failed to acquire domain lock")
+                        .get_user_value(wrapper)
+                        .expect("Failed to get user value from corpus value");
                     // Safety: Data is not reused after the test.
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.test_fn)(user_value.a, user_value.b) ));
 
@@ -333,17 +341,19 @@ mod tests {
                   fn print_finding_report(&self) {
                     todo!("Not implemented!")
                   }
-                  fn domains(&self) -> &dyn ::fuzztest::domains::GenericDomain {
-                    &self.domain
+                  fn domains(&self) -> std::sync::Arc<std::sync::Mutex<dyn ::fuzztest::domains::GenericDomain>> {
+                    std::sync::Arc::clone(&self.domain) as std::sync::Arc<std::sync::Mutex<dyn ::fuzztest::domains::GenericDomain>>
                   }
               }
 
               fn __FuzzTestTestFuzz_factory() -> ::fuzztest::internal::BoxedFuzzTest {
                 ::std::boxed::Box::new(__FuzzTestTestFuzz {
-                  domain: __FuzzTestTestFuzzStateWrapper {
-                    a: ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default(),
-                    b: ::fuzztest::domains::arbitrary::Arbitrary::<String>::default()
-                  },
+                  domain: std::sync::Arc::new(std::sync::Mutex::new(
+                    __FuzzTestTestFuzzStateWrapper {
+                      a: ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default(),
+                      b: ::fuzztest::domains::arbitrary::Arbitrary::<String>::default()
+                    }
+                  )),
                   test_fn: __property_fn__test_fuzz
                 })
               }
