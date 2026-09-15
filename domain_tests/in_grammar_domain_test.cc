@@ -32,6 +32,7 @@
 namespace fuzztest {
 namespace {
 
+// TODO(changochen): Add documentation.
 TEST(InJsonGrammar, InitGeneratesDifferentValidJson) {
   absl::BitGen bitgen;
   auto domain = InJsonGrammar();
