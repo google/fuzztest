@@ -53,14 +53,14 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
         << VV(config_spec);
     RETURN_IF_NOT_OK(RemoteFileGetContents(config_spec, config_str));
     FUZZTEST_LOG(INFO) << "Raw config read from file:\n" << config_str;
-    base_dir = std::filesystem::path{config_spec}.parent_path();
+    base_dir = std::filesystem::path{config_spec}.parent_path().string();
   } else {
     FUZZTEST_LOG(INFO)
         << "Config spec is not a file, or file doesn't exist; trying to "
            "parse textproto config verbatim: "
         << VV(config_spec);
     config_str = config_spec;
-    base_dir = fs::current_path();
+    base_dir = fs::current_path().string();
   }
 
   proto::SeedCorpusConfig config;
@@ -80,7 +80,7 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
   for (auto& src : *config.mutable_sources()) {
     auto* dir = src.mutable_dir_glob();
     if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
+      *dir = (fs::path{base_dir} / *dir).string();
     }
   }
 
@@ -91,7 +91,7 @@ absl::StatusOr<proto::SeedCorpusConfig> ResolveSeedCorpusConfigProto(  //
     if (!override_out_dir.empty()) {
       *dir = override_out_dir;
     } else if (dir->empty() || !fs::path{*dir}.is_absolute()) {
-      *dir = fs::path{base_dir} / *dir;
+      *dir = (fs::path{base_dir} / *dir).string();
     }
   }
 
@@ -148,9 +148,9 @@ absl::Status DumpConfigProtoToDebugDir(const proto::SeedCorpusConfig& config,
       /*my_shard_index=*/0,
   };
   const std::filesystem::path debug_info_dir = workdir.DebugInfoDirPath();
-  RETURN_IF_NOT_OK(RemoteMkdir(debug_info_dir.c_str()));
+  RETURN_IF_NOT_OK(RemoteMkdir(debug_info_dir.string()));
   RETURN_IF_NOT_OK(RemoteFileSetContents(
-      (debug_info_dir / "seeding.cfg").c_str(), absl::StrCat(config)));
+      (debug_info_dir / "seeding.cfg").string(), absl::StrCat(config)));
   return absl::OkStatus();
 }
 

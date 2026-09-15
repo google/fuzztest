@@ -31,6 +31,7 @@
 #endif
 
 #include <windows.h>
+#include <psapi.h>
 
 // clang-format on
 

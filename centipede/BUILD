@@ -298,6 +298,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:windows_includes",
     ],
 )
 
@@ -418,12 +419,16 @@ cc_library(
     copts = DISABLE_SANCOV_COPTS,
     linkopts = select({
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "-lrt",  # for shm_open
         ],
     }),
-    deps = ["@abseil-cpp//absl/base:nullability"],
-    # don't add any dependencies.
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:windows_includes",
+    ],
+    # Don't add any dependencies.
 )
 
 cc_library(
@@ -1601,6 +1606,7 @@ cc_test(
     srcs = ["shared_memory_blob_sequence_test.cc"],
     deps = [
         ":shared_memory_blob_sequence",
+        "@com_google_fuzztest//common:windows_includes",
         "@googletest//:gtest_main",
     ],
 )

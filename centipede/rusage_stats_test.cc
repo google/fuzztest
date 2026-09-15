@@ -308,7 +308,7 @@ TEST(RUsageMemoryTest, Accuracy) {
 }
 
 TEST(RUsageMemoryTest, BadScope) {
-  constexpr pid_t kBadPid = 999999999;
+  constexpr ProcessId kBadPid = 999999999;
   EXPECT_NO_FATAL_FAILURE(  //
       const auto timing = RUsageTiming::Snapshot(RUsageScope::Process(kBadPid));
       FUZZTEST_VLOG(1) << "Timing: " << timing;);
@@ -507,11 +507,11 @@ TEST(RUsageTimingTest, Logging) {
 }
 
 TEST(RUsageMemoryTest, Logging) {
-  RUsageMemory memory{/*mem_vsize=*/1L * 1024 * 1024 * 1024,
-                      /*mem_vpeak=*/2L * 1024 * 1024 * 1024,
-                      /*mem_rss=*/500L * 1024 * 1024,
-                      /*mem_data=*/750L * 1024 * 1024,
-                      /*mem_shared=*/250L * 1024,
+  RUsageMemory memory{/*mem_vsize=*/1LL * 1024 * 1024 * 1024,
+                      /*mem_vpeak=*/2LL * 1024 * 1024 * 1024,
+                      /*mem_rss=*/500LL * 1024 * 1024,
+                      /*mem_data=*/750LL * 1024 * 1024,
+                      /*mem_shared=*/250LL * 1024,
                       /*is_delta=*/false};
 
   std::stringstream ss;

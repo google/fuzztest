@@ -58,7 +58,7 @@ std::string NormalizeAnnotation(std::string_view annotation) {
 WorkDir::PathShards::PathShards(std::string_view base_dir,
                                 std::string_view rel_prefix,
                                 size_t my_shard_index)
-    : prefix_{std::filesystem::path(base_dir) / rel_prefix},
+    : prefix_{(std::filesystem::path(base_dir) / rel_prefix).string()},
       my_shard_index_{my_shard_index} {}
 
 std::string WorkDir::PathShards::Shard(size_t shard_index) const {
@@ -97,12 +97,12 @@ WorkDir WorkDir::FromCorpusShardPath(    //
     std::string_view binary_name,        //
     std::string_view binary_hash) {
   const std::filesystem::path path{corpus_shard_path};
-  const std::string dir = path.parent_path();
-  const std::string stem = path.stem();
+  const std::string dir = path.parent_path().string();
+  const std::string stem = path.stem().string();
   FUZZTEST_CHECK(stem == kCorpusShardStem ||
                  absl::StartsWith(stem, kDistilledCorpusShardStemPrefix))
       << VV(corpus_shard_path);
-  const std::string dot_ext = path.extension();
+  const std::string dot_ext = path.extension().string();
   FUZZTEST_CHECK(!dot_ext.empty() && dot_ext[0] == '.')
       << VV(corpus_shard_path);
   const std::string ext = dot_ext.substr(1);
@@ -142,8 +142,9 @@ WorkDir::PathShards WorkDir::CorpusFilePaths() const {
 }
 
 std::string WorkDir::CoverageDirPath() const {
-  return std::filesystem::path(workdir_) /
-         absl::StrCat(binary_name_, "-", binary_hash_);
+  return (std::filesystem::path(workdir_) /
+          absl::StrCat(binary_name_, "-", binary_hash_))
+      .string();
 }
 
 WorkDir::PathShards WorkDir::CrashReproducerDirPaths() const {
@@ -155,11 +156,11 @@ WorkDir::PathShards WorkDir::CrashMetadataDirPaths() const {
 }
 
 std::string WorkDir::BinaryInfoDirPath() const {
-  return std::filesystem::path(CoverageDirPath()) / "binary-info";
+  return (std::filesystem::path(CoverageDirPath()) / "binary-info").string();
 }
 
 std::string WorkDir::DebugInfoDirPath() const {
-  return std::filesystem::path(workdir_) / "debug";
+  return (std::filesystem::path(workdir_) / "debug").string();
 }
 
 WorkDir::PathShards WorkDir::DistilledCorpusFilePaths() const {
@@ -179,53 +180,60 @@ WorkDir::PathShards WorkDir::DistilledFeaturesFilePaths() const {
 }
 
 std::string WorkDir::CoverageReportPath(std::string_view annotation) const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("coverage-report-%s.%0*d%s.txt", binary_name_,
-                         kDigitsInShardIndex, my_shard_index_,
-                         NormalizeAnnotation(annotation));
+  return (std::filesystem::path(workdir_) /
+          absl::StrFormat("coverage-report-%s.%0*d%s.txt", binary_name_,
+                          kDigitsInShardIndex, my_shard_index_,
+                          NormalizeAnnotation(annotation)))
+      .string();
 }
 
 std::string WorkDir::CorpusStatsPath(std::string_view annotation) const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("corpus-stats-%s.%0*d%s.json", binary_name_,
-                         kDigitsInShardIndex, my_shard_index_,
-                         NormalizeAnnotation(annotation));
+  return (std::filesystem::path(workdir_) /
+          absl::StrFormat("corpus-stats-%s.%0*d%s.json", binary_name_,
+                          kDigitsInShardIndex, my_shard_index_,
+                          NormalizeAnnotation(annotation)))
+      .string();
 }
 
 std::string WorkDir::FuzzingStatsPath(std::string_view annotation) const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("fuzzing-stats-%s.%0*d%s.csv", binary_name_,
-                         kDigitsInShardIndex, my_shard_index_,
-                         NormalizeAnnotation(annotation));
+  return (std::filesystem::path(workdir_) /
+          absl::StrFormat("fuzzing-stats-%s.%0*d%s.csv", binary_name_,
+                          kDigitsInShardIndex, my_shard_index_,
+                          NormalizeAnnotation(annotation)))
+      .string();
 }
 
 std::string WorkDir::SourceBasedCoverageRawProfilePath() const {
   // Pass %m to enable online merge mode: updates file in place instead of
   // replacing it %m is replaced by lprofGetLoadModuleSignature(void) which
   // should be consistent for a fixed binary
-  return std::filesystem::path(CoverageDirPath()) /
-         absl::StrFormat("clang_coverage.%0*d.%s.profraw", kDigitsInShardIndex,
-                         my_shard_index_, "%m");
+  return (std::filesystem::path(CoverageDirPath()) /
+          absl::StrFormat("clang_coverage.%0*d.%s.profraw", kDigitsInShardIndex,
+                          my_shard_index_, "%m"))
+      .string();
 }
 
 std::string WorkDir::SourceBasedCoverageIndexedProfilePath() const {
-  return std::filesystem::path(CoverageDirPath()) /
-         absl::StrFormat("clang_coverage.profdata");
+  return (std::filesystem::path(CoverageDirPath()) /
+          absl::StrFormat("clang_coverage.profdata"))
+      .string();
 }
 
 std::string WorkDir::SourceBasedCoverageReportPath(
     std::string_view annotation) const {
-  return std::filesystem::path(workdir_) /
-         absl::StrFormat("source-coverage-report-%s.%0*d%s", binary_name_,
-                         kDigitsInShardIndex, my_shard_index_,
-                         NormalizeAnnotation(annotation));
+  return (std::filesystem::path(workdir_) /
+          absl::StrFormat("source-coverage-report-%s.%0*d%s", binary_name_,
+                          kDigitsInShardIndex, my_shard_index_,
+                          NormalizeAnnotation(annotation)))
+      .string();
 }
 
 std::string WorkDir::RUsageReportPath(std::string_view annotation) const {
-  return std::filesystem::path(workdir_) /
-         (absl::StrFormat("rusage-report-%s.%0*d%s.txt", binary_name_,
-                          kDigitsInShardIndex, my_shard_index_,
-                          NormalizeAnnotation(annotation)));
+  return (std::filesystem::path(workdir_) /
+          (absl::StrFormat("rusage-report-%s.%0*d%s.txt", binary_name_,
+                           kDigitsInShardIndex, my_shard_index_,
+                           NormalizeAnnotation(annotation))))
+      .string();
 }
 
 std::vector<std::string> WorkDir::EnumerateRawCoverageProfiles() const {
@@ -247,7 +255,7 @@ std::vector<std::string> WorkDir::EnumerateRawCoverageProfiles() const {
   std::vector<std::string> raw_profiles;
   for (const auto &entry : dir_iter) {
     if (entry.is_regular_file() && entry.path().extension() == ".profraw")
-      raw_profiles.push_back(entry.path());
+      raw_profiles.push_back(entry.path().string());
   }
   return raw_profiles;
 }

@@ -102,7 +102,7 @@ std::vector<TestCorpusRecord> TestDistill(
   // We need to set at least --binary_hash before `env` is constructed,
   // so we do this by overriding the flags.
   absl::FlagSaver flag_saver;
-  std::string dir = GetTestTempDir(test_name);
+  std::string dir = GetTestTempDir(test_name).string();
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
   Environment env;

@@ -28,7 +28,7 @@ namespace fuzztest::internal {
 namespace {
 
 TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
-  const std::string temp_dir = GetTestTempDir(test_info_->name());
+  const std::string temp_dir = GetTestTempDir(test_info_->name()).string();
 
   const PCTable input_pcs = {{/*pc=*/0, /*flags=*/1}, {/*pc=*/2, /*flags=*/3}};
   std::string input_symbols =
@@ -57,7 +57,7 @@ TEST(BinaryInfoTest, SerializesAndDeserializesBinaryInfoSuccessfully) {
 }
 
 TEST(BinaryInfoTest, SerializesAndDeserializesEmptyBinaryInfoSuccessfully) {
-  const std::string temp_dir = GetTestTempDir(test_info_->name());
+  const std::string temp_dir = GetTestTempDir(test_info_->name()).string();
 
   const PCTable input_pcs = {};
   std::string input_symbols = "";

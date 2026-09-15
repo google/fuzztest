@@ -182,13 +182,15 @@ TEST(ControlFlowGraph, LazyReachability) {
 
 // Returns path to test_fuzz_target.
 static std::string GetTargetPath() {
-  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target")
+      .string();
 }
 
 // Returns path to test_fuzz_target_trace_pc.
 static std::string GetTracePCTargetPath() {
   return GetDataDependencyFilepath(
-      "centipede/testing/test_fuzz_target_trace_pc");
+             "centipede/testing/test_fuzz_target_trace_pc")
+      .string();
 }
 
 // Tests GetCfTableFromBinary() on test_fuzz_target.

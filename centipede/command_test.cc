@@ -166,13 +166,13 @@ TEST(CommandTest, WaitTimesOutAndRequestStopTerminates) {
 TEST(CommandTest, ForkServer) {
   const std::filesystem::path test_tmpdir = GetTestTempDir(test_info_->name());
   const std::string helper =
-      GetDataDependencyFilepath("centipede/command_test_helper");
+      GetDataDependencyFilepath("centipede/command_test_helper").string();
 
   // TODO(ussuri): Dedupe these testcases.
 
   {
     const std::string input = "success";
-    const std::string log_prefix = test_tmpdir / input;
+    const std::string log_prefix = (test_tmpdir / input).string();
     Command::Options cmd_options;
     cmd_options.args = {input};
     cmd_options.stdout_file_prefix = log_prefix;

@@ -100,7 +100,7 @@ void Convert(               //
 
   FUZZTEST_CHECK(RemotePathExists(in)) << VV(in);
   FUZZTEST_CHECK_OK(
-      RemoteMkdir(std::filesystem::path{out}.parent_path().c_str()));
+      RemoteMkdir(std::filesystem::path{out}.parent_path().string()));
 
   // Open blob file reader and writer.
 

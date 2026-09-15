@@ -196,8 +196,32 @@ jobs:
           <# Only supported libraries are tested here. #> `
           bazelisk test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli `
           --extra_toolchains=@local_config_cc//:cc-toolchain-x64_windows-clang-cl `
-          --extra_execution_platforms=//:x64_windows-clang-cl --enable_runfiles `
-          -- centipede:util_test centipede:command_test
+          --extra_execution_platforms=//:x64_windows-clang-cl --enable_runfiles -- `
+          centipede:call_graph_test `
+          centipede:callstack_test `
+          centipede:command_test `
+          centipede:concurrent_bitset_test `
+          centipede:concurrent_byteset_test `
+          centipede:config_file_test `
+          centipede:crash_summary_test `
+          centipede:execution_metadata_test `
+          centipede:feature_set_test `
+          centipede:feature_test `
+          centipede:foreach_nonzero_test `
+          centipede:hashed_ring_buffer_test `
+          centipede:int_utils_test `
+          centipede:knobs_test `
+          centipede:mutation_data_test `
+          centipede:pc_info_test `
+          centipede:periodic_action_test `
+          centipede:reverse_pc_table_test `
+          centipede:rolling_hash_test `
+          centipede:runner_flags_test `
+          centipede:runner_result_test `
+          centipede:rusage_stats_test `
+          centipede:shared_memory_blob_sequence_test `
+          centipede:stop_test `
+          centipede:util_test
       - name: Save new cache based on main
         # Save a new cache on nightly scheduled runs (or manual dispatch on
         # main), or on a push to main when no previous cache exists for this
