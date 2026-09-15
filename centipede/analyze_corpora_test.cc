@@ -42,7 +42,8 @@ using ::testing::Not;
 
 // Returns path to test_fuzz_target.
 static std::string GetTargetPath() {
-  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target")
+      .string();
 }
 
 // TODO(ussuri): Implement.
@@ -91,7 +92,7 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
   auto corpus_records = RunInputsAndCollectCorpusRecords(env, {"func1"});
   ASSERT_EQ(corpus_records.size(), 1);
 
-  const std::string test_tmpdir = GetTestTempDir(test_info_->name());
+  const std::string test_tmpdir = GetTestTempDir(test_info_->name()).string();
   BinaryInfo binary_info;
   binary_info.InitializeFromSanCovBinary(GetTargetPath(), /*env_diff=*/{},
                                          GetObjDumpPath(),
@@ -100,7 +101,7 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
       GetCoverage(corpus_records, std::move(binary_info));
 
   const std::string coverage_report_path =
-      std::filesystem::path{test_tmpdir} / "covered_symbol_table";
+      (std::filesystem::path{test_tmpdir} / "covered_symbol_table").string();
   DumpCoverageReport(coverage_results, coverage_report_path);
   std::string symbol_table_contents;
   ASSERT_OK(RemoteFileGetContents(coverage_report_path, symbol_table_contents));

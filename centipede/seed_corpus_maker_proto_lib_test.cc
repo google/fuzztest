@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -111,6 +112,7 @@ TEST(SeedCorpusMakerProtoLibTest, MakesSeedUsingConfigProto) {
     const SeedCorpusDestination destination = {
         /*dir_path=*/std::string(kRelDir1),
         /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_rel_prefix=*/std::nullopt,
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/2,
     };
@@ -142,7 +144,7 @@ TEST(SeedCorpusMakerProtoLibTest, MakesSeedUsingConfigProto) {
 
     ASSERT_OK(GenerateSeedCorpusFromConfigProto(  //
         config_str, kCovBin, kCovHash, ""));
-    const std::string workdir = (test_dir / kRelDir2).c_str();
+    const std::string workdir = (test_dir / kRelDir2).string();
     ASSERT_NO_FATAL_FAILURE(VerifyDumpedConfig(workdir, kCovBin, kCovHash));
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
         workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));

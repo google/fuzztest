@@ -451,13 +451,13 @@ TEST(Stats, DumpStatsToCsvFile) {
   }
 
   const std::vector<Environment> env_vec = {
-      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentA",
+      CreateEnv(workdir.string(), /*experiment_name=*/"ExperimentA",
                 /*experiment_flags=*/"AAA"),
-      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentB",
+      CreateEnv(workdir.string(), /*experiment_name=*/"ExperimentB",
                 /*experiment_flags=*/"BBB"),
-      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentA",
+      CreateEnv(workdir.string(), /*experiment_name=*/"ExperimentA",
                 /*experiment_flags=*/"AAA"),
-      CreateEnv(workdir.c_str(), /*experiment_name=*/"ExperimentB",
+      CreateEnv(workdir.string(), /*experiment_name=*/"ExperimentB",
                 /*experiment_flags=*/"BBB")};
 
   {
@@ -507,8 +507,8 @@ TEST(Stats, DumpStatsToCsvFile) {
   }
 
   const std::vector<std::string> kExpectedCsvs = {
-      workdir / "fuzzing-stats-.000000.ExperimentA.csv",
-      workdir / "fuzzing-stats-.000000.ExperimentB.csv",
+      (workdir / "fuzzing-stats-.000000.ExperimentA.csv").string(),
+      (workdir / "fuzzing-stats-.000000.ExperimentB.csv").string(),
   };
   const std::vector<std::vector<std::string>> kExpectedCsvLines = {
       // CSV #1.
@@ -771,15 +771,17 @@ TEST(Stats, DumpStatsToExistingCsvFile) {
   };
 
   const std::filesystem::path workdir = GetTestTempDir(test_info_->name());
-  const std::vector<Environment> env_vec = {CreateEnv(workdir.c_str()),
-                                            CreateEnv(workdir.c_str())};
+  const std::vector<Environment> env_vec = {CreateEnv(workdir.string()),
+                                            CreateEnv(workdir.string())};
 
   std::vector<std::atomic<Stats>> stats_vec(2);
   stats_vec[0].store({StatsMeta{/*timestamp_unix_micros=*/1000000}});
   stats_vec[1].store({StatsMeta{/*timestamp_unix_micros=*/2000000}});
 
-  const std::string kExpectedCsv = workdir / "fuzzing-stats-.000000.csv";
-  const std::string kExpectedCsvBak = workdir / "fuzzing-stats-.000000.csv.bak";
+  const std::string kExpectedCsv =
+      (workdir / "fuzzing-stats-.000000.csv").string();
+  const std::string kExpectedCsvBak =
+      (workdir / "fuzzing-stats-.000000.csv.bak").string();
 
   // `StatsCsvFileAppender` creates a brand-new fuzzing-stats file and writes
   // the CSV header and a 1st stats line to it.

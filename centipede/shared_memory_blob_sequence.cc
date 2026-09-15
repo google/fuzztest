@@ -14,26 +14,38 @@
 
 #include "./centipede/shared_memory_blob_sequence.h"
 
+#if defined(_WIN32)
+#include "./common/windows_includes.h"
+#else
 #include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 
 #include "absl/base/nullability.h"
 
 namespace fuzztest::internal {
 
+namespace {
+
 // TODO(ussuri): Refactor `char *` into a `string_view`.
-static void ErrorOnFailure(bool condition, const char *absl_nonnull text) {
+void ErrorOnFailure(bool condition, const char* absl_nonnull text) {
   if (!condition) return;
   std::perror(text);
   abort();
 }
+
+}  // namespace
 
 BlobSequence::BlobSequence(uint8_t *data, size_t size)
     : data_(data), size_(size) {
@@ -49,6 +61,12 @@ bool BlobSequence::Write(Blob blob) {
       available_size - sizeof(blob.size) - sizeof(blob.tag) < blob.size) {
     return false;
   }
+
+  size_t write_end = offset_ + sizeof(blob.tag) + sizeof(blob.size) + blob.size;
+  if (write_end + sizeof(blob.size) + sizeof(blob.tag) <= size_) {
+    write_end += sizeof(blob.size) + sizeof(blob.tag);
+  }
+  if (!CommitMemory(write_end)) return false;
 
   // Write tag.
   memcpy(data_ + offset_, &blob.tag, sizeof(blob.tag));
@@ -104,85 +122,204 @@ void BlobSequence::Reset() {
   had_writes_after_reset_ = false;
 }
 
-SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char *name,
-                                                   size_t size,
-                                                   bool use_posix_shmem) {
-  ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
-  size_ = size;
-  if (use_posix_shmem) {
-    fd_ = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    ErrorOnFailure(fd_ < 0, "shm_open() failed");
-    strncpy(path_, name, PATH_MAX);
-    ErrorOnFailure(path_[PATH_MAX - 1] != 0,
-                   "shm_open() path length exceeds PATH_MAX.");
-    path_is_owned_ = true;
-  } else {
+#if defined(_WIN32)
+
+namespace {
+
+class WindowsSharedMemoryBlobSequence : public SharedMemoryBlobSequence {
+ public:
+  WindowsSharedMemoryBlobSequence(const char* name, size_t size,
+                                  bool /*use_posix_shmem*/) {
+    ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+    size_ = size;
+    strncpy(path_, name, sizeof(path_) - 1);
+    path_[sizeof(path_) - 1] = '\0';
+    mapping_handle_ = CreateFileMappingA(
+        INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE | SEC_RESERVE,
+        static_cast<DWORD>(size_ >> 32), static_cast<DWORD>(size_ & 0xFFFFFFFF),
+        path_);
+    ErrorOnFailure(mapping_handle_ == NULL, "CreateFileMappingA() failed");
+    data_ = static_cast<uint8_t*>(MapViewOfFile(
+        mapping_handle_, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, size_));
+    ErrorOnFailure(data_ == NULL, "MapViewOfFile() failed");
+  }
+
+  WindowsSharedMemoryBlobSequence(const char* path, size_t size) {
+    ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+    size_ = size;
+    strncpy(path_, path, sizeof(path_) - 1);
+    path_[sizeof(path_) - 1] = '\0';
+    mapping_handle_ =
+        OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, path_);
+    ErrorOnFailure(mapping_handle_ == NULL, "OpenFileMappingA() failed");
+    data_ = static_cast<uint8_t*>(MapViewOfFile(
+        mapping_handle_, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0));
+    ErrorOnFailure(data_ == NULL, "MapViewOfFile() failed");
+  }
+
+  ~WindowsSharedMemoryBlobSequence() override {
+    if (data_ != nullptr) {
+      UnmapViewOfFile(data_);
+    }
+    if (mapping_handle_ != nullptr) {
+      CloseHandle(mapping_handle_);
+    }
+  }
+
+  void ReleaseSharedMemory() override {}
+
+  size_t NumBytesUsed() const override { return committed_; }
+
+  const char* absl_nonnull path() const override { return path_; }
+
+ protected:
+  bool CommitMemory(size_t write_end) override {
+    if (write_end <= committed_) return true;
+
+    constexpr size_t kCommitGranularity = 4 * 1024;
+    const size_t target_committed =
+        std::min((write_end + kCommitGranularity - 1) / kCommitGranularity *
+                     kCommitGranularity,
+                 size_);
+    void* res = VirtualAlloc(data_ + committed_, target_committed - committed_,
+                             MEM_COMMIT, PAGE_READWRITE);
+    ErrorOnFailure(res == nullptr, "VirtualAlloc() failed");
+    committed_ = target_committed;
+    return true;
+  }
+
+ private:
+  char path_[MAX_PATH] = {0};
+  HANDLE mapping_handle_ = nullptr;
+  size_t committed_ = 0;
+};
+
+}  // namespace
+
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+CreateSharedMemoryBlobSequence(const char* absl_nonnull name, size_t size,
+                               bool use_posix_shmem) {
+  return std::make_unique<WindowsSharedMemoryBlobSequence>(name, size,
+                                                           use_posix_shmem);
+}
+
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+OpenSharedMemoryBlobSequence(const char* absl_nonnull path, size_t size) {
+  return std::make_unique<WindowsSharedMemoryBlobSequence>(path, size);
+}
+
+#else  // !_WIN32
+
+namespace {
+
+class PosixSharedMemoryBlobSequence : public SharedMemoryBlobSequence {
+ public:
+  PosixSharedMemoryBlobSequence(const char* name, size_t size,
+                                bool use_posix_shmem) {
+    ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+    size_ = size;
+    if (use_posix_shmem) {
+      fd_ = shm_open(name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+      ErrorOnFailure(fd_ < 0, "shm_open() failed");
+      strncpy(path_, name, sizeof(path_));
+      ErrorOnFailure(path_[sizeof(path_) - 1] != 0,
+                     "shm_open() path length exceeds PATH_MAX.");
+      path_is_owned_ = true;
+    } else {
 #ifdef __APPLE__
-    ErrorOnFailure(true, "must use POSIX shmem");
+      ErrorOnFailure(true, "must use POSIX shmem");
 #else   // __APPLE__
-    fd_ = memfd_create(name, MFD_CLOEXEC);
-    ErrorOnFailure(fd_ < 0, "memfd_create() failed");
-    const size_t path_size =
-        snprintf(path_, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd_);
-    ErrorOnFailure(path_size >= PATH_MAX,
-                   "internal fd path length exceeds PATH_MAX.");
-    // memfd_create descriptors are automatically freed on close().
-    path_is_owned_ = false;
+      fd_ = memfd_create(name, MFD_CLOEXEC);
+      ErrorOnFailure(fd_ < 0, "memfd_create() failed");
+      const size_t path_size =
+          snprintf(path_, sizeof(path_), "/proc/%d/fd/%d", getpid(), fd_);
+      ErrorOnFailure(path_size >= sizeof(path_),
+                     "internal fd path length exceeds PATH_MAX.");
+      // memfd_create descriptors are automatically freed on close().
+      path_is_owned_ = false;
+#endif  // __APPLE__
+    }
+    ErrorOnFailure(ftruncate(fd_, static_cast<off_t>(size_)),
+                   "ftruncate() failed)");
+    MmapData();
+  }
+
+  PosixSharedMemoryBlobSequence(const char* path, size_t size) {
+    ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
+    size_ = size;
+    // This is a quick way to tell shm-allocated paths from memfd paths without
+    // requiring the caller to specify.
+    if (strncmp(path, "/proc/", 6) == 0) {
+      fd_ = open(path, O_RDWR, O_CLOEXEC);
+    } else {
+      fd_ = shm_open(path, O_RDWR, 0);
+    }
+    ErrorOnFailure(fd_ < 0, "open() failed");
+    strncpy(path_, path, sizeof(path_));
+    ErrorOnFailure(path_[sizeof(path_) - 1] != 0,
+                   "path length exceeds PATH_MAX.");
+    MmapData();
+  }
+
+  ~PosixSharedMemoryBlobSequence() override {
+    if (data_ != nullptr) {
+      ErrorOnFailure(munmap(data_, size_), "munmap() failed");
+      data_ = nullptr;
+      size_ = 0;
+    }
+    if (path_is_owned_) {
+      ErrorOnFailure(shm_unlink(path_), "shm_unlink() failed");
+    }
+    ErrorOnFailure(close(fd_), "close() failed");
+  }
+
+  void ReleaseSharedMemory() override {
+#ifdef __APPLE__
+    // MacOS only allows ftruncate shm once
+    // (https://stackoverflow.com/questions/25502229/ftruncate-not-working-on-posix-shared-memory-in-mac-os-x).
+    // So nothing we can do here.
+#else   // __APPLE__
+    // Setting size to 0 releases the memory to OS.
+    ErrorOnFailure(ftruncate(fd_, 0) != 0, "ftruncate(0) failed)");
+    // Set the size back to `size`. The memory is not actually reserved.
+    ErrorOnFailure(ftruncate(fd_, size_) != 0, "ftruncate(size_) failed)");
 #endif  // __APPLE__
   }
-  ErrorOnFailure(ftruncate(fd_, static_cast<off_t>(size_)),
-                 "ftruncate() failed)");
-  MmapData();
-}
 
-SharedMemoryBlobSequence::SharedMemoryBlobSequence(const char* path,
-                                                   size_t size) {
-  ErrorOnFailure(size < sizeof(Blob::size), "Size too small");
-  size_ = size;
-  // This is a quick way to tell shm-allocated paths from memfd paths without
-  // requiring the caller to specify.
-  if (strncmp(path, "/proc/", 6) == 0) {
-    fd_ = open(path, O_RDWR, O_CLOEXEC);
-  } else {
-    fd_ = shm_open(path, O_RDWR, 0);
+  size_t NumBytesUsed() const override {
+    struct stat statbuf;
+    ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed)");
+    return statbuf.st_blocks * S_BLKSIZE;
   }
-  ErrorOnFailure(fd_ < 0, "open() failed");
-  strncpy(path_, path, PATH_MAX);
-  ErrorOnFailure(path_[PATH_MAX - 1] != 0, "path length exceeds PATH_MAX.");
-  MmapData();
-}
 
-void SharedMemoryBlobSequence::MmapData() {
-  data_ = static_cast<uint8_t *>(
-      mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
-  ErrorOnFailure(data_ == MAP_FAILED, "mmap() failed");
-}
+  const char* absl_nonnull path() const override { return path_; }
 
-SharedMemoryBlobSequence::~SharedMemoryBlobSequence() {
-  if (path_is_owned_) {
-    ErrorOnFailure(shm_unlink(path_), "shm_unlink() failed");
+ private:
+  void MmapData() {
+    data_ = static_cast<uint8_t*>(
+        mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
+    ErrorOnFailure(data_ == MAP_FAILED, "mmap() failed");
   }
-  ErrorOnFailure(munmap(data_, size_), "munmap() failed");
-  ErrorOnFailure(close(fd_), "close() failed");
+
+  char path_[PATH_MAX] = {0};
+  bool path_is_owned_ = false;
+  int fd_ = -1;
+};
+
+}  // namespace
+
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+CreateSharedMemoryBlobSequence(const char* absl_nonnull name, size_t size,
+                               bool use_posix_shmem) {
+  return std::make_unique<PosixSharedMemoryBlobSequence>(name, size,
+                                                         use_posix_shmem);
 }
 
-void SharedMemoryBlobSequence::ReleaseSharedMemory() {
-#ifdef __APPLE__
-  // MacOS only allows ftruncate shm once
-  // (https://stackoverflow.com/questions/25502229/ftruncate-not-working-on-posix-shared-memory-in-mac-os-x).
-  // So nothing we can do here.
-#else   // __APPLE__
-  // Setting size to 0 releases the memory to OS.
-  ErrorOnFailure(ftruncate(fd_, 0) != 0, "ftruncate(0) failed)");
-  // Set the size back to `size`. The memory is not actually reserved.
-  ErrorOnFailure(ftruncate(fd_, size_) != 0, "ftruncate(size_) failed)");
-#endif  // __APPLE__
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+OpenSharedMemoryBlobSequence(const char* absl_nonnull path, size_t size) {
+  return std::make_unique<PosixSharedMemoryBlobSequence>(path, size);
 }
 
-size_t SharedMemoryBlobSequence::NumBytesUsed() const {
-  struct stat statbuf;
-  ErrorOnFailure(fstat(fd_, &statbuf), "fstat() failed)");
-  return statbuf.st_blocks * S_BLKSIZE;
-}
+#endif  // _WIN32
 
 }  // namespace fuzztest::internal

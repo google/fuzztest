@@ -32,7 +32,8 @@ int main(int argc, char** absl_nonnull argv) {
   FUZZTEST_QCHECK(!config.empty());
   const std::string override_out_dir = absl::GetFlag(FLAGS_override_out_dir);
   const std::string binary_path = absl::GetFlag(FLAGS_coverage_binary_path);
-  const std::string binary_name = std::filesystem::path{binary_path}.filename();
+  const std::string binary_name =
+      std::filesystem::path{binary_path}.filename().string();
   FUZZTEST_QCHECK(!binary_name.empty())
       << "--coverage_binary_path yields empty basename";
   std::string binary_hash = absl::GetFlag(FLAGS_coverage_binary_hash);
