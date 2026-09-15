@@ -22,11 +22,13 @@
 
 namespace fuzztest::internal {
 
-bool ExecutionMetadata::AppendCmpEntry(ByteSpan a, ByteSpan b) {
+bool ExecutionMetadata::AppendCmpEntry(ByteSpan a, ByteSpan b,
+                                       bool is_integer) {
   if (a.size() != b.size()) return false;
   // Size must fit in a byte.
   if (a.size() >= 256) return false;
-  cmp_data.push_back(a.size());
+  cmp_data.push_back(static_cast<uint8_t>(a.size()));
+  cmp_data.push_back(is_integer ? 1 : 0);
   cmp_data.insert(cmp_data.end(), a.begin(), a.end());
   cmp_data.insert(cmp_data.end(), b.begin(), b.end());
   return true;
@@ -42,15 +44,17 @@ void ExecutionMetadata::Read(Blob blob) {
 }
 
 bool ExecutionMetadata::ForEachCmpEntry(
-    std::function<void(ByteSpan, ByteSpan)> callback) const {
+    const std::function<void(ByteSpan, ByteSpan, bool)>& callback) const {
   size_t i = 0;
   while (i < cmp_data.size()) {
-    auto size = cmp_data[i];
-    if (i + 2 * size + 1 > cmp_data.size()) return false;
-    ByteSpan a(cmp_data.data() + i + 1, size);
-    ByteSpan b(cmp_data.data() + i + size + 1, size);
-    i += 1 + 2 * size;
-    callback(a, b);
+    if (i + 2 > cmp_data.size()) return false;
+    uint8_t size = cmp_data[i];
+    bool is_integer = cmp_data[i + 1] != 0;
+    if (i + 2 + 2 * size > cmp_data.size()) return false;
+    ByteSpan a(cmp_data.data() + i + 2, size);
+    ByteSpan b(cmp_data.data() + i + 2 + size, size);
+    i += 2 + 2 * size;
+    callback(a, b, is_integer);
   }
   return true;
 }

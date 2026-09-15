@@ -75,29 +75,33 @@ void PopulateCmpEntries(const ExecutionMetadata& metadata,
   size_t mem_sample_counter = 0;
 
   metadata.ForEachCmpEntry([&](fuzztest::internal::ByteSpan a,
-                               fuzztest::internal::ByteSpan b) {
+                               fuzztest::internal::ByteSpan b,
+                               bool is_integer) {
     FUZZTEST_CHECK(a.size() == b.size())
         << "cmp operands must have the same size";
     const size_t size = a.size();
     if (size < kMinCmpEntrySize) return;
     if (size > kMaxCmpEntrySize) return;
-    if (size == 2 && SampleInsert(cmp_tables.GetMutable<sizeof(uint16_t)>(),
-                                  uint16_sample_counter)) {
-      InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
-                                                    cmp_tables);
-    } else if (size == 4 &&
-               SampleInsert(cmp_tables.GetMutable<sizeof(uint32_t)>(),
-                            uint32_sample_counter)) {
-      InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
-                                                    cmp_tables);
-    } else if (size == 8 &&
-               SampleInsert(cmp_tables.GetMutable<sizeof(uint64_t)>(),
-                            uint64_sample_counter)) {
-      InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
-                                                    cmp_tables);
-    }
-    if (SampleInsert(cmp_tables.GetMutable<0>(), mem_sample_counter)) {
-      cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+    if (is_integer) {
+      if (size == 2 && SampleInsert(cmp_tables.GetMutable<sizeof(uint16_t)>(),
+                                    uint16_sample_counter)) {
+        InsertCmpEntryIntoIntegerDictionary<uint16_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      } else if (size == 4 &&
+                 SampleInsert(cmp_tables.GetMutable<sizeof(uint32_t)>(),
+                              uint32_sample_counter)) {
+        InsertCmpEntryIntoIntegerDictionary<uint32_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      } else if (size == 8 &&
+                 SampleInsert(cmp_tables.GetMutable<sizeof(uint64_t)>(),
+                              uint64_sample_counter)) {
+        InsertCmpEntryIntoIntegerDictionary<uint64_t>(a.data(), b.data(),
+                                                      cmp_tables);
+      }
+    } else {
+      if (SampleInsert(cmp_tables.GetMutable<0>(), mem_sample_counter)) {
+        cmp_tables.GetMutable<0>().Insert(a.data(), b.data(), size);
+      }
     }
   });
 }

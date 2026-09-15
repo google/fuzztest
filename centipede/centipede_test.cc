@@ -1004,7 +1004,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
   ASSERT_EQ(batch_result.results().size(), 1);
   bool found_startup_cmp_entry = false;
   batch_result.results()[0].metadata().ForEachCmpEntry(
-      [&](ByteSpan a, ByteSpan b) {
+      [&](ByteSpan a, ByteSpan b, bool) {
         if (a == ByteArray{'F', 'u', 'z', 'z'}) found_startup_cmp_entry = true;
         if (b == ByteArray{'F', 'u', 'z', 'z'}) found_startup_cmp_entry = true;
       });
