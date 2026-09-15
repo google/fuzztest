@@ -28,6 +28,7 @@ rust_library(
         "@com_google_fuzztest//rust/fuzztest_macro:fuzztest_macro",
     ],
     visibility = [
+        "//cloud/vmm/core/virt:__pkg__",
         "@com_google_fuzztest//rust:__subpackages__",
     ],
     deps = [
