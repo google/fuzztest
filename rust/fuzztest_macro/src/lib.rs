@@ -64,7 +64,7 @@ impl Parse for FuzzTestArg {
 pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as Item);
 
-    let syn::Item::Fn(mut test_fn) = item else {
+    let syn::Item::Fn(test_fn) = item else {
         return syn::Error::new_spanned(item, "not a function").into_compile_error().into();
     };
 
@@ -102,18 +102,21 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
         Err(e) => return e.into_compile_error().into(),
     };
 
-    test_fn.sig.ident = fuzztest_registration_context.prop_fn_ident().clone();
+    let prop_fn_ident = fuzztest_registration_context.prop_fn_ident().clone();
 
     let fuzztest_mod_name = quote::format_ident!("__fuzztest_mod__{}", original_ident);
 
     // TODO(mathuxny-73): Extract the current module path from the invocation of the macro
     //   (ie: from `item.attrs`)
     let tokens = quote! {
+
+        #test_fn
+
         #[allow(non_snake_case)]
         mod #fuzztest_mod_name {
             use super::*;
 
-            #test_fn
+            use super::#original_ident as #prop_fn_ident;
 
             #fuzztest_object_tokenstream
 

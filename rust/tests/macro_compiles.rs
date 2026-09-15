@@ -26,4 +26,8 @@ fn fuzztest_macro_compiles_with_two_args(_a: i32, _b: i32) {}
 #[fuzztest(_a = VecOf::new(Arbitrary::<i32>::default()).with_max_len(10))]
 fn fuzztest_macro_compiles_with_vec(_a: Vec<i32>) {}
 
-fn main() {}
+fn main() {
+    // The property function is defined in the scope where the macro is
+    // invoked, so it can be called directly, e.g. from a regression test.
+    fuzztest_macro_compiles(0);
+}
