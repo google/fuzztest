@@ -18,6 +18,8 @@
 #  TODO(kcc): [impl] move all puzzles from ../BUILD here.
 #  TODO(kcc): [impl] allow custom sancov flags.
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 # This is somewhat similar to libFuzzer puzzles:
 # https://github.com/llvm/llvm-project/tree/main/compiler-rt/test/fuzzer
 load(":puzzle.bzl", "puzzle")
@@ -48,3 +50,26 @@ package(default_visibility = ["@com_google_fuzztest//centipede/puzzles:__subpack
     "thread_uint32_cmp_1",
     "pthread_exit_uint32_cmp_1",
 ]]
+
+cc_binary(
+    name = "test_oom",
+    testonly = True,
+    srcs = ["oom.cc"],
+    # componentid = 1187448,  #Language Platforms > Sanitizers > Centipede
+    # copts = copts,
+    # features = features,
+    # linkopts = linkopts,
+    tags = [
+        # Don't test this fuzz target on TAP or autofuzz, since this
+        # target is for testing Centipede, not for fuzzing itself.
+        "noautofuzz",
+        "notap",
+        "manual",  # don't run as part of blaze test.
+        "guitar",  # allow capture by Guitar workflow queries.
+    ],
+    # target_compatible_with = select({
+    #     "@platforms//os:macos": ["@platforms//os:macos"],
+    #     "//conditions:default": ["@platforms//os:linux"],
+    # }),
+    deps = ["@com_google_fuzztest//centipede:centipede_runner"],
+)
