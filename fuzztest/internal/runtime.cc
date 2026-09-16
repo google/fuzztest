@@ -68,6 +68,7 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
+#include "./fuzztest/internal/sanitizer_interface.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
@@ -75,8 +76,6 @@
     defined(THREAD_SANITIZER)
 #define FUZZTEST_HAS_SANITIZER
 #include <sanitizer/common_interface_defs.h>
-
-#include "./fuzztest/internal/sanitizer_interface.h"
 #endif
 
 #ifndef TRAP_PERF
@@ -164,20 +163,6 @@ absl::string_view GetSeparator() {
          "\n";
 }
 
-#if defined(FUZZTEST_HAS_SANITIZER)
-// clang-format off
-extern "C" void __attribute__((visibility("default")))
-__sanitizer_report_error_summary(const char* error_summary) {
-  // clang-format on
-  absl::StatusOr<std::string> crash_type =
-      ParseCrashTypeFromSanitizerSummary(error_summary);
-  FUZZTEST_LOG_IF(ERROR, !crash_type.ok())
-      << "Failed to extract sanitizer crash type: " << crash_type.status();
-  Runtime::instance().SetCrashTypeIfUnset(
-      std::move(crash_type).value_or("Sanitizer crash"));
-}
-#endif
-
 }  // namespace
 
 ReproducerOutputLocation GetReproducerOutputLocation() {
@@ -246,6 +231,11 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
 void (*crash_handler_hook)();
 
 Runtime::Runtime() {
+  FuzzTestSetSanitizerErrorSummaryCallback(
+      [](const char* crash_type_data, size_t crash_type_size) {
+        Runtime::instance().SetCrashTypeIfUnset(
+            std::string(crash_type_data, crash_type_size));
+      });
   if (const char* crash_metadata_path =
           std::getenv("FUZZTEST_CRASH_METADATA_PATH");
       crash_metadata_path != nullptr) {

@@ -33,8 +33,8 @@ use std::time::Instant;
 
 /// The DiagnosticSink provided by the engine while creating the adapter.
 ///
-/// Storing the `DiagnosticSink` in this global is necessary because C death callbacks (e.g.,
-/// sanitizer traps in `crash_handler.rs`) do not have access to the adapter instance and must rely
+/// Storing the `DiagnosticSink` in this global is necessary because C callbacks (e.g.,
+/// sanitizer hooks in `crash_handler.rs`) do not have access to the adapter instance and must rely
 /// on a global lookup to report crashes.
 static DIAGNOSTIC_SINK: Mutex<Option<DiagnosticSink>> = Mutex::new(None);
 
@@ -45,7 +45,7 @@ static DIAGNOSTIC_SINK: Mutex<Option<DiagnosticSink>> = Mutex::new(None);
 ///
 /// The inner ExecuteContext is used as a witness token to prove to the fuzzing engine that findings
 /// are being emitted during the execution of a test case.
-/// A global is necessary because C death callbacks (e.g. sanitizer traps in `crash_handler.rs`) do
+/// A global is necessary because C callbacks (e.g. sanitizer hooks in `crash_handler.rs`) do
 /// not have access to the adapter instance.
 static EXECUTE_CONTEXT: Mutex<Option<ExecuteContext>> = Mutex::new(None);
 
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn construct_adapter_callback(
 
     // NOTE: `safe_sink` is not passed to `construct_adapter` or stored in `RustFuzzTestAdapter`.
     // Instead, it is maintained in the global `DIAGNOSTIC_SINK` mutex via `set_diagnostic_sink`.
-    // This is necessary because C death callbacks (e.g., sanitizer traps in `crash_handler.rs`) do not
+    // This is necessary because C callbacks (e.g., sanitizer hooks in `crash_handler.rs`) do not
     // have access to the adapter `self` pointer and must rely on a global lookup to report crashes.
     let adapter = manager.construct_adapter();
     let boxed_adapter = Box::new(adapter);

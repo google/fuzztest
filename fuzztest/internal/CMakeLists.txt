@@ -425,6 +425,8 @@ fuzztest_cc_library(
   SRCS
     "sanitizer_interface.cc"
   DEPS
+    fuzztest::common_logging
+    absl::core_headers
     absl::status
     absl::statusor
     absl::strings
@@ -439,6 +441,7 @@ fuzztest_cc_test(
     fuzztest::sanitizer_interface
     absl::status
     absl::statusor
+    absl::string_view
     GTest::gmock_main
 )
 

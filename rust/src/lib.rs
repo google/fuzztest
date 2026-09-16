@@ -14,7 +14,6 @@
 
 #![deny(clippy::absolute_paths)]
 #![deny(unused_imports)]
-#![feature(cfg_sanitize)]
 
 mod crash_handler;
 pub mod domains;

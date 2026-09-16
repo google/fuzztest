@@ -12,41 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(any(sanitize = "address", sanitize = "memory"))]
-mod callbacks {
-    use std::ffi::{c_char, CStr};
-
-    unsafe extern "C" {
-        pub safe fn __sanitizer_set_death_callback(callback: Option<extern "C" fn()>);
-
-        pub safe fn __asan_get_report_description() -> *const c_char;
-    }
-
-    pub extern "C" fn sanitizer_death_callback() {
-        use crate::worker;
-
-        let (description, signature) = if cfg!(sanitize = "address") {
-            let char_ptr = __asan_get_report_description();
-            // Safety: `ptr` points to a valid null terminated string.
-            let signature_cstr = unsafe { CStr::from_ptr(char_ptr) };
-            (
-                "Property function ran but address sanitizer caught a bug",
-                signature_cstr.to_str().unwrap_or("ASan crash"),
-            )
-        } else {
-            ("Property function ran but a sanitizer caught a bug", "Sanitizer crash")
-        };
-        worker::try_emit_finding(description, signature);
-    }
+unsafe extern "C" {
+    fn FuzzTestSetSanitizerErrorSummaryCallback(
+        callback: unsafe extern "C" fn(crash_type_data: *const u8, crash_type_size: usize),
+    );
 }
 
-/// Be able to emit failures before exiting fully from the process for non-unwinding panics and/or
-/// unrecoverable crashes.
+unsafe extern "C" fn sanitizer_error_summary_callback(
+    crash_type_data: *const u8,
+    crash_type_size: usize,
+) {
+    // SAFETY: `FuzzTestSetSanitizerErrorSummaryCallback` guarantees `crash_type_data`
+    // and `crash_type_size` form a valid ASCII byte slice for the duration of the callback.
+    let crash_type_bytes = unsafe { std::slice::from_raw_parts(crash_type_data, crash_type_size) };
+    let crash_type = std::str::from_utf8(crash_type_bytes).unwrap_or("Sanitizer crash");
+    crate::worker::try_emit_finding(crash_type, crash_type);
+}
+
+/// Registers the sanitizer error summary callback and ensures the sanitizer crash handler hook is
+/// linked into the binary.
 pub fn register_crash_handler() {
-    // TODO(yamilmorales): Consider allowing more sanitizers here, and find some other way to
-    // recognize sanitizers if this feature is not stabilized by the time we need to support Cargo.
-    #[cfg(any(sanitize = "address", sanitize = "memory"))]
-    {
-        callbacks::__sanitizer_set_death_callback(Some(callbacks::sanitizer_death_callback));
+    // SAFETY: `sanitizer_error_summary_callback` is a valid function pointer with C ABI.
+    unsafe {
+        FuzzTestSetSanitizerErrorSummaryCallback(sanitizer_error_summary_callback);
     }
 }

@@ -31,6 +31,7 @@ rust_library(
         "@com_google_fuzztest//rust:__subpackages__",
     ],
     deps = [
+        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
         "@com_google_fuzztest//rust/coverage",
         "@com_google_fuzztest//rust/engine",
         "@com_google_fuzztest//rust/options:fuzztest_options",
