@@ -108,7 +108,7 @@ class CentipedeCallbacks::PersistentModeServer {
     FUZZTEST_CHECK_NE(conn_socket_, -1);
     FUZZTEST_CHECK(!in_batch_);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kRunBatch)) {
-      FUZZTEST_LOG(ERROR)
+      FUZZTEST_VLOG(1)
           << "Failed to request the persistent mode client to run a "
              "batch.";
       return false;
@@ -126,7 +126,7 @@ class CentipedeCallbacks::PersistentModeServer {
     FUZZTEST_CHECK_NE(conn_socket_, -1);
     FUZZTEST_CHECK(in_batch_);
     if (!ReadFd(conn_socket_, deadline, exit_code)) {
-      FUZZTEST_LOG(ERROR)
+      FUZZTEST_VLOG(1)
           << "Failed to receive the batch response from the persistent "
              "mode client.";
       return false;
@@ -141,7 +141,7 @@ class CentipedeCallbacks::PersistentModeServer {
     if (!EnsureConnection(deadline)) return;
     FUZZTEST_CHECK_NE(conn_socket_, -1);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kExit)) {
-      FUZZTEST_LOG(ERROR)
+      FUZZTEST_VLOG(1)
           << "Failed to request the persistent mode client to exit - "
              "disconnecting anyway.";
     }
@@ -197,11 +197,10 @@ class CentipedeCallbacks::PersistentModeServer {
     if (poll_ret == 1 && (poll_fd.revents & (event | POLLHUP)) == event) {
       return true;
     } else if (poll_ret < 0) {
-      FUZZTEST_PLOG(ERROR) << "Persistent mode: poll() failed on "
-                           << FdName(fd);
+      FUZZTEST_VLOG(1).WithPerror()
+          << "Persistent mode: poll() failed on " << FdName(fd);
     } else if (poll_ret == 0) {
-      FUZZTEST_LOG(ERROR) << "Persistent mode: poll() timed out on "
-                          << FdName(fd);
+      FUZZTEST_VLOG(1) << "Persistent mode: poll() timed out on " << FdName(fd);
     }
     return false;
   }
@@ -500,8 +499,8 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     return false;
   }();
   if (!should_clean_up) return exit_code;
-  FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
-                      << env_.runner_cleanup_timeout;
+  FUZZTEST_VLOG(1) << "Cleaning up the batch execution with timeout: "
+                   << env_.runner_cleanup_timeout;
   const auto cleanup_deadline = absl::Now() + env_.runner_cleanup_timeout;
   if (cmd.is_executing() && command_context.persistent_mode_server != nullptr &&
       command_context.persistent_mode_server->in_batch()) {
@@ -518,7 +517,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     cmd.RequestStop();
     const auto ret = cmd.Wait(cleanup_deadline);
     if (ret.has_value()) return *ret;
-    FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
+    FUZZTEST_VLOG(1) << "Failed to wait for the batch execution cleanup.";
     return EXIT_FAILURE;
   }();
   // We need to save any execution log before the destruction of the command.
