@@ -526,3 +526,9 @@ CENTIPEDE_FLAG(bool, fuzztest_replay_coverage_inputs, false,
 CENTIPEDE_FLAG(
     absl::Duration, fuzztest_time_limit_per_test, absl::InfiniteDuration(),
     "The time limit per fuzz test for working on the corpus database.")
+CENTIPEDE_FLAG(
+    size_t, replay_crash_attempts, 1,
+    "Number of attempts to replay a crash input during deduplication "
+    "before considering it non-reproducible.")
+CENTIPEDE_FLAG(size_t, replay_coverage_attempts, 1,
+               "Number of attempts to replay coverage/corpus inputs.")

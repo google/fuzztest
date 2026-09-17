@@ -759,7 +759,11 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
   }
   if (configuration.crashing_input_to_reproduce.has_value()) {
     configuration.preprocess_crash_reproducing();
-    ForEachInput({*configuration.crashing_input_to_reproduce}, replay_input);
+    const size_t attempts =
+        std::max<size_t>(1, configuration.replay_crash_attempts);
+    for (size_t i = 0; i < attempts; ++i) {
+      ForEachInput({*configuration.crashing_input_to_reproduce}, replay_input);
+    }
     return true;
   }
 
@@ -1078,9 +1082,19 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
         corpus_database.GetCoverageInputsIfAny(test_.full_name());
     // Replay a random subset of the coverage input until reach the timeout.
     PRNG prng(seed_sequence_);
-    std::shuffle(coverage_inputs.begin(), coverage_inputs.end(), prng);
-    ForEachInput(coverage_inputs, replay_input,
-                 configuration.GetTimeLimitPerTest());
+    const absl::Duration replay_time_limit =
+        configuration.GetTimeLimitPerTest();
+    const absl::Time deadline = replay_time_limit == absl::InfiniteDuration()
+                                    ? absl::InfiniteFuture()
+                                    : absl::Now() + replay_time_limit;
+    const size_t coverage_attempts =
+        std::max<size_t>(1, configuration.replay_coverage_attempts);
+    for (size_t attempt = 0; attempt < coverage_attempts; ++attempt) {
+      const absl::Duration remaining_time = deadline - absl::Now();
+      if (remaining_time <= absl::ZeroDuration()) break;
+      std::shuffle(coverage_inputs.begin(), coverage_inputs.end(), prng);
+      ForEachInput(coverage_inputs, replay_input, remaining_time);
+    }
     runtime_.SetRunMode(RunMode::kUnitTest);
 
     // If crashing inputs are reported, there's no need for a smoke test.
