@@ -220,4 +220,21 @@ TEST(Environment, UpdatesReplayOnlyConfiguration) {
   EXPECT_FALSE(env.populate_binary_info);
 }
 
+TEST(Environment, UpdatesReplayAttemptsFromTargetConfigWhenDefault) {
+  Environment env;
+  fuzztest::internal::Configuration config;
+  config.replay_crash_attempts = 5;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.replay_crash_attempts, 5);
+}
+
+TEST(Environment, PreservesReplayAttemptsWhenExplicitlySet) {
+  Environment env;
+  env.replay_crash_attempts = 10;
+  fuzztest::internal::Configuration config;
+  config.replay_crash_attempts = 5;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.replay_crash_attempts, 10);
+}
+
 }  // namespace fuzztest::internal

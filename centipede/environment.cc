@@ -250,6 +250,9 @@ void Environment::UpdateWithTargetConfig(
   fuzztest_execution_id = config.execution_id.value_or("");
   fuzztest_replay_coverage_inputs = config.replay_coverage_inputs;
   fuzztest_time_limit_per_test = config.GetTimeLimitPerTest();
+  if (replay_crash_attempts == Default().replay_crash_attempts) {
+    replay_crash_attempts = config.replay_crash_attempts;
+  }
 
   // Allow more crashes to be reported when running with FuzzTest. This allows
   // more unique crashes to collected after deduplication. But we don't want to
