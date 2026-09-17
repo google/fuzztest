@@ -627,19 +627,26 @@ void Centipede::Rerun(std::vector<ByteArray> &to_rerun) {
   auto features_file = DefaultBlobFileWriterFactory(env_.riegeli);
   FUZZTEST_CHECK_OK(features_file->Open(features_file_path, "a"));
 
-  FUZZTEST_LOG(INFO) << to_rerun.size() << " inputs to rerun";
+  const size_t num_attempts =
+      std::max<size_t>(1, env_.replay_coverage_attempts);
+  FUZZTEST_LOG(INFO) << to_rerun.size() << " inputs to rerun across "
+                     << num_attempts << " attempt(s)";
   // Re-run all inputs for which we don't know their features.
   // Run in batches of at most env_.batch_size inputs each.
-  while (!to_rerun.empty()) {
+  for (size_t attempt = 0; attempt < num_attempts; ++attempt) {
     if (stop_condition_.ShouldStop()) break;
-    size_t batch_size = std::min(to_rerun.size(), env_.batch_size);
-    if (RunBatch(
-            InputsToMutantRefs({to_rerun.end() - batch_size, to_rerun.end()}),
-            nullptr, nullptr, features_file.get())) {
-      UpdateAndMaybeLogStats("rerun-old", 1);
+    BlobFileWriter* writer = (attempt == 0) ? features_file.get() : nullptr;
+    for (size_t i = 0; i < to_rerun.size(); i += env_.batch_size) {
+      if (stop_condition_.ShouldStop()) break;
+      const size_t batch_size = std::min(to_rerun.size() - i, env_.batch_size);
+      if (RunBatch(InputsToMutantRefs({to_rerun.begin() + i,
+                                       to_rerun.begin() + i + batch_size}),
+                   nullptr, nullptr, writer)) {
+        UpdateAndMaybeLogStats("rerun-old", 1);
+      }
     }
-    to_rerun.resize(to_rerun.size() - batch_size);
   }
+  to_rerun.clear();
 }
 
 void Centipede::GenerateCoverageReport(std::string_view filename_annotation,

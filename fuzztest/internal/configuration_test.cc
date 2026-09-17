@@ -41,7 +41,9 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.crashing_input_to_reproduce ==
              other->crashing_input_to_reproduce &&
          config.reproduction_command_template ==
-             other->reproduction_command_template;
+             other->reproduction_command_template &&
+         config.replay_crash_attempts == other->replay_crash_attempts &&
+         config.replay_coverage_attempts == other->replay_coverage_attempts;
 }
 
 TEST(ConfigurationTest,
@@ -69,7 +71,9 @@ TEST(ConfigurationTest,
                               /*jobs=*/1,
                               /*centipede_command=*/std::nullopt,
                               /*crashing_input_to_reproduce=*/std::nullopt,
-                              /*reproduction_command_template=*/std::nullopt};
+                              /*reproduction_command_template=*/std::nullopt,
+                              /*replay_crash_attempts=*/5,
+                              /*replay_coverage_attempts=*/7};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));
@@ -100,7 +104,9 @@ TEST(ConfigurationTest,
                               /*jobs=*/1,
                               "centipede_command",
                               "crashing_input_to_reproduce",
-                              "reproduction_command_template"};
+                              "reproduction_command_template",
+                              /*replay_crash_attempts=*/20,
+                              /*replay_coverage_attempts=*/10};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));

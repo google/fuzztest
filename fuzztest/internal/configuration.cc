@@ -204,21 +204,22 @@ std::string Configuration::Serialize() const {
   std::string time_limit_str = absl::FormatDuration(time_limit);
   std::string time_budget_type_str = AbslUnparseFlag(time_budget_type);
   std::string out;
-  out.resize(SpaceFor(corpus_database) + SpaceFor(stats_root) +
-             SpaceFor(workdir_root) + SpaceFor(binary_identifier) +
-             SpaceFor(fuzz_tests) + SpaceFor(fuzz_tests_in_current_shard) +
-             SpaceFor(continue_after_crash) +
-             SpaceFor(reproduce_findings_as_separate_tests) +
-             SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
-             SpaceFor(update_corpus_database) +
-             SpaceFor(replay_in_single_process) + SpaceFor(execution_id) +
-             SpaceFor(print_subprocess_log) +
-             SpaceFor(subprocess_cleanup_timeout_str) + SpaceFor(stack_limit) +
-             SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
-             SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
-             SpaceFor(jobs) + SpaceFor(centipede_command) +
-             SpaceFor(crashing_input_to_reproduce) +
-             SpaceFor(reproduction_command_template));
+  out.resize(
+      SpaceFor(corpus_database) + SpaceFor(stats_root) +
+      SpaceFor(workdir_root) + SpaceFor(binary_identifier) +
+      SpaceFor(fuzz_tests) + SpaceFor(fuzz_tests_in_current_shard) +
+      SpaceFor(continue_after_crash) +
+      SpaceFor(reproduce_findings_as_separate_tests) +
+      SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
+      SpaceFor(update_corpus_database) + SpaceFor(replay_in_single_process) +
+      SpaceFor(execution_id) + SpaceFor(print_subprocess_log) +
+      SpaceFor(subprocess_cleanup_timeout_str) + SpaceFor(stack_limit) +
+      SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
+      SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
+      SpaceFor(jobs) + SpaceFor(centipede_command) +
+      SpaceFor(crashing_input_to_reproduce) +
+      SpaceFor(reproduction_command_template) +
+      SpaceFor(replay_crash_attempts) + SpaceFor(replay_coverage_attempts));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, stats_root);
@@ -244,6 +245,8 @@ std::string Configuration::Serialize() const {
   offset = WriteOptionalString(out, offset, centipede_command);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
+  offset = WriteIntegral(out, offset, replay_crash_attempts);
+  offset = WriteIntegral(out, offset, replay_coverage_attempts);
   FUZZTEST_CHECK_EQ(offset, out.size());
   return out;
 }
@@ -279,6 +282,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                      ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
                      ConsumeOptionalString(serialized));
+    ASSIGN_OR_RETURN(replay_crash_attempts, Consume<size_t>(serialized));
+    ASSIGN_OR_RETURN(replay_coverage_attempts, Consume<size_t>(serialized));
     if (!serialized.empty()) {
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
@@ -313,7 +318,9 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *jobs,
                          *std::move(centipede_command),
                          *std::move(crashing_input_to_reproduce),
-                         *std::move(reproduction_command_template)};
+                         *std::move(reproduction_command_template),
+                         *replay_crash_attempts,
+                         *replay_coverage_attempts};
   }();
 }
 

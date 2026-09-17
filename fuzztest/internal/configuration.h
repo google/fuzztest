@@ -115,6 +115,11 @@ struct Configuration {
   // - $TEST_FILTER: for replaying only a subset of the tests in a binary.
   std::optional<std::string> reproduction_command_template;
 
+  // Number of attempts to replay a crash input during deduplication.
+  size_t replay_crash_attempts = 1;
+  // Number of attempts to replay coverage inputs.
+  size_t replay_coverage_attempts = 1;
+
   // Preprocessing step for reproducing crashing input.
   // Note: This field is not serialized and deserialized.
   // TODO(b/329709054): Consider eliminating the field.
