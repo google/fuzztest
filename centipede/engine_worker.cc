@@ -46,6 +46,9 @@
 
 namespace fuzztest::internal {
 
+// Defined in the fork server library.
+extern void ForkServerCallMeVeryEarly();
+
 namespace {
 
 // Logging needs to be signal-safe and thread-safe.
@@ -309,6 +312,9 @@ inline std::string_view ToStringView(const std::vector<uint8_t>& bytes) {
 static int persistent_mode_socket;
 
 __attribute__((constructor(200))) void WorkerInitEarly() {
+  // Make sure fork server is started if needed.
+  ForkServerCallMeVeryEarly();
+
   const char* persistent_mode_socket_path =
       GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
   if (persistent_mode_socket_path == nullptr) return;
