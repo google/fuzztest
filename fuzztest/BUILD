@@ -55,10 +55,12 @@ config_setting(
 
 cc_library(
     name = "fuzztest",
+    testonly = True,
     hdrs = ["fuzztest.h"],
     deps = [
         ":domain",
         ":fuzztest_macros",
+        "@com_google_fuzztest//fuzztest/internal:googletest_adaptor",
     ],
 )
 
@@ -161,7 +163,6 @@ cc_library(
     testonly = True,
     srcs = ["llvm_fuzzer_wrapper.cc"],
     deps = [
-        ":fuzztest",
         ":fuzztest_macros",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
