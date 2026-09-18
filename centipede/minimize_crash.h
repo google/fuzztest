@@ -15,6 +15,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_MINIMIZE_CRASH_H_
 #define THIRD_PARTY_CENTIPEDE_MINIMIZE_CRASH_H_
 
+#include <optional>
+#include <string_view>
+
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/stop.h"
@@ -22,14 +25,19 @@
 
 namespace fuzztest::internal {
 
-// Tries to minimize `crashy_input`.
+struct MinimizeCrashResult {
+  ByteArray input;
+  std::string description;
+};
+
+// Tries to minimize `crashy_input` with `crash_signature`.
 // Uses `callbacks_factory` to create `env.num_threads` workers.
-// Requests to stop with EXIT_FAILURE using `stop_condition` if no smaller
-// crasher was found or if the original input didn't crash. Stores the newly
-// found crashy inputs in `WorkDir{env}.CrashReproducerDirPath()`.
-void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
-                   CentipedeCallbacksFactory& callbacks_factory,
-                   StopCondition& stop_condition);
+// Returns a minimized crash if found, otherwise nullopt would be returned.
+// Stops when `stop_condition` is requested/due.
+std::optional<MinimizeCrashResult> MinimizeCrash(
+    ByteSpan crashy_input, const Environment& env,
+    CentipedeCallbacksFactory& callbacks_factory,
+    std::string_view crash_signature, StopCondition& stop_condition);
 
 }  // namespace fuzztest::internal
 

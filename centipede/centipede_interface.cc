@@ -109,6 +109,48 @@ void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
   }
 }
 
+void MinimizeCrash(const Environment& env,
+                   CentipedeCallbacksFactory& callbacks_factory,
+                   StopCondition& stop_condition) {
+  ByteArray crashy_input;
+  ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
+
+  BatchResult batch_result;
+  {
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                              stop_condition);
+    CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+    if (scoped_callbacks.callbacks()->Execute(env.binary, {crashy_input},
+                                              batch_result)) {
+      stop_condition.RequestStop(EXIT_FAILURE,
+                                 "The original crashy input did not crash");
+      return;
+    }
+  }
+
+  const auto result =
+      MinimizeCrash(crashy_input, env, callbacks_factory,
+                    batch_result.failure_signature(), stop_condition);
+  if (stop_condition.StopRequested()) return;
+  if (!result.has_value()) {
+    stop_condition.RequestStop(EXIT_FAILURE, "No smaller crash found");
+    return;
+  }
+
+  const auto result_input_signature = Hash(result->input);
+  const auto output_path =
+      (std::filesystem::path{WorkDir{env}.CrashReproducerDirPaths().MyShard()} /
+       result_input_signature)
+          .string();
+  const auto write_status = RemoteFileSetContents(output_path, result->input);
+  if (!write_status.ok()) {
+    stop_condition.RequestStop(
+        EXIT_FAILURE, absl::StrCat("Failed to write the minimized crasher to ",
+                                   output_path, ": ", write_status));
+    return;
+  }
+}
+
 // Loads corpora from work dirs provided in `env.args`, if there are two args
 // provided, analyzes differences. If there is one arg provided, reports the
 // function coverage. Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
@@ -754,9 +796,7 @@ int CentipedeMain(const Environment& env,
   }
 
   if (!env.minimize_crash_file_path.empty()) {
-    ByteArray crashy_input;
-    ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    MinimizeCrash(crashy_input, env, callbacks_factory, *stop_condition);
+    MinimizeCrash(env, callbacks_factory, *stop_condition);
     return SaveStopReasonAndGetExitCode();
   }
 
