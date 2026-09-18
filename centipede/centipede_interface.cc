@@ -516,7 +516,7 @@ void UpdateCorpusDatabase(Environment env,
     }
   }
 
-  if (RemotePathExists(env.workdir) && !is_resuming) {
+  if (!is_workdir_specified && RemotePathExists(env.workdir) && !is_resuming) {
     // This could be a workdir from a failed run that used a different version
     // of the binary. We delete it so that we don't have to deal with
     // the assumptions under which it is safe to reuse an old workdir.
