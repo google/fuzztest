@@ -198,6 +198,15 @@ FUZZTEST_DEFINE_FLAG(
     "regardless of the crashing inputs found, unless there is a setup failure. "
     "Note that reproducer tests are not affected - they always fail on crash.");
 
+// NOLINTNEXTLINE(clang-diagnostic-pre-c++20-compat)
+FUZZTEST_DEFINE_FLAG(
+    size_t, replay_crash_attempts, 1,
+    "The number of attempts to replay a crash before giving up.");
+
+// NOLINTNEXTLINE(clang-diagnostic-pre-c++20-compat)
+FUZZTEST_DEFINE_FLAG(size_t, replay_coverage_attempts, 1,
+                     "The number of attempts to replay coverage inputs.");
+
 FUZZTEST_DEFINE_FLAG(bool, unguided, false,
                      "If used together with --" FUZZTEST_FLAG_PREFIX
                      "fuzz or --" FUZZTEST_FLAG_PREFIX
@@ -416,6 +425,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       num_jobs,
       absl::GetFlag(FUZZTEST_FLAG(internal_centipede_command)),
       absl::GetFlag(FUZZTEST_FLAG(internal_crashing_input_to_reproduce)),
+      absl::GetFlag(FUZZTEST_FLAG(replay_crash_attempts)),
+      absl::GetFlag(FUZZTEST_FLAG(replay_coverage_attempts)),
   };
 }
 }  // namespace

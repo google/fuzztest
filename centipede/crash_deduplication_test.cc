@@ -14,6 +14,7 @@
 
 #include "./centipede/crash_deduplication.h"
 
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
@@ -33,13 +34,16 @@
 #include "absl/time/clock_interface.h"
 #include "absl/time/simulated_clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/crash_deduplication_test_util.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
+#include "./common/defs.h"
 #include "./common/temp_dir.h"
 
 namespace fuzztest::internal {
@@ -1114,6 +1118,76 @@ TEST_F(OrganizeCrashingInputsTest, LogsActionMoveToRegression) {
   EXPECT_THAT(log_capture.FullLog(),
               AllOf(HasSubstr("Action: MoveToRegression for"),
                     HasSubstr("Reason: Crash expired (not reproduced for")));
+}
+
+class FlakyCrashCallbacks : public CentipedeCallbacks {
+ public:
+  FlakyCrashCallbacks(const Environment& env, int crash_on_attempt)
+      : CentipedeCallbacks(env, internal_stop_condition_),
+        crash_on_attempt_(crash_on_attempt) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    ++execution_count_;
+    batch_result.ClearAndResize(inputs.size());
+    if (execution_count_ == crash_on_attempt_) {
+      batch_result.exit_code() = EXIT_FAILURE;
+      batch_result.failure_signature() = "csig";
+      batch_result.failure_description() = "flaky crash";
+      return false;
+    }
+    return true;
+  }
+
+  int execution_count() const { return execution_count_; }
+
+ private:
+  int crash_on_attempt_;
+  int execution_count_ = 0;
+  StopCondition internal_stop_condition_;
+};
+
+TEST_F(OrganizeCrashingInputsTest, ReplaysCrashMultipleTimesUntilSuccess) {
+  LogCapture log_capture;
+  SetContentsAndGetPath(incubating_dir(), "isig1", "input1");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  FlakyCrashCallbacks callbacks(test_env, /*crash_on_attempt=*/2);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  EXPECT_EQ(callbacks.execution_count(), 2);
+  EXPECT_THAT(log_capture.FullLog(),
+              AllOf(HasSubstr("Crash reproduced on attempt 2 of 3 for "),
+                    HasSubstr("Action: CleanUpIncubating for"),
+                    HasSubstr("Reason: Input reproduced with signature 'csig' "
+                              "and graduated from incubation")));
+}
+
+TEST_F(OrganizeCrashingInputsTest, ReplaysCrashUpToMaxAttemptsOnFailure) {
+  LogCapture log_capture;
+  SetContentsAndGetPath(incubating_dir(), "isig1", "input1");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  FlakyCrashCallbacks callbacks(test_env, /*crash_on_attempt=*/5);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  EXPECT_EQ(callbacks.execution_count(), 3);
+  EXPECT_THAT(log_capture.FullLog(),
+              HasSubstr("Crash failed to reproduce after 3 attempts for "));
 }
 
 }  // namespace
