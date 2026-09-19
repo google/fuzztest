@@ -14,9 +14,9 @@
 
 #include "./fuzztest/internal/sanitizer_interface.h"
 
+#include <atomic>
 #include <cstddef>
 #include <optional>
-#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -24,11 +24,16 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "./common/logging.h"
 
 namespace fuzztest::internal {
+
+std::atomic<FuzzTestSanitizerErrorSummaryCallback>
+    sanitizer_error_summary_callback{nullptr};
+
 namespace {
 
-std::optional<std::string> MaybeExtractTsanCrashType(
+std::optional<absl::string_view> MaybeExtractTsanCrashType(
     absl::string_view sanitizer_name, absl::string_view error_summary) {
   if (sanitizer_name != "ThreadSanitizer") return std::nullopt;
 
@@ -75,7 +80,7 @@ std::optional<std::string> MaybeExtractTsanCrashType(
 
 }  // namespace
 
-absl::StatusOr<std::string> ParseCrashTypeFromSanitizerSummary(
+absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
     absl::string_view error_summary) {
   if (!absl::ConsumePrefix(&error_summary, "SUMMARY: ")) {
     return absl::InvalidArgumentError(absl::StrCat(
@@ -94,13 +99,41 @@ absl::StatusOr<std::string> ParseCrashTypeFromSanitizerSummary(
   if (error_summary.find("byte(s) leaked") != error_summary.npos) {
     return "memory-leak";
   }
-  if (auto tsan_crash_type =
+  if (std::optional<absl::string_view> tsan_crash_type =
           MaybeExtractTsanCrashType(sanitizer_name, error_summary);
       tsan_crash_type.has_value()) {
     return *tsan_crash_type;
   }
   const size_t space_pos = error_summary.find(' ');
-  return std::string(error_summary.substr(0, space_pos));
+  return error_summary.substr(0, space_pos);
 }
 
 }  // namespace fuzztest::internal
+
+// clang-format off
+extern "C" void __attribute__((visibility("default"), used))
+__sanitizer_report_error_summary(const char* error_summary) {
+  const FuzzTestSanitizerErrorSummaryCallback callback =
+      fuzztest::internal::sanitizer_error_summary_callback.load(
+          std::memory_order_relaxed);
+  if (callback == nullptr) return;
+  absl::StatusOr<absl::string_view> crash_type =
+      fuzztest::internal::ParseCrashTypeFromSanitizerSummary(
+          absl::NullSafeStringView(error_summary));
+  FUZZTEST_LOG_IF(ERROR, !crash_type.ok())
+      << "Failed to extract sanitizer crash type: " << crash_type.status();
+  const absl::string_view resolved_crash_type =
+      crash_type.value_or("Sanitizer crash");
+  callback(resolved_crash_type.data(), resolved_crash_type.size());
+}
+// clang-format on
+
+extern "C" void FuzzTestSetSanitizerErrorSummaryCallback(
+    FuzzTestSanitizerErrorSummaryCallback callback) {
+  // Ensure the sanitizer error summary hook is retained by the linker (e.g.,
+  // under -Wl,--gc-sections) whenever a callback is registered.
+  void (*volatile hook)(const char*) = &__sanitizer_report_error_summary;
+  (void)hook;
+  fuzztest::internal::sanitizer_error_summary_callback.store(
+      callback, std::memory_order_relaxed);
+}

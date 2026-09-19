@@ -38,10 +38,19 @@ fn ensure_use_after_free_signature_with_asan(fixture: &EnvVars) {
 
     let stderr = test_utils::run_centipede_with_args_expect_termination(fixture, &args);
 
-    expect_that!(
-        stderr,
-        matchers::contains_substring("Property function ran but address sanitizer caught a bug")
-    );
+    expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: heap-use-after-free"));
+}
+
+#[gtest]
+#[cfg(sanitize = "address")]
+fn standalone_mode_reports_use_after_free_with_asan(fixture: &EnvVars) {
+    let args = ["__fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test"];
+    let envs = [("FUZZTEST_FUZZ_FOR", "15s")];
+
+    let stderr =
+        test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &envs);
+
+    expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: heap-use-after-free"));
 }
 
 // TODO(yamilmorales): Enable this test on presubmit with --config=msan.
@@ -56,14 +65,21 @@ fn ensure_sanitizer_crash_signature_with_msan(fixture: &EnvVars) {
         &format!("--workdir={}", work_dir.display()),
         "--exit_on_crash",
         "--test_name=__fuzztest_mod__msan_death_test.msan_death_test",
-        "--use_cmp_features=0", // Prevent msan from detecting nested bugs and aborting without
-                                // triggering the death callback.
     ];
 
     let stderr = test_utils::run_centipede_with_args_expect_termination(fixture, &args);
 
-    expect_that!(
-        stderr,
-        matchers::contains_substring("Property function ran but a sanitizer caught a bug")
-    );
+    expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: use-of-uninitialized-value"));
+}
+
+#[gtest]
+#[cfg(sanitize = "memory")]
+fn standalone_mode_reports_uninitialized_value_with_msan(fixture: &EnvVars) {
+    let args = ["__fuzztest_mod__msan_death_test::msan_death_test"];
+    let envs = [("FUZZTEST_FUZZ_FOR", "15s")];
+
+    let stderr =
+        test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &envs);
+
+    expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: use-of-uninitialized-value"));
 }

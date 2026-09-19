@@ -2040,5 +2040,6 @@ cc_static_library(
         ":engine_worker",
         ":sancov_runtime",
         ":weak_sancov_stubs",
+        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
     ],
 )
