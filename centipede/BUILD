@@ -1297,8 +1297,15 @@ sh_library(
 )
 
 sh_library(
-    name = "test_util_sh",
+    name = "test_util_sh_lib",
     srcs = ["test_util.sh"],
+)
+
+# Rule that has the .sh file as the single output, so sh_test can find it with $(rootpath :test_util_sh).
+filegroup(
+    name = "test_util_sh",
+    srcs = [":test_util.sh"],
+    data = [":test_util_sh_lib"],
 )
 
 ################################################################################
@@ -2024,6 +2031,9 @@ sh_test(
         ":centipede",
         ":test_util_sh",
     ],
+    env = {
+        "TEST_UTIL_SH": "$(rootpath :test_util_sh)",
+    },
 )
 
 cc_library(
