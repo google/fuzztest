@@ -530,3 +530,5 @@ CENTIPEDE_FLAG(
     size_t, replay_crash_attempts, 1,
     "Number of attempts to replay a crash input during batch failure triage "
     "or deduplication before considering it non-reproducible.")
+CENTIPEDE_FLAG(int, replay_coverage_attempts, 1,
+               "Number of attempts to replay coverage/corpus inputs.")
