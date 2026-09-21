@@ -1218,7 +1218,9 @@ class ProtobufDomainUntypedImpl
         auto v = self.GetValue(corpus_copy);
         // We need to roundtrip through serialization to really dedup. The
         // reflection API alone doesn't cut it.
-        v->ParsePartialFromString(v->SerializePartialAsString());
+        // TODO(b/564069870): Replace with FUZZTEST_CHECK when possible.
+        static_cast<void>(
+            v->ParsePartialFromString(v->SerializePartialAsString()));
         if (v->GetReflection()->FieldSize(*v, field) ==
             domain.GetValue(copy).size()) {
           // The number of entries is the same, so accept the change.
