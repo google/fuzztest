@@ -14,6 +14,7 @@
 
 #include "./centipede/crash_deduplication.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
@@ -158,18 +159,27 @@ absl::Status ReplayCrash(CentipedeCallbacks& callbacks, const Environment& env,
   ByteArray input_bytes;
   RETURN_IF_NOT_OK(RemoteFileGetContents(input_path, input_bytes));
 
-  BatchResult batch_result;
-  const bool is_reproducible =
-      !callbacks.Execute(env.binary, {input_bytes}, batch_result) &&
-      batch_result.IsInputFailure();
-
-  if (is_reproducible) {
-    out_signature = batch_result.failure_signature();
-    out_description = batch_result.failure_description();
-  } else {
-    out_signature = "";
-    out_description = "";
+  const size_t max_attempts = std::max<size_t>(1, env.replay_crash_attempts);
+  for (size_t attempt = 0; attempt < max_attempts; ++attempt) {
+    BatchResult batch_result;
+    if (!callbacks.Execute(env.binary, {input_bytes}, batch_result) &&
+        batch_result.IsInputFailure()) {
+      out_signature = batch_result.failure_signature();
+      out_description = batch_result.failure_description();
+      if (attempt > 0) {
+        FUZZTEST_LOG(INFO) << "Crash reproduced on attempt " << (attempt + 1)
+                           << " of " << max_attempts << " for " << input_path;
+      }
+      return absl::OkStatus();
+    }
   }
+
+  if (max_attempts > 1) {
+    FUZZTEST_LOG(INFO) << "Crash failed to reproduce after " << max_attempts
+                       << " attempts for " << input_path;
+  }
+  out_signature = "";
+  out_description = "";
   return absl::OkStatus();
 }
 

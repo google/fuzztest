@@ -40,6 +40,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
          config.centipede_command == other->centipede_command &&
          config.crashing_input_to_reproduce ==
              other->crashing_input_to_reproduce &&
+         config.replay_crash_attempts == other->replay_crash_attempts &&
          config.reproduction_command_template ==
              other->reproduction_command_template;
 }
@@ -69,6 +70,7 @@ TEST(ConfigurationTest,
                               /*jobs=*/1,
                               /*centipede_command=*/std::nullopt,
                               /*crashing_input_to_reproduce=*/std::nullopt,
+                              /*replay_crash_attempts=*/5,
                               /*reproduction_command_template=*/std::nullopt};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
@@ -100,6 +102,7 @@ TEST(ConfigurationTest,
                               /*jobs=*/1,
                               "centipede_command",
                               "crashing_input_to_reproduce",
+                              /*replay_crash_attempts=*/20,
                               "reproduction_command_template"};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
