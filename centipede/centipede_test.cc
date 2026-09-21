@@ -956,6 +956,96 @@ TEST(Centipede, UndetectedCrashingInput) {
   EXPECT_EQ(suspect_only_mock.num_inputs_triaged(), 1);
 }
 
+// Mock callback that fails on a specific attempt of an input during triage.
+class FlakyCrashingInputMock : public CentipedeCallbacks {
+ public:
+  FlakyCrashingInputMock(const Environment& env, size_t crashing_input_idx,
+                         size_t fail_on_triage_attempt)
+      : CentipedeCallbacks{env, internal_stop_condition_},
+        crashing_input_idx_(crashing_input_idx),
+        fail_on_triage_attempt_(fail_on_triage_attempt) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_result.ClearAndResize(inputs.size());
+    if (first_pass_) {
+      for (const auto& input : inputs) {
+        if (input[0] == crashing_input_idx_) {
+          first_pass_ = false;
+          crashing_input_ = {input.begin(), input.end()};
+          batch_result.num_outputs_read() =
+              crashing_input_idx_ % env_.batch_size;
+          batch_result.exit_code() = 1;
+          return false;
+        }
+      }
+      return true;
+    }
+    // In triage
+    for (const auto& input : inputs) {
+      if (input == AsByteSpan(crashing_input_)) {
+        ++triage_attempts_;
+        if (triage_attempts_ == fail_on_triage_attempt_) {
+          batch_result.exit_code() = 1;
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
+                             size_t num_mutants) override {
+    std::vector<Mutant> mutants;
+    mutants.reserve(num_mutants);
+    for (size_t i = 0; i < num_mutants; ++i) {
+      mutants.push_back({/*data=*/{static_cast<uint8_t>(curr_input_idx_++)},
+                         Mutant::kOriginNone});
+    }
+    return mutants;
+  }
+
+  ByteArray crashing_input() const { return crashing_input_; }
+  size_t triage_attempts() const { return triage_attempts_; }
+
+ private:
+  const size_t crashing_input_idx_;
+  const size_t fail_on_triage_attempt_;
+  size_t curr_input_idx_ = 0;
+  size_t triage_attempts_ = 0;
+  ByteArray crashing_input_ = {};
+  bool first_pass_ = true;
+  StopCondition internal_stop_condition_;
+};
+
+TEST(Centipede, ReportCrashRetriesWithReplayCrashAttempts) {
+  constexpr size_t kNumBatches = 5;
+  constexpr size_t kBatchSize = 10;
+  constexpr size_t kCrashingInputIdx = 15;
+
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = temp_dir.path();
+  env.num_runs = kBatchSize * kNumBatches;
+  env.batch_size = kBatchSize;
+  env.require_pc_table = false;
+  env.exit_on_crash = true;
+  env.batch_triage_suspect_only = true;
+  env.replay_crash_attempts = 3;
+
+  FlakyCrashingInputMock mock(env, kCrashingInputIdx,
+                              /*fail_on_triage_attempt=*/2);
+  NonOwningCallbacksFactory factory(mock);
+  CentipedeMain(env, factory);
+
+  EXPECT_EQ(mock.triage_attempts(), 2);
+  const auto crashing_input_hash = Hash(mock.crashing_input());
+  const auto crasher_path =
+      std::filesystem::path{WorkDir{env}.CrashReproducerDirPaths().MyShard()} /
+      crashing_input_hash;
+  EXPECT_TRUE(std::filesystem::exists(crasher_path)) << crasher_path;
+}
+
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =
