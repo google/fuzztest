@@ -62,6 +62,17 @@ __attribute__((noinline)) extern "C" void CallThisRecursively(int times) {
 static int non_cost_global[10];
 static const int const_global[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
+__attribute__((noinline, no_sanitize("coverage"))) void PrintInput(
+    const uint8_t* data, size_t size) {
+  printf("{");
+  for (size_t i = 0; i < size; i++) {
+    // This loop generates different coverage counters
+    // depending on the number of iterations.
+    printf("%02x%s", (int)data[i], i + 1 == size ? "" : ", ");
+  }
+  printf("}\n");
+}
+
 // See https://llvm.org/docs/LibFuzzer.html#fuzz-target.
 // control_flow_test.cc and centipede_main_test.sh verify the exact line where
 // LLVMFuzzerTestOneInput is declared.
@@ -72,13 +83,7 @@ static const int const_global[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static volatile void *ptr_sink = nullptr;
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   // Print the input. It will be tested in runner_test.
-  printf("{");
-  for (size_t i = 0; i < size; i++) {
-    // This loop generates different coverage counters
-    // depending on the number of iterations.
-    printf("%02x%s", (int)data[i], i + 1 == size ? "" : ", ");
-  }
-  printf("}\n");
+  PrintInput(data, size);
 
   // If the input is 'cntX', run X iterations of a do-while loop.
   // Runs one iteration if X is 0. Used to test --use_counter_features.
