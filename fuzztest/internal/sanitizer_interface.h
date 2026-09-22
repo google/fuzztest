@@ -15,18 +15,41 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_SANITIZER_INTERFACE_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_SANITIZER_INTERFACE_H_
 
-#include <string>
+#include <cstddef>
 
+#include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+
+extern "C" {
+
+using FuzzTestSanitizerErrorSummaryCallback =
+    void (*)(const char* crash_type_data, size_t crash_type_size);
+
+// Registers a callback to be invoked with the parsed crash type whenever the
+// sanitizer runtime reports an error summary.
+//
+// The `(crash_type_data, crash_type_size)` slice passed to `callback` is
+// non-null and non-empty (`crash_type_size > 0`), points either to a static
+// string literal or into the `error_summary` buffer passed by the sanitizer
+// runtime, and is valid for reads for the duration of the callback invocation
+// (or longer if the input `error_summary` outlives the call).
+void FuzzTestSetSanitizerErrorSummaryCallback(
+    FuzzTestSanitizerErrorSummaryCallback callback);
+
+}  // extern "C"
 
 namespace fuzztest::internal {
 
 // Parses the crash type from the sanitizer error summary.
 // The summary is expected to be in the format:
 // "SUMMARY: SomeSanitizer: some-crash-type ..."
-absl::StatusOr<std::string> ParseCrashTypeFromSanitizerSummary(
-    absl::string_view error_summary);
+//
+// The returned `absl::string_view` points either to a static string literal or
+// into `error_summary`, and remains valid for as long as `error_summary` is
+// valid.
+absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
+    absl::string_view error_summary ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
 }  // namespace fuzztest::internal
 

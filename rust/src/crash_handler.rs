@@ -12,41 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(any(sanitize = "address", sanitize = "memory"))]
-mod callbacks {
-    use std::ffi::{c_char, CStr};
-
-    unsafe extern "C" {
-        pub safe fn __sanitizer_set_death_callback(callback: Option<extern "C" fn()>);
-
-        pub safe fn __asan_get_report_description() -> *const c_char;
-    }
-
-    pub extern "C" fn sanitizer_death_callback() {
-        use crate::worker;
-
-        let (description, signature) = if cfg!(sanitize = "address") {
-            let char_ptr = __asan_get_report_description();
-            // Safety: `ptr` points to a valid null terminated string.
-            let signature_cstr = unsafe { CStr::from_ptr(char_ptr) };
-            (
-                "Property function ran but address sanitizer caught a bug",
-                signature_cstr.to_str().unwrap_or("ASan crash"),
-            )
-        } else {
-            ("Property function ran but a sanitizer caught a bug", "Sanitizer crash")
-        };
-        worker::try_emit_finding(description, signature);
-    }
+// SAFETY:
+// - `FuzzTestSetSanitizerErrorSummaryCallback` is declared with `extern "C"` linkage in
+//   `internal/sanitizer_interface.h` and defined in `internal/sanitizer_interface.cc`.
+// - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*, size_t))`:
+//   `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is ABI-compatible
+//   with `size_t`.
+unsafe extern "C" {
+    fn FuzzTestSetSanitizerErrorSummaryCallback(
+        callback: unsafe extern "C" fn(crash_type_data: *const u8, crash_type_size: usize),
+    );
 }
 
-/// Be able to emit failures before exiting fully from the process for non-unwinding panics and/or
-/// unrecoverable crashes.
+/// Sanitizer error summary callback invoked by the C++ sanitizer interface.
+///
+/// # Safety
+///
+/// The caller must uphold the following preconditions:
+/// - If `crash_type_size > 0`, `crash_type_data` must be non-null and valid for reads of
+///   `crash_type_size` consecutive, initialized `u8` bytes for the duration of the call.
+/// - The pointed-to memory must not be mutated concurrently for the duration of the call.
+/// - `crash_type_size` must not exceed `isize::MAX`.
+unsafe extern "C" fn sanitizer_error_summary_callback(
+    crash_type_data: *const u8,
+    crash_type_size: usize,
+) {
+    let crash_type = if crash_type_data.is_null() || crash_type_size == 0 {
+        "Sanitizer crash"
+    } else {
+        // SAFETY:
+        // - Non-nullness: `crash_type_data` was verified non-null above.
+        // - Alignment: `u8` has alignment 1, so any non-null pointer is properly aligned.
+        // - Validity: The caller guarantees `crash_type_data` points to `crash_type_size`
+        //   consecutive, initialized `u8` bytes valid for reads for the duration of this call.
+        // - Aliasing: The pointed-to memory is read-only and not mutated during the call.
+        // - Size: The caller guarantees `crash_type_size <= isize::MAX`.
+        let crash_type_bytes =
+            unsafe { std::slice::from_raw_parts(crash_type_data, crash_type_size) };
+        std::str::from_utf8(crash_type_bytes).unwrap_or("Sanitizer crash (invalid utf8)")
+    };
+    crate::worker::try_emit_finding(crash_type, crash_type);
+}
+
+/// Registers the sanitizer error summary callback and ensures the sanitizer crash handler hook is
+/// linked into the binary.
 pub fn register_crash_handler() {
-    // TODO(yamilmorales): Consider allowing more sanitizers here, and find some other way to
-    // recognize sanitizers if this feature is not stabilized by the time we need to support Cargo.
-    #[cfg(any(sanitize = "address", sanitize = "memory"))]
-    {
-        callbacks::__sanitizer_set_death_callback(Some(callbacks::sanitizer_death_callback));
+    // SAFETY:
+    // - `sanitizer_error_summary_callback` is an `unsafe extern "C" fn` matching the C callback
+    //   signature `FuzzTestSanitizerErrorSummaryCallback` (`void (*)(const char*, size_t)`).
+    // - As a function item, `sanitizer_error_summary_callback` has `'static` lifetime and remains
+    //   valid for the entire duration of program execution.
+    // - `FuzzTestSetSanitizerErrorSummaryCallback` stores the function pointer in a `std::atomic`
+    //   using `memory_order_relaxed`, so concurrent registration is data-race free.
+    unsafe {
+        FuzzTestSetSanitizerErrorSummaryCallback(sanitizer_error_summary_callback);
     }
 }

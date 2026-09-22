@@ -14,12 +14,13 @@
 
 #include "./fuzztest/internal/sanitizer_interface.h"
 
-#include <string>
+#include <cstddef>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -28,7 +29,7 @@ using ::testing::HasSubstr;
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeWhenItIsTheOnlyToken) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: SomeSanitizer: some-crash-type");
   ASSERT_TRUE(crash_type.ok());
@@ -37,7 +38,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeWhenFilePathIsPresent) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: AddressSanitizer: heap-use-after-free some/file.cc:1234:5");
   ASSERT_TRUE(crash_type.ok());
@@ -45,7 +46,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, ParsesMemoryLeak) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: AddressSanitizer: 10 byte(s) leaked in 10 allocation(s)");
   ASSERT_TRUE(crash_type.ok());
@@ -53,7 +54,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ParsesMemoryLeak) {
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForUBSan) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: UndefinedBehaviorSanitizer: null-pointer-use "
           "some/file.h:32:7");
@@ -62,7 +63,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForUBSan) {
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForMSan) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: MemorySanitizer: use-of-uninitialized-value "
           "some/file.cc:570:11 in SomeFunction");
@@ -72,7 +73,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForMSan) {
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanDataRaceOnVptr) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: data race on vptr (ctor/dtor vs virtual "
           "call) some/file.cc:12:34 in Foo");
@@ -81,7 +82,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDataRace) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: data race "
           "some/file.cc:33:37 in operator()");
@@ -91,7 +92,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDataRace) {
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanDestroyLocked) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: destroy of a locked mutex "
           "some/file.cc:12:34 in Foo");
@@ -101,7 +102,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanDoubleLock) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: double lock of a mutex some/file.cc:12:34 "
           "in Foo");
@@ -110,7 +111,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDeadlock) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: lock-order-inversion (potential "
           "deadlock) some/file.cc:12:34 in Foo");
@@ -120,7 +121,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, ExtractsCrashTypeForTSanDeadlock) {
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanMutexHeldWrongContext) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: mutex held in the wrong context "
           "some/file.cc:12:34 in Foo");
@@ -130,7 +131,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanExternalRace) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: race on external object "
           "some/file.cc:12:34 "
@@ -141,7 +142,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanBadReadLock) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: read lock of a write locked mutex "
           "some/file.cc:12:34 in Foo");
@@ -151,7 +152,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanBadReadUnlock) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: read unlock of a write locked mutex "
           "some/file.cc:12:34 in Foo");
@@ -161,7 +162,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanErrnoInSignal) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: signal handler spoils errno "
           "some/file.cc:12:34 in Foo");
@@ -171,7 +172,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanSignalUnsafe) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: signal-unsafe call inside of a signal "
           "some/file.cc:12:34 in Foo");
@@ -181,7 +182,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanSwiftAccessRace) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: Swift access race some/file.cc:12:34 in "
           "Foo");
@@ -191,7 +192,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanThreadLeak) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: thread leak some/file.cc:12:34 in Foo");
   ASSERT_TRUE(crash_type.ok());
@@ -200,7 +201,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanBadUnlock) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: unlock of an unlocked mutex (or by a "
           "wrong thread) some/file.cc:12:34 in Foo");
@@ -210,7 +211,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanInvalidMutex) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: use of an invalid mutex (e.g. "
           "uninitialized or destroyed) some/file.cc:12:34 in Foo");
@@ -220,7 +221,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanHeapUseAfterFree) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: heap-use-after-free some/file.cc:12:34 "
           "in Foo");
@@ -230,7 +231,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeForTSanFallbackSingleToken) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: ThreadSanitizer: unknown-crash-type some/file.cc:12:34 "
           "in Foo");
@@ -239,7 +240,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest,
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, IgnoresTsanCrashTypeForNonTSan) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary(
           "SUMMARY: AddressSanitizer: data race some/file.cc:12:34 in Foo");
   ASSERT_TRUE(crash_type.ok());
@@ -247,7 +248,7 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, IgnoresTsanCrashTypeForNonTSan) {
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, FailsOnMissingSummaryPrefix) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary("Missing SUMMARY prefix");
   ASSERT_FALSE(crash_type.ok());
   EXPECT_THAT(crash_type.status().message(),
@@ -255,10 +256,44 @@ TEST(ParseCrashTypeFromSanitizerSummaryTest, FailsOnMissingSummaryPrefix) {
 }
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest, FailsOnMissingSanitizerName) {
-  const absl::StatusOr<std::string> crash_type =
+  const absl::StatusOr<absl::string_view> crash_type =
       ParseCrashTypeFromSanitizerSummary("SUMMARY: No sanitizer name");
   ASSERT_FALSE(crash_type.ok());
   EXPECT_THAT(crash_type.status().message(), HasSubstr("No sanitizer name"));
+}
+
+extern "C" void __sanitizer_report_error_summary(const char* error_summary);
+
+void InvokeSanitizerReportErrorSummary(const char* error_summary) {
+  __sanitizer_report_error_summary(error_summary);
+}
+
+TEST(FuzzTestSanitizerErrorSummaryCallbackTest,
+     InvokesCallbackWithParsedOrFallbackCrashType) {
+  static absl::string_view recorded_crash_type;
+  recorded_crash_type = "unset";
+
+  FuzzTestSetSanitizerErrorSummaryCallback(nullptr);
+  InvokeSanitizerReportErrorSummary(
+      "SUMMARY: AddressSanitizer: heap-use-after-free some/file.cc:12:3");
+  EXPECT_EQ(recorded_crash_type, "unset");
+
+  FuzzTestSetSanitizerErrorSummaryCallback([](const char* crash_type_data,
+                                              size_t crash_type_size) {
+    recorded_crash_type = absl::string_view(crash_type_data, crash_type_size);
+  });
+
+  InvokeSanitizerReportErrorSummary(
+      "SUMMARY: AddressSanitizer: heap-use-after-free some/file.cc:12:3");
+  EXPECT_EQ(recorded_crash_type, "heap-use-after-free");
+
+  InvokeSanitizerReportErrorSummary(nullptr);
+  EXPECT_EQ(recorded_crash_type, "Sanitizer crash");
+
+  InvokeSanitizerReportErrorSummary("Invalid summary");
+  EXPECT_EQ(recorded_crash_type, "Sanitizer crash");
+
+  FuzzTestSetSanitizerErrorSummaryCallback(nullptr);
 }
 
 }  // namespace

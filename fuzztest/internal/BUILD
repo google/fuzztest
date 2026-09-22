@@ -446,11 +446,21 @@ cc_library(
     name = "sanitizer_interface",
     srcs = ["sanitizer_interface.cc"],
     hdrs = ["sanitizer_interface.h"],
+    # Link statically and unconditionally into the main executable so the
+    # strong sanitizer error summary hook overrides the default weak definition
+    # in the sanitizer runtime (which is also linked statically into the
+    # executable).
+    linkstatic = True,
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-    ],
+        "@com_google_fuzztest//common:logging",
+    ] + select({
+        "//conditions:default": [],
+    }),
+    alwayslink = True,
 )
 
 cc_test(
@@ -460,6 +470,7 @@ cc_test(
         ":sanitizer_interface",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
     ],
 )

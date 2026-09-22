@@ -78,3 +78,24 @@ pub fn run_centipede_with_args_expect_termination(fixture: &EnvVars, args: &[&st
 
     String::from_utf8_lossy(&process.stderr).to_string()
 }
+
+/// Returns stderr of the target binary with `args` and `envs` that is expected to terminate.
+///
+/// In addition to `envs`, the function will also pass `FUZZTEST_CENTIPEDE_BINARY_PATH`,
+/// `FUZZTEST_PRINT_SUBPROCESS_LOG=true`, and `RUST_TEST_NOCAPTURE=1`.
+pub fn run_target_binary_with_args_and_env_expect_termination(
+    fixture: &EnvVars,
+    args: &[&str],
+    envs: &[(&str, &str)],
+) -> String {
+    let process = Command::new(&fixture.target_binary_path)
+        .args(args)
+        .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
+        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
+        .env("RUST_TEST_NOCAPTURE", "1")
+        .envs(envs.iter().copied())
+        .output()
+        .expect("Target binary should have executed");
+
+    String::from_utf8_lossy(&process.stderr).to_string()
+}
