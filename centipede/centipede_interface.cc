@@ -670,6 +670,7 @@ void ReplayCrash(const Environment& env,
       crash_corpus_config, env.binary_name, env.binary_hash));
   Environment run_crash_env = env;
   run_crash_env.load_shards_only = true;
+  run_crash_env.persistent_mode = false;
   Fuzz(run_crash_env, {}, "", callbacks_factory, stop_condition);
   if (env.report_crash_summary) {
     CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};

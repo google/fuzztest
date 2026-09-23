@@ -1046,6 +1046,39 @@ TEST(Centipede, ReportCrashRetriesWithReplayCrashAttempts) {
   EXPECT_TRUE(std::filesystem::exists(crasher_path)) << crasher_path;
 }
 
+TEST(Centipede, SingleInputNonPersistentSkipsTriageReplay) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = temp_dir.path();
+  env.num_runs = 5;
+  env.batch_size = 1;
+  env.persistent_mode = false;
+  env.require_pc_table = false;
+  env.exit_on_crash = true;
+
+  // Fail on first pass for input 2, and never fail in triage
+  // (`fail_on_triage_attempt = 99`).
+  FlakyCrashingInputMock mock(env, /*crashing_input_idx=*/2,
+                              /*fail_on_triage_attempt=*/99);
+  NonOwningCallbacksFactory factory(mock);
+  CentipedeMain(env, factory);
+
+  // Triage re-execution must be skipped (`triage_attempts() == 0`) and the
+  // reproducer + metadata files must still be written.
+  EXPECT_EQ(mock.triage_attempts(), 0);
+  const auto crashing_input_hash = Hash(mock.crashing_input());
+  const auto crasher_path =
+      std::filesystem::path{WorkDir{env}.CrashReproducerDirPaths().MyShard()} /
+      crashing_input_hash;
+  EXPECT_TRUE(std::filesystem::exists(crasher_path)) << crasher_path;
+  const auto metadata_dir =
+      std::filesystem::path{WorkDir{env}.CrashMetadataDirPaths().MyShard()};
+  EXPECT_TRUE(
+      std::filesystem::exists(metadata_dir / (crashing_input_hash + ".desc")));
+  EXPECT_TRUE(
+      std::filesystem::exists(metadata_dir / (crashing_input_hash + ".sig")));
+}
+
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =

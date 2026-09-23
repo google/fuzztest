@@ -111,6 +111,37 @@ std::vector<MutantRef> InputsToMutantRefs(const std::vector<ByteSpan>& inputs) {
   return mutants;
 }
 
+void SaveReproducer(const WorkDir& wd, std::string_view log_prefix,
+                    size_t input_idx, ByteSpan reproducer,
+                    const BatchResult& result) {
+  auto hash = Hash(reproducer);
+  auto crash_dir = wd.CrashReproducerDirPaths().MyShard();
+  FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
+  std::string input_file_path = std::filesystem::path(crash_dir) / hash;
+  auto crash_metadata_dir = wd.CrashMetadataDirPaths().MyShard();
+  FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
+  std::string crash_metadata_path_prefix =
+      std::filesystem::path(crash_metadata_dir) / hash;
+  FUZZTEST_LOG(INFO)
+      << log_prefix << "Detected crash-reproducing input:"
+      << "\nInput index    : " << input_idx
+      << "\nInput bytes    : " << AsPrintableString(reproducer, /*max_len=*/32)
+      << "\nExit code      : " << result.exit_code()
+      << "\nFailure        : " << result.failure_description()
+      << "\nSignature      : "
+      << AsPrintableString(AsByteSpan(result.failure_signature()),
+                           /*max_len=*/32)
+      << "\nSaving input to: " << input_file_path << "\nSaving crash"  //
+      << "\nmetadata to    : " << crash_metadata_path_prefix << ".*";
+  FUZZTEST_CHECK_OK(RemoteFileSetContents(input_file_path, reproducer));
+  FUZZTEST_CHECK_OK(
+      RemoteFileSetContents(absl::StrCat(crash_metadata_path_prefix, ".desc"),
+                            result.failure_description()));
+  FUZZTEST_CHECK_OK(
+      RemoteFileSetContents(absl::StrCat(crash_metadata_path_prefix, ".sig"),
+                            result.failure_signature()));
+}
+
 }  // namespace
 
 Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
@@ -396,7 +427,11 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
                        << batch_result.failure_description();
     return true;
   }
-  if (stop_condition_.ShouldStop()) {
+  const bool can_report_without_reexecution =
+      input_vec.size() == 1 && !env_.persistent_mode &&
+      batch_result.IsInputFailure() && !stop_condition_.StopRequested() &&
+      batch_result.failure_description() != kExecutionFailurePerBatchTimeout;
+  if (stop_condition_.ShouldStop() && !can_report_without_reexecution) {
     FUZZTEST_LOG_FIRST_N(WARNING, 1)
         << "Crash found but the stop condition is met - not reporting further "
            "possibly related crashes.";
@@ -1059,6 +1094,17 @@ void Centipede::ReportCrash(std::string_view binary,
     return;
   }
 
+  if (input_vec.size() == 1 && !env_.persistent_mode &&
+      batch_result.IsInputFailure()) {
+    FUZZTEST_LOG(INFO)
+        << log_prefix
+        << "Single-input batch in non-persistent mode; skipping re-execution "
+           "and saving the reproducer directly.";
+    SaveReproducer(wd_, log_prefix, /*input_idx=*/0, input_vec[0],
+                   batch_result);
+    return;
+  }
+
   // Determine the optimal order of the inputs to try to maximize the chances of
   // finding the reproducer fast.
   std::vector<size_t> input_idxs_to_try;
@@ -1095,34 +1141,8 @@ void Centipede::ReportCrash(std::string_view binary,
           one_input_batch_result.failure_signature() ==
               batch_result.failure_signature() &&
           !stop_condition_.ShouldStop()) {
-        auto hash = Hash(one_input);
-        auto crash_dir = wd_.CrashReproducerDirPaths().MyShard();
-        FUZZTEST_CHECK_OK(RemoteMkdir(crash_dir));
-        std::string input_file_path = std::filesystem::path(crash_dir) / hash;
-        auto crash_metadata_dir = wd_.CrashMetadataDirPaths().MyShard();
-        FUZZTEST_CHECK_OK(RemoteMkdir(crash_metadata_dir));
-        std::string crash_metadata_path_prefix =
-            std::filesystem::path(crash_metadata_dir) / hash;
-        FUZZTEST_LOG(INFO)
-            << log_prefix << "Detected crash-reproducing input:"
-            << "\nInput index    : " << input_idx << "\nInput bytes    : "
-            << AsPrintableString(one_input, /*max_len=*/32)
-            << "\nExit code      : " << one_input_batch_result.exit_code()
-            << "\nFailure        : "
-            << one_input_batch_result.failure_description()
-            << "\nSignature      : "
-            << AsPrintableString(
-                   AsByteSpan(one_input_batch_result.failure_signature()),
-                   /*max_len=*/32)
-            << "\nSaving input to: " << input_file_path << "\nSaving crash"  //
-            << "\nmetadata to    : " << crash_metadata_path_prefix << ".*";
-        FUZZTEST_CHECK_OK(RemoteFileSetContents(input_file_path, one_input));
-        FUZZTEST_CHECK_OK(RemoteFileSetContents(
-            absl::StrCat(crash_metadata_path_prefix, ".desc"),
-            one_input_batch_result.failure_description()));
-        FUZZTEST_CHECK_OK(RemoteFileSetContents(
-            absl::StrCat(crash_metadata_path_prefix, ".sig"),
-            one_input_batch_result.failure_signature()));
+        SaveReproducer(wd_, log_prefix, input_idx, one_input,
+                       one_input_batch_result);
         return;
       }
     }
