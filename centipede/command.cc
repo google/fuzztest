@@ -405,11 +405,18 @@ bool Command::ExecuteAsync() {
 
     // Wake up the fork server.
     char x = ' ';
-    FUZZTEST_CHECK_EQ(1, write(fork_server_->pipe_[0], &x, 1));
+    if (write(fork_server_->pipe_[0], &x, 1) != 1) {
+      LogProblemInfo(
+          absl::StrCat("Failed to write to fork server pipe. Errno: ", errno));
+      return false;
+    }
     // Read the one-byte ack.
     // Use 60s as an arbitrary duration to wait for the process to load and
     // enter the fork server.
-    FUZZTEST_CHECK(fork_server_->ReadPipe(absl::Now() + absl::Seconds(60), x));
+    if (!fork_server_->ReadPipe(absl::Now() + absl::Seconds(60), x)) {
+      LogProblemInfo("Failed to read from fork server pipe.");
+      return false;
+    }
   } else {
     FUZZTEST_CHECK_EQ(pid_, -1);
 
