@@ -306,65 +306,7 @@ inline std::string_view ToStringView(const std::vector<uint8_t>& bytes) {
 }
 
 // Zero initialized.
-static int persistent_mode_socket;
-
-__attribute__((constructor(200))) void WorkerInitEarly() {
-  const char* persistent_mode_socket_path =
-      GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
-  if (persistent_mode_socket_path == nullptr) return;
-  persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (persistent_mode_socket < 0) {
-    WorkerLog(
-        "Failed to create persistent mode socket - not running persistent "
-        "mode.",
-        LogLnSync{});
-    return;
-  }
-
-  struct sockaddr_un addr{};
-  addr.sun_family = AF_UNIX;
-  const size_t socket_path_len = strlen(persistent_mode_socket_path);
-  WorkerCheck(
-      socket_path_len < sizeof(addr.sun_path),
-      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
-  std::memcpy(addr.sun_path, persistent_mode_socket_path, socket_path_len);
-
-  int connect_ret = 0;
-  do {
-    connect_ret =
-        connect(persistent_mode_socket, (struct sockaddr*)&addr, sizeof(addr));
-  } while (connect_ret == -1 && errno == EINTR);
-  if (connect_ret == -1) {
-    WorkerLog("Failed to connect the persistent mode socket to ",
-              persistent_mode_socket_path, LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
-    return;
-  }
-
-  int flags = fcntl(persistent_mode_socket, F_GETFD);
-  if (flags == -1) {
-    WorkerLog(
-        "fcntl(F_GETFD) failed on the persistent mode socket - exiting "
-        "persistent mode",
-        LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
-    return;
-  }
-  flags |= FD_CLOEXEC;
-  if (fcntl(persistent_mode_socket, F_SETFD, flags) == -1) {
-    WorkerLog(
-        "fcntl(F_SETFD) failed on the persistent mode socket - exiting "
-        "persistent mode",
-        LogLnSync{});
-    (void)close(persistent_mode_socket);
-    persistent_mode_socket = -1;
-    return;
-  }
-  WorkerLog("Persistent mode: connected to ", persistent_mode_socket_path,
-            LogLnSync{});
-}
+int persistent_mode_socket;
 
 size_t GetShmemSize() {
   static auto result = []() -> size_t {
@@ -976,6 +918,73 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
 
 }  // namespace
 
+// Defined in the fork server library.
+extern void ForkServerCallMeVeryEarly();
+
+__attribute__((constructor(200))) void WorkerInitEarly() {
+  static bool inited = false;
+  if (inited) return;
+  inited = true;
+
+  ForkServerCallMeVeryEarly();
+
+  const char* persistent_mode_socket_path =
+      GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
+  if (persistent_mode_socket_path == nullptr) return;
+  persistent_mode_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (persistent_mode_socket < 0) {
+    WorkerLog(
+        "Failed to create persistent mode socket - not running persistent "
+        "mode.",
+        LogLnSync{});
+    return;
+  }
+
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  const size_t socket_path_len = strlen(persistent_mode_socket_path);
+  WorkerCheck(
+      socket_path_len < sizeof(addr.sun_path),
+      "persistent mode socket path string must be fit in sockaddr_un.sun_path");
+  std::memcpy(addr.sun_path, persistent_mode_socket_path, socket_path_len);
+
+  int connect_ret = 0;
+  do {
+    connect_ret =
+        connect(persistent_mode_socket, (struct sockaddr*)&addr, sizeof(addr));
+  } while (connect_ret == -1 && errno == EINTR);
+  if (connect_ret == -1) {
+    WorkerLog("Failed to connect the persistent mode socket to ",
+              persistent_mode_socket_path, LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+    return;
+  }
+
+  int flags = fcntl(persistent_mode_socket, F_GETFD);
+  if (flags == -1) {
+    WorkerLog(
+        "fcntl(F_GETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+    return;
+  }
+  flags |= FD_CLOEXEC;
+  if (fcntl(persistent_mode_socket, F_SETFD, flags) == -1) {
+    WorkerLog(
+        "fcntl(F_SETFD) failed on the persistent mode socket - exiting "
+        "persistent mode",
+        LogLnSync{});
+    (void)close(persistent_mode_socket);
+    persistent_mode_socket = -1;
+    return;
+  }
+  WorkerLog("Persistent mode: connected to ", persistent_mode_socket_path,
+            LogLnSync{});
+}
+
 }  // namespace fuzztest::internal
 
 namespace {
@@ -983,9 +992,12 @@ namespace {
 using ::fuzztest::internal::GetWorkerFlags;
 using ::fuzztest::internal::GetWorkerFlagsEnv;
 using ::fuzztest::internal::WorkerCheck;
+using ::fuzztest::internal::WorkerInitEarly;
 using ::fuzztest::internal::WorkerRun;
 
 }  // namespace
+
+void FuzzTestWorkerInitEarly() { WorkerInitEarly(); }
 
 int FuzzTestWorkerIsRequired() {
   static int result = GetWorkerFlagsEnv() != nullptr &&
