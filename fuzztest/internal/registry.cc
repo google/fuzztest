@@ -57,8 +57,8 @@ void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 
-void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
-  Regs().emplace_back(std::move(test_info), std::move(factory));
+FuzzTest& RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
+  return (Regs().emplace_back(std::move(test_info), std::move(factory)));
 }
 
 void RegisterSetUpTearDownTestSuiteFunctions(

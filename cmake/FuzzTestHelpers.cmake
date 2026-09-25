@@ -433,7 +433,7 @@ function(fuzztest_flatbuffers_generate_headers)
   set(generated_include_dir "${generated_target_dir}")
   if (NOT ${FLATBUFFERS_GENERATE_HEADERS_INCLUDE_PREFIX} STREQUAL "")
     set(generated_include_dir "${generated_include_dir}/${FLATBUFFERS_GENERATE_HEADERS_INCLUDE_PREFIX}")
-    list(APPEND FLATBUFFERS_GENERATE_HEADERS_FLAGS 
+    list(APPEND FLATBUFFERS_GENERATE_HEADERS_FLAGS
          "--include-prefix" ${FLATBUFFERS_GENERATE_HEADERS_INCLUDE_PREFIX})
   endif()
 
