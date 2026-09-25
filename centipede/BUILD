@@ -994,6 +994,7 @@ cc_library(
         ":engine_abi",
         ":execution_metadata",
         ":feature",
+        ":runner_fork_server",
         ":runner_request",
         ":runner_result",
         ":runner_utils",
