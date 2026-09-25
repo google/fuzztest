@@ -28,6 +28,11 @@
 extern "C" {
 #endif
 
+// Initializes the FuzzTest worker runtime early in the process. Only needs to
+// be called explicitly before creating threads during early process startup
+// when the fork server is used.
+void FuzzTestWorkerInitEarly();
+
 typedef enum {
   kFuzzTestWorkerSuccess = 0,  // Test should finish with a success.
   kFuzzTestWorkerFailure,      // Test should finish with a failure.
