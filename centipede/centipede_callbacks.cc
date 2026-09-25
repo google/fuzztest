@@ -403,8 +403,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
       absl::StrCat(
           ":shmem_size_mb=", env_.shmem_size_mb,
           ":test=", EscapeEngineFlag(env_.test_name),
-          ":arg1=", EscapeEngineFlag(inputs_blobseq_.path()),
-          ":arg2=", EscapeEngineFlag(outputs_blobseq_.path()),
+          ":arg1=", EscapeEngineFlag(inputs_blobseq_->path()),
+          ":arg2=", EscapeEngineFlag(outputs_blobseq_->path()),
           ":failure_description_path=",
           EscapeEngineFlag(failure_description_path_),
           ":failure_signature_path=", EscapeEngineFlag(failure_signature_path_),
@@ -547,8 +547,8 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   batch_result.ClearAndResize(inputs.size());
 
   // Reset the blobseqs.
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written = 0;
 
@@ -558,7 +558,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
     num_inputs_written = 1;
   } else {
     // Feed the inputs to inputs_blobseq_.
-    num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
+    num_inputs_written = RequestExecution(inputs, *inputs_blobseq_);
   }
 
   if (num_inputs_written != inputs.size()) {
@@ -570,16 +570,16 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // Run.
   const auto batch_start_time = absl::Now();
   const int exit_code = RunBatchForBinary(binary);
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
   const bool batch_timed_out =
       env_.timeout_per_batch > 0 &&
       absl::Now() - batch_start_time > absl::Seconds(env_.timeout_per_batch);
 
   // Get results.
   batch_result.exit_code() = exit_code;
-  const bool read_success = batch_result.Read(outputs_blobseq_);
+  const bool read_success = batch_result.Read(*outputs_blobseq_);
   FUZZTEST_LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
 
   // We may have fewer feature blobs than inputs if
   // * some inputs were not written (i.e. num_inputs_written < inputs.size).
@@ -764,17 +764,17 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
       << "Standalone binary does not support custom mutator";
 
   auto start_time = absl::Now();
-  inputs_blobseq_.Reset();
-  outputs_blobseq_.Reset();
+  inputs_blobseq_->Reset();
+  outputs_blobseq_->Reset();
 
   size_t num_inputs_written =
-      RequestMutation(num_mutants, inputs, inputs_blobseq_);
+      RequestMutation(num_mutants, inputs, *inputs_blobseq_);
   FUZZTEST_LOG_IF(INFO, num_inputs_written != inputs.size())
       << VV(num_inputs_written) << VV(inputs.size());
 
   // Execute.
   const int exit_code = RunBatchForBinary(binary);
-  inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  inputs_blobseq_->ReleaseSharedMemory();  // Inputs are already consumed.
 
   if (exit_code != EXIT_SUCCESS) {
     FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: "
@@ -786,8 +786,8 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
 
   MutationResult result;
   result.exit_code() = exit_code;
-  result.Read(num_mutants, outputs_blobseq_);
-  outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  result.Read(num_mutants, *outputs_blobseq_);
+  outputs_blobseq_->ReleaseSharedMemory();  // Outputs are already consumed.
 
   FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return result;
